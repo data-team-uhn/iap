@@ -1,0 +1,128 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+{
+    "bundles":[
+        {
+            "id":"org.apache.felix:org.apache.felix.healthcheck.api:2.0.4",
+            "start-order":"5"
+        },
+        {
+            "id":"org.apache.felix:org.apache.felix.healthcheck.core:2.3.0",
+            "start-order":"5"
+        },
+        {
+            "id":"org.apache.felix:org.apache.felix.healthcheck.generalchecks:3.0.8",
+            "start-order":"5"
+        },
+        {
+            "id":"org.apache.sling:org.apache.sling.hc.api:1.0.4",
+            "start-order":"20"
+        },
+        {
+            "id":"org.apache.sling:org.apache.sling.hc.support:1.0.10",
+            "start-order":"20"
+        }
+    ],
+    "configurations":{
+        "org.apache.felix.hc.generalchecks.BundlesStartedCheck":{
+            "hc.tags":[
+                "bundles"
+            ],
+            "useCriticalForInactive": true
+        },
+        "org.apache.sling.jcr.contentloader.hc.BundleContentLoadedCheck":{
+            "hc.tags":[
+                "bundles",
+                "content-loading"
+            ]
+        },
+        "org.apache.felix.hc.generalchecks.CpuCheck":{
+            "hc.tags":[
+                "cpu",
+                "system-resources"
+            ],
+            "cpuPercentageThresholdWarn":95
+        },
+        "org.apache.felix.hc.generalchecks.DiskSpaceCheck":{
+            "hc.tags":[
+                "diskspace",
+                "system-resources"
+            ],
+            "diskPaths":[
+                "."
+            ]
+        },
+        "org.apache.felix.hc.generalchecks.FrameworkStartCheck":{
+            "hc.tags":[
+                "systemalive"
+            ],
+            "targetStartLevel:Integer":"30"
+        },
+        "org.apache.felix.hc.generalchecks.MemoryCheck":{
+            "hc.tags":[
+                "memory",
+                "system-resources"
+            ],
+            "heapUsedPercentageThresholdCritical":100,
+            "heapUsedPercentageThresholdWarn":95
+        },
+        "org.apache.felix.hc.generalchecks.ServicesCheck":{
+            "hc.tags":[
+                "systemalive"
+            ],
+            "services.list":[
+                "org.apache.sling.jcr.api.SlingRepository",
+                "org.apache.sling.engine.auth.Authenticator",
+                "org.apache.sling.api.resource.ResourceResolverFactory",
+                "org.apache.sling.api.servlets.ServletResolver",
+                "javax.script.ScriptEngineManager"
+            ]
+        },
+        "org.apache.felix.hc.generalchecks.ThreadUsageCheck":{
+            "hc.tags":[
+                "threads",
+                "cpu",
+                "system-resources"
+            ]
+        },
+        "org.apache.felix.hc.core.impl.filter.ServiceUnavailableFilter~startupandshutdown":{
+            "osgi.http.whiteboard.filter.regex":"(?!/system/).*",
+            "avoid404DuringStartup":true,
+            "service.ranking:Integer":"2147483647",
+            "includeExecutionResult":false,
+            "osgi.http.whiteboard.context.select":"(osgi.http.whiteboard.context.name=*)",
+            "tags":[
+                "systemalive"
+            ],
+            "autoDisableFilter":true,
+            "responseTextFor503":"classpath:io.uhndata.iap.startup-customization:custom_index.html"
+        },
+        "org.apache.felix.hc.core.impl.servlet.HealthCheckExecutorServlet~default":{
+            "servletPath":"/system/health",
+            "servletContextName":"org.osgi.service.http",
+            "timeout":10000
+        },
+        "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~hc-support":{
+            "user.mapping":[
+                "org.apache.sling.hc.support=[sling-readall]"
+            ]
+        },
+        "org.apache.sling.commons.scheduler.impl.SchedulerHealthCheck":{
+            "max.quartzJob.duration.acceptable":600000
+        }
+    }
+}

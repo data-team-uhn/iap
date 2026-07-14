@@ -1,0 +1,122 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+
+//-----------------------------------------------------------------------------
+//
+// A User Interface Extension Point (UIXP) defines a place in the UI that accepts extensions
+//
+//-----------------------------------------------------------------------------
+[iap:ExtensionPoint] > nt:base, sling:Resource, mix:referenceable
+
+  // Attributes
+
+  // We can use extension points in a query.
+  query
+
+  // Properties
+
+  // Hardcode the resource type.
+  - sling:resourceType (STRING) = "iap/ExtensionPoint" mandatory autocreated protected
+
+  // Hardcode the resource supertype: each UIXP is a resource.
+  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+
+  // The identifier of this UIXP, which will be referenced by UIX
+  - iap:extensionPointId (STRING) mandatory
+
+  // A more user-friendly name for this UIXP
+  - iap:extensionPointName (STRING) mandatory
+
+  // And any other properties
+  - * (undefined) multiple
+  - * (undefined)
+
+//-----------------------------------------------------------------------------
+//
+// A User Interface Extension (UIX) defines content that can be automatically placed in a UIXP
+//
+//-----------------------------------------------------------------------------
+[iap:Extension] > nt:base, sling:Resource, mix:referenceable
+
+  // Attributes
+
+  // We can use extensions in a query.
+  query
+
+  // Properties:
+
+  // Hardcode the resource type.
+  - sling:resourceType (STRING) = "iap/Extension" mandatory autocreated protected
+
+  // Hardcode the resource supertype: each extension is a resource.
+  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+
+  // The ID of the extension point targeted by this extension
+  - iap:extensionPointId (STRING) mandatory
+
+  // The URL to the script that can render this extension
+  - iap:extensionRenderURL (STRING)
+
+  // The (optional) URL that this extension is targeting, for links and views
+  - iap:targetURL (STRING)
+
+  // Whether the target URL should be matched exactly for Views
+  - iap:exactURLMatch (BOOLEAN)
+
+  // The name of the extension
+  - iap:extensionName (STRING) mandatory
+
+  // Optional icon associated with this extension
+  - iap:icon (STRING)
+
+  // The order that this should appear in the list of extensions in the extension point
+  - iap:defaultOrder (LONG) = "0" mandatory autocreated
+
+  // Whether this extension is disabled or not by default
+  - iap:defaultDisabled (BOOLEAN) = "false" mandatory autocreated
+
+  // Optional short description of the extension's content
+  - iap:hint (STRING)
+
+  // Optional data (stored in the JCR node) to be passed to the rendered component
+  - iap:data (STRING)
+
+  // And any other properties
+  - * (undefined) multiple
+  - * (undefined)
+
+//-----------------------------------------------------------------------------
+//
+// A UIXP Finder locates extension points based on their ID
+//
+//-----------------------------------------------------------------------------
+[iap:ExtensionPointFinder] > sling:Resource
+
+  // Attributes
+
+  // We can use extension points in a query.
+  query
+
+  // Properties
+
+  // Hardcode the resource type.
+  - sling:resourceType (STRING) = "iap/ExtensionPointFinder" mandatory autocreated protected
+
+  // Hardcode the resource supertype: each UIXP is a resource.
+  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
