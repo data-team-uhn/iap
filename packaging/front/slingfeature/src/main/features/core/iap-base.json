@@ -1,0 +1,44 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+{
+    "bundles":[
+        {
+            "id":"${project.groupId}:iap-startup-customization:${project.version}",
+            "start-order":"2"
+        },
+        {
+            "id":"${project.groupId}:iap-java-utils:${project.version}",
+            "start-order":"20"
+        },
+        {
+            "id":"${project.groupId}:iap-data-model-items-api:${project.version}",
+            "start-order":"21"
+        },
+        {
+            "id":"${project.groupId}:iap-data-model-links-api:${project.version}",
+            "start-order":"22"
+        },
+        {
+            "id":"${project.groupId}:iap-data-model-resources-api:${project.version}",
+            "start-order":"23"
+        },
+        {
+            "id":"${project.groupId}:iap-aggregated-frontend:${project.version}",
+            "start-order":"25"
+        }
+    ]
+}

@@ -1,0 +1,71 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+{
+    "bundles":[
+        {
+            "id":"com.composum.nodes:composum-nodes-commons:${composum.nodes.version}",
+            "start-order":"20"
+        },
+        {
+            "id":"com.composum.nodes:composum-nodes-console:${composum.nodes.version}",
+            "start-order":"20"
+        },
+        {
+            "id":"com.composum.nodes:composum-nodes-jslibs:${composum.nodes.version}",
+            "start-order":"20"
+        },
+        {
+            "id":"com.composum.nodes:composum-nodes-pckgmgr:${composum.nodes.version}",
+            "start-order":"20"
+        },
+        {
+            "id":"com.composum.nodes:composum-nodes-usermgr:${composum.nodes.version}",
+            "start-order":"20"
+        }
+    ],
+    "configurations":{
+        "org.apache.sling.jcr.base.internal.LoginAdminWhitelist.fragment~composum":{
+            "whitelist.bundles":[
+                "com.composum.nodes.commons",
+                "com.composum.nodes.pckgmgr",
+                "com.composum.nodes.usermgr"
+            ],
+            "whitelist.name":"composum"
+        },
+        "com.composum.sling.core.proxy.GenericProxyRequest~health": {
+          "tags.to.strip":[
+            "body"
+          ],
+          "name":"System Health",
+          "XSLT.chain.paths":[
+          ],
+          "tags.to.rename":[
+            "html:div"
+          ],
+          "targetUrl":"",
+          "tags.to.drop":[
+            "head",
+            "style",
+            "script",
+            "link"
+          ],
+          "referencePath":"/",
+          "enabled":true,
+          "targetPattern":"/system/health.*"
+        }
+    }
+}

@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "oak:QueryIndexDefinition",
+  "type": "property",
+  "tags": ["property"],
+  "jcr:name:propertyNames": [
+    "iap:extensionPointId"
+  ],
+  "jcr:name:declaringNodeTypes": [
+    "iap:Extension"
+  ]
+}

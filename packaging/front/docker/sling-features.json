@@ -1,0 +1,5 @@
+{
+  "": [
+    "mvn:io.uhndata.iap/iap-data-entry/{$PLATFORM_VERSION}/slingosgifeature/permissions_{$PERMISSIONS|open}"
+  ]
+}

@@ -1,0 +1,37 @@
+<!--/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */-->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="referrer" content="no-referrer">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <sly data-sly-use.config="/libs/iap/conf/Media">
+      <sly data-sly-repeat="${config.valueMap.entrySet.iterator}">
+        <meta name="${item.key}" content="${item.value}">
+      </sly>
+    </sly>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&amp;display=swap" class="next-head"/>
+    <script src="/system/sling.js"></script>
+    <sly data-sly-use.assets="/libs/iap/resources/assets">
+      <script type="module" src="/libs/iap/resources/${assets['vendor.js']}"></script>
+      <script type="module" src="/libs/iap/resources/${assets['runtime.js']}"></script>
+    </sly>
+  </head>
+  <body style='font-family:"Roboto", "Helvetica", "Arial", sans-serif;line-height:1.5em'>
