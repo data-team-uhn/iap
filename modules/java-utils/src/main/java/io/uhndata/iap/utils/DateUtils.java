@@ -35,6 +35,12 @@ import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 
+/**
+ * Various utility methods for working with dates.
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
 public final class DateUtils
 {
     /** The preferred date format, as a formatter object that can format Date/Calendar instances. */

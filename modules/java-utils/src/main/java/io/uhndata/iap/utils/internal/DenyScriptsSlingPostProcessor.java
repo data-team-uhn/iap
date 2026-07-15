@@ -36,7 +36,7 @@ import org.osgi.service.component.annotations.Component;
 public class DenyScriptsSlingPostProcessor implements SlingJakartaPostProcessor
 {
     @Override
-    public void process(SlingJakartaHttpServletRequest request, List<Modification> changes) throws Exception
+    public void process(final SlingJakartaHttpServletRequest request, final List<Modification> changes) throws Exception
     {
         if ("admin".equalsIgnoreCase(request.getRemoteUser())) {
             return;
