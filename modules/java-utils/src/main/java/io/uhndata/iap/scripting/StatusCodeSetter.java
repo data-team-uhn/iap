@@ -28,6 +28,7 @@ import org.apache.sling.scripting.sightly.pojo.Use;
  * A HTL Use-API that can set the response status code. This is needed because HTL cannot call methods that require
  * parameters, only simple getter-like methods. To use this API, simply place the following code in a HTL file,
  * replacing with the needed status code method:
+ *
  * <p>
  * <code>
  * &lt;sly data-sly-use.statusCode="io.uhndata.iap.scripting.StatusCodeSetter"&gt;${statusCode.created}&lt;/sly&gt;
@@ -41,7 +42,7 @@ public class StatusCodeSetter implements Use
     private SlingJakartaHttpServletResponse response;
 
     @Override
-    public void init(Bindings bindings)
+    public void init(final Bindings bindings)
     {
         this.response = (SlingJakartaHttpServletResponse) bindings.get("jakartaResponse");
     }

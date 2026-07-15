@@ -25,6 +25,7 @@ import org.apache.sling.scripting.sightly.pojo.Use;
 /**
  * A HTL Use-API that can set the content type of the response. This is needed because HTL cannot call methods that
  * require parameters, only simple getter-like methods. To use this API, simply place the following code in a HTL file:
+ *
  * <p>
  * <code>
  * &lt;sly data-sly-use.contentType="io.uhndata.iap.scripting.ContentTypeSetter"&gt;${contentType.html}&lt;/sly&gt;
@@ -38,7 +39,7 @@ public class ContentTypeSetter implements Use
     private SlingJakartaHttpServletResponse response;
 
     @Override
-    public void init(Bindings bindings)
+    public void init(final Bindings bindings)
     {
         this.response = (SlingJakartaHttpServletResponse) bindings.get("jakartaResponse");
     }
