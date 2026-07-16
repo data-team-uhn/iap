@@ -16,10 +16,7 @@
  * limitations under the License.
  */
 
-// Escape a string to be safely usable inside a JQL string literal, as in
-// query += " where n.property = '" + escapeJQL(userInput) + "'";
-//
-// @return an escaped string, with any non-string input also converted to a string
-export function escapeJQL(input) {
-  return new String(input).replace(/'/g, "''");
-}
+// Registers the jest-dom matchers (toBeInTheDocument, toHaveAttribute, ...) on
+// Vitest's `expect`. @testing-library/react auto-cleans the DOM between tests
+// when Vitest globals are enabled, so no explicit afterEach cleanup is needed.
+import "@testing-library/jest-dom/vitest";
