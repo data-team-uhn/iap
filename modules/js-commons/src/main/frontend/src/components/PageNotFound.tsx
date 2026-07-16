@@ -18,7 +18,7 @@
 
 import { useEffect, useState } from 'react';
 
-import ErrorPage from './ErrorPage.jsx';
+import ErrorPage from './ErrorPage';
 
 export default function PageNotFound() {
   const [redirectURL, setRedirectURL] = useState("/content.html/Questionnaires/User");

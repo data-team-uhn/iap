@@ -16,27 +16,27 @@
  * limitations under the License.
  */
 
-const ASSET_PREFIX="asset:";
+const ASSET_PREFIX = "asset:";
 
 // The assets map, from simple asset name to the contenthashed real path
-let assetsJson = null;
+let assetsJson: Record<string, string> | null = null;
 // If there is an ongoing request for the assets JSON, cache it to only have one request sent
-let assetsJsonRequest = null;
+let assetsJsonRequest: Promise<Record<string, string> | void> | null = null;
 // The assets dependencies map, from an asset name to an array of other asset names it depends on
-let assetDependenciesJson = null;
+let assetDependenciesJson: Record<string, string[]> | null = null;
 // If there is an ongoing request for the asset dependencies JSON, cache it to only have one request sent
-let assetDependenciesJsonRequest = null;
+let assetDependenciesJsonRequest: Promise<Record<string, string[]> | void> | null = null;
 // A cache, mapping between asset URLs to modules loaded from the sources
-let modules = {};
+const modules: Record<string, unknown> = {};
 // A cache, mapping between asset URLs to React components loaded from the sources
-let assets = {};
+const assets: Record<string, unknown> = {};
 
 // Retrieves the JSON containing the mapping between a simple asset name and its actual node name, including a content hash.
 // This is an asynchronous function, it will return a Promise that resolves to the actual JSON.
 // At the moment, the JSON is only fetched once and reused, but this may change if live code update will be incorporated.
 //
 // @return a Promise that will resolve to the actual asset mapping JSON
-var getAssetsJson = async function() {
+const getAssetsJson = async function(): Promise<Record<string, string> | void> {
   if (!assetsJson) {
     if (!assetsJsonRequest) {
       assetsJsonRequest = fetch("/libs/iap/resources/assets.json")
@@ -55,7 +55,7 @@ var getAssetsJson = async function() {
 // At the moment, the JSON is only fetched once and reused, but this may change if live code update will be incorporated.
 //
 // @return a Promise that will resolve to the actual asset dependencies JSON
-var getAssetDependenciesJson = async function() {
+const getAssetDependenciesJson = async function(): Promise<Record<string, string[]> | void> {
   if (!assetDependenciesJson) {
     if (!assetDependenciesJsonRequest) {
       assetDependenciesJsonRequest = fetch("/libs/iap/resources/assetDependencies.json")
@@ -76,7 +76,7 @@ var getAssetDependenciesJson = async function() {
 //
 // @param {string} assetURL the asset to resolve, may be an actual asset name, or a special `asset:`-prefixed string followed by the asset name
 // @return a string, the asset name
-var getAssetName = function(assetURL) {
+const getAssetName = function(assetURL: string): string {
   let assetName = assetURL;
   if (assetName.startsWith(ASSET_PREFIX)) {
     assetName = assetName.slice(ASSET_PREFIX.length);
@@ -94,15 +94,15 @@ var getAssetName = function(assetURL) {
 //
 // @param {string} assetURL the asset to resolve, may be an actual URL, or a special `asset:`-prefixed string followed by the asset name
 // @return a Promise that will resolve to the actual URL to use
-var getAssetURL = async function(assetURL) {
+const getAssetURL = async function(assetURL: string): Promise<string> {
   if (!assetURL.startsWith(ASSET_PREFIX)) {
     return assetURL;
   }
 
-  var assetName = getAssetName(assetURL);
+  const assetName = getAssetName(assetURL);
   return getAssetsJson()
     .then(json => {
-      if (!json[assetName]) {
+      if (!json || !json[assetName]) {
         console.error(`Unknown asset ${assetURL}`);
         return "";
       }
@@ -117,8 +117,8 @@ var getAssetURL = async function(assetURL) {
 //
 // @param {string} assetURL the asset to check, as a resource name like "iap-dataentry.Subjects.js"
 // @return a Promise that will resolve to the actual list of dependencies, or an empty array if there are no dependencies
-var getAssetDependencies = async function(assetURL) {
-  var assetName = getAssetName(assetURL);
+const getAssetDependencies = async function(assetURL: string): Promise<string[]> {
+  const assetName = getAssetName(assetURL);
   return getAssetDependenciesJson()
     .then(json => json?.[assetName] || []);
 }
@@ -127,7 +127,7 @@ var getAssetDependencies = async function(assetURL) {
 //
 // @param {string} assetURL the URL to extract the parameters from, potentially prefixed with ASSET_PREFIX
 // @return a URLSearchParams object containing the parameters from the input, or an empty URLSearchParams if the original URL didn't have any query parameters
-var getURLParameters = (assetURL) => {
+const getURLParameters = (assetURL: string): URLSearchParams => {
   if (!assetURL || !assetURL.includes("?")) {
     return new URLSearchParams();
   }
@@ -140,8 +140,8 @@ var getURLParameters = (assetURL) => {
 //
 // @param {string} assetURL the asset to load, may be an actual URL, or a special `asset:`-prefixed string followed by the asset name
 // @return a Promise that will resolve to the actual module
-var loadModule = async function(assetURL) {
-  let realURL = await getAssetURL(assetURL);
+const loadModule = async function(assetURL: string): Promise<unknown> {
+  const realURL = await getAssetURL(assetURL);
   // If the URL is empty, return
   if (realURL === "") {
     return null;
@@ -155,7 +155,7 @@ var loadModule = async function(assetURL) {
 //
 // @param {string} assetURL the asset to load, may be an actual URL, or a special `asset:`-prefixed string followed by the asset name
 // @return a Promise that will resolve to the actual component
-var loadAsset = async function(assetURL) {
+const loadAsset = async function(assetURL: string): Promise<unknown> {
   if (process.env.NODE_ENV == 'production') {
     if (assetURL == 'asset:iap-login.ReLoginDialog.js') {
       // In production mode, this is already embedded in the top level script and does not need to be loaded
@@ -163,7 +163,7 @@ var loadAsset = async function(assetURL) {
     }
   }
   if (!assets[assetURL]) {
-    let dependencies = await getAssetDependencies(assetURL);
+    const dependencies = await getAssetDependencies(assetURL);
     await Promise.all(dependencies.map(dependency => loadAsset(dependency)));
     return loadModule(assetURL)
       .then(module => {
@@ -171,8 +171,9 @@ var loadAsset = async function(assetURL) {
           console.error(`Failed to load module ${assetURL}`);
           return null;
         }
-        let parameters = getURLParameters(assetURL);
-        return assets[assetURL] = parameters.has("component") ? module[parameters.get("component")] : module.default;
+        const parameters = getURLParameters(assetURL);
+        const loaded = module as Record<string, unknown>;
+        return assets[assetURL] = parameters.has("component") ? loaded[parameters.get("component") as string] : loaded.default;
       });
   }
 

@@ -16,18 +16,19 @@
  * limitations under the License.
  */
 
+import { forwardRef, type ReactNode } from "react";
+
 import CloseIcon from '@mui/icons-material/Close';
-import {
-  Dialog,
-  DialogTitle,
-  IconButton,
-  useMediaQuery
-} from "@mui/material";
+import { Dialog, DialogTitle, IconButton, useMediaQuery, type Breakpoint, type DialogProps } from "@mui/material";
 import { useTheme } from '@mui/material/styles';
-import PropTypes from "prop-types";
 import { makeStyles } from 'tss-react/mui';
 
-import { checkPropTypes } from "../propTypes";
+type ResponsiveDialogProps = Omit<DialogProps, "title" | "onClose" | "maxWidth"> & {
+  title?: ReactNode;
+  width?: Breakpoint;
+  withCloseButton?: boolean;
+  onClose?: (event: object) => void;
+};
 
 // Component that renders the Dialog containers that expand to full screen once
 // the screen becomes more narrow than the specified width
@@ -70,8 +71,7 @@ const useStyles = makeStyles()(theme => ({
   },
 }));
 
-const ResponsiveDialog = (props, ref) => {
-  checkPropTypes(ResponsiveDialog, props);
+const ResponsiveDialog = forwardRef<HTMLDivElement, ResponsiveDialogProps>((props, ref) => {
   const {
     title,
     width = "sm",
@@ -87,16 +87,16 @@ const ResponsiveDialog = (props, ref) => {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down(width));
 
-  let closeButton = withCloseButton ?
+  const closeButton = withCloseButton ?
     <IconButton aria-label="close" className={classes.closeButton} onClick={onClose} size="large">
       <CloseIcon />
     </IconButton>
     : null;
 
-  let classNames = [];
-  if (className) classNames.push(className);
-  if (withCloseButton) classNames.push(classes.withCloseButton);
-  classNames = classNames.length ? classNames.join(' ') : undefined;
+  const classNamesList: string[] = [];
+  if (className) classNamesList.push(className);
+  if (withCloseButton) classNamesList.push(classes.withCloseButton);
+  const classNames = classNamesList.length ? classNamesList.join(' ') : undefined;
 
   return (
     <Dialog
@@ -107,7 +107,7 @@ const ResponsiveDialog = (props, ref) => {
       fullScreen={fullScreen}
       onClose={(event, reason) => {
         if (reason !== 'backdropClick') {
-          onClose(event);
+          onClose?.(event);
         }
       }}
       {...rest}
@@ -116,18 +116,7 @@ const ResponsiveDialog = (props, ref) => {
       { children }
     </Dialog>
   );
-};
+});
 ResponsiveDialog.displayName = 'ResponsiveDialog';
-
-ResponsiveDialog.propTypes = {
-  title: PropTypes.string,
-  width: PropTypes.oneOf(["xs", "sm", "md", "lg", "xl"]),
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node
-  ]),
-  withCloseButton: PropTypes.bool,
-  onClose: PropTypes.func,
-}
 
 export default ResponsiveDialog;

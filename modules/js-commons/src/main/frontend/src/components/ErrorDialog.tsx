@@ -16,17 +16,16 @@
  * limitations under the License.
  */
 
+import type { ReactNode } from "react";
+
 import CloseIcon from '@mui/icons-material/Close';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  IconButton,
-} from "@mui/material";
-import PropTypes from "prop-types";
+import { Dialog, DialogTitle, DialogContent, IconButton, type DialogProps } from "@mui/material";
 import { makeStyles } from 'tss-react/mui';
 
-import { checkPropTypes } from "../propTypes";
+type ErrorDialogProps = Omit<DialogProps, "title" | "onClose"> & {
+  title?: ReactNode;
+  onClose?: (event: object) => void;
+};
 
 const useStyles = makeStyles()(theme => ({
   titleBar: {
@@ -56,8 +55,7 @@ const useStyles = makeStyles()(theme => ({
 //    Saving failed due to an unknown error.
 // </ErrorDialog>
 //
-const ErrorDialog = (props) => {
-  checkPropTypes(ErrorDialog, props);
+const ErrorDialog = (props: ErrorDialogProps) => {
   const {
     title = "Error",
     children,
@@ -82,17 +80,6 @@ const ErrorDialog = (props) => {
       </DialogContent>
     </Dialog>
   );
-}
-
-ErrorDialog.propTypes = {
-  title: PropTypes.string,
-  maxWidth: PropTypes.oneOf(["xs", "sm", "md", "lg", "xl"]),
-  fullWidth: PropTypes.bool,
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node
-  ]),
-  onClose: PropTypes.func,
 }
 
 export default ErrorDialog;

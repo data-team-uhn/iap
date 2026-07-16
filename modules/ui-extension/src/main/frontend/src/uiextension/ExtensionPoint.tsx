@@ -16,13 +16,16 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
-
-import PropTypes from "prop-types";
-
-import { checkPropTypes } from "../propTypes";
+import { useState, type ReactNode } from "react";
 
 const UIXP_FINDER_URL = "/uixp";
+
+type ExtensionPointProps = {
+  // Extension Point ID (e.g. iap/coreUI/sidebar/entry).
+  path: string;
+  // Called with the parsed JSON when the extension resolves to a JSON object.
+  callback?: (json: unknown) => void;
+};
 
 // Component that allows the user to insert an extension from the given URL.
 //
@@ -35,14 +38,13 @@ const UIXP_FINDER_URL = "/uixp";
 // <ExtensionPoint
 //    path="/testRig.js"
 //    />
-function ExtensionPoint(props) {
-  checkPropTypes(ExtensionPoint, props);
+function ExtensionPoint(props: ExtensionPointProps) {
   const { path, callback } = props;
-  const [ renderedResponse, setRenderedResponse ] = useState(null);
+  const [ renderedResponse, setRenderedResponse ] = useState<ReactNode>(null);
   const [ initialized, setInitialized ] = useState(false);
 
   // Fetch the extension, called once on load
-  let fetchExtension = (url) => {
+  const fetchExtension = (url: string) => {
     setInitialized(true);
 
     // From the extension point path, locate the URL of the ExtensionPoint
@@ -54,7 +56,7 @@ function ExtensionPoint(props) {
   }
 
   // Parse the UIXP URL from our UIXP Finder
-  let grabUIXP = (response) => {
+  const grabUIXP = (response: Response) => {
     if (!response.ok) {
       return Promise.reject(`Finding ExtensionPoint ${path} failed with response ${response.status}`);
     }
@@ -66,13 +68,13 @@ function ExtensionPoint(props) {
   }
 
   // Parse the content from the given Response object
-  let handleResponse = (response) => {
+  const handleResponse = (response: Response) => {
     if (!response.ok) {
       return Promise.reject(`Fetching ExtensionPoint ${path} failed with response ${response.status}`);
     }
 
     // Check the headers to determine how to handle this respnse
-    let contentType = response.headers.get('Content-Type');
+    let contentType = response.headers.get('Content-Type') as string;
 
     // Truncate the ';charset=utf-8'
     const sepPos = contentType.indexOf(";");
@@ -107,7 +109,7 @@ function ExtensionPoint(props) {
     }
   }
 
-  let handleError = (error) => {
+  const handleError = (error: unknown) => {
     console.error(error);
   }
 
@@ -118,10 +120,5 @@ function ExtensionPoint(props) {
 
   return renderedResponse;
 }
-
-ExtensionPoint.propTypes = {
-  path: PropTypes.string.isRequired,
-  callback: PropTypes.func
-};
 
 export default ExtensionPoint;

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 
 import EmojiObjectsIcon from "@mui/icons-material/EmojiObjects";
 import WarningIcon from "@mui/icons-material/Warning";
@@ -31,10 +31,21 @@ import {
   Fade,
   Popper,
 } from "@mui/material";
-import PropTypes from "prop-types";
 import { makeStyles } from 'tss-react/mui';
 
-import { checkPropTypes } from "../propTypes";
+type UserInputAssistantVariant = 'hint' | 'hint-secondary' | 'success' | 'info' | 'warning' | 'error';
+
+type UserInputAssistantProps = {
+  anchorEl?: HTMLElement | null;
+  title: string;
+  variant?: UserInputAssistantVariant;
+  children?: ReactNode;
+  actionLabel?: string;
+  onAction?: () => void;
+  onIgnore?: () => void;
+  onClickAway?: (event: MouseEvent | TouchEvent) => void;
+};
+
 const useStyles = makeStyles()(theme => ({
   userInputAssistant: {
     "& .MuiCard-root" : {
@@ -150,8 +161,7 @@ const useStyles = makeStyles()(theme => ({
 //</UserInputAssistant>
 //
 
-function UserInputAssistant (props) {
-  checkPropTypes(UserInputAssistant, props);
+function UserInputAssistant(props: UserInputAssistantProps) {
   const {
     anchorEl,
     variant = 'hint',
@@ -163,11 +173,11 @@ function UserInputAssistant (props) {
     onClickAway
   } = props;
 
-  let [ enabled, setEnabled ] = useState(true);
+  const [ enabled, setEnabled ] = useState(true);
 
   const { classes } = useStyles();
 
-  let [ placement, setPlacement ] = useState("right");
+  const [ placement, setPlacement ] = useState<"right" | "bottom">("right");
 
   useEffect(() => {
     function handleResize() {
@@ -181,7 +191,7 @@ function UserInputAssistant (props) {
   }, []);
 
   return (enabled ?
-    <ClickAwayListener onClickAway={onClickAway}>
+    <ClickAwayListener onClickAway={onClickAway ?? (() => {})}>
       <Popper
         className={classes.userInputAssistant}
         open={!!anchorEl}
@@ -228,14 +238,5 @@ function UserInputAssistant (props) {
     </ClickAwayListener>
     : null);
 }
-UserInputAssistant.propTypes = {
-  anchorEl: PropTypes.object,
-  title: PropTypes.string.isRequired,
-  variant: PropTypes.oneOf(['hint', 'hint-secondary', 'success', 'info', 'warning', 'error']),
-  actionLabel: PropTypes.string,
-  onAction: PropTypes.func,
-  onIgnore: PropTypes.func,
-  onClickAway: PropTypes.func,
-};
 
 export default UserInputAssistant;
