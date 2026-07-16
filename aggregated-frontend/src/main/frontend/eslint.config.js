@@ -17,160 +17,148 @@
  */
 
 import js from "@eslint/js";
+import stylistic from "@stylistic/eslint-plugin";
 import { defineConfig } from "eslint/config";
-import tsParser from "@typescript-eslint/parser";
-import tsPlugin from "@typescript-eslint/eslint-plugin";
-import react from "eslint-plugin-react";
-import reactHooks from "eslint-plugin-react-hooks";
 import importPlugin from "eslint-plugin-import";
 import jsxA11y from "eslint-plugin-jsx-a11y";
-import globals from "globals";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
 import unusedImports from "eslint-plugin-unused-imports";
-import stylistic from "@stylistic/eslint-plugin";
-
-// For ESLint rules specs see  https://eslint.org/docs/latest/rules/
-
-// for compiler to avoid build error for globals having heading or trailing whitespace
-const cleanGlobals = Object.fromEntries(
-  Object.entries({ ...globals.browser, ...globals.es2021 }).map(
-    ([key, value]) => [key.trim(), value]
-  )
-);
-
-// --- Shared parts defined here for maximum clarity and DRYness (Don’t Repeat Yourself) ---
-
-const commonGlobals = {
-  ...cleanGlobals,
-  process: "readonly",
-  module: "readonly"
-};
-
-const commonPlugins = {
-  react,
-  "react-hooks": reactHooks,
-  "unused-imports": unusedImports,
-  import: importPlugin,
-  "@stylistic": stylistic,
-  "jsx-a11y": jsxA11y,
-};
-
-const commonReactSettings = { react: { version: "detect" } };
+import tseslint from "typescript-eslint";
 
 const importOrderRule = [
   "error",
   {
-    groups: ["builtin", "external", "internal", ["parent", "sibling", "index"]],
-    pathGroups: [{ pattern: "react", group: "external", position: "before" }],
+    groups: [
+      "builtin",
+      "external",
+      "internal",
+      ["parent", "sibling", "index"],
+      "type",
+    ],
+    pathGroups: [
+      {
+        pattern: "react",
+        group: "external",
+        position: "before",
+      },
+    ],
     pathGroupsExcludedImportTypes: ["react"],
     "newlines-between": "always",
-    alphabetize: { order: "asc", caseInsensitive: true },
+    alphabetize: {
+      order: "asc",
+      caseInsensitive: true,
+    },
   },
 ];
 
-const commonRules = {
-  // extend recommended rules via spreading, custom rules below will override them
-  ...js.configs.recommended.rules,
-  ...jsxA11y.configs.recommended.rules,
-  ...react.configs.recommended.rules,
-  ...reactHooks.configs.flat.recommended.rules,
-
-  "import/order": importOrderRule,
-
-  // React rules
-  "react/jsx-uses-react": "off",
-  "react/react-in-jsx-scope": "off",
-  "react/prop-types": "off",
-  "react-hooks/rules-of-hooks": "error",
-  "react-hooks/exhaustive-deps": "off",
-  "react-hooks/set-state-in-effect": "off",
-  "react-hooks/refs": "off",
-  "react-hooks/preserve-manual-memoization": "off",
-
-  // ununsed-related rules
-  "no-unused-vars": ["error", { args: "none", caughtErrors: "none" }],
-  "no-undef": "off",
-  "no-extra-boolean-cast": "off",
-  "unused-imports/no-unused-imports": "error",
-  "react/no-unused-prop-types": "error",
-
-  // whitespace rules
-  "@stylistic/indent": ["error", 2, { SwitchCase: 1 }],
-  "no-tabs": "error",
-  "no-mixed-spaces-and-tabs": ["error", "smart-tabs"],
-  "linebreak-style": "off",
-  "object-curly-spacing": ["error", "always"],
-  "@stylistic/no-trailing-spaces": "error",
-  "@stylistic/eol-last": ["error", "always"],
-
-  // complexity rules
-  "max-nested-callbacks": ["error", 3],
-
-  // codestyle rules
-  "@stylistic/max-len": ["error", { code: 120, ignoreUrls: true, ignoreStrings: true, ignoreComments: true, ignoreTemplateLiterals: true }],
-  "@stylistic/no-extra-semi": "error",
-
-  "jsx-a11y/no-autofocus": "off",
-};
-
-const commonLinterOptions = {
-  reportUnusedInlineConfigs: "error",
-};
-
-const commonParserOptions = {
-  ecmaVersion: "latest",
-  sourceType: "module",
-  ecmaFeatures: { jsx: true },
-};
-
-const commonConfigs = {
-  settings: commonReactSettings,
-  rules: commonRules,
-  linterOptions: commonLinterOptions,
-};
-
-// --- Main config ---
-
 export default defineConfig([
-  // Ignore folders/files
   {
     ignores: [
+      "coverage/**",
       "dist/**",
-      "node/**",
       "node_modules/**",
-      "webpack.config.js",
-      "webpack.config-template.js",
-      "src/pedigree/**",
     ],
   },
 
-  // JS / JSX
   {
-    files: ["src/**/*.{js,jsx}"],
-    languageOptions: {
-      parserOptions: commonParserOptions,
-      globals: commonGlobals,
-    },
-    plugins: {
-      ...commonPlugins,
-    },
-    ...commonConfigs,
-  },
+    files: ["**/*.{ts,tsx}"],
 
-  // TS / TSX
-  {
-    files: ["src/**/*.{ts,tsx}"],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.strictTypeChecked,
+      tseslint.configs.stylisticTypeChecked,
+      react.configs.flat.recommended,
+      react.configs.flat["jsx-runtime"],
+      reactHooks.configs.flat.recommended,
+      jsxA11y.flatConfigs.recommended,
+    ],
+
     languageOptions: {
-      parser: tsParser,
       parserOptions: {
-        ...commonParserOptions,
-        project: "./tsconfig.json",
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
       },
-      globals: commonGlobals,
     },
+
     plugins: {
-      ...commonPlugins,
-    "@typescript-eslint": tsPlugin,
+      "@stylistic": stylistic,
+      import: importPlugin,
+      "unused-imports": unusedImports,
     },
-    ...commonConfigs,
+
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+
+    linterOptions: {
+      reportUnusedInlineConfigs: "error",
+    },
+
+    rules: {
+      // TypeScript provides prop validation.
+      "react/prop-types": "off",
+
+      // Keep imports and type-only imports consistent.
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        {
+          prefer: "type-imports",
+          fixStyle: "inline-type-imports",
+        },
+      ],
+      "@typescript-eslint/consistent-type-exports": [
+        "error",
+        {
+          fixMixedExportsWithInlineTypeSpecifier: true,
+        },
+      ],
+      "@typescript-eslint/switch-exhaustiveness-check": "error",
+
+      // Avoid duplicate reports and automatically remove unused imports.
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "unused-imports/no-unused-imports": "error",
+      "unused-imports/no-unused-vars": [
+        "error",
+        {
+          vars: "all",
+          varsIgnorePattern: "^_",
+          args: "after-used",
+          argsIgnorePattern: "^_",
+          caughtErrors: "all",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+
+      // Import organization.
+      "import/order": importOrderRule,
+
+      // Complexity.
+      "max-nested-callbacks": ["error", 3],
+
+      // Formatting.
+      "@stylistic/indent": ["error", 2, { SwitchCase: 1 }],
+      "@stylistic/max-len": [
+        "error",
+        {
+          code: 120,
+          ignoreUrls: true,
+          ignoreStrings: true,
+          ignoreComments: true,
+          ignoreTemplateLiterals: true,
+        },
+      ],
+      "@stylistic/no-extra-semi": "error",
+      "@stylistic/no-mixed-spaces-and-tabs": ["error", "smart-tabs"],
+      "@stylistic/no-tabs": "error",
+      "@stylistic/no-trailing-spaces": "error",
+      "@stylistic/object-curly-spacing": ["error", "always"],
+      "@stylistic/eol-last": ["error", "always"],
+      "@stylistic/linebreak-style": "off",
+    },
   },
 ]);
