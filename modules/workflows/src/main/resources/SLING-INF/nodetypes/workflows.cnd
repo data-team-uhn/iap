@@ -18,6 +18,7 @@
 //
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
 <wf = 'https://wf.uhndata.io/'>
 
 //-----------------------------------------------------------------------------
@@ -28,18 +29,18 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /Workflows root path.
-[wf:WorkflowsHomepage] > sling:Folder
-  - sling:resourceType (STRING) = "iap/WorkflowsHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+[wf:WorkflowsHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "wf/WorkflowsHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
 
   // Contains workflow definitions
   + * (wf:WorkflowDefinition) = wf:WorkflowDefinition
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /WorkflowTypes root path.
-[wf:WorkflowTypesHomepage] > sling:Folder
-  - sling:resourceType (STRING) = "iap/WorkflowsTypesHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+[wf:WorkflowTypesHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "wf/WorkflowsTypesHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
 
   // Contains event and activity type definitions
   + * (wf:FlowNodeType) = wf:FlowNodeType
@@ -52,9 +53,8 @@
 
 //-----------------------------------------------------------------------------
 // The top-level template describing a workflow process.
-[wf:WorkflowDefinition] > iap:Resource
-  - sling:resourceType (STRING) = "iap/WorkflowDefinition" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+[wf:WorkflowDefinition] > iap:Entity
+  - sling:resourceType (STRING) = "wf/WorkflowDefinition" mandatory autocreated protected
 
   // Human-readable name for this workflow
   - title (STRING) mandatory
@@ -70,7 +70,8 @@
 
 //-----------------------------------------------------------------------------
 // A particular version of a workflow process.
-[wf:WorkflowVersion] > iap:Resource
+[wf:WorkflowVersion] > iap:Entity
+  - sling:resourceType (STRING) = "wf/WorkflowVersion" mandatory autocreated protected
 
   // Optional description of what this workflow does
   - description (STRING)
@@ -93,7 +94,7 @@
 
 //-----------------------------------------------------------------------------
 // Abstract base for all BPMN flow objects (events, activities, gateways).
-[wf:FlowNode] > iap:Resource
+[wf:FlowNode] > iap:EntityPart
   abstract
 
   // Stable BPMN element identifier, e.g. "task_1"
@@ -170,7 +171,7 @@
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
 // Stored as a child node of the source flow node.
-[wf:SequenceFlow] > iap:Item
+[wf:SequenceFlow] > iap:EntityPart
   // Stable BPMN element identifier
   - elementId (STRING) mandatory
 
@@ -196,7 +197,7 @@
 // Abstract nodetype that can be extended by any nodetype to attach workflow
 // instances to it.
 [wf:WorkflowAttachable]
-  abstract
+  mixin
 
   // The workflow instances attached to this node
   - workflowInstances (REFERENCE) multiple
@@ -209,9 +210,8 @@
 
 //-----------------------------------------------------------------------------
 // A running or completed execution of a workflow definition.
-[wf:WorkflowInstance] > iap:Resource
+[wf:WorkflowInstance] > iap:Entity
   - sling:resourceType (STRING) = "iap/WorkflowInstance" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
 
   // The definition this instance was created from
   - workflowVersion (REFERENCE) mandatory
@@ -227,7 +227,7 @@
 
 //-----------------------------------------------------------------------------
 // Tracks a single execution branch's current position in a workflow instance.
-[wf:WorkflowToken] > iap:Item
+[wf:WorkflowToken] > iap:EntityPart
   // elementId of the flow node currently occupied by this token
   - currentNodeId (STRING) mandatory
 
@@ -236,9 +236,8 @@
 
 //-----------------------------------------------------------------------------
 // A running instance of a user task within a workflow instance.
-[wf:TaskInstance] > iap:Resource
+[wf:TaskInstance] > iap:Entity
   - sling:resourceType (STRING) = "iap/TaskInstance" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
 
   // elementId of the source wf:UserTask definition
   - taskDefinitionId (STRING) mandatory
@@ -269,7 +268,7 @@
 
 //-----------------------------------------------------------------------------
 // A named variable stored within a workflow instance.
-[wf:Variable] > iap:Item
+[wf:Variable] > iap:Content
   // Variable name
   - name (STRING) mandatory
 
@@ -291,7 +290,7 @@
 
 //-----------------------------------------------------------------------------
 // A particular type of workflow node.
-[wf:FlowNodeType] > iap:Resource
+[wf:FlowNodeType] > iap:Entity
   // The name of this node type
   - name (STRING)
 
