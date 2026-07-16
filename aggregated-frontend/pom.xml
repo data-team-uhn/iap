@@ -95,6 +95,8 @@
               <excludes>
                 <exclude>**/webpack.config-template.js</exclude>
                 <exclude>**/eslint.config.js</exclude>
+                <exclude>**/vitest.config.ts</exclude>
+                <exclude>**/vitest.setup.ts</exclude>
                 <exclude>**/node/**</exclude>
                 <exclude>**/node_modules/**</exclude>
                 <exclude>**/*.py</exclude>
