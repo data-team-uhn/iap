@@ -168,10 +168,9 @@ for ((i=0; i<${ARGS_LENGTH}; ++i));
 do
   if [[ ${ARGS[$i]} == '-p' || ${ARGS[$i]} == '--port' ]]
   then
-    # The port was already extracted, skip over -p and the port number
     unset ARGS[$i]
     i=${i}+1
-    BIND_PORT=ARGS[$i]
+    BIND_PORT=${ARGS[$i]}
     unset ARGS[$i]
   elif [[ ${ARGS[$i]} == '--permissions' ]]
   then
