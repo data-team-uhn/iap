@@ -22,16 +22,16 @@ import { ThemeProvider, StyledEngineProvider } from '@mui/material/styles';
 import { createRoot } from 'react-dom/client';
 
 import ErrorPage from './ErrorPage';
-import { appTheme } from "../themePalette.jsx";
+import { appTheme } from "../themePalette";
 
-const root = createRoot(document.getElementById('main-error-container'));
+const root = createRoot(document.getElementById('main-error-container')!);
 root.render(
   <StrictMode>
     <StyledEngineProvider injectFirst>
       <ThemeProvider theme={appTheme}>
         <ErrorPage
-          errorCode={document.querySelector('meta[name="statusCode"]')?.content}
-          title={document.querySelector('meta[name="statusMessage"]')?.content}
+          errorCode={document.querySelector<HTMLMetaElement>('meta[name="statusCode"]')?.content}
+          title={document.querySelector<HTMLMetaElement>('meta[name="statusMessage"]')?.content}
           message=""
         />
       </ThemeProvider>

@@ -16,12 +16,27 @@
  * limitations under the License.
  */
 
+import type { CSSProperties, ReactNode } from 'react';
+
 import NavigationIcon from '@mui/icons-material/Navigation';
-import { Divider, Fab, Grid, Paper, Stack, Typography } from '@mui/material';
+import { Divider, Fab, Grid, Paper, Stack, Typography, type PaperProps } from '@mui/material';
 import { makeStyles } from 'tss-react/mui';
 
 import FormattedText from "./FormattedText";
 import Logo from "./Logo";
+
+type ErrorPageProps = Omit<PaperProps, "title"> & {
+  disableAppName?: boolean;
+  errorCode?: ReactNode;
+  errorCodeColor?: string;
+  title?: ReactNode;
+  titleColor?: string;
+  message?: string;
+  messageColor?: string;
+  buttonLink?: string;
+  buttonLabel?: ReactNode;
+  textAlign?: CSSProperties["textAlign"];
+};
 
 const useStyles = makeStyles()(theme => ({
   paper: {
@@ -40,7 +55,7 @@ const useStyles = makeStyles()(theme => ({
   },
 }));
 
-export default function ErrorPage(props) {
+export default function ErrorPage(props: ErrorPageProps) {
   const {
     disableAppName,
     errorCode,
@@ -51,12 +66,12 @@ export default function ErrorPage(props) {
     messageColor,
     buttonLink,
     buttonLabel,
-    textAlign="left",
+    textAlign = "left",
     ...rest
   } = props;
   const { classes } = useStyles();
 
-  const appName = !disableAppName && document.querySelector('meta[name="title"]')?.content;
+  const appName = !disableAppName && document.querySelector<HTMLMetaElement>('meta[name="title"]')?.content;
 
   return (
     <Paper className={classes.paper} elevation={0} {...rest}>
@@ -93,7 +108,7 @@ export default function ErrorPage(props) {
               <Fab
                 variant="extended"
                 color="primary"
-                onClick={() => window.location.href = buttonLink}
+                onClick={() => window.location.href = buttonLink || ""}
               >
                 <NavigationIcon className={classes.extendedIcon} />
                 {buttonLabel}

@@ -16,10 +16,20 @@
  * limitations under the License.
  */
 
-// Escape a string to be safely usable inside a JQL string literal, as in
-// query += " where n.property = '" + escapeJQL(userInput) + "'";
-//
-// @return an escaped string, with any non-string input also converted to a string
-export function escapeJQL(input) {
-  return new String(input).replace(/'/g, "''");
-}
+import { createTheme } from '@mui/material/styles';
+
+const primaryColor = document.querySelector<HTMLMetaElement>('meta[name="primaryColor"]')?.content || "#003366";
+const secondaryColor = document.querySelector<HTMLMetaElement>('meta[name="secondaryColor"]')?.content || "#f94900";
+
+const appTheme = createTheme({
+  palette: {
+    primary: {
+      main: primaryColor,
+    },
+    secondary: {
+      main: secondaryColor,
+    },
+  }
+});
+
+export { appTheme };
