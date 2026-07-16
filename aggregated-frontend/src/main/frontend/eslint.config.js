@@ -55,14 +55,18 @@ const importOrderRule = [
 export default defineConfig([
   {
     ignores: [
-      "coverage/**",
       "dist/**",
+      "node/**",
       "node_modules/**",
+      "webpack.config.js",
+      "webpack.config-template.js",
+      "vitest.config.ts",
+      "vitest.setup.ts",
     ],
   },
 
   {
-    files: ["**/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}"],
 
     extends: [
       js.configs.recommended,
@@ -100,6 +104,15 @@ export default defineConfig([
     rules: {
       // TypeScript provides prop validation.
       "react/prop-types": "off",
+
+      // React rules
+      "react-hooks/rules-of-hooks": "error",
+      // Let's see if we can survive with those rules on
+      //"react-hooks/exhaustive-deps": "off",
+      //"react-hooks/set-state-in-effect": "off",
+      //"react-hooks/refs": "off",
+      //"react-hooks/preserve-manual-memoization": "off",
+      //"jsx-a11y/no-autofocus": "off",
 
       // Keep imports and type-only imports consistent.
       "@typescript-eslint/consistent-type-imports": [
