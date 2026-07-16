@@ -1857,6 +1857,21 @@
                 <arguments>${webpackArguments}</arguments>
               </configuration>
             </execution>
+            <!-- Runs the frontend test suite (Vitest) via the `test` yarn script, which
+                 aggregates the module sources+tests and then runs Vitest. Bound to the
+                 test phase and gated on ${skipTests}, so it is skipped in quick builds
+                 and runs with -DskipTests=false -Dmaven.test.skip=false, like the Java tests. -->
+            <execution>
+              <id>yarn-test</id>
+              <goals>
+                <goal>yarn</goal>
+              </goals>
+              <phase>test</phase>
+              <configuration>
+                <arguments>test</arguments>
+                <skip>${skipTests}</skip>
+              </configuration>
+            </execution>
           </executions>
           <configuration>
             <nodeVersion>v26.0.0</nodeVersion>

@@ -16,10 +16,21 @@
  * limitations under the License.
  */
 
-// Escape a string to be safely usable inside a JQL string literal, as in
-// query += " where n.property = '" + escapeJQL(userInput) + "'";
-//
-// @return an escaped string, with any non-string input also converted to a string
-export function escapeJQL(input) {
-  return new String(input).replace(/'/g, "''");
-}
+// Authored under src/test to mirror the src/main layout (Maven convention). The
+// aggregation step merges src/main and src/test into one tree, so `./escape`
+// resolves to the copied source at run time. See CLAUDE.md.
+import { escapeJQL } from "./escape";
+
+describe("escapeJQL", () => {
+  it("doubles single quotes so the value is safe inside a JQL string literal", () => {
+    expect(escapeJQL("O'Brien")).toBe("O''Brien");
+  });
+
+  it("leaves quote-free strings unchanged", () => {
+    expect(escapeJQL("plain value")).toBe("plain value");
+  });
+
+  it("coerces non-string input to a string", () => {
+    expect(escapeJQL(42)).toBe("42");
+  });
+});
