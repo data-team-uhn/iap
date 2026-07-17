@@ -16,15 +16,10 @@
  * limitations under the License.
  */
 
-import PropTypes from 'prop-types';
-
-/**
- * A wrapper around PropTypes.checkPropTypes that provides default values for the common parameters.
- * This simplifies prop type checking by only requiring the component and props to be passed.
- *
- * @param {React.Component} Component - The React component to check props for
- * @param {Object} props - The props object to validate
- */
-export function checkPropTypes(Component, props) {
-  PropTypes.checkPropTypes(Component.propTypes, props, 'prop', Component.name);
+// Escape a string to be safely usable inside a JQL string literal, as in
+// query += " where n.property = '" + escapeJQL(userInput) + "'";
+//
+// @return an escaped string, with any non-string input also converted to a string
+export function escapeJQL(input: unknown): string {
+  return new String(input).replace(/'/g, "''");
 }

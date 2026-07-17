@@ -18,8 +18,8 @@
 
 import { loadExtensions } from './uiextension/extensionManager';
 
-let routes = null;
-let routesRequest = null;
+let routes: unknown[] | null = null;
+let routesRequest: Promise<unknown[] | void> | null = null;
 
 // Retrieves the registered "routes", React components that can display a "data view" in the main content area when the corresponding URL is opened.
 // A route must have:
@@ -31,7 +31,7 @@ let routesRequest = null;
 // This is an asynchronous function, it will return a Promise that resolves to the actual list of routes.
 //
 // @return a Promise that will resolve to the actual list of routes
-var getRoutes = async function() {
+const getRoutes = async function(): Promise<unknown[] | void> {
   if (!routes) {
     if (!routesRequest) {
       routesRequest = loadExtensions("Views")
