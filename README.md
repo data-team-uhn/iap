@@ -42,7 +42,7 @@ IAP will be available at <http://localhost:8080> once it has started. Press `Ctr
 | `--mongo` | Use a MongoDB document store for the repository instead of the default file-based (TAR/segment) store. Requires a running MongoDB instance. |
 | `--dev` | Developer mode: also load the [Composum](https://www.composum.com/) repository browser for inspecting the JCR content. |
 | `--debug` | Enable Java remote debugging (JDWP) on port `5005`. Startup **pauses until a debugger attaches** — connect with `jdb -attach 5005` (or your IDE). |
-| `--test` | Additionally load test content (the `iap-test-forms` feature). |
+| `--test` | Additionally load test content (the `iap-test-data` feature). |
 | `--permissions <MODE>` | Permissions scheme to apply when resolving project features (used together with `--project`). |
 | `-P`, `--project <name[,name2,...]>` | Launch one or more IAP *projects*. Each `<name>` resolves to the `iap4<name>` artifact and its dependency features (the `iap4` prefix is optional). |
 

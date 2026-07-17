@@ -156,7 +156,7 @@ Options:
                                  attaches - connect with `jdb -attach 5005` (or
                                  your IDE).
       --test                     Additionally load test content (the
-                                 `iap-test-forms` feature).
+                                 `iap-test-data` feature).
   -h, --help                     Show this help message and exit.
 
 Notes:
