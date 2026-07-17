@@ -32,7 +32,7 @@
   <modules>
     <module>java-utils</module>
     <module>data-model</module>
-    <module>js-commons</module>
+    <module>frontend-commons</module>
     <module>ui-extension</module>
     <module>favicon</module>
     <module>startup-customization</module>
