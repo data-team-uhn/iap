@@ -20,56 +20,73 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-packaging-front</artifactId>
+    <artifactId>iap-packaging-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-packaging-front-slingfeature</artifactId>
-  <name>IAP - Packaging - Front - Aggregated featurefile</name>
-  <packaging>slingosgifeature</packaging>
+  <artifactId>iap-packaging-docker</artifactId>
+  <packaging>pom</packaging>
+  <name>IAP docker image</name>
+  <description>The ready to use IAP distribution.</description>
 
   <build>
     <plugins>
       <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <inherited>false</inherited>
+        <executions>
+          <execution>
+            <configuration>
+              <executable>bash</executable>
+              <workingDirectory>.</workingDirectory>
+              <commandlineArgs>complete_git_copy.sh</commandlineArgs>
+            </configuration>
+            <id>complete-git-copy</id>
+            <phase>install</phase>
+            <goals>
+               <goal>exec</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.apache.sling</groupId>
         <artifactId>slingfeature-maven-plugin</artifactId>
         <configuration>
-          <aggregates>
-            <aggregate>
-              <classifier>core_tar</classifier>
-              <filesInclude>*.json</filesInclude>
-              <filesInclude>oak/*.json</filesInclude>
-              <filesInclude>oak/persistence/oak_persistence_sns.json</filesInclude>
-              <filesInclude>core/*.json</filesInclude>
-              <title>IAP With Oak Segment NS Persistence</title>
-            </aggregate>
-            <aggregate>
-              <classifier>core_mongo</classifier>
-              <filesInclude>*.json</filesInclude>
-              <filesInclude>oak/*.json</filesInclude>
-              <filesInclude>oak/persistence/oak_persistence_mongods.json</filesInclude>
-              <filesInclude>core/*.json</filesInclude>
-              <title>IAP With Oak Document NS Mongo Persistence</title>
-            </aggregate>
-          </aggregates>
-          <scans>
-            <scan>
+          <archives>
+            <archive>
+              <classifier>core_tar_far</classifier>
               <includeClassifier>core_tar</includeClassifier>
+            </archive>
+            <archive>
+              <classifier>core_mongo_far</classifier>
               <includeClassifier>core_mongo</includeClassifier>
-            </scan>
-          </scans>
+            </archive>
+          </archives>
         </configuration>
         <executions>
           <execution>
-            <id>aggregate-features</id>
+            <id>aggregate-archives</id>
             <phase>prepare-package</phase>
             <goals>
-              <goal>aggregate-features</goal>
-              <goal>analyse-features</goal>
-              <goal>attach-features</goal>
+              <goal>attach-featurearchives</goal>
             </goals>
           </execution>
          </executions>
+      </plugin>
+      <plugin>
+        <groupId>io.fabric8</groupId>
+        <artifactId>docker-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>build</id>
+            <phase>install</phase>
+            <goals>
+              <goal>build</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
