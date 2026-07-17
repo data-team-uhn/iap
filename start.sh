@@ -130,6 +130,53 @@ function get_iap_version() {
   echo PLATFORM_VERSION $PLATFORM_VERSION
 }
 
+function print_help() {
+  cat <<'EOF'
+Usage: ./start.sh [OPTIONS] [-- LAUNCHER_ARGS]
+
+Starts IAP via the Apache Sling feature launcher.
+
+Options:
+  -p, --port <port>              Port for IAP to bind to (default: 8080).
+      --permissions <value>      Permissions scheme to apply when resolving
+                                 project features (used together with
+                                 `--project`).
+  -P, --project <project[,...]>  Launch one or more IAP *projects*. Each `<name>`
+                                 resolves to the `iap4<name>` artifact and its
+                                 dependency features (the `iap4` prefix is
+                                 optional).
+      --mongo                    Use a MongoDB document store for the repository
+                                 instead of the default file-based (TAR/segment)
+                                 store. Requires a running MongoDB instance.
+      --dev                      Developer mode: also load the Composum
+                                 (https://www.composum.com/) repository browser
+                                 for inspecting the JCR content.
+      --debug                    Enable Java remote debugging (JDWP) on port
+                                 `5005`. Startup pauses until a debugger
+                                 attaches - connect with `jdb -attach 5005` (or
+                                 your IDE).
+      --test                     Additionally load test content (the
+                                 `iap-test-data` feature).
+  -h, --help                     Show this help message and exit.
+
+Notes:
+  - Any argument not listed above is passed through to the Sling feature
+    launcher. For the arguments it accepts, see the Apache Sling Feature
+    Launcher documentation:
+    https://github.com/apache/sling-org-apache-sling-feature-launcher
+EOF
+}
+
+#Show help and exit before doing any startup work
+for arg in "$@"
+do
+  if [[ $arg == '-h' || $arg == '--help' ]]
+  then
+    print_help
+    exit 0
+  fi
+done
+
 #Determine the port that IAP is to bind to
 BIND_PORT=8080
 
