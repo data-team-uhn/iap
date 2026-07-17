@@ -235,7 +235,7 @@ do
     unset ARGS[$i]
     ARGS[$ARGS_LENGTH]=-f
     ARGS_LENGTH=${ARGS_LENGTH}+1
-    ARGS[$ARGS_LENGTH]=mvn:io.uhndata.iap/iap-packaging-front-slingfeature/${PLATFORM_VERSION}/slingosgifeature/composum
+    ARGS[$ARGS_LENGTH]=mvn:io.uhndata.iap/iap-packaging-slingfeature/${PLATFORM_VERSION}/slingosgifeature/composum
     ARGS_LENGTH=${ARGS_LENGTH}+1
   elif [[ ${ARGS[$i]} == '--debug' ]]
   then
@@ -299,7 +299,7 @@ ERROR_LOG_LAST_MODIFIED_TIME_ORIGIN=$(get_error_log_last_modified)
 export JAVA_OPTS="${JAVA_DEBUGGING_FLAGS} -Djdk.xml.entityExpansionLimit=0 -Dorg.osgi.service.http.port=${BIND_PORT}"
 
 #Start IAP in the background
-./packaging/target/dependency/org.apache.sling.feature.launcher/bin/launcher -u "file://$(realpath .mvnrepo),file://$(realpath "${HOME}/.m2/repository"),https://repo.maven.apache.org/maven2" -p .iap-data -c .iap-data/cache -f mvn:io.uhndata.iap/iap-packaging-front-slingfeature/${PLATFORM_VERSION}/slingosgifeature/core_${OAK_STORAGE} "${ARGS[@]}" &
+./packaging/target/dependency/org.apache.sling.feature.launcher/bin/launcher -u "file://$(realpath .mvnrepo),file://$(realpath "${HOME}/.m2/repository"),https://repo.maven.apache.org/maven2" -p .iap-data -c .iap-data/cache -f mvn:io.uhndata.iap/iap-packaging-slingfeature/${PLATFORM_VERSION}/slingosgifeature/core_${OAK_STORAGE} "${ARGS[@]}" &
 IAP_PID=$!
 
 if [ ! -z "$JAVA_DEBUGGING_FLAGS" ]
