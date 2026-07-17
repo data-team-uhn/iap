@@ -16,14 +16,15 @@
  * limitations under the License.
  */
 
-import { Typography } from "@mui/material";
+import { Typography, type TypographyProps } from "@mui/material";
 import MDEditor from '@uiw/react-md-editor';
-import PropTypes from 'prop-types';
 import { makeStyles } from 'tss-react/mui';
 
-import { checkPropTypes } from "../propTypes";
+type FormattedTextProps = Omit<TypographyProps, "children"> & {
+  children?: string;
+};
 
-const useStyles = makeStyles()(theme => ({
+const useStyles = makeStyles()(() => ({
   markdown: {
     "&.wmde-markdown" : {
       background: "transparent",
@@ -40,9 +41,7 @@ const useStyles = makeStyles()(theme => ({
   }
 }));
 
-let FormattedText = (props) => {
-  checkPropTypes(FormattedText, props);
-  let { children, ...typographyProps } = props;
+const FormattedText = ({ children, ...typographyProps }: FormattedTextProps) => {
   const { classes } = useStyles();
 
   return (
@@ -51,9 +50,5 @@ let FormattedText = (props) => {
     </Typography>
   );
 }
-
-FormattedText.propTypes = {
-  children: PropTypes.string
-};
 
 export default FormattedText;

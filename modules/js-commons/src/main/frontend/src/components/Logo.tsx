@@ -16,11 +16,20 @@
  * limitations under the License.
  */
 
+import type { CSSProperties, ElementType } from 'react';
+
 import { Box } from '@mui/material';
-import PropTypes from 'prop-types';
 import { makeStyles } from 'tss-react/mui';
 
-import { checkPropTypes } from "../propTypes";
+type LogoProps = {
+  component?: ElementType;
+  mode?: "Light" | "Dark";
+  className?: string;
+  maxWidth?: string;
+  disableAffiliation?: boolean;
+  // Any extra props are forwarded to the rendered container component.
+  [key: string]: unknown;
+};
 
 const useStyles = makeStyles()(theme => ({
   logo : {
@@ -49,8 +58,7 @@ const useStyles = makeStyles()(theme => ({
   },
 }));
 
-export default function Logo(props) {
-  checkPropTypes(Logo, props);
+export default function Logo(props: LogoProps) {
   const {
     component = Box,
     mode = "Light",
@@ -62,14 +70,14 @@ export default function Logo(props) {
 
   const { classes } = useStyles();
 
-  const appName = document.querySelector('meta[name="title"]')?.content;
-  const logo = document.querySelector(`meta[name="logo${mode}"]`)?.content;
-  const affiliationLogo = document.querySelector(`meta[name="affiliationLogo${mode}"]`)?.content;
+  const appName = document.querySelector<HTMLMetaElement>('meta[name="title"]')?.content;
+  const logo = document.querySelector<HTMLMetaElement>(`meta[name="logo${mode}"]`)?.content;
+  const affiliationLogo = document.querySelector<HTMLMetaElement>(`meta[name="affiliationLogo${mode}"]`)?.content;
   const withAffiliation = !disableAffiliation && !!affiliationLogo;
 
   const Component = component;
-  const style = typeof(maxWidth) != "undefined" ? { maxWidth: maxWidth } : {};
-  let classNames = withAffiliation ? [classes.doubleLogo] : [classes.logo];
+  const style: CSSProperties = typeof(maxWidth) != "undefined" ? { maxWidth: maxWidth } : {};
+  const classNames = withAffiliation ? [classes.doubleLogo] : [classes.logo];
   if (className) classNames.push(className);
 
   return (
@@ -78,12 +86,4 @@ export default function Logo(props) {
       {withAffiliation && <img src={affiliationLogo} alt="" style={style} />}
     </Component>
   );
-}
-
-Logo.propTypes = {
-  component: PropTypes.object,
-  mode: PropTypes.oneOf(["Light", "Dark"]),
-  className: PropTypes.string,
-  maxWidth: PropTypes.string,
-  disableAffiliation: PropTypes.bool,
 }

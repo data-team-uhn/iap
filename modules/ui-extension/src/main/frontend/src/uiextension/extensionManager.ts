@@ -18,12 +18,16 @@
 
 import { loadAsset } from '../assetManager';
 
+// An extension is the parsed JSON returned by the repository for one extension; its
+// shape depends on the extension point, so it is an open string-keyed record.
+type Extension = Record<string, unknown>;
+
 // Retrieves the JSON that lists all the extensions available for the given extension point.
 // This is an asynchronous function, it will return a Promise that resolves to the actual JSON.
 //
 // @param {string} extensionPoint an extension point, either a repository path like `/apps/iap/ExtensionPoints/SidebarEntry`, or just a name that will be automatically prefixed with `/apps/iap/ExtensionPoints/`.
 // @return a Promise that will resolve to the extension point JSON
-var getExtensions = async function(extensionPoint) {
+const getExtensions = async function(extensionPoint: string): Promise<Extension[]> {
   return fetch(/^\//.test(extensionPoint) ? extensionPoint : `/apps/iap/ExtensionPoints/${extensionPoint}`)
     .then(response => response.ok ? response.json() : Promise.reject(response));
 }
@@ -41,8 +45,8 @@ var getExtensions = async function(extensionPoint) {
 //
 // @param {string} extensionPoint an extension point, either a repository path like `/apps/iap/ExtensionPoints/SidebarEntry`, or just a name that will be automatically prefixed with `/apps/iap/ExtensionPoints/`.
 // @return a Promise that will resolve to an array of extensions, where each extension is the parsed JSON returned by the repository, with asset properties fetched and parsed
-var loadExtensions = async function(extensionPoint) {
-  let extensions;
+const loadExtensions = async function(extensionPoint: string): Promise<Extension[]> {
+  let extensions: Extension[];
   try {
     extensions = await getExtensions(extensionPoint);
   } catch (error) {
@@ -58,7 +62,7 @@ var loadExtensions = async function(extensionPoint) {
       }
       return result.status === 'fulfilled';
     })
-    .map(result => result.value);
+    .map(result => (result as PromiseFulfilledResult<Extension>).value);
 };
 
 // Loads all remote assets of an extension.
@@ -73,14 +77,14 @@ var loadExtensions = async function(extensionPoint) {
 //
 // @param {object} extension an extension, the parsed JSON returned by the repository
 // @return a Promise that will resolve to the extension after all remote components have been fetched
-var loadRemoteComponents = async function(extension) {
+const loadRemoteComponents = async function(extension: Extension): Promise<Extension> {
   // For each property that starts with `asset:`, we fetch it as an asset (all in parallel), and we store the
   // result in the extension under the key without the `URL` suffix.
   await Promise.all(
     Object.entries(extension)
       .filter(([, value]) => typeof value === 'string' && /^asset:/.test(value))
       .map(async ([key, value]) => {
-        const asset = await loadAsset(value);
+        const asset = await loadAsset(value as string);
         if (asset == null) {
           throw new Error(`Asset [${value}] for extension [${extension['jcr:path'] || extension['iap:extensionName'] || 'unknown'}] resolved to nothing`);
         }
