@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "iap:ExtensionPoint",
+  "iap:extensionPointId": "iap/coreUI/view",
+  "iap:extensionPointName": "Main views that can be displayed in the browser"
+}

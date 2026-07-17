@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/view",
+  "iap:extensionName": "Dashboard",
+  "iap:targetURL": "/",
+  "iap:extensionRenderURL": "asset:iap-homepage.Dashboard.js"
+}
