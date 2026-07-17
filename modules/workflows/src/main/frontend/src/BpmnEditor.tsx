@@ -48,9 +48,30 @@ import {
 } from "@mui/material";
 import Modeler from 'bpmn-js/lib/Modeler';
 
-import PropertiesPanel from "./PropertiesPanel.jsx";
+import PropertiesPanel from "./PropertiesPanel";
 
-function fetchUtil(url, fetchArgs) {
+type JcrNode = {
+  "jcr:primaryType"?: string;
+} & Record<string, unknown>;
+
+type WorkflowVersionSummary = {
+  name: string;
+  path: string;
+  title: string;
+  version: string;
+  description: string;
+  bpmnXml: string;
+};
+
+type SnackbarSeverity = "success" | "error" | "warning";
+
+type SnackbarState = {
+  open: boolean;
+  message: string;
+  severity: SnackbarSeverity;
+};
+
+function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
   return new Promise(function(resolve, reject) {
     function fetchFunc() {
       fetch(url, fetchArgs)
@@ -71,17 +92,20 @@ function fetchUtil(url, fetchArgs) {
 
 const WORKFLOWS_PATH = "/Workflows";
 
-function extractVersions(defKey, defNode) {
+function extractVersions(defKey: string, defNode: JcrNode): WorkflowVersionSummary[] {
   return Object.entries(defNode)
-    .filter(([, v]) => v && typeof v === "object" && v["jcr:primaryType"] === "wf:WorkflowVersion")
-    .map(([versionKey, versionNode]) => ({
-      name: `${defKey}/${versionKey}`,
-      path: `${WORKFLOWS_PATH}/${defKey}/${versionKey}`,
-      title: defNode.title || defKey,
-      version: versionNode.version || "",
-      description: versionNode.description || "",
-      bpmnXml: versionNode.bpmnXml || "",
-    }));
+    .filter(([, v]) => v && typeof v === "object" && (v as JcrNode)["jcr:primaryType"] === "wf:WorkflowVersion")
+    .map(([versionKey, versionNode]) => {
+      const version = versionNode as JcrNode;
+      return {
+        name: `${defKey}/${versionKey}`,
+        path: `${WORKFLOWS_PATH}/${defKey}/${versionKey}`,
+        title: (defNode.title as string) || defKey,
+        version: (version.version as string) || "",
+        description: (version.description as string) || "",
+        bpmnXml: (version.bpmnXml as string) || "",
+      };
+    });
 }
 
 const EXAMPLE_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -126,14 +150,14 @@ const EXAMPLE_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 </bpmn:definitions>`
 
 export default function BpmnEditor() {
-  const bpmnContainerRef = useRef();
-  const [modeler, setModeler] = useState(null);
+  const bpmnContainerRef = useRef<HTMLDivElement>(null);
+  const [modeler, setModeler] = useState<Modeler | null>(null);
 
-  const [currentPath, setCurrentPath] = useState(null);
-  const [currentTitle, setCurrentTitle] = useState(null);
+  const [currentPath, setCurrentPath] = useState<string | null>(null);
+  const [currentTitle, setCurrentTitle] = useState<string | null>(null);
 
   const [loadOpen, setLoadOpen] = useState(false);
-  const [definitions, setDefinitions] = useState([]);
+  const [definitions, setDefinitions] = useState<WorkflowVersionSummary[]>([]);
   const [loadingDefs, setLoadingDefs] = useState(false);
 
   const [newOpen, setNewOpen] = useState(false);
@@ -145,10 +169,11 @@ export default function BpmnEditor() {
   const [creating, setCreating] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: "", severity: "success" });
 
   useLayoutEffect(() => {
     const container = bpmnContainerRef.current;
+    if (!container) return;
     const top = Math.round(container.getBoundingClientRect().top);
     const bpmnModeler = new Modeler({
       container,
@@ -159,7 +184,7 @@ export default function BpmnEditor() {
     return () => bpmnModeler.destroy();
   }, []);
 
-  const showMessage = useCallback((message, severity = "success") => {
+  const showMessage = useCallback((message: string, severity: SnackbarSeverity = "success") => {
     setSnackbar({ open: true, message, severity });
   }, []);
 
@@ -168,7 +193,7 @@ export default function BpmnEditor() {
     setLoadingDefs(true);
     fetchUtil(`${WORKFLOWS_PATH}.2.json`)
       .then(r => r.json())
-      .then(data => {
+      .then((data: Record<string, JcrNode>) => {
         const defs = Object.entries(data)
           .filter(([, v]) => v && typeof v === "object" && v["jcr:primaryType"] === "wf:WorkflowDefinition")
           .flatMap(([defKey, defNode]) => extractVersions(defKey, defNode));
@@ -178,13 +203,13 @@ export default function BpmnEditor() {
       .finally(() => setLoadingDefs(false));
   }, [showMessage]);
 
-  const loadDefinition = useCallback((def) => {
+  const loadDefinition = useCallback((def: WorkflowVersionSummary) => {
     if (!def.bpmnXml) {
       showMessage(`"${def.title}" v${def.version} has no BPMN XML saved yet`, "warning");
       setLoadOpen(false);
       return;
     }
-    modeler.importXML(def.bpmnXml)
+    modeler?.importXML(def.bpmnXml)
       .then(() => {
         setCurrentPath(def.path);
         setCurrentTitle(`${def.title} (v${def.version})`);
@@ -199,6 +224,7 @@ export default function BpmnEditor() {
     setSaving(true);
     try {
       const { xml } = await modeler.saveXML({ format: true });
+      if (!xml) throw new Error("Failed to serialize BPMN XML");
       const body = new URLSearchParams({ bpmnXml: xml });
       const response = await fetchUtil(currentPath, { method: "POST", body });
       if (response.ok) {
@@ -207,7 +233,7 @@ export default function BpmnEditor() {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (err) {
-      showMessage(`Save failed: ${err.message}`, "error");
+      showMessage(`Save failed: ${(err as Error).message}`, "error");
     } finally {
       setSaving(false);
     }
@@ -277,7 +303,7 @@ export default function BpmnEditor() {
       showMessage(`Created "${newTitle.trim()}" v${newVersion.trim()}`);
       resetNewDialog();
     } catch (err) {
-      showMessage(`Create failed: ${err.message}`, "error");
+      showMessage(`Create failed: ${(err as Error).message}`, "error");
     } finally {
       setCreating(false);
     }

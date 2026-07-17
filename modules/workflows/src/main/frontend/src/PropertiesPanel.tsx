@@ -26,26 +26,40 @@ import {
 import {
   Typography,
 } from "@mui/material";
+import type { Element } from "bpmn-js/lib/model/Types";
+import type Modeler from "bpmn-js/lib/Modeler";
 
 import ElementProperties from "./ElementProperties";
 
-export default function PropertiesPanel (props) {
+type SelectionChangedEvent = {
+  newSelection: Element[];
+};
+
+type ElementsChangedEvent = {
+  elements: Element[];
+};
+
+type PropertiesPanelProps = {
+  modeler: Modeler | null;
+};
+
+export default function PropertiesPanel (props: PropertiesPanelProps) {
   const {
     modeler
   } = props;
 
-  const [selectedElements, setSelectedElements] = useState([]);
-  const [element, setElement] = useState(null);
+  const [selectedElements, setSelectedElements] = useState<Element[]>([]);
+  const [element, setElement] = useState<Element | null>(null);
 
   const handleSelectionChanged = useCallback(
-    (event) => {
+    (event: SelectionChangedEvent) => {
       setSelectedElements(event.newSelection);
       setElement(event.newSelection[0]);
     }, []
   );
 
-  const handleElementsChanged = (event) => {
-    if (!element || !event?.elements?.length > 0) {
+  const handleElementsChanged = (event: ElementsChangedEvent) => {
+    if (!element || !(event?.elements?.length > 0)) {
       return;
     }
 
@@ -68,7 +82,7 @@ export default function PropertiesPanel (props) {
   return (
     <div>
       {
-        selectedElements.length === 1 && element
+        selectedElements.length === 1 && element && modeler
           && <ElementProperties modeler={ modeler } element={ element } />
       }
 
