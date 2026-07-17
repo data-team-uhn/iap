@@ -19,7 +19,14 @@
 import { forwardRef, type ReactNode } from "react";
 
 import CloseIcon from '@mui/icons-material/Close';
-import { Dialog, DialogTitle, IconButton, useMediaQuery, type Breakpoint, type DialogProps } from "@mui/material";
+import {
+  Dialog,
+  DialogTitle,
+  IconButton,
+  useMediaQuery,
+  type Breakpoint,
+  type DialogProps
+} from "@mui/material";
 import { useTheme } from '@mui/material/styles';
 import { makeStyles } from 'tss-react/mui';
 

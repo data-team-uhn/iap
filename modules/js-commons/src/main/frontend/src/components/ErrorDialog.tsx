@@ -19,7 +19,13 @@
 import type { ReactNode } from "react";
 
 import CloseIcon from '@mui/icons-material/Close';
-import { Dialog, DialogTitle, DialogContent, IconButton, type DialogProps } from "@mui/material";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  type DialogProps
+} from "@mui/material";
 import { makeStyles } from 'tss-react/mui';
 
 type ErrorDialogProps = Omit<DialogProps, "title" | "onClose"> & {
