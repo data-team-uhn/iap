@@ -41,11 +41,6 @@ then
   featureFlagString="$featureFlagString -f mvn:io.uhndata.iap/${PROJECT_NAME}/${PROJECT_VERSION}/slingosgifeature"
 fi
 
-if [ ! -z $DEV ]
-then
-  featureFlagString="$featureFlagString -f mvn:io.uhndata.iap/iap/${PLATFORM_VERSION}/slingosgifeature/composum"
-fi
-
 if [ ! -z $ADDITIONAL_SLING_FEATURES ]
 then
   featureFlagString="$featureFlagString -f ${ADDITIONAL_SLING_FEATURES@P}"
@@ -59,7 +54,6 @@ then
 fi
 
 echo "STORAGE = $STORAGE"
-echo "DEV = $DEV"
 echo "DEBUG = $DEBUG"
 echo "PERMISSIONS = $PERMISSIONS"
 echo "ADDITIONAL_SLING_FEATURES = $ADDITIONAL_SLING_FEATURES"

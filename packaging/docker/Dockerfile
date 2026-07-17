@@ -34,9 +34,6 @@ RUN apk add \
 # Optional: enable remote debugging at port 5005
 ENV DEBUG=
 
-# Optional: enable developer mode
-ENV DEV=
-
 # Put everything in /opt/iap
 RUN mkdir -p /opt/iap/.iap-data/
 WORKDIR /opt/iap/
