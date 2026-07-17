@@ -36,6 +36,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControlLabel,
+  Grid,
   List,
   ListItem,
   ListItemButton,
@@ -46,6 +47,8 @@ import {
   Typography,
 } from "@mui/material";
 import Modeler from 'bpmn-js/lib/Modeler';
+
+import PropertiesPanel from "./PropertiesPanel.jsx";
 
 function fetchUtil(url, fetchArgs) {
   return new Promise(function(resolve, reject) {
@@ -304,7 +307,12 @@ export default function BpmnEditor() {
         )}
       </Stack>
 
-      <div ref={bpmnContainerRef} />
+      <Grid container spacing={4} >
+        <Grid size={{ xs:12, xl:10 }} ref={bpmnContainerRef} />
+        <Grid size={{ xs:12, xl:2 }} >
+          <PropertiesPanel modeler={modeler} />
+        </Grid>
+      </Grid>
 
       {/* Load dialog */}
       <Dialog open={loadOpen} onClose={() => setLoadOpen(false)} maxWidth="sm" fullWidth>
