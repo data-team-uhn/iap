@@ -26,8 +26,8 @@
   </parent>
 
   <artifactId>iap-packaging-parent</artifactId>
-  <packaging>pom</packaging>
   <name>IAP - Packaging</name>
+  <packaging>pom</packaging>
 
   <build>
     <plugins>
@@ -64,6 +64,19 @@
   </build>
 
   <modules>
-    <module>front</module>
+    <module>slingfeature</module>
   </modules>
+
+  <profiles>
+    <profile>
+      <!-- If Docker is available, also build a Docker image -->
+      <id>docker</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <modules>
+        <module>docker</module>
+      </modules>
+    </profile>
+  </profiles>
 </project>
