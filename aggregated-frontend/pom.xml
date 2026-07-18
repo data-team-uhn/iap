@@ -39,7 +39,7 @@
         <executions>
           <execution>
             <configuration>
-              <executable>python</executable>
+              <executable>python3</executable>
               <workingDirectory>src/main/frontend/</workingDirectory>
               <arguments>
                 <argument>webpack_script.py</argument>
