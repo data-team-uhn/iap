@@ -164,10 +164,10 @@ ENTRY_CONTENT
             priority: -10
           },
           default: {
-            minChunks: 1,
+            minChunks: 2,
             minSize: 1000,
-            name: 'iap',
-            priority: 0,
+            name: false,
+            priority: -20,
             reuseExistingChunk: true
           }
         }
