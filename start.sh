@@ -148,9 +148,6 @@ Options:
       --mongo                    Use a MongoDB document store for the repository
                                  instead of the default file-based (TAR/segment)
                                  store. Requires a running MongoDB instance.
-      --dev                      Developer mode: also load the Composum
-                                 (https://www.composum.com/) repository browser
-                                 for inspecting the JCR content.
       --debug                    Enable Java remote debugging (JDWP) on port
                                  `5005`. Startup pauses until a debugger
                                  attaches - connect with `jdb -attach 5005` (or
@@ -230,13 +227,6 @@ do
   then
     unset ARGS[$i]
     OAK_STORAGE="mongo"
-  elif [[ ${ARGS[$i]} == '--dev' ]]
-  then
-    unset ARGS[$i]
-    ARGS[$ARGS_LENGTH]=-f
-    ARGS_LENGTH=${ARGS_LENGTH}+1
-    ARGS[$ARGS_LENGTH]=mvn:io.uhndata.iap/iap-packaging-slingfeature/${PLATFORM_VERSION}/slingosgifeature/composum
-    ARGS_LENGTH=${ARGS_LENGTH}+1
   elif [[ ${ARGS[$i]} == '--debug' ]]
   then
     unset ARGS[$i]

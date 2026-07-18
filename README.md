@@ -40,7 +40,6 @@ IAP will be available at <http://localhost:8080> once it has started. Press `Ctr
 | --- | --- |
 | `-p`, `--port <PORT>` | Port to bind to (default `8080`). |
 | `--mongo` | Use a MongoDB document store for the repository instead of the default file-based (TAR/segment) store. Requires a running MongoDB instance. |
-| `--dev` | Developer mode: also load the [Composum](https://www.composum.com/) repository browser for inspecting the JCR content. |
 | `--debug` | Enable Java remote debugging (JDWP) on port `5005`. Startup **pauses until a debugger attaches** — connect with `jdb -attach 5005` (or your IDE). |
 | `--test` | Additionally load test content (the `iap-test-data` feature). |
 | `--permissions <MODE>` | Permissions scheme to apply when resolving project features (used together with `--project`). |
@@ -57,7 +56,6 @@ Notes:
 ./start.sh                 # default: file-based storage on port 8080
 ./start.sh -p 8888         # run on a custom port
 ./start.sh --mongo         # use a MongoDB-backed repository
-./start.sh --dev           # include the Composum repository browser
 ./start.sh --debug         # wait for a debugger to attach on port 5005
 ./start.sh -P myproject    # launch the "iap4myproject" project
 ```
