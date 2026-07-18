@@ -59,3 +59,24 @@ Notes:
 ./start.sh --debug         # wait for a debugger to attach on port 5005
 ./start.sh -P myproject    # launch the "iap4myproject" project
 ```
+
+## Deploying to a running instance
+
+Once an instance is up, you can rebuild and redeploy a single bundle in place — without a full restart — using the `autoInstallBundle` profile. Run it from the directory of the module you want to redeploy:
+
+```bash
+cd modules/<some-backend-module>
+mvn clean install -PautoInstallBundle       # hot-deploys just that module's OSGi bundle
+
+cd aggregated-frontend
+mvn clean install -PautoInstallBundle       # rebuilds the frontend and redeploys the UI bundle
+```
+
+The profile uses the [sling-maven-plugin](https://sling.apache.org/documentation/development/sling-maven-plugin.html) to upload the freshly built bundle to the running instance. By default it targets `http://localhost:8080` as `admin:admin`; override with:
+
+| Flag | Effect |
+| --- | --- |
+| `-Dsling.url=https://host:8443/system/console` | Target a different instance (the URL must end with `/system/console`). |
+| `-Dsling.password=<password>` | Use a different admin password. |
+
+This redeploys **code** (Java bundles, the frontend JS). It does **not** re-run a bundle's initial **content** if that content already exists in the repository. To deploy a new content node — such as a new `iap:Extension` — into a running instance, post it directly with [`post-extension.sh`](./utils/dev/extension-manager/post-extension.sh), one of the [extension-manager dev utilities](./utils/dev/extension-manager/).
