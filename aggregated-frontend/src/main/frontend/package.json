@@ -26,8 +26,8 @@
   "scripts": {
     "lint": "eslint 'src/**/*.{js,jsx,ts,tsx}'",
     "lint:fix": "eslint 'src/**/*.{js,jsx,ts,tsx}' --fix",
-    "aggregate": "python webpack_script.py ../../..",
-    "aggregate:tests": "python webpack_script.py ../../.. --with-tests",
+    "aggregate": "python3 webpack_script.py ../../..",
+    "aggregate:tests": "python3 webpack_script.py ../../.. --with-tests",
     "test": "yarn aggregate:tests && vitest run",
     "test:watch": "yarn aggregate:tests && vitest",
     "test:coverage": "yarn aggregate:tests && vitest run --coverage"
