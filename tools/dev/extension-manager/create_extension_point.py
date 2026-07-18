@@ -28,7 +28,7 @@
 # rebuild, use post-extension.sh instead.
 #
 # Run interactively from the repository root:
-#   python3 utils/dev/extension-manager/create_extension_point.py
+#   python3 tools/dev/extension-manager/create_extension_point.py
 
 import os
 import json

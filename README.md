@@ -79,4 +79,4 @@ The profile uses the [sling-maven-plugin](https://sling.apache.org/documentation
 | `-Dsling.url=https://host:8443/system/console` | Target a different instance (the URL must end with `/system/console`). |
 | `-Dsling.password=<password>` | Use a different admin password. |
 
-This redeploys **code** (Java bundles, the frontend JS). It does **not** re-run a bundle's initial **content** if that content already exists in the repository. To deploy a new content node — such as a new `iap:Extension` — into a running instance, post it directly with [`post-extension.sh`](./utils/dev/extension-manager/post-extension.sh), one of the [extension-manager dev utilities](./utils/dev/extension-manager/).
+This redeploys **code** (Java bundles, the frontend JS). It does **not** re-run a bundle's initial **content** if that content already exists in the repository. To deploy a new content node — such as a new `iap:Extension` — into a running instance, post it directly with [`post-extension.sh`](./tools/dev/extension-manager/post-extension.sh), one of the [extension-manager dev utilities](./tools/dev/extension-manager/).

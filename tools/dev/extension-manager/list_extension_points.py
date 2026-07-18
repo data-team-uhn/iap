@@ -25,7 +25,7 @@
 # its `iap:extensionPointId` (what extensions target) and its human-readable name.
 #
 # Run from the repository root:
-#   python3 utils/dev/extension-manager/list_extension_points.py
+#   python3 tools/dev/extension-manager/list_extension_points.py
 
 import os
 import json

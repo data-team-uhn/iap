@@ -17,7 +17,7 @@ definitions modules ship as Sling-Initial-Content under
 `iap:extensionPointId` and human-readable name.
 
 ```bash
-python3 utils/dev/extension-manager/list_extension_points.py
+python3 tools/dev/extension-manager/list_extension_points.py
 ```
 
 ### `create_extension_point.py`
@@ -29,7 +29,7 @@ whatever extensions plug into the point. It is interactive — it prompts for th
 description, owning module, and the frontend file to place the consumer next to.
 
 ```bash
-python3 utils/dev/extension-manager/create_extension_point.py
+python3 tools/dev/extension-manager/create_extension_point.py
 ```
 
 This edits source files only; afterwards, rebuild and (re)deploy the owning module.
@@ -43,13 +43,13 @@ the Sling POST servlet's `:operation=import`, without a rebuild or restart. The 
 already exist.
 
 ```bash
-./utils/dev/extension-manager/post-extension.sh \
+./tools/dev/extension-manager/post-extension.sh \
   modules/homepage/src/main/resources/SLING-INF/content/Extensions/DashboardWidget/RandomNumber.json \
   /Extensions/DashboardWidget
 ```
 
 Defaults to `http://localhost:8080` as `admin:admin`; override with `-u`/`-p` (or the `IAP_URL` /
-`ADMIN_PASSWORD` environment variables). Run `./utils/dev/extension-manager/post-extension.sh --help`
+`ADMIN_PASSWORD` environment variables). Run `./tools/dev/extension-manager/post-extension.sh --help`
 for the full options.
 
 > **Note:** the import passes `:replaceProperties=true` so typed properties (e.g.
@@ -60,6 +60,6 @@ for the full options.
 
 1. `cd aggregated-frontend && mvn clean install -PautoInstallBundle` — build and hot-deploy the JS
    asset.
-2. `./utils/dev/extension-manager/post-extension.sh <extension.json> /Extensions/DashboardWidget` —
+2. `./tools/dev/extension-manager/post-extension.sh <extension.json> /Extensions/DashboardWidget` —
    post the extension node.
 3. Hard-refresh the dashboard.

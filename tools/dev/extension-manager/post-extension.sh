@@ -23,7 +23,7 @@
 # and post the extension node with this script.
 #
 # Usage (run from the repository root):
-#   ./utils/dev/extension-manager/post-extension.sh [options] <json-file> <parent-path>
+#   ./tools/dev/extension-manager/post-extension.sh [options] <json-file> <parent-path>
 #
 # Arguments:
 #   <json-file>    Path to the JSON node definition to import (e.g. an iap:Extension).
@@ -37,7 +37,7 @@
 #   -h, --help             Show this help.
 #
 # Example:
-#   ./utils/dev/extension-manager/post-extension.sh \
+#   ./tools/dev/extension-manager/post-extension.sh \
 #     modules/homepage/src/main/resources/SLING-INF/content/Extensions/DashboardWidget/RandomNumber.json \
 #     /Extensions/DashboardWidget
 
