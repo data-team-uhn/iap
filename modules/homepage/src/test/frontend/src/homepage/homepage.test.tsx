@@ -16,61 +16,65 @@
  * limitations under the License.
  */
 
-import { render, screen, waitForElementToBeRemoved } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
-import Dashboard from "./homepage";
-import { loadExtensions } from "../uiextension/extensionManager";
+import Main from "./homepage";
+import { getRoutes } from "../routes";
 
-vi.mock("../uiextension/extensionManager", () => ({
-  loadExtensions: vi.fn(),
+vi.mock("../routes", () => ({
+  getRoutes: vi.fn(),
 }));
 
-const mockedLoadExtensions = vi.mocked(loadExtensions);
+const mockedGetRoutes = vi.mocked(getRoutes);
 
-// Builds a widget extension as returned by loadExtensions: the parsed iap:Extension
-// JSON with the render asset already resolved to a component.
-const widget = (name: string, order: number) => ({
+function renderMain(initialEntries: string[]) {
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <Main />
+    </MemoryRouter>
+  );
+}
+
+// Builds a view extension as returned by getRoutes: the parsed iap:Extension JSON with the
+// render asset already resolved to a component. Whether that resolution happened eagerly
+// or lazily (see extensionManager.tsx) is transparent to Main, so it isn't exercised here.
+const view = (name: string, targetURL: string) => ({
   "iap:extensionName": name,
-  "iap:defaultOrder": order,
-  "iap:extensionRender": () => <div>{`${name} content`}</div>,
+  "iap:targetURL": targetURL,
+  "iap:extensionRender": () => <div>{`${name} view`}</div>,
 });
 
-describe("Dashboard", () => {
-  it("shows a loading indicator until the widgets are retrieved", () => {
-    // A promise that never resolves keeps the dashboard in its loading state
-    mockedLoadExtensions.mockReturnValue(new Promise(() => {}));
+describe("Main routing", () => {
+  it("renders the view whose targetURL matches the current URL", async () => {
+    mockedGetRoutes.mockResolvedValue([
+      view("Dashboard", "/"),
+      view("Other", "/other"),
+    ]);
 
-    render(<Dashboard />);
+    renderMain(["/"]);
 
-    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard view")).toBeInTheDocument();
+    expect(screen.queryByText("Other view")).not.toBeInTheDocument();
+    expect(mockedGetRoutes).toHaveBeenCalled();
   });
 
-  it("renders each widget's content wrapped in a Paper element", async () => {
-    mockedLoadExtensions.mockResolvedValue([widget("Welcome", 0)]);
+  it("renders nothing when no view matches the current URL", async () => {
+    mockedGetRoutes.mockResolvedValue([view("Dashboard", "/")]);
 
-    render(<Dashboard />);
+    renderMain(["/unknown"]);
 
-    const content = await screen.findByText("Welcome content");
-    expect(content.closest(".MuiPaper-root")).not.toBeNull();
-    expect(mockedLoadExtensions).toHaveBeenCalledWith("DashboardWidget");
+    // Give the effect a chance to resolve the (non-matching) views
+    await vi.waitFor(() => expect(mockedGetRoutes).toHaveBeenCalled());
+    expect(screen.queryByText("Dashboard view")).not.toBeInTheDocument();
   });
 
-  it("renders the widgets in their default order", async () => {
-    mockedLoadExtensions.mockResolvedValue([widget("Second", 2), widget("First", 1)]);
+  it("treats a failure to load the views as an empty list of routes", async () => {
+    mockedGetRoutes.mockRejectedValue(new Error("network error"));
 
-    render(<Dashboard />);
+    renderMain(["/"]);
 
-    const first = await screen.findByText("First content");
-    const second = screen.getByText("Second content");
-    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("renders an empty dashboard when there are no widgets", async () => {
-    mockedLoadExtensions.mockResolvedValue([]);
-
-    const { container } = render(<Dashboard />);
-
-    await waitForElementToBeRemoved(() => screen.queryByRole("progressbar"));
-    expect(container.querySelector(".MuiPaper-root")).toBeNull();
+    await vi.waitFor(() => expect(mockedGetRoutes).toHaveBeenCalled());
+    expect(screen.queryByText("Dashboard view")).not.toBeInTheDocument();
   });
 });

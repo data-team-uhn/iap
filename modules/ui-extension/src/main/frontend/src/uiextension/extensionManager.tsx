@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { loadAsset } from '../assetManager';
+import { getURLParameters, loadAsset, LazyAsset } from '../assetManager';
 
 // An extension is the parsed JSON returned by the repository for one extension; its
 // shape depends on the extension point, so it is an open string-keyed record.
@@ -69,26 +69,40 @@ const loadExtensions = async function(extensionPoint: string): Promise<Extension
 // Any direct property of the extension that starts with the `asset:` string will be fetched and `eval`-uated.
 // The resulting asset will be stored back in the extension under the key without the (case insensitive) `URL` suffix.
 // For example, if there's a `"iconUrl": "asset:/path/to/icon.js"`, then the real `/path/to/icon.js` will be fetched and evaluated, and the result will be stored under the `"icon"` property.
+// A property whose asset URL carries a `lazy` query parameter (e.g. `"asset:/path/to/view.js?lazy"`) is resolved
+// to a small component that renders <LazyAsset> instead of the loaded asset itself, so that fetching and
+// evaluating the real asset is deferred to whenever that component actually gets mounted (e.g. only once a
+// matching route is navigated to), rather than paying for it on every extension point load. A consumer never
+// needs to know whether a given property was lazy or not - either way, it gets back a renderable component. This
+// is opt-in and per-property, since some assets rely on side effects that run as soon as they are loaded, and
+// cannot be deferred.
 // This is an asynchronous function, it will return a Promise that resolves to the actual extension after all remote assets have been fetched.
 //
-// If any asset cannot be loaded - either because the fetch fails, or because it resolves to nothing (e.g. an
-// unknown asset name) - the returned Promise rejects, so that `loadExtensions` can omit this extension rather
-// than hand back a half-loaded one that would later throw when a caller reads the missing component.
+// If any non-lazy asset cannot be loaded - either because the fetch fails, or because it resolves to nothing
+// (e.g. an unknown asset name) - the returned Promise rejects, so that `loadExtensions` can omit this extension
+// rather than hand back a half-loaded one that would later throw when a caller reads the missing component. A
+// lazy asset that fails to load cannot be caught this way, since it isn't fetched until later; that failure is
+// instead logged by <LazyAsset> itself when it happens.
 //
 // @param {object} extension an extension, the parsed JSON returned by the repository
-// @return a Promise that will resolve to the extension after all remote components have been fetched
+// @return a Promise that will resolve to the extension after all non-lazy remote components have been fetched
 const loadRemoteComponents = async function(extension: Extension): Promise<Extension> {
-  // For each property that starts with `asset:`, we fetch it as an asset (all in parallel), and we store the
-  // result in the extension under the key without the `URL` suffix.
   await Promise.all(
     Object.entries(extension)
       .filter(([, value]) => typeof value === 'string' && /^asset:/.test(value))
       .map(async ([key, value]) => {
+        const resolvedKey = key.replace(/url$/i, '');
+        if (getURLParameters(value as string).has('lazy')) {
+          const url = value as string;
+          extension[resolvedKey] = (props: Record<string, unknown>) => <LazyAsset url={url} {...props} />;
+          return;
+        }
+
         const asset = await loadAsset(value as string);
         if (asset == null) {
           throw new Error(`Asset [${value}] for extension [${extension['jcr:path'] || extension['iap:extensionName'] || 'unknown'}] resolved to nothing`);
         }
-        extension[key.replace(/url$/i, '')] = asset;
+        extension[resolvedKey] = asset;
       })
   );
   return extension;
