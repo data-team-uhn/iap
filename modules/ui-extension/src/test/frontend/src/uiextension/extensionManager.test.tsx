@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { loadExtensions } from "@iap/ui-extension/uiextension/extensionManager";
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import { loadAsset } from "@iap/frontend-commons/assetManager";
 
 // getURLParameters is left un-mocked (it's pure, no side effects) so the `?lazy`

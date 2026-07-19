@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { loadExtensions } from '@iap/ui-extension/uiextension/extensionManager';
+import { loadExtensions } from '@iap/ui-extension/extensionManager';
 
 let routes: unknown[] | null = null;
 let routesRequest: Promise<unknown[] | void> | null = null;

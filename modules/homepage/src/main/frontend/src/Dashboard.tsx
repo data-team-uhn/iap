@@ -21,7 +21,7 @@ import { useEffect, useState, type ComponentType } from "react";
 import { Box } from "@mui/material";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import { loadExtensions } from "@iap/ui-extension/uiextension/extensionManager";
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
 import Widget from "./Widget";
 

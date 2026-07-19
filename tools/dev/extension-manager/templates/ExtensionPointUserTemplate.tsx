@@ -27,7 +27,7 @@ import { useEffect, useState, type ComponentType } from "react";
 
 import { Grid } from "@mui/material";
 
-import { loadExtensions } from "@iap/ui-extension/uiextension/extensionManager";
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
 export default function _____DEFAULT_FUNCTION_NAME_____() {
   const [ components, setComponents ] = useState<ComponentType[]>([]);
