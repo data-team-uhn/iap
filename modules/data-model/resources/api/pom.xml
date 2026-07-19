@@ -39,6 +39,7 @@
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
             <Sling-Nodetypes>SLING-INF/nodetypes/resources.cnd</Sling-Nodetypes>
+            <Sling-Model-Packages>io.uhndata.iap.resources.models</Sling-Model-Packages>
             <Sling-Initial-Content>
               SLING-INF/content/libs/iap/ResourcePart/;path:=/libs/iap/ResourcePart/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/Resource/;path:=/libs/iap/Resource/;overwriteProperties:=true;uninstall:=true,
@@ -49,4 +50,21 @@
       </plugin>
     </plugins>
   </build>
+
+  <dependencies>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-items-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.models.api</artifactId>
+      <version>2.0.0</version>
+    </dependency>
+  </dependencies>
 </project>
