@@ -46,4 +46,13 @@ describe("Widget", () => {
 
     expect(screen.getByText("a short description")).toBeInTheDocument();
   });
+
+  it("still renders its content on a Paper surface when emphasised", () => {
+    // The tint itself is theme-driven and only visible in a browser; here we just confirm the
+    // emphasis prop is accepted and doesn't disturb rendering.
+    render(<Widget emphasis title="Highlighted"><div>body</div></Widget>);
+
+    expect(screen.getByText("body").closest(".MuiPaper-root")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Highlighted" })).toBeInTheDocument();
+  });
 });

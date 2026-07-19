@@ -18,7 +18,7 @@
 
 import { useEffect, useState, type ComponentType } from "react";
 
-import { Masonry } from "@mui/lab";
+import { Box } from "@mui/material";
 
 import Widget from "./Widget";
 import LoadingOverlay from "../components/LoadingOverlay";
@@ -33,6 +33,11 @@ type WidgetProps = {
   extension: WidgetExtension;
 };
 
+// How many columns each `iap:widgetWidth` value asks for. The actual span is clamped (in JS) to the
+// number of columns available at each breakpoint, so `full` fills the row and a span never exceeds
+// the grid — a span larger than the column count would otherwise make CSS Grid spawn extra columns.
+const WIDTH_SPAN: Record<string, number> = { normal: 1, wide: 2, full: 3 };
+
 // Retrieves all the widgets registered on the dashboard extension point, in display order.
 async function getDashboardWidgets(): Promise<WidgetExtension[]> {
   return loadExtensions("DashboardWidget")
@@ -41,12 +46,12 @@ async function getDashboardWidgets(): Promise<WidgetExtension[]> {
     );
 }
 
-// The dashboard view: a responsive masonry of widgets contributed by other modules through the
-// `iap/dashboard/widget` extension point. Widgets flow into responsive columns, each placed in the
-// shortest column, so tiles of different heights pack tightly instead of leaving the ragged gaps a
-// fixed row-based grid would. The dashboard wraps every widget in a titled Widget frame — the title
-// from `iap:extensionName`, an optional subtitle from `iap:hint`. Registered as a view on the
-// `iap/coreUI/view` extension point.
+// The dashboard view: widgets contributed by other modules through the `iap/dashboard/widget`
+// extension point, laid out in a responsive CSS grid (1/2/3 columns). A widget can span more
+// columns via `iap:widgetWidth` (normal/wide/full) — e.g. a table declaring `full` stretches across
+// the row — and can request a tinted surface via `iap:widgetEmphasis`. The dashboard wraps every
+// widget in a titled Widget frame — the title from `iap:extensionName`, an optional subtitle from
+// `iap:hint`. Registered as a view on the `iap/coreUI/view` extension point.
 function Dashboard() {
   const [ widgets, setWidgets ] = useState<WidgetExtension[]>([]);
   const [ loading, setLoading ] = useState(true);
@@ -58,34 +63,56 @@ function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Cap the column count at the number of widgets so the layout adapts to how much there is to
-  // show: a lone widget spans the full width instead of sitting in a narrow column, two widgets
-  // fill at most two columns, and three or more get the full responsive spread.
-  const columns = {
-    xs: 1,
-    sm: Math.min(widgets.length, 2) || 1,
-    lg: Math.min(widgets.length, 3) || 1,
-  };
+  // Collapse the grid to the number of widgets when there are only one or two, so a lone widget
+  // fills the row and two widgets sit side by side rather than leaving empty columns. Three or more
+  // get the full responsive spread. Spans are clamped to this column count, so an explicit `full`
+  // widget still takes the whole row (and, e.g., forces a second widget onto the next row).
+  const smColumns = Math.min(widgets.length, 2) || 1;
+  const lgColumns = Math.min(widgets.length, 3) || 1;
 
   return (
     <>
       <LoadingOverlay open={loading} />
-      <Masonry columns={columns} spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          // Cells stretch (the grid default), so widgets sharing a row are the same height; each
+          // Widget surface fills its cell (see Widget.tsx).
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: `repeat(${smColumns}, 1fr)`,
+            lg: `repeat(${lgColumns}, 1fr)`,
+          },
+        }}
+      >
         {
           widgets.map((widget, index) => {
             const WidgetContent = widget["iap:extensionRender"] as ComponentType<WidgetProps>;
+            const span = WIDTH_SPAN[String(widget["iap:widgetWidth"] ?? "normal")] ?? 1;
             return (
-              <Widget
+              <Box
                 key={"widget-" + index}
-                title={String(widget["iap:extensionName"] ?? "")}
-                subtitle={widget["iap:hint"] ? String(widget["iap:hint"]) : undefined}
+                sx={{
+                  gridColumn: {
+                    xs: "span 1",
+                    sm: `span ${Math.min(span, smColumns)}`,
+                    lg: `span ${Math.min(span, lgColumns)}`,
+                  },
+                }}
               >
-                <WidgetContent extension={widget} />
-              </Widget>
+                <Widget
+                  title={String(widget["iap:extensionName"] ?? "")}
+                  subtitle={widget["iap:hint"] ? String(widget["iap:hint"]) : undefined}
+                  emphasis={Boolean(widget["iap:widgetEmphasis"])}
+                >
+                  <WidgetContent extension={widget} />
+                </Widget>
+              </Box>
             );
           })
         }
-      </Masonry>
+      </Box>
     </>
   );
 }
