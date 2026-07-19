@@ -25,6 +25,10 @@
             "start-order":"20"
         },
         {
+            "id":"${project.groupId}:iap-serialization-json:${project.version}",
+            "start-order":"20"
+        },
+        {
             "id":"${project.groupId}:iap-data-model-items-api:${project.version}",
             "start-order":"21"
         },

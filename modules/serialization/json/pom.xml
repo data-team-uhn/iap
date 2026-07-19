@@ -21,30 +21,18 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-modules</artifactId>
+    <artifactId>iap-serialization</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-java-utils</artifactId>
+  <artifactId>iap-serialization-json</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Java Utilities</name>
-
-  <properties>
-    <coverage.instructionRatio>0.04</coverage.instructionRatio>
-  </properties>
+  <name>IAP - Serialization - Resources to JSON</name>
 
   <dependencies>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.scripting.sightly.runtime</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.servlets.post</artifactId>
     </dependency>
     <dependency>
       <groupId>jakarta.json</groupId>
@@ -55,10 +43,6 @@
       <artifactId>org.osgi.service.component.annotations</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-    </dependency>
-    <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
     </dependency>
@@ -67,8 +51,8 @@
       <artifactId>jcr</artifactId>
     </dependency>
     <dependency>
-      <groupId>jakarta.servlet</groupId>
-      <artifactId>jakarta.servlet-api</artifactId>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
     </dependency>
 
     <dependency>
@@ -78,6 +62,15 @@
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.glassfish</groupId>
+      <artifactId>jakarta.json</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
     </dependency>
   </dependencies>
 </project>

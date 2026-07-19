@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "iap:ExtensionPoint",
+  "iap:extensionPointId": "iap/dashboard/widget",
+  "iap:extensionPointName": "Dashboard widgets"
+}

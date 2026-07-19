@@ -164,7 +164,15 @@ public class ExtensionsManager implements Use
     private String toString(final List<Resource> extensions)
     {
         final JsonArrayBuilder builder = Json.createArrayBuilder();
-        extensions.stream().forEach(extension -> builder.add(extension.adaptTo(JsonObject.class)));
+        extensions.stream().forEach(extension -> {
+            final JsonObject json = extension.adaptTo(JsonObject.class);
+            if (json == null) {
+                // A failed serialization of one extension shouldn't take down the whole extension point
+                LOGGER.warn("Could not serialize extension [{}] to JSON, skipping it", extension.getPath());
+            } else {
+                builder.add(json);
+            }
+        });
         return builder.build().toString();
     }
 }

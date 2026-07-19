@@ -16,22 +16,77 @@
  * limitations under the License.
  */
 
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useState, type ComponentType } from "react";
 
-import { Typography } from "@mui/material";
+import { CircularProgress, Grid, Paper } from "@mui/material";
 import { createRoot } from 'react-dom/client';
 
-function Homepage(props) {
+import { loadExtensions } from "../uiextension/extensionManager";
+
+// A dashboard widget is the parsed JSON of one `iap:Extension` registered on the
+// `iap/dashboard/widget` extension point, with its `asset:` properties already resolved.
+type Widget = Record<string, unknown>;
+
+// The props that the dashboard passes to each rendered widget.
+type WidgetProps = {
+  extension: Widget;
+};
+
+// Retrieves all the widgets registered on the dashboard extension point, in display order.
+async function getDashboardWidgets(): Promise<Widget[]> {
+  return loadExtensions("DashboardWidget")
+    .then(extensions => extensions.slice()
+      .sort((a, b) => Number(a["iap:defaultOrder"]) - Number(b["iap:defaultOrder"]))
+    );
+}
+
+// The homepage dashboard: a flexible 1-2 column grid of widgets contributed by other
+// modules through the `iap/dashboard/widget` extension point. Each widget's rendered
+// content is wrapped in a Paper element.
+function Dashboard() {
+  const [ widgets, setWidgets ] = useState<Widget[]>([]);
+  const [ loading, setLoading ] = useState(true);
+
+  useEffect(() => {
+    getDashboardWidgets()
+      .then(extensions => setWidgets(extensions))
+      .catch(err => console.error("Something went wrong loading the dashboard", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <Grid container justifyContent="center"><Grid><CircularProgress/></Grid></Grid>
+    );
+  }
+
   return (
-    <Typography>Welcome!</Typography>
+    <Grid container spacing={4}>
+      {
+        widgets.map((widget, index) => {
+          const WidgetContent = widget["iap:extensionRender"] as ComponentType<WidgetProps>;
+          return (
+            <Grid size={{ xs: 12, md: widgets.length > 1 ? 6 : 12 }} key={"widget-" + index}>
+              <Paper sx={{ p: 2 }}>
+                <WidgetContent extension={widget} />
+              </Paper>
+            </Grid>
+          );
+        })
+      }
+    </Grid>
   );
 }
 
-const root = createRoot(document.querySelector('#main-container'));
-root.render(
-  <StrictMode>
-    <Homepage />
-  </StrictMode>
-);
+// When loaded as the homepage entry script, mount the dashboard; when imported (e.g. from
+// tests), only export it.
+const container = document.querySelector('#main-container');
+if (container) {
+  createRoot(container).render(
+    <StrictMode>
+      <Dashboard />
+    </StrictMode>
+  );
+}
 
-export default Homepage;
+export default Dashboard;
