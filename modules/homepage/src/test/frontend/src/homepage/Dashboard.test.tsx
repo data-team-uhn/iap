@@ -18,10 +18,10 @@
 
 import { render, screen, waitFor } from "@testing-library/react";
 
-import Dashboard from "./Dashboard";
-import { loadExtensions } from "../uiextension/extensionManager";
+import Dashboard from "@iap/homepage/homepage/Dashboard";
+import { loadExtensions } from "@iap/ui-extension/uiextension/extensionManager";
 
-vi.mock("../uiextension/extensionManager", () => ({
+vi.mock("@iap/ui-extension/uiextension/extensionManager", () => ({
   loadExtensions: vi.fn(),
 }));
 

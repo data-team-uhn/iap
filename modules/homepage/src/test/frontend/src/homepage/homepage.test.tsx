@@ -19,10 +19,10 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
-import Main from "./homepage";
-import { getRoutes } from "../routes";
+import Main from "@iap/homepage/homepage/homepage";
+import { getRoutes } from "@iap/frontend-commons/routes";
 
-vi.mock("../routes", () => ({
+vi.mock("@iap/frontend-commons/routes", () => ({
   getRoutes: vi.fn(),
 }));
 

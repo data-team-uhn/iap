@@ -20,9 +20,10 @@ import { useEffect, useState, type ComponentType } from "react";
 
 import { Box } from "@mui/material";
 
+import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import { loadExtensions } from "@iap/ui-extension/uiextension/extensionManager";
+
 import Widget from "./Widget";
-import LoadingOverlay from "../components/LoadingOverlay";
-import { loadExtensions } from "../uiextension/extensionManager";
 
 // A dashboard widget extension is the parsed JSON of one `iap:Extension` registered on the
 // `iap/dashboard/widget` extension point, with its `asset:` properties already resolved.

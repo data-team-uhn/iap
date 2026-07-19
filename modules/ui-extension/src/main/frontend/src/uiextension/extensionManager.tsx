@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { getURLParameters, loadAsset, LazyAsset } from '../assetManager';
+import { getURLParameters, loadAsset, LazyAsset } from '@iap/frontend-commons/assetManager';
 
 // An extension is the parsed JSON returned by the repository for one extension; its
 // shape depends on the extension point, so it is an open string-keyed record.

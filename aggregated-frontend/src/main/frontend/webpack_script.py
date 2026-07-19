@@ -23,7 +23,9 @@ from os import path
 
 package_name = 'iap-aggregated-frontend'
 
-# Collect lines of assets.config file into aggregated array
+# Collect lines of assets.config file into aggregated array.
+# Entry paths are declared relative to the module's own frontend root (./src/...), and are
+# rewritten to the module's dedicated subdirectory in the aggregated tree (./src/<module>/...).
 def merge_webpack_files(root, dir_name, aggregated_frontend_dir, webpack_config_entries):
     fl = path.join(root, dir_name, 'src', 'main', 'frontend', 'assets.config')
     if path.exists(fl):
@@ -34,17 +36,21 @@ def merge_webpack_files(root, dir_name, aggregated_frontend_dir, webpack_config_
             if lines[i].strip().startswith("["):
                 # ensure each line ends with a comma and newline
                 line = lines[i].rstrip().rstrip(',') + ',\n'
+                line = line.replace("'./src/", "'./src/" + dir_name + "/").replace('"./src/', '"./src/' + dir_name + '/')
                 webpack_config_entries.append(line)
 
-# Copy a module's UI files from src/<maven_source>/frontend/src into the aggregated
-# frontend's single src/main/frontend/src tree.
+# Copy a module's UI files from src/<maven_source>/frontend/src into the module's own
+# subdirectory of the aggregated frontend, src/main/frontend/src/<module>/. Keeping each
+# module in its own directory prevents files from different modules from silently
+# overwriting each other, and gives cross-module imports a stable @iap/<module>/... name.
 # Passing maven_source='test' merges each module's tests (authored under
-# src/test/frontend/src, mirroring the src/main layout) into that same tree, next to
-# the sources they cover, so relative imports still resolve after aggregation.
+# src/test/frontend/src, mirroring the src/main layout) into that same subdirectory, next
+# to the sources they cover, so relative intra-module imports still resolve after
+# aggregation.
 def merge_ui_files(root, dir_name, aggregated_frontend_dir, maven_source='main'):
     path_to_source = path.join(root, dir_name, 'src', maven_source, 'frontend', 'src')
     if path.exists(path_to_source):
-        path_to_base_source = path.join(aggregated_frontend_dir, 'src', 'main', 'frontend', 'src')
+        path_to_base_source = path.join(aggregated_frontend_dir, 'src', 'main', 'frontend', 'src', dir_name)
         shutil.copytree(path_to_source, path_to_base_source, dirs_exist_ok=True)
 
 
@@ -66,12 +72,24 @@ def main(args=sys.argv[1:]):
     # regular/production build (invoked by Maven without this flag) never pulls them in.
     include_tests = '--with-tests' in args
 
+    # The module directory's base name becomes both its subdirectory in the aggregated tree
+    # and its @iap/<module> import namespace, so it must be unique across the whole project
+    seen_modules = {}
+
     for root, dirs, files in os.walk(root_dir):
         # Exclude our own directory
         if not path.samefile(root, aggregated_frontend_dir):
 
             for name in dirs:
                 if not name == "aggregated-frontend":
+                    module_dir = path.join(root, name)
+                    if path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'src')) \
+                            or path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'assets.config')):
+                        if name in seen_modules:
+                            sys.exit('Frontend module name collision: both %s and %s would be aggregated as '
+                                'src/%s/. Rename one of the module directories.'
+                                % (seen_modules[name], module_dir, name))
+                        seen_modules[name] = module_dir
                     merge_webpack_files(root, name, aggregated_frontend_dir, webpack_config_entries)
                     merge_ui_files(root, name, aggregated_frontend_dir)
                     if include_tests:

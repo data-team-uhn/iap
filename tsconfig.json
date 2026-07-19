@@ -1,0 +1,47 @@
+{
+  // IDE/typecheck configuration for the per-module frontend sources. The runtime build
+  // does not use this file: modules are aggregated by aggregated-frontend/webpack_script.py
+  // into aggregated-frontend/src/main/frontend/src/<module>/ and compiled there with the
+  // aggregated tsconfig.json, whose single "@iap/*" mapping mirrors the per-module
+  // mappings enumerated below. When adding a module with frontend code, add its mapping here.
+  "compilerOptions": {
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "alwaysStrict": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "target": "ES6",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@iap/frontend-commons/*": ["./modules/frontend-commons/src/main/frontend/src/*"],
+      "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],
+      "@iap/ui-extension/*": ["./modules/ui-extension/src/main/frontend/src/*"],
+      "*": [
+        "./aggregated-frontend/src/main/frontend/node_modules/@types/*",
+        "./aggregated-frontend/src/main/frontend/node_modules/*"
+      ]
+    },
+    "typeRoots": ["aggregated-frontend/src/main/frontend/node_modules/@types"],
+    "types": ["react", "react-dom"]
+  },
+  "include": [
+    "modules/*/src/main/frontend/src/**/*",
+    "modules/*/src/test/frontend/src/**/*",
+    // Global test types (vitest and jest-dom are not @types packages, so they cannot be
+    // reached through typeRoots from here; pull their declarations in directly instead)
+    "aggregated-frontend/src/main/frontend/node_modules/vitest/globals.d.ts",
+    "aggregated-frontend/src/main/frontend/node_modules/@testing-library/jest-dom/types/index.d.ts"
+  ]
+}

@@ -23,8 +23,8 @@ import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles";
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Route, RouterProvider, Routes } from "react-router";
 
-import { appTheme } from "../appTheme";
-import { getRoutes } from "../routes";
+import { appTheme } from "@iap/frontend-commons/appTheme";
+import { getRoutes } from "@iap/frontend-commons/routes";
 
 // A view is the parsed JSON of one `iap:Extension` registered on the `iap/coreUI/view`
 // extension point, with its `asset:` properties already resolved. A view has an

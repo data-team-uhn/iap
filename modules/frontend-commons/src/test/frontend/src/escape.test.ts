@@ -19,7 +19,7 @@
 // Authored under src/test to mirror the src/main layout (Maven convention). The
 // aggregation step merges src/main and src/test into one tree, so `./escape`
 // resolves to the copied source at run time. See CLAUDE.md.
-import { escapeJQL } from "./escape";
+import { escapeJQL } from "@iap/frontend-commons/escape";
 
 describe("escapeJQL", () => {
   it("doubles single quotes so the value is safe inside a JQL string literal", () => {

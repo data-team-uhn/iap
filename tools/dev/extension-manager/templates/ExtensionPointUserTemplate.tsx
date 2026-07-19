@@ -20,14 +20,14 @@
 // create_extension_point.py. It loads every extension registered on the point (in
 // iap:defaultOrder order) and renders each one's resolved component in a grid.
 //
-// This is a starting point: adjust the import path to extensionManager to match where you
-// place this file, and shape the layout/props to your extension point's needs.
+// This is a starting point: shape the layout/props to your extension point's needs. The
+// @iap/<module> import works from any module, wherever you place this file.
 
 import { useEffect, useState, type ComponentType } from "react";
 
 import { Grid } from "@mui/material";
 
-import { loadExtensions } from "../uiextension/extensionManager";
+import { loadExtensions } from "@iap/ui-extension/uiextension/extensionManager";
 
 export default function _____DEFAULT_FUNCTION_NAME_____() {
   const [ components, setComponents ] = useState<ComponentType[]>([]);

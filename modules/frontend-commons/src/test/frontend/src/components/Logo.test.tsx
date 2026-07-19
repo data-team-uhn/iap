@@ -18,7 +18,7 @@
 
 import { render, screen } from "@testing-library/react";
 
-import Logo from "./Logo";
+import Logo from "@iap/frontend-commons/components/Logo";
 
 // Logo reads the institution branding from <meta> tags in the page head, so each
 // test seeds the head and clears it afterwards.
