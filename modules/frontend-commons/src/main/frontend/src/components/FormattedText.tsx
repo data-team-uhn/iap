@@ -17,36 +17,20 @@
  */
 
 import { Typography, type TypographyProps } from "@mui/material";
-import MDEditor from '@uiw/react-md-editor';
-import { makeStyles } from 'tss-react/mui';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type FormattedTextProps = Omit<TypographyProps, "children"> & {
   children?: string;
 };
 
-const useStyles = makeStyles()(() => ({
-  markdown: {
-    "&.wmde-markdown" : {
-      background: "transparent",
-      color: "inherit",
-      fontSize: "inherit",
-      fontFamily: "inherit",
-      "& .anchor" : {
-        display: "none",
-      },
-      "& img": {
-        background: "transparent"
-      }
-    },
-  }
-}));
-
+// Renders GitHub-flavored markdown as plain semantic HTML inside a Typography wrapper, so
+// the text inherits the surrounding font, size and color. Raw HTML in the markdown source
+// is intentionally not rendered.
 const FormattedText = ({ children, ...typographyProps }: FormattedTextProps) => {
-  const { classes } = useStyles();
-
   return (
     <Typography component="div" {...typographyProps} >
-      <MDEditor.Markdown classes={classes} className={classes.markdown} source={children} />
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
     </Typography>
   );
 }
