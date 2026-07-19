@@ -19,13 +19,13 @@
 import type { CSSProperties, ReactNode } from 'react';
 
 import NavigationIcon from '@mui/icons-material/Navigation';
-import { Divider, Fab, Grid, Paper, Stack, Typography, type PaperProps } from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
+import { Box, Button, Divider, Grid, Stack, Typography, type BoxProps } from '@mui/material';
+import { styled } from '@mui/material/styles';
 
 import FormattedText from "./FormattedText";
 import Logo from "./Logo";
 
-type ErrorPageProps = Omit<PaperProps, "title"> & {
+type ErrorPageProps = Omit<BoxProps, "title"> & {
   disableAppName?: boolean;
   errorCode?: ReactNode;
   errorCodeColor?: string;
@@ -38,21 +38,13 @@ type ErrorPageProps = Omit<PaperProps, "title"> & {
   textAlign?: CSSProperties["textAlign"];
 };
 
-const useStyles = makeStyles()(theme => ({
-  paper: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    padding: theme.spacing(12, 3, 3),
-    maxWidth: 450,
-    margin: '0 auto',
-  },
-  logo: {
-    textAlign: 'left',
-  },
-  extendedIcon: {
-    marginRight: theme.spacing(1),
-  },
+const ErrorContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'stretch',
+  padding: theme.spacing(12, 3, 3),
+  maxWidth: 450,
+  margin: '0 auto',
 }));
 
 export default function ErrorPage(props: ErrorPageProps) {
@@ -69,12 +61,11 @@ export default function ErrorPage(props: ErrorPageProps) {
     textAlign = "left",
     ...rest
   } = props;
-  const { classes } = useStyles();
 
   const appName = !disableAppName && document.querySelector<HTMLMetaElement>('meta[name="title"]')?.content;
 
   return (
-    <Paper className={classes.paper} elevation={0} {...rest}>
+    <ErrorContainer {...rest}>
       <Grid
         container
         direction="column"
@@ -83,7 +74,7 @@ export default function ErrorPage(props: ErrorPageProps) {
         alignItems="stretch"
         alignContent="stretch"
       >
-        <Logo component={Grid} className={classes.logo}/>
+        <Logo component={Grid} sx={{ textAlign: 'left' }}/>
         <Grid>
           <Stack spacing={2}>
             {appName && <>
@@ -105,17 +96,17 @@ export default function ErrorPage(props: ErrorPageProps) {
         </Grid>
         { buttonLabel &&
             <Grid>
-              <Fab
-                variant="extended"
+              <Button
+                variant="contained"
                 color="primary"
+                startIcon={<NavigationIcon />}
                 onClick={() => window.location.href = buttonLink || ""}
               >
-                <NavigationIcon className={classes.extendedIcon} />
                 {buttonLabel}
-              </Fab>
+              </Button>
             </Grid>
         }
       </Grid>
-    </Paper>
+    </ErrorContainer>
   );
 }

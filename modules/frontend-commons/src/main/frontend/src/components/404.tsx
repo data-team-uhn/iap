@@ -18,17 +18,19 @@
 
 import { StrictMode } from 'react';
 
+import { CssBaseline } from '@mui/material';
 import { ThemeProvider, StyledEngineProvider } from '@mui/material/styles';
 import { createRoot } from 'react-dom/client';
 
 import PageNotFound from './PageNotFound';
-import { appTheme } from "../themePalette";
+import { appTheme } from "../appTheme";
 
 const root = createRoot(document.getElementById('main-404-container')!);
 root.render(
   <StrictMode>
     <StyledEngineProvider injectFirst>
-      <ThemeProvider theme={appTheme}>
+      <ThemeProvider theme={appTheme} defaultMode="system">
+        <CssBaseline enableColorScheme />
         <PageNotFound />
       </ThemeProvider>
     </StyledEngineProvider>
