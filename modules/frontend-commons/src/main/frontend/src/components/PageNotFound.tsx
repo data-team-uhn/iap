@@ -21,15 +21,15 @@ import { useEffect, useState } from 'react';
 import ErrorPage from './ErrorPage';
 
 export default function PageNotFound() {
-  const [redirectURL, setRedirectURL] = useState("/content.html/Questionnaires/User");
-  const [redirectLabel, setRedirectLabel] = useState("Go to the dashboard");
+  const [redirectURL, setRedirectURL] = useState("/");
+  const [redirectLabel, setRedirectLabel] = useState("Go to the homepage");
 
   // Grab the redirect URL on first rerender
   useEffect(() => {
     fetch("/RedirectURL.json")
       .then((response) => response.ok ? response.json() : Promise.reject(response))
       .then((json) => { setRedirectURL(json["RedirectURL"]); setRedirectLabel(json["RedirectLabel"]); });
-  });
+  }, []);
 
   return (
     <ErrorPage
