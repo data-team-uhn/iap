@@ -2,5 +2,7 @@
   "jcr:primaryType": "iap:Extension",
   "iap:extensionPointId": "iap/dashboard/widget",
   "iap:extensionName": "Welcome",
-  "iap:extensionRenderURL": "asset:iap-homepage.WelcomeWidget.js"
+  "iap:extensionRenderURL": "asset:iap-homepage.WelcomeWidget.js",
+  "iap:widgetBorderless": true,
+  "iap:widgetHideHeader": true
 }
