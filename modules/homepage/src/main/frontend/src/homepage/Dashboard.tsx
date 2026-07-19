@@ -49,12 +49,12 @@ async function getDashboardWidgets(): Promise<WidgetExtension[]> {
 // The dashboard view: widgets contributed by other modules through the `iap/dashboard/widget`
 // extension point, laid out in a responsive CSS grid (1/2/3 columns). The dashboard wraps every
 // widget in a titled Widget frame — the title from `iap:extensionName`, an optional subtitle from
-// `iap:hint` — and each widget can tune its frame through optional properties:
+// `iap:subtitle` — and each widget can tune its frame through optional properties:
 //   - `iap:widgetWidth` (normal/wide/full) — how many columns it spans (e.g. a `full` table
 //     stretches across the row);
 //   - `iap:widgetEmphasis` — render on a tinted surface;
 //   - `iap:widgetBorderless` — drop the border/fill and blend into the page;
-//   - `iap:widgetHideHeader` — skip the title/hint header (the widget provides its own).
+//   - `iap:widgetHideHeader` — skip the title/subtitle header (the widget provides its own).
 // Registered as a view on the `iap/coreUI/view` extension point.
 function Dashboard() {
   const [ widgets, setWidgets ] = useState<WidgetExtension[]>([]);
@@ -107,7 +107,7 @@ function Dashboard() {
               >
                 <Widget
                   title={String(widget["iap:extensionName"] ?? "")}
-                  subtitle={widget["iap:hint"] ? String(widget["iap:hint"]) : undefined}
+                  subtitle={widget["iap:subtitle"] ? String(widget["iap:subtitle"]) : undefined}
                   emphasis={Boolean(widget["iap:widgetEmphasis"])}
                   borderless={Boolean(widget["iap:widgetBorderless"])}
                   hideHeader={Boolean(widget["iap:widgetHideHeader"])}

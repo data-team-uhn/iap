@@ -59,8 +59,8 @@ describe("Dashboard", () => {
     expect(mockedLoadExtensions).toHaveBeenCalledWith("DashboardWidget");
   });
 
-  it("renders a widget's iap:hint as a subtitle", async () => {
-    mockedLoadExtensions.mockResolvedValue([{ ...widget("Some widget", 0), "iap:hint": "A short hint" }]);
+  it("renders a widget's iap:subtitle as a subtitle", async () => {
+    mockedLoadExtensions.mockResolvedValue([{ ...widget("Some widget", 0), "iap:subtitle": "A short hint" }]);
 
     render(<Dashboard />);
 
