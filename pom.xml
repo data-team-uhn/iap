@@ -2243,6 +2243,7 @@
   <modules>
     <module>modules</module>
     <module>aggregated-frontend</module>
+    <module>test-data</module>
     <module>packaging</module>
     <module>tools</module>
   </modules>
