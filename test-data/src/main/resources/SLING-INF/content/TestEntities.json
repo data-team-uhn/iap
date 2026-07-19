@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "iap:TestEntityHomepage",
+  "SampleEntity": {
+    "jcr:primaryType": "iap:TestEntity",
+    "title": "Sample entity",
+    "description": "A minimal concrete iap:Entity, only meant for testing."
+  }
+}

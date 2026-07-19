@@ -17,26 +17,26 @@
  * limitations under the License.
  */-->
 <!--/*
-  A test-only page exercising the Sling Models: the homepage is an iap:Item (through its
-  iap/Homepage -> iap/Item supertype chain), so it adapts into an ItemModel, while the
-  included sample node is a full iap:Resource rendered through its own test script.
+  A test-only page exercising the Sling Models: the homepage is an iap:Content (through its
+  iap/Homepage -> iap/Content supertype chain), so it adapts into a Content model, while the
+  included sample node is a full iap:Entity rendered through its own test script.
 */-->
 <!doctype html>
 <html>
   <head><title>Sling Models test</title></head>
   <body>
-    <sly data-sly-use.item="io.uhndata.iap.items.models.ItemModel">
-      <section id="item">
-        <h1>Homepage as ItemModel</h1>
+    <sly data-sly-use.content="io.uhndata.iap.content.models.Content">
+      <section id="content">
+        <h1>Homepage as Content</h1>
         <dl>
-          <dt>path</dt><dd id="item-path">${item.path}</dd>
-          <dt>name</dt><dd id="item-name">${item.name}</dd>
-          <dt>type</dt><dd id="item-type">${item.type}</dd>
-          <dt>created</dt><dd id="item-created">${item.created}</dd>
-          <dt>createdBy</dt><dd id="item-createdBy">${item.createdBy}</dd>
+          <dt>path</dt><dd id="content-path">${content.path}</dd>
+          <dt>name</dt><dd id="content-name">${content.name}</dd>
+          <dt>type</dt><dd id="content-type">${content.type}</dd>
+          <dt>created</dt><dd id="content-created">${content.created}</dd>
+          <dt>createdBy</dt><dd id="content-createdBy">${content.createdBy}</dd>
         </dl>
       </section>
     </sly>
-    <sly data-sly-resource="${'/TestResources/SampleResource' @ selectors='test'}"></sly>
+    <sly data-sly-resource="${'/TestEntities/SampleEntity' @ selectors='test'}"></sly>
   </body>
 </html>
