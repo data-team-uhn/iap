@@ -89,8 +89,11 @@ export default (env) => {
     devtool: 'source-map',
     cache: {
       type: 'filesystem',
-      // any change here invalidates the cache
-      version: String(Date.now())
+      // Invalidate the cache when the (generated) config changes, e.g. when a new entry
+      // point is added; everything else is invalidated by webpack's own file tracking
+      buildDependencies: {
+        config: [__filename]
+      }
     },
     infrastructureLogging: {
       level: 'error' // Mask Webpack infrastructure-level warnings to silence warning when React Compiler errors on serialisation of Webpack’s persistent cache
@@ -137,7 +140,7 @@ ENTRY_CONTENT
       ]
     },
     resolve: {
-      extensions: ['.*', '.js', '.jsx', '.ts', '.tsx']
+      extensions: ['.js', '.jsx', '.ts', '.tsx', '...']
     },
     optimization: {
       usedExports: true,
