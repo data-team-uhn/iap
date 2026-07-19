@@ -19,9 +19,10 @@
 import { Typography } from "@mui/material";
 
 // The dashboard widget greeting the user, registered on the `iap/dashboard/widget` extension point.
+// The surrounding titled frame is provided by the dashboard, so this only renders content.
 function WelcomeWidget() {
   return (
-    <Typography>Welcome!</Typography>
+    <Typography>Welcome to the Institutional Authorization Platform.</Typography>
   );
 }
 

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen, waitForElementToBeRemoved } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 
 import Dashboard from "./Dashboard";
 import { loadExtensions } from "../uiextension/extensionManager";
@@ -42,17 +42,29 @@ describe("Dashboard", () => {
 
     render(<Dashboard />);
 
-    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    // The indicator lives in the LoadingOverlay's backdrop; jsdom never completes the fade so it
+    // stays visibility:hidden, hence { hidden: true } to assert it is rendered.
+    expect(screen.getAllByRole("progressbar", { hidden: true }).length).toBeGreaterThan(0);
   });
 
-  it("renders each widget's content wrapped in a Paper element", async () => {
+  it("wraps each widget's content in a titled Widget frame", async () => {
     mockedLoadExtensions.mockResolvedValue([widget("Welcome", 0)]);
 
     render(<Dashboard />);
 
+    // The dashboard frames every widget itself, titling it with the extension's iap:extensionName.
     const content = await screen.findByText("Welcome content");
     expect(content.closest(".MuiPaper-root")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Welcome" })).toBeInTheDocument();
     expect(mockedLoadExtensions).toHaveBeenCalledWith("DashboardWidget");
+  });
+
+  it("renders a widget's iap:subtitle as a subtitle", async () => {
+    mockedLoadExtensions.mockResolvedValue([{ ...widget("Some widget", 0), "iap:subtitle": "A short hint" }]);
+
+    render(<Dashboard />);
+
+    expect(await screen.findByText("A short hint")).toBeInTheDocument();
   });
 
   it("renders the widgets in their default order", async () => {
@@ -70,7 +82,7 @@ describe("Dashboard", () => {
 
     const { container } = render(<Dashboard />);
 
-    await waitForElementToBeRemoved(() => screen.queryByRole("progressbar"));
+    await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
     expect(container.querySelector(".MuiPaper-root")).toBeNull();
   });
 });
