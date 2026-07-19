@@ -55,4 +55,13 @@ describe("Widget", () => {
     expect(screen.getByText("body").closest(".MuiPaper-root")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Highlighted" })).toBeInTheDocument();
   });
+
+  it("does not render the header when hideHeader is set", () => {
+    render(<Widget title="My widget" subtitle="a description" hideHeader><div>body</div></Widget>);
+
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.queryByText("a description")).toBeNull();
+    // the content itself is still rendered
+    expect(screen.getByText("body")).toBeInTheDocument();
+  });
 });

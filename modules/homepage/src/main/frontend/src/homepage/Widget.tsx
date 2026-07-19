@@ -24,10 +24,11 @@ import { alpha, styled } from "@mui/material/styles";
 // The surface every dashboard widget sits on. Styling lives here (driven by theme tokens) rather
 // than in the dashboard layout, so the widget frame can grow more elaborate without cluttering the
 // tiling logic, and so all widgets stay visually consistent. An emphasised widget gets a primary-
-// tinted surface (relative to the palette, so it reads correctly in both light and dark schemes).
+// tinted surface (relative to the palette, so it reads correctly in both schemes); a borderless
+// widget drops its border and fill to sit seamlessly on the page.
 const WidgetSurface = styled(Paper, {
-  shouldForwardProp: prop => prop !== "emphasis",
-})<{ emphasis?: boolean }>(({ theme, emphasis }) => ({
+  shouldForwardProp: prop => prop !== "emphasis" && prop !== "borderless",
+})<{ emphasis?: boolean; borderless?: boolean }>(({ theme, emphasis, borderless }) => ({
   padding: theme.spacing(2),
   // Fill the grid cell so widgets sharing a row are the same height (the grid stretches the cells;
   // this makes the surface stretch to match).
@@ -35,6 +36,10 @@ const WidgetSurface = styled(Paper, {
   ...(emphasis && {
     backgroundColor: alpha(theme.palette.primary.main, 0.08),
     borderColor: alpha(theme.palette.primary.main, 0.4),
+  }),
+  ...(borderless && {
+    border: "none",
+    backgroundColor: "transparent",
   }),
 }));
 
@@ -46,6 +51,10 @@ type WidgetProps = {
   subtitle?: string;
   // When true, the widget is rendered on a tinted surface to draw attention to it.
   emphasis?: boolean;
+  // When true, the widget has no border or surface fill and blends into the page background.
+  borderless?: boolean;
+  // When true, the title/subtitle header is not rendered (the widget supplies its own chrome).
+  hideHeader?: boolean;
   // The widget's content.
   children: ReactNode;
 };
@@ -53,10 +62,10 @@ type WidgetProps = {
 // The frame wrapping one dashboard widget's content: a styled surface with an optional title and
 // subtitle. Title and subtitle form one header block, kept tight together and separated from the
 // content below.
-function Widget({ title, subtitle, emphasis, children }: WidgetProps) {
+function Widget({ title, subtitle, emphasis, borderless, hideHeader, children }: WidgetProps) {
   return (
-    <WidgetSurface emphasis={emphasis}>
-      { (title || subtitle) && (
+    <WidgetSurface emphasis={emphasis} borderless={borderless}>
+      { !hideHeader && (title || subtitle) && (
         <Box sx={{ mb: 2 }}>
           { title && <Typography variant="h6">{title}</Typography> }
           { subtitle && <Typography variant="body2" color="text.secondary">{subtitle}</Typography> }
