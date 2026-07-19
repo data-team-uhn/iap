@@ -18,32 +18,37 @@
 
 import { useEffect, useState, type ComponentType } from "react";
 
-import { CircularProgress, Grid, Paper } from "@mui/material";
+import { Masonry } from "@mui/lab";
 
+import Widget from "./Widget";
+import LoadingOverlay from "../components/LoadingOverlay";
 import { loadExtensions } from "../uiextension/extensionManager";
 
-// A dashboard widget is the parsed JSON of one `iap:Extension` registered on the
+// A dashboard widget extension is the parsed JSON of one `iap:Extension` registered on the
 // `iap/dashboard/widget` extension point, with its `asset:` properties already resolved.
-type Widget = Record<string, unknown>;
+type WidgetExtension = Record<string, unknown>;
 
 // The props that the dashboard passes to each rendered widget.
 type WidgetProps = {
-  extension: Widget;
+  extension: WidgetExtension;
 };
 
 // Retrieves all the widgets registered on the dashboard extension point, in display order.
-async function getDashboardWidgets(): Promise<Widget[]> {
+async function getDashboardWidgets(): Promise<WidgetExtension[]> {
   return loadExtensions("DashboardWidget")
     .then(extensions => extensions.slice()
       .sort((a, b) => Number(a["iap:defaultOrder"]) - Number(b["iap:defaultOrder"]))
     );
 }
 
-// The dashboard view: a flexible 1-2 column grid of widgets contributed by other modules
-// through the `iap/dashboard/widget` extension point. Each widget's rendered content is
-// wrapped in a Paper element. Registered as a view on the `iap/coreUI/view` extension point.
+// The dashboard view: a responsive masonry of widgets contributed by other modules through the
+// `iap/dashboard/widget` extension point. Widgets flow into responsive columns, each placed in the
+// shortest column, so tiles of different heights pack tightly instead of leaving the ragged gaps a
+// fixed row-based grid would. The dashboard wraps every widget in a titled Widget frame — the title
+// from `iap:extensionName`, an optional subtitle from `iap:hint`. Registered as a view on the
+// `iap/coreUI/view` extension point.
 function Dashboard() {
-  const [ widgets, setWidgets ] = useState<Widget[]>([]);
+  const [ widgets, setWidgets ] = useState<WidgetExtension[]>([]);
   const [ loading, setLoading ] = useState(true);
 
   useEffect(() => {
@@ -53,27 +58,35 @@ function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return (
-      <Grid container justifyContent="center"><Grid><CircularProgress/></Grid></Grid>
-    );
-  }
+  // Cap the column count at the number of widgets so the layout adapts to how much there is to
+  // show: a lone widget spans the full width instead of sitting in a narrow column, two widgets
+  // fill at most two columns, and three or more get the full responsive spread.
+  const columns = {
+    xs: 1,
+    sm: Math.min(widgets.length, 2) || 1,
+    lg: Math.min(widgets.length, 3) || 1,
+  };
 
   return (
-    <Grid container spacing={4}>
-      {
-        widgets.map((widget, index) => {
-          const WidgetContent = widget["iap:extensionRender"] as ComponentType<WidgetProps>;
-          return (
-            <Grid size={{ xs: 12, md: widgets.length > 1 ? 6 : 12 }} key={"widget-" + index}>
-              <Paper sx={{ p: 2 }}>
+    <>
+      <LoadingOverlay open={loading} />
+      <Masonry columns={columns} spacing={2}>
+        {
+          widgets.map((widget, index) => {
+            const WidgetContent = widget["iap:extensionRender"] as ComponentType<WidgetProps>;
+            return (
+              <Widget
+                key={"widget-" + index}
+                title={String(widget["iap:extensionName"] ?? "")}
+                subtitle={widget["iap:hint"] ? String(widget["iap:hint"]) : undefined}
+              >
                 <WidgetContent extension={widget} />
-              </Paper>
-            </Grid>
-          );
-        })
-      }
-    </Grid>
+              </Widget>
+            );
+          })
+        }
+      </Masonry>
+    </>
   );
 }
 
