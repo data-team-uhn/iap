@@ -18,17 +18,19 @@
 
 import { StrictMode } from 'react';
 
+import { CssBaseline } from '@mui/material';
 import { ThemeProvider, StyledEngineProvider } from '@mui/material/styles';
 import { createRoot } from 'react-dom/client';
 
 import ErrorPage from './ErrorPage';
-import { appTheme } from "../themePalette";
+import { appTheme } from "../appTheme";
 
 const root = createRoot(document.getElementById('main-error-container')!);
 root.render(
   <StrictMode>
     <StyledEngineProvider injectFirst>
-      <ThemeProvider theme={appTheme}>
+      <ThemeProvider theme={appTheme} defaultMode="system">
+        <CssBaseline enableColorScheme />
         <ErrorPage
           errorCode={document.querySelector<HTMLMetaElement>('meta[name="statusCode"]')?.content}
           title={document.querySelector<HTMLMetaElement>('meta[name="statusMessage"]')?.content}

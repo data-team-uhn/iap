@@ -18,9 +18,12 @@
 
 import { StrictMode, useEffect, useState, type ComponentType } from "react";
 
+import { Box, CssBaseline } from "@mui/material";
+import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles";
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Route, RouterProvider, Routes } from "react-router";
 
+import { appTheme } from "../appTheme";
 import { getRoutes } from "../routes";
 
 // A view is the parsed JSON of one `iap:Extension` registered on the `iap/coreUI/view`
@@ -72,7 +75,16 @@ const container = document.querySelector('#main-container');
 if (container) {
   createRoot(container).render(
     <StrictMode>
-      <RouterProvider router={router} />
+      <StyledEngineProvider injectFirst>
+        <ThemeProvider theme={appTheme} defaultMode="system">
+          <CssBaseline enableColorScheme />
+          { /* Page gutters: CssBaseline resets the browser's default body margin, so provide our
+               own padding here. When a nav/PageStart shell lands, this moves into that layout. */ }
+          <Box sx={{ p: 3 }}>
+            <RouterProvider router={router} />
+          </Box>
+        </ThemeProvider>
+      </StyledEngineProvider>
     </StrictMode>
   );
 }
