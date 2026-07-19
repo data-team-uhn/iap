@@ -2,7 +2,7 @@
   "jcr:primaryType": "iap:Extension",
   "iap:extensionPointId": "iap/dashboard/widget",
   "iap:extensionName": "Recent proposals",
-  "iap:hint": "Awaiting your review",
+  "iap:subtitle": "Awaiting your review",
   "iap:widgetWidth": "full",
   "iap:extensionRenderURL": "asset:iap-homepage.TableWidget.js",
   "iap:defaultOrder": 5
