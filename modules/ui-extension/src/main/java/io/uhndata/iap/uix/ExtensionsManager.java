@@ -59,6 +59,7 @@ import org.slf4j.LoggerFactory;
  * </p>
  *
  * @version $Id$
+ * @since 0.1.0
  */
 public class ExtensionsManager implements Use
 {

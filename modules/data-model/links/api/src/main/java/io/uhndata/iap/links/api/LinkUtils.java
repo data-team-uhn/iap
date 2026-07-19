@@ -27,7 +27,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
  * Basic utilities for working with Links between resources.
  *
  * @version $Id$
- * @since 0.9.20
+ * @since 0.1.0
  */
 public interface LinkUtils
 {

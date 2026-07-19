@@ -1006,7 +1006,14 @@
                         <property name="ignoreComments" value="true" />
                       </module>
 
-                      <!--module name="Regexp"/-->
+                      <!-- The WriteTag check below silently skips types whose javadoc is separated
+                           from the type keyword by annotations (it fails to find the javadoc at
+                           all), so as a safety net also require every file to contain at least one
+                           @since tag. -->
+                      <module name="Regexp">
+                        <property name="format" value="(?m)^ \* @since \d+\.\d+(\.\d+)?$" />
+                        <property name="message" value="Each file must contain at least one '@since' javadoc tag." />
+                      </module>
 
                       <!--module name="RegexpHeader"/-->
 
@@ -1123,6 +1130,15 @@
                       <module name="WhitespaceAfter" />
 
                       <module name="WhitespaceAround" />
+
+                      <!-- Every class must document the version it was introduced in.
+                           The @version tag is enforced by JavadocType above. -->
+                      <module name="WriteTag">
+                        <property name="tag" value="@since" />
+                        <property name="tagFormat" value="\d+\.\d+(\.\d+)?" />
+                        <!-- Do not report the tag when it is present and well-formed -->
+                        <property name="tagSeverity" value="ignore" />
+                      </module>
                     </module>
                   </module>
                 </checkstyleRules>

@@ -25,7 +25,7 @@ import javax.jcr.Node;
  * A Link Definition, settings for connections from one resource to another.
  *
  * @version $Id$
- * @since 0.9.20
+ * @since 0.1.0
  */
 public interface LinkDefinition
 {
@@ -79,6 +79,8 @@ public interface LinkDefinition
 
     /**
      * What to do when the referenced resource is deleted.
+     *
+     * @since 0.1.0
      */
     enum OnDelete
     {
