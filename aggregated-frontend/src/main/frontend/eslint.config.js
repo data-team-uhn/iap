@@ -60,7 +60,12 @@ const importOrderRule = [
   "error",
   {
     groups: ["builtin", "external", "internal", ["parent", "sibling", "index"]],
-    pathGroups: [{ pattern: "react", group: "external", position: "before" }],
+    pathGroups: [
+      { pattern: "react", group: "external", position: "before" },
+      // Cross-module imports through the @iap/<module> namespace are our own code,
+      // sorted between third-party packages and intra-module relative imports
+      { pattern: "@iap/**", group: "internal" },
+    ],
     pathGroupsExcludedImportTypes: ["react"],
     "newlines-between": "always",
     alphabetize: { order: "asc", caseInsensitive: true },

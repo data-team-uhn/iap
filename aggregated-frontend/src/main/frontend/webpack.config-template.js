@@ -140,6 +140,11 @@ ENTRY_CONTENT
       ]
     },
     resolve: {
+      // Cross-module imports use the @iap/<module>/... namespace; each module is aggregated
+      // into its own src/<module>/ subdirectory, so a single mapping covers all of them
+      alias: {
+        '@iap': path.resolve(__dirname, 'src')
+      },
       extensions: ['.js', '.jsx', '.ts', '.tsx', '...']
     },
     optimization: {

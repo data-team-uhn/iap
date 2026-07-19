@@ -18,7 +18,7 @@
 
 import { render, screen } from "@testing-library/react";
 
-import Widget from "./Widget";
+import Widget from "@iap/homepage/Widget";
 
 describe("Widget", () => {
   it("renders its children on a Paper surface", () => {

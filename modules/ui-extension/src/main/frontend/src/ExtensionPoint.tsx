@@ -85,14 +85,14 @@ function ExtensionPoint(props: ExtensionPointProps) {
     // Determine what to do depending on the value of the output
     if (['text/javascript', 'application/javascript'].indexOf(contentType) >= 0) {
       // javascript -- evaluate as-is
-      response.text().then( (text) => {
+      return(response.text().then( (text) => {
         // eslint-disable-next-line react-hooks/unsupported-syntax
         return(eval(text));
-      });
+      }));
     } else if (contentType === 'application/json') {
       // json -- call the provided callback
       if (callback !== undefined) {
-        response.json().then( (json) => callback(json));
+        return(response.json().then( (json) => callback(json)));
       } else {
         return(Promise.reject(
           `Fetching ExtensionPoint ${path} returned json data, but no callback was provided to its ExtensionPoint`

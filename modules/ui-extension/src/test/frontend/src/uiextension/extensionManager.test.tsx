@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-import { loadExtensions } from "./extensionManager";
-import { loadAsset } from "../assetManager";
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
+import { loadAsset } from "@iap/frontend-commons/assetManager";
 
 // getURLParameters is left un-mocked (it's pure, no side effects) so the `?lazy`
 // detection is exercised for real; only the network-touching loadAsset is mocked.
-vi.mock("../assetManager", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../assetManager")>()),
+vi.mock("@iap/frontend-commons/assetManager", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@iap/frontend-commons/assetManager")>()),
   loadAsset: vi.fn(),
 }));
 

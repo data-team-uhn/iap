@@ -16,17 +16,25 @@
  * limitations under the License.
  */
 
+import path from "node:path";
+
 import { defineConfig } from "vitest/config";
 
 // Tests are authored co-located with the components in each module's
 // src/main/frontend/src/ tree, and run here in the aggregated frontend after the
 // `aggregate` step copies every module's sources (and their *.test.* files) into
-// ./src. Running here means a single node_modules resolves shared deps (@mui,
-// react, ...), which is the whole point of the aggregated bundle. See CLAUDE.md.
+// ./src/<module>/. Running here means a single node_modules resolves shared deps
+// (@mui, react, ...), which is the whole point of the aggregated bundle. See CLAUDE.md.
 export default defineConfig({
   // React 19 automatic JSX runtime, transformed by esbuild (no Babel needed for tests).
   esbuild: {
     jsx: "automatic",
+  },
+  resolve: {
+    // Cross-module imports use the @iap/<module>/... namespace, same mapping as webpack's
+    alias: {
+      "@iap": path.resolve(import.meta.dirname, "src"),
+    },
   },
   test: {
     globals: true,
