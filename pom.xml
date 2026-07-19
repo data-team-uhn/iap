@@ -303,6 +303,20 @@
         <version>5.23.0</version>
         <scope>test</scope>
       </dependency>
+      <!-- Sling mocks for testing Sling Models via resource adaptation -->
+      <dependency>
+        <groupId>org.apache.sling</groupId>
+        <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+        <version>4.0.6</version>
+        <scope>test</scope>
+      </dependency>
+      <!-- JSR-250, needed at test runtime by the Sling Models implementation used by the mocks (@PostConstruct) -->
+      <dependency>
+        <groupId>javax.annotation</groupId>
+        <artifactId>javax.annotation-api</artifactId>
+        <version>1.3.2</version>
+        <scope>test</scope>
+      </dependency>
       <dependency>
         <groupId>com.google.code.findbugs</groupId>
         <artifactId>jsr305</artifactId>
@@ -1935,7 +1949,13 @@
               <ignoredUsedUndeclaredDependency>org.mockito:mockito-core</ignoredUsedUndeclaredDependency>
               <ignoredUsedUndeclaredDependency>junit:junit</ignoredUsedUndeclaredDependency>
               <ignoredUsedUndeclaredDependency>org.hamcrest:hamcrest-library</ignoredUsedUndeclaredDependency>
+              <!-- SlingContext (declared, junit5 binding) extends SlingContextImpl from sling-mock.core -->
+              <ignoredUsedUndeclaredDependency>org.apache.sling:org.apache.sling.testing.sling-mock.core</ignoredUsedUndeclaredDependency>
             </ignoredUsedUndeclaredDependencies>
+            <ignoredUnusedDeclaredDependencies>
+              <!-- Loaded reflectively at test runtime by the Sling Models implementation, never imported -->
+              <ignoredUnusedDeclaredDependency>javax.annotation:javax.annotation-api</ignoredUnusedDeclaredDependency>
+            </ignoredUnusedDeclaredDependencies>
           </configuration>
         </plugin>
         <plugin>
@@ -2243,6 +2263,7 @@
   <modules>
     <module>modules</module>
     <module>aggregated-frontend</module>
+    <module>test-data</module>
     <module>packaging</module>
     <module>tools</module>
   </modules>

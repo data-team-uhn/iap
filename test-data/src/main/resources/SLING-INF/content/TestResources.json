@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "iap:TestResourceHomepage",
+  "SampleResource": {
+    "jcr:primaryType": "iap:TestResource",
+    "title": "Sample resource",
+    "description": "A minimal concrete iap:Resource, only meant for testing."
+  }
+}

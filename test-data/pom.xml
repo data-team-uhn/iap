@@ -21,16 +21,22 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-data-model-items</artifactId>
+    <artifactId>iap-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-data-model-items-api</artifactId>
+  <artifactId>iap-test-data</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Data model - Item nodetypes - Definitions, APIs and SPIs</name>
+  <name>IAP - Test data</name>
+  <description>Sample content only meant for testing, loaded when running with the --test option.</description>
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.sling</groupId>
+        <artifactId>slingfeature-maven-plugin</artifactId>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
@@ -38,43 +44,15 @@
         <configuration>
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
-            <Sling-Nodetypes>SLING-INF/nodetypes/items.cnd</Sling-Nodetypes>
-            <Sling-Model-Packages>io.uhndata.iap.items.models</Sling-Model-Packages>
+            <Sling-Nodetypes>SLING-INF/nodetypes/test.cnd</Sling-Nodetypes>
             <Sling-Initial-Content>
-              SLING-INF/content/libs/iap/Item/;path:=/libs/iap/Item/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/TestResources.json;path:=/TestResources;overwriteProperties:=true;uninstall:=true;checkin:=true,
+              SLING-INF/content/libs/iap/Homepage/;path:=/libs/iap/Homepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/iap/TestResource/;path:=/libs/iap/TestResource/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
       </plugin>
     </plugins>
   </build>
-
-  <dependencies>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.models.api</artifactId>
-      <version>2.0.0</version>
-    </dependency>
-
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-engine</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>javax.annotation</groupId>
-      <artifactId>javax.annotation-api</artifactId>
-    </dependency>
-  </dependencies>
 </project>
