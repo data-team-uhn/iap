@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/dashboard/widget",
+  "iap:extensionName": "Appearance",
+  "iap:extensionRenderURL": "asset:iap-homepage.ThemeToggleWidget.js",
+  "iap:defaultOrder": 1
+}

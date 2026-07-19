@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/dashboard/widget",
+  "iap:extensionName": "Today",
+  "iap:extensionRenderURL": "asset:iap-homepage.DateWidget.js",
+  "iap:defaultOrder": 2
+}
