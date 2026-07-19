@@ -19,21 +19,20 @@
 
 //-----------------------------------------------------------------------------
 //
-// The Homepage
+// Content: the base node type for all things IAP.
+//
+// This is an abstract node type which isn't supposed to be used directly,
+// only as a helper for other concrete node types.
 //
 //-----------------------------------------------------------------------------
 
-//-----------------------------------------------------------------------------
-// Simple nodetype for identifying the homepage.
-[iap:Homepage] > sling:Folder
+[iap:Content] > sling:Folder, sling:Resource, sling:ResourceSuperType
   // Attributes:
-  // We can use the homepage in a query
-  query
 
-  // Properties:
-  // Hardcode the resource type
-  - sling:resourceType (STRING) = "iap/Homepage" mandatory autocreated protected
-  // Hardcode the resource supertype: the Homepage is a resource
-  - sling:resourceSuperType (STRING) = "iap/Entity" mandatory autocreated protected
-  // Set a default title
-  - title (String) = "${platform.name}" mandatory autocreated
+  // This is an abstract node type
+  abstract
+
+  // Properties
+
+  // Hardcode the supertype to the parent iap/Entity type.
+  - sling:resourceSuperType (STRING) = "iap/Content" mandatory autocreated protected

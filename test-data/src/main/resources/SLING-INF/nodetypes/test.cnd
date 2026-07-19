@@ -21,12 +21,12 @@
 
 // Concrete subtypes of the abstract base data types, only meant for testing the base type behavior.
 
-// The homepage container for the test resources.
-[iap:TestResourceHomepage] > iap:ResourceHomepage
-  // We can use test resource homepages in a query.
+// The homepage container for the test entities.
+[iap:TestEntityHomepage] > iap:EntityHomepage
+  // We can use test entity homepages in a query.
   query
 
-// A minimal concrete resource.
-[iap:TestResource] > iap:Resource
-  // We can use test resources in a query.
+// A minimal concrete entity.
+[iap:TestEntity] > iap:Entity
+  // We can use test entities in a query.
   query

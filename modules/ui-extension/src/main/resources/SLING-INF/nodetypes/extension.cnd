@@ -34,8 +34,8 @@
   // Hardcode the resource type.
   - sling:resourceType (STRING) = "iap/ExtensionPoint" mandatory autocreated protected
 
-  // Hardcode the resource supertype: each UIXP is a resource.
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+  // Hardcode the resource supertype
+  - sling:resourceSuperType (STRING) = "iap/Entity" mandatory autocreated protected
 
   // The identifier of this UIXP, which will be referenced by UIX
   - iap:extensionPointId (STRING) mandatory
@@ -64,8 +64,8 @@
   // Hardcode the resource type.
   - sling:resourceType (STRING) = "iap/Extension" mandatory autocreated protected
 
-  // Hardcode the resource supertype: each extension is a resource.
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+  // Hardcode the resource supertype
+  - sling:resourceSuperType (STRING) = "iap/Entity" mandatory autocreated protected
 
   // The ID of the extension point targeted by this extension
   - iap:extensionPointId (STRING) mandatory
@@ -119,4 +119,4 @@
   - sling:resourceType (STRING) = "iap/ExtensionPointFinder" mandatory autocreated protected
 
   // Hardcode the resource supertype: each UIXP is a resource.
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/Entity" mandatory autocreated protected

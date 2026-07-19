@@ -29,7 +29,7 @@
             "start-order":"20"
         },
         {
-            "id":"${project.groupId}:iap-data-model-items-api:${project.version}",
+            "id":"${project.groupId}:iap-data-model-content-api:${project.version}",
             "start-order":"21"
         },
         {
@@ -37,7 +37,7 @@
             "start-order":"22"
         },
         {
-            "id":"${project.groupId}:iap-data-model-resources-api:${project.version}",
+            "id":"${project.groupId}:iap-data-model-entities-api:${project.version}",
             "start-order":"23"
         },
         {

@@ -24,7 +24,7 @@
 //-----------------------------------------------------------------------------
 
 // The definition of a type of link.
-[iap:LinkDefinition] > iap:Item, mix:referenceable, mix:lastModified
+[iap:LinkDefinition] > iap:Content, mix:referenceable, mix:lastModified
   // Properties
 
   // Hardcode the resource type.
@@ -64,7 +64,7 @@
   - onDelete (STRING) = REMOVE_LINK mandatory autocreated
 
 // A set of links to other resources
-[iap:Links] > iap:Item
+[iap:Links] > iap:Content
   // Properties:
 
   // Hardcode the resource type.
@@ -77,7 +77,7 @@
   + * (iap:WeakLink) = iap:WeakLink IGNORE
 
 // A strong link to another resource
-[iap:Link] > iap:Item, mix:lastModified
+[iap:Link] > iap:Content, mix:lastModified
   // Properties:
 
   // The type of link, a reference to a iap:LinkDefinition node

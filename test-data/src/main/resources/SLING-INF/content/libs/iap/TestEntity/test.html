@@ -1,0 +1,36 @@
+<!--/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */-->
+<!--/*
+  Renders a test entity through its Entity model, exercising both the inherited
+  Content accessors (path, name, created) and the iap:Entity-specific ones
+  (identifier, lastModified).
+*/-->
+<sly data-sly-use.entity="io.uhndata.iap.entities.models.Entity">
+  <section id="entity">
+    <h1>Sample node as Entity</h1>
+    <dl>
+      <dt>path</dt><dd id="entity-path">${entity.path}</dd>
+      <dt>name</dt><dd id="entity-name">${entity.name}</dd>
+      <dt>type</dt><dd id="entity-type">${entity.type}</dd>
+      <dt>created</dt><dd id="entity-created">${entity.created}</dd>
+      <dt>identifier</dt><dd id="entity-identifier">${entity.identifier}</dd>
+      <dt>lastModified</dt><dd id="entity-lastModified">${entity.lastModified}</dd>
+      <dt>title</dt><dd id="entity-title">${properties.title}</dd>
+    </dl>
+  </section>
+</sly>

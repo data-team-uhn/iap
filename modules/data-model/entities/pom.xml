@@ -8,7 +8,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,17 +21,15 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-modules</artifactId>
+    <artifactId>iap-data-model</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-data-model</artifactId>
+  <artifactId>iap-data-model-entities</artifactId>
   <packaging>pom</packaging>
-  <name>IAP - Data Model elements</name>
+  <name>IAP - Data Model - Base Entity and EntityHomepage nodetypes</name>
 
   <modules>
-    <module>content</module>
-    <module>links</module>
-    <module>entities</module>
+    <module>api</module>
   </modules>
 </project>
