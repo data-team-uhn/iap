@@ -63,7 +63,11 @@ const getAssetDependenciesJson = async function(): Promise<Record<string, string
       assetDependenciesJsonRequest = fetch("/libs/iap/resources/assetDependencies.json")
         .then(response => response.ok ? response.json() : Promise.reject(response))
         .then(json => assetDependenciesJson = json)
-        .catch (e => console.error('Failed to resolve asset dependencies', e))
+        .catch (e => {
+          // A missing manifest just means no dependencies are declared; remember it as an empty
+          // map, so that it isn't re-fetched (and re-logged) on every single asset load.
+          assetDependenciesJson = {};
+        })
         .finally(() => assetDependenciesJsonRequest = null);
     }
     return assetDependenciesJsonRequest;
