@@ -1,0 +1,6 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/pageBottom",
+  "iap:extensionName": "Demo page-bottom block (between the rails, appears after the content)",
+  "iap:extensionRenderURL": "asset:iap-test-data.DemoBlock.js"
+}

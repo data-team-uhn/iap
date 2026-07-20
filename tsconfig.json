@@ -27,6 +27,7 @@
     "paths": {
       "@iap/frontend-commons/*": ["./modules/frontend-commons/src/main/frontend/src/*"],
       "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],
+      "@iap/test-data/*": ["./test-data/src/main/frontend/src/*"],
       "@iap/ui-extension/*": ["./modules/ui-extension/src/main/frontend/src/*"],
       "*": [
         "./aggregated-frontend/src/main/frontend/node_modules/@types/*",
@@ -39,6 +40,8 @@
   "include": [
     "modules/*/src/main/frontend/src/**/*",
     "modules/*/src/test/frontend/src/**/*",
+    "test-data/src/main/frontend/src/**/*",
+    "test-data/src/test/frontend/src/**/*",
     // Global test types (vitest and jest-dom are not @types packages, so they cannot be
     // reached through typeRoots from here; pull their declarations in directly instead)
     "aggregated-frontend/src/main/frontend/node_modules/vitest/globals.d.ts",

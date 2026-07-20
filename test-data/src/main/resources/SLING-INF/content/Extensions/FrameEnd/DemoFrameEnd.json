@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/frameEnd",
+  "iap:extensionName": "Demo end-side rail entry",
+  "iap:extensionRenderURL": "asset:iap-test-data.DemoBlock.js",
+  "iap:data": "5"
+}
