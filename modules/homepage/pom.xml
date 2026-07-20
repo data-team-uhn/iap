@@ -49,6 +49,7 @@
               SLING-INF/content/libs/iap/resources/media/default/;path:=/libs/iap/resources/media/default/;overwrite:=true;uninstall:=true,
               SLING-INF/content/apps/iap/ExtensionPoints/;path:=/apps/iap/ExtensionPoints/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/iap/conf/;path:=/libs/iap/conf/;overwriteProperties:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

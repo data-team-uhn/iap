@@ -23,6 +23,14 @@
     <meta charset="UTF-8">
     <meta name="referrer" content="no-referrer">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <sly data-sly-use.config="io.uhndata.iap.scripting.ConfigMetadata">
+      <sly data-sly-test="${config.properties.title}">
+        <title>${config.properties.title}</title>
+      </sly>
+      <sly data-sly-repeat="${config.properties.entrySet.iterator}">
+        <meta name="${item.key}" content="${item.value}">
+      </sly>
+    </sly>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&amp;display=swap" class="next-head"/>
     <script src="/system/sling.js"></script>
