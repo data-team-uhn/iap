@@ -8,7 +8,7 @@
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,25 +21,15 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-parent</artifactId>
+    <artifactId>iap-modules</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-modules</artifactId>
+  <artifactId>iap-protocols</artifactId>
   <packaging>pom</packaging>
-  <name>IAP - Code modules</name>
+  <name>IAP - Protocols</name>
 
   <modules>
-    <module>java-utils</module>
-    <module>serialization</module>
-    <module>data-model</module>
-    <module>frontend-commons</module>
-    <module>ui-extension</module>
-    <module>favicon</module>
-    <module>startup-customization</module>
-    <module>homepage</module>
-    <module>workflows</module>
-    <module>protocols</module>
-    <module>submissions</module>
+    <module>api</module>
   </modules>
 </project>

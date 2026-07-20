@@ -1,0 +1,209 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<pt = 'https://pt.uhndata.io/'>
+
+//-----------------------------------------------------------------------------
+//
+// Protocols: templates describing the institutional process required for
+// approving a submission: what questions must be answered by the submitter,
+// which documents must be provided, which approvals are needed.
+//
+// A protocol is a container whose actual content lives in versions, mirroring
+// the wf:WorkflowDefinition / wf:WorkflowVersion split: editing a protocol
+// never changes what past submissions were judged against, it produces a new
+// version that future submissions will reference.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /Protocols root path.
+[pt:ProtocolsHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "pt/ProtocolsHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains protocol definitions
+  + * (pt:Protocol) = pt:Protocol
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A named institutional protocol. This is only a container identifying the
+// protocol; the actual requirements live in its versions.
+[pt:Protocol] > iap:Entity
+  - sling:resourceType (STRING) = "pt/Protocol" mandatory autocreated protected
+
+  // Human-readable name for this protocol
+  - title (STRING) mandatory
+
+  // When false, no new submissions may be created against any version of this protocol
+  - active (BOOLEAN) = false
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Defined versions of this protocol
+  + * (pt:ProtocolVersion) = pt:ProtocolVersion
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A particular version of a protocol; holds the questions to be answered and
+// the requirements to be fulfilled. Submissions reference a specific version.
+[pt:ProtocolVersion] > iap:Entity
+  - sling:resourceType (STRING) = "pt/ProtocolVersion" mandatory autocreated protected
+
+  // Mandatory version label, e.g. "1.0"
+  - version (STRING) mandatory
+
+  // Optional description of this version
+  - description (STRING)
+
+  // When false, no new submissions may be created against this version
+  - active (BOOLEAN) = false
+
+  // The user workflow driving submissions under this protocol version.
+  // References the exact wf:WorkflowVersion to be instantiated, so that a
+  // protocol version completely freezes the process its submissions follow;
+  // changing the workflow requires publishing a new protocol version.
+  - workflow (REFERENCE)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // What the submitter must fill in
+  + * (pt:Section) = pt:Section
+  + * (pt:Question) = pt:Question
+
+  // What the submission must fulfill beyond answering questions:
+  // expected documents, required approvals, and future requirement types
+  + * (pt:Requirement)
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A logical grouping of questions; sections may be nested.
+[pt:Section] > iap:EntityPart
+  - sling:resourceType (STRING) = "pt/Section" mandatory autocreated protected
+
+  // Human-readable name for this section
+  - title (STRING) mandatory
+
+  // Optional description displayed to the submitter
+  - description (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The questions and subsections grouped in this section
+  + * (pt:Section) = pt:Section
+  + * (pt:Question) = pt:Question
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A single question the submitter must answer.
+// Referenceable so that submission answers can point back to it.
+[pt:Question] > iap:EntityPart, mix:referenceable
+  - sling:resourceType (STRING) = "pt/Question" mandatory autocreated protected
+
+  // The question text shown to the submitter
+  - text (STRING) mandatory
+
+  // Optional longer explanation displayed to the submitter
+  - description (STRING)
+
+  // Expected answer type: text, long, double, boolean, date, file
+  - dataType (STRING) = "text" mandatory autocreated
+
+  // Whether an answer must be provided before submitting
+  - required (BOOLEAN) = false
+
+  // Whether more than one value may be provided
+  - multiple (BOOLEAN) = false
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Abstract base for anything a submission must fulfill beyond answering
+// questions: an expected document, a required approval, or future
+// requirement types. Referenceable so that submission parts (documents,
+// reviews) can point back at the requirement they fulfill.
+[pt:Requirement] > iap:EntityPart, mix:referenceable
+  // This is an abstract node type, specific requirement types must be defined.
+  abstract
+
+  // Hardcode the supertype to the parent pt/Requirement type.
+  - sling:resourceSuperType (STRING) = "pt/Requirement" mandatory autocreated protected
+
+  // Short name for this requirement, e.g. "Patient consent"
+  - label (STRING) mandatory
+
+  // A description displayed to the submitter, explaining what is expected
+  - description (STRING)
+
+  // Whether this requirement must be fulfilled before the submission can be approved
+  - required (BOOLEAN) = true
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A document that the submitter is expected to provide, e.g. the patient
+// consent form, in an expected format described by this requirement.
+[pt:DocumentRequirement] > pt:Requirement
+  - sling:resourceType (STRING) = "pt/DocumentRequirement" mandatory autocreated protected
+
+  // Accepted MIME types for the uploaded document, e.g. application/pdf
+  - acceptedFileTypes (STRING) multiple
+
+  // Prompt for an AI agent that pre-checks whether the document
+  // provided by the submitter meets this requirement
+  - aiCheckPrompt (STRING)
+
+  // Optional blank template document offered to submitters
+  + template (nt:file)
+
+//-----------------------------------------------------------------------------
+// An approval that must be granted before a submission is accepted,
+// e.g. "REB approval".
+[pt:ApprovalRequirement] > pt:Requirement
+  - sling:resourceType (STRING) = "pt/ApprovalRequirement" mandatory autocreated protected
+
+  // Principal name of the group whose members may grant this approval
+  - approverGroup (STRING)

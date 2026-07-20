@@ -1,0 +1,174 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<wf = 'https://wf.uhndata.io/'>
+<sub = 'https://sub.uhndata.io/'>
+
+//-----------------------------------------------------------------------------
+//
+// Submissions: actual research proposals submitted by researchers.
+//
+// A submission is created against a specific pt:ProtocolVersion, and its
+// content mirrors what that protocol version asks for: answers referencing
+// the protocol's questions, documents fulfilling the protocol's document
+// requirements, and reviews addressing the protocol's approval requirements.
+// Only the submitted values are stored here; the display and validation
+// metadata is read live from the referenced protocol parts.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /Submissions root path.
+[sub:SubmissionsHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "sub/SubmissionsHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains submissions
+  + * (sub:Submission) = sub:Submission
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A research proposal submitted by a researcher against a specific protocol
+// version. The workflow instances driving its lifecycle are attached through
+// the wf:WorkflowAttachable mixin's workflowInstances property.
+[sub:Submission] > iap:Entity, wf:WorkflowAttachable
+  - sling:resourceType (STRING) = "sub/Submission" mandatory autocreated protected
+
+  // Title of the research proposal
+  - title (STRING) mandatory
+
+  // The pt:ProtocolVersion this submission answers
+  - protocolVersion (REFERENCE) mandatory
+
+  // Current lifecycle state, managed by the attached user workflow,
+  // e.g. draft, submitted, in-review, approved, rejected
+  - status (STRING) = "draft" mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The submitter's answers to the protocol questions
+  + * (sub:Answer) = sub:Answer
+
+  // Attached documents, e.g. the signed patient consent
+  + * (sub:Document) = sub:Document
+
+  // Reviews added by reviewers
+  + * (sub:Review) = sub:Review
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The answer to a single protocol question. Only simple storage: the value's
+// expected type and meaning are dictated by the referenced question.
+// Referenceable so that review comments can target it.
+[sub:Answer] > iap:EntityPart, mix:referenceable
+  - sling:resourceType (STRING) = "sub/Answer" mandatory autocreated protected
+
+  // The pt:Question this answers
+  - question (REFERENCE) mandatory
+
+  // The submitted value(s)
+  - value (UNDEFINED)
+  - value (UNDEFINED) multiple
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility;
+  // file-type answers store their upload as nt:file children
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A document attached to the submission, e.g. the signed patient consent.
+[sub:Document] > iap:EntityPart
+  - sling:resourceType (STRING) = "sub/Document" mandatory autocreated protected
+
+  // Human-readable name for this document
+  - title (STRING)
+
+  // Optional description of what this document contains
+  - description (STRING)
+
+  // The pt:Requirement (typically a pt:DocumentRequirement) this document fulfills
+  - fulfills (REFERENCE)
+
+  // The actual uploaded file
+  + file (nt:file)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One reviewer's assessment of the submission.
+[sub:Review] > iap:EntityPart, mix:lastModified
+  - sling:resourceType (STRING) = "sub/Review" mandatory autocreated protected
+
+  // Principal name of the reviewer
+  - reviewer (STRING)
+
+  // The pt:Requirement (typically a pt:ApprovalRequirement) this review addresses
+  - requirement (REFERENCE)
+
+  // Current state of this review, e.g. in-progress, changes-requested, approved, rejected
+  - status (STRING) = "in-progress" mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Questions and comments raised during this review
+  + * (sub:ReviewComment) = sub:ReviewComment
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A single comment or question raised by a reviewer.
+[sub:ReviewComment] > iap:EntityPart, mix:lastModified
+  - sling:resourceType (STRING) = "sub/ReviewComment" mandatory autocreated protected
+
+  // The comment text
+  - text (STRING) mandatory
+
+  // The part of the submission this comment is about,
+  // e.g. a sub:Answer or a sub:Document
+  - subject (REFERENCE)
+
+  // Whether the submitter has addressed this comment
+  - resolved (BOOLEAN) = false
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
