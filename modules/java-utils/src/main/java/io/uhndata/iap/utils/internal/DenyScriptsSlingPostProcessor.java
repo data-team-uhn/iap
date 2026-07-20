@@ -31,6 +31,7 @@ import org.osgi.service.component.annotations.Component;
  * For security purposes, deny uploading HTML or JavaScript files for anybody other than the admin.
  *
  * @version $Id$
+ * @since 0.1.0
  */
 @Component
 public class DenyScriptsSlingPostProcessor implements SlingJakartaPostProcessor

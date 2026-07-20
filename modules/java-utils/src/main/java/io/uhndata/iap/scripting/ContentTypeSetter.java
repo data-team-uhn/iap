@@ -33,6 +33,7 @@ import org.apache.sling.scripting.sightly.pojo.Use;
  * </p>
  *
  * @version $Id$
+ * @since 0.1.0
  */
 public class ContentTypeSetter implements Use
 {

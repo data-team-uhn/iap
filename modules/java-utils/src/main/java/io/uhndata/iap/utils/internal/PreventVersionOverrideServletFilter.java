@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
  * modified, abort the request.
  *
  * @version $Id$
+ * @since 0.1.0
  */
 @Component(service = Filter.class,
     property = {

@@ -34,7 +34,7 @@ import org.apache.commons.lang3.tuple.Pair;
  * Utility class for parsing the selectors suffix from a resource into a list of selectors or a map of selector options.
  *
  * @version $Id$
- * @since 0.9.33
+ * @since 0.1.0
  */
 public final class SelectorUtils
 {

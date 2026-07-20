@@ -25,7 +25,7 @@ import jakarta.json.JsonObject;
  * A Link, a connection from one resource to another.
  *
  * @version $Id$
- * @since 0.9.20
+ * @since 0.1.0
  */
 public interface Link
 {
