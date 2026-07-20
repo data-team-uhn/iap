@@ -17,7 +17,9 @@
  */
 package io.uhndata.iap.content.models;
 
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -93,5 +95,49 @@ public class Content
     public String getCreatedBy()
     {
         return this.createdBy;
+    }
+
+    /**
+     * Lists the children of the wrapped resource that are of the given resource type, adapted to the given model
+     * type. A child matches {@code resourceType} either directly or through its {@code sling:resourceSuperType}
+     * chain, same as {@link Resource#isResourceType(String)}. This is used to implement the typed child listing
+     * methods of subclasses, e.g. {@code Schema.getVersions()}. Adaptation itself is not a reliable type filter
+     * on its own: a Sling Model registered for a resource type will happily adapt a resource of a different,
+     * unrelated type, so the resource type check always comes first.
+     *
+     * @param resourceType the resource type (or one of its subtypes) a child must have to be included
+     * @param type the model class every matching child is adapted to
+     * @param <T> the model type
+     * @return a list of matching, adapted children, in the same order as the underlying resource's children; empty
+     *         if none of the children match
+     */
+    protected <T> List<T> getChildren(final String resourceType, final Class<T> type)
+    {
+        final List<T> result = new ArrayList<>();
+        for (final Resource child : this.resource.getChildren()) {
+            if (child.isResourceType(resourceType)) {
+                final T adapted = child.adaptTo(type);
+                if (adapted != null) {
+                    result.add(adapted);
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Adapts the wrapped resource's specific named child to the given model type. Unlike {@link #getChildren},
+     * this does not need a resource type check: the child is already uniquely identified by name, its type being
+     * whatever the node type of the parent declares for that name.
+     *
+     * @param name the name of the child node to adapt
+     * @param type the model class the child is adapted to
+     * @param <T> the model type
+     * @return the adapted child, or {@code null} if there is no such child
+     */
+    protected <T> T getChild(final String name, final Class<T> type)
+    {
+        final Resource child = this.resource.getChild(name);
+        return child == null ? null : child.adaptTo(type);
     }
 }

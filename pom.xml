@@ -1972,7 +1972,13 @@
             <ignoredUnusedDeclaredDependencies>
               <!-- Loaded reflectively at test runtime by the Sling Models implementation, never imported -->
               <ignoredUnusedDeclaredDependency>javax.annotation:javax.annotation-api</ignoredUnusedDeclaredDependency>
+              <ignoredUnusedDeclaredDependency>io.uhndata.iap:iap-data-model-content-api</ignoredUnusedDeclaredDependency>
             </ignoredUnusedDeclaredDependencies>
+            <ignoredNonTestScopedDependencies>
+              <!-- Models extending Entity inherit from Content without referencing it directly in main code,
+                   but it is still needed on the main compile classpath to resolve the class hierarchy -->
+              <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-model-content-api</ignoredNonTestScopedDependency>
+            </ignoredNonTestScopedDependencies>
           </configuration>
         </plugin>
         <plugin>

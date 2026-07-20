@@ -1,0 +1,318 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<sch = 'https://iap.uhndata.io/sch/'>
+
+//-----------------------------------------------------------------------------
+//
+// Schemas: templates describing the institutional process required for
+// approving a submission: what questions must be answered by the submitter,
+// which documents must be provided, which approvals are needed...
+//
+// A schema is a container whose actual content lives in versions: editing a
+// schema never changes what past submissions were judged against, it produces
+// a new version that future submissions will reference.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /Schemas root path.
+[sch:SchemasHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "sch/SchemasHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains schema definitions
+  + * (sch:Schema) = sch:Schema
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A named institutional schema. This is only a container identifying the
+// schema; the actual requirements live in its versions.
+[sch:Schema] > iap:Entity
+  - sling:resourceType (STRING) = "sch/Schema" mandatory autocreated protected
+
+  // Human-readable name for this schema
+  - title (STRING) mandatory
+
+  // When false, no new submissions may be created against any version of this schema
+  - active (BOOLEAN) = false
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Defined versions of this schema
+  + * (sch:SchemaVersion) = sch:SchemaVersion
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A particular version of a schema; holds the requirements a submission
+// must fulfill. Submissions reference a specific version.
+[sch:SchemaVersion] > iap:Entity
+  // The list of requirements is orderable, so they can be presented to the
+  // submitter and reviewer in a deliberate sequence.
+  orderable
+
+  - sling:resourceType (STRING) = "sch/SchemaVersion" mandatory autocreated protected
+
+  // Mandatory version label, e.g. "1.0"
+  - version (STRING) mandatory
+
+  // Optional description of this version
+  - description (STRING)
+
+  // When false, no new submissions may be created against this version
+  - active (BOOLEAN) = false
+
+  // The user workflow driving submissions under this schema version.
+  // References the exact wf:WorkflowVersion to be instantiated, so that a
+  // schema version completely freezes the process its submissions follow;
+  // changing the workflow requires publishing a new schema version.
+  - workflow (REFERENCE)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // What the submission must fulfill: sets of questions to answer, documents
+  // to provide, approvals to obtain, and future requirement types
+  + * (sch:Requirement)
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Abstract base shared by everything that may appear in the body of a
+// questionnaire: a single question, or a section grouping more items. Lets
+// callers ask for "the items" of a section or questionnaire without caring
+// whether each one is a question or a subsection.
+[sch:QuestionnaireItem] > iap:EntityPart
+  abstract
+
+  // Hardcode the supertype to the parent sch/QuestionnaireItem type.
+  - sling:resourceSuperType (STRING) = "sch/QuestionnaireItem" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// A logical grouping of questions; sections may be nested.
+[sch:Section] > sch:QuestionnaireItem
+  // The list of items and conditions is orderable, so they can be
+  // presented to the submitter in a deliberate sequence.
+  orderable
+
+  - sling:resourceType (STRING) = "sch/Section" mandatory autocreated protected
+
+  // Human-readable name for this section
+  - title (STRING) mandatory
+
+  // Optional description displayed to the submitter
+  - description (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The questions and subsections grouped in this section
+  + * (sch:QuestionnaireItem)
+
+  // The conditions controlling whether this section is shown to the submitter
+  + * (sch:Condition)
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Abstract base shared by a single condition (Conditional) and a composite
+// of conditions (ConditionalGroup), so callers can ask for "a condition"
+// without caring whether it is a single comparison or a group of them.
+[sch:Condition] > iap:EntityPart
+  abstract
+
+  // Hardcode the supertype to the parent sch/Condition type.
+  - sling:resourceSuperType (STRING) = "sch/Condition" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// A conditional group is a set of conditions that can be imposed on e.g. the
+// display of a section or the requiredness of a requirement. The conditions
+// are listed as children of this, and may be turned from an OR to an AND via
+// the `requireAll` property.
+[sch:ConditionalGroup] > sch:Condition
+  - sling:resourceType (STRING) = "sch/ConditionalGroup" mandatory autocreated protected
+
+  - requireAll (BOOLEAN) = false mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // A conditional group may contain any number of conditionals or nested conditional groups
+  + * (sch:Condition)
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A condition that can be imposed on e.g. the display of a section or the
+// requiredness of a requirement.
+[sch:Conditional] > sch:Condition
+  - sling:resourceType (STRING) = "sch/Conditional" mandatory autocreated protected
+
+  // A conditional always has exactly one comparator
+  - comparator (STRING) mandatory
+
+  // Specifies how the operands should be treated when performing the comparison
+  - dataType (STRING) = "text" autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // A conditional will always have a child node called operandA
+  + operandA (sch:ConditionalValue) mandatory
+
+  // A second child operandB may be specified, but leaving it as the default is
+  // OK if the comparator is singular (e.g. "is empty")
+  + operandB (sch:ConditionalValue) = sch:ConditionalValue autocreated
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A conditional value is either a literal value, or a reference to the
+// question whose answer supplies the value.
+[sch:ConditionalValue] > iap:EntityPart
+  - sling:resourceType (STRING) = "sch/ConditionalValue" mandatory autocreated protected
+
+  // The value, or a reference to the question whose answer provides the value
+  - value (UNDEFINED) multiple
+
+  // Whether value is a reference to a question rather than a literal
+  - isReference (BOOLEAN) = false autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A single question the submitter must answer.
+// Referenceable so that submission answers can point back to it.
+[sch:Question] > sch:QuestionnaireItem, mix:referenceable
+  - sling:resourceType (STRING) = "sch/Question" mandatory autocreated protected
+
+  // The question text shown to the submitter
+  - text (STRING) mandatory
+
+  // Optional longer explanation displayed to the submitter
+  - description (STRING)
+
+  // Expected answer type: text, long, double, boolean, date, file
+  - dataType (STRING) = "text" mandatory autocreated
+
+  // Whether an answer must be provided before submitting
+  - required (BOOLEAN) = false
+
+  // Whether more than one value may be provided
+  - multiple (BOOLEAN) = false
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Abstract base for anything a submission must fulfill: a set of questions
+// to answer, an expected document, a required approval, or future
+// requirement types. Referenceable so that submission parts (answers,
+// documents, reviews) can point back at the requirement they fulfill.
+[sch:Requirement] > iap:EntityPart, mix:referenceable
+  // This is an abstract node type, specific requirement types must be defined.
+  abstract
+
+  // Hardcode the supertype to the parent sch/Requirement type.
+  - sling:resourceSuperType (STRING) = "sch/Requirement" mandatory autocreated protected
+
+  // Short name for this requirement, e.g. "Patient consent"
+  - label (STRING) mandatory
+
+  // A description displayed to the submitter, explaining what is expected
+  - description (STRING)
+
+  // Whether this requirement must be fulfilled before the submission can be approved
+  - required (BOOLEAN) = true
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The conditions controlling whether this requirement applies to a submission
+  + * (sch:Condition)
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A set of questions, grouped into sections, that the submitter must answer
+// to fulfill this requirement. This is how a schema version's own
+// questions are expressed: as a (typically unconditional, always required)
+// questionnaire requirement.
+[sch:QuestionnaireRequirement] > sch:Requirement
+  // The list of items is orderable, so they can be presented to the
+  // submitter in a deliberate sequence.
+  orderable
+
+  - sling:resourceType (STRING) = "sch/QuestionnaireRequirement" mandatory autocreated protected
+
+  // The questions and sections making up this questionnaire
+  + * (sch:QuestionnaireItem)
+
+//-----------------------------------------------------------------------------
+// A document that the submitter is expected to provide, e.g. the patient
+// consent form, in an expected format described by this requirement.
+[sch:DocumentRequirement] > sch:Requirement
+  - sling:resourceType (STRING) = "sch/DocumentRequirement" mandatory autocreated protected
+
+  // Accepted MIME types for the uploaded document, e.g. application/pdf
+  - acceptedFileTypes (STRING) multiple
+
+  // Prompt for an AI agent that pre-checks whether the document
+  // provided by the submitter meets this requirement
+  - aiCheckPrompt (STRING)
+
+  // Optional blank template document offered to submitters
+  + template (nt:file)
+
+//-----------------------------------------------------------------------------
+// An approval that must be granted before a submission is accepted,
+// e.g. "REB approval".
+[sch:ApprovalRequirement] > sch:Requirement
+  - sling:resourceType (STRING) = "sch/ApprovalRequirement" mandatory autocreated protected
+
+  // Principal name of the group whose members may grant this approval
+  - approverGroup (STRING)

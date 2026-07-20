@@ -39,5 +39,7 @@
     <module>startup-customization</module>
     <module>homepage</module>
     <module>workflows</module>
+    <module>schemas</module>
+    <module>submissions</module>
   </modules>
 </project>

@@ -18,6 +18,7 @@
 package io.uhndata.iap.content.models;
 
 import java.util.Calendar;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -30,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link Content}.
@@ -97,5 +99,58 @@ class ContentTest
         assertNotNull(content);
         assertNull(content.getCreated());
         assertNull(content.getCreatedBy());
+    }
+
+    @Test
+    void listsChildrenOfGivenResourceType()
+    {
+        final Resource parent = this.context.create().resource("/content/parent",
+            "sling:resourceType", "iap/Content");
+        this.context.create().resource("/content/parent/first", "sling:resourceType", "iap/Content");
+        this.context.create().resource("/content/parent/second", "sling:resourceType", "iap/Content");
+        // A child of an unrelated resource type is excluded, even though it would still adapt
+        this.context.create().resource("/content/parent/unrelated", "sling:resourceType", "sling:Folder");
+        final Content content = parent.adaptTo(Content.class);
+
+        final List<Content> children = content.getChildren("iap/Content", Content.class);
+
+        assertEquals(2, children.size());
+        assertEquals("first", children.get(0).getName());
+        assertEquals("second", children.get(1).getName());
+    }
+
+    @Test
+    void listsNoChildrenWhenNoneMatch()
+    {
+        final Resource parent = this.context.create().resource("/content/empty",
+            "sling:resourceType", "iap/Content");
+        this.context.create().resource("/content/empty/unrelated", "sling:resourceType", "sling:Folder");
+        final Content content = parent.adaptTo(Content.class);
+
+        assertTrue(content.getChildren("iap/Content", Content.class).isEmpty());
+    }
+
+    @Test
+    void adaptsNamedChild()
+    {
+        final Resource parent = this.context.create().resource("/content/withChild",
+            "sling:resourceType", "iap/Content");
+        this.context.create().resource("/content/withChild/single", "sling:resourceType", "iap/Content");
+        final Content content = parent.adaptTo(Content.class);
+
+        final Content child = content.getChild("single", Content.class);
+
+        assertNotNull(child);
+        assertEquals("single", child.getName());
+    }
+
+    @Test
+    void returnsNullForMissingNamedChild()
+    {
+        final Resource parent = this.context.create().resource("/content/withoutChild",
+            "sling:resourceType", "iap/Content");
+        final Content content = parent.adaptTo(Content.class);
+
+        assertNull(content.getChild("missing", Content.class));
     }
 }
