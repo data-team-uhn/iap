@@ -18,7 +18,7 @@
 
 import { render, screen } from "@testing-library/react";
 
-import FormattedText from "./FormattedText";
+import FormattedText from "@iap/frontend-commons/components/FormattedText";
 
 describe("FormattedText", () => {
   it("renders markdown formatting", () => {

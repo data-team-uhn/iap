@@ -19,8 +19,8 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
-import Main from "@iap/homepage/homepage";
 import { getRoutes } from "@iap/frontend-commons/routes";
+import Main from "@iap/homepage/homepage";
 
 vi.mock("@iap/frontend-commons/routes", () => ({
   getRoutes: vi.fn(),
