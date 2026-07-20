@@ -106,6 +106,19 @@ ENTRY_CONTENT
       new WebpackAssetsManifest({
         output: "assets.json"
       }),
+      // The client-side assetManager fetches an asset *dependencies* manifest alongside the
+      // assets.json name map (see frontend-commons/src/assetManager.tsx). No IAP entry point
+      // declares runtime dependencies on other entry points, so emit an empty manifest to
+      // keep that fetch from 404ing; when real cross-entry dependencies appear, replace this
+      // with a proper per-module declaration + aggregation step.
+      {
+        apply: compiler => compiler.hooks.thisCompilation.tap('EmitAssetDependencies', compilation =>
+          compilation.hooks.processAssets.tap(
+            { name: 'EmitAssetDependencies', stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL },
+            () => compilation.emitAsset('assetDependencies.json', new compiler.webpack.sources.RawSource('{}\n'))
+          )
+        )
+      },
       !env.quick && new ESLintPlugin({
         extensions: ['js', 'jsx', 'ts', 'tsx'],
         emitWarning: false,   // Show warnings in ESLint output, not as webpack warnings
