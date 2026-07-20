@@ -237,7 +237,7 @@ do
     unset ARGS[$i]
     ARGS[$ARGS_LENGTH]=-f
     ARGS_LENGTH=${ARGS_LENGTH}+1
-    ARGS[$ARGS_LENGTH]=mvn:io.uhndata.iap/iap-test-data/${PLATFORM_VERSION}/slingosgifeature,mvn:io.uhndata.iap/iap-workflows/${PLATFORM_VERSION}/slingosgifeature
+    ARGS[$ARGS_LENGTH]=mvn:io.uhndata.iap/iap-test-data/${PLATFORM_VERSION}/slingosgifeature
     ARGS_LENGTH=${ARGS_LENGTH}+1
   else
     ARGS[$i]=${ARGS[$i]@P}
