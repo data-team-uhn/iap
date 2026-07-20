@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import { loadAsset } from "@iap/frontend-commons/assetManager";
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
 // getURLParameters is left un-mocked (it's pure, no side effects) so the `?lazy`
 // detection is exercised for real; only the network-touching loadAsset is mocked.
