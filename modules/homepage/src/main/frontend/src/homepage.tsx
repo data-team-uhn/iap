@@ -18,13 +18,15 @@
 
 import { StrictMode, useEffect, useState, type ComponentType } from "react";
 
-import { Box, CssBaseline } from "@mui/material";
+import { CssBaseline } from "@mui/material";
 import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles";
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Route, RouterProvider, Routes } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { getRoutes } from "@iap/frontend-commons/routes";
+
+import PageLayout from "./PageLayout";
 
 // A view is the parsed JSON of one `iap:Extension` registered on the `iap/coreUI/view`
 // extension point, with its `asset:` properties already resolved. A view has an
@@ -62,10 +64,12 @@ function Main() {
   );
 }
 
+// The page shell wraps the routed view from inside the router, so that shell extensions
+// (navigation entries, toolbars, ...) can use react-router links and location hooks.
 const router = createBrowserRouter([
   {
     path: "*",
-    element: <Main />,
+    element: <PageLayout><Main /></PageLayout>,
   },
 ]);
 
@@ -78,11 +82,7 @@ if (container) {
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={appTheme} defaultMode="system">
           <CssBaseline enableColorScheme />
-          { /* Page gutters: CssBaseline resets the browser's default body margin, so provide our
-               own padding here. When a nav/PageStart shell lands, this moves into that layout. */ }
-          <Box sx={{ p: 3 }}>
-            <RouterProvider router={router} />
-          </Box>
+          <RouterProvider router={router} />
         </ThemeProvider>
       </StyledEngineProvider>
     </StrictMode>

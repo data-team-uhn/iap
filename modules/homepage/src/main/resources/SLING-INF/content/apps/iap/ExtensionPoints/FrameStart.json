@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "iap:ExtensionPoint",
+  "iap:extensionPointId": "iap/coreUI/frameStart",
+  "iap:extensionPointName": "Elements of the stable screen frame: the side rail at the start side of the screen (left in left-to-right languages)"
+}

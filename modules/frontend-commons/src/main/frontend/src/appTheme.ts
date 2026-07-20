@@ -16,10 +16,43 @@
  * limitations under the License.
  */
 
-import { createTheme, lighten } from '@mui/material/styles';
+import { createTheme, lighten, type Breakpoint } from '@mui/material/styles';
 
 const primaryColor = document.querySelector<HTMLMetaElement>('meta[name="primaryColor"]')?.content || "#003366";
 const secondaryColor = document.querySelector<HTMLMetaElement>('meta[name="secondaryColor"]')?.content || "#f94900";
+
+// The dimensions of the page shell (see PageLayout in the homepage module), read from the theme
+// so they are configured here, alongside the rest of the styling.
+// Each frame region is configured independently — e.g. a navigation-like start rail can stick
+// around on narrower screens than a nice-to-have end rail.
+interface RailConfig {
+  // The inline size (width) of the rail, in px.
+  width: number;
+  // The viewport width below which the rail collapses into an edge pull-tab drawer:
+  // a breakpoint name or a px number.
+  collapseWidth: number | Breakpoint;
+}
+
+interface BarConfig {
+  // The viewport height below which the bar collapses into an edge pull-tab drawer, in px.
+  collapseHeight: number;
+}
+
+interface IapShellConfig {
+  frameStart: Partial<RailConfig>;
+  frameEnd: Partial<RailConfig>;
+  frameTop: Partial<BarConfig>;
+  frameBottom: Partial<BarConfig>;
+}
+
+declare module "@mui/material/styles" {
+  interface Theme {
+    iapShell?: Partial<IapShellConfig>;
+  }
+  interface ThemeOptions {
+    iapShell?: Partial<IapShellConfig>;
+  }
+}
 
 // The application theme, and the single home for styling. Colours, the light/dark colour schemes,
 // and component defaults all live here, so the rest of the app doesn't have to hand-roll its own
@@ -35,6 +68,14 @@ const appTheme = createTheme({
   // `media` the scheme would only follow the OS preference and the toggle would do nothing.
   cssVariables: {
     colorSchemeSelector: "class",
+  },
+  iapShell: {
+    // The start rail hosts the more important (navigation-like) content, so it stays in the
+    // page flow on narrower screens than the auxiliary end rail.
+    frameStart: { width: 200, collapseWidth: "md" },
+    frameEnd: { width: 200, collapseWidth: "xl" },
+    frameTop: { collapseHeight: 500 },
+    frameBottom: { collapseHeight: 500 },
   },
   colorSchemes: {
     light: {
