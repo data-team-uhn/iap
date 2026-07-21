@@ -38,5 +38,6 @@
     <module>favicon</module>
     <module>startup-customization</module>
     <module>homepage</module>
+    <module>workflows</module>
   </modules>
 </project>

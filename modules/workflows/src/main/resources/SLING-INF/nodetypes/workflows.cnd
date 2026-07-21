@@ -1,0 +1,315 @@
+//
+//  Licensed to the Apache Software Foundation (ASF) under one
+//  or more contributor license agreements.  See the NOTICE file
+//  distributed with this work for additional information
+//  regarding copyright ownership.  The ASF licenses this file
+//  to you under the Apache License, Version 2.0 (the
+//  "License"); you may not use this file except in compliance
+//  with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing,
+//  software distributed under the License is distributed on an
+//  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+//  KIND, either express or implied.  See the License for the
+//  specific language governing permissions and limitations
+//  under the License.
+//
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<wf = 'https://wf.uhndata.io/'>
+
+//-----------------------------------------------------------------------------
+//
+// Workflow Homepage Nodes
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /Workflows root path.
+[wf:WorkflowsHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "wf/WorkflowsHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // Contains workflow definitions
+  + * (wf:WorkflowDefinition) = wf:WorkflowDefinition
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /WorkflowTypes root path.
+[wf:WorkflowTypesHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "wf/WorkflowsTypesHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // Contains event and activity type definitions
+  + * (wf:FlowNodeType) = wf:FlowNodeType
+
+//-----------------------------------------------------------------------------
+//
+// Workflow Definitions
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// The top-level template describing a workflow process.
+[wf:WorkflowDefinition] > iap:Entity
+  - sling:resourceType (STRING) = "wf/WorkflowDefinition" mandatory autocreated protected
+
+  // Human-readable name for this workflow
+  - title (STRING) mandatory
+
+  // When false, no new instances may be created from this definition
+  - active (BOOLEAN) = false
+
+  // Whether the workflow is a system workflow (to be used by technical admins) or not
+  - systemWorkflow (BOOLEAN)
+
+  // Defined versions of this workflow
+  + * (wf:WorkflowVersion) = wf:WorkflowVersion
+
+//-----------------------------------------------------------------------------
+// A particular version of a workflow process.
+[wf:WorkflowVersion] > iap:Entity
+  - sling:resourceType (STRING) = "wf/WorkflowVersion" mandatory autocreated protected
+
+  // Optional description of what this workflow does
+  - description (STRING)
+
+  // Mandatory version label, e.g. "1.0"
+  - version (STRING) mandatory
+
+  // BPMN 2.0 XML source for this workflow
+  - bpmnXml (STRING)
+
+  // SHA-256 hash of the bpmnXml at the time of the last successful parse into flow nodes
+  - bpmnXmlParsedHash (STRING)
+
+  // When false, no new instances may be created from this version
+  - active (BOOLEAN) = false
+
+  // Parsed BPMN flow nodes (start/end events, tasks, gateways)
+  + * (wf:FlowNode) = wf:FlowNode
+
+
+//-----------------------------------------------------------------------------
+// Abstract base for all BPMN flow objects (events, activities, gateways).
+[wf:FlowNode] > iap:EntityPart
+  abstract
+
+  // Stable BPMN element identifier, e.g. "task_1"
+  - elementId (STRING) mandatory
+
+  // Optional display label
+  - name (STRING)
+
+  // Outgoing sequence flows from this node
+  + * (wf:SequenceFlow) = wf:SequenceFlow
+
+
+//-----------------------------------------------------------------------------
+// Abstract base for all workflow events.
+[wf:Event] > wf:FlowNode
+  abstract
+
+  // e.g. none, message, timer, signal, conditional
+  - eventType (STRING)
+
+  // true = catching event, false = throwing event
+  - catching (BOOLEAN) = true
+
+//-----------------------------------------------------------------------------
+// Entry point of a workflow process.
+[wf:StartEvent] > wf:Event
+  query
+
+  // Start events are always catching
+  - catching (BOOLEAN) = true
+
+//-----------------------------------------------------------------------------
+// Exit point of a workflow process.
+[wf:EndEvent] > wf:Event
+
+  // End events are always throwing
+  - catching (BOOLEAN) = false
+
+//-----------------------------------------------------------------------------
+// A catch or throw event occurring mid-process.
+[wf:IntermediateEvent] > wf:Event
+
+
+//-----------------------------------------------------------------------------
+// Abstract base for all BPMN work units.
+[wf:Activity] > wf:FlowNode
+  abstract
+
+  // Any boundary events that can occur while this activity is active
+  + * (wf:IntermediateEvent) = wf:IntermediateEvent
+
+
+//-----------------------------------------------------------------------------
+// Abstract base for all BPMN routing nodes.
+[wf:Gateway] > wf:FlowNode
+  abstract
+
+//-----------------------------------------------------------------------------
+// XOR gateway — exactly one outgoing path is taken.
+[wf:ExclusiveGateway] > wf:Gateway
+  // No additional properties
+
+//-----------------------------------------------------------------------------
+// AND gateway — all outgoing paths are taken simultaneously.
+[wf:ParallelGateway] > wf:Gateway
+  // No additional properties
+
+//-----------------------------------------------------------------------------
+// OR gateway — one or more outgoing paths are taken based on conditions.
+[wf:InclusiveGateway] > wf:Gateway
+  // No additional properties
+
+
+//-----------------------------------------------------------------------------
+// A directed arc connecting two flow nodes.
+// Stored as a child node of the source flow node.
+[wf:SequenceFlow] > iap:EntityPart
+  // Stable BPMN element identifier
+  - elementId (STRING) mandatory
+
+  // elementId of the target flow node
+  - targetRef (STRING) mandatory
+
+  // Optional label shown on the arc
+  - name (STRING)
+
+  // Guard condition evaluated for exclusive/inclusive gateways
+  - conditionExpression (STRING)
+
+  // When true, this is the default outgoing flow of its source gateway
+  - isDefault (BOOLEAN)
+
+//-----------------------------------------------------------------------------
+//
+// Mixins
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Abstract nodetype that can be extended by any nodetype to attach workflow
+// instances to it.
+[wf:WorkflowAttachable]
+  mixin
+
+  // The workflow instances attached to this node
+  - workflowInstances (REFERENCE) multiple
+
+//-----------------------------------------------------------------------------
+//
+// Workflow Runtime Instances
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// A running or completed execution of a workflow definition.
+[wf:WorkflowInstance] > iap:Entity
+  - sling:resourceType (STRING) = "iap/WorkflowInstance" mandatory autocreated protected
+
+  // The definition this instance was created from
+  - workflowVersion (REFERENCE) mandatory
+
+  // e.g. active, completed, failed, cancelled
+  - status (STRING) mandatory
+
+  // When this instance started
+  - startTime (DATE)
+
+  // When this instance finished
+  - endTime (DATE)
+
+//-----------------------------------------------------------------------------
+// Tracks a single execution branch's current position in a workflow instance.
+[wf:WorkflowToken] > iap:EntityPart
+  // elementId of the flow node currently occupied by this token
+  - currentNodeId (STRING) mandatory
+
+  // When this token was created
+  - created (DATE) mandatory
+
+//-----------------------------------------------------------------------------
+// A running instance of a user task within a workflow instance.
+[wf:TaskInstance] > iap:Entity
+  - sling:resourceType (STRING) = "iap/TaskInstance" mandatory autocreated protected
+
+  // elementId of the source wf:UserTask definition
+  - taskDefinitionId (STRING) mandatory
+
+  // Display name for this task
+  - name (STRING) mandatory
+
+  // User currently assigned to this task
+  - assignee (STRING)
+
+  // e.g. created, claimed, completed, cancelled
+  - status (STRING) mandatory
+
+  // When this task became active
+  - startTime (DATE)
+
+  // When this task was completed or cancelled
+  - endTime (DATE)
+
+  // Optional deadline for completing this task
+  - dueDate (DATE)
+
+  // Value recorded at completion; used for downstream gateway routing
+  - outcome (STRING)
+
+  // Optional associated iap form
+  - form (REFERENCE)
+
+//-----------------------------------------------------------------------------
+// A named variable stored within a workflow instance.
+[wf:Variable] > iap:Content
+  // Variable name
+  - name (STRING) mandatory
+
+  // Declared type: string, long, double, boolean, date, reference
+  - type (STRING) mandatory
+
+  - stringValue (STRING)
+  - longValue (LONG)
+  - doubleValue (DOUBLE)
+  - booleanValue (BOOLEAN)
+  - dateValue (DATE)
+  - referenceValue (REFERENCE)
+
+//-----------------------------------------------------------------------------
+//
+// Workflow Type Definitions
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// A particular type of workflow node.
+[wf:FlowNodeType] > iap:Entity
+  // The name of this node type
+  - name (STRING)
+
+  // The sub-type of wf:FlowNode that this type applies to
+  - nodeType (STRING)
+
+//-----------------------------------------------------------------------------
+// A particular type of catching workflow event.
+[wf:CatchingEventType] > wf:FlowNodeType
+  // The trigger that leads to this event
+  - trigger (STRING)
+
+//-----------------------------------------------------------------------------
+// A particular type of throwing workflow event.
+[wf:ThrowingEventType] > wf:FlowNodeType
+  // The output that this event goes to
+  - output (STRING)
+
+//-----------------------------------------------------------------------------
+// A particular type of workflow activity.
+[wf:ActivityType] > wf:FlowNodeType
+  abstract
