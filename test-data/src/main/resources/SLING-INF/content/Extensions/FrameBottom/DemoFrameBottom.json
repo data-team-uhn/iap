@@ -1,0 +1,6 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/frameBottom",
+  "iap:extensionName": "Demo frame bottom bar (always pinned to the bottom of the screen)",
+  "iap:extensionRenderURL": "asset:iap-test-data.DemoBlock.js"
+}

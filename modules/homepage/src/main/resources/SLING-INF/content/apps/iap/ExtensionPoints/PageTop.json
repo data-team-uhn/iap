@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "iap:ExtensionPoint",
+  "iap:extensionPointId": "iap/coreUI/pageTop",
+  "iap:extensionPointName": "Elements displayed at the top of the page content, between the side rails, scrolling with the content"
+}

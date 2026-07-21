@@ -1,0 +1,6 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/pageTop",
+  "iap:extensionName": "Demo page-top block (between the rails, scrolls away with the content)",
+  "iap:extensionRenderURL": "asset:iap-test-data.DemoBlock.js"
+}

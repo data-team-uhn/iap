@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "iap:ExtensionPoint",
+  "iap:extensionPointId": "iap/coreUI/pageBottom",
+  "iap:extensionPointName": "Elements displayed at the bottom of the page content, between the side rails, scrolling with the content"
+}

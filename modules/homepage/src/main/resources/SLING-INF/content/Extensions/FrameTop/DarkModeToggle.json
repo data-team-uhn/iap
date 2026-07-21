@@ -1,0 +1,6 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/frameTop",
+  "iap:extensionName": "Dark mode toggle",
+  "iap:extensionRenderURL": "asset:iap-homepage.DarkModeToggle.js"
+}
