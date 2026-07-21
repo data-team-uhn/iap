@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/appBar/entry",
+  "iap:extensionName": "Dark mode toggle",
+  "iap:extensionRenderURL": "asset:iap-homepage.DarkModeToggle.js",
+  "iap:appBarSection": "end",
+  "iap:defaultOrder": 10
+}

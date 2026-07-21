@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/appBar/entry",
+  "iap:extensionName": "Notifications",
+  "iap:extensionRenderURL": "asset:iap-homepage.Notifications.js",
+  "iap:appBarSection": "end",
+  "iap:defaultOrder": 20
+}

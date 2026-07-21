@@ -20,7 +20,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ComponentType,
   type CSSProperties,
   type ReactNode,
   type Ref
@@ -43,11 +42,8 @@ import {
   type Theme
 } from "@mui/material/styles";
 
+import { byDefaultOrder, ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
-
-// An extension is the parsed JSON of one `iap:Extension`, with its `asset:` properties already
-// resolved; its exact shape depends on the extension point, so it is an open string-keyed record.
-type Extension = Record<string, unknown>;
 
 // The extension points composing the page shell. The four Frame* points form the stable screen
 // frame — always visible, never scrolling away: the full-width top and bottom bars and the two
@@ -81,9 +77,6 @@ const barConfig = (theme: Theme, edge: "start" | "end") =>
 // overlapping its `up` counterpart.
 const shorterThan = (height: number) => `@media (max-height: ${height - 0.05}px)`;
 const tallerThan = (height: number) => `@media (min-height: ${height}px)`;
-
-const byDefaultOrder = (a: Extension, b: Extension) =>
-  Number(a["iap:defaultOrder"] ?? 0) - Number(b["iap:defaultOrder"] ?? 0);
 
 // How long the hint tooltip on a pull tab stays up, and how long after the page loads (or a
 // resize settles) it appears.
@@ -170,21 +163,6 @@ type RegionProps = {
   // inline start/end for the side rails.
   edge: "start" | "end";
 };
-
-// Renders each extension's `iap:extensionRender` component, in the order given, passing it the
-// extension itself so node properties (`iap:data`, ...) are readable at runtime.
-function ExtensionList({ extensions }: { extensions: Extension[] }) {
-  return (
-    <>
-      {
-        extensions.map((extension, index) => {
-          const ExtensionContent = extension["iap:extensionRender"] as ComponentType<{ extension: Extension }>;
-          return ExtensionContent ? <ExtensionContent extension={extension} key={"extension-" + index} /> : null;
-        })
-      }
-    </>
-  );
-}
 
 type PullTabProps = {
   // The accessible name of the tab, also its hover tooltip.
