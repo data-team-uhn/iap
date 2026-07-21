@@ -77,6 +77,9 @@ def main(args=sys.argv[1:]):
     seen_modules = {}
 
     for root, dirs, files in os.walk(root_dir):
+        # Don't descend into hidden directories (.git, .mvnrepo, .iap-data, etc.)
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+
         # Exclude our own directory
         if not path.samefile(root, aggregated_frontend_dir):
 
