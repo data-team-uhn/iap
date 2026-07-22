@@ -2083,10 +2083,15 @@
     </profile>
 
     <profile>
-      <!-- By default the sling running instance is also cleaned. To disable this, use `mvn install -P-clean-instance` -->
+      <!-- Cleans the running instance by default; disable with `mvn clean install -P-clean-instance`
+           or `mvn clean install -Dclean-instance.skip`. -->
       <id>clean-instance</id>
       <activation>
-        <activeByDefault>true</activeByDefault>
+        <!-- activeByDefault would get silently deactivated whenever another profile is explicitly
+             selected (e.g. `-Ptests`), so activate on the absence of a property instead. -->
+        <property>
+          <name>!clean-instance.skip</name>
+        </property>
       </activation>
       <build>
         <plugins>
