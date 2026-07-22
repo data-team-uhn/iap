@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/footer/link",
+  "iap:extensionName": "Terms of use",
+  "iap:targetURL": "/terms-of-use",
+  "iap:defaultOrder": 10
+}
