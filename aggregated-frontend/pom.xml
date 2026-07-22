@@ -105,6 +105,12 @@
                 <exclude>**/tsconfig.json</exclude>
               </excludes>
             </fileset>
+            <!-- Webpack's persistent cache is spared above with the rest of node_modules, but it
+                 must not survive a clean: it can serve stale cached entry files that import
+                 shared chunks by their previous content hash, silently deploying outdated code. -->
+            <fileset>
+              <directory>src/main/frontend/node_modules/.cache/</directory>
+            </fileset>
           </filesets>
         </configuration>
       </plugin>
