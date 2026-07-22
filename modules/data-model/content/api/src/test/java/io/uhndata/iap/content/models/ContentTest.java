@@ -102,6 +102,38 @@ class ContentTest
     }
 
     @Test
+    void exposesArbitraryScalarProperty()
+    {
+        final Resource resource = this.context.create().resource("/content/sample", Map.of(
+            "sling:resourceType", "iap/Content",
+            "customProperty", "customValue"));
+        final Content content = resource.adaptTo(Content.class);
+
+        assertEquals("customValue", content.get("customProperty"));
+    }
+
+    @Test
+    void exposesArbitraryMultiValuedProperty()
+    {
+        final Resource resource = this.context.create().resource("/content/sample", Map.of(
+            "sling:resourceType", "iap/Content",
+            "customProperty", new String[]{ "one", "two" }));
+        final Content content = resource.adaptTo(Content.class);
+
+        assertEquals(List.of("one", "two"), List.of((String[]) content.get("customProperty")));
+    }
+
+    @Test
+    void returnsNullForMissingArbitraryProperty()
+    {
+        final Resource resource = this.context.create().resource("/content/sample",
+            "sling:resourceType", "iap/Content");
+        final Content content = resource.adaptTo(Content.class);
+
+        assertNull(content.get("missingProperty"));
+    }
+
+    @Test
     void listsChildrenOfGivenResourceType()
     {
         final Resource parent = this.context.create().resource("/content/parent",

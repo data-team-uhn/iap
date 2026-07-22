@@ -98,6 +98,19 @@ public class Content
     }
 
     /**
+     * The value of an arbitrary property of the wrapped resource. Every node type declares residual ({@code *})
+     * properties for exactly this: extensibility properties whose names aren't known in advance and thus have no
+     * dedicated getter of their own.
+     *
+     * @param name the property name
+     * @return the property value (a scalar, or an array for a multi-valued property), or {@code null} if not set
+     */
+    public Object get(final String name)
+    {
+        return this.resource.getValueMap().get(name);
+    }
+
+    /**
      * Lists the children of the wrapped resource that are of the given resource type, adapted to the given model
      * type. A child matches {@code resourceType} either directly or through its {@code sling:resourceSuperType}
      * chain, same as {@link Resource#isResourceType(String)}. This is used to implement the typed child listing

@@ -18,7 +18,11 @@
 <!--/*
   Renders a test entity through its Entity model, exercising both the inherited
   Content accessors (path, name, created) and the iap:Entity-specific ones
-  (identifier, lastModified).
+  (identifier, lastModified), plus a couple of undeclared/residual properties
+  (customProperty, customTags) that exist only in content, not in iap:TestEntity's
+  own schema. HTL has no syntax for calling a method with an argument, so these are
+  read off the resource's value map directly, the same underlying data source
+  Content#get(String) reads from.
 */-->
 <sly data-sly-use.entity="io.uhndata.iap.entities.models.Entity">
   <section id="entity">
@@ -31,6 +35,8 @@
       <dt>identifier</dt><dd id="entity-identifier">${entity.identifier}</dd>
       <dt>lastModified</dt><dd id="entity-lastModified">${entity.lastModified}</dd>
       <dt>title</dt><dd id="entity-title">${properties.title}</dd>
+      <dt>customProperty</dt><dd id="entity-customProperty">${properties.customProperty}</dd>
+      <dt>customTags</dt><dd id="entity-customTags">${properties.customTags @ join=', '}</dd>
     </dl>
   </section>
 </sly>
