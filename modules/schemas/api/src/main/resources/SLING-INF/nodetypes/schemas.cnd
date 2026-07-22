@@ -109,15 +109,11 @@
 // questionnaire: a single question, or a section grouping more items. Lets
 // callers ask for "the items" of a section or questionnaire without caring
 // whether each one is a question or a subsection.
-[sch:QuestionnaireItem] > iap:EntityPart
+[sch:QuestionnaireItem] > iap:EntityPart, sch:Conditionable
   abstract
 
   // Hardcode the supertype to the parent sch/QuestionnaireItem type.
   - sling:resourceSuperType (STRING) = "sch/QuestionnaireItem" mandatory autocreated protected
-
-  // The condition controlling whether this item is shown to the submitter; combine
-  // multiple conditions using a sch:ConditionGroup.
-  + sch:condition (sch:Condition)
 
 //-----------------------------------------------------------------------------
 // A logical grouping of questions; sections may be nested.
@@ -143,6 +139,17 @@
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Mixin that can be added to any node type to make it conditionally enabled,
+// independently of that type's own supertype chain (e.g. shared by the
+// unrelated sch:QuestionnaireItem and sch:Requirement hierarchies).
+[sch:Conditionable]
+  mixin
+
+  // The condition controlling whether the node is enabled; combine multiple
+  // conditions using a sch:ConditionGroup.
+  + sch:condition (sch:Condition)
 
 //-----------------------------------------------------------------------------
 // Abstract base shared by a single condition (SingleCondition) and a
@@ -253,7 +260,7 @@
 // to answer, an expected document, a required approval, or future
 // requirement types. Referenceable so that submission parts (answers,
 // documents, reviews) can point back at the requirement they fulfill.
-[sch:Requirement] > iap:EntityPart, mix:referenceable
+[sch:Requirement] > iap:EntityPart, mix:referenceable, sch:Conditionable
   // This is an abstract node type, specific requirement types must be defined.
   abstract
 
@@ -272,10 +279,6 @@
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
-
-  // The condition controlling whether this requirement applies to a submission; combine
-  // multiple conditions using a sch:ConditionGroup.
-  + sch:condition (sch:Condition)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured

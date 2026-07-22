@@ -30,14 +30,15 @@ import io.uhndata.iap.entities.models.EntityPart;
  * ({@link DocumentRequirement}), a required approval ({@link ApprovalRequirement}), or future requirement types.
  * Adapting a concrete requirement resource to this class, rather than to its own specific subtype, yields only
  * these common properties, same as adapting an entity to {@link io.uhndata.iap.entities.models.Entity} instead of
- * to its own specific subtype.
+ * to its own specific subtype. Mixes in {@code sch:Conditionable} (see {@link Conditionable}), so every
+ * requirement may carry a single condition controlling whether it applies to a submission.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Model(adaptables = Resource.class, resourceType = Requirement.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Requirement extends EntityPart
+public class Requirement extends EntityPart implements Conditionable
 {
     /** The {@code sling:resourceType} of a {@code sch:Requirement} node. */
     public static final String RESOURCE_TYPE = "sch/Requirement";
@@ -82,13 +83,7 @@ public class Requirement extends EntityPart
         return this.required;
     }
 
-    /**
-     * The condition controlling whether this requirement applies to a submission, adapted to its own specific
-     * model regardless of whether it is a {@link SingleCondition}, a {@link ConditionGroup}, or any future
-     * {@link Condition} subtype.
-     *
-     * @return a condition, or {@code null} if this requirement always applies
-     */
+    @Override
     public Condition getCondition()
     {
         return this.getChild("sch:condition", Condition.class);

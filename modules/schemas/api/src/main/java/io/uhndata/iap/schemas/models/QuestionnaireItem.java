@@ -22,8 +22,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 /**
  * The abstract base shared by everything that may appear in the body of a questionnaire: a single
  * {@link Question}, or a {@link Section} grouping more items. Corresponds to the {@code sch:QuestionnaireItem}
- * node type. Every item, of any subtype, may carry a single condition controlling whether it is shown to the
- * submitter; combining multiple conditions is only supported via a {@link ConditionGroup}. Unlike
+ * node type, which mixes in {@code sch:Conditionable} (see {@link Conditionable}) so every item, of any subtype,
+ * may carry a single condition controlling whether it is shown to the submitter. Unlike
  * {@link io.uhndata.iap.entities.models.Entity} or {@link Requirement}, this class is deliberately not
  * itself a registered Sling Model (no {@code @Model} annotation): each subtype instead declares
  * {@code adapters = QuestionnaireItem.class} on its own {@code @Model}, so
@@ -36,18 +36,12 @@ import io.uhndata.iap.entities.models.EntityPart;
  * @version $Id$
  * @since 0.1.0
  */
-public abstract class QuestionnaireItem extends EntityPart
+public abstract class QuestionnaireItem extends EntityPart implements Conditionable
 {
     /** The {@code sling:resourceType} of a {@code sch:QuestionnaireItem} node. */
     public static final String RESOURCE_TYPE = "sch/QuestionnaireItem";
 
-    /**
-     * The condition controlling whether this item is shown to the submitter, adapted to its own specific model
-     * regardless of whether it is a {@link SingleCondition}, a {@link ConditionGroup}, or any future
-     * {@link Condition} subtype.
-     *
-     * @return a condition, or {@code null} if this item is always enabled
-     */
+    @Override
     public Condition getCondition()
     {
         return this.getChild("sch:condition", Condition.class);
