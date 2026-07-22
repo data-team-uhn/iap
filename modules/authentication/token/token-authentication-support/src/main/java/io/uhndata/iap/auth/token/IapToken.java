@@ -25,6 +25,7 @@ import org.apache.jackrabbit.oak.spi.security.authentication.token.TokenInfo;
  * Custom extension of {@link TokenInfo} with support for retrieving the token expiration time.
  *
  * @version $Id$
+ * @since 0.1.0
  */
 public interface IapToken extends TokenInfo
 {

@@ -61,6 +61,7 @@ import static org.mockito.Mockito.when;
  * </p>
  *
  * @version $Id$
+ * @since 0.1.0
  */
 @RunWith(MockitoJUnitRunner.class)
 public class IapJwtTokenManagerImplTest
@@ -204,15 +205,15 @@ public class IapJwtTokenManagerImplTest
     }
 
     @Test
-    public void parseRejectsTokenSignedWithUnknownSymmetricKey()
+    public void parseRejectsTokenWithNoKeyId()
     {
-        // A well-formed token signed with some other symmetric key must be rejected
+        // A well-formed token with no `kid` header cannot be matched to any known signer and must be rejected
         final String foreign = Jwts.builder()
                 .subject("attacker")
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
                 .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate())
                 .compact();
-        Assert.assertNull("A token signed with a different key must not parse", this.manager.parse(foreign));
+        Assert.assertNull("A token without a key ID must not parse", this.manager.parse(foreign));
     }
 
     @Test
