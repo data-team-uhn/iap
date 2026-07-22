@@ -103,4 +103,14 @@ public class Review extends EntityPart
             .filter(comment -> !comment.isResolved())
             .collect(Collectors.toList());
     }
+
+    /**
+     * Whether this review has been approved, i.e. its state is {@code approved}.
+     *
+     * @return {@code true} if approved
+     */
+    public boolean isApproved()
+    {
+        return "approved".equals(this.status);
+    }
 }

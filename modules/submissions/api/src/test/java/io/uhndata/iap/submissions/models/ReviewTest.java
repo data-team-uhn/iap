@@ -38,6 +38,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -137,5 +138,25 @@ class ReviewTest
         final Review review = resource.adaptTo(Review.class);
 
         assertTrue(review.getUnresolvedComments().isEmpty());
+    }
+
+    @Test
+    void reportsApprovedWhenStatusIsApproved()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/review",
+            "sling:resourceType", Review.RESOURCE_TYPE, "status", "approved");
+        final Review review = resource.adaptTo(Review.class);
+
+        assertTrue(review.isApproved());
+    }
+
+    @Test
+    void reportsNotApprovedForOtherStatus()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/review",
+            "sling:resourceType", Review.RESOURCE_TYPE, "status", "changes-requested");
+        final Review review = resource.adaptTo(Review.class);
+
+        assertFalse(review.isApproved());
     }
 }
