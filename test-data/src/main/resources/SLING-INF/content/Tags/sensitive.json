@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "Sensitive",
+  "description": "Contains sensitive information; everything inside a sensitive record is itself sensitive.",
+  "category": ["privacy"],
+  "inheritable": true,
+  "targetResources": ["iap/Entity"],
+  "color": "#f44336",
+  "order": 40
+}
