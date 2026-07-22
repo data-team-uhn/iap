@@ -44,3 +44,10 @@
   // status of the resource, so changing them must neither require a checkout
   // nor be reverted by a restore.
   - tags (STRING) multiple IGNORE
+
+  // Tags copied from this resource's descendants (`aggregated` tags) or
+  // ancestors (`inheritable` tags), materialized here at commit time by the
+  // tag propagation editor so that queries and status displays can read them
+  // without walking the tree. System-maintained, do not write manually.
+  - aggregatedTags (STRING) multiple IGNORE
+  - inheritedTags (STRING) multiple IGNORE

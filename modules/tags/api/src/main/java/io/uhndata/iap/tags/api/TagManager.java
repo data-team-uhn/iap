@@ -114,6 +114,18 @@ public interface TagManager
     Collection<Tag> getEffectiveTags(Resource resource);
 
     /**
+     * The names of all the tags the given resource effectively carries, read from the explicit {@code tags}
+     * property and the derived tag properties materialized at commit time by the registered
+     * {@code TagProcessor}s. This is the cheap variant of {@link #getEffectiveTags}: it reads a few properties of
+     * the resource itself instead of walking the tree, at the cost of losing the origin information, and of not
+     * seeing changes not yet propagated, e.g. uncommitted ones.
+     *
+     * @param resource the resource to read
+     * @return the effective tag names, an empty set if there are none
+     */
+    Set<String> getEffectiveTagNames(Resource resource);
+
+    /**
      * Checks whether the given resource effectively carries a tag, cheaper than computing all the
      * {@link #getEffectiveTags effective tags}.
      *

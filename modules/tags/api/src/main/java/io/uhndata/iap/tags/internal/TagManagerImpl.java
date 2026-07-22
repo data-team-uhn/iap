@@ -36,10 +36,15 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.FieldOption;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
 
 import io.uhndata.iap.tags.api.Tag;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
+import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
  * Default implementation of {@link TagManager}.
@@ -50,6 +55,11 @@ import io.uhndata.iap.tags.models.TagDefinition;
 @Component(service = TagManager.class)
 public class TagManagerImpl implements TagManager
 {
+    /** All the registered tag processors, whose materialized properties contribute effective tags. */
+    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
+        fieldOption = FieldOption.REPLACE)
+    private volatile List<TagProcessor> tagProcessors;
+
     /**
      * Gathers the origins and sources of one effective tag while the resource tree is visited.
      *
@@ -111,11 +121,17 @@ public class TagManagerImpl implements TagManager
     @Override
     public Set<String> getTags(final Resource resource)
     {
-        final String[] tags = resource.getValueMap().get(TAGS_PROPERTY, String[].class);
-        final Set<String> result = new LinkedHashSet<>();
-        if (tags != null) {
-            for (final String tag : tags) {
-                result.add(tag);
+        return readTags(resource, TAGS_PROPERTY);
+    }
+
+    @Override
+    public Set<String> getEffectiveTagNames(final Resource resource)
+    {
+        final Set<String> result = getTags(resource);
+        final List<TagProcessor> processors = this.tagProcessors;
+        if (processors != null) {
+            for (final TagProcessor processor : processors) {
+                result.addAll(readTags(resource, processor.getPropertyName()));
             }
         }
         return result;
@@ -335,6 +351,18 @@ public class TagManagerImpl implements TagManager
             throw new IllegalArgumentException(
                 "Tag " + definition.getName() + " is managed by the platform and cannot be manually changed");
         }
+    }
+
+    private Set<String> readTags(final Resource resource, final String property)
+    {
+        final String[] tags = resource.getValueMap().get(property, String[].class);
+        final Set<String> result = new LinkedHashSet<>();
+        if (tags != null) {
+            for (final String tag : tags) {
+                result.add(tag);
+            }
+        }
+        return result;
     }
 
     private void write(final Resource resource, final Set<String> tags) throws PersistenceException
