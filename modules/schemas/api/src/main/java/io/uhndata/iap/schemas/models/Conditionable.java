@@ -19,7 +19,7 @@ package io.uhndata.iap.schemas.models;
 
 /**
  * Implemented by every model that can be made conditionally enabled, independently of its own supertype chain, such
- * as {@link QuestionnaireItem} and {@link Requirement}.
+ * as {@link FormItem} and {@link Requirement}.
  *
  * @version $Id$
  * @since 0.1.0

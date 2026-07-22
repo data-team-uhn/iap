@@ -53,7 +53,7 @@ class SchemaVersionTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Requirement.class,
-            QuestionnaireRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
+            FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
             SchemaVersion.class);
     }
 
@@ -100,8 +100,8 @@ class SchemaVersionTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0",
             "sling:resourceType", SchemaVersion.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/questionnaire", Map.of(
-            "sling:resourceType", QuestionnaireRequirement.RESOURCE_TYPE,
+        this.context.create().resource("/Schemas/schema/1.0/form", Map.of(
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE,
             "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
         this.context.create().resource("/Schemas/schema/1.0/consent", Map.of(
             "sling:resourceType", DocumentRequirement.RESOURCE_TYPE,
@@ -114,8 +114,8 @@ class SchemaVersionTest
         final List<Requirement> all = version.getRequirements();
         assertEquals(3, all.size());
 
-        assertEquals(1, version.getQuestionnaireRequirements().size());
-        assertEquals("questionnaire", version.getQuestionnaireRequirements().get(0).getName());
+        assertEquals(1, version.getFormRequirements().size());
+        assertEquals("form", version.getFormRequirements().get(0).getName());
         assertEquals(1, version.getDocumentRequirements().size());
         assertEquals("consent", version.getDocumentRequirements().get(0).getName());
         assertEquals(1, version.getApprovalRequirements().size());

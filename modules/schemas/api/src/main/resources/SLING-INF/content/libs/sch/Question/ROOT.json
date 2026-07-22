@@ -1,4 +1,4 @@
 {
   "jcr:primaryType": "sling:Folder",
-  "sling:resourceSuperType": "sch/QuestionnaireItem"
+  "sling:resourceSuperType": "sch/FormItem"
 }

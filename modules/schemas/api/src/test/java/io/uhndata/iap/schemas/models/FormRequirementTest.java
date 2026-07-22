@@ -35,13 +35,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link QuestionnaireRequirement}, including the properties it inherits from {@link Requirement}.
+ * Unit tests for {@link FormRequirement}, including the properties it inherits from {@link Requirement}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class QuestionnaireRequirementTest
+class FormRequirementTest
 {
     private final SlingContext context = new SlingContext();
 
@@ -49,25 +49,25 @@ class QuestionnaireRequirementTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, Section.class,
-            SingleCondition.class, Requirement.class, QuestionnaireRequirement.class);
+            SingleCondition.class, Requirement.class, FormRequirement.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/questionnaire",
-            "sling:resourceType", QuestionnaireRequirement.RESOURCE_TYPE);
-        assertNotNull(resource.adaptTo(QuestionnaireRequirement.class));
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form",
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE);
+        assertNotNull(resource.adaptTo(FormRequirement.class));
     }
 
     @Test
     void inheritsRequirementProperties()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/questionnaire", Map.of(
-            "sling:resourceType", QuestionnaireRequirement.RESOURCE_TYPE,
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form", Map.of(
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE,
             "label", "Application form",
             "required", true));
-        final QuestionnaireRequirement requirement = resource.adaptTo(QuestionnaireRequirement.class);
+        final FormRequirement requirement = resource.adaptTo(FormRequirement.class);
 
         assertEquals("Application form", requirement.getLabel());
         assertTrue(requirement.isRequired());
@@ -76,13 +76,13 @@ class QuestionnaireRequirementTest
     @Test
     void listsSectionsAndQuestions()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/questionnaire",
-            "sling:resourceType", QuestionnaireRequirement.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/questionnaire/section1",
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form",
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/form/section1",
             "sling:resourceType", Section.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/questionnaire/q1",
+        this.context.create().resource("/Schemas/schema/1.0/form/q1",
             "sling:resourceType", Question.RESOURCE_TYPE);
-        final QuestionnaireRequirement requirement = resource.adaptTo(QuestionnaireRequirement.class);
+        final FormRequirement requirement = resource.adaptTo(FormRequirement.class);
 
         assertEquals(1, requirement.getSections().size());
         assertEquals("section1", requirement.getSections().get(0).getName());
@@ -93,22 +93,22 @@ class QuestionnaireRequirementTest
     @Test
     void listsChildrenUsingTheSpecificModelForEach()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/questionnaire",
-            "sling:resourceType", QuestionnaireRequirement.RESOURCE_TYPE);
-        // sling:resourceSuperType is mandatory/autocreated on sch:QuestionnaireItem in the real CND;
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form",
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE);
+        // sling:resourceSuperType is mandatory/autocreated on sch:FormItem in the real CND;
         // sling-mock doesn't know about the CND, so it must be set explicitly here.
-        this.context.create().resource("/Schemas/schema/1.0/questionnaire/section1", Map.of(
-            "sling:resourceType", Section.RESOURCE_TYPE, "sling:resourceSuperType", QuestionnaireItem.RESOURCE_TYPE,
+        this.context.create().resource("/Schemas/schema/1.0/form/section1", Map.of(
+            "sling:resourceType", Section.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
             "title", "Study details"));
-        this.context.create().resource("/Schemas/schema/1.0/questionnaire/q1", Map.of(
-            "sling:resourceType", Question.RESOURCE_TYPE, "sling:resourceSuperType", QuestionnaireItem.RESOURCE_TYPE,
+        this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of(
+            "sling:resourceType", Question.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
             "text", "Does this involve human subjects?"));
-        // Inherited from Requirement: not a QuestionnaireItem, excluded from getChildren()
-        this.context.create().resource("/Schemas/schema/1.0/questionnaire/c1",
+        // Inherited from Requirement: not a FormItem, excluded from getChildren()
+        this.context.create().resource("/Schemas/schema/1.0/form/c1",
             "sling:resourceType", SingleCondition.RESOURCE_TYPE);
-        final QuestionnaireRequirement requirement = resource.adaptTo(QuestionnaireRequirement.class);
+        final FormRequirement requirement = resource.adaptTo(FormRequirement.class);
 
-        final List<QuestionnaireItem> children = requirement.getChildren();
+        final List<FormItem> children = requirement.getChildren();
 
         assertEquals(2, children.size());
         assertEquals(Section.class, children.get(0).getClass());
@@ -121,8 +121,8 @@ class QuestionnaireRequirementTest
     void listsNoChildrenWhenNoneExist()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/empty",
-            "sling:resourceType", QuestionnaireRequirement.RESOURCE_TYPE);
-        final QuestionnaireRequirement requirement = resource.adaptTo(QuestionnaireRequirement.class);
+            "sling:resourceType", FormRequirement.RESOURCE_TYPE);
+        final FormRequirement requirement = resource.adaptTo(FormRequirement.class);
 
         assertTrue(requirement.getChildren().isEmpty());
     }

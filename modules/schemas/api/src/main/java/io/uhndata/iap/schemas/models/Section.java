@@ -30,9 +30,9 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, adapters = QuestionnaireItem.class, resourceType = Section.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = FormItem.class, resourceType = Section.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Section extends QuestionnaireItem
+public class Section extends FormItem
 {
     /** The {@code sling:resourceType} of a {@code sch:Section} node. */
     public static final String RESOURCE_TYPE = "sch/Section";
@@ -85,12 +85,12 @@ public class Section extends QuestionnaireItem
 
     /**
      * Every item grouped directly in this section, whether a {@link Question} or a nested {@link Section} (or
-     * any future {@link QuestionnaireItem} subtype), each adapted to its own specific model.
+     * any future {@link FormItem} subtype), each adapted to its own specific model.
      *
      * @return a list of items, empty if none
      */
-    public List<QuestionnaireItem> getChildren()
+    public List<FormItem> getChildren()
     {
-        return this.getChildren(QuestionnaireItem.RESOURCE_TYPE, QuestionnaireItem.class);
+        return this.getChildren(FormItem.RESOURCE_TYPE, FormItem.class);
     }
 }

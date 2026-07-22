@@ -28,9 +28,9 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, adapters = QuestionnaireItem.class, resourceType = Question.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = FormItem.class, resourceType = Question.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Question extends QuestionnaireItem
+public class Question extends FormItem
 {
     /** The {@code sling:resourceType} of a {@code sch:Question} node. */
     public static final String RESOURCE_TYPE = "sch/Question";

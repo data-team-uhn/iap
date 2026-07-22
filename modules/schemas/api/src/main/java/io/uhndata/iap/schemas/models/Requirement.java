@@ -26,7 +26,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code sch:Requirement} node, the abstract base for anything a submission must fulfill:
- * a set of questions to answer ({@link QuestionnaireRequirement}), an expected document
+ * a set of questions to answer ({@link FormRequirement}), an expected document
  * ({@link DocumentRequirement}), a required approval ({@link ApprovalRequirement}), or future requirement types.
  * Adapting a concrete requirement resource to this class, rather than to its own specific subtype, yields only
  * these common properties, same as adapting an entity to {@link io.uhndata.iap.entities.models.Entity} instead of

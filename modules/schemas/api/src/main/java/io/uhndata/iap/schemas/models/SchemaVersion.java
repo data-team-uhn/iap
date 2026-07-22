@@ -105,13 +105,13 @@ public class SchemaVersion extends Entity
     }
 
     /**
-     * The questionnaire requirements of this version.
+     * The form requirements of this version.
      *
-     * @return a list of questionnaire requirements, empty if none
+     * @return a list of form requirements, empty if none
      */
-    public List<QuestionnaireRequirement> getQuestionnaireRequirements()
+    public List<FormRequirement> getFormRequirements()
     {
-        return this.getChildren(QuestionnaireRequirement.RESOURCE_TYPE, QuestionnaireRequirement.class);
+        return this.getChildren(FormRequirement.RESOURCE_TYPE, FormRequirement.class);
     }
 
     /**

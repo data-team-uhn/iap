@@ -24,22 +24,22 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 
 /**
- * A Sling Model wrapping a {@code sch:QuestionnaireRequirement} node: a set of questions, grouped into sections,
- * that the submitter must answer to fulfill this requirement. This is how a schema version's own questions are
- * expressed: as a (typically unconditional, always required) questionnaire requirement.
+ * A Sling Model wrapping a {@code sch:FormRequirement} node: a set of questions, grouped into sections, that the
+ * submitter must answer to fulfill this requirement. This is how a schema version's own questions are expressed:
+ * as a (typically unconditional, always required) form requirement.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = QuestionnaireRequirement.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, resourceType = FormRequirement.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class QuestionnaireRequirement extends Requirement
+public class FormRequirement extends Requirement
 {
-    /** The {@code sling:resourceType} of a {@code sch:QuestionnaireRequirement} node. */
-    public static final String RESOURCE_TYPE = "sch/QuestionnaireRequirement";
+    /** The {@code sling:resourceType} of a {@code sch:FormRequirement} node. */
+    public static final String RESOURCE_TYPE = "sch/FormRequirement";
 
     /**
-     * The sections making up this questionnaire.
+     * The sections making up this form.
      *
      * @return a list of sections, empty if none
      */
@@ -49,7 +49,7 @@ public class QuestionnaireRequirement extends Requirement
     }
 
     /**
-     * The questions directly making up this questionnaire, outside of any section.
+     * The questions directly making up this form, outside of any section.
      *
      * @return a list of questions, empty if none
      */
@@ -59,14 +59,13 @@ public class QuestionnaireRequirement extends Requirement
     }
 
     /**
-     * Every question or section directly making up this questionnaire (or any future {@link QuestionnaireItem}
-     * subtype), in the order they appear, each adapted to its own specific model rather than to a common, less
-     * specific one.
+     * Every question or section directly making up this form (or any future {@link FormItem} subtype), in the
+     * order they appear, each adapted to its own specific model rather than to a common, less specific one.
      *
      * @return a list of items, empty if none
      */
-    public List<QuestionnaireItem> getChildren()
+    public List<FormItem> getChildren()
     {
-        return this.getChildren(QuestionnaireItem.RESOURCE_TYPE, QuestionnaireItem.class);
+        return this.getChildren(FormItem.RESOURCE_TYPE, FormItem.class);
     }
 }

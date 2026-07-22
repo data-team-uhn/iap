@@ -34,14 +34,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link QuestionnaireItem}, exercised through the {@link Question} concrete subtype (an abstract
+ * Unit tests for {@link FormItem}, exercised through the {@link Question} concrete subtype (an abstract
  * node type has no direct instances of its own). Every subtype, including {@link Section}, inherits this behavior.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class QuestionnaireItemTest
+class FormItemTest
 {
     private final SlingContext context = new SlingContext();
 
@@ -55,7 +55,7 @@ class QuestionnaireItemTest
     @Test
     void hasNoConditionWhenNotSet()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/questionnaire/q1",
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form/q1",
             "sling:resourceType", Question.RESOURCE_TYPE);
         final Question question = resource.adaptTo(Question.class);
 
@@ -65,9 +65,9 @@ class QuestionnaireItemTest
     @Test
     void exposesSingleConditionAsCondition()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/questionnaire/q1",
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form/q1",
             "sling:resourceType", Question.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/questionnaire/q1/sch:condition", Map.of(
+        this.context.create().resource("/Schemas/schema/1.0/form/q1/sch:condition", Map.of(
             "sling:resourceType", SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
         final Question question = resource.adaptTo(Question.class);
 
@@ -80,9 +80,9 @@ class QuestionnaireItemTest
     @Test
     void exposesConditionGroupAsCondition()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/questionnaire/q1",
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form/q1",
             "sling:resourceType", Question.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/questionnaire/q1/sch:condition", Map.of(
+        this.context.create().resource("/Schemas/schema/1.0/form/q1/sch:condition", Map.of(
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "requireAll", true));
         final Question question = resource.adaptTo(Question.class);
 

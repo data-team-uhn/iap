@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link Section}, including the properties it inherits from {@link QuestionnaireItem}.
+ * Unit tests for {@link Section}, including the properties it inherits from {@link FormItem}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -109,17 +109,17 @@ class SectionTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/section",
             "sling:resourceType", Section.RESOURCE_TYPE);
-        // sling:resourceSuperType is mandatory/autocreated on sch:QuestionnaireItem in the real CND;
+        // sling:resourceSuperType is mandatory/autocreated on sch:FormItem in the real CND;
         // sling-mock doesn't know about the CND, so it must be set explicitly here.
         this.context.create().resource("/Schemas/schema/1.0/section/sub", Map.of(
-            "sling:resourceType", Section.RESOURCE_TYPE, "sling:resourceSuperType", QuestionnaireItem.RESOURCE_TYPE,
+            "sling:resourceType", Section.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
             "title", "Nested section"));
         this.context.create().resource("/Schemas/schema/1.0/section/q1", Map.of(
-            "sling:resourceType", Question.RESOURCE_TYPE, "sling:resourceSuperType", QuestionnaireItem.RESOURCE_TYPE,
+            "sling:resourceType", Question.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
             "text", "A question"));
         final Section section = resource.adaptTo(Section.class);
 
-        final List<QuestionnaireItem> children = section.getChildren();
+        final List<FormItem> children = section.getChildren();
 
         assertEquals(2, children.size());
         assertEquals(Section.class, children.get(0).getClass());

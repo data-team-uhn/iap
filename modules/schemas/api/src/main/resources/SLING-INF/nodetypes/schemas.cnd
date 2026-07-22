@@ -105,19 +105,19 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// Abstract base shared by everything that may appear in the body of a
-// questionnaire: a single question, or a section grouping more items. Lets
-// callers ask for "the items" of a section or questionnaire without caring
-// whether each one is a question or a subsection.
-[sch:QuestionnaireItem] > iap:EntityPart, sch:Conditionable
+// Abstract base shared by everything that may appear in the body of a form: a
+// single question, or a section grouping more items. Lets callers ask for
+// "the items" of a section or form without caring whether each one is a
+// question or a subsection.
+[sch:FormItem] > iap:EntityPart, sch:Conditionable
   abstract
 
-  // Hardcode the supertype to the parent sch/QuestionnaireItem type.
-  - sling:resourceSuperType (STRING) = "sch/QuestionnaireItem" mandatory autocreated protected
+  // Hardcode the supertype to the parent sch/FormItem type.
+  - sling:resourceSuperType (STRING) = "sch/FormItem" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
 // A logical grouping of questions; sections may be nested.
-[sch:Section] > sch:QuestionnaireItem
+[sch:Section] > sch:FormItem
   // The list of items is orderable, so they can be presented to the
   // submitter in a deliberate sequence.
   orderable
@@ -135,7 +135,7 @@
   - * (UNDEFINED) multiple
 
   // The questions and subsections grouped in this section
-  + * (sch:QuestionnaireItem)
+  + * (sch:FormItem)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -143,7 +143,7 @@
 //-----------------------------------------------------------------------------
 // Mixin that can be added to any node type to make it conditionally enabled,
 // independently of that type's own supertype chain (e.g. shared by the
-// unrelated sch:QuestionnaireItem and sch:Requirement hierarchies).
+// unrelated sch:FormItem and sch:Requirement hierarchies).
 [sch:Conditionable]
   mixin
 
@@ -230,7 +230,7 @@
 //-----------------------------------------------------------------------------
 // A single question the submitter must answer.
 // Referenceable so that submission answers can point back to it.
-[sch:Question] > sch:QuestionnaireItem, mix:referenceable
+[sch:Question] > sch:FormItem, mix:referenceable
   - sling:resourceType (STRING) = "sch/Question" mandatory autocreated protected
 
   // The question text shown to the submitter
@@ -287,16 +287,16 @@
 // A set of questions, grouped into sections, that the submitter must answer
 // to fulfill this requirement. This is how a schema version's own
 // questions are expressed: as a (typically unconditional, always required)
-// questionnaire requirement.
-[sch:QuestionnaireRequirement] > sch:Requirement
+// form requirement.
+[sch:FormRequirement] > sch:Requirement
   // The list of items is orderable, so they can be presented to the
   // submitter in a deliberate sequence.
   orderable
 
-  - sling:resourceType (STRING) = "sch/QuestionnaireRequirement" mandatory autocreated protected
+  - sling:resourceType (STRING) = "sch/FormRequirement" mandatory autocreated protected
 
-  // The questions and sections making up this questionnaire
-  + * (sch:QuestionnaireItem)
+  // The questions and sections making up this form
+  + * (sch:FormItem)
 
 //-----------------------------------------------------------------------------
 // A document that the submitter is expected to provide, e.g. the patient
