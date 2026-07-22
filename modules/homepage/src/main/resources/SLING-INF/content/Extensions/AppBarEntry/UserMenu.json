@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/appBar/entry",
+  "iap:extensionName": "User menu",
+  "iap:extensionRenderURL": "asset:iap-homepage.UserMenu.js",
+  "iap:appBarSection": "end",
+  "iap:defaultOrder": 30
+}

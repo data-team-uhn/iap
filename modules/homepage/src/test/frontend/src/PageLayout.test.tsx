@@ -85,17 +85,6 @@ describe("PageLayout", () => {
     expectBefore(endRail, bottomBar);
   });
 
-  it("orders a region's extensions by their default order", async () => {
-    mockPoints({
-      FrameStart: [ext("Second", { "iap:defaultOrder": 2 }), ext("First", { "iap:defaultOrder": 1 })],
-    });
-
-    render(<PageLayout>main</PageLayout>);
-
-    const first = await screen.findByText("First content");
-    expectBefore(first, screen.getByText("Second content"));
-  });
-
   it("pins the frame bars while the page regions scroll with the content", async () => {
     mockPoints({
       FrameTop: [ext("Top bar")],

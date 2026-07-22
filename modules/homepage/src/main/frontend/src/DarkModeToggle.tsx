@@ -18,13 +18,13 @@
 
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import LightModeIcon from "@mui/icons-material/LightMode";
-import { Box, IconButton, Tooltip } from "@mui/material";
+import { IconButton, Tooltip } from "@mui/material";
 import { useColorScheme } from "@mui/material/styles";
 
 // A small control that switches the UI between the light and dark colour schemes, registered on
-// the `iap/coreUI/frameTop` extension point so it is always reachable. The scheme initially
-// follows the system preference (see the ThemeProvider `defaultMode="system"` at the entry
-// point); once toggled, the explicit choice is persisted by MUI and used on subsequent visits.
+// the `iap/appBar/entry` extension point (end section) so it is always reachable. The scheme
+// initially follows the system preference (see the ThemeProvider `defaultMode="system"` at the
+// entry point); once toggled, the explicit choice is persisted by MUI on subsequent visits.
 function DarkModeToggle() {
   const { mode, systemMode, setMode } = useColorScheme();
 
@@ -38,17 +38,15 @@ function DarkModeToggle() {
   const otherMode = resolvedMode === "dark" ? "light" : "dark";
 
   return (
-    <Box sx={{ display: "flex", justifyContent: "flex-end", px: 1, py: 0.5 }}>
-      <Tooltip title={`Switch to ${otherMode} mode`}>
-        <IconButton
-          aria-label={`Switch to ${otherMode} mode`}
-          onClick={() => setMode(otherMode)}
-          size="small"
-        >
-          {resolvedMode === "dark" ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-        </IconButton>
-      </Tooltip>
-    </Box>
+    <Tooltip title={`Switch to ${otherMode} mode`}>
+      <IconButton
+        aria-label={`Switch to ${otherMode} mode`}
+        onClick={() => setMode(otherMode)}
+        size="small"
+      >
+        {resolvedMode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+      </IconButton>
+    </Tooltip>
   );
 }
 

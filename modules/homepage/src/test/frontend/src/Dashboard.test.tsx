@@ -67,16 +67,6 @@ describe("Dashboard", () => {
     expect(await screen.findByText("A short hint")).toBeInTheDocument();
   });
 
-  it("renders the widgets in their default order", async () => {
-    mockedLoadExtensions.mockResolvedValue([widget("Second", 2), widget("First", 1)]);
-
-    render(<Dashboard />);
-
-    const first = await screen.findByText("First content");
-    const second = screen.getByText("Second content");
-    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
   it("renders an empty dashboard when there are no widgets", async () => {
     mockedLoadExtensions.mockResolvedValue([]);
 

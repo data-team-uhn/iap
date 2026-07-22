@@ -80,3 +80,7 @@ The profile uses the [sling-maven-plugin](https://sling.apache.org/documentation
 | `-Dsling.password=<password>` | Use a different admin password. |
 
 This redeploys **code** (Java bundles, the frontend JS). It does **not** re-run a bundle's initial **content** if that content already exists in the repository. To deploy a new content node — such as a new `iap:Extension` — into a running instance, post it directly with [`post-extension.sh`](./tools/dev/extension-manager/post-extension.sh), one of the [extension-manager dev utilities](./tools/dev/extension-manager/).
+
+## Extending the UI
+
+The user interface is composed of extensions plugged into extension points — the page shell (pinned frame bars and side rails, scrolling page regions), the application bar, the routed views, and the dashboard widgets are all extension points. See **[docs/ui-extensions.md](./docs/ui-extensions.md)** for the catalogue of available points and recipes for contributing extensions or defining new points.
