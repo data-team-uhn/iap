@@ -36,64 +36,64 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ConditionalGroup}.
+ * Unit tests for {@link ConditionGroup}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ConditionalGroupTest
+class ConditionGroupTest
 {
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionalValue.class, Conditional.class,
-            ConditionalGroup.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionOperand.class,
+            SingleCondition.class, ConditionGroup.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE);
-        assertNotNull(resource.adaptTo(ConditionalGroup.class));
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
+        assertNotNull(resource.adaptTo(ConditionGroup.class));
     }
 
     @Test
     void exposesRequireAll()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group", Map.of(
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE,
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE,
             "requireAll", true));
-        assertTrue(resource.adaptTo(ConditionalGroup.class).isRequireAll());
+        assertTrue(resource.adaptTo(ConditionGroup.class).isRequireAll());
     }
 
     @Test
     void defaultsToNotRequireAll()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE);
-        assertFalse(resource.adaptTo(ConditionalGroup.class).isRequireAll());
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
+        assertFalse(resource.adaptTo(ConditionGroup.class).isRequireAll());
     }
 
     @Test
-    void listsConditionalsAndNestedGroupsSeparately()
+    void listsSingleConditionsAndNestedGroupsSeparately()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE);
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/req/group/c1",
-            "sling:resourceType", Conditional.RESOURCE_TYPE);
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/req/group/g1",
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE);
-        final ConditionalGroup group = resource.adaptTo(ConditionalGroup.class);
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
+        final ConditionGroup group = resource.adaptTo(ConditionGroup.class);
 
-        final List<Conditional> conditionals = group.getConditionals();
-        assertEquals(1, conditionals.size());
-        assertEquals("c1", conditionals.get(0).getName());
+        final List<SingleCondition> singleConditions = group.getSingleConditions();
+        assertEquals(1, singleConditions.size());
+        assertEquals("c1", singleConditions.get(0).getName());
 
-        final List<ConditionalGroup> groups = group.getConditionalGroups();
+        final List<ConditionGroup> groups = group.getConditionGroups();
         assertEquals(1, groups.size());
         assertEquals("g1", groups.get(0).getName());
     }
@@ -102,23 +102,23 @@ class ConditionalGroupTest
     void listsConditionsUsingTheSpecificModelForEach()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE);
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
         // sling:resourceSuperType is mandatory/autocreated on sch:Condition in the real CND; sling-mock
         // doesn't know about the CND, so it must be set explicitly here.
         this.context.create().resource("/Schemas/schema/1.0/req/group/c1", Map.of(
-            "sling:resourceType", Conditional.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
             "comparator", "equals"));
         this.context.create().resource("/Schemas/schema/1.0/req/group/g1", Map.of(
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
             "requireAll", true));
-        final ConditionalGroup group = resource.adaptTo(ConditionalGroup.class);
+        final ConditionGroup group = resource.adaptTo(ConditionGroup.class);
 
         final List<Condition> conditions = group.getConditions();
 
         assertEquals(2, conditions.size());
-        assertEquals(Conditional.class, conditions.get(0).getClass());
-        assertEquals("equals", ((Conditional) conditions.get(0)).getComparator());
-        assertEquals(ConditionalGroup.class, conditions.get(1).getClass());
-        assertTrue(((ConditionalGroup) conditions.get(1)).isRequireAll());
+        assertEquals(SingleCondition.class, conditions.get(0).getClass());
+        assertEquals("equals", ((SingleCondition) conditions.get(0)).getComparator());
+        assertEquals(ConditionGroup.class, conditions.get(1).getClass());
+        assertTrue(((ConditionGroup) conditions.get(1)).isRequireAll());
     }
 }

@@ -25,19 +25,19 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 /**
- * A Sling Model wrapping a {@code sch:ConditionalGroup} node: a set of conditions that can be imposed on e.g. the
+ * A Sling Model wrapping a {@code sch:ConditionGroup} node: a set of conditions that can be imposed on e.g. the
  * display of a {@link Section} or the requiredness of a {@link Requirement}, combined with AND or OR depending on
  * {@link #isRequireAll()}.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, adapters = Condition.class, resourceType = ConditionalGroup.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = Condition.class, resourceType = ConditionGroup.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class ConditionalGroup extends Condition
+public class ConditionGroup extends Condition
 {
-    /** The {@code sling:resourceType} of a {@code sch:ConditionalGroup} node. */
-    public static final String RESOURCE_TYPE = "sch/ConditionalGroup";
+    /** The {@code sling:resourceType} of a {@code sch:ConditionGroup} node. */
+    public static final String RESOURCE_TYPE = "sch/ConditionGroup";
 
     @ValueMapValue
     private boolean requireAll;
@@ -53,28 +53,28 @@ public class ConditionalGroup extends Condition
     }
 
     /**
-     * The conditions directly listed in this group.
+     * The single conditions directly listed in this group.
      *
-     * @return a list of conditionals, empty if none
+     * @return a list of single conditions, empty if none
      */
-    public List<Conditional> getConditionals()
+    public List<SingleCondition> getSingleConditions()
     {
-        return this.getChildren(Conditional.RESOURCE_TYPE, Conditional.class);
+        return this.getChildren(SingleCondition.RESOURCE_TYPE, SingleCondition.class);
     }
 
     /**
-     * The nested conditional groups listed in this group.
+     * The nested condition groups listed in this group.
      *
-     * @return a list of conditional groups, empty if none
+     * @return a list of condition groups, empty if none
      */
-    public List<ConditionalGroup> getConditionalGroups()
+    public List<ConditionGroup> getConditionGroups()
     {
-        return this.getChildren(ConditionalGroup.RESOURCE_TYPE, ConditionalGroup.class);
+        return this.getChildren(ConditionGroup.RESOURCE_TYPE, ConditionGroup.class);
     }
 
     /**
-     * Every condition directly listed in this group, whether a single {@link Conditional} or a nested
-     * {@link ConditionalGroup} (or any future {@link Condition} subtype), each adapted to its own specific model.
+     * Every condition directly listed in this group, whether a {@link SingleCondition} or a nested
+     * {@link ConditionGroup} (or any future {@link Condition} subtype), each adapted to its own specific model.
      *
      * @return a list of conditions, empty if none
      */

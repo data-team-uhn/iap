@@ -23,18 +23,18 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 /**
- * A Sling Model wrapping a {@code sch:Conditional} node: a condition that can be imposed on e.g. the display of a
- * {@link Section} or the requiredness of a {@link Requirement}.
+ * A Sling Model wrapping a {@code sch:SingleCondition} node: a single comparison that can be imposed on e.g. the
+ * display of a {@link Section} or the requiredness of a {@link Requirement}.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, adapters = Condition.class, resourceType = Conditional.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = Condition.class, resourceType = SingleCondition.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Conditional extends Condition
+public class SingleCondition extends Condition
 {
-    /** The {@code sling:resourceType} of a {@code sch:Conditional} node. */
-    public static final String RESOURCE_TYPE = "sch/Conditional";
+    /** The {@code sling:resourceType} of a {@code sch:SingleCondition} node. */
+    public static final String RESOURCE_TYPE = "sch/SingleCondition";
 
     @ValueMapValue
     private String comparator;
@@ -65,20 +65,20 @@ public class Conditional extends Condition
     /**
      * The first, mandatory operand of this condition.
      *
-     * @return a conditional value, or {@code null} if not set
+     * @return a condition operand, or {@code null} if not set
      */
-    public ConditionalValue getOperandA()
+    public ConditionOperand getOperandA()
     {
-        return this.getChild("operandA", ConditionalValue.class);
+        return this.getChild("operandA", ConditionOperand.class);
     }
 
     /**
      * The second, optional operand of this condition, needed unless the comparator is singular (e.g. "is empty").
      *
-     * @return a conditional value, or {@code null} if not set
+     * @return a condition operand, or {@code null} if not set
      */
-    public ConditionalValue getOperandB()
+    public ConditionOperand getOperandB()
     {
-        return this.getChild("operandB", ConditionalValue.class);
+        return this.getChild("operandB", ConditionOperand.class);
     }
 }

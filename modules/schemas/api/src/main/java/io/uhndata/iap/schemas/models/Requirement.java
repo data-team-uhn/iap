@@ -85,29 +85,28 @@ public class Requirement extends EntityPart
     }
 
     /**
-     * The conditions controlling whether this requirement applies to a submission.
+     * The single conditions controlling whether this requirement applies to a submission.
      *
-     * @return a list of conditionals, empty if none
+     * @return a list of single conditions, empty if none
      */
-    public List<Conditional> getConditionals()
+    public List<SingleCondition> getSingleConditions()
     {
-        return this.getChildren(Conditional.RESOURCE_TYPE, Conditional.class);
+        return this.getChildren(SingleCondition.RESOURCE_TYPE, SingleCondition.class);
     }
 
     /**
-     * The conditional groups controlling whether this requirement applies to a submission.
+     * The condition groups controlling whether this requirement applies to a submission.
      *
-     * @return a list of conditional groups, empty if none
+     * @return a list of condition groups, empty if none
      */
-    public List<ConditionalGroup> getConditionalGroups()
+    public List<ConditionGroup> getConditionGroups()
     {
-        return this.getChildren(ConditionalGroup.RESOURCE_TYPE, ConditionalGroup.class);
+        return this.getChildren(ConditionGroup.RESOURCE_TYPE, ConditionGroup.class);
     }
 
     /**
-     * Every condition controlling whether this requirement applies to a submission, whether a single
-     * {@link Conditional} or a {@link ConditionalGroup} (or any future {@link Condition} subtype), each adapted
-     * to its own specific model.
+     * Every condition controlling whether this requirement applies to a submission, whether a {@link SingleCondition}
+     * or a {@link ConditionGroup} (or any future {@link Condition} subtype), each adapted to its own specific model.
      *
      * @return a list of conditions, empty if none
      */

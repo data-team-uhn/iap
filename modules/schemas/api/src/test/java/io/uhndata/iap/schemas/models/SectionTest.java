@@ -48,8 +48,8 @@ class SectionTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, Conditional.class,
-            ConditionalGroup.class, Section.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, SingleCondition.class,
+            ConditionGroup.class, Section.class);
     }
 
     @Test
@@ -83,9 +83,9 @@ class SectionTest
         this.context.create().resource("/Schemas/schema/1.0/section/q1",
             "sling:resourceType", Question.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/section/c1",
-            "sling:resourceType", Conditional.RESOURCE_TYPE);
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/section/g1",
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE);
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
         final Section section = resource.adaptTo(Section.class);
 
         final List<Section> subsections = section.getSections();
@@ -96,8 +96,8 @@ class SectionTest
         assertEquals(1, questions.size());
         assertEquals("q1", questions.get(0).getName());
 
-        assertEquals(1, section.getConditionals().size());
-        assertEquals(1, section.getConditionalGroups().size());
+        assertEquals(1, section.getSingleConditions().size());
+        assertEquals(1, section.getConditionGroups().size());
     }
 
     @Test
@@ -109,8 +109,8 @@ class SectionTest
 
         assertTrue(section.getSections().isEmpty());
         assertTrue(section.getQuestions().isEmpty());
-        assertTrue(section.getConditionals().isEmpty());
-        assertTrue(section.getConditionalGroups().isEmpty());
+        assertTrue(section.getSingleConditions().isEmpty());
+        assertTrue(section.getConditionGroups().isEmpty());
         assertTrue(section.getConditions().isEmpty());
         assertTrue(section.getChildren().isEmpty());
     }
@@ -123,20 +123,20 @@ class SectionTest
         // sling:resourceSuperType is mandatory/autocreated on sch:Condition in the real CND; sling-mock
         // doesn't know about the CND, so it must be set explicitly here.
         this.context.create().resource("/Schemas/schema/1.0/section/c1", Map.of(
-            "sling:resourceType", Conditional.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
             "comparator", "equals"));
         this.context.create().resource("/Schemas/schema/1.0/section/g1", Map.of(
-            "sling:resourceType", ConditionalGroup.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
             "requireAll", true));
         final Section section = resource.adaptTo(Section.class);
 
         final List<Condition> conditions = section.getConditions();
 
         assertEquals(2, conditions.size());
-        assertEquals(Conditional.class, conditions.get(0).getClass());
-        assertEquals("equals", ((Conditional) conditions.get(0)).getComparator());
-        assertEquals(ConditionalGroup.class, conditions.get(1).getClass());
-        assertTrue(((ConditionalGroup) conditions.get(1)).isRequireAll());
+        assertEquals(SingleCondition.class, conditions.get(0).getClass());
+        assertEquals("equals", ((SingleCondition) conditions.get(0)).getComparator());
+        assertEquals(ConditionGroup.class, conditions.get(1).getClass());
+        assertTrue(((ConditionGroup) conditions.get(1)).isRequireAll());
     }
 
     @Test
@@ -154,7 +154,7 @@ class SectionTest
             "text", "A question"));
         // Not a QuestionnaireItem, excluded from getChildren()
         this.context.create().resource("/Schemas/schema/1.0/section/c1",
-            "sling:resourceType", Conditional.RESOURCE_TYPE);
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         final Section section = resource.adaptTo(Section.class);
 
         final List<QuestionnaireItem> children = section.getChildren();

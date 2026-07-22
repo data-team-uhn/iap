@@ -25,18 +25,18 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sch:ConditionalValue} node: either a literal value, or a reference to the
- * question whose answer supplies the value, used as an operand of a {@link Conditional}.
+ * A Sling Model wrapping a {@code sch:ConditionOperand} node: either a literal value, or a reference to the
+ * question whose answer supplies the value, used as an operand of a {@link SingleCondition}.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = ConditionalValue.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, resourceType = ConditionOperand.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class ConditionalValue extends EntityPart
+public class ConditionOperand extends EntityPart
 {
-    /** The {@code sling:resourceType} of a {@code sch:ConditionalValue} node. */
-    public static final String RESOURCE_TYPE = "sch/ConditionalValue";
+    /** The {@code sling:resourceType} of a {@code sch:ConditionOperand} node. */
+    public static final String RESOURCE_TYPE = "sch/ConditionOperand";
 
     @ValueMapValue
     private String[] value;

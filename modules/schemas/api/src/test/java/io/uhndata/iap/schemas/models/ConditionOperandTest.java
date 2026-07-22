@@ -36,28 +36,28 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ConditionalValue}.
+ * Unit tests for {@link ConditionOperand}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ConditionalValueTest
+class ConditionOperandTest
 {
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionalValue.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionOperand.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond/operandA",
-            "sling:resourceType", ConditionalValue.RESOURCE_TYPE);
-        assertNotNull(resource.adaptTo(ConditionalValue.class));
+            "sling:resourceType", ConditionOperand.RESOURCE_TYPE);
+        assertNotNull(resource.adaptTo(ConditionOperand.class));
     }
 
     @Test
@@ -65,10 +65,10 @@ class ConditionalValueTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond/operandA",
             Map.of(
-                "sling:resourceType", ConditionalValue.RESOURCE_TYPE,
+                "sling:resourceType", ConditionOperand.RESOURCE_TYPE,
                 "value", new String[]{ "yes" },
                 "isReference", false));
-        final ConditionalValue value = resource.adaptTo(ConditionalValue.class);
+        final ConditionOperand value = resource.adaptTo(ConditionOperand.class);
 
         assertArrayEquals(new String[]{ "yes" }, value.getValue());
         assertFalse(value.isReference());
@@ -79,10 +79,10 @@ class ConditionalValueTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond/operandB",
             Map.of(
-                "sling:resourceType", ConditionalValue.RESOURCE_TYPE,
+                "sling:resourceType", ConditionOperand.RESOURCE_TYPE,
                 "value", new String[]{ "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345" },
                 "isReference", true));
-        final ConditionalValue value = resource.adaptTo(ConditionalValue.class);
+        final ConditionOperand value = resource.adaptTo(ConditionOperand.class);
 
         assertArrayEquals(new String[]{ "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345" }, value.getValue());
         assertTrue(value.isReference());
@@ -92,8 +92,8 @@ class ConditionalValueTest
     void toleratesMissingOptionalProperties()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond/bare",
-            "sling:resourceType", ConditionalValue.RESOURCE_TYPE);
-        final ConditionalValue value = resource.adaptTo(ConditionalValue.class);
+            "sling:resourceType", ConditionOperand.RESOURCE_TYPE);
+        final ConditionOperand value = resource.adaptTo(ConditionOperand.class);
 
         assertNotNull(value);
         assertNull(value.getValue());

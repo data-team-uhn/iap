@@ -49,7 +49,7 @@ class QuestionnaireRequirementTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, Section.class,
-            Conditional.class, Requirement.class, QuestionnaireRequirement.class);
+            SingleCondition.class, Requirement.class, QuestionnaireRequirement.class);
     }
 
     @Test
@@ -105,7 +105,7 @@ class QuestionnaireRequirementTest
             "text", "Does this involve human subjects?"));
         // Inherited from Requirement: not a QuestionnaireItem, excluded from getChildren()
         this.context.create().resource("/Schemas/schema/1.0/questionnaire/c1",
-            "sling:resourceType", Conditional.RESOURCE_TYPE);
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         final QuestionnaireRequirement requirement = resource.adaptTo(QuestionnaireRequirement.class);
 
         final List<QuestionnaireItem> children = requirement.getChildren();

@@ -34,70 +34,71 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link Conditional}.
+ * Unit tests for {@link SingleCondition}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ConditionalTest
+class SingleConditionTest
 {
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionalValue.class, Conditional.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, ConditionOperand.class,
+            SingleCondition.class);
     }
 
     @Test
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond",
-            "sling:resourceType", Conditional.RESOURCE_TYPE);
-        assertNotNull(resource.adaptTo(Conditional.class));
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
+        assertNotNull(resource.adaptTo(SingleCondition.class));
     }
 
     @Test
-    void exposesConditionalProperties()
+    void exposesConditionProperties()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond", Map.of(
-            "sling:resourceType", Conditional.RESOURCE_TYPE,
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE,
             "comparator", "equals",
             "dataType", "boolean"));
-        final Conditional conditional = resource.adaptTo(Conditional.class);
+        final SingleCondition condition = resource.adaptTo(SingleCondition.class);
 
-        assertEquals("equals", conditional.getComparator());
-        assertEquals("boolean", conditional.getDataType());
+        assertEquals("equals", condition.getComparator());
+        assertEquals("boolean", condition.getDataType());
     }
 
     @Test
     void exposesOperands()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond",
-            "sling:resourceType", Conditional.RESOURCE_TYPE);
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/req/cond/operandA",
-            "sling:resourceType", ConditionalValue.RESOURCE_TYPE, "value", new String[]{ "a" });
+            "sling:resourceType", ConditionOperand.RESOURCE_TYPE, "value", new String[]{ "a" });
         this.context.create().resource("/Schemas/schema/1.0/req/cond/operandB",
-            "sling:resourceType", ConditionalValue.RESOURCE_TYPE, "value", new String[]{ "b" });
-        final Conditional conditional = resource.adaptTo(Conditional.class);
+            "sling:resourceType", ConditionOperand.RESOURCE_TYPE, "value", new String[]{ "b" });
+        final SingleCondition condition = resource.adaptTo(SingleCondition.class);
 
-        assertNotNull(conditional.getOperandA());
-        assertEquals("a", conditional.getOperandA().getValue()[0]);
-        assertNotNull(conditional.getOperandB());
-        assertEquals("b", conditional.getOperandB().getValue()[0]);
+        assertNotNull(condition.getOperandA());
+        assertEquals("a", condition.getOperandA().getValue()[0]);
+        assertNotNull(condition.getOperandB());
+        assertEquals("b", condition.getOperandB().getValue()[0]);
     }
 
     @Test
     void toleratesMissingOperandB()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond",
-            "sling:resourceType", Conditional.RESOURCE_TYPE);
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/req/cond/operandA",
-            "sling:resourceType", ConditionalValue.RESOURCE_TYPE);
-        final Conditional conditional = resource.adaptTo(Conditional.class);
+            "sling:resourceType", ConditionOperand.RESOURCE_TYPE);
+        final SingleCondition condition = resource.adaptTo(SingleCondition.class);
 
-        assertNotNull(conditional.getOperandA());
-        assertNull(conditional.getOperandB());
+        assertNotNull(condition.getOperandA());
+        assertNull(condition.getOperandB());
     }
 }

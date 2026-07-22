@@ -144,9 +144,10 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// Abstract base shared by a single condition (Conditional) and a composite
-// of conditions (ConditionalGroup), so callers can ask for "a condition"
-// without caring whether it is a single comparison or a group of them.
+// Abstract base shared by a single condition (SingleCondition) and a
+// composite of conditions (ConditionGroup), so callers can ask for "a
+// condition" without caring whether it is a single comparison or a group of
+// them.
 [sch:Condition] > iap:EntityPart
   abstract
 
@@ -154,12 +155,12 @@
   - sling:resourceSuperType (STRING) = "sch/Condition" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
-// A conditional group is a set of conditions that can be imposed on e.g. the
+// A condition group is a set of conditions that can be imposed on e.g. the
 // display of a section or the requiredness of a requirement. The conditions
 // are listed as children of this, and may be turned from an OR to an AND via
 // the `requireAll` property.
-[sch:ConditionalGroup] > sch:Condition
-  - sling:resourceType (STRING) = "sch/ConditionalGroup" mandatory autocreated protected
+[sch:ConditionGroup] > sch:Condition
+  - sling:resourceType (STRING) = "sch/ConditionGroup" mandatory autocreated protected
 
   - requireAll (BOOLEAN) = false mandatory autocreated
 
@@ -167,19 +168,19 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // A conditional group may contain any number of conditionals or nested conditional groups
+  // A condition group may contain any number of single conditions or nested condition groups
   + * (sch:Condition)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A condition that can be imposed on e.g. the display of a section or the
-// requiredness of a requirement.
-[sch:Conditional] > sch:Condition
-  - sling:resourceType (STRING) = "sch/Conditional" mandatory autocreated protected
+// A single comparison that can be imposed on e.g. the display of a section
+// or the requiredness of a requirement.
+[sch:SingleCondition] > sch:Condition
+  - sling:resourceType (STRING) = "sch/SingleCondition" mandatory autocreated protected
 
-  // A conditional always has exactly one comparator
+  // A single condition always has exactly one comparator
   - comparator (STRING) mandatory
 
   // Specifies how the operands should be treated when performing the comparison
@@ -189,21 +190,21 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // A conditional will always have a child node called operandA
-  + operandA (sch:ConditionalValue) mandatory
+  // A single condition will always have a child node called operandA
+  + operandA (sch:ConditionOperand) mandatory
 
   // A second child operandB may be specified, but leaving it as the default is
   // OK if the comparator is singular (e.g. "is empty")
-  + operandB (sch:ConditionalValue) = sch:ConditionalValue autocreated
+  + operandB (sch:ConditionOperand) = sch:ConditionOperand autocreated
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A conditional value is either a literal value, or a reference to the
+// A condition operand is either a literal value, or a reference to the
 // question whose answer supplies the value.
-[sch:ConditionalValue] > iap:EntityPart
-  - sling:resourceType (STRING) = "sch/ConditionalValue" mandatory autocreated protected
+[sch:ConditionOperand] > iap:EntityPart
+  - sling:resourceType (STRING) = "sch/ConditionOperand" mandatory autocreated protected
 
   // The value, or a reference to the question whose answer provides the value
   - value (UNDEFINED) multiple

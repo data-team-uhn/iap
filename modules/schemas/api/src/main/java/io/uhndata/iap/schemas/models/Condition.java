@@ -20,8 +20,8 @@ package io.uhndata.iap.schemas.models;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * The abstract base shared by a single condition ({@link Conditional}) and a composite of conditions
- * ({@link ConditionalGroup}), corresponding to the {@code sch:Condition} node type. Unlike
+ * The abstract base shared by a single condition ({@link SingleCondition}) and a composite of conditions
+ * ({@link ConditionGroup}), corresponding to the {@code sch:Condition} node type. Unlike
  * {@link io.uhndata.iap.entities.models.Entity} or {@link Requirement}, this class is deliberately not itself a
  * registered Sling Model (no {@code @Model} annotation): each subtype instead declares
  * {@code adapters = Condition.class} on its own {@code @Model}, so {@code resource.adaptTo(Condition.class)}
