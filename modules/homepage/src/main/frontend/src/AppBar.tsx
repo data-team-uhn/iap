@@ -20,7 +20,7 @@ import { useEffect, useState } from "react";
 
 import { Box, Toolbar } from "@mui/material";
 
-import { byDefaultOrder, ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
+import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
 // The application bar: a toolbar row composed entirely of extensions registered on the
@@ -37,7 +37,7 @@ function AppBar() {
 
   useEffect(() => {
     loadExtensions("AppBarEntry")
-      .then(extensions => setEntries(extensions.slice().sort(byDefaultOrder)))
+      .then(extensions => setEntries(extensions))
       .catch(err => console.error("Something went wrong loading the app bar entries", err));
   }, []);
 

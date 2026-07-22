@@ -42,7 +42,7 @@ import {
   type Theme
 } from "@mui/material/styles";
 
-import { byDefaultOrder, ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
+import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
 // The extension points composing the page shell. The four Frame* points form the stable screen
@@ -411,7 +411,7 @@ function PageLayout({ children }: PageLayoutProps) {
   useEffect(() => {
     SHELL_POINTS.forEach(async point => {
       try {
-        const extensions = (await loadExtensions(point)).slice().sort(byDefaultOrder);
+        const extensions = await loadExtensions(point);
         setRegions(loaded => ({ ...loaded, [point]: extensions }));
       } catch (err) {
         console.error(`Something went wrong loading the ${point} extensions`, err);

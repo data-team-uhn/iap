@@ -136,8 +136,8 @@ cd aggregated-frontend && mvn clean install -PautoInstallBundle
 1. Ship an `iap:ExtensionPoint` node under `/apps/iap/ExtensionPoints/` (see any existing one),
    with a unique `iap:extensionPointId` and a descriptive `iap:extensionPointName`. The
    `create_extension_point.py` tool (below) scaffolds this plus a consumer component.
-2. Consume it: call `loadExtensions("<NodeName>")`, sort with `byDefaultOrder`, and render with
-   `ExtensionList` (all from `@iap/ui-extension`). Define any per-extension display properties
+2. Consume it: call `await loadExtensions("<NodeName>")`, and render with `ExtensionList`
+   (all from `@iap/ui-extension`). Define any per-extension display properties
    your layout needs (like the app bar's `iap:appBarSection`) and document them here.
 3. Follow the naming rule for anything direction-sensitive: physical top/bottom for the vertical
    axis, logical start/end for the horizontal axis.

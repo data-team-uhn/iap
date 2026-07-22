@@ -22,11 +22,6 @@ import { type ComponentType } from "react";
 // resolved; its exact shape depends on the extension point, so it is an open string-keyed record.
 type Extension = Record<string, unknown>;
 
-// Comparator sorting extensions by their `iap:defaultOrder`, for consumers that display a whole
-// extension point's worth of extensions in a stable order.
-const byDefaultOrder = (a: Extension, b: Extension) =>
-  Number(a["iap:defaultOrder"] ?? 0) - Number(b["iap:defaultOrder"] ?? 0);
-
 // Renders each extension's `iap:extensionRender` component, in the order given, passing it the
 // extension itself so node properties (`iap:data`, ...) are readable at runtime.
 function ExtensionList({ extensions }: { extensions: Extension[] }) {
@@ -42,4 +37,4 @@ function ExtensionList({ extensions }: { extensions: Extension[] }) {
   );
 }
 
-export { byDefaultOrder, ExtensionList, type Extension };
+export { ExtensionList, type Extension };

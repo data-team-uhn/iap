@@ -42,9 +42,9 @@ const expectBefore = (first: Element, second: Element) =>
 describe("AppBar", () => {
   it("renders the entries grouped into their sections, in row order", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      entry("Account", { "iap:appBarSection": "end", "iap:defaultOrder": 2 }),
+      entry("Account", { "iap:appBarSection": "end", "iap:defaultOrder": 1 }),
       entry("Search", { "iap:appBarSection": "middle" }),
-      entry("Theme", { "iap:appBarSection": "end", "iap:defaultOrder": 1 }),
+      entry("Theme", { "iap:appBarSection": "end", "iap:defaultOrder": 2 }),
       entry("Brand", { "iap:appBarSection": "start" }),
     ]);
 
@@ -57,7 +57,7 @@ describe("AppBar", () => {
     expectBefore(brand, search);
     expectBefore(search, theme);
     // Within a section, iap:defaultOrder decides
-    expectBefore(theme, account);
+    expectBefore(account, theme);
     expect(mockedLoadExtensions).toHaveBeenCalledWith("AppBarEntry");
   });
 

@@ -41,10 +41,7 @@ const WIDTH_SPAN: Record<string, number> = { normal: 1, wide: 2, full: 3 };
 
 // Retrieves all the widgets registered on the dashboard extension point, in display order.
 async function getDashboardWidgets(): Promise<WidgetExtension[]> {
-  return loadExtensions("DashboardWidget")
-    .then(extensions => extensions.slice()
-      .sort((a, b) => Number(a["iap:defaultOrder"]) - Number(b["iap:defaultOrder"]))
-    );
+  return loadExtensions("DashboardWidget");
 }
 
 // The dashboard view: widgets contributed by other modules through the `iap/dashboard/widget`
