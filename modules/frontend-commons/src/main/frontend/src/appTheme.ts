@@ -18,8 +18,10 @@
 
 import { createTheme, lighten, type Breakpoint } from '@mui/material/styles';
 
-const primaryColor = document.querySelector<HTMLMetaElement>('meta[name="primaryColor"]')?.content || "#003366";
-const secondaryColor = document.querySelector<HTMLMetaElement>('meta[name="secondaryColor"]')?.content || "#f94900";
+// Fallbacks matching the QuorumPath brand; deployments configure their own colours through
+// /libs/iap/conf/ThemeColor, which reaches the page as these meta tags
+const primaryColor = document.querySelector<HTMLMetaElement>('meta[name="primaryColor"]')?.content || "#192958";
+const secondaryColor = document.querySelector<HTMLMetaElement>('meta[name="secondaryColor"]')?.content || "#C0233C";
 
 // The dimensions of the page shell (see PageLayout in the homepage module), read from the theme
 // so they are configured here, alongside the rest of the styling.
