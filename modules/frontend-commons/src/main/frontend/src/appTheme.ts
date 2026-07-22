@@ -54,6 +54,11 @@ declare module "@mui/material/styles" {
   interface ThemeOptions {
     iapShell?: Partial<IapShellConfig>;
   }
+  // A third background besides `default` and `paper`: a subtly tinted static surface for page
+  // regions that should read as "background, but set apart"
+  interface TypeBackground {
+    muted: string;
+  }
 }
 
 // The application theme, and the single home for styling. Colours, the light/dark colour schemes,
@@ -84,6 +89,8 @@ const appTheme = createTheme({
       palette: {
         primary: { main: primaryColor },
         secondary: { main: secondaryColor },
+        // Translucent, so it composes with whatever it overlaps rather than assuming white
+        background: { muted: "rgba(0, 0, 0, 0.04)" },
       },
     },
     dark: {
@@ -92,6 +99,7 @@ const appTheme = createTheme({
         // legible on the dark scheme's dark surfaces.
         primary: { main: lighten(primaryColor, 0.6) },
         secondary: { main: secondaryColor },
+        background: { muted: "rgba(255, 255, 255, 0.08)" },
       },
     },
   },
@@ -101,6 +109,13 @@ const appTheme = createTheme({
     MuiPaper: {
       defaultProps: {
         variant: "outlined",
+      },
+    },
+    // Space Stack children with the CSS gap property instead of the default margin takeover,
+    // which overwrites children's own margins and misbehaves with flexWrap
+    MuiStack: {
+      defaultProps: {
+        useFlexGap: true,
       },
     },
     MuiButton: {
