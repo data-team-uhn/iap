@@ -24,7 +24,6 @@ import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.regex.Pattern;
 
-import javax.crypto.SecretKey;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
@@ -41,77 +40,83 @@ import io.jsonwebtoken.Locator;
 import io.jsonwebtoken.io.Decoders;
 
 /**
- * Implementation of a {@link Locator} for JWT validation key lookup.
+ * Implementation of a {@link Locator} for JWT validation key lookup. A fresh instance is used per token: while
+ * locating the signature verification key it also records the expected issuer for that signer, so the caller can
+ * validate the {@code iss} claim without a second repository lookup.
  *
  * @version $Id$
+ * @since 0.1.0
  */
 public class IapJwtVerificationLocatorImpl implements Locator<Key>
 {
     private final PublicKey verificationKey;
 
-    private final SecretKey symmetricKey;
-
     private final ResourceResolverFactory rrf;
 
     private final String selfID;
+
+    private final String selfIssuer;
+
+    /** The expected issuer for the signer resolved by the last {@link #locate(Header)} call. */
+    private String resolvedIssuer;
 
     /**
      * Create a locator that resolves the key used to verify an inbound JWT's signature.
      *
      * @param verificationKey our own public key, used for tokens signed by this instance
-     * @param symmetricKey a legacy symmetric key, used for tokens with no key ID (may be {@code null})
      * @param resolver the resource resolver factory used to look up trusted peers' keys
      * @param selfID the fingerprint identifying tokens signed by this instance
+     * @param selfIssuer the expected issuer for tokens signed by this instance
      */
-    public IapJwtVerificationLocatorImpl(final PublicKey verificationKey, final SecretKey symmetricKey,
-        final ResourceResolverFactory resolver, final String selfID)
+    public IapJwtVerificationLocatorImpl(final PublicKey verificationKey, final ResourceResolverFactory resolver,
+        final String selfID, final String selfIssuer)
     {
         this.verificationKey = verificationKey;
-        this.symmetricKey = symmetricKey;
         this.rrf = resolver;
         this.selfID = selfID;
+        this.selfIssuer = selfIssuer;
     }
 
     /**
-     * In an instance where the JWT does not belong to us, look up info about them in `/jcr:system/iap:jwt/`.
+     * The verification details for a trusted peer, read from the repository within a single session.
+     *
+     * @param verificationKey the peer's public key, used to verify the JWT signature
+     * @param issuer the peer's expected {@code iss} claim value
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private record PeerKeyDetails(PublicKey verificationKey, String issuer)
+    {
+    }
+
+    /**
+     * In an instance where the JWT does not belong to us, look up the peer's verification details in
+     * {@code /jcr:system/iap:jwt/}. Everything needed is read while the session is open, so the returned value is
+     * safe to use after the session closes.
      *
      * @param keyID The ID under which to find the key
-     * @return A node corresponding to the peer's details, or null if we do not have it
+     * @return the peer's public key and expected issuer
+     * @throws JwtException if the peer is unknown, its key is missing/unreadable, or the key ID is unsafe
      */
-    public Node lookupPeerDetails(final String keyID)
+    private PeerKeyDetails lookupPeerDetails(final String keyID)
     {
-        Pattern pattern = Pattern.compile("\\P{Alnum}");
-        try (ResourceResolver resolver = this.rrf.getServiceResourceResolver(null)) {
-            // Ensure the keyID is sanitized, disallow usage and return nothing if not
-            if (pattern.matcher(keyID).find()) {
-                throw new JwtException(String.format("Unsafe peer key: %s", keyID));
-            }
+        final Pattern pattern = Pattern.compile("\\P{Alnum}");
+        // Ensure the keyID is sanitized, disallow usage and return nothing if not
+        if (pattern.matcher(keyID).find()) {
+            throw new JwtException(String.format("Unsafe peer key: %s", keyID));
+        }
 
+        final String resourcePath = "/jcr:system/iap:jwt/" + keyID;
+        try (ResourceResolver resolver = this.rrf.getServiceResourceResolver(null)) {
             // Grab the appropriate key node, if it exists
-            String resourcePath = "/jcr:system/iap:jwt/" + keyID;
-            Resource res = resolver.resolve(resourcePath);
-            Node keyNode = res == null ? null : res.adaptTo(Node.class);
+            final Resource res = resolver.resolve(resourcePath);
+            final Node keyNode = res == null ? null : res.adaptTo(Node.class);
             if (keyNode == null) {
                 throw new JwtException(
                     String.format("Failed to load JWT Verification key for peer %s: node %s could not be read",
                         keyID, resourcePath)
                 );
             }
-            return keyNode;
-        } catch (LoginException e) {
-            throw new JwtException(String.format("Service access not granted: %s", e.getMessage()));
-        }
-    }
-
-    /**
-     * Extracts the public key from a given JCR Node representing a peer.
-     *
-     * @param keyNode The JCR node representing a peer's keys
-     * @return The peer's PublicKey
-     */
-    private PublicKey getPublicKey(final Node keyNode) throws JwtException
-    {
-        try {
             if (!keyNode.hasProperty(IapJwtTokenManagerImpl.VERIFY_PROP)) {
                 throw new JwtException(
                     String.format("Failed to load JWT Verification key: node %s missing %s property",
@@ -119,10 +124,15 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
                 );
             }
 
-            byte[] pubBytes = Decoders.BASE64.decode(
+            final byte[] pubBytes = Decoders.BASE64.decode(
                 keyNode.getProperty(IapJwtTokenManagerImpl.VERIFY_PROP).getString()
             );
-            return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubBytes));
+            final PublicKey peerKey =
+                KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(pubBytes));
+            final String issuer = keyNode.getProperty(IapJwtTokenManagerImpl.ISSUER_PROP).getString();
+            return new PeerKeyDetails(peerKey, issuer);
+        } catch (LoginException e) {
+            throw new JwtException(String.format("Service access not granted: %s", e.getMessage()));
         } catch (GeneralSecurityException e) {
             // Should not happen, this is to catch java.security.NoSuchAlgorithmException
             // or java.security.spec.InvalidKeySpecException, but KeyFactory should be able to load RSA
@@ -138,7 +148,7 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
      * @param header The JWT Header
      * @return The `kid` header, or {@code null} if the given header does not correspond to a JwsHeader/JweHeader
      */
-    public static String getKey(final Header header)
+    private static String getKey(final Header header)
     {
         if (header instanceof JwsHeader) {
             return ((JwsHeader) header).getKeyId();
@@ -148,16 +158,33 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
         return null;
     }
 
+    /**
+     * The expected issuer for the signer resolved by the most recent {@link #locate(Header)} call.
+     *
+     * @return the expected {@code iss} claim value, or {@code null} if no signed token has been located
+     */
+    public String getResolvedIssuer()
+    {
+        return this.resolvedIssuer;
+    }
+
     @Override
     public Key locate(final Header header)
     {
         final String keyID = getKey(header);
 
         if (keyID == null) {
-            // This might instead be a symmetric key -- use the symmetric key
-            return this.symmetricKey;
+            // No key ID means we cannot identify the signer, so there is no key to verify against.
+            return null;
         }
 
-        return keyID.equals(this.selfID) ? this.verificationKey : getPublicKey(lookupPeerDetails(keyID));
+        if (keyID.equals(this.selfID)) {
+            this.resolvedIssuer = this.selfIssuer;
+            return this.verificationKey;
+        }
+
+        final PeerKeyDetails peer = lookupPeerDetails(keyID);
+        this.resolvedIssuer = peer.issuer();
+        return peer.verificationKey();
     }
 }

@@ -26,6 +26,7 @@ import org.osgi.annotation.versioning.ProviderType;
  * Service that can create and read tokens.
  *
  * @version $Id$
+ * @since 0.1.0
  */
 @ProviderType
 public interface TokenManager

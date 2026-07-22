@@ -35,6 +35,7 @@ import io.uhndata.iap.auth.token.IapToken;
  * process, and the JCR API Node, used post-authentication.
  *
  * @version $Id$
+ * @since 0.1.0
  */
 public class IapJwtTokenImpl implements IapToken
 {

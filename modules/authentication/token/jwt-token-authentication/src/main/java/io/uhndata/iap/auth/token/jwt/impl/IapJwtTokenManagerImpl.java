@@ -27,7 +27,6 @@ import java.util.Calendar;
 import java.util.Map;
 import java.util.Set;
 
-import javax.crypto.SecretKey;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
@@ -51,13 +50,13 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.io.Encoders;
-import io.jsonwebtoken.security.Keys;
 import io.uhndata.iap.auth.token.TokenManager;
 
 /**
  * Implementation of the {@link TokenManager} service using JWT tokens.
  *
  * @version $Id$
+ * @since 0.1.0
  */
 @Component(immediate = true, property = "service.ranking:Integer=50", service = { TokenManager.class })
 public class IapJwtTokenManagerImpl implements TokenManager
@@ -80,8 +79,6 @@ public class IapJwtTokenManagerImpl implements TokenManager
 
     private static final Logger LOGGER = LoggerFactory.getLogger(IapJwtTokenManagerImpl.class);
 
-    private final SecretKey symmetricKey;
-
     private final PrivateKey signingKey;
 
     private final PublicKey verificationKey;
@@ -91,8 +88,6 @@ public class IapJwtTokenManagerImpl implements TokenManager
 
     /** Our own fingerprint, used to identify tokens that are signed by us. */
     private final String selfID;
-
-    private final IapJwtVerificationLocatorImpl locator;
 
     private final ResourceResolverFactory rrf;
 
@@ -108,7 +103,6 @@ public class IapJwtTokenManagerImpl implements TokenManager
         this.selfAud = SELF_ID.replaceAll("\\P{Alnum}", "");
         PrivateKey result = null;
         PublicKey verification = null;
-        SecretKey symmetric = null;
         try (ResourceResolver resolver = rrf.getServiceResourceResolver(null)) {
             Resource res = resolver.resolve(KEY_PATH);
             Node keyNode = res.adaptTo(Node.class);
@@ -137,14 +131,6 @@ public class IapJwtTokenManagerImpl implements TokenManager
                 result = newPair.getPrivate();
                 verification = newPair.getPublic();
             }
-
-            // For backwards compatibility: attempt to load (but not generate) a symmetric key, if it exists
-            res = resolver.resolve("/jcr:system/iap:jwt/JWTSigningKey");
-            keyNode = res == null ? null : res.adaptTo(Node.class);
-            if (keyNode != null && keyNode.hasProperty(SIGNING_KEY_PROP)) {
-                symmetric = Keys.hmacShaKeyFor(Decoders.BASE64.decode(keyNode.getProperty(
-                    SIGNING_KEY_PROP).getString()));
-            }
         } catch (LoginException e) {
             LOGGER.error("Service access not granted: {}", e.getMessage());
         } catch (Exception e) {
@@ -152,10 +138,7 @@ public class IapJwtTokenManagerImpl implements TokenManager
         }
         this.signingKey = result;
         this.verificationKey = verification;
-        this.symmetricKey = symmetric;
         this.selfID = getFingerprint(verification);
-        this.locator = new IapJwtVerificationLocatorImpl(this.verificationKey, this.symmetricKey, this.rrf,
-            this.selfID);
     }
 
     /**
@@ -231,37 +214,32 @@ public class IapJwtTokenManagerImpl implements TokenManager
     }
 
     /**
-     * Validate JWT claims against expected issuer/audience/key constraints.
+     * Validate JWT claims against expected issuer/audience constraints. The expected issuer is taken from the
+     * signer the {@code locator} resolved while verifying the signature, so no additional repository lookup is
+     * needed here.
      *
      * @param jwt the parsed JWT to validate
+     * @param locator the locator that resolved the signing key for this token
      * @return {@code true} if all required claims are valid, {@code false} otherwise
      * @throws JwtException if the JWT claims are malformed or invalid
-     * @throws RepositoryException if verification requires repository access that fails
      */
-    private boolean areClaimsValid(final Jwt<?, ?> jwt) throws JwtException,
-        RepositoryException
+    private boolean areClaimsValid(final Jwt<?, ?> jwt, final IapJwtVerificationLocatorImpl locator)
+        throws JwtException
     {
         // Double check claims in the payload:
         Object payload = jwt.getPayload();
         if (payload instanceof Claims) {
             Claims claims = (Claims) payload;
-            String keyID = IapJwtVerificationLocatorImpl.getKey(jwt.getHeader());
-            if (keyID == null) {
-                // We were signed using a symmetric key (no `kid` present): we accept for backwards compatability
-                return true;
-            }
+            String expectedIssuer = locator.getResolvedIssuer();
 
-            String issuer = keyID.equals(this.selfID) ? this.selfAud : this.locator.lookupPeerDetails(keyID)
-                .getProperty(ISSUER_PROP).getString();
-
-            // If we're signed using an asymmetric key, double-check that we're the intended audience for this JWT
+            // Double-check that we're the intended audience for this JWT, and that it came from the expected issuer
             if (claims.getAudience() == null) {
                 // No audience found, reject
                 throw new JwtException("The given JWT is missing an `aud` claim.");
             } else if (!claims.getAudience().contains(this.selfAud)) {
                 throw new JwtException("Our server (" + this.selfAud
                     + ") is not in the list of JWT audiences for the given JWT.");
-            } else if (!issuer.equals(claims.getIssuer())) {
+            } else if (expectedIssuer == null || !expectedIssuer.equals(claims.getIssuer())) {
                 throw new JwtException("The given JWT's issuer does not match the expected issuer.");
             }
             return true;
@@ -277,18 +255,18 @@ public class IapJwtTokenManagerImpl implements TokenManager
             return null;
         }
         try {
+            final IapJwtVerificationLocatorImpl locator =
+                new IapJwtVerificationLocatorImpl(this.verificationKey, this.rrf, this.selfID, this.selfAud);
             Jwt<?, ?> jwt = Jwts.parser()
-                .keyLocator(this.locator)
+                .keyLocator(locator)
                 .build()
                 .parseSignedClaims(loginToken);
 
             // Double check claims in the payload:
-            if (areClaimsValid(jwt)) {
+            if (areClaimsValid(jwt, locator)) {
                 return new IapJwtTokenImpl(jwt, loginToken);
             }
         } catch (JwtException e) {
-            LOGGER.error("JWT validation failed: {}", e.getMessage());
-        } catch (RepositoryException e) {
             LOGGER.error("JWT validation failed: {}", e.getMessage());
         }
         return null;
