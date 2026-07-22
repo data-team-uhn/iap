@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "iap:ExtensionPoint",
+  "iap:extensionPointId": "iap/footer/link",
+  "iap:extensionPointName": "Links displayed in the page footer"
+}

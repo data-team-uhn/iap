@@ -83,6 +83,15 @@ Current entries: Branding (start), and the dark mode toggle, notifications bell,
 like a maintenance banner should register directly on `frameTop` with `iap:defaultOrder` below
 the app bar's (20) to appear above it.
 
+### The footer
+
+The footer (a `pageBottom` extension) displays the affiliated institution's logo, links, and the
+platform version + credit. Its links come from their own point:
+
+| Point id | Node name | Purpose |
+| --- | --- | --- |
+| `iap/footer/link` | `FooterLink` | Links in the page footer (Terms of use, User manual, FAQ, ...). **Data-only extensions**: no component, just `iap:extensionName` (the label) and `iap:targetURL` — a path navigates within the app, a full URL opens in a new tab. A link whose target page isn't ready can be hidden with `iap:defaultDisabled: true` until it is. |
+
 ### The dashboard
 
 | Point id | Node name | Purpose |
