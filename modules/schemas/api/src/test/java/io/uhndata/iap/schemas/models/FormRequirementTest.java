@@ -49,7 +49,7 @@ class FormRequirementTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, Section.class,
-            SingleCondition.class, Requirement.class, FormRequirement.class);
+            SingleCondition.class, FormRequirement.class);
     }
 
     @Test

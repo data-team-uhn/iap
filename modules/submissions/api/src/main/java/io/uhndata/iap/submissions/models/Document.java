@@ -26,6 +26,7 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.Requirement;
 
 /**
  * A Sling Model wrapping a {@code sub:Document} node: a document attached to the submission, e.g. the signed
@@ -73,14 +74,13 @@ public class Document extends EntityPart
     }
 
     /**
-     * The identifier of the {@code sch:Requirement} (typically a {@code sch:DocumentRequirement}) this document
-     * fulfills.
+     * The requirement (typically a {@code DocumentRequirement}) this document fulfills.
      *
-     * @return an UUID, or {@code null} if not set
+     * @return a requirement, or {@code null} if not set or unresolvable
      */
-    public String getFulfills()
+    public Requirement getFulfills()
     {
-        return this.fulfills;
+        return this.getReference(this.fulfills, Requirement.class);
     }
 
     /**

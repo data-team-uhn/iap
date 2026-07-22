@@ -50,7 +50,7 @@ class RequirementTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, SingleCondition.class, ConditionGroup.class,
-            Requirement.class, ApprovalRequirement.class);
+            ApprovalRequirement.class);
     }
 
     @Test
@@ -68,19 +68,21 @@ class RequirementTest
     }
 
     @Test
-    void adaptsGenericallyAcrossSubtypes()
+    void dispatchesToConcreteSubtype()
     {
-        // A concrete subtype's resource still adapts to the abstract Requirement model, exposing only
-        // the common properties, same as adapting an Entity subtype to Entity.
+        // Adapting a concrete subtype's resource to the abstract Requirement model dispatches to the real
+        // concrete class, exposing its own fields too, not just the common ones.
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(
             "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
             "sling:resourceSuperType", Requirement.RESOURCE_TYPE,
-            "label", "REB approval"));
+            "label", "REB approval",
+            "approverGroup", "reb-members"));
         final Requirement requirement = resource.adaptTo(Requirement.class);
 
         assertNotNull(requirement);
-        assertEquals(Requirement.class, requirement.getClass());
+        assertEquals(ApprovalRequirement.class, requirement.getClass());
         assertEquals("REB approval", requirement.getLabel());
+        assertEquals("reb-members", ((ApprovalRequirement) requirement).getApproverGroup());
     }
 
     @Test

@@ -20,15 +20,22 @@ package io.uhndata.iap.submissions.models;
 import java.util.Calendar;
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.schemas.models.SchemaVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -53,7 +60,7 @@ class SubmissionTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
-            Document.class, Review.class);
+            Document.class, Review.class, SchemaVersion.class);
         this.created = Calendar.getInstance();
         this.created.set(2026, Calendar.APRIL, 5, 16, 20, 0);
     }
@@ -68,7 +75,16 @@ class SubmissionTest
 
     @Test
     void exposesSubmissionProperties()
+        throws RepositoryException
     {
+        this.context.create().resource("/Schemas/schema/1.0",
+            "sling:resourceType", SchemaVersion.RESOURCE_TYPE, "version", "1.0");
+        final Node targetNode = Mockito.mock(Node.class);
+        Mockito.when(targetNode.getPath()).thenReturn("/Schemas/schema/1.0");
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier("2b7de6a1-3c4d-4e5f-8a9b-fedcba098765")).thenReturn(targetNode);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             "sling:resourceType", "sub/Submission",
             "title", "Effects of caffeine on code quality",
@@ -77,7 +93,7 @@ class SubmissionTest
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertEquals("Effects of caffeine on code quality", submission.getTitle());
-        assertEquals("2b7de6a1-3c4d-4e5f-8a9b-fedcba098765", submission.getSchemaVersion());
+        assertEquals("1.0", submission.getSchemaVersion().getVersion());
         assertEquals("in-review", submission.getStatus());
     }
 

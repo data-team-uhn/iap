@@ -31,7 +31,7 @@ import org.apache.sling.models.annotations.Model;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = FormRequirement.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = Requirement.class, resourceType = FormRequirement.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class FormRequirement extends Requirement
 {

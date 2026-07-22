@@ -25,6 +25,7 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.schemas.models.SchemaVersion;
 
 /**
  * A Sling Model wrapping a {@code sub:Submission} node, a submission filed by a submitter against a specific
@@ -61,13 +62,13 @@ public class Submission extends Entity
     }
 
     /**
-     * The identifier of the {@code sch:SchemaVersion} this submission answers.
+     * The schema version this submission answers.
      *
-     * @return an UUID
+     * @return a schema version, or {@code null} if not set or unresolvable
      */
-    public String getSchemaVersion()
+    public SchemaVersion getSchemaVersion()
     {
-        return this.schemaVersion;
+        return this.getReference(this.schemaVersion, SchemaVersion.class);
     }
 
     /**

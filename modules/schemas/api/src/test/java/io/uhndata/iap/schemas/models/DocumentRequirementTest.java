@@ -48,8 +48,7 @@ class DocumentRequirementTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Requirement.class,
-            DocumentRequirement.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, DocumentRequirement.class);
     }
 
     @Test

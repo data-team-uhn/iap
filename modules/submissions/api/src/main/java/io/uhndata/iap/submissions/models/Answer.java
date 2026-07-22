@@ -23,6 +23,7 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.Question;
 
 /**
  * A Sling Model wrapping a {@code sub:Answer} node: the answer to a single schema question. Only simple storage;
@@ -45,13 +46,13 @@ public class Answer extends EntityPart
     private String[] value;
 
     /**
-     * The identifier of the {@code sch:Question} this answers.
+     * The question this answers.
      *
-     * @return an UUID
+     * @return a question, or {@code null} if not set or unresolvable
      */
-    public String getQuestion()
+    public Question getQuestion()
     {
-        return this.question;
+        return this.getReference(this.question, Question.class);
     }
 
     /**

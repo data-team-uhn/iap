@@ -21,6 +21,10 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import jakarta.json.JsonObject;
 
 import org.apache.sling.api.resource.Resource;
@@ -36,10 +40,13 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = "iap/Content",
+@Model(adaptables = Resource.class, resourceType = Content.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class Content
 {
+    /** The {@code sling:resourceType} of an {@code iap:Content} node. */
+    public static final String RESOURCE_TYPE = "iap/Content";
+
     @SlingObject
     protected Resource resource;
 
@@ -120,6 +127,34 @@ public class Content
     public JsonObject toJson()
     {
         return this.resource.adaptTo(JsonObject.class);
+    }
+
+    /**
+     * Resolves a JCR reference property's value to the resource it points at, adapted to the given model type.
+     * Used to implement typed accessors for {@code REFERENCE} properties, e.g. {@code Submission.getSchemaVersion()}.
+     *
+     * @param identifier the identifier stored in a {@code REFERENCE} (or {@code WEAKREFERENCE}) property
+     * @param type the model class the referenced resource is adapted to
+     * @param <T> the model type
+     * @return the adapted resource, or {@code null} if the identifier is {@code null}, unresolvable, or the
+     *         resource resolver isn't backed by a JCR session
+     */
+    protected <T> T getReference(final String identifier, final Class<T> type)
+    {
+        if (identifier == null) {
+            return null;
+        }
+        final Session session = this.resource.getResourceResolver().adaptTo(Session.class);
+        if (session == null) {
+            return null;
+        }
+        try {
+            final Node target = session.getNodeByIdentifier(identifier);
+            final Resource targetResource = this.resource.getResourceResolver().getResource(target.getPath());
+            return targetResource == null ? null : targetResource.adaptTo(type);
+        } catch (RepositoryException e) {
+            return null;
+        }
     }
 
     /**

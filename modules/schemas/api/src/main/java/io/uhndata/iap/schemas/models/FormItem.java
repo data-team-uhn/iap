@@ -23,9 +23,9 @@ import io.uhndata.iap.entities.models.EntityPart;
  * The abstract base shared by everything that may appear in the body of a form: a single {@link Question}, or a
  * {@link Section} grouping more items. Corresponds to the {@code sch:FormItem} node type, which mixes in
  * {@code sch:Conditionable} (see {@link Conditionable}) so every item, of any subtype, may carry a single condition
- * controlling whether it is shown to the submitter. Unlike {@link io.uhndata.iap.entities.models.Entity} or
- * {@link Requirement}, this class is deliberately not itself a registered Sling Model (no {@code @Model}
- * annotation): each subtype instead declares {@code adapters = FormItem.class} on its own {@code @Model}, so
+ * controlling whether it is shown to the submitter. Unlike {@link io.uhndata.iap.entities.models.Entity}, this
+ * class is deliberately not itself a registered Sling Model (no {@code @Model} annotation): each subtype instead
+ * declares {@code adapters = FormItem.class} on its own {@code @Model}, so
  * {@code resource.adaptTo(FormItem.class)} dispatches to the actual concrete subtype (via Sling Models'
  * {@code ResourceTypeBasedResourcePicker}), instead of yielding a generic {@code FormItem} instance lacking a
  * subtype's own fields. This lets a new item type plug in later without any change here or to the callers that ask

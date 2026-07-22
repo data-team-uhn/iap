@@ -47,8 +47,7 @@ class ApprovalRequirementTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Requirement.class,
-            ApprovalRequirement.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, ApprovalRequirement.class);
     }
 
     @Test

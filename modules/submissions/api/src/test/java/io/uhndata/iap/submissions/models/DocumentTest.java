@@ -20,15 +20,22 @@ package io.uhndata.iap.submissions.models;
 import java.util.List;
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.DocumentRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -48,7 +55,7 @@ class DocumentTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Document.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Document.class, DocumentRequirement.class);
     }
 
     @Test
@@ -61,7 +68,16 @@ class DocumentTest
 
     @Test
     void exposesDocumentProperties()
+        throws RepositoryException
     {
+        this.context.create().resource("/Schemas/schema/1.0/consent",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE, "label", "Signed consent form");
+        final Node targetNode = Mockito.mock(Node.class);
+        Mockito.when(targetNode.getPath()).thenReturn("/Schemas/schema/1.0/consent");
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")).thenReturn(targetNode);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+
         final Resource resource = this.context.create().resource("/Submissions/submission/consent", Map.of(
             "sling:resourceType", Document.RESOURCE_TYPE,
             "title", "Signed consent",
@@ -71,7 +87,8 @@ class DocumentTest
 
         assertEquals("Signed consent", document.getTitle());
         assertEquals("Patient consent form", document.getDescription());
-        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", document.getFulfills());
+        assertEquals(DocumentRequirement.class, document.getFulfills().getClass());
+        assertEquals("Signed consent form", document.getFulfills().getLabel());
     }
 
     @Test

@@ -52,7 +52,7 @@ class SchemaVersionTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Requirement.class,
+        this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class,
             FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
             SchemaVersion.class);
     }

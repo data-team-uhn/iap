@@ -17,28 +17,25 @@
  */
 package io.uhndata.iap.schemas.models;
 
-import org.apache.sling.api.resource.Resource;
-import org.apache.sling.models.annotations.DefaultInjectionStrategy;
-import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sch:Requirement} node, the abstract base for anything a submission must fulfill:
- * a set of questions to answer ({@link FormRequirement}), an expected document
- * ({@link DocumentRequirement}), a required approval ({@link ApprovalRequirement}), or future requirement types.
- * Adapting a concrete requirement resource to this class, rather than to its own specific subtype, yields only
- * these common properties, same as adapting an entity to {@link io.uhndata.iap.entities.models.Entity} instead of
- * to its own specific subtype. Mixes in {@code sch:Conditionable} (see {@link Conditionable}), so every
- * requirement may carry a single condition controlling whether it applies to a submission.
+ * The abstract base for anything a submission must fulfill: a set of questions to answer
+ * ({@link FormRequirement}), an expected document ({@link DocumentRequirement}), a required approval
+ * ({@link ApprovalRequirement}), or future requirement types. Corresponds to the {@code sch:Requirement} node
+ * type, which mixes in {@code sch:Conditionable} (see {@link Conditionable}) so every requirement may carry a
+ * single condition controlling whether it applies to a submission. Like {@link FormItem}, this class is
+ * deliberately not itself a registered Sling Model (no {@code @Model} annotation): each subtype instead declares
+ * {@code adapters = Requirement.class} on its own {@code @Model}, so {@code resource.adaptTo(Requirement.class)}
+ * dispatches to the actual concrete subtype (via Sling Models' {@code ResourceTypeBasedResourcePicker}), instead
+ * of yielding a generic {@code Requirement} instance lacking a subtype's own fields.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = Requirement.RESOURCE_TYPE,
-    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Requirement extends EntityPart implements Conditionable
+public abstract class Requirement extends EntityPart implements Conditionable
 {
     /** The {@code sling:resourceType} of a {@code sch:Requirement} node. */
     public static final String RESOURCE_TYPE = "sch/Requirement";

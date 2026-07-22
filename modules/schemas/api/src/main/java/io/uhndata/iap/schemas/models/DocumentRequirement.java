@@ -29,7 +29,7 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = DocumentRequirement.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = Requirement.class, resourceType = DocumentRequirement.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class DocumentRequirement extends Requirement
 {

@@ -19,15 +19,22 @@ package io.uhndata.iap.submissions.models;
 
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.Question;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,7 +55,7 @@ class AnswerTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class, Question.class);
     }
 
     @Test
@@ -61,14 +68,23 @@ class AnswerTest
 
     @Test
     void exposesAnswerProperties()
+        throws RepositoryException
     {
+        this.context.create().resource("/Schemas/schema/1.0/q1",
+            "sling:resourceType", Question.RESOURCE_TYPE, "text", "Does this involve human subjects?");
+        final Node targetNode = Mockito.mock(Node.class);
+        Mockito.when(targetNode.getPath()).thenReturn("/Schemas/schema/1.0/q1");
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")).thenReturn(targetNode);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+
         final Resource resource = this.context.create().resource("/Submissions/submission/answer", Map.of(
             "sling:resourceType", Answer.RESOURCE_TYPE,
             "question", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
             "value", new String[]{ "yes" }));
         final Answer answer = resource.adaptTo(Answer.class);
 
-        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", answer.getQuestion());
+        assertEquals("Does this involve human subjects?", answer.getQuestion().getText());
         assertArrayEquals(new String[]{ "yes" }, answer.getValue());
     }
 

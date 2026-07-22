@@ -20,15 +20,22 @@ package io.uhndata.iap.submissions.models;
 import java.util.List;
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.ApprovalRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -49,7 +56,7 @@ class ReviewTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Reply.class, ReviewComment.class,
-            Review.class);
+            Review.class, ApprovalRequirement.class);
     }
 
     @Test
@@ -62,7 +69,16 @@ class ReviewTest
 
     @Test
     void exposesReviewProperties()
+        throws RepositoryException
     {
+        this.context.create().resource("/Schemas/schema/1.0/reb",
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE, "label", "REB approval");
+        final Node targetNode = Mockito.mock(Node.class);
+        Mockito.when(targetNode.getPath()).thenReturn("/Schemas/schema/1.0/reb");
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")).thenReturn(targetNode);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+
         final Resource resource = this.context.create().resource("/Submissions/submission/review", Map.of(
             "sling:resourceType", Review.RESOURCE_TYPE,
             "reviewer", "reviewer1",
@@ -71,7 +87,8 @@ class ReviewTest
         final Review review = resource.adaptTo(Review.class);
 
         assertEquals("reviewer1", review.getReviewer());
-        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", review.getRequirement());
+        assertEquals(ApprovalRequirement.class, review.getRequirement().getClass());
+        assertEquals("REB approval", review.getRequirement().getLabel());
         assertEquals("in-progress", review.getStatus());
     }
 

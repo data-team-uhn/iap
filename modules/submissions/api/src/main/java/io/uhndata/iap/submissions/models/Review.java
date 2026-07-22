@@ -26,6 +26,7 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.Requirement;
 
 /**
  * A Sling Model wrapping a {@code sub:Review} node: one reviewer's assessment of the submission.
@@ -60,14 +61,14 @@ public class Review extends EntityPart
     }
 
     /**
-     * The identifier of the {@code sch:Requirement} (typically a {@code sch:ApprovalRequirement}) this review
-     * addresses.
+     * The requirement (typically an {@code ApprovalRequirement}) this review addresses.
      *
-     * @return an UUID, or {@code null} if this review does not address a specific requirement
+     * @return a requirement, or {@code null} if this review does not address a specific requirement, or it is
+     *         unresolvable
      */
-    public String getRequirement()
+    public Requirement getRequirement()
     {
-        return this.requirement;
+        return this.getReference(this.requirement, Requirement.class);
     }
 
     /**
