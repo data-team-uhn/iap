@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "Draft",
+  "description": "Work on this record is still in progress.",
+  "category": ["lifecycle"],
+  "color": "#9e9e9e",
+  "order": 10
+}

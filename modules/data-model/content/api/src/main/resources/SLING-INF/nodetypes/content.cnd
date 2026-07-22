@@ -36,3 +36,11 @@
 
   // Hardcode the supertype to the parent iap/Entity type.
   - sling:resourceSuperType (STRING) = "iap/Content" mandatory autocreated protected
+
+  // Tags marking this resource with special statuses or properties, e.g.
+  // "incomplete" or "sensitive". Each value is the name of a tag defined by
+  // an iap:TagDefinition node stored under /Tags; see the tags module.
+  // Not versioned (IGNORE): tags are living metadata describing the current
+  // status of the resource, so changing them must neither require a checkout
+  // nor be reverted by a restore.
+  - tags (STRING) multiple IGNORE

@@ -50,6 +50,7 @@
               SLING-INF/content/libs/iap/Homepage/;path:=/libs/iap/Homepage/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/TestEntity/;path:=/libs/iap/TestEntity/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
