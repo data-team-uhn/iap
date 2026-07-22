@@ -17,15 +17,14 @@
  */
 package io.uhndata.iap.schemas.models;
 
-import java.util.List;
-
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * The abstract base shared by everything that may appear in the body of a questionnaire: a single
  * {@link Question}, or a {@link Section} grouping more items. Corresponds to the {@code sch:QuestionnaireItem}
- * node type. Every item, of any subtype, may carry conditions controlling whether it is shown to the submitter.
- * Unlike {@link io.uhndata.iap.entities.models.Entity} or {@link Requirement}, this class is deliberately not
+ * node type. Every item, of any subtype, may carry a single condition controlling whether it is shown to the
+ * submitter; combining multiple conditions is only supported via a {@link ConditionGroup}. Unlike
+ * {@link io.uhndata.iap.entities.models.Entity} or {@link Requirement}, this class is deliberately not
  * itself a registered Sling Model (no {@code @Model} annotation): each subtype instead declares
  * {@code adapters = QuestionnaireItem.class} on its own {@code @Model}, so
  * {@code resource.adaptTo(QuestionnaireItem.class)} dispatches to the actual concrete subtype (via Sling Models'
@@ -43,14 +42,14 @@ public abstract class QuestionnaireItem extends EntityPart
     public static final String RESOURCE_TYPE = "sch/QuestionnaireItem";
 
     /**
-     * Every condition controlling whether this item is shown to the submitter, each adapted to its own specific
-     * model regardless of whether it is a {@link SingleCondition}, a {@link ConditionGroup}, or any future
+     * The condition controlling whether this item is shown to the submitter, adapted to its own specific model
+     * regardless of whether it is a {@link SingleCondition}, a {@link ConditionGroup}, or any future
      * {@link Condition} subtype.
      *
-     * @return a list of conditions, empty if none
+     * @return a condition, or {@code null} if this item is always enabled
      */
-    public List<Condition> getConditions()
+    public Condition getCondition()
     {
-        return this.getChildren(Condition.RESOURCE_TYPE, Condition.class);
+        return this.getChild("sch:condition", Condition.class);
     }
 }

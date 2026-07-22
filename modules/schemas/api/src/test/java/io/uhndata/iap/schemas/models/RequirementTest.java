@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.schemas.models;
 
-import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -32,6 +31,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -86,27 +86,45 @@ class RequirementTest
     }
 
     @Test
-    void listsConditionsUsingTheSpecificModelForEach()
+    void hasNoConditionWhenNotSet()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(
             "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
             "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
-        // sling:resourceSuperType is mandatory/autocreated on sch:Condition in the real CND; sling-mock
-        // doesn't know about the CND, so it must be set explicitly here.
-        this.context.create().resource("/Schemas/schema/1.0/req/c1", Map.of(
-            "sling:resourceType", SingleCondition.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
-            "comparator", "equals"));
-        this.context.create().resource("/Schemas/schema/1.0/req/g1", Map.of(
-            "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
-            "requireAll", true));
         final Requirement requirement = resource.adaptTo(Requirement.class);
 
-        final List<Condition> conditions = requirement.getConditions();
+        assertNull(requirement.getCondition());
+    }
 
-        assertEquals(2, conditions.size());
-        assertEquals(SingleCondition.class, conditions.get(0).getClass());
-        assertEquals("equals", ((SingleCondition) conditions.get(0)).getComparator());
-        assertEquals(ConditionGroup.class, conditions.get(1).getClass());
-        assertTrue(((ConditionGroup) conditions.get(1)).isRequireAll());
+    @Test
+    void exposesSingleConditionAsCondition()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
+            "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
+        this.context.create().resource("/Schemas/schema/1.0/req/sch:condition", Map.of(
+            "sling:resourceType", SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Requirement requirement = resource.adaptTo(Requirement.class);
+
+        final Condition condition = requirement.getCondition();
+
+        assertEquals(SingleCondition.class, condition.getClass());
+        assertEquals("equals", ((SingleCondition) condition).getComparator());
+    }
+
+    @Test
+    void exposesConditionGroupAsCondition()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(
+            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
+            "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
+        this.context.create().resource("/Schemas/schema/1.0/req/sch:condition", Map.of(
+            "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "requireAll", true));
+        final Requirement requirement = resource.adaptTo(Requirement.class);
+
+        final Condition condition = requirement.getCondition();
+
+        assertEquals(ConditionGroup.class, condition.getClass());
+        assertTrue(((ConditionGroup) condition).isRequireAll());
     }
 }

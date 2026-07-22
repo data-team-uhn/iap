@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.schemas.models;
 
-import java.util.List;
-
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -75,7 +73,7 @@ public class Requirement extends EntityPart
 
     /**
      * Whether this requirement must be fulfilled before the submission can be approved, once it applies (see
-     * {@link #getConditions()} for whether it applies at all).
+     * {@link #getCondition()} for whether it applies at all).
      *
      * @return {@code true} if this requirement is mandatory
      */
@@ -85,14 +83,14 @@ public class Requirement extends EntityPart
     }
 
     /**
-     * Every condition controlling whether this requirement applies to a submission, each adapted to its own
-     * specific model regardless of whether it is a {@link SingleCondition}, a {@link ConditionGroup}, or any
-     * future {@link Condition} subtype.
+     * The condition controlling whether this requirement applies to a submission, adapted to its own specific
+     * model regardless of whether it is a {@link SingleCondition}, a {@link ConditionGroup}, or any future
+     * {@link Condition} subtype.
      *
-     * @return a list of conditions, empty if none
+     * @return a condition, or {@code null} if this requirement always applies
      */
-    public List<Condition> getConditions()
+    public Condition getCondition()
     {
-        return this.getChildren(Condition.RESOURCE_TYPE, Condition.class);
+        return this.getChild("sch:condition", Condition.class);
     }
 }
