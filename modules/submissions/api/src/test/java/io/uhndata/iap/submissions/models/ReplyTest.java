@@ -64,10 +64,10 @@ class ReplyTest
             Map.of(
                 "sling:resourceType", Reply.RESOURCE_TYPE,
                 "text", "I have updated the consent form as requested",
-                "author", "researcher1"));
+                "author", "submitter1"));
         final Reply reply = resource.adaptTo(Reply.class);
 
         assertEquals("I have updated the consent form as requested", reply.getText());
-        assertEquals("researcher1", reply.getAuthor());
+        assertEquals("submitter1", reply.getAuthor());
     }
 }

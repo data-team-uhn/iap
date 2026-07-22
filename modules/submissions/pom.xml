@@ -28,7 +28,7 @@
   <artifactId>iap-submissions</artifactId>
   <packaging>pom</packaging>
   <name>IAP - Submissions</name>
-  <description>Research proposals submitted against a schema, with answers, attached documents, and reviews.</description>
+  <description>Submissions filed against a schema, with answers, attached documents, and reviews.</description>
 
   <modules>
     <module>api</module>

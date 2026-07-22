@@ -21,7 +21,7 @@
 
 //-----------------------------------------------------------------------------
 //
-// Submissions: actual research proposals submitted by researchers.
+// Submissions: what submitters file.
 //
 // A submission is created against a specific sch:SchemaVersion, and its
 // content mirrors what that schema version asks for: answers referencing
@@ -49,13 +49,13 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
-// A research proposal submitted by a researcher against a specific schema
-// version. The workflow instances driving its lifecycle are attached through
-// the wf:WorkflowAttachable mixin's workflowInstances property.
+// A submission filed by a submitter against a specific schema version. The
+// workflow instances driving its lifecycle are attached through the
+// wf:WorkflowAttachable mixin's workflowInstances property.
 [sub:Submission] > iap:Entity, wf:WorkflowAttachable
   - sling:resourceType (STRING) = "sub/Submission" mandatory autocreated protected
 
-  // Title of the research proposal
+  // Title of the submission
   - title (STRING) mandatory
 
   // The sch:SchemaVersion this submission answers

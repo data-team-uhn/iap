@@ -27,9 +27,9 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import io.uhndata.iap.entities.models.Entity;
 
 /**
- * A Sling Model wrapping a {@code sub:Submission} node, a research proposal submitted by a researcher against a
- * specific schema version. It holds the submitter's answers to the schema questions, the attached documents, and
- * the reviews added by reviewers.
+ * A Sling Model wrapping a {@code sub:Submission} node, a submission filed by a submitter against a specific
+ * schema version. It holds the submitter's answers to the schema questions, the attached documents, and the
+ * reviews added by reviewers.
  *
  * @version $Id$
  * @since 0.1.0
@@ -51,7 +51,7 @@ public class Submission extends Entity
     private String status;
 
     /**
-     * The title of the research proposal.
+     * The title of the submission.
      *
      * @return a title
      */
