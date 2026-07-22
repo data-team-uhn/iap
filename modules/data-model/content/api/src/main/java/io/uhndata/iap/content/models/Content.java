@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
+import jakarta.json.JsonObject;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -108,6 +110,16 @@ public class Content
     public Object get(final String name)
     {
         return this.resource.getValueMap().get(name);
+    }
+
+    /**
+     * A JSON representation of the wrapped resource.
+     *
+     * @return a JSON object, or {@code null} if the resource cannot be serialized to JSON
+     */
+    public JsonObject toJson()
+    {
+        return this.resource.adaptTo(JsonObject.class);
     }
 
     /**

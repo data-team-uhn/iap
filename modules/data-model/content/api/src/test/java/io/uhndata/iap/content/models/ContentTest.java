@@ -21,6 +21,9 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -131,6 +134,30 @@ class ContentTest
         final Content content = resource.adaptTo(Content.class);
 
         assertNull(content.get("missingProperty"));
+    }
+
+    @Test
+    void exposesJsonRepresentation()
+    {
+        // The actual serialization is provided by iap-serialization-json's AdapterFactory; here a stand-in
+        // adapter is registered to verify that toJson() delegates to it, without depending on that module.
+        final JsonObject json = Json.createObjectBuilder().add("path", "/content/sample").build();
+        this.context.registerAdapter(Resource.class, JsonObject.class, json);
+        final Resource resource = this.context.create().resource("/content/sample",
+            "sling:resourceType", "iap/Content");
+        final Content content = resource.adaptTo(Content.class);
+
+        assertEquals(json, content.toJson());
+    }
+
+    @Test
+    void returnsNullJsonWhenNoAdapterIsAvailable()
+    {
+        final Resource resource = this.context.create().resource("/content/sample",
+            "sling:resourceType", "iap/Content");
+        final Content content = resource.adaptTo(Content.class);
+
+        assertNull(content.toJson());
     }
 
     @Test
