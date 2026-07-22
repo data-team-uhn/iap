@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.tags.internal;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -255,6 +256,33 @@ class TagManagerImplTest
 
         this.tagManager.setTags(resource, List.of("submitted", DRAFT));
         assertEquals(Set.of(DRAFT, "submitted"), this.tagManager.getTags(resource));
+    }
+
+    @Test
+    void readsEffectiveTagNamesFromMaterializedProperties() throws Exception
+    {
+        final Field reference = TagManagerImpl.class.getDeclaredField("tagProcessors");
+        reference.setAccessible(true);
+        reference.set(this.tagManager, List.of(new TagAggregationProcessor(), new TagInheritanceProcessor()));
+        final Resource resource = this.context.create().resource("/data/entity", Map.of(
+            TYPE_PROPERTY, "iap/Entity",
+            "tags", new String[] { DRAFT },
+            TagAggregationProcessor.PROPERTY, new String[] { "incomplete" },
+            TagInheritanceProcessor.PROPERTY, new String[] { SENSITIVE }));
+
+        assertEquals(Set.of(DRAFT, "incomplete", SENSITIVE), this.tagManager.getEffectiveTagNames(resource));
+    }
+
+    @Test
+    void effectiveTagNamesWithoutProcessorsAreJustTheExplicitTags()
+    {
+        // Without any registered tag processors there are no materialized properties to read
+        final Resource resource = this.context.create().resource("/data/entity", Map.of(
+            TYPE_PROPERTY, "iap/Entity",
+            "tags", new String[] { DRAFT },
+            TagAggregationProcessor.PROPERTY, new String[] { "incomplete" }));
+
+        assertEquals(Set.of(DRAFT), this.tagManager.getEffectiveTagNames(resource));
     }
 
     @Test
