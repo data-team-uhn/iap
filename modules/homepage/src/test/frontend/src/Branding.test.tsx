@@ -25,10 +25,13 @@ import Branding from "@iap/homepage/Branding";
 
 // The app name and logo come from the page metadata; provide them the way the server does
 beforeAll(() => {
-  const title = document.createElement("meta");
-  title.name = "title";
-  title.content = "Test App";
-  document.head.append(title);
+  const metas = { title: "Test App", logoLight: "/light.svg", logoDark: "/dark.svg" };
+  for (const [name, content] of Object.entries(metas)) {
+    const meta = document.createElement("meta");
+    meta.name = name;
+    meta.content = content;
+    document.head.append(meta);
+  }
 });
 
 const renderBranding = () => render(
@@ -40,16 +43,17 @@ const renderBranding = () => render(
 );
 
 describe("Branding", () => {
-  it("displays the application name from the page metadata", async () => {
+  it("displays the wordmark for the active scheme, named by the application name", async () => {
     renderBranding();
 
-    expect(await screen.findByText("Test App")).toBeInTheDocument();
+    const wordmark = await screen.findByAltText("Test App");
+    expect(wordmark).toHaveAttribute("src", "/light.svg");
   });
 
   it("links back to the homepage", async () => {
     renderBranding();
 
-    const link = (await screen.findByText("Test App")).closest("a");
+    const link = (await screen.findByAltText("Test App")).closest("a");
     expect(link).toHaveAttribute("href", "/");
   });
 });

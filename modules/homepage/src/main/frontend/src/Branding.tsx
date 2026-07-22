@@ -16,48 +16,19 @@
  * limitations under the License.
  */
 
-import { Divider, Link, Stack, Typography } from "@mui/material";
-import { useColorScheme } from "@mui/material/styles";
+import { Link } from "@mui/material";
 import { Link as RouterLink } from "react-router";
 
 import Logo from "@iap/frontend-commons/components/Logo";
 
-// The application's identity in the app bar: the logo and the application name, separated by a
-// light vertical divider, together linking back to the homepage. Both are read from the page
-// metadata (the `logoLight`/`logoDark` and `title` meta tags), the same source the standalone
-// Logo component and the document title use, so branding stays configured in one place. On
-// narrow screens the name (and its divider) give their room back to the other app bar entries,
-// leaving just the logo.
+// The application's identity in the app bar: the logo, linking back to the homepage. The logo
+// is a self-titling wordmark, so deliberately no separate application name is displayed next to
+// it. On narrow screens the wordmark shrinks.
 // Registered on the `iap/appBar/entry` extension point, start section.
 function Branding() {
-  const { mode, systemMode } = useColorScheme();
-  const resolvedMode = (mode === "system" ? systemMode : mode) ?? "light";
-  const appName = document.querySelector<HTMLMetaElement>('meta[name="title"]')?.content;
-
   return (
     <Link component={RouterLink} to="/" underline="none" color="inherit">
-      <Stack direction="row" alignItems="center" gap={1.5}>
-        <Logo
-          mode={resolvedMode === "dark" ? "Dark" : "Light"}
-          disableAffiliation
-          // Constrain the logo to the toolbar's height (its own styling targets full-page use);
-          // the doubled & wins the specificity contest against the component's own img rules
-          sx={{ "&& > img": { display: "block", blockSize: 32, inlineSize: "auto" } }}
-        />
-        { /* The divider is rendered by hand rather than through the Stack's divider prop, so it
-             can hide together with the name on narrow screens */ }
-        <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", sm: "block" } }} />
-        {appName && (
-          <Typography
-            variant="overline"
-            component="span"
-            color="textSecondary"
-            sx={{ display: { xs: "none", sm: "inline" } }}
-          >
-            {appName}
-          </Typography>
-        )}
-      </Stack>
+      <Logo sx={{ display: "block", blockSize: { xs: 24, sm: 32 } }} />
     </Link>
   );
 }

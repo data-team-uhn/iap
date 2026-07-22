@@ -52,6 +52,8 @@ function AppBar() {
         bgcolor: "background.paper",
         borderBlockEnd: "1px solid",
         borderColor: "divider",
+        // The dense 48px bar suits narrow screens; from sm up, open to the standard 64px
+        minHeight: { sm: 64 },
       }}
     >
       <ExtensionList extensions={section("start")} />
