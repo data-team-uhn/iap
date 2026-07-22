@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 
-import { CleanWebpackPlugin } from 'clean-webpack-plugin';
 import { WebpackAssetsManifest } from 'webpack-assets-manifest';
 import MinimizerPlugin from 'minimizer-webpack-plugin';
 import ESLintPlugin from 'eslint-webpack-plugin';
@@ -102,7 +101,6 @@ export default (env) => {
 ENTRY_CONTENT
     },
     plugins: [
-      new CleanWebpackPlugin(),
       new WebpackAssetsManifest({
         output: "assets.json"
       }),
@@ -195,6 +193,7 @@ ENTRY_CONTENT
       }
     },
     output: {
+      clean: true,
       library: {
         type: "modern-module",
       },
