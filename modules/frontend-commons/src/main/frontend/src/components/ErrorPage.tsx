@@ -19,14 +19,13 @@
 import type { CSSProperties, ReactNode } from 'react';
 
 import NavigationIcon from '@mui/icons-material/Navigation';
-import { Box, Button, Divider, Grid, Stack, Typography, type BoxProps } from '@mui/material';
+import { Box, Button, Grid, Stack, Typography, type BoxProps } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
 import FormattedText from "./FormattedText";
 import Logo from "./Logo";
 
 type ErrorPageProps = Omit<BoxProps, "title"> & {
-  disableAppName?: boolean;
   errorCode?: ReactNode;
   errorCodeColor?: string;
   title?: ReactNode;
@@ -49,7 +48,6 @@ const ErrorContainer = styled(Box)(({ theme }) => ({
 
 export default function ErrorPage(props: ErrorPageProps) {
   const {
-    disableAppName,
     errorCode,
     errorCodeColor,
     title,
@@ -62,31 +60,27 @@ export default function ErrorPage(props: ErrorPageProps) {
     ...rest
   } = props;
 
-  const appName = !disableAppName && document.querySelector<HTMLMetaElement>('meta[name="title"]')?.content;
-
   return (
     <ErrorContainer {...rest}>
       <Grid
         container
         direction="column"
         spacing={6}
-        textAlign={textAlign}
-        alignItems="stretch"
-        alignContent="stretch"
+        sx={{
+          textAlign: textAlign,
+          alignItems: "stretch",
+          alignContent: "stretch",
+        }}
       >
-        <Logo component={Grid} sx={{ textAlign: 'left' }}/>
+        <Grid>
+          <Logo sx={{ display: 'block', inlineSize: '100%', maxInlineSize: 240 }} />
+        </Grid>
         <Grid>
           <Stack spacing={2}>
-            {appName && <>
-              <Typography variant="overline" component="h1" color="textSecondary" sx={{ fontWeight: 'bold' }}>
-                {appName}
-              </Typography>
-              <Divider />
-            </> }
-            {errorCode && <Typography variant="h3" component="h2" color={errorCodeColor || "primary"}>
+            {errorCode && <Typography variant="h3" component="h1" color={errorCodeColor || "primary"}>
               {errorCode}
             </Typography> }
-            {title && <Typography variant="h4" color={titleColor || "primary"} sx={{ fontWeight: 'bold' }}>
+            {title && <Typography variant="h4" component="h2" color={titleColor || "primary"} sx={{ fontWeight: 'bold' }}>
               {title}
             </Typography> }
             {message && <FormattedText variant="subtitle1" color={messageColor || "textSecondary"}>

@@ -16,37 +16,65 @@
  * limitations under the License.
  */
 
+import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
 
+import { appTheme } from "@iap/frontend-commons/appTheme";
 import Logo from "@iap/frontend-commons/components/Logo";
 
-// Logo reads the institution branding from <meta> tags in the page head, so each
-// test seeds the head and clears it afterwards.
+// Logo reads the deployment branding from <meta> tags in the page head, so each test seeds the
+// head and clears the metas afterwards (only the metas — the head also holds the styles emotion
+// injected, which must survive between renders).
 describe("Logo", () => {
   afterEach(() => {
-    document.head.innerHTML = "";
+    document.head.querySelectorAll("meta").forEach(meta => meta.remove());
   });
 
-  it("renders the institution logo named after the page title", () => {
-    document.head.innerHTML =
-      '<meta name="title" content="IAP" />' +
-      '<meta name="logoLight" content="/logo.light.png" />';
+  const renderLogo = (source?: "app" | "affiliation", mode: "light" | "dark" = "light") => render(
+    <ThemeProvider theme={appTheme} defaultMode={mode}>
+      <Logo source={source} />
+    </ThemeProvider>
+  );
 
-    render(<Logo />);
+  const seedMetas = (metas: Record<string, string>) => {
+    for (const [name, content] of Object.entries(metas)) {
+      const meta = document.createElement("meta");
+      meta.name = name;
+      meta.content = content;
+      document.head.append(meta);
+    }
+  };
+
+  it("renders the application logo named after the page title", () => {
+    seedMetas({ title: "IAP", logoLight: "/logo.light.png" });
+
+    renderLogo();
 
     const img = screen.getByRole("img", { name: "IAP" });
-    expect(img).toBeInTheDocument();
     expect(img).toHaveAttribute("src", "/logo.light.png");
   });
 
-  it("renders the affiliation logo alongside the main one when present", () => {
-    document.head.innerHTML =
-      '<meta name="title" content="IAP" />' +
-      '<meta name="logoLight" content="/logo.light.png" />' +
-      '<meta name="affiliationLogoLight" content="/affiliation.light.png" />';
+  it("picks the variant matching the active colour scheme", () => {
+    seedMetas({ title: "IAP", logoLight: "/logo.light.png", logoDark: "/logo.dark.png" });
 
-    const { container } = render(<Logo />);
+    renderLogo("app", "dark");
 
-    expect(container.querySelectorAll("img")).toHaveLength(2);
+    expect(screen.getByRole("img", { name: "IAP" })).toHaveAttribute("src", "/logo.dark.png");
+  });
+
+  it("renders the affiliated institution's logo, named after the institution", () => {
+    seedMetas({ affiliationLogoLight: "/affiliation.light.png", affiliationName: "Some Hospital" });
+
+    renderLogo("affiliation");
+
+    expect(screen.getByRole("img", { name: "Some Hospital" })).toHaveAttribute("src", "/affiliation.light.png");
+  });
+
+  it("renders nothing when the requested image is not configured", () => {
+    seedMetas({ title: "IAP" });
+
+    const { container } = renderLogo("affiliation");
+
+    expect(container).toBeEmptyDOMElement();
   });
 });
