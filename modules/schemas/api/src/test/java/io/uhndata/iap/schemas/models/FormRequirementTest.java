@@ -65,12 +65,10 @@ class FormRequirementTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form", Map.of(
             "sling:resourceType", FormRequirement.RESOURCE_TYPE,
-            "label", "Application form",
-            "required", true));
+            "label", "Application form"));
         final FormRequirement requirement = resource.adaptTo(FormRequirement.class);
 
         assertEquals("Application form", requirement.getLabel());
-        assertTrue(requirement.isRequired());
     }
 
     @Test

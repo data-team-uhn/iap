@@ -164,8 +164,8 @@
 
 //-----------------------------------------------------------------------------
 // A condition group is a set of conditions that can be imposed on e.g. the
-// display of a section or the requiredness of a requirement. The conditions
-// are listed as children of this, and may be turned from an OR to an AND via
+// display of a section or whether a requirement applies. The conditions are
+// listed as children of this, and may be turned from an OR to an AND via
 // the `requireAll` property.
 [sch:ConditionGroup] > sch:Condition
   - sling:resourceType (STRING) = "sch/ConditionGroup" mandatory autocreated protected
@@ -184,7 +184,7 @@
 
 //-----------------------------------------------------------------------------
 // A single comparison that can be imposed on e.g. the display of a section
-// or the requiredness of a requirement.
+// or whether a requirement applies.
 [sch:SingleCondition] > sch:Condition
   - sling:resourceType (STRING) = "sch/SingleCondition" mandatory autocreated protected
 
@@ -272,9 +272,6 @@
 
   // A description displayed to the submitter, explaining what is expected
   - description (STRING)
-
-  // Whether this requirement must be fulfilled before the submission can be approved
-  - required (BOOLEAN) = true
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

@@ -49,9 +49,6 @@ public class Requirement extends EntityPart implements Conditionable
     @ValueMapValue
     private String description;
 
-    @ValueMapValue
-    private boolean required;
-
     /**
      * The short name of this requirement, e.g. "Patient consent".
      *
@@ -70,17 +67,6 @@ public class Requirement extends EntityPart implements Conditionable
     public String getDescription()
     {
         return this.description;
-    }
-
-    /**
-     * Whether this requirement must be fulfilled before the submission can be approved, once it applies (see
-     * {@link #getCondition()} for whether it applies at all).
-     *
-     * @return {@code true} if this requirement is mandatory
-     */
-    public boolean isRequired()
-    {
-        return this.required;
     }
 
     @Override

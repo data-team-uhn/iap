@@ -60,13 +60,11 @@ class RequirementTest
             "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
             "sling:resourceSuperType", Requirement.RESOURCE_TYPE,
             "label", "REB approval",
-            "description", "Approval from the Research Ethics Board",
-            "required", true));
+            "description", "Approval from the Research Ethics Board"));
         final Requirement requirement = resource.adaptTo(Requirement.class);
 
         assertEquals("REB approval", requirement.getLabel());
         assertEquals("Approval from the Research Ethics Board", requirement.getDescription());
-        assertTrue(requirement.isRequired());
     }
 
     @Test

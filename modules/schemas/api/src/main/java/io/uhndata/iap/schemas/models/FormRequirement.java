@@ -26,7 +26,7 @@ import org.apache.sling.models.annotations.Model;
 /**
  * A Sling Model wrapping a {@code sch:FormRequirement} node: a set of questions, grouped into sections, that the
  * submitter must answer to fulfill this requirement. This is how a schema version's own questions are expressed:
- * as a (typically unconditional, always required) form requirement.
+ * as a (typically unconditional) form requirement.
  *
  * @version $Id$
  * @since 0.1.0
