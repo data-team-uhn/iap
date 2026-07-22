@@ -26,9 +26,8 @@ set ACL for everyone
     deny    jcr:all     on /Extensions/Sidebar/AdminEntries
 end
 
-# The placeholder logo badge carries its own background, so it serves both colour schemes;
-# real branding will likely provide a distinct file per scheme
+# A distinct logo variant per colour scheme
 set properties on /libs/iap/conf/Media
-  default logoDark to "/libs/iap/resources/media/default/iap-logo.svg"
-  default logoLight to "/libs/iap/resources/media/default/iap-logo.svg"
+  default logoDark to "/libs/iap/resources/media/default/logo-dark.svg"
+  default logoLight to "/libs/iap/resources/media/default/logo-light.svg"
 end
