@@ -79,26 +79,6 @@ class ConditionGroupTest
     }
 
     @Test
-    void listsSingleConditionsAndNestedGroupsSeparately()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",
-            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/req/group/c1",
-            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/req/group/g1",
-            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
-        final ConditionGroup group = resource.adaptTo(ConditionGroup.class);
-
-        final List<SingleCondition> singleConditions = group.getSingleConditions();
-        assertEquals(1, singleConditions.size());
-        assertEquals("c1", singleConditions.get(0).getName());
-
-        final List<ConditionGroup> groups = group.getConditionGroups();
-        assertEquals(1, groups.size());
-        assertEquals("g1", groups.get(0).getName());
-    }
-
-    @Test
     void listsConditionsUsingTheSpecificModelForEach()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",

@@ -86,22 +86,6 @@ class RequirementTest
     }
 
     @Test
-    void listsConditionsControllingApplicability()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(
-            "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
-            "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
-        this.context.create().resource("/Schemas/schema/1.0/req/c1",
-            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/req/g1",
-            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
-        final Requirement requirement = resource.adaptTo(Requirement.class);
-
-        assertEquals(1, requirement.getSingleConditions().size());
-        assertEquals(1, requirement.getConditionGroups().size());
-    }
-
-    @Test
     void listsConditionsUsingTheSpecificModelForEach()
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(

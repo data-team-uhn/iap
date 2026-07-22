@@ -43,28 +43,9 @@ public abstract class QuestionnaireItem extends EntityPart
     public static final String RESOURCE_TYPE = "sch/QuestionnaireItem";
 
     /**
-     * The single conditions controlling whether this item is shown to the submitter.
-     *
-     * @return a list of single conditions, empty if none
-     */
-    public List<SingleCondition> getSingleConditions()
-    {
-        return this.getChildren(SingleCondition.RESOURCE_TYPE, SingleCondition.class);
-    }
-
-    /**
-     * The condition groups controlling whether this item is shown to the submitter.
-     *
-     * @return a list of condition groups, empty if none
-     */
-    public List<ConditionGroup> getConditionGroups()
-    {
-        return this.getChildren(ConditionGroup.RESOURCE_TYPE, ConditionGroup.class);
-    }
-
-    /**
-     * Every condition controlling whether this item is shown to the submitter, whether a {@link SingleCondition}
-     * or a {@link ConditionGroup} (or any future {@link Condition} subtype), each adapted to its own specific model.
+     * Every condition controlling whether this item is shown to the submitter, each adapted to its own specific
+     * model regardless of whether it is a {@link SingleCondition}, a {@link ConditionGroup}, or any future
+     * {@link Condition} subtype.
      *
      * @return a list of conditions, empty if none
      */

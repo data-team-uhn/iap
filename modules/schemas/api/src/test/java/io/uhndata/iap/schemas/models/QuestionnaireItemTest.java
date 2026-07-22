@@ -59,8 +59,6 @@ class QuestionnaireItemTest
             "sling:resourceType", Question.RESOURCE_TYPE);
         final Question question = resource.adaptTo(Question.class);
 
-        assertTrue(question.getSingleConditions().isEmpty());
-        assertTrue(question.getConditionGroups().isEmpty());
         assertTrue(question.getConditions().isEmpty());
     }
 
@@ -78,9 +76,6 @@ class QuestionnaireItemTest
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
             "requireAll", true));
         final Question question = resource.adaptTo(Question.class);
-
-        assertEquals(1, question.getSingleConditions().size());
-        assertEquals(1, question.getConditionGroups().size());
 
         final List<Condition> conditions = question.getConditions();
 

@@ -53,28 +53,9 @@ public class ConditionGroup extends Condition
     }
 
     /**
-     * The single conditions directly listed in this group.
-     *
-     * @return a list of single conditions, empty if none
-     */
-    public List<SingleCondition> getSingleConditions()
-    {
-        return this.getChildren(SingleCondition.RESOURCE_TYPE, SingleCondition.class);
-    }
-
-    /**
-     * The nested condition groups listed in this group.
-     *
-     * @return a list of condition groups, empty if none
-     */
-    public List<ConditionGroup> getConditionGroups()
-    {
-        return this.getChildren(ConditionGroup.RESOURCE_TYPE, ConditionGroup.class);
-    }
-
-    /**
-     * Every condition directly listed in this group, whether a {@link SingleCondition} or a nested
-     * {@link ConditionGroup} (or any future {@link Condition} subtype), each adapted to its own specific model.
+     * Every condition directly listed in this group, each adapted to its own specific model regardless of
+     * whether it is a {@link SingleCondition}, a nested {@link ConditionGroup}, or any future {@link Condition}
+     * subtype.
      *
      * @return a list of conditions, empty if none
      */
