@@ -28,7 +28,6 @@ import {
   type DialogProps
 } from "@mui/material";
 import { useTheme } from '@mui/material/styles';
-import { makeStyles } from 'tss-react/mui';
 
 type ResponsiveDialogProps = Omit<DialogProps, "title" | "onClose" | "maxWidth"> & {
   title?: ReactNode;
@@ -65,50 +64,28 @@ type ResponsiveDialogProps = Omit<DialogProps, "title" | "onClose" | "maxWidth">
 //</ResponsiveDialog>
 //
 
-const useStyles = makeStyles()(theme => ({
-  withCloseButton: {
-    "& .MuiDialogTitle-root" : {
-      paddingRight: theme.spacing(5),
-    }
-  },
-  closeButton: {
-    position: 'absolute',
-    right: theme.spacing(1),
-    top: theme.spacing(1),
-  },
-}));
-
 const ResponsiveDialog = forwardRef<HTMLDivElement, ResponsiveDialogProps>((props, ref) => {
   const {
     title,
     width = "sm",
     children,
     withCloseButton,
-    className,
     onClose,
     ...rest
   } = props;
-
-  const { classes } = useStyles();
 
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down(width));
 
   const closeButton = withCloseButton ?
-    <IconButton aria-label="close" className={classes.closeButton} onClick={onClose} size="large">
+    <IconButton aria-label="close" sx={{ position: "absolute", right: 8, top: 8 }} onClick={onClose} size="large">
       <CloseIcon />
     </IconButton>
     : null;
 
-  const classNamesList: string[] = [];
-  if (className) classNamesList.push(className);
-  if (withCloseButton) classNamesList.push(classes.withCloseButton);
-  const classNames = classNamesList.length ? classNamesList.join(' ') : undefined;
-
   return (
     <Dialog
       ref={ref}
-      className={classNames}
       maxWidth={width}
       fullWidth
       fullScreen={fullScreen}
@@ -119,7 +96,7 @@ const ResponsiveDialog = forwardRef<HTMLDivElement, ResponsiveDialogProps>((prop
       }}
       {...rest}
     >
-      { title && <DialogTitle>{title}{closeButton}</DialogTitle>}
+      { title && <DialogTitle sx={withCloseButton ? { pr: 5 } : undefined}>{title}{closeButton}</DialogTitle>}
       { children }
     </Dialog>
   );
