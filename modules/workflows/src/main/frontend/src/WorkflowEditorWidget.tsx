@@ -21,7 +21,7 @@ import { Button, Stack, Typography } from "@mui/material";
 // A small dashboard widget linking to the full workflow editor
 function WorkflowEditorWidget() {
   return (
-    <Stack spacing={1} alignItems="flex-start">
+    <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
       <Typography variant="body2" color="text.secondary">
         Create and edit workflow definitions using the visual BPMN editor.
       </Typography>
