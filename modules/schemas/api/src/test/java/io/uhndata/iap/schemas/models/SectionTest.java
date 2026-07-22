@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link Section}.
+ * Unit tests for {@link Section}, including the properties it inherits from {@link QuestionnaireItem}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -48,8 +48,7 @@ class SectionTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, SingleCondition.class,
-            ConditionGroup.class, Section.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, Section.class);
     }
 
     @Test
@@ -82,10 +81,6 @@ class SectionTest
             "sling:resourceType", Section.RESOURCE_TYPE);
         this.context.create().resource("/Schemas/schema/1.0/section/q1",
             "sling:resourceType", Question.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/section/c1",
-            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/section/g1",
-            "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
         final Section section = resource.adaptTo(Section.class);
 
         final List<Section> subsections = section.getSections();
@@ -95,9 +90,6 @@ class SectionTest
         final List<Question> questions = section.getQuestions();
         assertEquals(1, questions.size());
         assertEquals("q1", questions.get(0).getName());
-
-        assertEquals(1, section.getSingleConditions().size());
-        assertEquals(1, section.getConditionGroups().size());
     }
 
     @Test
@@ -109,34 +101,7 @@ class SectionTest
 
         assertTrue(section.getSections().isEmpty());
         assertTrue(section.getQuestions().isEmpty());
-        assertTrue(section.getSingleConditions().isEmpty());
-        assertTrue(section.getConditionGroups().isEmpty());
-        assertTrue(section.getConditions().isEmpty());
         assertTrue(section.getChildren().isEmpty());
-    }
-
-    @Test
-    void listsConditionsUsingTheSpecificModelForEach()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/section",
-            "sling:resourceType", Section.RESOURCE_TYPE);
-        // sling:resourceSuperType is mandatory/autocreated on sch:Condition in the real CND; sling-mock
-        // doesn't know about the CND, so it must be set explicitly here.
-        this.context.create().resource("/Schemas/schema/1.0/section/c1", Map.of(
-            "sling:resourceType", SingleCondition.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
-            "comparator", "equals"));
-        this.context.create().resource("/Schemas/schema/1.0/section/g1", Map.of(
-            "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
-            "requireAll", true));
-        final Section section = resource.adaptTo(Section.class);
-
-        final List<Condition> conditions = section.getConditions();
-
-        assertEquals(2, conditions.size());
-        assertEquals(SingleCondition.class, conditions.get(0).getClass());
-        assertEquals("equals", ((SingleCondition) conditions.get(0)).getComparator());
-        assertEquals(ConditionGroup.class, conditions.get(1).getClass());
-        assertTrue(((ConditionGroup) conditions.get(1)).isRequireAll());
     }
 
     @Test
@@ -152,9 +117,6 @@ class SectionTest
         this.context.create().resource("/Schemas/schema/1.0/section/q1", Map.of(
             "sling:resourceType", Question.RESOURCE_TYPE, "sling:resourceSuperType", QuestionnaireItem.RESOURCE_TYPE,
             "text", "A question"));
-        // Not a QuestionnaireItem, excluded from getChildren()
-        this.context.create().resource("/Schemas/schema/1.0/section/c1",
-            "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         final Section section = resource.adaptTo(Section.class);
 
         final List<QuestionnaireItem> children = section.getChildren();

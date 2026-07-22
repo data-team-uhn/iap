@@ -84,37 +84,6 @@ public class Section extends QuestionnaireItem
     }
 
     /**
-     * The single conditions controlling whether this section is shown to the submitter.
-     *
-     * @return a list of single conditions, empty if none
-     */
-    public List<SingleCondition> getSingleConditions()
-    {
-        return this.getChildren(SingleCondition.RESOURCE_TYPE, SingleCondition.class);
-    }
-
-    /**
-     * The condition groups controlling whether this section is shown to the submitter.
-     *
-     * @return a list of condition groups, empty if none
-     */
-    public List<ConditionGroup> getConditionGroups()
-    {
-        return this.getChildren(ConditionGroup.RESOURCE_TYPE, ConditionGroup.class);
-    }
-
-    /**
-     * Every condition controlling whether this section is shown to the submitter, whether a {@link SingleCondition}
-     * or a {@link ConditionGroup} (or any future {@link Condition} subtype), each adapted to its own specific model.
-     *
-     * @return a list of conditions, empty if none
-     */
-    public List<Condition> getConditions()
-    {
-        return this.getChildren(Condition.RESOURCE_TYPE, Condition.class);
-    }
-
-    /**
      * Every item grouped directly in this section, whether a {@link Question} or a nested {@link Section} (or
      * any future {@link QuestionnaireItem} subtype), each adapted to its own specific model.
      *

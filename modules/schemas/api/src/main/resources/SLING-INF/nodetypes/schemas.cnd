@@ -111,17 +111,19 @@
 // whether each one is a question or a subsection.
 [sch:QuestionnaireItem] > iap:EntityPart
   abstract
+  // The list of conditions is orderable, so they can be presented to the
+  // submitter in a deliberate sequence; every subtype inherits this.
+  orderable
 
   // Hardcode the supertype to the parent sch/QuestionnaireItem type.
   - sling:resourceSuperType (STRING) = "sch/QuestionnaireItem" mandatory autocreated protected
 
+  // The conditions controlling whether this item is shown to the submitter
+  + * (sch:Condition)
+
 //-----------------------------------------------------------------------------
 // A logical grouping of questions; sections may be nested.
 [sch:Section] > sch:QuestionnaireItem
-  // The list of items and conditions is orderable, so they can be
-  // presented to the submitter in a deliberate sequence.
-  orderable
-
   - sling:resourceType (STRING) = "sch/Section" mandatory autocreated protected
 
   // Human-readable name for this section
@@ -136,9 +138,6 @@
 
   // The questions and subsections grouped in this section
   + * (sch:QuestionnaireItem)
-
-  // The conditions controlling whether this section is shown to the submitter
-  + * (sch:Condition)
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
