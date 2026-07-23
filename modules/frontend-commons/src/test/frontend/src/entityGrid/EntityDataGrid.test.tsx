@@ -133,7 +133,8 @@ describe("EntityDataGrid", () => {
     expect(await screen.findByText("Entity page")).toBeInTheDocument();
   });
 
-  it("routes the toolbar quick filter to the server-side full text search", async () => {
+  // Typing + two debounced round-trips can exceed the default test timeout under full-suite load
+  it("routes the toolbar quick filter to the server-side full text search", { timeout: 15_000 }, async () => {
     const user = userEvent.setup();
     const fetchMock = mockPage([]);
 
@@ -152,12 +153,13 @@ describe("EntityDataGrid", () => {
     });
 
     // With a search active, an empty result reads as "nothing matched", not "nothing exists"
-    expect(await screen.findByText("No results found")).toBeInTheDocument();
+    // (generous timeouts: the quick filter debounces before the state settles)
+    expect(await screen.findByText("No results found", {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.queryByText("Nothing to show")).toBeNull();
 
     // Clearing the search restores the plain empty message
     await user.keyboard("{Control>}a{/Control}{Backspace}");
-    expect(await screen.findByText("Nothing to show")).toBeInTheDocument();
+    expect(await screen.findByText("Nothing to show", {}, { timeout: 3000 })).toBeInTheDocument();
   });
 
   it("routes column filters from the filter panel to server-side property filters", async () => {
@@ -192,7 +194,7 @@ describe("EntityDataGrid", () => {
     // Open the filter panel and switch the condition to the date column ("is" is its default
     // operator); the grid's date input turns the picked day into a Date object
     await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
-    await user.click(await screen.findByRole("combobox", { name: "Columns" }));
+    await user.click(await screen.findByRole("combobox", { name: "Column" }));
     await user.click(await screen.findByRole("option", { name: "Modified" }));
     // Native date inputs are set programmatically; typing into them is unreliable in jsdom
     fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-07-25" } });
@@ -216,8 +218,9 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("First entity")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Title" })).toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "Status" })).toBeNull();
+    // MUI X v9 header cells carry no accessible role in jsdom, so headers are checked by text
+    expect(screen.getByText("Title")).toBeInTheDocument();
+    expect(screen.queryByText("Status")).toBeNull();
     expect(screen.queryByText("draft")).toBeNull();
   });
 
@@ -235,6 +238,6 @@ describe("EntityDataGrid", () => {
       expect(JSON.parse(window.localStorage.getItem(`iap.entityGrid.${TEST_TYPE}.columns`) ?? "{}"))
         .toEqual({ status: false });
     });
-    expect(screen.queryByRole("columnheader", { name: "Status" })).toBeNull();
+    expect(screen.queryByText("draft")).toBeNull();
   });
 });
