@@ -15,7 +15,8 @@ scheduler...) configured in the packaging feature, and the `iap-healthcheck` mod
 
 Results are served by the Felix executor at `/system/health` (append `.json` for JSON output,
 `?tags=iap` to run only the IAP-specific checks), and shown in the web console's Sling Health
-Check tab when running with `--dev`.
+Check tab. The overall outcome is also published as a [status report](status.md) named
+`Health Check`.
 
 ## Configuring the checks
 
