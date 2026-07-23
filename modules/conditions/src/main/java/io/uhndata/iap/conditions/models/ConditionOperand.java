@@ -15,19 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.models;
+package io.uhndata.iap.conditions.models;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
- * A Sling Model wrapping a {@code sch:ConditionOperand} node: either a literal value, or a reference to the
- * question whose answer supplies the value, used as an operand of a {@link SingleCondition}.
+ * A Sling Model wrapping a {@code cond:ConditionOperand} node: the definition of one side of a
+ * {@link SingleCondition}'s comparison. The actual values are computed at evaluation time by the
+ * {@code OperandResolver} named by {@link #getSource()}, configured by {@link #getValue()}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,17 +38,24 @@ import io.uhndata.iap.entities.models.EntityPart;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class ConditionOperand extends EntityPart
 {
-    /** The {@code sling:resourceType} of a {@code sch:ConditionOperand} node. */
-    public static final String RESOURCE_TYPE = "sch/ConditionOperand";
+    /** The {@code sling:resourceType} of a {@code cond:ConditionOperand} node. */
+    public static final String RESOURCE_TYPE = "cond/ConditionOperand";
+
+    /** The source used when none is explicitly set: the stored value itself is the operand value. */
+    public static final String DEFAULT_SOURCE = "literal";
 
     @ValueMapValue
     private String[] value;
 
-    @ValueMapValue(name = "isReference")
-    private boolean reference;
+    @ValueMapValue
+    private String source;
+
+    @ValueMapValue
+    private String aggregate;
 
     /**
-     * The value, or a reference to the question whose answer provides the value.
+     * What the resolver needs to compute the values: the literal values themselves for the {@code literal}
+     * source, a question reference for {@code answer}, a property name for {@code property}...
      *
      * @return a copy of the stored value(s), or {@code null} if not set
      */
@@ -58,12 +67,25 @@ public class ConditionOperand extends EntityPart
     }
 
     /**
-     * Whether {@link #getValue()} is a reference to a question rather than a literal.
+     * The name of the {@code OperandResolver} that computes this operand's actual values at evaluation time.
      *
-     * @return {@code true} if the value is a question reference
+     * @return a source name, {@value #DEFAULT_SOURCE} if not explicitly set
      */
-    public boolean isReference()
+    @NotNull
+    public String getSource()
     {
-        return this.reference;
+        return this.source == null ? DEFAULT_SOURCE : this.source;
+    }
+
+    /**
+     * The optional fold collapsing this operand's resolved values into a single value before the comparison, e.g.
+     * {@code count} or {@code sum}.
+     *
+     * @return an aggregator name, or {@code null} if the values are compared as-is
+     */
+    @Nullable
+    public String getAggregate()
+    {
+        return this.aggregate;
     }
 }

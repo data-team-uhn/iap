@@ -120,6 +120,20 @@ public class Content
     }
 
     /**
+     * The content enclosing this one, i.e. the parent of the wrapped resource. As the generic
+     * {@link Content} view, since the parent may be of any type, and even a node that isn't IAP content at all;
+     * ask for its {@link #getType() type} to find out what it actually is.
+     *
+     * @return the parent content, or {@code null} if this is the repository root
+     */
+    @Nullable
+    public Content getParent()
+    {
+        final Resource parent = this.resource.getParent();
+        return parent == null ? null : parent.adaptTo(Content.class);
+    }
+
+    /**
      * The date when the resource was created.
      *
      * @return a copy of the creation date, or {@code null} if the creation date is not recorded
@@ -157,6 +171,22 @@ public class Content
     }
 
     /**
+     * The value of an arbitrary property of the wrapped resource, converted to the requested type. Conversion
+     * follows the usual {@link org.apache.sling.api.resource.ValueMap} rules, so a single value can be read as an
+     * array and vice versa.
+     *
+     * @param name the property name
+     * @param type the type the value is converted to
+     * @param <T> the value type
+     * @return the converted property value, or {@code null} if the property isn't set or cannot be converted
+     */
+    @Nullable
+    public <T> T get(@NotNull final String name, @NotNull final Class<T> type)
+    {
+        return this.resource.getValueMap().get(name, type);
+    }
+
+    /**
      * A JSON representation of the wrapped resource.
      *
      * @return a JSON object, or {@code null} if the resource cannot be serialized to JSON
@@ -168,17 +198,19 @@ public class Content
     }
 
     /**
-     * Resolves a JCR reference property's value to the resource it points at, adapted to the given model type.
-     * Used to implement typed accessors for {@code REFERENCE} properties, e.g. {@code Submission.getSchemaVersion()}.
+     * Resolves a JCR reference property's value to the content it points at, read through the same session as this
+     * content. Used to implement typed accessors for {@code REFERENCE} properties, e.g.
+     * {@code Submission.getSchemaVersion()}. The type bound keeps the lookup inside the model world: only content
+     * models can be requested, never the wrapped resource itself.
      *
      * @param identifier the identifier stored in a {@code REFERENCE} (or {@code WEAKREFERENCE}) property
-     * @param type the model class the referenced resource is adapted to
+     * @param type the model class the referenced content is adapted to
      * @param <T> the model type
-     * @return the adapted resource, or {@code null} if the identifier is {@code null}, unresolvable, or the
+     * @return the adapted content, or {@code null} if the identifier is {@code null}, unresolvable, or the
      *         resource resolver isn't backed by a JCR session
      */
     @Nullable
-    protected <T> T getReference(@Nullable final String identifier, @NotNull final Class<T> type)
+    public <T extends Content> T getReference(@Nullable final String identifier, @NotNull final Class<T> type)
     {
         if (identifier == null) {
             return null;
@@ -211,7 +243,8 @@ public class Content
      *         if none of the children match
      */
     @NotNull
-    protected <T> List<T> getChildren(@NotNull final String resourceType, @NotNull final Class<T> type)
+    protected <T extends Content> List<T> getChildren(@NotNull final String resourceType,
+        @NotNull final Class<T> type)
     {
         final List<T> result = new ArrayList<>();
         for (final Resource child : this.resource.getChildren()) {
@@ -226,17 +259,41 @@ public class Content
     }
 
     /**
-     * Adapts the wrapped resource's specific named child to the given model type. Unlike {@link #getChildren},
-     * this does not need a resource type check: the child is already uniquely identified by name, its type being
-     * whatever the node type of the parent declares for that name.
+     * Lists all the children of the wrapped resource, adapted to the given model type. Unlike
+     * {@link #getChildren(String, Class)} this filters nothing, so it is the right tool for walking through
+     * arbitrary content — e.g. searching a subtree — where the interesting nodes aren't known by their type.
      *
-     * @param name the name of the child node to adapt
+     * @param type the model class every child is adapted to
+     * @param <T> the model type
+     * @return a list of adapted children, in the same order as the underlying resource's children; empty if there
+     *         are no children, or if none of them adapt to the requested model
+     */
+    @NotNull
+    public <T extends Content> List<T> getChildren(@NotNull final Class<T> type)
+    {
+        final List<T> result = new ArrayList<>();
+        for (final Resource child : this.resource.getChildren()) {
+            final T adapted = child.adaptTo(type);
+            if (adapted != null) {
+                result.add(adapted);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Adapts the wrapped resource's specific named child to the given model type. Unlike
+     * {@link #getChildren(String, Class)}, this does not need a resource type check: the child is already uniquely
+     * identified by name, its type being whatever the node type of the parent declares for that name.
+     *
+     * @param name the name of the child node to adapt, which may also be a path relative to this content, e.g.
+     *            {@code form/age}
      * @param type the model class the child is adapted to
      * @param <T> the model type
      * @return the adapted child, or {@code null} if there is no such child
      */
     @Nullable
-    protected <T> T getChild(@NotNull final String name, @NotNull final Class<T> type)
+    public <T extends Content> T getChild(@NotNull final String name, @NotNull final Class<T> type)
     {
         final Resource child = this.resource.getChild(name);
         return child == null ? null : child.adaptTo(type);

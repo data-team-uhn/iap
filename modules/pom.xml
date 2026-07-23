@@ -33,6 +33,7 @@
     <!-- Keep these alphabetical -->
     <module>authentication</module>
     <module>autodoc</module>
+    <module>conditions</module>
     <module>data-model</module>
     <module>favicon</module>
     <module>frontend-commons</module>

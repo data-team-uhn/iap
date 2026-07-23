@@ -25,9 +25,12 @@ import java.util.stream.Collectors;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.OSGiService;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
@@ -52,6 +55,9 @@ public class Submission extends Entity
 {
     /** The {@code sling:resourceType} of a {@code sub:Submission} node. */
     public static final String RESOURCE_TYPE = "sub/Submission";
+
+    @OSGiService
+    private ConditionEvaluator conditionEvaluator;
 
     @ValueMapValue
     private String title;
@@ -156,9 +162,9 @@ public class Submission extends Entity
     /**
      * The requirements of this submission's schema version that haven't been fulfilled yet: a
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
-     * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Does not (yet) take a
-     * requirement's own condition into account, so a requirement that doesn't actually apply to this submission may
-     * still be reported as missing.
+     * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Requirements, sections and
+     * questions whose condition doesn't currently hold for this submission don't apply, so they are never
+     * reported as missing.
      *
      * @return a list of unfulfilled requirements, empty if none are missing
      */
@@ -166,8 +172,14 @@ public class Submission extends Entity
     public List<Requirement> getMissingRequirements()
     {
         return this.getSchemaVersion().getRequirements().stream()
+            .filter(this::applies)
             .filter(requirement -> !this.isFulfilled(requirement))
             .collect(Collectors.toList());
+    }
+
+    private boolean applies(final Conditionable item)
+    {
+        return this.conditionEvaluator == null || this.conditionEvaluator.applies(item, this);
     }
 
     private boolean isFulfilled(final Requirement requirement)
@@ -202,6 +214,11 @@ public class Submission extends Entity
 
     private void collectQuestions(final FormItem item, final List<Question> result)
     {
+        // An item whose condition doesn't hold is not presented to the submitter, so it (and,
+        // for a section, everything inside it) doesn't need an answer.
+        if (!this.applies(item)) {
+            return;
+        }
         // Section is the only other concrete item type today.
         if (item instanceof Question) {
             result.add((Question) item);
