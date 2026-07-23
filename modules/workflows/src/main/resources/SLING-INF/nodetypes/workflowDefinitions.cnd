@@ -18,7 +18,8 @@
 //
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<wf = 'https://wf.uhndata.io/'>
+<iap = 'https://iap.uhndata.io/'>
+<wf = 'https://iap.uhndata.io/wf/'>
 
 //-----------------------------------------------------------------------------
 //

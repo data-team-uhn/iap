@@ -1,0 +1,230 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<wf = 'https://iap.uhndata.io/wf/'>
+<sub = 'https://iap.uhndata.io/sub/'>
+
+//-----------------------------------------------------------------------------
+//
+// Submissions: what submitters file.
+//
+// A submission is created against a specific sch:SchemaVersion, and its
+// content mirrors what that schema version asks for: answers referencing
+// the schema's questions, documents fulfilling the schema's document
+// requirements, and reviews addressing the schema's approval requirements.
+// Only the submitted values are stored here; the display and validation
+// metadata is read live from the referenced schema parts.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /Submissions root path.
+[sub:SubmissionsHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "sub/SubmissionsHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains submissions
+  + * (sub:Submission) = sub:Submission
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A submission filed by a submitter against a specific schema version. The
+// workflow instances driving its lifecycle are attached through the
+// wf:WorkflowAttachable mixin's workflowInstances property.
+[sub:Submission] > iap:Entity, wf:WorkflowAttachable
+  - sling:resourceType (STRING) = "sub/Submission" mandatory autocreated protected
+
+  // Title of the submission
+  - title (STRING) mandatory
+
+  // The sch:SchemaVersion this submission answers
+  - schemaVersion (REFERENCE) mandatory
+
+  // Current lifecycle state, managed by the attached user workflow,
+  // e.g. draft, submitted, in-review, approved, rejected
+  - status (STRING) = "draft" mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The submitter's answers to the schema questions
+  + * (sub:Answer) = sub:Answer
+
+  // Attached documents, e.g. the signed patient consent
+  + * (sub:Document) = sub:Document
+
+  // Reviews added by reviewers
+  + * (sub:Review) = sub:Review
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The answer to a single schema question. Only simple storage: the value's
+// expected type and meaning are dictated by the referenced question.
+// Referenceable so that review comments can target it.
+[sub:Answer] > iap:EntityPart, mix:referenceable, mix:lastModified
+  - sling:resourceType (STRING) = "sub/Answer" mandatory autocreated protected
+
+  // The sch:Question this answers
+  - question (REFERENCE) mandatory
+
+  // The submitted value(s)
+  - value (UNDEFINED)
+  - value (UNDEFINED) multiple
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility;
+  // file-type answers store their upload as nt:file children
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A document attached to the submission, e.g. the signed patient consent.
+// Referenceable so that review comments can target it.
+[sub:Document] > iap:EntityPart, mix:referenceable, mix:lastModified
+  // The list of attachments is orderable, e.g. to preserve page order for a
+  // multi-file scanned document.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/Document" mandatory autocreated protected
+
+  // Human-readable name for this document
+  - title (STRING)
+
+  // Optional description of what this document contains
+  - description (STRING)
+
+  // The sch:Requirement (typically a sch:DocumentRequirement) this document fulfills
+  - fulfills (REFERENCE)
+
+  // The uploaded attachment(s); more than one file may be provided
+  + * (nt:file) = nt:file
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One reviewer's assessment of the submission. Referenceable so that review
+// comments can target it.
+[sub:Review] > iap:EntityPart, mix:referenceable, mix:lastModified
+  // The list of comments is orderable, so the review is presented in a
+  // deliberate (chronological) sequence.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/Review" mandatory autocreated protected
+
+  // Principal name of the reviewer
+  - reviewer (STRING) mandatory
+
+  // The sch:Requirement (typically a sch:ApprovalRequirement) this review addresses
+  - requirement (REFERENCE)
+
+  // Current state of this review, e.g. in-progress, changes-requested, approved, rejected
+  - status (STRING) = "in-progress" mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Questions and comments raised during this review
+  + * (sub:ReviewComment) = sub:ReviewComment
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A single comment or question raised by a reviewer.
+[sub:ReviewComment] > iap:EntityPart, mix:lastModified
+  // The list of replies is orderable, so the discussion is presented in a
+  // deliberate (chronological) sequence.
+  orderable
+
+  - sling:resourceType (STRING) = "sub/ReviewComment" mandatory autocreated protected
+
+  // The comment text
+  - text (STRING) mandatory
+
+  // Identifies the reviewer who wrote this comment. Not necessarily the
+  // same as jcr:createdBy: comments and replies can originate from an
+  // external site, created here by an integration service user on the
+  // actual author's behalf.
+  - author (STRING) mandatory
+
+  // The part of the submission this comment is about,
+  // e.g. a sub:Answer or a sub:Document
+  - subject (REFERENCE)
+
+  // Optional anchors narrowing this comment down to a specific selection
+  // within the subject (e.g. a range of text within a sub:Answer, or a
+  // location within a document), instead of the subject as a whole. Not a
+  // numeric offset: subjects like Word documents have no stable character
+  // index to anchor to, especially once further edited, so these are
+  // expected to be flexible, URI-like anchors (e.g. holding a page number
+  // or surrounding text) whose exact format is still to be designed.
+  // Not yet used by the MVP.
+  - selectionStart (STRING)
+  - selectionEnd (STRING)
+
+  // Whether the submitter has addressed this comment
+  - resolved (BOOLEAN) = false
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The discussion thread attached to this comment: the reviewer and the
+  // submitter replying back and forth
+  + * (sub:Reply) = sub:Reply
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A single message in the discussion thread attached to a review comment,
+// e.g. the submitter responding to a reviewer's question, or the reviewer
+// following up.
+[sub:Reply] > iap:EntityPart, mix:lastModified
+  - sling:resourceType (STRING) = "sub/Reply" mandatory autocreated protected
+
+  // The reply text
+  - text (STRING) mandatory
+
+  // Identifies who wrote this reply (the reviewer or the submitter). Not
+  // necessarily the same as jcr:createdBy: see sub:ReviewComment.author.
+  - author (STRING) mandatory
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
