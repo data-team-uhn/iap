@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import type { GridColDef, GridSortDirection } from "@mui/x-data-grid";
+import type { GridColDef, GridSortDirection } from "@mui/x-data-grid-pro";
 
 import type { EntityRow } from "./pagination";
 

@@ -20,13 +20,15 @@ import { useEffect, useState } from "react";
 
 import { Alert, Box } from "@mui/material";
 import {
-  DataGrid,
+  DataGridPro,
   type GridColumnVisibilityModel,
   type GridFilterModel,
   type GridPaginationModel,
   type GridSortModel,
-} from "@mui/x-data-grid";
+} from "@mui/x-data-grid-pro";
 
+// Imported for its side effect: registers the MUI X license before the first Pro render
+import "../muiLicense";
 import { type DescendantFilter, type EntityRow, type PropertyFilter, fetchEntityPage } from "./pagination";
 import { getEntityTypeConfig } from "./registry";
 
@@ -168,12 +170,14 @@ function EntityDataGrid(props: EntityDataGridProps) {
 
   return (
     <Box sx={{ height, width: "100%" }}>
-      <DataGrid
+      <DataGridPro
         columns={config.columns}
         rows={rows}
         getRowId={row => String(row["@path"] ?? row["@name"])}
         rowCount={rowCount}
         loading={loading}
+        // Unlike the community DataGrid, DataGridPro defaults to one endless list; opt back in
+        pagination
         paginationMode="server"
         paginationModel={paginationModel}
         onPaginationModelChange={setPaginationModel}
