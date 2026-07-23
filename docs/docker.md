@@ -5,8 +5,8 @@ One image definition serves two flavors, differing only in how much of the artif
 repository is baked in:
 
 ```
-mvn install -Pdocker                            # developer flavor: small and fast
-mvn install -Pdocker -Ddocker.production=true   # production flavor: fully self-contained
+mvn clean install -Pdocker                            # developer flavor: small and fast
+mvn clean install -Pdocker -Ddocker.production=true   # production flavor: fully self-contained
 ```
 
 ## How the image works
