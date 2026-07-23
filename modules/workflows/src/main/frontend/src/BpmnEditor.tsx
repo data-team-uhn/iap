@@ -320,7 +320,7 @@ export default function BpmnEditor() {
 
   return (
     <Stack>
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
+      <Stack direction="row" spacing={1} sx={{ p: 1, alignItems: "center", borderBottom: 1, borderColor: "divider" }}>
         <Button variant="outlined" size="small" onClick={openLoadDialog}>Load</Button>
         <Button variant="contained" size="small" onClick={save} disabled={!currentPath || saving}>
           {saving ? <CircularProgress size={16} /> : "Save"}
@@ -345,7 +345,7 @@ export default function BpmnEditor() {
         <DialogTitle>Load Workflow Definition</DialogTitle>
         <DialogContent dividers>
           {loadingDefs ? (
-            <Stack alignItems="center" sx={{ py: 2 }}><CircularProgress /></Stack>
+            <Stack sx={{ py: 2, alignItems: "center" }}><CircularProgress /></Stack>
           ) : definitions.length === 0 ? (
             <Typography>No workflow definitions found at {WORKFLOWS_PATH}.</Typography>
           ) : (
