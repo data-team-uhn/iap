@@ -60,13 +60,18 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     headerName: "Schema",
     flex: 1,
     minWidth: 120,
+    // Computed from the referenced schema version node, which the server can neither order by
+    // nor filter on
     sortable: false,
+    filterable: false,
     valueGetter: value => schemaLabel(value),
   },
   {
     field: "status",
     headerName: "Status",
     width: 130,
+    type: "singleSelect",
+    valueOptions: ["draft", "submitted", "in-review", "approved", "rejected"],
     renderCell: params => params.value
       ? <Chip size="small" label={String(params.value)} color={STATUS_COLORS[String(params.value)] ?? "default"} />
       : null,

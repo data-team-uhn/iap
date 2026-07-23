@@ -23,6 +23,7 @@ import {
   DataGridPro,
   type GridColumnVisibilityModel,
   type GridFilterModel,
+  GridLogicOperator,
   type GridPaginationModel,
   type GridSortModel,
 } from "@mui/x-data-grid-pro";
@@ -31,6 +32,7 @@ import {
 import "../muiLicense";
 import { type DescendantFilter, type EntityRow, type PropertyFilter, fetchEntityPage } from "./pagination";
 import { getEntityTypeConfig } from "./registry";
+import { toPropertyFilters, withServerFilterOperators } from "./serverFilters";
 
 type EntityDataGridProps = {
   // The entity type to list, e.g. "sub/Submission"; its presentation (homepage, columns, default
@@ -93,12 +95,13 @@ function EntityDataGrid(props: EntityDataGridProps) {
     config?.defaultSort ? [{ field: config.defaultSort.field, sort: config.defaultSort.sort }] : []
   );
   const [fullText, setFullText] = useState("");
+  const [columnFilters, setColumnFilters] = useState<PropertyFilter[]>([]);
   const [columnVisibilityModel, setColumnVisibilityModel] =
     useState<GridColumnVisibilityModel>(() => loadStoredColumnVisibility(columnStorageKey));
 
   // The props holding the fixed filters are typically fresh objects on every render, so effects
   // depend on their content instead of their identity
-  const filterKey = JSON.stringify([filters, childFilter]);
+  const filterKey = JSON.stringify([filters, childFilter, columnFilters]);
 
   useEffect(() => {
     if (!config) {
@@ -113,7 +116,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
       limit: paginationModel.pageSize,
       sortBy: sortColumn ? sortColumn.sortProperty ?? sortColumn.field : undefined,
       descending: sortModel[0]?.sort === "desc",
-      filters,
+      filters: [...filters ?? [], ...columnFilters],
       childFilter,
       fullText: fullText || undefined,
     }).then(page => {
@@ -138,17 +141,18 @@ function EntityDataGrid(props: EntityDataGridProps) {
     };
   }, [config, paginationModel, sortModel, filterKey, fullText]);
 
-  // The toolbar's quick filter is the only filtering UI enabled, so the whole filter model boils
-  // down to its search terms, forwarded to the servlet's full text search. The JCR full text
-  // search only matches whole words, which feels broken while a word is still being typed, so
-  // every term gets a trailing wildcard, turning the search into a prefix match. A new search
-  // starts back on the first page.
+  // Both filtering UIs are forwarded to the servlet: the toolbar's quick filter terms become a
+  // full text search, and the filter panel's column conditions become property filters. The JCR
+  // full text search only matches whole words, which feels broken while a word is still being
+  // typed, so every term gets a trailing wildcard, turning the search into a prefix match. A new
+  // search starts back on the first page.
   const searchFor = (model: GridFilterModel) => {
     const terms = (model.quickFilterValues ?? [])
       .map(String)
       .filter(term => term !== "")
       .map(term => term.endsWith("*") ? term : `${term}*`);
     setFullText(terms.join(" "));
+    setColumnFilters(config ? toPropertyFilters(model, config.columns) : []);
     setPaginationModel(current => ({ ...current, page: 0 }));
   };
 
@@ -171,7 +175,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   return (
     <Box sx={{ height, width: "100%" }}>
       <DataGridPro
-        columns={config.columns}
+        columns={withServerFilterOperators(config.columns)}
         rows={rows}
         getRowId={row => String(row["@path"] ?? row["@name"])}
         rowCount={rowCount}
@@ -187,18 +191,19 @@ function EntityDataGrid(props: EntityDataGridProps) {
         onSortModelChange={setSortModel}
         filterMode="server"
         onFilterModelChange={searchFor}
+        // The servlet only combines conditions with AND, so don't offer OR in the filter panel
+        slotProps={{ filterPanel: { logicOperators: [GridLogicOperator.And] } }}
         columnVisibilityModel={columnVisibilityModel}
         onColumnVisibilityModelChange={changeColumnVisibility}
         showToolbar
-        disableColumnFilter
         disableRowSelectionOnClick
         // Filtering happens server-side, so from the grid's point of view an unmatched search and
         // a truly empty collection both look like "zero rows", and it would always pick its
         // "no rows" overlay; which message that overlay shows is chosen here instead, based on
-        // whether a search is active. noResultsOverlayLabel is also set for completeness, in case
-        // a future column filter path triggers the grid's own "no results" overlay.
+        // whether a search or column filter is active. noResultsOverlayLabel is also set for
+        // completeness, in case the grid's own "no results" overlay path is ever triggered.
         localeText={{
-          noRowsLabel: fullText ? noResultsMessage : emptyMessage,
+          noRowsLabel: fullText || columnFilters.length > 0 ? noResultsMessage : emptyMessage,
           noResultsOverlayLabel: noResultsMessage,
         }}
         disableVirtualization={disableVirtualization}
