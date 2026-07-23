@@ -43,10 +43,15 @@
         <configuration>
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
-            <Sling-Nodetypes>SLING-INF/nodetypes/workflows.cnd</Sling-Nodetypes>
+            <Sling-Nodetypes>
+              SLING-INF/nodetypes/workflowDefinitions.cnd,
+              SLING-INF/nodetypes/workflowProcesses.cnd,
+              SLING-INF/nodetypes/workflowTypes.cnd
+            </Sling-Nodetypes>
             <Sling-Initial-Content>
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/wf/WorkflowsHomepage/;path:=/libs/wf/WorkflowsHomepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/WorkflowTypes;path:=/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

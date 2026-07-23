@@ -1,0 +1,117 @@
+//
+//  Licensed to the Apache Software Foundation (ASF) under one
+//  or more contributor license agreements.  See the NOTICE file
+//  distributed with this work for additional information
+//  regarding copyright ownership.  The ASF licenses this file
+//  to you under the Apache License, Version 2.0 (the
+//  "License"); you may not use this file except in compliance
+//  with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing,
+//  software distributed under the License is distributed on an
+//  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+//  KIND, either express or implied.  See the License for the
+//  specific language governing permissions and limitations
+//  under the License.
+//
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<wf = 'https://wf.uhndata.io/'>
+
+//-----------------------------------------------------------------------------
+//
+// Mixins
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Abstract nodetype that can be extended by any nodetype to attach workflow
+// instances to it.
+[wf:WorkflowAttachable]
+  mixin
+
+  // The workflow instances attached to this node
+  - workflowInstances (REFERENCE) multiple
+
+//-----------------------------------------------------------------------------
+//
+// Workflow Runtime Instances
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// A running or completed execution of a workflow definition.
+[wf:WorkflowInstance] > iap:Entity
+  - sling:resourceType (STRING) = "iap/WorkflowInstance" mandatory autocreated protected
+
+  // The definition this instance was created from
+  - workflowVersion (REFERENCE) mandatory
+
+  // e.g. active, completed, failed, cancelled
+  - status (STRING) mandatory
+
+  // When this instance started
+  - startTime (DATE)
+
+  // When this instance finished
+  - endTime (DATE)
+
+//-----------------------------------------------------------------------------
+// Tracks a single execution branch's current position in a workflow instance.
+[wf:WorkflowToken] > iap:EntityPart
+  // elementId of the flow node currently occupied by this token
+  - currentNodeId (STRING) mandatory
+
+  // When this token was created
+  - created (DATE) mandatory
+
+//-----------------------------------------------------------------------------
+// A running instance of a user task within a workflow instance.
+[wf:TaskInstance] > iap:Entity
+  - sling:resourceType (STRING) = "iap/TaskInstance" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+
+  // elementId of the source wf:UserTask definition
+  - taskDefinitionId (STRING) mandatory
+
+  // Display name for this task
+  - name (STRING) mandatory
+
+  // User currently assigned to this task
+  - assignee (STRING)
+
+  // e.g. created, claimed, completed, cancelled
+  - status (STRING) mandatory
+
+  // When this task became active
+  - startTime (DATE)
+
+  // When this task was completed or cancelled
+  - endTime (DATE)
+
+  // Optional deadline for completing this task
+  - dueDate (DATE)
+
+  // Value recorded at completion; used for downstream gateway routing
+  - outcome (STRING)
+
+  // Optional associated iap form
+  - form (REFERENCE)
+
+//-----------------------------------------------------------------------------
+// A named variable stored within a workflow instance.
+[wf:Variable] > iap:Content
+  // Variable name
+  - name (STRING) mandatory
+
+  // Declared type: string, long, double, boolean, date, reference
+  - type (STRING) mandatory
+
+  - stringValue (STRING)
+  - longValue (LONG)
+  - doubleValue (DOUBLE)
+  - booleanValue (BOOLEAN)
+  - dateValue (DATE)
+  - referenceValue (REFERENCE)
