@@ -99,6 +99,13 @@ fi
 VERSION_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/1.0.json" \
   | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
 echo "Schema version 1.0 has UUID $VERSION_UUID"
+PROTOCOL_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/1.0/Protocol.json" \
+  | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
+
+# A small sample file attached as the "study protocol" of approved submissions
+SAMPLE_FILE="$(mktemp)"
+trap 'rm -f "$SAMPLE_FILE"' EXIT
+printf 'This is a sample study protocol document, attached by generate-test-data.sh.\n' > "$SAMPLE_FILE"
 
 # Creates one node with the Sling POST servlet; $1 = node path, then the remaining arguments
 # are curl -F property assignments. The node is deleted first (if present), because a plain
@@ -150,6 +157,20 @@ for i in $(seq 1 "$COUNT"); do
       -F "jcr:primaryType=sub:Review" \
       -F "reviewer=admin" \
       -F "status=approved"
+    # Approved submissions also carry a document fulfilling the protocol requirement, with an
+    # attached sample file (uploaded in a follow-up request: a file parameter would make the
+    # document creation POST treat all its parameters as node content)
+    post_node "/Submissions/demo-$i/Protocol" \
+      -F "jcr:primaryType=sub:Document" \
+      --form-string "title=Study protocol" \
+      -F "fulfills=$PROTOCOL_UUID" \
+      -F "fulfills@TypeHint=Reference"
+    STATUS_CODE="$(curl -s -o /dev/null -w '%{http_code}' -u "admin:$PASSWORD" -X POST \
+      -F "protocol.txt=@$SAMPLE_FILE;type=text/plain" "$URL/Submissions/demo-$i/Protocol")"
+    if [ "$STATUS_CODE" -lt 200 ] || [ "$STATUS_CODE" -ge 300 ]; then
+      echo "Failed with HTTP $STATUS_CODE while attaching a file to /Submissions/demo-$i/Protocol" >&2
+      exit 1
+    fi
   fi
 done
 
