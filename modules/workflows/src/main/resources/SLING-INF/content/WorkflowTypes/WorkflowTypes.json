@@ -1,0 +1,80 @@
+{
+  "StartEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "name": "Start Event",
+    "priority": 0,
+    "xmlElement": "bpmn:startEvent",
+    "jcrNodeType": "wf:StartEvent"
+  },
+  "MessageStartEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "name": "Message Start Event",
+    "priority": 10,
+    "xmlElement": "bpmn:startEvent",
+    "xmlChildElement": "bpmn:messageEventDefinition",
+    "jcrNodeType": "wf:StartEvent"
+  },
+  "EndEvent": {
+    "jcr:primaryType": "wf:ThrowingEventType",
+    "name": "End Event",
+    "priority": 0,
+    "xmlElement": "bpmn:endEvent",
+    "jcrNodeType": "wf:EndEvent"
+  },
+  "MessageEndEvent": {
+    "jcr:primaryType": "wf:ThrowingEventType",
+    "name": "Message End Event",
+    "priority": 10,
+    "xmlElement": "bpmn:endEvent",
+    "xmlChildElement": "bpmn:messageEventDefinition",
+    "jcrNodeType": "wf:EndEvent"
+  },
+  "IntermediateCatchEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "name": "Intermediate Catch Event",
+    "priority": 0,
+    "xmlElement": "bpmn:intermediateCatchEvent",
+    "jcrNodeType": "wf:IntermediateCatchEvent",
+    "jcrProperties": "{catching: true}"
+  },
+  "MessageIntermediateCatchEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "name": "Message Intermediate Catch Event",
+    "priority": 10,
+    "xmlElement": "bpmn:intermediateCatchEvent",
+    "xmlChildElement": "bpmn:messageEventDefinition",
+    "jcrNodeType": "wf:IntermediateCatchEvent",
+    "jcrProperties": "{catching: true}"
+  },
+  "IntermediateThrowEvent": {
+    "jcr:primaryType": "wf:ThrowingEventType",
+    "name": "Intermediate Throw Event",
+    "priority": 0,
+    "xmlElement": "bpmn:IntermediateThrowEvent",
+    "jcrNodeType": "wf:IntermediateEvent",
+    "jcrProperties": "{catching: false}"
+  },
+  "MessageIntermediateThrowEvent": {
+    "jcr:primaryType": "wf:ThrowingEventType",
+    "name": "Message Intermediate Throw Event",
+    "priority": 10,
+    "xmlElement": "bpmn:IntermediateThrowEvent",
+    "xmlChildElement": "bpmn:messageEventDefinition",
+    "jcrNodeType": "wf:IntermediateEvent",
+    "jcrProperties": "{catching: false}"
+  },
+  "UserTask": {
+    "jcr:primaryType": "wf:ActivityType",
+    "name": "User Task",
+    "priority": 0,
+    "xmlElement": "bpmn:userTask",
+    "jcrNodeType": "wf:Activity"
+  },
+  "ServiceTask": {
+    "jcr:primaryType": "wf:ActivityType",
+    "name": "Service Task",
+    "priority": 0,
+    "xmlElement": "bpmn:serviceTask",
+    "jcrNodeType": "wf:Activity"
+  }
+}
