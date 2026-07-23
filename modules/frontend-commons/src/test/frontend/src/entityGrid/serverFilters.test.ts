@@ -60,21 +60,34 @@ describe("toPropertyFilters", () => {
     ]);
   });
 
-  it("maps number and date operators to range comparators, converting dates to ISO instants", () => {
-    const result = filters(
+  it("maps number operators to range comparators", () => {
+    expect(filters(
       { field: "amount", operator: "!=", value: "3" },
       { field: "amount", operator: ">=", value: "5" },
-      { field: "created", operator: "after", value: "2026-07-01T10:00" },
-    );
-    expect(result.slice(0, 2)).toEqual([
+    )).toEqual([
       { name: "amount", comparator: "<>", value: "3" },
       { name: "amount", comparator: ">=", value: "5" },
     ]);
-    // The date column maps to its server-side property, and the local date-time input value is
-    // converted to a full ISO instant
-    expect(result[2].name).toBe("jcr:created");
-    expect(result[2].comparator).toBe(">");
-    expect(result[2].value).toBe(new Date("2026-07-01T10:00").toISOString());
+  });
+
+  it("expands date conditions to local day boundaries on the server-side property", () => {
+    // Day boundaries in the user's own timezone, as full ISO instants
+    const start = new Date("2026-07-01T00:00:00").toISOString();
+    const end = new Date("2026-07-02T00:00:00").toISOString();
+    expect(filters({ field: "created", operator: "is", value: "2026-07-01" })).toEqual([
+      { name: "jcr:created", comparator: ">=", value: start },
+      { name: "jcr:created", comparator: "<", value: end },
+    ]);
+    expect(filters({ field: "created", operator: "after", value: "2026-07-01" }))
+      .toEqual([{ name: "jcr:created", comparator: ">=", value: end }]);
+    expect(filters({ field: "created", operator: "onOrAfter", value: "2026-07-01" }))
+      .toEqual([{ name: "jcr:created", comparator: ">=", value: start }]);
+    expect(filters({ field: "created", operator: "before", value: "2026-07-01" }))
+      .toEqual([{ name: "jcr:created", comparator: "<", value: start }]);
+    expect(filters({ field: "created", operator: "onOrBefore", value: "2026-07-01" }))
+      .toEqual([{ name: "jcr:created", comparator: "<", value: end }]);
+    // An unparseable day is a condition still being edited
+    expect(filters({ field: "created", operator: "is", value: "garbage" })).toEqual([]);
   });
 
   it("maps single-select choices to equality comparators", () => {
@@ -108,8 +121,9 @@ describe("withServerFilterOperators", () => {
     expect(title.filterOperators?.map(operator => operator.value)).toEqual(
       ["contains", "equals", "doesNotEqual", "startsWith", "endsWith", "isEmpty", "isNotEmpty"]);
     expect(status.filterOperators?.map(operator => operator.value)).toEqual(["is", "not"]);
+    // "not" is excluded on dates: after day-boundary expansion it would need an OR
     expect(created.filterOperators?.map(operator => operator.value)).toEqual(
-      ["is", "not", "after", "onOrAfter", "before", "onOrBefore", "isEmpty", "isNotEmpty"]);
+      ["is", "after", "onOrAfter", "before", "onOrBefore", "isEmpty", "isNotEmpty"]);
     expect(amount.filterOperators?.map(operator => operator.value)).toEqual(
       ["=", "!=", ">", ">=", "<", "<=", "isEmpty", "isNotEmpty"]);
   });
