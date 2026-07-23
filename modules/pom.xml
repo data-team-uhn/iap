@@ -42,5 +42,6 @@
     <module>schemas</module>
     <module>submissions</module>
     <module>healthcheck</module>
+    <module>status</module>
   </modules>
 </project>
