@@ -245,6 +245,32 @@ public class PaginationServletTest
     }
 
     @Test
+    public void groupedFiltersAreOredTogether() throws Exception
+    {
+        withParameter("fieldName", "jcr:createdBy", "status", "status");
+        withParameter("fieldComparator", "=", "=", "=");
+        withParameter("fieldValue", "@me", "submitted", "in-review");
+        withParameter("fieldGroup", "", "st", "st");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
+                + " and n.[jcr:createdBy] = 'testUser'"
+                + " and (n.[status] = 'submitted' or n.[status] = 'in-review')"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+    }
+
+    @Test
+    public void mismatchedGroupParametersAreRejected() throws Exception
+    {
+        withParameter("fieldName", "status");
+        withParameter("fieldValue", "draft");
+        withParameter("fieldGroup", "g1", "g2");
+        this.servlet.doGet(this.request, this.response);
+        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+    }
+
+    @Test
     public void missingComparatorsDefaultToEquals() throws Exception
     {
         withParameter("fieldName", "status");

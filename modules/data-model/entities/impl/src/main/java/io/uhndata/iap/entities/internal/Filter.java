@@ -21,7 +21,8 @@ import java.util.List;
 
 /**
  * One property condition parsed from a pagination request: a property name, a comparator, and, unless the comparator
- * is a valueless one like {@code IS NULL}, a value to compare against.
+ * is a valueless one like {@code IS NULL}, a value to compare against. A condition may also name a group: conditions
+ * sharing a group are ORed together in the final query, while distinct groups are ANDed.
  *
  * @version $Id$
  * @since 0.1.0
@@ -30,7 +31,7 @@ final class Filter
 {
     /** The comparators accepted in a request; anything else falls back to {@code =}. */
     private static final List<String> COMPARATORS =
-        List.of("=", "<>", "<", "<=", ">", ">=", "LIKE", "ILIKE", "IS NULL", "IS NOT NULL");
+        List.of("=", "<>", "<", "<=", ">", ">=", "LIKE", "ILIKE", "NOT ILIKE", "IS NULL", "IS NOT NULL");
 
     /** The comparators that don't compare against a value. */
     private static final List<String> VALUELESS_COMPARATORS = List.of("IS NULL", "IS NOT NULL");
@@ -41,8 +42,10 @@ final class Filter
 
     private final String value;
 
+    private final String group;
+
     /**
-     * Simple constructor.
+     * Simple constructor for an ungrouped condition.
      *
      * @param name the property name; only validated later, when the condition is added to a query
      * @param comparator the requested comparator; {@code =} is used instead if this isn't a supported comparator
@@ -50,9 +53,23 @@ final class Filter
      */
     Filter(final String name, final String comparator, final String value)
     {
+        this(name, comparator, value, null);
+    }
+
+    /**
+     * Simple constructor.
+     *
+     * @param name the property name; only validated later, when the condition is added to a query
+     * @param comparator the requested comparator; {@code =} is used instead if this isn't a supported comparator
+     * @param value the value to compare against, ignored for valueless comparators
+     * @param group the group this condition is ORed within, or {@code null} for a standalone condition
+     */
+    Filter(final String name, final String comparator, final String value, final String group)
+    {
         this.name = name;
         this.comparator = comparator != null && COMPARATORS.contains(comparator) ? comparator : "=";
         this.value = value;
+        this.group = group;
     }
 
     /**
@@ -83,6 +100,17 @@ final class Filter
     String getValue()
     {
         return this.value;
+    }
+
+    /**
+     * The group this condition belongs to. Conditions sharing a group are ORed together; distinct groups (and
+     * conditions with no group at all) are ANDed.
+     *
+     * @return an opaque group identifier, or {@code null} for a standalone condition
+     */
+    String getGroup()
+    {
+        return this.group;
     }
 
     /**

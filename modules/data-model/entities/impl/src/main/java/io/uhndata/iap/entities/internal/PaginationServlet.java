@@ -69,11 +69,14 @@ import org.slf4j.LoggerFactory;
  * <li>{@code fieldName}, {@code fieldComparator}, {@code fieldValue}: repeatable triples imposing a condition on a
  * property of the entity itself, e.g. {@code status = draft}; the supported comparators are {@code =}, {@code <>},
  * {@code <}, {@code <=}, {@code >}, {@code >=}, {@code LIKE}, {@code ILIKE} (case-insensitive {@code LIKE}),
- * {@code IS NULL} and {@code IS NOT NULL}; if no
+ * {@code NOT ILIKE}, {@code IS NULL} and {@code IS NOT NULL}; if no
  * comparators are sent, {@code =} is used; the special value {@code @me} is replaced with the current user's id</li>
- * <li>{@code childType}, {@code childFieldName}, {@code childFieldComparator}, {@code childFieldValue}: same, but
- * the conditions apply to a descendant of the entity, e.g. only submissions having a {@code sub:Review} descendant
- * with {@code reviewer = @me}</li>
+ * <li>{@code fieldGroup}: optional group identifiers aligned with the field triples; conditions sharing a
+ * (non-empty) group are ORed together, while distinct groups and ungrouped conditions are ANDed, so e.g.
+ * {@code status = a OR status = b} is expressed as two conditions sharing a group</li>
+ * <li>{@code childType}, {@code childFieldName}, {@code childFieldComparator}, {@code childFieldValue},
+ * {@code childFieldGroup}: same, but the conditions apply to a descendant of the entity, e.g. only submissions
+ * having a {@code sub:Review} descendant with {@code reviewer = @me}</li>
  * <li>{@code resourceSelectors}: extra selectors to apply when serializing each entity, e.g. {@code deep}</li>
  * <li>{@code req}: an opaque request identifier, echoed back in the response so that the client can discard
  * out-of-order responses</li>
@@ -173,7 +176,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      *            for conditions on a descendant node
      * @param currentUser the id of the user making the request, replacing the special value {@code @me}
      * @return a list of filters, empty if no filters with the given prefix are present in the request
-     * @throws IllegalArgumentException if the names, comparators and values don't come in complete triples
+     * @throws IllegalArgumentException if the names, comparators, values and groups don't come in complete tuples
      */
     private List<Filter> parseFilters(final SlingJakartaHttpServletRequest request, final String prefix,
         final String currentUser)
@@ -182,20 +185,41 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         if (names == null) {
             return List.of();
         }
-        final String[] values = request.getParameterValues(prefix + "Value");
-        final String[] comparators = request.getParameterValues(prefix + "Comparator");
-        if (values == null || values.length != names.length
-            || comparators != null && comparators.length != names.length) {
+        final String[] values = getAlignedParameter(request, prefix + "Value", names.length);
+        final String[] comparators = getAlignedParameter(request, prefix + "Comparator", names.length);
+        final String[] groups = getAlignedParameter(request, prefix + "Group", names.length);
+        if (values == null) {
             throw new IllegalArgumentException(
-                "The same number of " + prefix + "Name, " + prefix + "Comparator and " + prefix
-                    + "Value parameters must be provided");
+                "A " + prefix + "Value parameter must be provided for every " + prefix + "Name");
         }
         final List<Filter> result = new ArrayList<>(names.length);
         for (int i = 0; i < names.length; ++i) {
             final String value = "@me".equals(values[i]) ? currentUser : values[i];
-            result.add(new Filter(names[i], comparators == null ? "=" : comparators[i], value));
+            final String group = groups == null || groups[i].isEmpty() ? null : groups[i];
+            result.add(new Filter(names[i], comparators == null ? "=" : comparators[i], value, group));
         }
         return result;
+    }
+
+    /**
+     * Reads one of the repeatable parameters accompanying the filter names, enforcing that, if present at all, it
+     * is present the same number of times as the names.
+     *
+     * @param request the current request
+     * @param name the parameter name
+     * @param expectedLength the number of filter names the parameter must align with
+     * @return the parameter values, or {@code null} if the parameter isn't present at all
+     * @throws IllegalArgumentException if the parameter is present a different number of times
+     */
+    private String[] getAlignedParameter(final SlingJakartaHttpServletRequest request, final String name,
+        final int expectedLength)
+    {
+        final String[] values = request.getParameterValues(name);
+        if (values != null && values.length != expectedLength) {
+            throw new IllegalArgumentException(
+                "The " + name + " parameters must be provided once per filter name");
+        }
+        return values;
     }
 
     /**
