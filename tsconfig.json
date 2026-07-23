@@ -27,6 +27,7 @@
     "paths": {
       "@iap/frontend-commons/*": ["./modules/frontend-commons/src/main/frontend/src/*"],
       "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],
+      "@iap/submissions/*": ["./modules/submissions/src/main/frontend/src/*"],
       "@iap/test-data/*": ["./test-data/src/main/frontend/src/*"],
       "@iap/ui-extension/*": ["./modules/ui-extension/src/main/frontend/src/*"],
       "*": [
