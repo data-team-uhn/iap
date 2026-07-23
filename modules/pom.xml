@@ -32,6 +32,7 @@
   <modules>
     <module>java-utils</module>
     <module>serialization</module>
+    <module>documentation</module>
     <module>data-model</module>
     <module>frontend-commons</module>
     <module>ui-extension</module>
