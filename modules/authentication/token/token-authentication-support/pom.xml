@@ -21,24 +21,27 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-parent</artifactId>
+    <artifactId>iap-token-authentication-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-modules</artifactId>
-  <packaging>pom</packaging>
-  <name>IAP - Code modules</name>
+  <artifactId>iap-token-authentication-support</artifactId>
+  <packaging>bundle</packaging>
+  <name>IAP - Token Authentication API</name>
 
-  <modules>
-    <module>java-utils</module>
-    <module>serialization</module>
-    <module>data-model</module>
-    <module>frontend-commons</module>
-    <module>ui-extension</module>
-    <module>favicon</module>
-    <module>startup-customization</module>
-    <module>homepage</module>
-    <module>workflows</module>
-    <module>authentication</module>
-  </modules>
+  <properties>
+    <!-- This module contains only service interfaces, which carry no executable instructions to cover. -->
+    <coverage.instructionRatio>0.00</coverage.instructionRatio>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>osgi.annotation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-security-spi</artifactId>
+    </dependency>
+  </dependencies>
 </project>

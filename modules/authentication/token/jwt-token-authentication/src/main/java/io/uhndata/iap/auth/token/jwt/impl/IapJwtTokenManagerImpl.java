@@ -1,0 +1,274 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.uhndata.iap.auth.token.jwt.impl;
+
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Calendar;
+import java.util.Map;
+import java.util.Set;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
+import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ClaimsMutator.AudienceCollection;
+import io.jsonwebtoken.Jwt;
+import io.jsonwebtoken.JwtBuilder;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.io.Encoders;
+import io.uhndata.iap.auth.token.TokenManager;
+
+/**
+ * Implementation of the {@link TokenManager} service using JWT tokens.
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
+@Component(immediate = true, property = "service.ranking:Integer=50", service = { TokenManager.class })
+public class IapJwtTokenManagerImpl implements TokenManager
+{
+    /** JCR property containing our signing key. */
+    public static final String SIGNING_KEY_PROP = "key";
+
+    /** JCR property containing a verification key. */
+    public static final String VERIFY_PROP = "verify";
+
+    /** JCR property containing a peer's expected 'issuer' ID. */
+    public static final String ISSUER_PROP = "iss";
+
+    /** JCR path to the node where we keep our signing/verification keys. */
+    public static final String KEY_PATH = "/jcr:system/iap:jwt/JWTRSA256Key";
+
+    /** The ID of this IAP instance, used to determine the `iss` field when minting tokens. */
+    public static final String SELF_ID =
+        StringUtils.defaultIfEmpty(System.getenv("IAP_HOST_AND_PORT"), "localhost:8080");
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(IapJwtTokenManagerImpl.class);
+
+    private final PrivateKey signingKey;
+
+    private final PublicKey verificationKey;
+
+    /** Our own audience, used in the Jwt `aud` field to verify that this token is meant for us. */
+    private final String selfAud;
+
+    /** Our own fingerprint, used to identify tokens that are signed by us. */
+    private final String selfID;
+
+    private final ResourceResolverFactory rrf;
+
+    /**
+     * Activate the component, loading (or generating) the signing/verification keys from the repository.
+     *
+     * @param rrf the resource resolver factory used to read the JWT key node
+     */
+    @Activate
+    public IapJwtTokenManagerImpl(@Reference final ResourceResolverFactory rrf)
+    {
+        this.rrf = rrf;
+        this.selfAud = SELF_ID.replaceAll("\\P{Alnum}", "");
+        PrivateKey result = null;
+        PublicKey verification = null;
+        try (ResourceResolver resolver = rrf.getServiceResourceResolver(null)) {
+            Resource res = resolver.resolve(KEY_PATH);
+            Node keyNode = res.adaptTo(Node.class);
+            if (keyNode == null) {
+                LOGGER.error("Failed to load JWT Signing key: node {} could not be read",
+                    KEY_PATH);
+                throw new ExceptionInInitializerError(KEY_PATH);
+            }
+
+            if (keyNode.hasProperty(SIGNING_KEY_PROP)
+                && keyNode.hasProperty(VERIFY_PROP)) {
+                // Private key is PKCS-encoded
+                result = KeyFactory.getInstance("RSA").generatePrivate(
+                    new PKCS8EncodedKeySpec(readKey(keyNode, SIGNING_KEY_PROP)));
+                // Public key is X.509-encoded
+                verification = KeyFactory.getInstance("RSA").generatePublic(
+                    new X509EncodedKeySpec(readKey(keyNode, VERIFY_PROP)));
+            } else {
+                KeyPair newPair = Jwts.SIG.RS256.keyPair().build();
+                keyNode.setProperty(SIGNING_KEY_PROP,
+                    Encoders.BASE64.encode(newPair.getPrivate().getEncoded()));
+                keyNode.setProperty(VERIFY_PROP,
+                    Encoders.BASE64.encode(newPair.getPublic().getEncoded()));
+                resolver.commit();
+
+                result = newPair.getPrivate();
+                verification = newPair.getPublic();
+            }
+        } catch (LoginException e) {
+            LOGGER.error("Service access not granted: {}", e.getMessage());
+        } catch (Exception e) {
+            LOGGER.error("Failed to load JWT Signing key from node: {}", e.getMessage(), e);
+        }
+        this.signingKey = result;
+        this.verificationKey = verification;
+        this.selfID = getFingerprint(verification);
+    }
+
+    /**
+     * Read a BASE64-encoded key from the given property of the given node.
+     *
+     * @param keyNode The node to extract a key from
+     * @param propName The property containing the key
+     * @return A byte array from the BASE64-encoded key
+     */
+    private byte[] readKey(final Node keyNode, final String propName) throws RepositoryException
+    {
+        return Decoders.BASE64.decode(
+            keyNode.getProperty(propName).getString()
+        );
+    }
+
+    @Override
+    public IapJwtTokenImpl create(final String userId, final Calendar expiration,
+        final Map<String, String> extraData)
+    {
+        // Assume our own audience if none is given
+        return create(userId, expiration, extraData, Set.of(this.selfAud));
+    }
+
+    /**
+     * Obtain a fingerprint from the given public key.
+     *
+     * @param publicKey The key to obtain a fingerprint for
+     * @return A string hash that should uniquely identify the given public key
+     */
+    public static String getFingerprint(final PublicKey publicKey)
+    {
+        if (publicKey == null)
+        {
+            return null;
+        }
+
+        return DigestUtils.sha256Hex(Encoders.BASE64.encode(publicKey.getEncoded()));
+    }
+
+    /**
+     * Create a JWT with the given specifications.
+     *
+     * @param userId The user ID to assign as a subject
+     * @param expiration An expiration time for the JWT
+     * @param extraData Additional data to include in the JWT payload
+     * @param audiences A set of audiences that the JWT is meant for
+     * @return A IapJwtTokenImpl corresponding to a newly minted JWT with the given parameters.
+     */
+    public IapJwtTokenImpl create(final String userId, final Calendar expiration,
+        final Map<String, String> extraData, final Set<String> audiences)
+    {
+        if (this.signingKey == null || this.verificationKey == null) {
+            // Should not happen
+            return null;
+        }
+        AudienceCollection<JwtBuilder> audBuilder = Jwts.builder()
+            .claims(extraData)
+            .issuer(this.selfAud)
+            .audience();
+
+        for (String aud : audiences) {
+            audBuilder.add(aud);
+        }
+
+        String jws = audBuilder.and()
+            .subject(userId)
+            .expiration(expiration.getTime())
+            .header().keyId(this.selfID).and()
+            .signWith(this.signingKey)
+            .compact();
+        return new IapJwtTokenImpl(jws, userId, expiration, extraData);
+    }
+
+    /**
+     * Validate JWT claims against expected issuer/audience constraints. The expected issuer is taken from the
+     * signer the {@code locator} resolved while verifying the signature, so no additional repository lookup is
+     * needed here.
+     *
+     * @param jwt the parsed JWT to validate
+     * @param locator the locator that resolved the signing key for this token
+     * @return {@code true} if all required claims are valid, {@code false} otherwise
+     * @throws JwtException if the JWT claims are malformed or invalid
+     */
+    private boolean areClaimsValid(final Jwt<?, ?> jwt, final IapJwtVerificationLocatorImpl locator)
+        throws JwtException
+    {
+        // Double check claims in the payload:
+        Object payload = jwt.getPayload();
+        if (payload instanceof Claims) {
+            Claims claims = (Claims) payload;
+            String expectedIssuer = locator.getResolvedIssuer();
+
+            // Double-check that we're the intended audience for this JWT, and that it came from the expected issuer
+            if (claims.getAudience() == null) {
+                // No audience found, reject
+                throw new JwtException("The given JWT is missing an `aud` claim.");
+            } else if (!claims.getAudience().contains(this.selfAud)) {
+                throw new JwtException("Our server (" + this.selfAud
+                    + ") is not in the list of JWT audiences for the given JWT.");
+            } else if (expectedIssuer == null || !expectedIssuer.equals(claims.getIssuer())) {
+                throw new JwtException("The given JWT's issuer does not match the expected issuer.");
+            }
+            return true;
+        } else {
+            throw new JwtException("The given JWT's payload is in an unknown format.");
+        }
+    }
+
+    @Override
+    public IapJwtTokenImpl parse(final String loginToken)
+    {
+        if (loginToken == null || this.verificationKey == null) {
+            return null;
+        }
+        try {
+            final IapJwtVerificationLocatorImpl locator =
+                new IapJwtVerificationLocatorImpl(this.verificationKey, this.rrf, this.selfID, this.selfAud);
+            Jwt<?, ?> jwt = Jwts.parser()
+                .keyLocator(locator)
+                .build()
+                .parseSignedClaims(loginToken);
+
+            // Double check claims in the payload:
+            if (areClaimsValid(jwt, locator)) {
+                return new IapJwtTokenImpl(jwt, loginToken);
+            }
+        } catch (JwtException e) {
+            LOGGER.error("JWT validation failed: {}", e.getMessage());
+        }
+        return null;
+    }
+}

@@ -21,24 +21,15 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-parent</artifactId>
+    <artifactId>iap-modules</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-modules</artifactId>
+  <artifactId>iap-authentication</artifactId>
   <packaging>pom</packaging>
-  <name>IAP - Code modules</name>
+  <name>IAP - Authentication</name>
 
   <modules>
-    <module>java-utils</module>
-    <module>serialization</module>
-    <module>data-model</module>
-    <module>frontend-commons</module>
-    <module>ui-extension</module>
-    <module>favicon</module>
-    <module>startup-customization</module>
-    <module>homepage</module>
-    <module>workflows</module>
-    <module>authentication</module>
+    <module>token</module>
   </modules>
 </project>
