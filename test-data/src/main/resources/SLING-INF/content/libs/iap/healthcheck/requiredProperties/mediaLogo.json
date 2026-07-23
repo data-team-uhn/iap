@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "nt:unstructured",
+  "propertyPath": "/libs/iap/conf/Media/logoLight",
+  "requiredValue": "/libs/iap/resources/media/default/iap-logo.svg"
+}

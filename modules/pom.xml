@@ -41,5 +41,6 @@
     <module>workflows</module>
     <module>schemas</module>
     <module>submissions</module>
+    <module>healthcheck</module>
   </modules>
 </project>
