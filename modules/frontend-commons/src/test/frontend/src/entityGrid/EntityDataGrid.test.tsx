@@ -139,6 +139,28 @@ describe("EntityDataGrid", () => {
     expect(await screen.findByText("Nothing to show")).toBeInTheDocument();
   });
 
+  it("routes column filters from the filter panel to server-side property filters", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockPage([]);
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    await screen.findByText("Nothing to show");
+
+    // Open the filter panel; it starts with one condition on the first column (Title), using the
+    // first offered operator (contains)
+    await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
+    await user.type(await screen.findByPlaceholderText("Filter value"), "card");
+
+    await waitFor(() => {
+      const lastUrl = new URL(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0]), "http://localhost");
+      expect(lastUrl.searchParams.getAll("fieldName")).toEqual(["title"]);
+      expect(lastUrl.searchParams.getAll("fieldComparator")).toEqual(["ILIKE"]);
+      expect(lastUrl.searchParams.getAll("fieldValue")).toEqual(["%card%"]);
+    });
+    // An active column filter also counts as "searching" for the empty-state message
+    expect(await screen.findByText("No results found")).toBeInTheDocument();
+  });
+
   it("restores the column selection remembered for the entity type", async () => {
     window.localStorage.setItem(`iap.entityGrid.${TEST_TYPE}.columns`, JSON.stringify({ status: false }));
     mockPage([{ "@path": "/GridEntities/e1", title: "First entity", status: "draft" }]);
