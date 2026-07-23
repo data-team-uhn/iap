@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.documentation.api.SelfDocumenting;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -99,5 +100,68 @@ class TagsHomepageTest
         final Resource resource = this.context.create().resource("/Tags",
             "sling:resourceType", "iap/TagsHomepage");
         assertTrue(resource.adaptTo(TagsHomepage.class).getDefinitions().isEmpty());
+    }
+
+    @Test
+    void documentsTheVocabulary()
+    {
+        final Resource resource = this.context.create().resource("/Tags",
+            "sling:resourceType", "iap/TagsHomepage");
+        this.context.create().resource("/Tags/draft", Map.of(
+            "sling:resourceType", "iap/TagDefinition",
+            "label", "Draft",
+            "description", "Work in progress",
+            "category", new String[] { "lifecycle" }));
+        this.context.create().resource("/Tags/loose",
+            "sling:resourceType", "iap/TagDefinition");
+
+        // The homepage is the SelfDocumenting adapter for the whole vocabulary
+        final SelfDocumenting documentation = resource.adaptTo(SelfDocumenting.class);
+        assertNotNull(documentation);
+        assertEquals("Tags", documentation.getDocumentationTitle());
+        assertEquals("All the tags defined in this instance, grouped by category.",
+            documentation.getDocumentationIntro());
+        assertEquals(2, documentation.getDocumentedItems().size());
+
+        assertEquals("# Tags\n"
+            + "\n"
+            + "All the tags defined in this instance, grouped by category.\n"
+            + "\n"
+            + "## lifecycle\n"
+            + "\n"
+            + "### Draft (`draft`)\n"
+            + "\n"
+            + "Work in progress\n"
+            + "\n"
+            + "## uncategorized\n"
+            + "\n"
+            + "### loose (`loose`)\n", documentation.toMarkdown());
+    }
+
+    @Test
+    void headingsCanBeReworded()
+    {
+        final Resource resource = this.context.create().resource("/Tags", Map.of(
+            "sling:resourceType", "iap/TagsHomepage",
+            "title", "Labels",
+            "description", "The labels available here."));
+
+        final SelfDocumenting documentation = resource.adaptTo(SelfDocumenting.class);
+        assertEquals("Labels", documentation.getDocumentationTitle());
+        assertEquals("The labels available here.", documentation.getDocumentationIntro());
+    }
+
+    @Test
+    void blankHeadingsFallBackToTheDefaults()
+    {
+        final Resource resource = this.context.create().resource("/Tags", Map.of(
+            "sling:resourceType", "iap/TagsHomepage",
+            "title", "",
+            "description", ""));
+
+        final SelfDocumenting documentation = resource.adaptTo(SelfDocumenting.class);
+        assertEquals("Tags", documentation.getDocumentationTitle());
+        assertEquals("All the tags defined in this instance, grouped by category.",
+            documentation.getDocumentationIntro());
     }
 }

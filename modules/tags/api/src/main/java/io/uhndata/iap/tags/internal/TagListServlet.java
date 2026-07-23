@@ -22,8 +22,6 @@ import java.util.List;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonObjectBuilder;
 import jakarta.servlet.Servlet;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -85,37 +83,10 @@ public class TagListServlet extends SlingJakartaSafeMethodsServlet
         }
 
         final JsonArrayBuilder tags = Json.createArrayBuilder();
-        definitions.forEach(definition -> tags.add(toJson(definition)));
+        definitions.forEach(definition -> tags.add(definition.toDocumentationJson()));
         response.getWriter().write(Json.createObjectBuilder()
             .add("tags", tags)
             .add("total", definitions.size())
             .build().toString());
-    }
-
-    private JsonObject toJson(final TagDefinition definition)
-    {
-        final JsonObjectBuilder result = Json.createObjectBuilder();
-        result.add("name", definition.getName());
-        result.add("label", definition.getLabel());
-        if (definition.getDescription() != null) {
-            result.add("description", definition.getDescription());
-        }
-        final JsonArrayBuilder categories = Json.createArrayBuilder();
-        definition.getCategories().forEach(categories::add);
-        result.add("category", categories);
-        result.add("inheritable", definition.isInheritable());
-        result.add("aggregated", definition.isAggregated());
-        final JsonArrayBuilder targets = Json.createArrayBuilder();
-        definition.getTargetResources().forEach(targets::add);
-        result.add("targetResources", targets);
-        if (definition.getColor() != null) {
-            result.add("color", definition.getColor());
-        }
-        if (definition.getOrder() != null) {
-            result.add("order", definition.getOrder());
-        }
-        result.add("system", definition.isSystem());
-        result.add("path", definition.getPath());
-        return result.build();
     }
 }

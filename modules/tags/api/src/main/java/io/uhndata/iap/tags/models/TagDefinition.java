@@ -17,8 +17,13 @@
  */
 package io.uhndata.iap.tags.models;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+
+import jakarta.json.Json;
+import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonObjectBuilder;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -26,18 +31,20 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.documentation.api.DocumentedItem;
 
 /**
  * A Sling Model wrapping an {@code iap:TagDefinition} node, the definition of one tag: what it means, where it may be
  * placed, and how it behaves. The tag itself is stored on tagged nodes as a plain string in their {@code tags}
- * property, matching this definition's {@link #getName() name}.
+ * property, matching this definition's {@link #getName() name}. Each definition documents itself as an entry of the
+ * vocabulary's {@link TagsHomepage catalogue}, spelling out its behaviors and placement restrictions.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Model(adaptables = Resource.class, resourceType = TagDefinition.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class TagDefinition extends Content
+public class TagDefinition extends Content implements DocumentedItem
 {
     /** The {@code sling:resourceType} of an {@code iap:TagDefinition} node. */
     public static final String RESOURCE_TYPE = "iap/TagDefinition";
@@ -201,5 +208,57 @@ public class TagDefinition extends Content
     {
         return this.targetResources == null || this.targetResources.length == 0
             || getTargetResources().stream().anyMatch(target::isResourceType);
+    }
+
+    @Override
+    public String getDocumentationLabel()
+    {
+        return getLabel();
+    }
+
+    @Override
+    public List<String> getDocumentationCategories()
+    {
+        return getCategories();
+    }
+
+    @Override
+    public List<String> getDocumentationDetails()
+    {
+        final List<String> details = new ArrayList<>();
+        if (isInheritable()) {
+            details.add("**Inheritable**: implicitly carried by everything inside a tagged resource");
+        }
+        if (isAggregated()) {
+            details.add("**Aggregated**: implicitly carried by a resource when anything inside it is tagged");
+        }
+        if (isSystem()) {
+            details.add("**System**: managed by the platform, cannot be manually added or removed");
+        }
+        if (!getTargetResources().isEmpty()) {
+            details.add("**May only be placed on**: `" + String.join("`, `", getTargetResources()) + "`");
+        }
+        return details;
+    }
+
+    @Override
+    public JsonObjectBuilder documentationJsonBuilder()
+    {
+        final JsonObjectBuilder json = DocumentedItem.super.documentationJsonBuilder()
+            .add("inheritable", isInheritable())
+            .add("aggregated", isAggregated())
+            .add("system", isSystem());
+        if (!getTargetResources().isEmpty()) {
+            final JsonArrayBuilder targets = Json.createArrayBuilder();
+            getTargetResources().forEach(targets::add);
+            json.add("targetResources", targets);
+        }
+        if (getColor() != null) {
+            json.add("color", getColor());
+        }
+        if (getOrder() != null) {
+            json.add("order", getOrder());
+        }
+        return json.add("path", getPath());
     }
 }

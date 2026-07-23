@@ -7,10 +7,6 @@ under `/Tags` is the single source of truth for what the tag means, where it may
 how it behaves, instead of scattered code relying on an off-hand understanding of ad-hoc marker
 strings.
 
-This is the successor of CARDS's `statusFlags` mechanism, generalized: the property applies to
-every content node, and the flag vocabulary is formalized as first-class definition nodes rather
-than a convention spread across modules.
-
 ## Defining a tag
 
 A tag definition is an `iap:TagDefinition` child node of the `/Tags` homepage (an
@@ -58,8 +54,7 @@ The `iap-tags-api` bundle (`modules/tags/api`) exposes:
 
 Waiting until a tag is needed and then walking the tree to resolve inheritance and aggregation
 would make queries (JQL `JOIN`s) and status displays expensive, so derived tags are **copied up
-and down the tree at commit time** instead, following CARDS's practice of materializing
-`statusFlags` for query performance:
+and down the tree at commit time** instead:
 
 - `aggregatedTags` holds every `aggregated` tag explicitly placed on any *descendant*;
 - `inheritedTags` holds every `inheritable` tag explicitly placed on any *ancestor*.
@@ -118,9 +113,20 @@ The response is `{"tags": [...], "total": <n>}`, each entry serializing the full
 system, path). The plain `/Tags.json` (and deeper `.2.json` etc.) default renderings remain
 available for raw access.
 
+## Self-documentation
+
+The tag vocabulary documents itself through the platform's
+[self-documentation mechanism](documentation.md): `GET /Tags.doc.md` renders a human-readable
+Markdown catalogue — one section per category, one subsection per tag with its description and
+the behaviors that apply to it (inheritable, aggregated, system, allowed targets) — and
+`GET /Tags.doc.json` returns the same catalogue as JSON. Tags belonging to several categories are
+listed under each of them; tags without a category appear under `uncategorized`. The catalogue's
+heading can be reworded by setting the `title` and `description` properties on the `/Tags` node.
+
 ## Future work
 
 - An `oak:index` on `tags`/`aggregatedTags`/`inheritedTags` once querying by tag is needed
   (deferred together with the other domain indexes).
-- Tag-based access restrictions (the CARDS `UnsubmittedFormsRestrictionPattern` equivalent).
+- Tag-based access restrictions: an ACL restriction pattern evaluated against a resource's tags,
+  e.g. granting write access only while a record is not `submitted`.
 - UI for displaying and filtering by tags, driven by the definitions.

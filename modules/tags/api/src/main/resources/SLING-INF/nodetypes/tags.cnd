@@ -32,7 +32,7 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /Tags root path, holding the tag definitions.
-[iap:TagsHomepage] > iap:Content, rep:AccessControllable
+[iap:TagsHomepage] > iap:Content, rep:AccessControllable, iap:Documented
   // Attributes:
 
   // We can query tag definitions
