@@ -39,5 +39,6 @@
     <module>startup-customization</module>
     <module>homepage</module>
     <module>workflows</module>
+    <module>healthcheck</module>
   </modules>
 </project>
