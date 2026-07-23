@@ -68,7 +68,8 @@ import org.slf4j.LoggerFactory;
  * <li>{@code filter}: a full text search term that the entities must contain</li>
  * <li>{@code fieldName}, {@code fieldComparator}, {@code fieldValue}: repeatable triples imposing a condition on a
  * property of the entity itself, e.g. {@code status = draft}; the supported comparators are {@code =}, {@code <>},
- * {@code <}, {@code <=}, {@code >}, {@code >=}, {@code LIKE}, {@code IS NULL} and {@code IS NOT NULL}; if no
+ * {@code <}, {@code <=}, {@code >}, {@code >=}, {@code LIKE}, {@code ILIKE} (case-insensitive {@code LIKE}),
+ * {@code IS NULL} and {@code IS NOT NULL}; if no
  * comparators are sent, {@code =} is used; the special value {@code @me} is replaced with the current user's id</li>
  * <li>{@code childType}, {@code childFieldName}, {@code childFieldComparator}, {@code childFieldValue}: same, but
  * the conditions apply to a descendant of the entity, e.g. only submissions having a {@code sub:Review} descendant

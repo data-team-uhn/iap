@@ -30,7 +30,7 @@ final class Filter
 {
     /** The comparators accepted in a request; anything else falls back to {@code =}. */
     private static final List<String> COMPARATORS =
-        List.of("=", "<>", "<", "<=", ">", ">=", "LIKE", "IS NULL", "IS NOT NULL");
+        List.of("=", "<>", "<", "<=", ">", ">=", "LIKE", "ILIKE", "IS NULL", "IS NOT NULL");
 
     /** The comparators that don't compare against a value. */
     private static final List<String> VALUELESS_COMPARATORS = List.of("IS NULL", "IS NOT NULL");
