@@ -15,6 +15,7 @@
 #  limitations under the License.
 
 create path (sling:Folder) /libs/iap
+create path (nt:unstructured) /libs/iap/conf/ThemeColor
 create path (sling:Folder) /libs/iap/resources
 create path (sling:Folder) /apps/iap
 create path (sling:Folder) /Extensions
@@ -23,4 +24,11 @@ set ACL for everyone
     allow   jcr:read    on /libs/iap
     allow   jcr:read    on /apps/iap
     allow   jcr:read    on /Extensions
+end
+
+# The brand colours, driving the UI theme (the dark colour scheme derives its own shades from
+# them, see appTheme.ts); deployments may override them alongside the rest of the branding
+set properties on /libs/iap/conf/ThemeColor
+  default primaryColor to "#192958"
+  default secondaryColor to "#C0233C"
 end

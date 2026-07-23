@@ -19,7 +19,6 @@ create path (sling:Folder) /Extensions
 create path (sling:Folder) /Extensions/AdminDashboard
 create path (sling:Folder) /Extensions/Sidebar/AdminEntries
 create path (nt:unstructured) /libs/iap/conf/Media
-create path (nt:unstructured) /libs/iap/conf/ThemeColor
 
 set ACL for everyone
     allow   jcr:read    on /content
@@ -38,11 +37,4 @@ set properties on /libs/iap/conf/Media
   default affiliationLogoDark to "/libs/iap/resources/media/default/uhn-logo-dark.png"
   default affiliationLogoLight to "/libs/iap/resources/media/default/uhn-logo-light.png"
   default affiliationName to "University Health Network"
-end
-
-# The brand colours, driving the UI theme (the dark colour scheme derives its own shades from
-# them, see appTheme.ts); deployments may override them alongside the rest of the branding
-set properties on /libs/iap/conf/ThemeColor
-  default primaryColor to "#192958"
-  default secondaryColor to "#C0233C"
 end
