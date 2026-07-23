@@ -31,7 +31,6 @@ import {
   Fade,
   Popper,
 } from "@mui/material";
-import { makeStyles } from 'tss-react/mui';
 
 type UserInputAssistantVariant = 'hint' | 'hint-secondary' | 'success' | 'info' | 'warning' | 'error';
 
@@ -46,79 +45,15 @@ type UserInputAssistantProps = {
   onClickAway?: (event: MouseEvent | TouchEvent) => void;
 };
 
-const useStyles = makeStyles()(theme => ({
-  userInputAssistant: {
-    "& .MuiCard-root" : {
-      maxWidth: "375px",
-      border: "2px solid " + theme.palette.primary.main,
-      "&.Uia-placement-right": {
-        marginLeft: theme.spacing(2),
-        "&:before" : {
-          content: "''",
-          display: "block",
-          borderTop: theme.spacing(2) + " solid transparent",
-          borderBottom: theme.spacing(2) + " solid transparent",
-          borderRight: theme.spacing(2) + " solid " + theme.palette.primary.main,
-          position: "absolute",
-          left: 0,
-          top: "50%",
-          marginTop: theme.spacing(-2),
-        },
-      },
-      "&.Uia-placement-bottom": {
-        margin: theme.spacing(3,4,0),
-      },
-      "& .MuiAvatar-root" : {
-        background: theme.palette.primary.main,
-      },
-      "&.Uia-hint-secondary" : {
-        borderColor: theme.palette.secondary.main,
-        "&.Uia-placement-right:before" : {
-          borderRightColor: theme.palette.secondary.main,
-        },
-        "& .MuiAvatar-root" : {
-          background: theme.palette.secondary.main,
-        },
-      },
-      "&.Uia-success" : {
-        borderColor: theme.palette.success.main,
-        "&.Uia-placement-right:before" : {
-          borderRightColor: theme.palette.success.main,
-        },
-        "& .MuiAvatar-root" : {
-          background: theme.palette.success.main,
-        },
-      },
-      "&.Uia-info" : {
-        borderColor: theme.palette.info.main,
-        "&.Uia-placement-right:before" : {
-          borderRightColor: theme.palette.info.main,
-        },
-        "& .MuiAvatar-root" : {
-          background: theme.palette.info.main,
-        },
-      },
-      "&.Uia-warning" : {
-        borderColor: theme.palette.warning.main,
-        "&.Uia-placement-right:before" : {
-          borderRightColor: theme.palette.warning.main,
-        },
-        "& .MuiAvatar-root" : {
-          background: theme.palette.warning.main,
-        },
-      },
-      "&.Uia-error" : {
-        borderColor: theme.palette.error.main,
-        "&.Uia-placement-right:before" : {
-          borderRightColor: theme.palette.error.main,
-        },
-        "& .MuiAvatar-root" : {
-          background: theme.palette.error.main,
-        },
-      },
-    },
-  },
-}));
+// The palette entry providing the accent color (border, arrow, avatar) for each variant
+const accents = {
+  "hint": "primary",
+  "hint-secondary": "secondary",
+  "success": "success",
+  "info": "info",
+  "warning": "warning",
+  "error": "error",
+} as const;
 
 // Component that renders a hint/tooltip/suggested action to be
 // displayed to the user as they do data entry
@@ -175,8 +110,6 @@ function UserInputAssistant(props: UserInputAssistantProps) {
 
   const [ enabled, setEnabled ] = useState(true);
 
-  const { classes } = useStyles();
-
   const [ placement, setPlacement ] = useState<"right" | "bottom">("right");
 
   useEffect(() => {
@@ -193,7 +126,6 @@ function UserInputAssistant(props: UserInputAssistantProps) {
   return (enabled ?
     <ClickAwayListener onClickAway={onClickAway ?? (() => {})}>
       <Popper
-        className={classes.userInputAssistant}
         open={!!anchorEl}
         anchorEl={anchorEl}
         placement={placement}
@@ -207,7 +139,34 @@ function UserInputAssistant(props: UserInputAssistantProps) {
       >
         {({ TransitionProps }) => (
           <Fade {...TransitionProps} timeout={350}>
-            <Card className={`Uia-${variant} Uia-placement-${placement}`}>
+            <Card
+              sx={theme => {
+                const accent = (theme.vars || theme).palette[accents[variant]].main;
+                return {
+                  maxWidth: "375px",
+                  border: `2px solid ${accent}`,
+                  "& .MuiAvatar-root": {
+                    background: accent,
+                  },
+                  ...(placement === "right" ? {
+                    marginLeft: theme.spacing(2),
+                    "&:before": {
+                      content: "''",
+                      display: "block",
+                      borderTop: `${theme.spacing(2)} solid transparent`,
+                      borderBottom: `${theme.spacing(2)} solid transparent`,
+                      borderRight: `${theme.spacing(2)} solid ${accent}`,
+                      position: "absolute",
+                      left: 0,
+                      top: "50%",
+                      marginTop: theme.spacing(-2),
+                    },
+                  } : {
+                    margin: theme.spacing(3, 4, 0),
+                  }),
+                };
+              }}
+            >
               <CardHeader
                 avatar={<Avatar>
                   {

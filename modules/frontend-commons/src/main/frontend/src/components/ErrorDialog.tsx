@@ -26,24 +26,11 @@ import {
   IconButton,
   type DialogProps
 } from "@mui/material";
-import { makeStyles } from 'tss-react/mui';
 
 type ErrorDialogProps = Omit<DialogProps, "title" | "onClose"> & {
   title?: ReactNode;
   onClose?: (event: object) => void;
 };
-
-const useStyles = makeStyles()(theme => ({
-  titleBar: {
-    color: theme.palette.error.main,
-    paddingRight: theme.spacing(5),
-  },
-  closeButton: {
-    position: 'absolute',
-    right: theme.spacing(1),
-    top: theme.spacing(1),
-  },
-}));
 
 // Component that renders an Error Dialog with a red title and a close button
 //
@@ -71,13 +58,11 @@ const ErrorDialog = (props: ErrorDialogProps) => {
     ...rest
   } = props;
 
-  const { classes } = useStyles();
-
   return (
     <Dialog onClose={onClose} maxWidth={maxWidth} fullWidth={fullWidth} {...rest}>
-      <DialogTitle className={classes.titleBar}>
+      <DialogTitle sx={{ color: "error.main", pr: 5 }}>
         {title}
-        <IconButton onClick={onClose} className={classes.closeButton} size="large">
+        <IconButton onClick={onClose} sx={{ position: "absolute", right: 8, top: 8 }} size="large">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
