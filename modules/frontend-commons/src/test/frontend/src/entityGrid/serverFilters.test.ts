@@ -88,6 +88,18 @@ describe("toPropertyFilters", () => {
       .toEqual([{ name: "jcr:created", comparator: "<", value: end }]);
     // An unparseable day is a condition still being edited
     expect(filters({ field: "created", operator: "is", value: "garbage" })).toEqual([]);
+    expect(filters({ field: "created", operator: "is", value: new Date("garbage") })).toEqual([]);
+  });
+
+  it("recovers the picked day from the Date object produced by the grid's date input", () => {
+    // The grid's date filter input parses the picked YYYY-MM-DD as UTC midnight; the condition
+    // must still cover that calendar day in the user's own timezone
+    const start = new Date("2026-07-01T00:00:00").toISOString();
+    const end = new Date("2026-07-02T00:00:00").toISOString();
+    expect(filters({ field: "created", operator: "is", value: new Date("2026-07-01") })).toEqual([
+      { name: "jcr:created", comparator: ">=", value: start },
+      { name: "jcr:created", comparator: "<", value: end },
+    ]);
   });
 
   it("maps single-select choices to equality comparators", () => {
@@ -100,6 +112,33 @@ describe("toPropertyFilters", () => {
     ]);
   });
 
+  it("expands isAnyOf into equality checks sharing an OR group", () => {
+    expect(filters(
+      { field: "title", operator: "contains", value: "x" },
+      { field: "status", operator: "isAnyOf", value: ["submitted", "in-review"] },
+    )).toEqual([
+      { name: "title", comparator: "ILIKE", value: "%x%" },
+      { name: "status", comparator: "=", value: "submitted", group: "item1" },
+      { name: "status", comparator: "=", value: "in-review", group: "item1" },
+    ]);
+    // An empty selection is a condition still being edited
+    expect(filters({ field: "status", operator: "isAnyOf", value: [] })).toEqual([]);
+  });
+
+  it("maps doesNotContain to a negated case-insensitive match", () => {
+    expect(filters({ field: "title", operator: "doesNotContain", value: "card" }))
+      .toEqual([{ name: "title", comparator: "NOT ILIKE", value: "%card%" }]);
+  });
+
+  it("expands a negated date to the day's outside, ORed through a shared group", () => {
+    const start = new Date("2026-07-01T00:00:00").toISOString();
+    const end = new Date("2026-07-02T00:00:00").toISOString();
+    expect(filters({ field: "created", operator: "not", value: "2026-07-01" })).toEqual([
+      { name: "jcr:created", comparator: "<", value: start, group: "item0" },
+      { name: "jcr:created", comparator: ">=", value: end, group: "item0" },
+    ]);
+  });
+
   it("skips conditions that cannot be applied server-side", () => {
     expect(filters(
       // Still being edited: no value yet
@@ -109,7 +148,7 @@ describe("toPropertyFilters", () => {
       { field: "nonexistent", operator: "contains", value: "x" },
       { field: "schema", operator: "contains", value: "x" },
       // Operator with no server-side translation
-      { field: "title", operator: "isAnyOf", value: ["a", "b"] },
+      { field: "title", operator: "someFutureOperator", value: "x" },
     )).toEqual([]);
   });
 });
@@ -119,12 +158,12 @@ describe("withServerFilterOperators", () => {
     const [title, status, created, amount] = withServerFilterOperators(COLUMNS);
     // The stock operator order is preserved, only the unsupported ones are dropped
     expect(title.filterOperators?.map(operator => operator.value)).toEqual(
-      ["contains", "equals", "doesNotEqual", "startsWith", "endsWith", "isEmpty", "isNotEmpty"]);
-    expect(status.filterOperators?.map(operator => operator.value)).toEqual(["is", "not"]);
-    // "not" is excluded on dates: after day-boundary expansion it would need an OR
+      ["contains", "doesNotContain", "equals", "doesNotEqual", "startsWith", "endsWith",
+        "isEmpty", "isNotEmpty", "isAnyOf"]);
+    expect(status.filterOperators?.map(operator => operator.value)).toEqual(["is", "not", "isAnyOf"]);
     expect(created.filterOperators?.map(operator => operator.value)).toEqual(
-      ["is", "after", "onOrAfter", "before", "onOrBefore", "isEmpty", "isNotEmpty"]);
+      ["is", "not", "after", "onOrAfter", "before", "onOrBefore", "isEmpty", "isNotEmpty"]);
     expect(amount.filterOperators?.map(operator => operator.value)).toEqual(
-      ["=", "!=", ">", ">=", "<", "<=", "isEmpty", "isNotEmpty"]);
+      ["=", "!=", ">", ">=", "<", "<=", "isEmpty", "isNotEmpty", "isAnyOf"]);
   });
 });

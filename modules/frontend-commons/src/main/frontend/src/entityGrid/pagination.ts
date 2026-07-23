@@ -26,10 +26,13 @@ export type EntityRow = Record<string, unknown>;
 
 // A condition on one property, e.g. `{ name: "status", value: "draft" }`. The comparator
 // defaults to `=`; the special value `@me` is resolved server-side to the current user.
+// Conditions sharing a group are ORed together by the server; distinct groups (and conditions
+// with no group) are ANDed.
 export type PropertyFilter = {
   name: string;
   value: string;
   comparator?: string;
+  group?: string;
 };
 
 // Conditions on a descendant node: only entities having at least one descendant of this type
@@ -74,10 +77,17 @@ export type PaginatedPage = {
   req?: string;
 };
 
-function appendFilter(params: URLSearchParams, prefix: string, filter: PropertyFilter): void {
-  params.append(`${prefix}Name`, filter.name);
-  params.append(`${prefix}Comparator`, filter.comparator ?? "=");
-  params.append(`${prefix}Value`, filter.value);
+function appendFilters(params: URLSearchParams, prefix: string, filters: PropertyFilter[]): void {
+  // The group parameter, when sent at all, must be sent once per filter
+  const grouped = filters.some(filter => filter.group != undefined);
+  filters.forEach(filter => {
+    params.append(`${prefix}Name`, filter.name);
+    params.append(`${prefix}Comparator`, filter.comparator ?? "=");
+    params.append(`${prefix}Value`, filter.value);
+    if (grouped) {
+      params.append(`${prefix}Group`, filter.group ?? "");
+    }
+  });
 }
 
 // Fetches one page of entities from the pagination servlet.
@@ -98,10 +108,10 @@ export async function fetchEntityPage(request: PaginationRequest): Promise<Pagin
   if (request.fullText) {
     params.set("filter", request.fullText);
   }
-  (request.filters ?? []).forEach(filter => appendFilter(params, "field", filter));
+  appendFilters(params, "field", request.filters ?? []);
   if (request.childFilter) {
     params.set("childType", request.childFilter.type);
-    request.childFilter.filters.forEach(filter => appendFilter(params, "childField", filter));
+    appendFilters(params, "childField", request.childFilter.filters);
   }
   if (request.req) {
     params.set("req", request.req);
