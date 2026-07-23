@@ -17,6 +17,7 @@
  */
 
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
 import MyReviewQueueWidget from "@iap/submissions/MyReviewQueueWidget";
 
@@ -29,7 +30,7 @@ describe("MyReviewQueueWidget", () => {
       { ok: true, json: () => Promise.resolve(page) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<MyReviewQueueWidget />);
+    render(<MyReviewQueueWidget />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("No submissions to review")).toBeInTheDocument();
 

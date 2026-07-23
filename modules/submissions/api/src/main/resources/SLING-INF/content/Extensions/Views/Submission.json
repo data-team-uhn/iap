@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/view",
+  "iap:extensionName": "Submission",
+  "iap:targetURL": "/Submissions/*",
+  "iap:extensionRenderURL": "asset:iap-submissions.SubmissionView.js?lazy"
+}

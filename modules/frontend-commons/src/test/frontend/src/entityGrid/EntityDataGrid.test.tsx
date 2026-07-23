@@ -18,6 +18,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router";
 
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import { registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
@@ -32,6 +33,7 @@ registerEntityType(TEST_TYPE, {
     { field: "jcr:lastModified", headerName: "Modified", type: "dateTime" },
   ],
   defaultSort: { field: "title", sort: "desc" },
+  rowLink: row => String(row["@path"]),
 });
 
 function mockPage(rows: Record<string, unknown>[]) {
@@ -61,7 +63,7 @@ describe("EntityDataGrid", () => {
       { "@path": "/GridEntities/e2", title: "Second entity", status: "approved" },
     ]);
 
-    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("First entity")).toBeInTheDocument();
     expect(screen.getByText("Second entity")).toBeInTheDocument();
@@ -85,7 +87,7 @@ describe("EntityDataGrid", () => {
         childFilter={{ type: "sub:Review", filters: [{ name: "reviewer", value: "@me" }] }}
         emptyMessage="No entities yet"
         disableVirtualization
-      />
+      />, { wrapper: MemoryRouter }
     );
 
     expect(await screen.findByText("No entities yet")).toBeInTheDocument();
@@ -100,7 +102,7 @@ describe("EntityDataGrid", () => {
     vi.stubGlobal("fetch", vi.fn<(url: RequestInfo | URL) => Promise<Response>>(
       () => Promise.resolve({ ok: false, status: 500 } as unknown as Response)));
 
-    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Failed to list /GridEntities: 500")).toBeInTheDocument();
   });
@@ -108,16 +110,34 @@ describe("EntityDataGrid", () => {
   it("shows an error for an unregistered entity type", () => {
     mockPage([]);
 
-    render(<EntityDataGrid entityType="test/Unregistered" disableVirtualization />);
+    render(<EntityDataGrid entityType="test/Unregistered" disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(screen.getByText(/Unknown entity type/)).toBeInTheDocument();
+  });
+
+  it("navigates to the row's page when a row is clicked", async () => {
+    const user = userEvent.setup();
+    mockPage([{ "@path": "/GridEntities/e1", title: "First entity", status: "draft" }]);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />} />
+          <Route path="/GridEntities/e1" element={<div>Entity page</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await user.click(await screen.findByText("First entity"));
+
+    expect(await screen.findByText("Entity page")).toBeInTheDocument();
   });
 
   it("routes the toolbar quick filter to the server-side full text search", async () => {
     const user = userEvent.setup();
     const fetchMock = mockPage([]);
 
-    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
     await user.click(screen.getAllByRole("button", { name: /search/i })[0]);
@@ -144,7 +164,7 @@ describe("EntityDataGrid", () => {
     const user = userEvent.setup();
     const fetchMock = mockPage([]);
 
-    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
     // Open the filter panel; it starts with one condition on the first column (Title), using the
@@ -166,7 +186,7 @@ describe("EntityDataGrid", () => {
     const user = userEvent.setup();
     const fetchMock = mockPage([]);
 
-    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Nothing to show");
 
     // Open the filter panel and switch the condition to the date column ("is" is its default
@@ -193,7 +213,7 @@ describe("EntityDataGrid", () => {
     window.localStorage.setItem(`iap.entityGrid.${TEST_TYPE}.columns`, JSON.stringify({ status: false }));
     mockPage([{ "@path": "/GridEntities/e1", title: "First entity", status: "draft" }]);
 
-    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("First entity")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Title" })).toBeInTheDocument();
@@ -205,7 +225,7 @@ describe("EntityDataGrid", () => {
     const user = userEvent.setup();
     mockPage([{ "@path": "/GridEntities/e1", title: "First entity", status: "draft" }]);
 
-    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("First entity");
 
     await user.click(screen.getAllByRole("button", { name: /columns/i })[0]);
