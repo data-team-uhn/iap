@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import jakarta.json.JsonObject;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -181,5 +183,82 @@ class TagDefinitionTest
 
         // Explicitly ordered definitions first, then the unordered ones sorted by name
         assertEquals(List.of(first, second, unorderedA, unorderedB), sorted);
+    }
+
+    @Test
+    void documentsItsBehaviors()
+    {
+        final Resource resource = this.context.create().resource("/Tags/sensitive", Map.of(
+            "sling:resourceType", "iap/TagDefinition",
+            "label", "Sensitive",
+            "description", "Contains confidential data",
+            "category", new String[] { "privacy" },
+            "inheritable", true,
+            "aggregated", true,
+            "system", true,
+            "targetResources", new String[] { "iap/Entity", "iap/EntityPart" }));
+        final TagDefinition definition = resource.adaptTo(TagDefinition.class);
+
+        // The generic documentation contract delegates to the tag-specific accessors
+        assertEquals("Sensitive", definition.getDocumentationLabel());
+        assertEquals(List.of("privacy"), definition.getDocumentationCategories());
+        assertEquals(List.of(
+            "**Inheritable**: implicitly carried by everything inside a tagged resource",
+            "**Aggregated**: implicitly carried by a resource when anything inside it is tagged",
+            "**System**: managed by the platform, cannot be manually added or removed",
+            "**May only be placed on**: `iap/Entity`, `iap/EntityPart`"),
+            definition.getDocumentationDetails());
+    }
+
+    @Test
+    void plainTagsHaveNothingToCallOut()
+    {
+        final Resource resource = this.context.create().resource("/Tags/plain",
+            "sling:resourceType", "iap/TagDefinition");
+        assertTrue(resource.adaptTo(TagDefinition.class).getDocumentationDetails().isEmpty());
+    }
+
+    @Test
+    void serializesTheFullDefinitionAsJson()
+    {
+        final Resource resource = this.context.create().resource("/Tags/sensitive", Map.of(
+            "sling:resourceType", "iap/TagDefinition",
+            "label", "Sensitive",
+            "description", "Contains confidential data",
+            "category", new String[] { "privacy" },
+            "inheritable", true,
+            "targetResources", new String[] { "iap/Entity" },
+            "color", "#f44336",
+            "order", 10L,
+            "system", true));
+        final JsonObject json = resource.adaptTo(TagDefinition.class).toDocumentationJson();
+
+        assertEquals("sensitive", json.getString("name"));
+        assertEquals("Sensitive", json.getString("label"));
+        assertEquals("Contains confidential data", json.getString("description"));
+        assertEquals("privacy", json.getJsonArray("category").getString(0));
+        assertTrue(json.getBoolean("inheritable"));
+        assertFalse(json.getBoolean("aggregated"));
+        assertTrue(json.getBoolean("system"));
+        assertEquals("iap/Entity", json.getJsonArray("targetResources").getString(0));
+        assertEquals("#f44336", json.getString("color"));
+        assertEquals(10, json.getJsonNumber("order").longValue());
+        assertEquals("/Tags/sensitive", json.getString("path"));
+    }
+
+    @Test
+    void jsonLeavesUnsetOptionalFieldsOut()
+    {
+        final Resource resource = this.context.create().resource("/Tags/plain",
+            "sling:resourceType", "iap/TagDefinition");
+        final JsonObject json = resource.adaptTo(TagDefinition.class).toDocumentationJson();
+
+        assertEquals("plain", json.getString("name"));
+        assertFalse(json.containsKey("description"));
+        assertFalse(json.containsKey("category"));
+        assertFalse(json.containsKey("targetResources"));
+        assertFalse(json.containsKey("color"));
+        assertFalse(json.containsKey("order"));
+        assertEquals("/Tags/plain", json.getString("path"));
     }
 }

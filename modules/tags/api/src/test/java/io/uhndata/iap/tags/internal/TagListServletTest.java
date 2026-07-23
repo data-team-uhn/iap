@@ -107,7 +107,8 @@ class TagListServletTest
         assertEquals("lifecycle", draft.getJsonArray("category").getString(0));
         assertFalse(draft.getBoolean("inheritable"));
         assertFalse(draft.getBoolean("aggregated"));
-        assertTrue(draft.getJsonArray("targetResources").isEmpty());
+        // An unrestricted tag simply has no targetResources key
+        assertFalse(draft.containsKey("targetResources"));
         assertEquals("#9e9e9e", draft.getString("color"));
         assertEquals(1, draft.getInt("order"));
         assertFalse(draft.getBoolean("system"));
