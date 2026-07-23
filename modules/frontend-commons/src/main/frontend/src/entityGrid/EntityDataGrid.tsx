@@ -27,6 +27,7 @@ import {
   type GridPaginationModel,
   type GridSortModel,
 } from "@mui/x-data-grid-pro";
+import { useNavigate } from "react-router";
 
 // Imported for its side effect: registers the MUI X license before the first Pro render
 import "../muiLicense";
@@ -85,6 +86,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     disableVirtualization = false,
   } = props;
   const config = getEntityTypeConfig(entityType);
+  const navigate = useNavigate();
   const columnStorageKey = `iap.entityGrid.${entityType}.columns`;
   const [rows, setRows] = useState<EntityRow[]>([]);
   const [rowCount, setRowCount] = useState(0);
@@ -172,8 +174,17 @@ function EntityDataGrid(props: EntityDataGridProps) {
     return <Alert severity="error">{error}</Alert>;
   }
 
+  // Clicking a row navigates to the entity's own page, when the entity type declares one
+  const { rowLink } = config;
+  const openRow = rowLink && ((row: EntityRow) => {
+    const link = rowLink(row);
+    if (link) {
+      void navigate(link);
+    }
+  });
+
   return (
-    <Box sx={{ height, width: "100%" }}>
+    <Box sx={{ height, width: "100%", "& .MuiDataGrid-row": { cursor: openRow ? "pointer" : "inherit" } }}>
       <DataGridPro
         columns={withServerFilterOperators(config.columns)}
         rows={rows}
@@ -197,6 +208,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
         onColumnVisibilityModelChange={changeColumnVisibility}
         showToolbar
         disableRowSelectionOnClick
+        onRowClick={openRow && (params => openRow(params.row as EntityRow))}
         // Filtering happens server-side, so from the grid's point of view an unmatched search and
         // a truly empty collection both look like "zero rows", and it would always pick its
         // "no rows" overlay; which message that overlay shows is chosen here instead, based on

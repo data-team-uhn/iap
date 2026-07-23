@@ -17,6 +17,7 @@
  */
 
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
 import MySubmissionsWidget from "@iap/submissions/MySubmissionsWidget";
 
@@ -44,7 +45,7 @@ describe("MySubmissionsWidget", () => {
       { ok: true, json: () => Promise.resolve(page) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<MySubmissionsWidget />);
+    render(<MySubmissionsWidget />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
     expect(screen.getByText("ClinicalTrial 1.0")).toBeInTheDocument();

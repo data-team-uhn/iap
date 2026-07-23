@@ -16,27 +16,18 @@
  * limitations under the License.
  */
 
-import { Chip } from "@mui/material";
-
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
+
+import StatusChip from "./StatusChip";
 
 // The entity type listed by submission grids, as registered with the entity grid registry.
 export const SUBMISSION_TYPE = "sub/Submission";
-
-// How each submission lifecycle state is tinted; unknown states fall back to a plain chip.
-const STATUS_COLORS: Record<string, "default" | "info" | "warning" | "success" | "error"> = {
-  "draft": "default",
-  "submitted": "info",
-  "in-review": "warning",
-  "approved": "success",
-  "rejected": "error",
-};
 
 // Renders the "Schema" cell: the serialized submission carries its dereferenced `schemaVersion`
 // node, whose own properties hold the version label, while the owning schema's name is the
 // second-to-last segment of its path (/Schemas/<schema>/<version>).
 // TODO: display the schema's title instead of its node name, once the serialization can embed it.
-function schemaLabel(schemaVersion: unknown): string {
+export function schemaLabel(schemaVersion: unknown): string {
   if (!schemaVersion || typeof schemaVersion !== "object") {
     return "";
   }
@@ -72,9 +63,7 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     width: 130,
     type: "singleSelect",
     valueOptions: ["draft", "submitted", "in-review", "approved", "rejected"],
-    renderCell: params => params.value
-      ? <Chip size="small" label={String(params.value)} color={STATUS_COLORS[String(params.value)] ?? "default"} />
-      : null,
+    renderCell: params => <StatusChip value={params.value} />,
   },
   {
     field: "jcr:created",
@@ -98,4 +87,6 @@ registerEntityType(SUBMISSION_TYPE, {
   homepage: "/Submissions",
   columns: SUBMISSION_COLUMNS,
   defaultSort: { field: "jcr:lastModified", sort: "desc" },
+  // Each submission is viewable on its own page, at its repository path
+  rowLink: row => row["@path"] ? String(row["@path"]) : undefined,
 });

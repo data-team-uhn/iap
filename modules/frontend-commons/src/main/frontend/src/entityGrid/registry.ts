@@ -38,6 +38,9 @@ export type EntityGridConfig = {
   columns: EntityGridColumn[];
   // The initial sort: the `field` of one of the columns, and a direction
   defaultSort?: { field: string; sort: GridSortDirection };
+  // Where clicking a row navigates to (an in-app URL). Rows aren't clickable when this is
+  // absent, and individual rows aren't when it returns undefined.
+  rowLink?: (row: EntityRow) => string | undefined;
 };
 
 const configs = new Map<string, EntityGridConfig>();
