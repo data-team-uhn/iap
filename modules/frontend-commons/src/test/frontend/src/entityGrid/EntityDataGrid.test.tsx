@@ -133,8 +133,7 @@ describe("EntityDataGrid", () => {
     expect(await screen.findByText("Entity page")).toBeInTheDocument();
   });
 
-  // Typing + two debounced round-trips can exceed the default test timeout under full-suite load
-  it("routes the toolbar quick filter to the server-side full text search", { timeout: 15_000 }, async () => {
+  it("routes the toolbar quick filter to the server-side full text search", async () => {
     const user = userEvent.setup();
     const fetchMock = mockPage([]);
 
@@ -142,7 +141,8 @@ describe("EntityDataGrid", () => {
     await screen.findByText("Nothing to show");
 
     await user.click(screen.getAllByRole("button", { name: /search/i })[0]);
-    await user.keyboard("cardiac");
+    // Set the value atomically: typing keystroke by keystroke races the debounced re-render
+    fireEvent.change(await screen.findByPlaceholderText("Search…"), { target: { value: "cardiac" } });
 
     await waitFor(() => {
       const lastUrl = new URL(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0]), "http://localhost");
@@ -153,13 +153,12 @@ describe("EntityDataGrid", () => {
     });
 
     // With a search active, an empty result reads as "nothing matched", not "nothing exists"
-    // (generous timeouts: the quick filter debounces before the state settles)
-    expect(await screen.findByText("No results found", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(await screen.findByText("No results found")).toBeInTheDocument();
     expect(screen.queryByText("Nothing to show")).toBeNull();
 
     // Clearing the search restores the plain empty message
-    await user.keyboard("{Control>}a{/Control}{Backspace}");
-    expect(await screen.findByText("Nothing to show", {}, { timeout: 3000 })).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Search…"), { target: { value: "" } });
+    expect(await screen.findByText("Nothing to show")).toBeInTheDocument();
   });
 
   it("routes column filters from the filter panel to server-side property filters", async () => {
@@ -172,7 +171,8 @@ describe("EntityDataGrid", () => {
     // Open the filter panel; it starts with one condition on the first column (Title), using the
     // first offered operator (contains)
     await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
-    await user.type(await screen.findByPlaceholderText("Filter value"), "card");
+    // Set the value atomically: typing keystroke by keystroke races the debounced re-render
+    fireEvent.change(await screen.findByPlaceholderText("Filter value"), { target: { value: "card" } });
 
     await waitFor(() => {
       const lastUrl = new URL(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0]), "http://localhost");

@@ -41,6 +41,9 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Component tests driving real user interactions through debounced inputs can legitimately
+    // take a while on slow CI runners
+    testTimeout: 15_000,
     server: {
       deps: {
         // MUI X packages import their own stylesheets from their ESM builds; inlining them lets
