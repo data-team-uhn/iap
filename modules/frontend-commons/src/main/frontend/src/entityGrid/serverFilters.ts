@@ -34,12 +34,13 @@ import type { PropertyFilter } from "./pagination";
 import type { EntityGridColumn } from "./registry";
 
 // The stock grid operators (per column type) that the servlet can honor. Notable exclusions:
-// isAnyOf needs OR, doesNotContain needs NOT LIKE.
+// isAnyOf needs OR, doesNotContain needs NOT LIKE, and "not" on dates would need OR after
+// day-boundary expansion ("outside of [start, end)").
 const SUPPORTED_OPERATORS: Record<string, string[]> = {
   string: ["contains", "startsWith", "endsWith", "equals", "doesNotEqual", "isEmpty", "isNotEmpty"],
   number: ["=", "!=", ">", ">=", "<", "<=", "isEmpty", "isNotEmpty"],
-  date: ["is", "not", "after", "onOrAfter", "before", "onOrBefore", "isEmpty", "isNotEmpty"],
-  dateTime: ["is", "not", "after", "onOrAfter", "before", "onOrBefore", "isEmpty", "isNotEmpty"],
+  date: ["is", "after", "onOrAfter", "before", "onOrBefore", "isEmpty", "isNotEmpty"],
+  dateTime: ["is", "after", "onOrAfter", "before", "onOrBefore", "isEmpty", "isNotEmpty"],
   singleSelect: ["is", "not"],
 };
 
@@ -61,10 +62,6 @@ const PLAIN_OPERATORS: Record<string, string> = {
   ">=": ">=",
   "<": "<",
   "<=": "<=",
-  "after": ">",
-  "onOrAfter": ">=",
-  "before": "<",
-  "onOrBefore": "<=",
 };
 
 // Grid operators that translate to a case-insensitive LIKE, with the value placed into a
@@ -76,49 +73,73 @@ const LIKE_OPERATORS: Record<string, (value: string) => string> = {
   endsWith: value => `%${value}`,
 };
 
-function toStoredValue(item: GridFilterItem, column: EntityGridColumn): string {
-  // Date pickers produce local date(-time) strings; the repository compares full ISO instants
-  if ((column.type === "date" || column.type === "dateTime") && !Number.isNaN(Date.parse(String(item.value)))) {
-    return new Date(String(item.value)).toISOString();
+// Expands a day-granularity date condition into instant comparisons against the day's
+// boundaries, [start of day, start of next day) in the user's own timezone — stored dates are
+// full instants, so "is July 1st" must mean "within July 1st", not "equals its first
+// millisecond". This is why dates are filtered with day (not date-time) pickers: the value is a
+// plain YYYY-MM-DD day.
+function dayFilters(operator: string, name: string, value: string): PropertyFilter[] {
+  // A bare YYYY-MM-DD would be parsed as UTC; an explicit midnight time makes it local
+  const start = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(start.getTime())) {
+    return [];
   }
-  return String(item.value);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  switch (operator) {
+    case "is":
+      return [
+        { name, comparator: ">=", value: start.toISOString() },
+        { name, comparator: "<", value: end.toISOString() },
+      ];
+    case "after": return [{ name, comparator: ">=", value: end.toISOString() }];
+    case "onOrAfter": return [{ name, comparator: ">=", value: start.toISOString() }];
+    case "before": return [{ name, comparator: "<", value: start.toISOString() }];
+    case "onOrBefore": return [{ name, comparator: "<", value: end.toISOString() }];
+    default: return [];
+  }
 }
 
-function toPropertyFilter(item: GridFilterItem, column: EntityGridColumn | undefined): PropertyFilter | undefined {
+function toFilterTriples(item: GridFilterItem, column: EntityGridColumn | undefined): PropertyFilter[] {
   if (!column || column.filterable === false) {
-    return undefined;
+    return [];
   }
   // Like for sorting, sortProperty overrides which server-side property a column maps to
   const name = column.sortProperty ?? column.field;
   if (item.operator in VALUELESS_OPERATORS) {
-    return { name, comparator: VALUELESS_OPERATORS[item.operator], value: "" };
+    return [{ name, comparator: VALUELESS_OPERATORS[item.operator], value: "" }];
   }
   // An item without a value is one the user is still editing, not a condition yet
   if (item.value == undefined || item.value === "") {
-    return undefined;
+    return [];
+  }
+  if (column.type === "date" || column.type === "dateTime") {
+    return dayFilters(item.operator, name, String(item.value));
   }
   if (item.operator in LIKE_OPERATORS) {
-    return { name, comparator: "ILIKE", value: LIKE_OPERATORS[item.operator](String(item.value)) };
+    return [{ name, comparator: "ILIKE", value: LIKE_OPERATORS[item.operator](String(item.value)) }];
   }
   if (item.operator in PLAIN_OPERATORS) {
-    return { name, comparator: PLAIN_OPERATORS[item.operator], value: toStoredValue(item, column) };
+    return [{ name, comparator: PLAIN_OPERATORS[item.operator], value: String(item.value) }];
   }
-  return undefined;
+  return [];
 }
 
 // Translates the grid's column filters into servlet property filters. Unknown columns,
-// unsupported operators, and still-empty conditions are skipped.
+// unsupported operators, and still-empty conditions are skipped; a condition may expand to more
+// than one property filter (e.g. "is <day>" becomes the day's two boundary comparisons).
 export function toPropertyFilters(model: GridFilterModel, columns: EntityGridColumn[]): PropertyFilter[] {
   return (model.items ?? [])
-    .map(item => toPropertyFilter(item, columns.find(column => column.field === item.field)))
-    .filter((filter): filter is PropertyFilter => filter != undefined);
+    .flatMap(item => toFilterTriples(item, columns.find(column => column.field === item.field)));
 }
 
 function stockOperators(type: EntityGridColumn["type"]) {
   switch (type) {
     case "number": return getGridNumericOperators();
-    case "date": return getGridDateOperators();
-    case "dateTime": return getGridDateOperators(true);
+    // Both date types filter with day pickers: conditions are expanded to day boundaries, so a
+    // time of day in the filter value would be meaningless (cells still display date + time)
+    case "date":
+    case "dateTime": return getGridDateOperators();
     case "singleSelect": return getGridSingleSelectOperators();
     default: return getGridStringOperators();
   }
