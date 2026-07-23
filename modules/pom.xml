@@ -41,5 +41,6 @@
     <module>workflows</module>
     <module>healthcheck</module>
     <module>status</module>
+    <module>metrics</module>
   </modules>
 </project>
