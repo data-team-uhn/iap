@@ -41,6 +41,7 @@
     <module>homepage</module>
     <module>login</module>
     <module>workflows</module>
+    <module>conditions</module>
     <module>schemas</module>
     <module>submissions</module>
     <module>healthcheck</module>
