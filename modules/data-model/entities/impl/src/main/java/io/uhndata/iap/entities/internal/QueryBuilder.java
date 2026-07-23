@@ -18,6 +18,7 @@
 package io.uhndata.iap.entities.internal;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
@@ -169,6 +170,10 @@ final class QueryBuilder
             // `x <> y` is evaluated on each entry of a multi-valued property and never matches an empty one;
             // `not x = y` behaves intuitively for both single and multi-valued properties
             query.append(" and not ").append(property).append(" = '").append(escape(filter.getValue())).append('\'');
+        } else if ("ILIKE".equals(filter.getComparator())) {
+            // Case-insensitive LIKE, which JCR-SQL2 doesn't have natively: lowercase both sides
+            query.append(" and LOWER(").append(property).append(") LIKE '")
+                .append(escape(filter.getValue()).toLowerCase(Locale.ROOT)).append('\'');
         } else {
             query.append(" and ").append(property).append(' ').append(filter.getComparator()).append(" '")
                 .append(escape(filter.getValue())).append('\'');

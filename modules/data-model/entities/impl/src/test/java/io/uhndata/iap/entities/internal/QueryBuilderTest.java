@@ -61,6 +61,16 @@ public class QueryBuilderTest
     }
 
     @Test
+    public void caseInsensitiveLikeLowercasesBothSides()
+    {
+        final String query = new QueryBuilder(SUBMISSION, SCOPE)
+            .withFilters(List.of(new Filter("title", "ILIKE", "%CARdiac's%")))
+            .build();
+        Assertions.assertEquals(BASE_QUERY + " and LOWER(n.[title]) LIKE '%cardiac\\'s%' order by n.[jcr:created] ASC",
+            query);
+    }
+
+    @Test
     public void notEqualsIsConvertedToNegatedEquals()
     {
         final String query = new QueryBuilder(SUBMISSION, SCOPE)
