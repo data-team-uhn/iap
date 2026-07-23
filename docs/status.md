@@ -37,3 +37,6 @@ Built-in reporters:
   [health checks](healthcheck.md) and reports a `SUCCESS` when everything is OK, a `WARNING`
   for warnings, or an `ERROR` for anything worse; the failed checks are named only in
   privileged reports.
+- **Metrics** (`iap-metrics`, tags `metrics`, `activity`) — the current values of all the
+  [metrics](metrics.md), grouped by category, as an `INFO` report; admin-only metrics are left
+  out of unprivileged reports.

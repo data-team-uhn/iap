@@ -41,6 +41,7 @@
     <module>homepage</module>
     <module>java-utils</module>
     <module>login</module>
+    <module>metrics</module>
     <module>schemas</module>
     <module>serialization</module>
     <module>startup-customization</module>
