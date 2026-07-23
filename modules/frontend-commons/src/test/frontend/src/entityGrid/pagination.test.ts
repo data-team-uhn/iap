@@ -81,6 +81,36 @@ describe("fetchEntityPage", () => {
     expect(page).toEqual(EMPTY_PAGE);
   });
 
+  it("sends group parameters for every filter once any filter is grouped", async () => {
+    const fetchMock = vi.fn<(url: RequestInfo | URL) => Promise<Response>>(() => Promise.resolve(
+      { ok: true, json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchEntityPage({
+      homepage: "/Submissions",
+      filters: [
+        { name: "jcr:createdBy", value: "@me" },
+        { name: "status", value: "submitted", group: "st" },
+        { name: "status", value: "in-review", group: "st" },
+      ],
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
+    // The server requires the group parameter, when present, to align with every filter name
+    expect(url.searchParams.getAll("fieldGroup")).toEqual(["", "st", "st"]);
+  });
+
+  it("omits group parameters when no filter is grouped", async () => {
+    const fetchMock = vi.fn<(url: RequestInfo | URL) => Promise<Response>>(() => Promise.resolve(
+      { ok: true, json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchEntityPage({ homepage: "/Submissions", filters: [{ name: "status", value: "draft" }] });
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
+    expect(url.searchParams.getAll("fieldGroup")).toEqual([]);
+  });
+
   it("reports server errors", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: RequestInfo | URL) => Promise<Response>>(
       () => Promise.resolve({ ok: false, status: 400 } as unknown as Response)));

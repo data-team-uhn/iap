@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
@@ -29,6 +29,7 @@ registerEntityType(TEST_TYPE, {
   columns: [
     { field: "title", headerName: "Title", flex: 1 },
     { field: "status", headerName: "Status" },
+    { field: "jcr:lastModified", headerName: "Modified", type: "dateTime" },
   ],
   defaultSort: { field: "title", sort: "desc" },
 });
@@ -159,6 +160,33 @@ describe("EntityDataGrid", () => {
     });
     // An active column filter also counts as "searching" for the empty-state message
     expect(await screen.findByText("No results found")).toBeInTheDocument();
+  });
+
+  it("expands a day picked in the filter panel into boundary conditions", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockPage([]);
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />);
+    await screen.findByText("Nothing to show");
+
+    // Open the filter panel and switch the condition to the date column ("is" is its default
+    // operator); the grid's date input turns the picked day into a Date object
+    await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
+    await user.click(await screen.findByRole("combobox", { name: "Columns" }));
+    await user.click(await screen.findByRole("option", { name: "Modified" }));
+    // Native date inputs are set programmatically; typing into them is unreliable in jsdom
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "2026-07-25" } });
+
+    await waitFor(() => {
+      const lastUrl = new URL(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0]), "http://localhost");
+      expect(lastUrl.searchParams.getAll("fieldName")).toEqual(["jcr:lastModified", "jcr:lastModified"]);
+      expect(lastUrl.searchParams.getAll("fieldComparator")).toEqual([">=", "<"]);
+      // The picked day's boundaries, in the user's own timezone
+      expect(lastUrl.searchParams.getAll("fieldValue")).toEqual([
+        new Date("2026-07-25T00:00:00").toISOString(),
+        new Date("2026-07-26T00:00:00").toISOString(),
+      ]);
+    });
   });
 
   it("restores the column selection remembered for the entity type", async () => {
