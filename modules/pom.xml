@@ -40,5 +40,6 @@
     <module>homepage</module>
     <module>workflows</module>
     <module>healthcheck</module>
+    <module>status</module>
   </modules>
 </project>
