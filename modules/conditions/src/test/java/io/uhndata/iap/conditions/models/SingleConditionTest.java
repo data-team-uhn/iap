@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.models;
+package io.uhndata.iap.conditions.models;
 
 import java.util.Map;
 
@@ -54,7 +54,7 @@ class SingleConditionTest
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond",
+        final Resource resource = this.context.create().resource("/Entities/entity/part/cond",
             "sling:resourceType", SingleCondition.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(SingleCondition.class));
     }
@@ -62,24 +62,22 @@ class SingleConditionTest
     @Test
     void exposesConditionProperties()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond", Map.of(
+        final Resource resource = this.context.create().resource("/Entities/entity/part/cond", Map.of(
             "sling:resourceType", SingleCondition.RESOURCE_TYPE,
-            "comparator", "equals",
-            "dataType", "boolean"));
+            "comparator", "equals"));
         final SingleCondition condition = resource.adaptTo(SingleCondition.class);
 
         assertEquals("equals", condition.getComparator());
-        assertEquals("boolean", condition.getDataType());
     }
 
     @Test
     void exposesOperands()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond",
+        final Resource resource = this.context.create().resource("/Entities/entity/part/cond",
             "sling:resourceType", SingleCondition.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/req/cond/operandA",
+        this.context.create().resource("/Entities/entity/part/cond/operandA",
             "sling:resourceType", ConditionOperand.RESOURCE_TYPE, "value", new String[]{ "a" });
-        this.context.create().resource("/Schemas/schema/1.0/req/cond/operandB",
+        this.context.create().resource("/Entities/entity/part/cond/operandB",
             "sling:resourceType", ConditionOperand.RESOURCE_TYPE, "value", new String[]{ "b" });
         final SingleCondition condition = resource.adaptTo(SingleCondition.class);
 
@@ -92,9 +90,9 @@ class SingleConditionTest
     @Test
     void toleratesMissingOperandB()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond",
+        final Resource resource = this.context.create().resource("/Entities/entity/part/cond",
             "sling:resourceType", SingleCondition.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/req/cond/operandA",
+        this.context.create().resource("/Entities/entity/part/cond/operandA",
             "sling:resourceType", ConditionOperand.RESOURCE_TYPE);
         final SingleCondition condition = resource.adaptTo(SingleCondition.class);
 

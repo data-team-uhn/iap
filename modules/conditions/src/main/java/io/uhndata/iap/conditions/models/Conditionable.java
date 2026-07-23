@@ -15,11 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.models;
+package io.uhndata.iap.conditions.models;
 
 /**
- * Implemented by every model that can be made conditionally enabled, independently of its own supertype chain, such
- * as {@link FormItem} and {@link Requirement}.
+ * Implemented by every model whose node type mixes in {@code cond:Conditionable}, i.e. that can be made
+ * conditionally enabled independently of its own supertype chain.
  *
  * @version $Id$
  * @since 0.1.0

@@ -21,17 +21,33 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-submissions</artifactId>
+    <artifactId>iap-modules</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-submissions-api</artifactId>
+  <artifactId>iap-conditions</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Submissions - Definitions, APIs and SPIs</name>
-  <description>Node types and Sling Models for submissions.</description>
+  <name>IAP - Conditions</name>
+  <description>Reusable conditions that control whether a piece of content applies, and the engine evaluating them.</description>
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.rat</groupId>
+        <artifactId>apache-rat-plugin</artifactId>
+        <configuration>
+          <inputExcludes combine.children="append">
+            <!-- One-line Mockito configuration file, cannot hold a license header -->
+            <exclude>src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker</exclude>
+          </inputExcludes>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.sling</groupId>
+        <artifactId>slingfeature-maven-plugin</artifactId>
+      </plugin>
+
+      <!-- This is an OSGi bundle -->
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
@@ -39,10 +55,10 @@
         <configuration>
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
-            <Sling-Nodetypes>SLING-INF/nodetypes/submissions.cnd</Sling-Nodetypes>
-            <Sling-Model-Packages>io.uhndata.iap.submissions.models</Sling-Model-Packages>
+            <Sling-Nodetypes>SLING-INF/nodetypes/conditions.cnd</Sling-Nodetypes>
+            <Sling-Model-Packages>io.uhndata.iap.conditions.models</Sling-Model-Packages>
             <Sling-Initial-Content>
-              SLING-INF/content/libs/sub/;path:=/libs/sub/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/cond/;path:=/libs/cond/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -51,11 +67,6 @@
   </build>
 
   <dependencies>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-conditions</artifactId>
-      <version>${project.version}</version>
-    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-model-content-api</artifactId>
@@ -68,8 +79,12 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-schemas-api</artifactId>
+      <artifactId>iap-java-utils</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>javax.jcr</groupId>
+      <artifactId>jcr</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
@@ -79,6 +94,14 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.models.api</artifactId>
       <version>2.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
     </dependency>
 
     <dependency>
@@ -90,21 +113,16 @@
       <artifactId>junit-jupiter-engine</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
     <dependency>
       <groupId>javax.annotation</groupId>
       <artifactId>javax.annotation-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.mockito</groupId>
-      <artifactId>mockito-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>javax.jcr</groupId>
-      <artifactId>jcr</artifactId>
-      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>

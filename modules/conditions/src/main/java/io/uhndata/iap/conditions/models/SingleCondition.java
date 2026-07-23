@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.models;
+package io.uhndata.iap.conditions.models;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
@@ -23,8 +23,8 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 /**
- * A Sling Model wrapping a {@code sch:SingleCondition} node: a single comparison that can be imposed on e.g. the
- * display of a {@link Section} or the requiredness of a {@link Requirement}.
+ * A Sling Model wrapping a {@code cond:SingleCondition} node: a single comparison between two operands, imposed on
+ * the node carrying it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -33,33 +33,20 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class SingleCondition extends Condition
 {
-    /** The {@code sling:resourceType} of a {@code sch:SingleCondition} node. */
-    public static final String RESOURCE_TYPE = "sch/SingleCondition";
+    /** The {@code sling:resourceType} of a {@code cond:SingleCondition} node. */
+    public static final String RESOURCE_TYPE = "cond/SingleCondition";
 
     @ValueMapValue
     private String comparator;
 
-    @ValueMapValue
-    private String dataType;
-
     /**
      * The comparator applied between {@link #getOperandA()} and {@link #getOperandB()}.
      *
-     * @return a comparator name
+     * @return a comparator name, e.g. {@code equals}
      */
     public String getComparator()
     {
         return this.comparator;
-    }
-
-    /**
-     * How the operands should be treated when performing the comparison.
-     *
-     * @return a data type name, e.g. {@code text}
-     */
-    public String getDataType()
-    {
-        return this.dataType;
     }
 
     /**
@@ -73,7 +60,7 @@ public class SingleCondition extends Condition
     }
 
     /**
-     * The second, optional operand of this condition, needed unless the comparator is singular (e.g. "is empty").
+     * The second, optional operand of this condition, needed unless the comparator is unary (e.g. "is empty").
      *
      * @return a condition operand, or {@code null} if not set
      */

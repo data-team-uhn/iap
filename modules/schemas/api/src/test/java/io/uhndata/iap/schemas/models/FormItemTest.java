@@ -26,6 +26,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.conditions.models.Condition;
+import io.uhndata.iap.conditions.models.ConditionGroup;
+import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
@@ -67,7 +70,7 @@ class FormItemTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form/q1",
             "sling:resourceType", Question.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/form/q1/sch:condition", Map.of(
+        this.context.create().resource("/Schemas/schema/1.0/form/q1/cond:condition", Map.of(
             "sling:resourceType", SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
         final Question question = resource.adaptTo(Question.class);
 
@@ -82,7 +85,7 @@ class FormItemTest
     {
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/form/q1",
             "sling:resourceType", Question.RESOURCE_TYPE);
-        this.context.create().resource("/Schemas/schema/1.0/form/q1/sch:condition", Map.of(
+        this.context.create().resource("/Schemas/schema/1.0/form/q1/cond:condition", Map.of(
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "requireAll", true));
         final Question question = resource.adaptTo(Question.class);
 

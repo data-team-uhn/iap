@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.models;
+package io.uhndata.iap.conditions.models;
 
 import java.util.List;
 
@@ -25,9 +25,8 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
 /**
- * A Sling Model wrapping a {@code sch:ConditionGroup} node: a set of conditions that can be imposed on e.g. the
- * display of a {@link Section} or the requiredness of a {@link Requirement}, combined with AND or OR depending on
- * {@link #isRequireAll()}.
+ * A Sling Model wrapping a {@code cond:ConditionGroup} node: a set of conditions imposed together on the node
+ * carrying it, combined with AND or OR depending on {@link #isRequireAll()}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -36,8 +35,8 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class ConditionGroup extends Condition
 {
-    /** The {@code sling:resourceType} of a {@code sch:ConditionGroup} node. */
-    public static final String RESOURCE_TYPE = "sch/ConditionGroup";
+    /** The {@code sling:resourceType} of a {@code cond:ConditionGroup} node. */
+    public static final String RESOURCE_TYPE = "cond/ConditionGroup";
 
     @ValueMapValue
     private boolean requireAll;
