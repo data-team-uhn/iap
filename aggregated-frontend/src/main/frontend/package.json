@@ -41,7 +41,6 @@
     "@mui/material": "9.2.0",
     "react": "^19.2.8",
     "classnames": "2.5.1",
-    "luxon": "3.7.2",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
     "@mui/lab": "9.0.0-beta.6",
@@ -53,10 +52,6 @@
     "react-to-print": "3.3.0",
     "material-react-table": "3.2.1",
     "uuid": "14.0.1",
-    "@atlaskit/pragmatic-drag-and-drop": "2.0.1",
-    "@atlaskit/pragmatic-drag-and-drop-flourish": "3.0.2",
-    "@atlaskit/pragmatic-drag-and-drop-hitbox": "^2.0.0",
-    "@atlaskit/pragmatic-drag-and-drop-react-drop-indicator": "4.1.1",
     "history": "5.3.0",
     "remove-markdown": "0.6.4",
     "bpmn-js": "18.21.0"
