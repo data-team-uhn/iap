@@ -17,9 +17,13 @@
  */
 package io.uhndata.iap.entities.internal;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Assembles the JCR-SQL2 statement for a pagination request: nodes of one type under a scope path, optionally
@@ -156,28 +160,62 @@ final class QueryBuilder
 
     private static void appendConditions(final StringBuilder query, final String source, final List<Filter> filters)
     {
-        for (final Filter filter : filters) {
-            appendCondition(query, source, filter);
+        for (final List<Filter> group : groupFilters(filters)) {
+            if (group.size() == 1) {
+                query.append(" and ").append(condition(source, group.get(0)));
+            } else {
+                query.append(" and (")
+                    .append(group.stream().map(filter -> condition(source, filter))
+                        .collect(Collectors.joining(" or ")))
+                    .append(')');
+            }
         }
     }
 
-    private static void appendCondition(final StringBuilder query, final String source, final Filter filter)
+    /**
+     * Collects the filters into their groups: filters sharing a group id end up ORed together, while each ungrouped
+     * filter stands on its own. The order of the resulting groups follows the order in which they first appear.
+     *
+     * @param filters the filters to group
+     * @return a list of non-empty filter groups
+     */
+    private static List<List<Filter>> groupFilters(final List<Filter> filters)
+    {
+        final List<List<Filter>> groups = new ArrayList<>();
+        final Map<String, List<Filter>> namedGroups = new HashMap<>();
+        for (final Filter filter : filters) {
+            if (filter.getGroup() == null) {
+                groups.add(List.of(filter));
+            } else {
+                namedGroups.computeIfAbsent(filter.getGroup(), key -> {
+                    final List<Filter> group = new ArrayList<>();
+                    groups.add(group);
+                    return group;
+                }).add(filter);
+            }
+        }
+        return groups;
+    }
+
+    private static String condition(final String source, final Filter filter)
     {
         final String property = source + ".[" + checkName(filter.getName()) + "]";
         if (filter.isValueless()) {
-            query.append(" and ").append(property).append(' ').append(filter.getComparator());
-        } else if ("<>".equals(filter.getComparator())) {
+            return property + ' ' + filter.getComparator();
+        }
+        if ("<>".equals(filter.getComparator())) {
             // `x <> y` is evaluated on each entry of a multi-valued property and never matches an empty one;
             // `not x = y` behaves intuitively for both single and multi-valued properties
-            query.append(" and not ").append(property).append(" = '").append(escape(filter.getValue())).append('\'');
-        } else if ("ILIKE".equals(filter.getComparator())) {
-            // Case-insensitive LIKE, which JCR-SQL2 doesn't have natively: lowercase both sides
-            query.append(" and LOWER(").append(property).append(") LIKE '")
-                .append(escape(filter.getValue()).toLowerCase(Locale.ROOT)).append('\'');
-        } else {
-            query.append(" and ").append(property).append(' ').append(filter.getComparator()).append(" '")
-                .append(escape(filter.getValue())).append('\'');
+            return "not " + property + " = '" + escape(filter.getValue()) + '\'';
         }
+        if ("ILIKE".equals(filter.getComparator())) {
+            // Case-insensitive LIKE, which JCR-SQL2 doesn't have natively: lowercase both sides
+            return "LOWER(" + property + ") LIKE '" + escape(filter.getValue()).toLowerCase(Locale.ROOT) + '\'';
+        }
+        if ("NOT ILIKE".equals(filter.getComparator())) {
+            return "not LOWER(" + property + ") LIKE '" + escape(filter.getValue()).toLowerCase(Locale.ROOT) + '\'';
+        }
+        return property + ' ' + filter.getComparator() + " '" + escape(filter.getValue()) + '\'';
     }
 
     /**

@@ -71,6 +71,37 @@ public class QueryBuilderTest
     }
 
     @Test
+    public void negatedCaseInsensitiveLikeIsSupported()
+    {
+        final String query = new QueryBuilder(SUBMISSION, SCOPE)
+            .withFilters(List.of(new Filter("title", "NOT ILIKE", "%Cardiac%")))
+            .build();
+        Assertions.assertEquals(BASE_QUERY + " and not LOWER(n.[title]) LIKE '%cardiac%' order by n.[jcr:created] ASC",
+            query);
+    }
+
+    @Test
+    public void filtersSharingAGroupAreOredTogether()
+    {
+        final String query = new QueryBuilder(SUBMISSION, SCOPE)
+            .withFilters(List.of(
+                new Filter("jcr:createdBy", "=", "admin"),
+                new Filter("status", "=", "submitted", "g1"),
+                new Filter("title", "ILIKE", "%x%"),
+                new Filter("status", "=", "in-review", "g1"),
+                new Filter("status", "<>", "draft", "g2")))
+            .build();
+        Assertions.assertEquals(BASE_QUERY
+            + " and n.[jcr:createdBy] = 'admin'"
+            // The group appears at its first member's position, collecting all its members
+            + " and (n.[status] = 'submitted' or n.[status] = 'in-review')"
+            + " and LOWER(n.[title]) LIKE '%x%'"
+            // A single-member group is just a plain condition
+            + " and not n.[status] = 'draft'"
+            + " order by n.[jcr:created] ASC", query);
+    }
+
+    @Test
     public void notEqualsIsConvertedToNegatedEquals()
     {
         final String query = new QueryBuilder(SUBMISSION, SCOPE)

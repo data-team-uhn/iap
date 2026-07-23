@@ -57,5 +57,13 @@ public class FilterTest
     {
         Assertions.assertTrue(new Filter("status", "IS NULL", null).isValueless());
         Assertions.assertTrue(new Filter("status", "IS NOT NULL", null).isValueless());
+        Assertions.assertFalse(new Filter("title", "NOT ILIKE", "%x%").isValueless());
+    }
+
+    @Test
+    public void groupIsOptional()
+    {
+        Assertions.assertNull(new Filter("status", "=", "draft").getGroup());
+        Assertions.assertEquals("g1", new Filter("status", "=", "draft", "g1").getGroup());
     }
 }
