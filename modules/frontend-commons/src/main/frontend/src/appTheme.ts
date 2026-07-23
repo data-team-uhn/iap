@@ -121,6 +121,7 @@ const appTheme = createTheme({
     MuiButton: {
       defaultProps: {
         disableElevation: true,
+        variant: "outlined",
       },
       styleOverrides: {
         root: {
