@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.models;
+package io.uhndata.iap.conditions.models;
 
 import java.util.List;
 import java.util.Map;
@@ -56,7 +56,7 @@ class ConditionGroupTest
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",
+        final Resource resource = this.context.create().resource("/Entities/entity/part/group",
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(ConditionGroup.class));
     }
@@ -64,7 +64,7 @@ class ConditionGroupTest
     @Test
     void exposesRequireAll()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group", Map.of(
+        final Resource resource = this.context.create().resource("/Entities/entity/part/group", Map.of(
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE,
             "requireAll", true));
         assertTrue(resource.adaptTo(ConditionGroup.class).isRequireAll());
@@ -73,7 +73,7 @@ class ConditionGroupTest
     @Test
     void defaultsToNotRequireAll()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",
+        final Resource resource = this.context.create().resource("/Entities/entity/part/group",
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
         assertFalse(resource.adaptTo(ConditionGroup.class).isRequireAll());
     }
@@ -81,14 +81,14 @@ class ConditionGroupTest
     @Test
     void listsConditionsUsingTheSpecificModelForEach()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/group",
+        final Resource resource = this.context.create().resource("/Entities/entity/part/group",
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE);
-        // sling:resourceSuperType is mandatory/autocreated on sch:Condition in the real CND; sling-mock
+        // sling:resourceSuperType is mandatory/autocreated on cond:Condition in the real CND; sling-mock
         // doesn't know about the CND, so it must be set explicitly here.
-        this.context.create().resource("/Schemas/schema/1.0/req/group/c1", Map.of(
+        this.context.create().resource("/Entities/entity/part/group/c1", Map.of(
             "sling:resourceType", SingleCondition.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
             "comparator", "equals"));
-        this.context.create().resource("/Schemas/schema/1.0/req/group/g1", Map.of(
+        this.context.create().resource("/Entities/entity/part/group/g1", Map.of(
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "sling:resourceSuperType", Condition.RESOURCE_TYPE,
             "requireAll", true));
         final ConditionGroup group = resource.adaptTo(ConditionGroup.class);

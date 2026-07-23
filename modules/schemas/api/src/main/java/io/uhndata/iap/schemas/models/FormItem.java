@@ -17,12 +17,14 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import io.uhndata.iap.conditions.models.Condition;
+import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * The abstract base shared by everything that may appear in the body of a form: a single {@link Question}, or a
  * {@link Section} grouping more items. Corresponds to the {@code sch:FormItem} node type, which mixes in
- * {@code sch:Conditionable} (see {@link Conditionable}) so every item, of any subtype, may carry a single condition
+ * {@code cond:Conditionable} (see {@link Conditionable}) so every item, of any subtype, may carry a single condition
  * controlling whether it is shown to the submitter. Unlike {@link io.uhndata.iap.entities.models.Entity}, this
  * class is deliberately not itself a registered Sling Model (no {@code @Model} annotation): each subtype instead
  * declares {@code adapters = FormItem.class} on its own {@code @Model}, so
@@ -43,6 +45,6 @@ public abstract class FormItem extends EntityPart implements Conditionable
     @Override
     public Condition getCondition()
     {
-        return this.getChild("sch:condition", Condition.class);
+        return this.getChild("cond:condition", Condition.class);
     }
 }

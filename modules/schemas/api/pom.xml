@@ -53,6 +53,11 @@
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
+      <artifactId>iap-conditions</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-model-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>

@@ -34,10 +34,13 @@ import io.uhndata.iap.content.models.Content;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = "iap/Entity",
+@Model(adaptables = Resource.class, resourceType = Entity.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class Entity extends Content
 {
+    /** The {@code sling:resourceType} of an {@code iap:Entity} node. */
+    public static final String RESOURCE_TYPE = "iap/Entity";
+
     @ValueMapValue(name = "jcr:uuid")
     private String identifier;
 

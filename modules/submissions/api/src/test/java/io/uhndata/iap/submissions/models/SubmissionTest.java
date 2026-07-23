@@ -34,6 +34,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.conditions.models.Condition;
+import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
@@ -82,7 +86,8 @@ class SubmissionTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
             Document.class, Review.class, ReviewComment.class, SchemaVersion.class, FormRequirement.class,
-            DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class);
+            DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
+            SingleCondition.class);
         this.created = Calendar.getInstance();
         this.created.set(2026, Calendar.APRIL, 5, 16, 20, 0);
     }
@@ -401,5 +406,106 @@ class SubmissionTest
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertTrue(submission.getMissingRequirements().isEmpty());
+    }
+
+    /**
+     * Registers a {@link ConditionEvaluator} treating any present condition as unsatisfied, so tests can toggle
+     * "doesn't apply" per requirement/item simply by giving it a condition child.
+     */
+    private void registerConditionEvaluator()
+    {
+        this.context.registerService(ConditionEvaluator.class, new ConditionEvaluator()
+        {
+            @Override
+            public boolean isSatisfied(final Condition condition, final Resource context)
+            {
+                return condition == null;
+            }
+
+            @Override
+            public boolean applies(final Conditionable conditionable, final Resource context)
+            {
+                return conditionable.getCondition() == null;
+            }
+        });
+    }
+
+    private Submission createBareSubmission()
+    {
+        return this.context.create().resource("/Submissions/submission", Map.of(
+            SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID))
+            .adaptTo(Submission.class);
+    }
+
+    @Test
+    void consultsTheConditionEvaluatorWhenAvailable()
+        throws RepositoryException
+    {
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        // No conditions anywhere: everything applies, nothing is fulfilled.
+        assertEquals(3, submission.getMissingRequirements().size());
+    }
+
+    @Test
+    void skipsRequirementsWhoseConditionDoesNotHold()
+        throws RepositoryException
+    {
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/consent/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+
+        final List<Requirement> missing = submission.getMissingRequirements();
+
+        // The consent document requirement doesn't apply; the form and approval are still missing.
+        assertEquals(2, missing.size());
+        assertEquals(FormRequirement.class, missing.get(0).getClass());
+        assertEquals(ApprovalRequirement.class, missing.get(1).getClass());
+    }
+
+    @Test
+    void skipsSectionsWhoseConditionDoesNotHold()
+        throws RepositoryException
+    {
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/form/section/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+        // Only the direct question (q2) is answered; q1 sits in the non-applicable section.
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
+
+        final List<Requirement> missing = submission.getMissingRequirements();
+
+        // The form requirement is fulfilled without q1; only the document and approval are missing.
+        assertEquals(2, missing.size());
+        assertEquals(DocumentRequirement.class, missing.get(0).getClass());
+        assertEquals(ApprovalRequirement.class, missing.get(1).getClass());
+    }
+
+    @Test
+    void skipsQuestionsWhoseConditionDoesNotHold()
+        throws RepositoryException
+    {
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/form/q2/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+        // Only the nested question (q1) is answered; q2 doesn't apply.
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
+            new String[]{ "yes" }));
+
+        final List<Requirement> missing = submission.getMissingRequirements();
+
+        assertEquals(2, missing.size());
+        assertEquals(DocumentRequirement.class, missing.get(0).getClass());
+        assertEquals(ApprovalRequirement.class, missing.get(1).getClass());
     }
 }

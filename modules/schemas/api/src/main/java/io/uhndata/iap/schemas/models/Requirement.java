@@ -19,13 +19,15 @@ package io.uhndata.iap.schemas.models;
 
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 
+import io.uhndata.iap.conditions.models.Condition;
+import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * The abstract base for anything a submission must fulfill: a set of questions to answer
  * ({@link FormRequirement}), an expected document ({@link DocumentRequirement}), a required approval
  * ({@link ApprovalRequirement}), or future requirement types. Corresponds to the {@code sch:Requirement} node
- * type, which mixes in {@code sch:Conditionable} (see {@link Conditionable}) so every requirement may carry a
+ * type, which mixes in {@code cond:Conditionable} (see {@link Conditionable}) so every requirement may carry a
  * single condition controlling whether it applies to a submission. Like {@link FormItem}, this class is
  * deliberately not itself a registered Sling Model (no {@code @Model} annotation): each subtype instead declares
  * {@code adapters = Requirement.class} on its own {@code @Model}, so {@code resource.adaptTo(Requirement.class)}
@@ -69,6 +71,6 @@ public abstract class Requirement extends EntityPart implements Conditionable
     @Override
     public Condition getCondition()
     {
-        return this.getChild("sch:condition", Condition.class);
+        return this.getChild("cond:condition", Condition.class);
     }
 }
