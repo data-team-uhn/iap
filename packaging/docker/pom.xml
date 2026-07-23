@@ -27,7 +27,12 @@
   <artifactId>iap-packaging-docker</artifactId>
   <packaging>pom</packaging>
   <name>IAP docker image</name>
-  <description>The ready to use IAP distribution.</description>
+  <description>The ready to use IAP distribution. By default a small developer image is built,
+    embedding only the project artifacts; the launcher resolves third-party artifacts from a
+    volume-mounted ~/.m2 repository, or downloads them on first start. Building with
+    -Ddocker.production=true additionally embeds a complete artifact repository covering every
+    feature produced by the reactor, resulting in a fully self-contained image that needs no
+    network access.</description>
 
   <build>
     <plugins>
@@ -37,47 +42,34 @@
         <inherited>false</inherited>
         <executions>
           <execution>
+            <id>prepare-docker-context</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
             <configuration>
               <executable>bash</executable>
-              <workingDirectory>.</workingDirectory>
-              <commandlineArgs>complete_git_copy.sh</commandlineArgs>
+              <workingDirectory>${project.basedir}</workingDirectory>
+              <commandlineArgs>prepare_context.sh ${project.version}</commandlineArgs>
             </configuration>
-            <id>complete-git-copy</id>
-            <phase>install</phase>
-            <goals>
-               <goal>exec</goal>
-            </goals>
           </execution>
         </executions>
       </plugin>
       <plugin>
-        <groupId>org.apache.sling</groupId>
-        <artifactId>slingfeature-maven-plugin</artifactId>
-        <configuration>
-          <archives>
-            <archive>
-              <classifier>core_tar_far</classifier>
-              <includeClassifier>core_tar</includeClassifier>
-            </archive>
-            <archive>
-              <classifier>core_mongo_far</classifier>
-              <includeClassifier>core_mongo</includeClassifier>
-            </archive>
-          </archives>
-        </configuration>
-        <executions>
-          <execution>
-            <id>aggregate-archives</id>
-            <phase>prepare-package</phase>
-            <goals>
-              <goal>attach-featurearchives</goal>
-            </goals>
-          </execution>
-         </executions>
-      </plugin>
-      <plugin>
         <groupId>io.fabric8</groupId>
         <artifactId>docker-maven-plugin</artifactId>
+        <configuration>
+          <images>
+            <image>
+              <name>iap/iap:%l</name>
+              <build>
+                <contextDir>${project.basedir}</contextDir>
+                <dockerFile>Dockerfile</dockerFile>
+                <filter>${*}</filter>
+              </build>
+            </image>
+          </images>
+        </configuration>
         <executions>
           <execution>
             <id>build</id>
@@ -90,4 +82,43 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <!-- Fills the image's artifact repository with every artifact referenced by any feature
+        built by the reactor, making the image fully self-contained. -->
+      <id>docker-production</id>
+      <activation>
+        <property>
+          <name>docker.production</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.sling</groupId>
+            <artifactId>slingfeature-maven-plugin</artifactId>
+            <configuration>
+              <generatedFeatures>${project.build.directory}/generated-features</generatedFeatures>
+              <repositories>
+                <repository>
+                  <repositoryDir>context/artifacts</repositoryDir>
+                  <filesInclude>**/*.json</filesInclude>
+                </repository>
+              </repositories>
+            </configuration>
+            <executions>
+              <execution>
+                <id>self-contained-repository</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>repository</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
