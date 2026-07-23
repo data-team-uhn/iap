@@ -16,74 +16,31 @@
  * limitations under the License.
  */
 
-import type { CSSProperties, ElementType } from 'react';
-
-import { Box } from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
+import { Box, type SxProps } from '@mui/material';
+import { useColorScheme, type Theme } from '@mui/material/styles';
 
 type LogoProps = {
-  component?: ElementType;
-  mode?: "Light" | "Dark";
-  className?: string;
-  maxWidth?: string;
-  disableAffiliation?: boolean;
-  // Any extra props are forwarded to the rendered container component.
-  [key: string]: unknown;
+  // Which configured branding image to display: the application's own logo (default), or the
+  // logo of the affiliated institution this deployment belongs to.
+  source?: "app" | "affiliation";
+  // Sizing and placement are the caller's business.
+  sx?: SxProps<Theme>;
 };
 
-const useStyles = makeStyles()(theme => ({
-  logo : {
-    "& > img" : {
-      maxWidth: "240px",
-      width: "100%",
-    },
-    "@media (max-height: 725px)" : {
-      "& > img" : {
-        maxHeight: "70px",
-      },
-    },
-  },
-  doubleLogo : {
-    display: "flex",
-    gap: theme.spacing(4),
-    justifyContent: "space-between",
-    alignItems: "center",
-    flexWrap: "wrap-reverse",
-    maxWidth: "600px !important",
-    "& > img" : {
-      width: `calc(50% - ${theme.spacing(4)})`,
-      minWidth: "100px",
-      margin: theme.spacing(1, 0),
-    },
-  },
-}));
+// Displays a branding image configured through the page metadata (ultimately the
+// /libs/iap/conf/Media properties): the colour-scheme-appropriate variant of the application
+// logo (`logoLight`/`logoDark` metas, named by the `title` meta) or of the affiliated
+// institution's logo (`affiliationLogoLight`/`affiliationLogoDark`, named by `affiliationName`).
+// Renders nothing when the deployment doesn't configure the requested image.
+export default function Logo({ source = "app", sx }: LogoProps) {
+  const { mode, systemMode } = useColorScheme();
+  const resolvedMode = (mode === "system" ? systemMode : mode) ?? "light";
+  const variant = resolvedMode === "dark" ? "Dark" : "Light";
+  const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
 
-export default function Logo(props: LogoProps) {
-  const {
-    component = Box,
-    mode = "Light",
-    className,
-    maxWidth,
-    disableAffiliation,
-    ...rest
-  } = props;
-
-  const { classes } = useStyles();
-
-  const appName = document.querySelector<HTMLMetaElement>('meta[name="title"]')?.content;
-  const logo = document.querySelector<HTMLMetaElement>(`meta[name="logo${mode}"]`)?.content;
-  const affiliationLogo = document.querySelector<HTMLMetaElement>(`meta[name="affiliationLogo${mode}"]`)?.content;
-  const withAffiliation = !disableAffiliation && !!affiliationLogo;
-
-  const Component = component;
-  const style: CSSProperties = typeof(maxWidth) != "undefined" ? { maxWidth: maxWidth } : {};
-  const classNames = withAffiliation ? [classes.doubleLogo] : [classes.logo];
-  if (className) classNames.push(className);
-
-  return (
-    <Component className={classNames.join(' ')} {...rest} >
-      <img src={logo} alt={appName} style={style} />
-      {withAffiliation && <img src={affiliationLogo} alt="" style={style} />}
-    </Component>
-  );
+  const src = meta(`${source === "app" ? "logo" : "affiliationLogo"}${variant}`);
+  if (!src) {
+    return null;
+  }
+  return <Box component="img" src={src} alt={meta(source === "app" ? "title" : "affiliationName") ?? ""} sx={sx} />;
 }

@@ -63,7 +63,7 @@ COPY --from=0 /root/.m2 /root/.m2
 COPY --from=0 /metadata /metadata
 
 # Copy in the generic IAP logo
-COPY --from=0 /iap/modules/homepage/src/main/media/SLING-INF/content/libs/iap/resources/media/default/iap-logo.svg /metadata/logo.svg
+COPY --from=0 /iap/modules/homepage/src/main/media/SLING-INF/content/libs/iap/resources/media/default/logo-light.svg /metadata/logo.svg
 
 # Create the ~/.iap-generic-m2/repository empty directory
 RUN mkdir -p /root/.iap-generic-m2/repository

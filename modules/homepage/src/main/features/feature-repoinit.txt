@@ -26,9 +26,15 @@ set ACL for everyone
     deny    jcr:all     on /Extensions/Sidebar/AdminEntries
 end
 
-# The placeholder logo badge carries its own background, so it serves both colour schemes;
-# real branding will likely provide a distinct file per scheme
+# A distinct logo variant per colour scheme. The affiliated institution's branding (displayed
+# e.g. in the page footer) defaults to UHN; deployments at other institutions override the
+# affiliationLogoLight, affiliationLogoDark, and affiliationName properties. The UHN defaults
+# (and their media files) are platform seeds only, to move into the iap4uhn project feature
+# once per-project deployment features exist.
 set properties on /libs/iap/conf/Media
-  default logoDark to "/libs/iap/resources/media/default/iap-logo.svg"
-  default logoLight to "/libs/iap/resources/media/default/iap-logo.svg"
+  default logoDark to "/libs/iap/resources/media/default/logo-dark.svg"
+  default logoLight to "/libs/iap/resources/media/default/logo-light.svg"
+  default affiliationLogoDark to "/libs/iap/resources/media/default/uhn-logo-dark.png"
+  default affiliationLogoLight to "/libs/iap/resources/media/default/uhn-logo-light.png"
+  default affiliationName to "University Health Network"
 end

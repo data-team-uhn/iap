@@ -31,7 +31,7 @@ type DemoBlockProps = {
 function DemoBlock({ extension }: DemoBlockProps) {
   const fillerLines = Number(extension["iap:data"] ?? 0) || 0;
   return (
-    <Box sx={{ p: 1, m: 0.5, border: "1px dashed", borderColor: "divider", bgcolor: "action.hover" }}>
+    <Box sx={{ p: 1, m: 0.5, border: "1px dashed", borderColor: "divider", bgcolor: "background.muted" }}>
       <Typography variant="subtitle2">{String(extension["iap:extensionName"] ?? "Demo block")}</Typography>
       {
         Array.from({ length: fillerLines }, (_, index) => (

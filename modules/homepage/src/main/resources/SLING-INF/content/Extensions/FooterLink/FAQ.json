@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/footer/link",
+  "iap:extensionName": "FAQ",
+  "iap:targetURL": "/faq",
+  "iap:defaultOrder": 30
+}
