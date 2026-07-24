@@ -49,6 +49,7 @@ IAP will be available at <http://localhost:8080> once it has started. Press `Ctr
 | Option | Description |
 | --- | --- |
 | `-p`, `--port <PORT>` | Port to bind to (default `8080`). |
+| `--data <DIR>` | Directory for the runtime state — repository, cache, logs (default `.iap-data`). Each concurrently running instance needs its own data directory and port; the repository takes an exclusive lock on its data directory, so a second instance pointed at the same one will hang waiting for the lock. |
 | `--mongo` | Use a MongoDB document store for the repository instead of the default file-based (TAR/segment) store. Requires a running MongoDB instance. |
 | `--debug` | Enable Java remote debugging (JDWP) on port `5005`. Startup **pauses until a debugger attaches** — connect with `jdb -attach 5005` (or your IDE). |
 | `--test` | Additionally load test content (the `iap-test-data` feature). |
@@ -68,6 +69,9 @@ Notes:
 ./start.sh --mongo         # use a MongoDB-backed repository
 ./start.sh --debug         # wait for a debugger to attach on port 5005
 ./start.sh -P myproject    # launch the "iap4myproject" project
+
+# A second instance next to a running one: separate port AND data directory
+./start.sh --test -p 8089 --data .iap-data-test
 ```
 
 (On Windows, replace `./start.sh` with `start.bat` — the options are identical.)

@@ -69,6 +69,10 @@ Starts IAP via the Apache Sling feature launcher.
 
 Options:
   -p, --port <port>              Port for IAP to bind to (default: 8080).
+      --data <dir>               Directory for the runtime state (repository,
+                                 cache, logs). Default: .iap-data. Each
+                                 concurrently running instance needs its own
+                                 data directory (and its own port).
       --permissions <value>      Permissions scheme to apply when resolving
                                  project features (used together with
                                  `--project`).
@@ -172,9 +176,9 @@ def is_listening(port, pid):
     return False
 
 
-def get_error_log_last_modified():
+def get_error_log_last_modified(data_dir):
     try:
-        return os.path.getmtime(str(ROOT / '.iap-data' / 'logs' / 'error.log'))
+        return os.path.getmtime(str(data_dir / 'logs' / 'error.log'))
     except OSError:
         return 0.0
 
@@ -188,6 +192,7 @@ def require_value(argv, i, name):
 def parse_args(argv):
     options = {
         'bind_port': 8080,
+        'data': '.iap-data',
         'permissions': '',
         'projects': [],
         'storage': 'tar',
@@ -208,6 +213,9 @@ def parse_args(argv):
                 options['bind_port'] = int(value)
             except ValueError:
                 sys.exit('Invalid port: %s' % value)
+        elif arg == '--data':
+            i += 1
+            options['data'] = require_value(argv, i, arg)
         elif arg == '--permissions':
             i += 1
             options['permissions'] = require_value(argv, i, arg)
@@ -294,14 +302,14 @@ def stop(process, interrupted=False):
     process.wait()
 
 
-def monitor_startup(process, bind_port, use_psutil, debug, error_log_time_origin):
+def monitor_startup(process, bind_port, use_psutil, debug, data_dir, error_log_time_origin):
     if debug:
         banner(TERMINAL_YELLOW,
                'Please connect JDB to localhost:5005 to continue with startup.',
                'jdb -attach 5005')
-        # As soon as we see IAP writing to .iap-data/logs/error.log, we
+        # As soon as we see IAP writing to <data_dir>/logs/error.log, we
         # can conclude that JDB has attached to the Java process.
-        while get_error_log_last_modified() <= error_log_time_origin:
+        while get_error_log_last_modified(data_dir) <= error_log_time_origin:
             time.sleep(5)
             print('Waiting for JDB attachment...')
 
@@ -341,6 +349,10 @@ def main(argv):
 
     options = parse_args(argv)
     bind_port = options['bind_port']
+    # The runtime state directory; a relative path is resolved against the repository root
+    data_dir = Path(options['data'])
+    if not data_dir.is_absolute():
+        data_dir = ROOT / data_dir
 
     platform_version = get_platform_version()
     print('PLATFORM_VERSION', platform_version)
@@ -378,19 +390,19 @@ def main(argv):
         'https://repo.maven.apache.org/maven2',
     ])
 
-    error_log_time_origin = get_error_log_last_modified()
+    error_log_time_origin = get_error_log_last_modified(data_dir)
 
     command = [str(launcher),
                '-u', repository_urls,
-               '-p', '.iap-data',
-               '-c', '.iap-data/cache',
+               '-p', str(data_dir),
+               '-c', str(data_dir / 'cache'),
                '-f', 'mvn:io.uhndata.iap/iap-packaging-slingfeature/%s/slingosgifeature/core_%s'
                % (platform_version, options['storage'])]
     command += launcher_args
     process = subprocess.Popen(command, env=env, cwd=str(ROOT))
 
     try:
-        monitor_startup(process, bind_port, use_psutil, options['debug'], error_log_time_origin)
+        monitor_startup(process, bind_port, use_psutil, options['debug'], data_dir, error_log_time_origin)
         # Stop this script if the IAP process terminates
         process.wait()
     except KeyboardInterrupt:
