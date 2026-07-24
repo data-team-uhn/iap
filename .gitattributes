@@ -1,0 +1,3 @@
+# Everything uses LF line endings, except batch files, which cmd.exe requires to be CRLF
+* text=auto eol=lf
+*.bat text eol=crlf
