@@ -1,0 +1,37 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Demo Study Authorization",
+  "active": true,
+  "1.0": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "description": "Initial demo version",
+    "active": true,
+    "BasicInformation": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Basic information",
+      "description": "General information about the study",
+      "StudyTitle": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the full title of the study?",
+        "required": true
+      },
+      "StudySummary": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Summarize the study protocol",
+        "description": "A short lay summary of the goals and methods of the study"
+      }
+    },
+    "Protocol": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Study protocol",
+      "description": "The full study protocol document",
+      "acceptedFileTypes": ["application/pdf"]
+    },
+    "REBApproval": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "REB approval",
+      "approverGroup": "reviewers"
+    }
+  }
+}

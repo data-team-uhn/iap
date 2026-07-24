@@ -43,6 +43,7 @@
             <Sling-Model-Packages>io.uhndata.iap.submissions.models</Sling-Model-Packages>
             <Sling-Initial-Content>
               SLING-INF/content/libs/sub/;path:=/libs/sub/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

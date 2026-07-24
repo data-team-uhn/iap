@@ -41,6 +41,16 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Component tests driving real user interactions through debounced inputs can legitimately
+    // take a while on slow CI runners
+    testTimeout: 15_000,
+    server: {
+      deps: {
+        // MUI X packages import their own stylesheets from their ESM builds; inlining them lets
+        // Vite transform those imports (Node itself cannot load .css modules)
+        inline: [/@mui\/x-data-grid/],
+      },
+    },
     coverage: {
       provider: "v8",
       include: ["src/**/*.{js,jsx,ts,tsx}"],
