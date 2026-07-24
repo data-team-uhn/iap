@@ -266,10 +266,19 @@ def is_ready(url):
         return False
 
 
-def stop(process):
+def stop(process, interrupted=False):
+    """Stop the launcher; `interrupted` means it already received the console Ctrl+C."""
     if process.poll() is not None:
         return
     if IS_WINDOWS:
+        if interrupted:
+            # Ctrl+C was delivered to the whole console process group, Java included, so
+            # let it shut the repository down cleanly before resorting to a force kill.
+            try:
+                process.wait(timeout=30)
+                return
+            except subprocess.TimeoutExpired:
+                pass
         # launcher.bat runs Java as a child process, so take down the whole process tree
         subprocess.run(['taskkill', '/T', '/F', '/PID', str(process.pid)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
@@ -379,7 +388,7 @@ def main(argv):
         process.wait()
     except KeyboardInterrupt:
         print('Shutting down IAP')
-        stop(process)
+        stop(process, interrupted=True)
         return 0
     if process.returncode != 0:
         handle_iap_java_fail(bind_port)
