@@ -34,7 +34,7 @@
     "name": "Intermediate Catch Event",
     "priority": 0,
     "xmlElement": "bpmn:intermediateCatchEvent",
-    "jcrNodeType": "wf:IntermediateCatchEvent",
+    "jcrNodeType": "wf:IntermediateCatchingEvent",
     "jcrProperties": "{catching: true}"
   },
   "MessageIntermediateCatchEvent": {
@@ -43,24 +43,24 @@
     "priority": 10,
     "xmlElement": "bpmn:intermediateCatchEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
-    "jcrNodeType": "wf:IntermediateCatchEvent",
+    "jcrNodeType": "wf:IntermediateCatchingEvent",
     "jcrProperties": "{catching: true}"
   },
   "IntermediateThrowEvent": {
     "jcr:primaryType": "wf:ThrowingEventType",
     "name": "Intermediate Throw Event",
     "priority": 0,
-    "xmlElement": "bpmn:IntermediateThrowEvent",
-    "jcrNodeType": "wf:IntermediateEvent",
+    "xmlElement": "bpmn:intermediateThrowEvent",
+    "jcrNodeType": "wf:IntermediateThrowingEvent",
     "jcrProperties": "{catching: false}"
   },
   "MessageIntermediateThrowEvent": {
     "jcr:primaryType": "wf:ThrowingEventType",
     "name": "Message Intermediate Throw Event",
     "priority": 10,
-    "xmlElement": "bpmn:IntermediateThrowEvent",
+    "xmlElement": "bpmn:intermediateThrowEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
-    "jcrNodeType": "wf:IntermediateEvent",
+    "jcrNodeType": "wf:IntermediateThrowingEvent",
     "jcrProperties": "{catching: false}"
   },
   "UserTask": {

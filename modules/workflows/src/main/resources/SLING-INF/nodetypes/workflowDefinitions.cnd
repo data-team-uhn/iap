@@ -88,6 +88,9 @@
 [wf:FlowNode] > iap:EntityPart
   abstract
 
+  // Hardcode the supertype to the parent wf/FlowNode type.
+  - sling:resourceSuperType (STRING) = "wf/FlowNode" mandatory autocreated protected
+
   // A reference to the wf:FlowNodeType defining this node's type
   - flowNodeType (REFERENCE) mandatory
 
@@ -106,6 +109,9 @@
 [wf:Event] > wf:FlowNode
   abstract
 
+  // Hardcode the supertype to the parent wf/Event type.
+  - sling:resourceSuperType (STRING) = "wf/Event" mandatory autocreated protected
+
   // true = catching event, false = throwing event
   - catching (BOOLEAN) = true
 
@@ -114,12 +120,15 @@
 [wf:StartEvent] > wf:Event
   query
 
+  - sling:resourceType (STRING) = "wf/StartEvent" mandatory autocreated protected
+
   // Start events are always catching
   - catching (BOOLEAN) = true
 
 //-----------------------------------------------------------------------------
 // Exit point of a workflow process.
 [wf:EndEvent] > wf:Event
+  - sling:resourceType (STRING) = "wf/EndEvent" mandatory autocreated protected
 
   // End events are always throwing
   - catching (BOOLEAN) = false
@@ -127,15 +136,20 @@
 //-----------------------------------------------------------------------------
 // A catch or throw event occurring mid-process.
 [wf:IntermediateEvent] > wf:Event
+  - sling:resourceType (STRING) = "wf/IntermediateEvent" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
-// Entry point of a workflow process.
+// A catching event occurring mid-process.
 [wf:IntermediateCatchingEvent] > wf:IntermediateEvent
+  - sling:resourceType (STRING) = "wf/IntermediateCatchingEvent" mandatory autocreated protected
+
   - catching (BOOLEAN) = true
 
 //-----------------------------------------------------------------------------
-// Entry point of a workflow process.
+// A throwing event occurring mid-process.
 [wf:IntermediateThrowingEvent] > wf:IntermediateEvent
+  - sling:resourceType (STRING) = "wf/IntermediateThrowingEvent" mandatory autocreated protected
+
   - catching (BOOLEAN) = false
 
 
@@ -143,6 +157,8 @@
 // Abstract base for all BPMN work units.
 [wf:Activity] > wf:FlowNode
   // abstract
+
+  - sling:resourceType (STRING) = "wf/Activity" mandatory autocreated protected
 
   // Any boundary events that can occur while this activity is active
   + * (wf:IntermediateCatchingEvent) = wf:IntermediateCatchingEvent
@@ -153,26 +169,31 @@
 [wf:Gateway] > wf:FlowNode
   abstract
 
+  // Hardcode the supertype to the parent wf/Gateway type.
+  - sling:resourceSuperType (STRING) = "wf/Gateway" mandatory autocreated protected
+
 //-----------------------------------------------------------------------------
 // XOR gateway — exactly one outgoing path is taken.
 [wf:ExclusiveGateway] > wf:Gateway
-  // No additional properties
+  - sling:resourceType (STRING) = "wf/ExclusiveGateway" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
 // AND gateway — all outgoing paths are taken simultaneously.
 [wf:ParallelGateway] > wf:Gateway
-  // No additional properties
+  - sling:resourceType (STRING) = "wf/ParallelGateway" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
 // OR gateway — one or more outgoing paths are taken based on conditions.
 [wf:InclusiveGateway] > wf:Gateway
-  // No additional properties
+  - sling:resourceType (STRING) = "wf/InclusiveGateway" mandatory autocreated protected
 
 
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
 // Stored as a child node of the source flow node.
 [wf:SequenceFlow] > iap:EntityPart
+  - sling:resourceType (STRING) = "wf/SequenceFlow" mandatory autocreated protected
+
   // Stable BPMN element identifier
   - elementId (STRING) mandatory
 
