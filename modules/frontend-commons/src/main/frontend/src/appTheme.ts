@@ -20,7 +20,11 @@ import { createTheme, lighten, type Breakpoint } from '@mui/material/styles';
 
 // Fallbacks matching the QuorumPath brand; deployments configure their own colours through
 // /libs/iap/conf/ThemeColor, which reaches the page as these meta tags
+// An explicitly empty content attribute should fall back to the default too, not just a missing
+// meta tag, so `||` (not `??`) is intentional here.
+// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 const primaryColor = document.querySelector<HTMLMetaElement>('meta[name="primaryColor"]')?.content || "#192958";
+// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
 const secondaryColor = document.querySelector<HTMLMetaElement>('meta[name="secondaryColor"]')?.content || "#C0233C";
 
 // The dimensions of the page shell (see PageLayout in the homepage module), read from the theme

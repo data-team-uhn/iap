@@ -61,7 +61,7 @@ function Dashboard() {
   useEffect(() => {
     getDashboardWidgets()
       .then(extensions => setWidgets(extensions))
-      .catch(err => console.error("Something went wrong loading the dashboard", err))
+      .catch((err: unknown) => console.error("Something went wrong loading the dashboard", err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -91,7 +91,7 @@ function Dashboard() {
         {
           widgets.map((widget, index) => {
             const WidgetContent = widget["iap:extensionRender"] as ComponentType<WidgetProps>;
-            const span = WIDTH_SPAN[String(widget["iap:widgetWidth"] ?? "normal")] ?? 1;
+            const span = WIDTH_SPAN[(widget["iap:widgetWidth"] as string | undefined) ?? "normal"] ?? 1;
             return (
               <Box
                 key={"widget-" + index}
@@ -104,8 +104,8 @@ function Dashboard() {
                 }}
               >
                 <Widget
-                  title={String(widget["iap:extensionName"] ?? "")}
-                  subtitle={widget["iap:subtitle"] ? String(widget["iap:subtitle"]) : undefined}
+                  title={(widget["iap:extensionName"] as string | undefined) ?? ""}
+                  subtitle={widget["iap:subtitle"] ? (widget["iap:subtitle"] as string) : undefined}
                   emphasis={Boolean(widget["iap:widgetEmphasis"])}
                   borderless={Boolean(widget["iap:widgetBorderless"])}
                   hideHeader={Boolean(widget["iap:widgetHideHeader"])}

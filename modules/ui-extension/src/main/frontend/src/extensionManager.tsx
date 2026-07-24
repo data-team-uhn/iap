@@ -29,7 +29,7 @@ type Extension = Record<string, unknown>;
 // @return a Promise that will resolve to the extension point JSON
 const getExtensions = async function(extensionPoint: string): Promise<Extension[]> {
   return fetch(extensionPoint.startsWith("/") ? extensionPoint : `/apps/iap/ExtensionPoints/${extensionPoint}`)
-    .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load extensions from ${extensionPoint}: ${response.status}`)));
+    .then(response => response.ok ? response.json() as Promise<Extension[]> : Promise.reject(new Error(`Failed to load extensions from ${extensionPoint}: ${response.status}`)));
 }
 
 // Loads all the extensions for the given extension point.
@@ -90,17 +90,22 @@ const loadRemoteComponents = async function(extension: Extension): Promise<Exten
   await Promise.all(
     Object.entries(extension)
       .filter(([, value]) => typeof value === 'string' && value.startsWith("asset:"))
-      .map(async ([key, value]) => {
+      .map(async ([key, rawValue]) => {
+        // Guaranteed to be a string by the .filter() predicate above (typeof value === 'string'),
+        // which TS cannot see across the separate .map() callback.
+        const value = rawValue as string;
         const resolvedKey = key.replace(/url$/i, '');
-        if (getURLParameters(value as string).has('lazy')) {
-          const url = value as string;
-          extension[resolvedKey] = (props: Record<string, unknown>) => <LazyAsset url={url} {...props} />;
+        if (getURLParameters(value).has('lazy')) {
+          extension[resolvedKey] = (props: Record<string, unknown>) => <LazyAsset url={value} {...props} />;
           return;
         }
 
-        const asset = await loadAsset(value as string);
+        const asset = await loadAsset(value);
         if (asset == null) {
-          throw new Error(`Asset [${value}] for extension [${extension['jcr:path'] || extension['iap:extensionName'] || 'unknown'}] resolved to nothing`);
+          const label = (extension['jcr:path'] as string | undefined)
+            ?? (extension['iap:extensionName'] as string | undefined)
+            ?? 'unknown';
+          throw new Error(`Asset [${value}] for extension [${label}] resolved to nothing`);
         }
         extension[resolvedKey] = asset;
       })

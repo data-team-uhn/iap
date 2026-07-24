@@ -33,12 +33,10 @@ let routesRequest: Promise<unknown[] | void> | null = null;
 // @return a Promise that will resolve to the actual list of routes
 const getRoutes = async function(): Promise<unknown[] | void> {
   if (!routes) {
-    if (!routesRequest) {
-      routesRequest = loadExtensions("Views")
-        .then(extensions => routes = extensions)
-        .catch(e => console.error('Failed to resolve routes', e))
-        .finally(() => routesRequest = null);
-    }
+    routesRequest ??= loadExtensions("Views")
+      .then(extensions => routes = extensions)
+      .catch((e: unknown) => console.error('Failed to resolve routes', e))
+      .finally(() => routesRequest = null);
     return routesRequest;
   }
   return routes;

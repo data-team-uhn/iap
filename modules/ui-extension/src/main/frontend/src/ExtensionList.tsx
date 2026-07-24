@@ -29,7 +29,7 @@ function ExtensionList({ extensions }: { extensions: Extension[] }) {
     <>
       {
         extensions.map((extension, index) => {
-          const ExtensionContent = extension["iap:extensionRender"] as ComponentType<{ extension: Extension }>;
+          const ExtensionContent = extension["iap:extensionRender"] as ComponentType<{ extension: Extension }> | undefined;
           return ExtensionContent ? <ExtensionContent extension={extension} key={"extension-" + index} /> : null;
         })
       }

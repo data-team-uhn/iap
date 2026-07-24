@@ -77,13 +77,15 @@ export default function ErrorPage(props: ErrorPageProps) {
         </Grid>
         <Grid>
           <Stack spacing={2}>
-            {errorCode && <Typography variant="h3" component="h1" color={errorCodeColor || "primary"}>
+            {/* An explicitly empty color should fall back to the default too, not just a missing
+                one, so `||` (not `??`) is intentional on the next 3 lines. */}
+            {errorCode && <Typography variant="h3" component="h1" color={errorCodeColor || "primary"}> {/* eslint-disable-line @typescript-eslint/prefer-nullish-coalescing */}
               {errorCode}
             </Typography> }
-            {title && <Typography variant="h4" component="h2" color={titleColor || "primary"} sx={{ fontWeight: 'bold' }}>
+            {title && <Typography variant="h4" component="h2" color={titleColor || "primary"} sx={{ fontWeight: 'bold' }}> {/* eslint-disable-line @typescript-eslint/prefer-nullish-coalescing */}
               {title}
             </Typography> }
-            {message && <FormattedText variant="subtitle1" color={messageColor || "textSecondary"}>
+            {message && <FormattedText variant="subtitle1" color={messageColor || "textSecondary"}> {/* eslint-disable-line @typescript-eslint/prefer-nullish-coalescing */}
               {message}
             </FormattedText> }
           </Stack>
@@ -94,7 +96,7 @@ export default function ErrorPage(props: ErrorPageProps) {
                 variant="contained"
                 color="primary"
                 startIcon={<NavigationIcon />}
-                onClick={() => window.location.href = buttonLink || ""}
+                onClick={() => window.location.href = buttonLink ?? ""}
               >
                 {buttonLabel}
               </Button>

@@ -65,6 +65,9 @@ interface WidgetProps {
 function Widget({ title, subtitle, emphasis, borderless, hideHeader, children }: WidgetProps) {
   return (
     <WidgetSurface emphasis={emphasis} borderless={borderless}>
+      {/* An explicitly empty title/subtitle should count as absent too, so `||` (not `??`) is
+          intentional here. */}
+      {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
       { !hideHeader && (title || subtitle) && (
         <Box sx={{ mb: 2 }}>
           { title && <Typography variant="h6">{title}</Typography> }

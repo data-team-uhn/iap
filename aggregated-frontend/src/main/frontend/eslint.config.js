@@ -135,6 +135,8 @@ export default defineConfig([
       "@typescript-eslint/no-confusing-void-expression": ["error", { ignoreArrowShorthand: true }],
       // Numbers interpolated into template literals are fine.
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
+      // Same as above, for string + number concatenation (e.g. `"widget-" + index`).
+      "@typescript-eslint/restrict-plus-operands": ["error", { allowNumberAndString: true }],
 
       // Avoid duplicate reports and automatically remove unused imports.
       "no-unused-vars": "off",
