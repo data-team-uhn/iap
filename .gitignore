@@ -59,7 +59,7 @@ __pycache__/
 
 # Running instance
 /sling/
-/.iap-data/
+/.iap-data*/
 /distribution/sling/
 /distribution/launcher/
 /.metadata/
