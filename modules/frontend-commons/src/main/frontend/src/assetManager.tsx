@@ -40,13 +40,11 @@ const assets: Record<string, unknown> = {};
 // @return a Promise that will resolve to the actual asset mapping JSON
 const getAssetsJson = async function(): Promise<Record<string, string> | void> {
   if (!assetsJson) {
-    if (!assetsJsonRequest) {
-      assetsJsonRequest = fetch("/libs/iap/resources/assets.json")
-        .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load assets.json: ${response.status}`)))
-        .then(json => assetsJson = json)
-        .catch (e => console.error('Failed to resolve assets', e))
-        .finally(() => assetsJsonRequest = null);
-    }
+    assetsJsonRequest ??= fetch("/libs/iap/resources/assets.json")
+      .then(response => response.ok ? response.json() as Promise<Record<string, string>> : Promise.reject(new Error(`Failed to load assets.json: ${response.status}`)))
+      .then(json => assetsJson = json)
+      .catch((e: unknown) => console.error('Failed to resolve assets', e))
+      .finally(() => assetsJsonRequest = null);
     return assetsJsonRequest;
   }
   return assetsJson;
@@ -59,17 +57,15 @@ const getAssetsJson = async function(): Promise<Record<string, string> | void> {
 // @return a Promise that will resolve to the actual asset dependencies JSON
 const getAssetDependenciesJson = async function(): Promise<Record<string, string[]> | void> {
   if (!assetDependenciesJson) {
-    if (!assetDependenciesJsonRequest) {
-      assetDependenciesJsonRequest = fetch("/libs/iap/resources/assetDependencies.json")
-        .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load assetDependencies.json: ${response.status}`)))
-        .then(json => assetDependenciesJson = json)
-        .catch (e => {
-          // A missing manifest just means no dependencies are declared; remember it as an empty
-          // map, so that it isn't re-fetched (and re-logged) on every single asset load.
-          assetDependenciesJson = {};
-        })
-        .finally(() => assetDependenciesJsonRequest = null);
-    }
+    assetDependenciesJsonRequest ??= fetch("/libs/iap/resources/assetDependencies.json")
+      .then(response => response.ok ? response.json() as Promise<Record<string, string[]>> : Promise.reject(new Error(`Failed to load assetDependencies.json: ${response.status}`)))
+      .then(json => assetDependenciesJson = json)
+      .catch((_e: unknown) => {
+        // A missing manifest just means no dependencies are declared; remember it as an empty
+        // map, so that it isn't re-fetched (and re-logged) on every single asset load.
+        assetDependenciesJson = {};
+      })
+      .finally(() => assetDependenciesJsonRequest = null);
     return assetDependenciesJsonRequest;
   }
   return assetDependenciesJson;
@@ -126,7 +122,7 @@ const getAssetURL = async function(assetURL: string): Promise<string> {
 const getAssetDependencies = async function(assetURL: string): Promise<string[]> {
   const assetName = getAssetName(assetURL);
   return getAssetDependenciesJson()
-    .then(json => json?.[assetName] || []);
+    .then(json => json?.[assetName] ?? []);
 }
 
 // Get the URL parameters from the provided URL or asset URL string.
@@ -134,7 +130,7 @@ const getAssetDependencies = async function(assetURL: string): Promise<string[]>
 // @param {string} assetURL the URL to extract the parameters from, potentially prefixed with ASSET_PREFIX
 // @return a URLSearchParams object containing the parameters from the input, or an empty URLSearchParams if the original URL didn't have any query parameters
 const getURLParameters = (assetURL: string): URLSearchParams => {
-  if (!assetURL?.includes("?")) {
+  if (!assetURL.includes("?")) {
     return new URLSearchParams();
   }
   return new URLSearchParams(assetURL.slice(assetURL.indexOf("?") + 1));
@@ -206,7 +202,7 @@ function LazyAsset({ url, ...props }: { url: string, [prop: string]: unknown }) 
           setComponent(() => component as ComponentType<Record<string, unknown>>);
         }
       })
-      .catch(err => console.error(`Something went wrong loading the asset [${url}]`, err));
+      .catch((err: unknown) => console.error(`Something went wrong loading the asset [${url}]`, err));
     return () => { cancelled = true; };
   }, [url]);
 

@@ -20,6 +20,12 @@ import { useEffect, useState } from 'react';
 
 import ErrorPage from './ErrorPage';
 
+// The shape of /RedirectURL.json, served by the login/redirect servlet.
+interface RedirectInfo {
+  RedirectURL: string;
+  RedirectLabel: string;
+}
+
 export default function PageNotFound() {
   const [redirectURL, setRedirectURL] = useState("/");
   const [redirectLabel, setRedirectLabel] = useState("Go to the homepage");
@@ -27,7 +33,7 @@ export default function PageNotFound() {
   // Grab the redirect URL on first rerender
   useEffect(() => {
     fetch("/RedirectURL.json")
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error(`Failed to load RedirectURL.json: ${response.status}`)))
+      .then((response) => response.ok ? response.json() as Promise<RedirectInfo> : Promise.reject(new Error(`Failed to load RedirectURL.json: ${response.status}`)))
       .then((json) => { setRedirectURL(json.RedirectURL); setRedirectLabel(json.RedirectLabel); })
       .catch(() => { /* keep the default redirect */ });
   }, []);

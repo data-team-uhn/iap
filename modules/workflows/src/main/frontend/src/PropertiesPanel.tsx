@@ -61,12 +61,11 @@ export default function PropertiesPanel (props: PropertiesPanelProps) {
   );
 
   const handleElementsChanged = (event: ElementsChangedEvent) => {
-    if (!element || !(event?.elements?.length > 0)) {
+    if (!element || event.elements.length === 0) {
       return;
     }
 
-    for (let i = 0; i < event.elements.length; i++) {
-      const newElement = event.elements[i];
+    for (const newElement of event.elements) {
       if (element.id === newElement.id) {
         setElement(newElement);
         break;
@@ -79,6 +78,10 @@ export default function PropertiesPanel (props: PropertiesPanelProps) {
       modeler.on('selection.changed', handleSelectionChanged);
       modeler.on('elements.changed', handleElementsChanged);
     }
+    // handleSelectionChanged/handleElementsChanged intentionally excluded: they close over
+    // `element`, which is exactly what this effect already re-subscribes on via `element?.id`;
+    // including the handlers themselves would just resubscribe on every render instead.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modeler, element?.id]);
 
   return (

@@ -38,7 +38,7 @@ function AppBar() {
   useEffect(() => {
     loadExtensions("AppBarEntry")
       .then(extensions => setEntries(extensions))
-      .catch(err => console.error("Something went wrong loading the app bar entries", err));
+      .catch((err: unknown) => console.error("Something went wrong loading the app bar entries", err));
   }, []);
 
   const section = (name: string) =>

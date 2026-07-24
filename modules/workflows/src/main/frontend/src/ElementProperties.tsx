@@ -57,7 +57,7 @@ export default function ElementProperties(props: ElementPropertiesProps) {
       <Typography>
         Name:
         <TextField
-          value={element?.businessObject?.name}
+          value={(element.businessObject as { name?: string } | undefined)?.name ?? ""}
           onChange={(event) => updateName(event.target.value)}
         />
       </Typography>

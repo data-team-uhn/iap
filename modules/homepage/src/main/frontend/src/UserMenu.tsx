@@ -41,7 +41,7 @@ const LOGOUT_URL = "/system/sling/logout";
 
 // The user's displayable full name, from whichever conventional properties their profile carries.
 const fullNameOf = (user: Record<string, unknown>): string =>
-  String(user.displayName ?? "").trim()
+  ((user.displayName as string | undefined) ?? "").trim()
   || [ user.firstname ?? user.givenName, user.lastname ?? user.familyName ]
     .filter(Boolean).join(" ").trim();
 
@@ -66,9 +66,9 @@ function UserMenu() {
 
   useEffect(() => {
     fetch(SESSION_INFO_URL)
-      .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load session info: ${response.status}`)))
-      .then(json => setUserName(String(json.userID ?? "")))
-      .catch(err => console.error("Something went wrong identifying the current user", err));
+      .then(response => response.ok ? response.json() as Promise<{ userID?: string }> : Promise.reject(new Error(`Failed to load session info: ${response.status}`)))
+      .then(json => setUserName(json.userID ?? ""))
+      .catch((err: unknown) => console.error("Something went wrong identifying the current user", err));
   }, []);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ function UserMenu() {
       return;
     }
     fetch(userInfoUrl(userName))
-      .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load user info: ${response.status}`)))
+      .then(response => response.ok ? response.json() as Promise<Record<string, unknown>> : Promise.reject(new Error(`Failed to load user info: ${response.status}`)))
       .then(json => setFullName(fullNameOf(json)))
       // The full name is a nice-to-have; without it the menu just shows the user name
       .catch(() => setFullName(""));

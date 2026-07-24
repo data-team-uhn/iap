@@ -195,7 +195,7 @@ export default function BpmnEditor() {
       .then(r => r.json())
       .then((data: Record<string, JcrNode>) => {
         const defs = Object.entries(data)
-          .filter(([, v]) => v && typeof v === "object" && v["jcr:primaryType"] === "wf:WorkflowDefinition")
+          .filter(([, v]) => typeof v === "object" && v["jcr:primaryType"] === "wf:WorkflowDefinition")
           .flatMap(([defKey, defNode]) => extractVersions(defKey, defNode));
         setDefinitions(defs);
       })
@@ -216,7 +216,7 @@ export default function BpmnEditor() {
         setLoadOpen(false);
         showMessage(`Loaded "${def.title}" v${def.version}`);
       })
-      .catch(err => showMessage(`Failed to import XML: ${err.message}`, "error"));
+      .catch((err: unknown) => showMessage(`Failed to import XML: ${err instanceof Error ? err.message : String(err)}`, "error"));
   }, [modeler, showMessage]);
 
   const save = useCallback(async () => {
