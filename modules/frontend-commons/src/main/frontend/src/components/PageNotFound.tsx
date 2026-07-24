@@ -28,7 +28,7 @@ export default function PageNotFound() {
   useEffect(() => {
     fetch("/RedirectURL.json")
       .then((response) => response.ok ? response.json() : Promise.reject(response))
-      .then((json) => { setRedirectURL(json["RedirectURL"]); setRedirectLabel(json["RedirectLabel"]); });
+      .then((json) => { setRedirectURL(json.RedirectURL); setRedirectLabel(json.RedirectLabel); });
   }, []);
 
   return (

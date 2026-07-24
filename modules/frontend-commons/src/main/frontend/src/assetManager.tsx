@@ -134,7 +134,7 @@ const getAssetDependencies = async function(assetURL: string): Promise<string[]>
 // @param {string} assetURL the URL to extract the parameters from, potentially prefixed with ASSET_PREFIX
 // @return a URLSearchParams object containing the parameters from the input, or an empty URLSearchParams if the original URL didn't have any query parameters
 const getURLParameters = (assetURL: string): URLSearchParams => {
-  if (!assetURL || !assetURL.includes("?")) {
+  if (!assetURL?.includes("?")) {
     return new URLSearchParams();
   }
   return new URLSearchParams(assetURL.slice(assetURL.indexOf("?") + 1));
@@ -179,7 +179,7 @@ const loadAsset = async function(assetURL: string): Promise<unknown> {
         }
         const parameters = getURLParameters(assetURL);
         const loaded = module as Record<string, unknown>;
-        return assets[assetURL] = parameters.has("component") ? loaded[parameters.get("component") as string] : loaded.default;
+        return assets[assetURL] = parameters.has("component") ? loaded[parameters.get("component")!] : loaded.default;
       });
   }
 

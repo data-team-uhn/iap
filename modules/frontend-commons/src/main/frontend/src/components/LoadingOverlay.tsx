@@ -19,7 +19,7 @@
 import { Backdrop, CircularProgress, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 
-type LoadingOverlayProps = {
+interface LoadingOverlayProps {
   // Whether the overlay is shown.
   open: boolean;
   // Optional message shown under the spinner (e.g. "Saving changes").
@@ -27,7 +27,7 @@ type LoadingOverlayProps = {
   // Optional progress value 0-100. When given, the spinner is determinate and shows this value;
   // otherwise it spins indeterminately.
   progress?: number;
-};
+}
 
 // A loading overlay: a dimmed backdrop with a centered spinner, shown while a page or a
 // long-running action is working and the UI should not be interacted with.

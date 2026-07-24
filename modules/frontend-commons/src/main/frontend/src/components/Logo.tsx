@@ -19,13 +19,13 @@
 import { Box, type SxProps } from '@mui/material';
 import { useColorScheme, type Theme } from '@mui/material/styles';
 
-type LogoProps = {
+interface LogoProps {
   // Which configured branding image to display: the application's own logo (default), or the
   // logo of the affiliated institution this deployment belongs to.
   source?: "app" | "affiliation";
   // Sizing and placement are the caller's business.
   sx?: SxProps<Theme>;
-};
+}
 
 // Displays a branding image configured through the page metadata (ultimately the
 // /libs/iap/conf/Media properties): the colour-scheme-appropriate variant of the application

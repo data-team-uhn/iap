@@ -26,22 +26,24 @@ import {
 import {
   Typography,
 } from "@mui/material";
-import type { Element } from "bpmn-js/lib/model/Types";
-import type Modeler from "bpmn-js/lib/Modeler";
 
 import ElementProperties from "./ElementProperties";
 
-type SelectionChangedEvent = {
+import type { Element } from "bpmn-js/lib/model/Types";
+import type Modeler from "bpmn-js/lib/Modeler";
+
+
+interface SelectionChangedEvent {
   newSelection: Element[];
-};
+}
 
-type ElementsChangedEvent = {
+interface ElementsChangedEvent {
   elements: Element[];
-};
+}
 
-type PropertiesPanelProps = {
+interface PropertiesPanelProps {
   modeler: Modeler | null;
-};
+}
 
 export default function PropertiesPanel (props: PropertiesPanelProps) {
   const {

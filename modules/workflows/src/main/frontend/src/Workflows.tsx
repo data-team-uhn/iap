@@ -21,7 +21,7 @@ import { createRoot } from 'react-dom/client';
 
 import BpmnEditor from './BpmnEditor';
 
-const root = createRoot(document.querySelector('#main-container') as HTMLElement);
+const root = createRoot(document.querySelector('#main-container')!);
 root.render(
   <BpmnEditor />
 );

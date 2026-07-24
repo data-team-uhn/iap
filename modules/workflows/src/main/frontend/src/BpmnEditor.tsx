@@ -54,22 +54,22 @@ type JcrNode = {
   "jcr:primaryType"?: string;
 } & Record<string, unknown>;
 
-type WorkflowVersionSummary = {
+interface WorkflowVersionSummary {
   name: string;
   path: string;
   title: string;
   version: string;
   description: string;
   bpmnXml: string;
-};
+}
 
 type SnackbarSeverity = "success" | "error" | "warning";
 
-type SnackbarState = {
+interface SnackbarState {
   open: boolean;
   message: string;
   severity: SnackbarSeverity;
-};
+}
 
 function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
   return new Promise(function(resolve, reject) {

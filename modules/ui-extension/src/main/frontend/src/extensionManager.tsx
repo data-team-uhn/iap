@@ -28,7 +28,7 @@ type Extension = Record<string, unknown>;
 // @param {string} extensionPoint an extension point, either a repository path like `/apps/iap/ExtensionPoints/SidebarEntry`, or just a name that will be automatically prefixed with `/apps/iap/ExtensionPoints/`.
 // @return a Promise that will resolve to the extension point JSON
 const getExtensions = async function(extensionPoint: string): Promise<Extension[]> {
-  return fetch(/^\//.test(extensionPoint) ? extensionPoint : `/apps/iap/ExtensionPoints/${extensionPoint}`)
+  return fetch(extensionPoint.startsWith("/") ? extensionPoint : `/apps/iap/ExtensionPoints/${extensionPoint}`)
     .then(response => response.ok ? response.json() : Promise.reject(response));
 }
 
@@ -62,7 +62,7 @@ const loadExtensions = async function(extensionPoint: string): Promise<Extension
       }
       return result.status === 'fulfilled';
     })
-    .map(result => (result as PromiseFulfilledResult<Extension>).value);
+    .map(result => (result).value);
 };
 
 // Loads all remote assets of an extension.
@@ -89,7 +89,7 @@ const loadExtensions = async function(extensionPoint: string): Promise<Extension
 const loadRemoteComponents = async function(extension: Extension): Promise<Extension> {
   await Promise.all(
     Object.entries(extension)
-      .filter(([, value]) => typeof value === 'string' && /^asset:/.test(value))
+      .filter(([, value]) => typeof value === 'string' && value.startsWith("asset:"))
       .map(async ([key, value]) => {
         const resolvedKey = key.replace(/url$/i, '');
         if (getURLParameters(value as string).has('lazy')) {
