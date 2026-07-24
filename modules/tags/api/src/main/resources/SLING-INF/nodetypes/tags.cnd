@@ -1,0 +1,107 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+
+//-----------------------------------------------------------------------------
+//
+// Tags: named markers that can be placed on any iap:Content node through its
+// multivalued `tags` property, e.g. "incomplete", "submitted", or "sensitive".
+//
+// Unlike free-form labels, every usable tag must first be *defined* as an
+// iap:TagDefinition node stored under /Tags: the definition is the single
+// source of truth for what the tag means, where it may be applied, and how it
+// behaves, instead of each piece of code relying on an off-hand understanding
+// of ad-hoc marker strings.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /Tags root path, holding the tag definitions.
+[iap:TagsHomepage] > iap:Content, rep:AccessControllable, iap:Documented
+  // Attributes:
+
+  // We can query tag definitions
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "iap/TagsHomepage" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains tag definitions
+  + * (iap:TagDefinition) = iap:TagDefinition
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The definition of one tag: what it means, where it may be placed, and how
+// it behaves. The tag itself is stored on tagged nodes as a plain string in
+// their `tags` property, matching this definition's name.
+[iap:TagDefinition] > iap:Content
+  - sling:resourceType (STRING) = "iap/TagDefinition" mandatory autocreated protected
+
+  // The string stored in the `tags` property of tagged nodes. When absent,
+  // the name of this definition node itself is the tag name; setting an
+  // explicit name allows tag strings that would be awkward as node names.
+  - name (STRING)
+
+  // Human-readable name displayed in the UI; falls back to the tag name
+  - label (STRING)
+
+  // Longer explanation of what this tag means and when it applies
+  - description (STRING)
+
+  // The categories this tag belongs to, e.g. "lifecycle" or "review",
+  // used for grouping and filtering tags in listings
+  - category (STRING) multiple
+
+  // Whether resources under a tagged node implicitly carry this tag too,
+  // e.g. every answer inside a "sensitive" submission is itself sensitive
+  - inheritable (BOOLEAN) = false autocreated
+
+  // Whether a node implicitly carries this tag when any of its descendants
+  // explicitly does, e.g. a submission with an "incomplete" answer is
+  // itself incomplete
+  - aggregated (BOOLEAN) = false autocreated
+
+  // The sling:resourceType values of the resources this tag may be placed
+  // on, including their subtypes, e.g. "sub/Submission" or "iap/Entity";
+  // when empty, the tag may be placed on any resource
+  - targetResources (STRING) multiple
+
+  // Optional color used when displaying this tag, as a CSS color value
+  - color (STRING)
+
+  // Optional explicit position of this tag in listings; tags with a lower
+  // order are displayed first, tags without an order are displayed last
+  - order (LONG)
+
+  // Whether this tag is managed by the platform itself, which prevents
+  // adding or removing it through the regular user-facing APIs
+  - system (BOOLEAN) = false autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

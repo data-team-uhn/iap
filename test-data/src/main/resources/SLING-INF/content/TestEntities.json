@@ -5,6 +5,7 @@
     "title": "Sample entity",
     "description": "A minimal concrete iap:Entity, only meant for testing.",
     "customProperty": "An undeclared property, not part of iap:TestEntity's own schema",
-    "customTags": [ "alpha", "beta" ]
+    "customTags": [ "alpha", "beta" ],
+    "tags": ["draft"]
   }
 }

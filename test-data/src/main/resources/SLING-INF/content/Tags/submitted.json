@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "Submitted",
+  "description": "The record was submitted and can no longer be edited by its author.",
+  "category": ["lifecycle"],
+  "system": true,
+  "color": "#4caf50",
+  "order": 20
+}
