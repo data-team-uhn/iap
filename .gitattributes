@@ -1,3 +1,24 @@
 # Everything uses LF line endings, except batch files, which cmd.exe requires to be CRLF
 * text=auto eol=lf
-*.bat text eol=crlf
+*.java text ident diff=java
+*.xml text ident diff=html
+*.svg text ident diff=html
+*.md text ident diff=markdown
+# The ts and cnd diff drivers are custom, defined in the committed .gitconfig;
+# enable them once per clone with: git config --local include.path ../.gitconfig
+*.js text ident diff=ts
+*.jsx text ident diff=ts
+*.ts text ident diff=ts
+*.tsx text ident diff=ts
+*.css text ident diff=css
+*.py text ident diff=python
+*.cnd text ident diff=cnd
+*.sh text eol=lf ident diff=bash
+*.bat text eol=crlf ident
+
+# Binary resources, never subject to EOL normalization or text diffs
+*.png binary
+*.ico binary
+
+# Generated files, collapsed by default in GitHub diffs
+yarn.lock linguist-generated=true
