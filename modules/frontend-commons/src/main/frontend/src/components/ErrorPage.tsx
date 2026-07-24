@@ -60,6 +60,14 @@ export default function ErrorPage(props: ErrorPageProps) {
     ...rest
   } = props;
 
+  // An explicitly empty color should fall back to the default too, not just a missing one, so
+  // `||` (not `??`) is intentional for these three.
+  /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
+  const resolvedErrorCodeColor = errorCodeColor || "primary";
+  const resolvedTitleColor = titleColor || "primary";
+  const resolvedMessageColor = messageColor || "textSecondary";
+  /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
+
   return (
     <ErrorContainer {...rest}>
       <Grid
@@ -77,15 +85,13 @@ export default function ErrorPage(props: ErrorPageProps) {
         </Grid>
         <Grid>
           <Stack spacing={2}>
-            {/* An explicitly empty color should fall back to the default too, not just a missing
-                one, so `||` (not `??`) is intentional on the next 3 lines. */}
-            {errorCode && <Typography variant="h3" component="h1" color={errorCodeColor || "primary"}> {/* eslint-disable-line @typescript-eslint/prefer-nullish-coalescing */}
+            {errorCode && <Typography variant="h3" component="h1" color={resolvedErrorCodeColor}>
               {errorCode}
             </Typography> }
-            {title && <Typography variant="h4" component="h2" color={titleColor || "primary"} sx={{ fontWeight: 'bold' }}> {/* eslint-disable-line @typescript-eslint/prefer-nullish-coalescing */}
+            {title && <Typography variant="h4" component="h2" color={resolvedTitleColor} sx={{ fontWeight: 'bold' }}>
               {title}
             </Typography> }
-            {message && <FormattedText variant="subtitle1" color={messageColor || "textSecondary"}> {/* eslint-disable-line @typescript-eslint/prefer-nullish-coalescing */}
+            {message && <FormattedText variant="subtitle1" color={resolvedMessageColor}>
               {message}
             </FormattedText> }
           </Stack>

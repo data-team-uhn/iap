@@ -43,7 +43,7 @@ const getAssetsJson = async function(): Promise<Record<string, string> | undefin
     assetsJsonRequest ??= fetch("/libs/iap/resources/assets.json")
       .then(response => response.ok ? response.json() as Promise<Record<string, string>> : Promise.reject(new Error(`Failed to load assets.json: ${response.status}`)))
       .then(json => assetsJson = json)
-      .catch((e: unknown) => console.error('Failed to resolve assets', e))
+      .catch((e: unknown) => { console.error('Failed to resolve assets', e); return undefined; })
       .finally(() => assetsJsonRequest = null);
     return assetsJsonRequest;
   }
@@ -64,6 +64,7 @@ const getAssetDependenciesJson = async function(): Promise<Record<string, string
         // A missing manifest just means no dependencies are declared; remember it as an empty
         // map, so that it isn't re-fetched (and re-logged) on every single asset load.
         assetDependenciesJson = {};
+        return undefined;
       })
       .finally(() => assetDependenciesJsonRequest = null);
     return assetDependenciesJsonRequest;

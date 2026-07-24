@@ -193,10 +193,12 @@ export default function BpmnEditor() {
     setLoadingDefs(true);
     fetchUtil(`${WORKFLOWS_PATH}.2.json`)
       .then(r => r.json())
-      .then((data: Record<string, JcrNode>) => {
+      .then((data: Record<string, unknown>) => {
+        // v is untrusted parsed JSON (e.g. a dangling/null JCR entry), not actually guaranteed to
+        // be a JcrNode - typeof null === "object", so the truthy check is required, not redundant.
         const defs = Object.entries(data)
-          .filter(([, v]) => typeof v === "object" && v["jcr:primaryType"] === "wf:WorkflowDefinition")
-          .flatMap(([defKey, defNode]) => extractVersions(defKey, defNode));
+          .filter(([, v]) => v && typeof v === "object" && (v as JcrNode)["jcr:primaryType"] === "wf:WorkflowDefinition")
+          .flatMap(([defKey, defNode]) => extractVersions(defKey, defNode as JcrNode));
         setDefinitions(defs);
       })
       .catch(() => showMessage("Failed to load workflow definitions", "error"))

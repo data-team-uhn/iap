@@ -35,7 +35,7 @@ const getRoutes = async function(): Promise<unknown[] | undefined> {
   if (!routes) {
     routesRequest ??= loadExtensions("Views")
       .then(extensions => routes = extensions)
-      .catch((e: unknown) => console.error('Failed to resolve routes', e))
+      .catch((e: unknown) => { console.error('Failed to resolve routes', e); return undefined; })
       .finally(() => routesRequest = null);
     return routesRequest;
   }
