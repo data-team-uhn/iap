@@ -113,12 +113,6 @@ export default defineConfig([
 
       // React rules
       "react-hooks/rules-of-hooks": "error",
-      // Let's see if we can survive with those rules on
-      //"react-hooks/exhaustive-deps": "off",
-      //"react-hooks/set-state-in-effect": "off",
-      //"react-hooks/refs": "off",
-      //"react-hooks/preserve-manual-memoization": "off",
-      //"jsx-a11y/no-autofocus": "off",
 
       // Keep imports and type-only imports consistent.
       "@typescript-eslint/consistent-type-imports": [
@@ -135,6 +129,12 @@ export default defineConfig([
         },
       ],
       "@typescript-eslint/switch-exhaustiveness-check": "error",
+
+      // Rule adjustments for this codebase.
+      // Allow void-returning arrow shorthand, e.g. `onClick={() => setOpen(true)}`.
+      "@typescript-eslint/no-confusing-void-expression": ["error", { ignoreArrowShorthand: true }],
+      // Numbers interpolated into template literals are fine.
+      "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
 
       // Avoid duplicate reports and automatically remove unused imports.
       "no-unused-vars": "off",
