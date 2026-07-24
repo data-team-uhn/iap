@@ -23,11 +23,11 @@ const ASSET_PREFIX = "asset:";
 // The assets map, from simple asset name to the contenthashed real path
 let assetsJson: Record<string, string> | null = null;
 // If there is an ongoing request for the assets JSON, cache it to only have one request sent
-let assetsJsonRequest: Promise<Record<string, string> | void> | null = null;
+let assetsJsonRequest: Promise<Record<string, string> | undefined> | null = null;
 // The assets dependencies map, from an asset name to an array of other asset names it depends on
 let assetDependenciesJson: Record<string, string[]> | null = null;
 // If there is an ongoing request for the asset dependencies JSON, cache it to only have one request sent
-let assetDependenciesJsonRequest: Promise<Record<string, string[]> | void> | null = null;
+let assetDependenciesJsonRequest: Promise<Record<string, string[]> | undefined> | null = null;
 // A cache, mapping between asset URLs to modules loaded from the sources
 const modules: Record<string, unknown> = {};
 // A cache, mapping between asset URLs to React components loaded from the sources
@@ -38,7 +38,7 @@ const assets: Record<string, unknown> = {};
 // At the moment, the JSON is only fetched once and reused, but this may change if live code update will be incorporated.
 //
 // @return a Promise that will resolve to the actual asset mapping JSON
-const getAssetsJson = async function(): Promise<Record<string, string> | void> {
+const getAssetsJson = async function(): Promise<Record<string, string> | undefined> {
   if (!assetsJson) {
     assetsJsonRequest ??= fetch("/libs/iap/resources/assets.json")
       .then(response => response.ok ? response.json() as Promise<Record<string, string>> : Promise.reject(new Error(`Failed to load assets.json: ${response.status}`)))
@@ -55,7 +55,7 @@ const getAssetsJson = async function(): Promise<Record<string, string> | void> {
 // At the moment, the JSON is only fetched once and reused, but this may change if live code update will be incorporated.
 //
 // @return a Promise that will resolve to the actual asset dependencies JSON
-const getAssetDependenciesJson = async function(): Promise<Record<string, string[]> | void> {
+const getAssetDependenciesJson = async function(): Promise<Record<string, string[]> | undefined> {
   if (!assetDependenciesJson) {
     assetDependenciesJsonRequest ??= fetch("/libs/iap/resources/assetDependencies.json")
       .then(response => response.ok ? response.json() as Promise<Record<string, string[]>> : Promise.reject(new Error(`Failed to load assetDependencies.json: ${response.status}`)))
@@ -104,7 +104,7 @@ const getAssetURL = async function(assetURL: string): Promise<string> {
   const assetName = getAssetName(assetURL);
   return getAssetsJson()
     .then(json => {
-      if (!json || !json[assetName]) {
+      if (!json?.[assetName]) {
         console.error(`Unknown asset ${assetURL}`);
         return "";
       }
@@ -175,7 +175,8 @@ const loadAsset = async function(assetURL: string): Promise<unknown> {
         }
         const parameters = getURLParameters(assetURL);
         const loaded = module as Record<string, unknown>;
-        return assets[assetURL] = parameters.has("component") ? loaded[parameters.get("component")!] : loaded.default;
+        const componentName = parameters.get("component");
+        return assets[assetURL] = componentName ? loaded[componentName] : loaded.default;
       });
   }
 

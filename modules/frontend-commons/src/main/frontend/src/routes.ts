@@ -19,7 +19,7 @@
 import { loadExtensions } from '@iap/ui-extension/extensionManager';
 
 let routes: unknown[] | null = null;
-let routesRequest: Promise<unknown[] | void> | null = null;
+let routesRequest: Promise<unknown[] | undefined> | null = null;
 
 // Retrieves the registered "routes", React components that can display a "data view" in the main content area when the corresponding URL is opened.
 // A route must have:
@@ -31,7 +31,7 @@ let routesRequest: Promise<unknown[] | void> | null = null;
 // This is an asynchronous function, it will return a Promise that resolves to the actual list of routes.
 //
 // @return a Promise that will resolve to the actual list of routes
-const getRoutes = async function(): Promise<unknown[] | void> {
+const getRoutes = async function(): Promise<unknown[] | undefined> {
   if (!routes) {
     routesRequest ??= loadExtensions("Views")
       .then(extensions => routes = extensions)

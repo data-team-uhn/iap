@@ -74,7 +74,7 @@ function ExtensionPoint(props: ExtensionPointProps) {
     }
 
     // Check the headers to determine how to handle this respnse
-    let contentType = response.headers.get('Content-Type')!;
+    let contentType = response.headers.get('Content-Type') ?? '';
 
     // Truncate the ';charset=utf-8'
     const sepPos = contentType.indexOf(";");
