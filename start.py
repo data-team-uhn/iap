@@ -24,12 +24,19 @@ This is the single, cross-platform implementation of the start process; `start.s
 Keep platform-specific behavior here, not in the wrappers.
 """
 
+import sys
+
+# Guard before the Python-3-only imports below, so that an outdated interpreter (e.g. a
+# `python` that is Python 2) produces a clear message instead of a raw ImportError.
+if sys.version_info < (3, 6):
+    sys.exit('Python 3.6 or later is required to start IAP, but this is Python %d.%d.'
+             % (sys.version_info[0], sys.version_info[1]))
+
 import os
 import platform
 import shutil
 import socket
 import subprocess
-import sys
 import tempfile
 import time
 import urllib.error

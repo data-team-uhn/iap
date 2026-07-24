@@ -25,6 +25,10 @@ cd /d "%~dp0"
 
 where /q py
 if errorlevel 1 goto TryPython
+@REM The launcher may be present without any Python 3 behind it; probe before delegating,
+@REM so that we can still fall through to a standalone `python`
+py -3 --version >nul 2>&1
+if errorlevel 1 goto TryPython
 py -3 start.py %*
 exit /b %errorlevel%
 
