@@ -29,7 +29,7 @@ type Extension = Record<string, unknown>;
 // @return a Promise that will resolve to the extension point JSON
 const getExtensions = async function(extensionPoint: string): Promise<Extension[]> {
   return fetch(extensionPoint.startsWith("/") ? extensionPoint : `/apps/iap/ExtensionPoints/${extensionPoint}`)
-    .then(response => response.ok ? response.json() : Promise.reject(response));
+    .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load extensions from ${extensionPoint}: ${response.status}`)));
 }
 
 // Loads all the extensions for the given extension point.

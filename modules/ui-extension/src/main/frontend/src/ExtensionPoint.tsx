@@ -58,7 +58,7 @@ function ExtensionPoint(props: ExtensionPointProps) {
   // Parse the UIXP URL from our UIXP Finder
   const grabUIXP = (response: Response) => {
     if (!response.ok) {
-      return Promise.reject(`Finding ExtensionPoint ${path} failed with response ${response.status}`);
+      return Promise.reject(new Error(`Finding ExtensionPoint ${path} failed with response ${response.status}`));
     }
 
     return response.text().then( (url) => {
@@ -70,7 +70,7 @@ function ExtensionPoint(props: ExtensionPointProps) {
   // Parse the content from the given Response object
   const handleResponse = (response: Response) => {
     if (!response.ok) {
-      return Promise.reject(`Fetching ExtensionPoint ${path} failed with response ${response.status}`);
+      return Promise.reject(new Error(`Fetching ExtensionPoint ${path} failed with response ${response.status}`));
     }
 
     // Check the headers to determine how to handle this respnse
@@ -94,9 +94,9 @@ function ExtensionPoint(props: ExtensionPointProps) {
       if (callback !== undefined) {
         return(response.json().then( (json) => callback(json)));
       } else {
-        return(Promise.reject(
+        return(Promise.reject(new Error(
           `Fetching ExtensionPoint ${path} returned json data, but no callback was provided to its ExtensionPoint`
-        ));
+        )));
       }
     } else if (contentType === 'text/html') {
       // html -- include it inline
@@ -105,7 +105,7 @@ function ExtensionPoint(props: ExtensionPointProps) {
       }));
     } else {
       // Reject any other content type
-      return(Promise.reject(`Fetching ExtensionPoint ${path} returned unknown contentType: ${contentType}`));
+      return(Promise.reject(new Error(`Fetching ExtensionPoint ${path} returned unknown contentType: ${contentType}`)));
     }
   }
 

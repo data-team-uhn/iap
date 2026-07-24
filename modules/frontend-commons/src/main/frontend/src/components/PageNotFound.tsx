@@ -27,8 +27,9 @@ export default function PageNotFound() {
   // Grab the redirect URL on first rerender
   useEffect(() => {
     fetch("/RedirectURL.json")
-      .then((response) => response.ok ? response.json() : Promise.reject(response))
-      .then((json) => { setRedirectURL(json.RedirectURL); setRedirectLabel(json.RedirectLabel); });
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error(`Failed to load RedirectURL.json: ${response.status}`)))
+      .then((json) => { setRedirectURL(json.RedirectURL); setRedirectLabel(json.RedirectLabel); })
+      .catch(() => { /* keep the default redirect */ });
   }, []);
 
   return (
