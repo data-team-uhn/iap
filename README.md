@@ -8,7 +8,7 @@ It runs as an [Apache Sling](https://sling.apache.org/) application (OSGi on Apa
 
 - **Java 21**
 - **Maven 3.8.7+**
-- **Python 3** — used by `start.sh` for the TCP port checks. Installing the optional `psutil` module enables a more robust bind check (not available on WSL or macOS, where a simpler check is used automatically).
+- **Python 3** — the start process is implemented in Python (`start.py`). Installing the optional `psutil` module enables a more robust bind check (not used on WSL or macOS, where a simpler check is applied automatically).
 - **MongoDB** — only if you run with `--mongo` (see below); the default storage needs nothing extra.
 
 ## Building
@@ -28,13 +28,23 @@ Tests are **skipped by default** for fast local builds. Useful Maven flags:
 
 ## Running
 
+On Linux, macOS, or WSL:
+
 ```bash
 ./start.sh
 ```
 
+On Windows (from `cmd` or PowerShell):
+
+```bat
+start.bat
+```
+
+Both are thin wrappers around `start.py`, where all of the start logic lives — they only locate a Python interpreter and delegate to it, so the two platforms cannot drift apart.
+
 IAP will be available at <http://localhost:8080> once it has started. Press `Ctrl+C` to stop it. Runtime state (repository, cache, logs) is written to `.iap-data/`.
 
-### `start.sh` options
+### Start options
 
 | Option | Description |
 | --- | --- |
@@ -59,6 +69,8 @@ Notes:
 ./start.sh --debug         # wait for a debugger to attach on port 5005
 ./start.sh -P myproject    # launch the "iap4myproject" project
 ```
+
+(On Windows, replace `./start.sh` with `start.bat` — the options are identical.)
 
 ## Deploying to a running instance
 
