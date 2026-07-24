@@ -25,14 +25,15 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+
 import type BpmnModeling from "bpmn-js/lib/features/modeling/Modeling";
 import type { Element } from "bpmn-js/lib/model/Types";
 import type Modeler from "bpmn-js/lib/Modeler";
 
-type ElementPropertiesProps = {
+interface ElementPropertiesProps {
   element: Element;
   modeler: Modeler;
-};
+}
 
 export default function ElementProperties(props: ElementPropertiesProps) {
   const {
@@ -44,7 +45,7 @@ export default function ElementProperties(props: ElementPropertiesProps) {
     // Do nothing: need a useEffect on element to trigger a re-render
   }, [element])
 
-  let updateName = (name: string) => {
+  const updateName = (name: string) => {
     const modeling = modeler.get<BpmnModeling>('modeling');
     modeling.updateLabel(element, name);
   }

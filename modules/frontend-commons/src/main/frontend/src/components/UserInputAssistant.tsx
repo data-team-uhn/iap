@@ -34,7 +34,7 @@ import {
 
 type UserInputAssistantVariant = 'hint' | 'hint-secondary' | 'success' | 'info' | 'warning' | 'error';
 
-type UserInputAssistantProps = {
+interface UserInputAssistantProps {
   anchorEl?: HTMLElement | null;
   title: string;
   variant?: UserInputAssistantVariant;
@@ -43,7 +43,7 @@ type UserInputAssistantProps = {
   onAction?: () => void;
   onIgnore?: () => void;
   onClickAway?: (event: MouseEvent | TouchEvent) => void;
-};
+}
 
 // The palette entry providing the accent color (border, arrow, avatar) for each variant
 const accents = {

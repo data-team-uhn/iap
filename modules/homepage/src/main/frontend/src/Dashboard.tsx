@@ -30,9 +30,9 @@ import Widget from "./Widget";
 type WidgetExtension = Record<string, unknown>;
 
 // The props that the dashboard passes to each rendered widget.
-type WidgetProps = {
+interface WidgetProps {
   extension: WidgetExtension;
-};
+}
 
 // How many columns each `iap:widgetWidth` value asks for. The actual span is clamped (in JS) to the
 // number of columns available at each breakpoint, so `full` fills the row and a span never exceeds

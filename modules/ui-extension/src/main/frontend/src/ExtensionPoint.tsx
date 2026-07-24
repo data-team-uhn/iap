@@ -20,12 +20,12 @@ import { useState, type ReactNode } from "react";
 
 const UIXP_FINDER_URL = "/uixp";
 
-type ExtensionPointProps = {
+interface ExtensionPointProps {
   // Extension Point ID (e.g. iap/coreUI/sidebar/entry).
   path: string;
   // Called with the parsed JSON when the extension resolves to a JSON object.
   callback?: (json: unknown) => void;
-};
+}
 
 // Component that allows the user to insert an extension from the given URL.
 //
@@ -74,7 +74,7 @@ function ExtensionPoint(props: ExtensionPointProps) {
     }
 
     // Check the headers to determine how to handle this respnse
-    let contentType = response.headers.get('Content-Type') as string;
+    let contentType = response.headers.get('Content-Type')!;
 
     // Truncate the ';charset=utf-8'
     const sepPos = contentType.indexOf(";");
@@ -83,7 +83,7 @@ function ExtensionPoint(props: ExtensionPointProps) {
     }
 
     // Determine what to do depending on the value of the output
-    if (['text/javascript', 'application/javascript'].indexOf(contentType) >= 0) {
+    if (['text/javascript', 'application/javascript'].includes(contentType)) {
       // javascript -- evaluate as-is
       return(response.text().then( (text) => {
         // eslint-disable-next-line react-hooks/unsupported-syntax

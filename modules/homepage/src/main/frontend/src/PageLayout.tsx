@@ -156,15 +156,15 @@ function useCollapseHint(expandedMedia: string, enabled: boolean): boolean {
   return hint;
 }
 
-type RegionProps = {
+interface RegionProps {
   // The extensions registered on this region's extension point, already in display order.
   extensions: Extension[];
   // Which edge of the screen this region sits at: block start/end for the frame bars,
   // inline start/end for the side rails.
   edge: "start" | "end";
-};
+}
 
-type PullTabProps = {
+interface PullTabProps {
   // The accessible name of the tab, also its hover tooltip.
   label: string;
   // The friendlier message shown while the collapse hint flashes.
@@ -179,7 +179,7 @@ type PullTabProps = {
   sx: Record<string, unknown>;
   // The chevron to display, pointing into the screen where the drawer will open.
   children: ReactNode;
-};
+}
 
 // A slim half-pill button at the screen edge, revealed when its frame region is collapsed;
 // clicking it pulls the region's content over the page as a drawer.
@@ -387,10 +387,10 @@ function SideRail({ extensions, edge }: RegionProps) {
   );
 }
 
-type PageLayoutProps = {
+interface PageLayoutProps {
   // The main content of the page.
   children: ReactNode;
-};
+}
 
 // The overall page shell: a stable screen frame (the FrameTop/FrameBottom bars and the
 // FrameStart/FrameEnd side rails, always visible), around a scrolling middle that stacks the

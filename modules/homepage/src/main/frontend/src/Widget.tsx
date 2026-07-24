@@ -43,7 +43,7 @@ const WidgetSurface = styled(Paper, {
   }),
 }));
 
-type WidgetProps = {
+interface WidgetProps {
   // Optional heading rendered at the top of the widget. When omitted, the widget's own content is
   // responsible for any heading.
   title?: string;
@@ -57,7 +57,7 @@ type WidgetProps = {
   hideHeader?: boolean;
   // The widget's content.
   children: ReactNode;
-};
+}
 
 // The frame wrapping one dashboard widget's content: a styled surface with an optional title and
 // subtitle. Title and subtitle form one header block, kept tight together and separated from the
