@@ -30,7 +30,7 @@
 //-----------------------------------------------------------------------------
 // Homepage node for the /WorkflowTypes root path.
 [wf:WorkflowTypesHomepage] > iap:EntityHomepage
-  - sling:resourceType (STRING) = "wf/WorkflowsTypesHomepage" mandatory autocreated protected
+  - sling:resourceType (STRING) = "wf/WorkflowTypesHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
 
   // Contains event and activity type definitions
@@ -47,6 +47,10 @@
 [wf:FlowNodeType] > iap:Entity, mix:referenceable
   query
   abstract
+
+  // Hardcode the supertype to the parent wf/FlowNodeType type.
+  - sling:resourceSuperType (STRING) = "wf/FlowNodeType" mandatory autocreated protected
+
   // The name of this node type
   - name (STRING) mandatory
 
@@ -78,11 +82,14 @@
 //-----------------------------------------------------------------------------
 // A particular type of catching workflow event.
 [wf:CatchingEventType] > wf:FlowNodeType
+  - sling:resourceType (STRING) = "wf/CatchingEventType" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
 // A particular type of throwing workflow event.
 [wf:ThrowingEventType] > wf:FlowNodeType
+  - sling:resourceType (STRING) = "wf/ThrowingEventType" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
 // A particular type of workflow activity.
 [wf:ActivityType] > wf:FlowNodeType
+  - sling:resourceType (STRING) = "wf/ActivityType" mandatory autocreated protected

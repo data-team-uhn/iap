@@ -45,7 +45,7 @@
 //-----------------------------------------------------------------------------
 // A running or completed execution of a workflow definition.
 [wf:WorkflowInstance] > iap:Entity
-  - sling:resourceType (STRING) = "iap/WorkflowInstance" mandatory autocreated protected
+  - sling:resourceType (STRING) = "wf/WorkflowInstance" mandatory autocreated protected
 
   // The definition this instance was created from
   - workflowVersion (REFERENCE) mandatory
@@ -62,6 +62,8 @@
 //-----------------------------------------------------------------------------
 // Tracks a single execution branch's current position in a workflow instance.
 [wf:WorkflowToken] > iap:EntityPart
+  - sling:resourceType (STRING) = "wf/WorkflowToken" mandatory autocreated protected
+
   // elementId of the flow node currently occupied by this token
   - currentNodeId (STRING) mandatory
 
@@ -71,8 +73,7 @@
 //-----------------------------------------------------------------------------
 // A running instance of a user task within a workflow instance.
 [wf:TaskInstance] > iap:Entity
-  - sling:resourceType (STRING) = "iap/TaskInstance" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/Resource" mandatory autocreated protected
+  - sling:resourceType (STRING) = "wf/TaskInstance" mandatory autocreated protected
 
   // elementId of the source wf:UserTask definition
   - taskDefinitionId (STRING) mandatory
@@ -103,7 +104,9 @@
 
 //-----------------------------------------------------------------------------
 // A named variable stored within a workflow instance.
-[wf:Variable] > iap:Content
+[wf:Variable] > iap:EntityPart
+  - sling:resourceType (STRING) = "wf/Variable" mandatory autocreated protected
+
   // Variable name
   - name (STRING) mandatory
 
