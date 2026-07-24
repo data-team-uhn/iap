@@ -409,13 +409,15 @@ function PageLayout({ children }: PageLayoutProps) {
   const region = (point: string) => regions[point] ?? [];
 
   useEffect(() => {
-    SHELL_POINTS.forEach(async point => {
-      try {
-        const extensions = await loadExtensions(point);
-        setRegions(loaded => ({ ...loaded, [point]: extensions }));
-      } catch (err) {
-        console.error(`Something went wrong loading the ${point} extensions`, err);
-      }
+    SHELL_POINTS.forEach(point => {
+      void (async () => {
+        try {
+          const extensions = await loadExtensions(point);
+          setRegions(loaded => ({ ...loaded, [point]: extensions }));
+        } catch (err) {
+          console.error(`Something went wrong loading the ${point} extensions`, err);
+        }
+      })();
     });
   }, []);
 

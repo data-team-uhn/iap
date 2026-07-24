@@ -84,7 +84,7 @@ function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
             resolve(response);
           }
         })
-        .catch((err) => {reject(err)});
+        .catch((err: unknown) => { reject(err instanceof Error ? err : new Error(String(err))); });
     }
     fetchFunc();
   });
@@ -322,7 +322,7 @@ export default function BpmnEditor() {
     <Stack>
       <Stack direction="row" spacing={1} sx={{ p: 1, alignItems: "center", borderBottom: 1, borderColor: "divider" }}>
         <Button variant="outlined" size="small" onClick={openLoadDialog}>Load</Button>
-        <Button variant="contained" size="small" onClick={save} disabled={!currentPath || saving}>
+        <Button variant="contained" size="small" onClick={() => void save()} disabled={!currentPath || saving}>
           {saving ? <CircularProgress size={16} /> : "Save"}
         </Button>
         <Button variant="outlined" size="small" onClick={() => setNewOpen(true)}>New</Button>
@@ -414,7 +414,7 @@ export default function BpmnEditor() {
         </DialogContent>
         <DialogActions>
           <Button onClick={resetNewDialog}>Cancel</Button>
-          <Button onClick={createDefinition} variant="contained" disabled={creating}>
+          <Button onClick={() => void createDefinition()} variant="contained" disabled={creating}>
             {creating ? <CircularProgress size={20} /> : "Create"}
           </Button>
         </DialogActions>

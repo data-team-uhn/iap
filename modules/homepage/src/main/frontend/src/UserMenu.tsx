@@ -66,7 +66,7 @@ function UserMenu() {
 
   useEffect(() => {
     fetch(SESSION_INFO_URL)
-      .then(response => response.ok ? response.json() : Promise.reject(response))
+      .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load session info: ${response.status}`)))
       .then(json => setUserName(String(json.userID ?? "")))
       .catch(err => console.error("Something went wrong identifying the current user", err));
   }, []);
@@ -76,7 +76,7 @@ function UserMenu() {
       return;
     }
     fetch(userInfoUrl(userName))
-      .then(response => response.ok ? response.json() : Promise.reject(response))
+      .then(response => response.ok ? response.json() : Promise.reject(new Error(`Failed to load user info: ${response.status}`)))
       .then(json => setFullName(fullNameOf(json)))
       // The full name is a nice-to-have; without it the menu just shows the user name
       .catch(() => setFullName(""));
