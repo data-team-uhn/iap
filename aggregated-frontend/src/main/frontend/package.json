@@ -24,8 +24,8 @@
     ]
   },
   "scripts": {
-    "lint": "eslint 'src/**/*.{js,jsx,ts,tsx}'",
-    "lint:fix": "eslint 'src/**/*.{js,jsx,ts,tsx}' --fix",
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
+    "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
     "aggregate": "python3 webpack_script.py ../../..",
     "aggregate:tests": "python3 webpack_script.py ../../.. --with-tests",
     "test": "yarn aggregate:tests && vitest run",
@@ -77,11 +77,10 @@
     "css-loader": "7.1.4",
     "style-loader": "4.0.0",
     "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0",
     "@stylistic/eslint-plugin": "5.10.0",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "@typescript-eslint/parser": "8.65.0",
-    "@typescript-eslint/eslint-plugin": "8.65.0",
     "react-compiler-webpack": "1.0.1",
     "babel-plugin-react-compiler": "1.0.0",
     "vitest": "3.2.6",

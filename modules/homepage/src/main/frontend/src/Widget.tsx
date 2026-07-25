@@ -43,7 +43,7 @@ const WidgetSurface = styled(Paper, {
   }),
 }));
 
-type WidgetProps = {
+interface WidgetProps {
   // Optional heading rendered at the top of the widget. When omitted, the widget's own content is
   // responsible for any heading.
   title?: string;
@@ -57,7 +57,7 @@ type WidgetProps = {
   hideHeader?: boolean;
   // The widget's content.
   children: ReactNode;
-};
+}
 
 // The frame wrapping one dashboard widget's content: a styled surface with an optional title and
 // subtitle. Title and subtitle form one header block, kept tight together and separated from the
@@ -65,6 +65,9 @@ type WidgetProps = {
 function Widget({ title, subtitle, emphasis, borderless, hideHeader, children }: WidgetProps) {
   return (
     <WidgetSurface emphasis={emphasis} borderless={borderless}>
+      {/* An explicitly empty title/subtitle should count as absent too, so `||` (not `??`) is
+          intentional here. */}
+      {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
       { !hideHeader && (title || subtitle) && (
         <Box sx={{ mb: 2 }}>
           { title && <Typography variant="h6">{title}</Typography> }

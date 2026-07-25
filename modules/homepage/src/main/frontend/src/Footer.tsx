@@ -55,7 +55,7 @@ function Footer() {
   useEffect(() => {
     loadExtensions("FooterLink")
       .then(extensions => setLinks(extensions))
-      .catch(err => console.error("Something went wrong loading the footer links", err));
+      .catch((err: unknown) => console.error("Something went wrong loading the footer links", err));
   }, []);
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
   // E.g. "IAP 0.1.0-SNAPSHOT" — the platform identifies itself independently of the app branding
@@ -92,8 +92,8 @@ function Footer() {
         >
           {
             links.map((link, index) => {
-              const url = String(link["iap:targetURL"] ?? "");
-              const label = String(link["iap:extensionName"] ?? url);
+              const url = (link["iap:targetURL"] as string | undefined) ?? "";
+              const label = (link["iap:extensionName"] as string | undefined) ?? url;
               const external = /^[a-z]+:/i.test(url);
               return (
                 <Link

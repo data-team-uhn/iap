@@ -54,22 +54,22 @@ type JcrNode = {
   "jcr:primaryType"?: string;
 } & Record<string, unknown>;
 
-type WorkflowVersionSummary = {
+interface WorkflowVersionSummary {
   name: string;
   path: string;
   title: string;
   version: string;
   description: string;
   bpmnXml: string;
-};
+}
 
 type SnackbarSeverity = "success" | "error" | "warning";
 
-type SnackbarState = {
+interface SnackbarState {
   open: boolean;
   message: string;
   severity: SnackbarSeverity;
-};
+}
 
 function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
   return new Promise(function(resolve, reject) {
@@ -84,7 +84,7 @@ function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
             resolve(response);
           }
         })
-        .catch((err) => {reject(err)});
+        .catch((err: unknown) => { reject(err instanceof Error ? err : new Error(String(err))); });
     }
     fetchFunc();
   });
@@ -193,10 +193,12 @@ export default function BpmnEditor() {
     setLoadingDefs(true);
     fetchUtil(`${WORKFLOWS_PATH}.2.json`)
       .then(r => r.json())
-      .then((data: Record<string, JcrNode>) => {
+      .then((data: Record<string, unknown>) => {
+        // v is untrusted parsed JSON (e.g. a dangling/null JCR entry), not actually guaranteed to
+        // be a JcrNode - typeof null === "object", so the truthy check is required, not redundant.
         const defs = Object.entries(data)
-          .filter(([, v]) => v && typeof v === "object" && v["jcr:primaryType"] === "wf:WorkflowDefinition")
-          .flatMap(([defKey, defNode]) => extractVersions(defKey, defNode));
+          .filter(([, v]) => v && typeof v === "object" && (v as JcrNode)["jcr:primaryType"] === "wf:WorkflowDefinition")
+          .flatMap(([defKey, defNode]) => extractVersions(defKey, defNode as JcrNode));
         setDefinitions(defs);
       })
       .catch(() => showMessage("Failed to load workflow definitions", "error"))
@@ -216,7 +218,7 @@ export default function BpmnEditor() {
         setLoadOpen(false);
         showMessage(`Loaded "${def.title}" v${def.version}`);
       })
-      .catch(err => showMessage(`Failed to import XML: ${err.message}`, "error"));
+      .catch((err: unknown) => showMessage(`Failed to import XML: ${err instanceof Error ? err.message : String(err)}`, "error"));
   }, [modeler, showMessage]);
 
   const save = useCallback(async () => {
@@ -322,7 +324,7 @@ export default function BpmnEditor() {
     <Stack>
       <Stack direction="row" spacing={1} sx={{ p: 1, alignItems: "center", borderBottom: 1, borderColor: "divider" }}>
         <Button variant="outlined" size="small" onClick={openLoadDialog}>Load</Button>
-        <Button variant="contained" size="small" onClick={save} disabled={!currentPath || saving}>
+        <Button variant="contained" size="small" onClick={() => void save()} disabled={!currentPath || saving}>
           {saving ? <CircularProgress size={16} /> : "Save"}
         </Button>
         <Button variant="outlined" size="small" onClick={() => setNewOpen(true)}>New</Button>
@@ -414,7 +416,7 @@ export default function BpmnEditor() {
         </DialogContent>
         <DialogActions>
           <Button onClick={resetNewDialog}>Cancel</Button>
-          <Button onClick={createDefinition} variant="contained" disabled={creating}>
+          <Button onClick={() => void createDefinition()} variant="contained" disabled={creating}>
             {creating ? <CircularProgress size={20} /> : "Create"}
           </Button>
         </DialogActions>

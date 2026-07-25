@@ -25,18 +25,20 @@ import { createRoot } from 'react-dom/client';
 import ErrorPage from './ErrorPage';
 import { appTheme } from "../appTheme";
 
-const root = createRoot(document.getElementById('main-error-container')!);
-root.render(
-  <StrictMode>
-    <StyledEngineProvider injectFirst>
-      <ThemeProvider theme={appTheme} defaultMode="system">
-        <CssBaseline enableColorScheme />
-        <ErrorPage
-          errorCode={document.querySelector<HTMLMetaElement>('meta[name="statusCode"]')?.content}
-          title={document.querySelector<HTMLMetaElement>('meta[name="statusMessage"]')?.content}
-          message=""
-        />
-      </ThemeProvider>
-    </StyledEngineProvider>
-  </StrictMode>
-);
+const container = document.getElementById('main-error-container');
+if (container) {
+  createRoot(container).render(
+    <StrictMode>
+      <StyledEngineProvider injectFirst>
+        <ThemeProvider theme={appTheme} defaultMode="system">
+          <CssBaseline enableColorScheme />
+          <ErrorPage
+            errorCode={document.querySelector<HTMLMetaElement>('meta[name="statusCode"]')?.content}
+            title={document.querySelector<HTMLMetaElement>('meta[name="statusMessage"]')?.content}
+            message=""
+          />
+        </ThemeProvider>
+      </StyledEngineProvider>
+    </StrictMode>
+  );
+}

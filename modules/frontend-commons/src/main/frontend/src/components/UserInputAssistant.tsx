@@ -34,7 +34,7 @@ import {
 
 type UserInputAssistantVariant = 'hint' | 'hint-secondary' | 'success' | 'info' | 'warning' | 'error';
 
-type UserInputAssistantProps = {
+interface UserInputAssistantProps {
   anchorEl?: HTMLElement | null;
   title: string;
   variant?: UserInputAssistantVariant;
@@ -43,7 +43,7 @@ type UserInputAssistantProps = {
   onAction?: () => void;
   onIgnore?: () => void;
   onClickAway?: (event: MouseEvent | TouchEvent) => void;
-};
+}
 
 // The palette entry providing the accent color (border, arrow, avatar) for each variant
 const accents = {
@@ -96,6 +96,10 @@ const accents = {
 //</UserInputAssistant>
 //
 
+// No-op fallback: MUI's ClickAwayListener requires an onClickAway handler, but this component's
+// own `onClickAway` prop is optional, since not every caller cares about click-away events.
+function noop() { /* intentionally empty */ }
+
 function UserInputAssistant(props: UserInputAssistantProps) {
   const {
     anchorEl,
@@ -124,7 +128,7 @@ function UserInputAssistant(props: UserInputAssistantProps) {
   }, []);
 
   return (enabled ?
-    <ClickAwayListener onClickAway={onClickAway ?? (() => {})}>
+    <ClickAwayListener onClickAway={onClickAway ?? noop}>
       <Popper
         open={!!anchorEl}
         anchorEl={anchorEl}
@@ -141,7 +145,7 @@ function UserInputAssistant(props: UserInputAssistantProps) {
           <Fade {...TransitionProps} timeout={350}>
             <Card
               sx={theme => {
-                const accent = (theme.vars || theme).palette[accents[variant]].main;
+                const accent = (theme.vars ?? theme).palette[accents[variant]].main;
                 return {
                   maxWidth: "375px",
                   border: `2px solid ${accent}`,
