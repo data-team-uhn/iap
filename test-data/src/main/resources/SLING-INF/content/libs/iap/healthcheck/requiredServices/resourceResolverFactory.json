@@ -1,0 +1,4 @@
+{
+  "jcr:primaryType": "nt:unstructured",
+  "serviceClass": "org.apache.sling.api.resource.ResourceResolverFactory"
+}
