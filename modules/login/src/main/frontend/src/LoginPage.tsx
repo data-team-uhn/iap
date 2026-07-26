@@ -17,6 +17,7 @@
  */
 
 import { Box, Typography } from "@mui/material";
+import { type Theme } from "@mui/material/styles";
 
 import FooterContent, { FooterCredits } from "@iap/frontend-commons/components/FooterContent";
 import FormattedText from "@iap/frontend-commons/components/FormattedText";
@@ -43,6 +44,13 @@ const CONTENT_TOP_OFFSET = "14vh";
 // seam, kept implemented pending a team decision (it draws the eye strongly — a candidate
 // for an attention marker elsewhere rather than for this page).
 const SEAM_MARKER = "tab" as "tab" | "node";
+// The seam where the two panels meet (the brand panel's end border, continued by the footer
+// band's, with the pointer's outline matching): the standard divider colour, adapting to both
+// colour schemes. Only drawn in the side-by-side layout. The border is spelled out as a full
+// CSS value: logical border properties are not part of the sx border system, so a bare width
+// number would pass through as invalid CSS and silently draw nothing.
+const SEAM_COLOR = "divider";
+const seamBorder = (theme: Theme) => `1px solid ${theme.vars?.palette.divider ?? theme.palette.divider}`;
 
 // The landing page shown to unauthenticated visitors, and the only page they can reach.
 //
@@ -85,22 +93,22 @@ export default function LoginPage() {
         <Box
           component="section"
           aria-label="About the platform"
-          sx={{
+          sx={theme => ({
             gridArea: "brand",
             position: "relative",
             display: "flex",
             flexDirection: "column",
             bgcolor: "background.muted",
-            borderColor: "divider",
-            borderInlineEnd: { md: 1 },
+            borderInlineEnd: { md: seamBorder(theme) },
             p: PANEL_PADDING,
             paddingBlockEnd: { md: 0 },
-          }}
+          })}
         >
           { /* A small pointer from the brand panel toward the sign-in action, centered on the
-               heading's alignment line. The muted colour is translucent, so the triangle
-               stacks it over the page background to reproduce the panel's colour opaquely and
-               cover the divider it protrudes through. */ }
+               heading's alignment line. The outer triangle is filled with the seam colour and
+               the two inner layers (the page background, then the panel's translucent muted
+               tint, reproducing the panel's colour opaquely) are clipped slightly smaller, so
+               the pointer wears the seam as its edge instead of interrupting it. */ }
           {SEAM_MARKER === "tab" && (
             <Box
               aria-hidden="true"
@@ -112,12 +120,22 @@ export default function LoginPage() {
                 inlineSize: 18,
                 blockSize: 36,
                 clipPath: "polygon(0 0, 0 100%, 100% 50%)",
-                bgcolor: "background.default",
+                bgcolor: SEAM_COLOR,
                 transform: theme.direction === "rtl" ? "scaleX(-1)" : undefined,
-                "&::after": {
+                // The inner fill is the outer triangle's edges offset inward by 1px (for the
+                // 45-degree slants that is 1.4px along each axis), leaving a hairline outline
+                // parallel to the shape; the base is not offset, since the panel border
+                // already draws that line
+                "&::before, &::after": {
                   content: '""',
                   position: "absolute",
                   inset: 0,
+                  clipPath: "polygon(0 1.4px, 0 calc(100% - 1.4px), calc(100% - 1.4px) 50%)",
+                },
+                "&::before": {
+                  bgcolor: "background.default",
+                },
+                "&::after": {
                   bgcolor: "background.muted",
                 },
               })}
@@ -229,14 +247,15 @@ export default function LoginPage() {
           </Box>
         </Box>
         <Box
-          sx={{
+          sx={theme => ({
             gridArea: "footer",
             bgcolor: "background.muted",
-            borderColor: "divider",
-            borderInlineEnd: { md: 1 },
-            borderBlockStart: { xs: 1, md: 0 },
+            // The seam continues along this band's end edge; the top border is the ordinary
+            // separator of the stacked layout
+            borderInlineEnd: { md: seamBorder(theme) },
+            borderBlockStart: { xs: `1px solid ${theme.vars?.palette.divider ?? theme.palette.divider}`, md: 0 },
             px: PANEL_PADDING,
-          }}
+          })}
         >
           { /* Constrained and anchored exactly like the brand text block above, so the two
                share their start edge */ }
