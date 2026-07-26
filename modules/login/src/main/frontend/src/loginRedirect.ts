@@ -33,6 +33,22 @@ export function loginRedirectPath(location: Pick<Location, "pathname" | "search"
     !resource.startsWith("//") &&
     !resource.includes("://") &&
     !resource.includes("\\");
+  if (!isValidRelativePath) {
+    return fallback;
+  }
 
-  return isValidRelativePath ? resource : fallback;
+  // String checks alone can be defeated by characters the URL parser removes — e.g. tabs
+  // and newlines, turning "/\t/evil.example" into "//evil.example" — so additionally parse
+  // the value exactly the way the browser will and require the result to stay on this
+  // origin, navigating to the parsed (canonical) form rather than the raw input.
+  let parsed: URL;
+  try {
+    parsed = new URL(resource, window.location.origin);
+  } catch {
+    return fallback;
+  }
+  if (parsed.origin !== window.location.origin) {
+    return fallback;
+  }
+  return parsed.pathname + parsed.search + parsed.hash;
 }
