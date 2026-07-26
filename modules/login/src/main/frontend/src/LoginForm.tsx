@@ -63,7 +63,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     <Stack component="form" onSubmit={submit} spacing={2}>
       {failed && <Alert severity="error">Invalid username or password</Alert>}
       <TextField
-        label="Username"
+        label="Username or email"
         name="j_username"
         autoComplete="username"
         required
@@ -79,7 +79,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         value={password}
         onChange={(event) => setPassword(event.target.value)}
       />
-      <Button type="submit" variant="contained" color="primary" disabled={busy}>
+      <Button type="submit" variant="contained" color="primary" disabled={busy || !username || !password}>
         Sign in
       </Button>
     </Stack>
