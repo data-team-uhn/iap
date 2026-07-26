@@ -55,7 +55,8 @@ if ("application/json".equals(request.getHeader("Accept"))) {
   out.print('{"status":"error","status.message":"' + Packages.org.apache.commons.text.StringEscapeUtils.escapeJson(statusMessage) + '","status.code":' + statusCode + '}');
 } else {
   let metadata = resource.adaptTo(Packages.io.uhndata.iap.scripting.ConfigMetadata).getProperties();
-  let title = metadata.get("title") || "";
+  // The tab title combines the platform and application names, tolerating either being unset
+  let title = ((metadata.get("platformName") || "") + " " + (metadata.get("title") || "")).trim();
   let assets = currentSession.getNode("/libs/iap/resources/assets");
 %>
 <!DOCTYPE html>
