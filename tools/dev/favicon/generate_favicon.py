@@ -19,39 +19,51 @@
    limitations under the License.
 """
 
-# Regenerates the QuorumPath favicon shipped by the `favicon` module. The mark is a navy
-# "path" running from the left edge into the centre of a red token (a filled disc with a
-# translucent halo ring) sitting at the end of the path — the small-size counterpart of the
-# application logo in `modules/homepage/.../media/default/logo-light.svg`.
+# Regenerates the two QuorumPath favicons shipped by the `favicon` module: `favicon.ico` (16,
+# 32 and 48 pixels) and `favicon.svg`, which is the same mark as vector art with a dark-scheme
+# variant. The mark is a navy "path" running from the left edge into the centre of a red token
+# (a filled disc with a translucent halo ring) sitting at the end of the path — the small-size
+# counterpart of the application logo in `modules/homepage/.../media/default/logo-light.svg`.
 #
 # The favicon is not a scaled copy of that logo: at 16-48 pixels the logo's hairlines
 # disappear, so weights are tuned per size (see GEOMETRY) and the artwork is rasterized here
 # rather than converted from the SVG. Everything below is the standard library only — no
 # Pillow, no ImageMagick — because a 32bpp .ico is just bottom-up BMP data behind a small
 # directory, and the mark is two circles and a thick segment, which anti-alias cleanly from
-# supersampled coverage.
+# supersampled coverage. The .svg is emitted from the same geometry table, so the two cannot
+# drift apart.
 #
 # Run from the repository root:
 #   python3 tools/dev/favicon/generate_favicon.py
 #   python3 tools/dev/favicon/generate_favicon.py --preview-dir /tmp/favicon --ascii
 #
-# Note that Sling-Initial-Content will not overwrite a `/favicon.ico` node that already
-# exists, so a running instance keeps serving the old icon: start with a fresh data
-# directory, or post the file over the existing node, to see the change.
+# Note that Sling-Initial-Content will not overwrite a `/favicon.ico` or `/favicon.svg` node
+# that already exists, so a running instance keeps serving the old icons: start with a fresh
+# data directory, or post the files over the existing nodes, to see the change.
 
 import argparse
 import os
 import struct
 import zlib
 
-DEFAULT_TARGET = os.path.join("modules", "favicon", "src", "main", "resources", "SLING-INF", "content", "favicon.ico")
+CONTENT_DIR = os.path.join("modules", "favicon", "src", "main", "resources", "SLING-INF", "content")
+DEFAULT_TARGET = os.path.join(CONTENT_DIR, "favicon.ico")
+DEFAULT_SVG_TARGET = os.path.join(CONTENT_DIR, "favicon.svg")
 
 # Brand colours, shared with the logo: navy path, red token, and the same 45% halo opacity.
 NAVY = (0x19, 0x29, 0x58)
 RED = (0xC0, 0x23, 0x3C)
 RING_OPACITY = 0.45
+# The dark-scheme palette of `logo-dark.svg`, used by the .svg favicon only: the navy path
+# would vanish against a dark tab strip, and the halo needs a little more presence there. The
+# token keeps the same red in both schemes, exactly as the logo does.
+NAVY_DARK = (0xA3, 0xA9, 0xBC)
+RING_OPACITY_DARK = 0.6
 
 SIZES = (16, 32, 48)
+# The vector favicon reuses the 48px geometry: the largest set of weights, hence the one least
+# compromised by pixel-snapping, and the closest to the logo's own proportions.
+SVG_SIZE = 48
 
 # Per-size geometry, in device pixels. The mark is always centred on cy = size / 2, an exact
 # pixel boundary, so an even path thickness lands squarely on two rows instead of straddling
@@ -74,18 +86,32 @@ GEOMETRY = {
 SUPERSAMPLING = 8
 
 
+def layout(size):
+    # Turn a GEOMETRY entry into the placement the artwork is actually drawn from. Shared by
+    # the rasterizer and the .svg writer so the two renderings cannot disagree.
+    geometry = GEOMETRY[size]
+    placement = {
+        "thickness": geometry["t"],
+        "r_out": geometry["r_out"],
+        "stroke": geometry["stroke"],
+        "r_dot": geometry["r_dot"],
+        "center_y": size / 2.0,
+        # The widest ink around the token — halo if there is one, otherwise the disc — sets the inset.
+        "center_x": size - geometry["margin"] - max(geometry["r_out"], geometry["r_dot"]),
+        # The path stops at the token's centre, and its round cap keeps the left ink at the margin.
+        "path_start": geometry["margin"] + geometry["t"] / 2.0,
+    }
+    return placement
+
+
 def coverage_masks(size):
     # Compute per-pixel coverage in [0, 1] for each of the three shapes, by point-sampling
     # their analytic definitions on a SUPERSAMPLING x SUPERSAMPLING grid inside every pixel.
-    geometry = GEOMETRY[size]
-    thickness, r_out, stroke, r_dot, margin = (
-        geometry["t"], geometry["r_out"], geometry["stroke"], geometry["r_dot"], geometry["margin"],
+    placement = layout(size)
+    thickness, r_out, stroke, r_dot = (
+        placement["thickness"], placement["r_out"], placement["stroke"], placement["r_dot"],
     )
-    center_y = size / 2.0
-    # The widest ink around the token — halo if there is one, otherwise the disc — sets the inset.
-    center_x = size - margin - max(r_out, r_dot)
-    # The path stops at the token's centre, and its round cap keeps the left ink at the margin.
-    path_start = margin + thickness / 2.0
+    center_x, center_y, path_start = placement["center_x"], placement["center_y"], placement["path_start"]
     half_thickness = thickness / 2.0
     r_in = r_out - stroke
 
@@ -175,6 +201,113 @@ def write_ico(path, images):
         icon_file.write(struct.pack("<HHH", 0, 1, len(images)) + directory + blobs)
 
 
+def hex_colour(colour):
+    return "#{:02X}{:02X}{:02X}".format(*colour)
+
+
+def number(value):
+    # Trim trailing zeros so the markup stays readable: 24.0 becomes "24", 8.15 stays "8.15".
+    text = "{:.4f}".format(value).rstrip("0").rstrip(".")
+    return text or "0"
+
+
+# The same Apache header the other .svg sources carry, since Apache RAT checks this output too.
+SVG_LICENSE = """<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->"""
+
+# Light-scheme colours and the full-size geometry stay on the shapes as presentation
+# attributes, so a renderer that ignores the stylesheet still gets the mark right; the
+# stylesheet carries only the two overrides. Braces are doubled for str.format.
+#
+# The second override matters more than it looks. Wherever the .svg is supported the browser
+# uses it for the tab too, rasterizing it at 16px on a 1x display — and a faithful copy of the
+# 48px artwork does not survive that: the halo turns into a pink blob and the sub-pixel path
+# goes grey and soft. Media queries inside an SVG resolve against the viewport it is being
+# drawn into, so `max-width` lets the vector switch to the tuned 16px mark (GEOMETRY[16],
+# scaled into this viewBox) exactly when it is drawn tab-sized. Browser support for width
+# queries in the favicon path is not universal; where it is ignored the result is simply the
+# faithful mark at every size, which is the same trade-off any single-artwork SVG favicon
+# makes. The .ico remains the guaranteed-crisp 16px rendering for browsers that prefer it.
+SVG_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
+{license}
+<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>QuorumPath</title>
+  <style>
+    @media (prefers-color-scheme: dark) {{
+      .path {{ stroke: {navy_dark}; }}
+      .halo {{ opacity: {halo_opacity_dark}; }}
+    }}
+    @media (max-width: {small_breakpoint}px) {{
+      .halo {{ display: none; }}
+      .path {{ stroke-width: {small_thickness}; d: path("M {small_path_start} {center_y} H {small_center_x}"); }}
+      .token {{ cx: {small_center_x}; r: {small_r_dot}; }}
+    }}
+  </style>
+  <circle class="halo" cx="{center_x}" cy="{center_y}" r="{r_halo}" fill="none" stroke="{red}"\
+ stroke-width="{stroke}" opacity="{halo_opacity}"/>
+  <path class="path" d="M {path_start} {center_y} H {center_x}" fill="none" stroke="{navy}"\
+ stroke-width="{thickness}" stroke-linecap="round"/>
+  <circle class="token" cx="{center_x}" cy="{center_y}" r="{r_dot}" fill="{red}"/>
+</svg>
+"""
+
+
+def svg_markup():
+    # The vector twin of the raster icon, drawn from the same placement. The halo is painted
+    # first for the same reason as in render(): the path runs to the token's centre, crossing
+    # the halo's left arc, and keeping the halo underneath leaves the path unbroken.
+    placement = layout(SVG_SIZE)
+    # The tab-sized override is the smallest tuned size, scaled up into this viewBox.
+    small_size = min(SIZES)
+    small = layout(small_size)
+    scale = float(SVG_SIZE) / small_size
+    return SVG_TEMPLATE.format(
+        license=SVG_LICENSE,
+        size=SVG_SIZE,
+        navy=hex_colour(NAVY),
+        navy_dark=hex_colour(NAVY_DARK),
+        red=hex_colour(RED),
+        halo_opacity=number(RING_OPACITY),
+        halo_opacity_dark=number(RING_OPACITY_DARK),
+        center_x=number(placement["center_x"]),
+        center_y=number(placement["center_y"]),
+        path_start=number(placement["path_start"]),
+        thickness=number(placement["thickness"]),
+        r_dot=number(placement["r_dot"]),
+        # A stroked circle straddles its radius, so the ring's centreline sits half a stroke
+        # inside the outer radius the raster geometry describes.
+        r_halo=number(placement["r_out"] - placement["stroke"] / 2.0),
+        stroke=number(placement["stroke"]),
+        # Halfway between the two tuned sizes: 16px viewports take the small mark, 32px ones
+        # (a 2x tab, where the full artwork holds up) keep the faithful one.
+        small_breakpoint=number((small_size + 32) / 2.0),
+        small_thickness=number(small["thickness"] * scale),
+        small_path_start=number(small["path_start"] * scale),
+        small_center_x=number(small["center_x"] * scale),
+        small_r_dot=number(small["r_dot"] * scale),
+    )
+
+
+def write_svg(path):
+    with open(path, "w") as svg_file:
+        svg_file.write(svg_markup())
+
+
 def write_png(path, image, scale=1):
     # Minimal RGBA PNG writer, for previews only: nearest-neighbour scaled so individual
     # pixels stay legible when eyeballing the result.
@@ -217,9 +350,11 @@ def ascii_map(image):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Regenerate the QuorumPath favicon.")
+    parser = argparse.ArgumentParser(description="Regenerate the QuorumPath favicons.")
     parser.add_argument("-o", "--out", default=DEFAULT_TARGET,
                         help="where to write the .ico (default: %(default)s, relative to the repository root)")
+    parser.add_argument("--svg-out", default=DEFAULT_SVG_TARGET,
+                        help="where to write the .svg (default: %(default)s, relative to the repository root)")
     parser.add_argument("--preview-dir", metavar="DIR",
                         help="also write scaled-up and actual-size PNG previews of each size into DIR")
     parser.add_argument("--ascii", action="store_true", help="print an ASCII pixel map of each size")
@@ -228,6 +363,8 @@ def main():
     images = [render(size) for size in SIZES]
     write_ico(arguments.out, images)
     print("Wrote {} ({})".format(arguments.out, ", ".join("{0}x{0}".format(size) for size in SIZES)))
+    write_svg(arguments.svg_out)
+    print("Wrote {} (vector, with a dark-scheme variant)".format(arguments.svg_out))
 
     if arguments.preview_dir:
         if not os.path.isdir(arguments.preview_dir):

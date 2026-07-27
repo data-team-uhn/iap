@@ -46,6 +46,7 @@
                 "+/",
                 "-/login",
                 "-/favicon.ico",
+                "-/favicon.svg",
                 "-/libs",
                 "-/apps",
                 "-/system/sling.js",

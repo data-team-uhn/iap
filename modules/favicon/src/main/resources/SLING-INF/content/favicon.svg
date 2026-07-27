@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>QuorumPath</title>
+  <style>
+    @media (prefers-color-scheme: dark) {
+      .path { stroke: #A3A9BC; }
+      .halo { opacity: 0.6; }
+    }
+    @media (max-width: 24px) {
+      .halo { display: none; }
+      .path { stroke-width: 6; d: path("M 6 24 H 36"); }
+      .token { cx: 36; r: 9; }
+    }
+  </style>
+  <circle class="halo" cx="37.2" cy="24" r="8.15" fill="none" stroke="#C0233C" stroke-width="1.3" opacity="0.45"/>
+  <path class="path" d="M 3.3 24 H 37.2" fill="none" stroke="#192958" stroke-width="2.6" stroke-linecap="round"/>
+  <circle class="token" cx="37.2" cy="24" r="5.2" fill="#C0233C"/>
+</svg>
