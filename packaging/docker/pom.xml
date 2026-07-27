@@ -27,12 +27,7 @@
   <artifactId>iap-packaging-docker</artifactId>
   <packaging>pom</packaging>
   <name>IAP docker image</name>
-  <description>The ready to use IAP distribution. By default a small developer image is built,
-    embedding only the project artifacts; the launcher resolves third-party artifacts from a
-    volume-mounted ~/.m2 repository, or downloads them on first start. Building with
-    -Ddocker.production=true additionally embeds a complete artifact repository covering every
-    feature produced by the reactor, resulting in a fully self-contained image that needs no
-    network access.</description>
+  <description>The ready to use IAP distribution as a Docker image.</description>
 
   <build>
     <plugins>
@@ -43,7 +38,7 @@
         <executions>
           <execution>
             <id>prepare-docker-context</id>
-            <phase>prepare-package</phase>
+            <phase>generate-resources</phase>
             <goals>
               <goal>exec</goal>
             </goals>
@@ -73,7 +68,7 @@
         <executions>
           <execution>
             <id>build</id>
-            <phase>install</phase>
+            <phase>package</phase>
             <goals>
               <goal>build</goal>
             </goals>
@@ -110,7 +105,7 @@
             <executions>
               <execution>
                 <id>self-contained-repository</id>
-                <phase>package</phase>
+                <phase>process-resources</phase>
                 <goals>
                   <goal>repository</goal>
                 </goals>
