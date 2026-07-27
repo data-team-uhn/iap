@@ -62,5 +62,6 @@
     <module>tags</module>
     <module>ui-extension</module>
     <module>workflows</module>
+    <module>documents</module>
   </modules>
 </project>
