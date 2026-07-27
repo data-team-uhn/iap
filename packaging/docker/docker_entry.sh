@@ -27,8 +27,7 @@ STORAGE=tar
 #If (inside a docker-compose environment), we are supposed to wait for http://iapinitial:8080/ to start
 [ -z $WAIT_FOR_INIT ] || (while true; do (wget -S --spider http://iapinitial:8080/ 2>&1 | grep 'HTTP/1.1 200 OK') && break; sleep 10; done)
 
-PLATFORM_ARTIFACTID=$1
-PLATFORM_VERSION=$2
+PLATFORM_VERSION=$1
 
 if [ -z $PROJECT_VERSION ]
 then
@@ -57,7 +56,6 @@ echo "STORAGE = $STORAGE"
 echo "DEBUG = $DEBUG"
 echo "PERMISSIONS = $PERMISSIONS"
 echo "ADDITIONAL_SLING_FEATURES = $ADDITIONAL_SLING_FEATURES"
-echo "PLATFORM_ARTIFACTID = $PLATFORM_ARTIFACTID"
 echo "PLATFORM_VERSION = $PLATFORM_VERSION"
 echo "PROJECT_NAME = $PROJECT_NAME"
 echo "PROJECT_VERSION = $PROJECT_VERSION"
@@ -122,4 +120,4 @@ export JAVA_OPTS="${JAVA_MEMORY_LIMIT_MB:+ -Xmx${JAVA_MEMORY_LIMIT_MB}m} ${DEBUG
 # flavor, the complete third-party repository in artifacts/. A volume-mounted ~/.m2 and the
 # remote repositories are fallbacks for the developer flavor.
 chmod +x ./org.apache.sling.feature.launcher/bin/launcher
-./org.apache.sling.feature.launcher/bin/launcher -u "file:///opt/iap/mvnrepo,file:///opt/iap/artifacts,file://$(realpath ${HOME}/.m2/repository),https://repo.maven.apache.org/maven2" -p .iap-data -c .iap-data/cache -f mvn:io.uhndata.iap/${PLATFORM_ARTIFACTID}/${PLATFORM_VERSION}/slingosgifeature/core_${STORAGE}${EXT_MONGO_VARIABLES}${SMTPS_VARIABLES}${featureFlagString}
+./org.apache.sling.feature.launcher/bin/launcher -u "file:///opt/iap/mvnrepo,file:///opt/iap/artifacts,file://$(realpath ${HOME}/.m2/repository),https://repo.maven.apache.org/maven2" -p .iap-data -c .iap-data/cache -f mvn:io.uhndata.iap/iap-packaging-slingfeature/${PLATFORM_VERSION}/slingosgifeature/core_${STORAGE}${EXT_MONGO_VARIABLES}${SMTPS_VARIABLES}${featureFlagString}

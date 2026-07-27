@@ -74,4 +74,4 @@ EXPOSE 5005
 # This is the default command executed when starting the container
 COPY docker_entry.sh /docker_entry.sh
 RUN chmod +x /docker_entry.sh
-ENTRYPOINT /docker_entry.sh iap-packaging-slingfeature ${project.version}
+ENTRYPOINT /docker_entry.sh ${project.version}
