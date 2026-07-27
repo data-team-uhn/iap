@@ -39,11 +39,6 @@ const BRAND_CONTENT_WIDTH = "80ch";
 // edge on wide screens: sharing one value is what guarantees their tops stay aligned,
 // whatever either block's height
 const CONTENT_TOP_OFFSET = "14vh";
-// The marker connecting the two panels — "tab": a muted triangle protruding from the brand
-// panel (the conservative default); "node": the wordmark's crimson dot-and-ring riding the
-// seam, kept implemented pending a team decision (it draws the eye strongly — a candidate
-// for an attention marker elsewhere rather than for this page).
-const SEAM_MARKER = "tab" as "tab" | "node";
 // The seam where the two panels meet (the brand panel's end border, continued by the footer
 // band's, with the pointer's outline matching): the standard divider colour, adapting to both
 // colour schemes. Only drawn in the side-by-side layout. The border is spelled out as a full
@@ -109,60 +104,36 @@ export default function LoginPage() {
                the two inner layers (the page background, then the panel's translucent muted
                tint, reproducing the panel's colour opaquely) are clipped slightly smaller, so
                the pointer wears the seam as its edge instead of interrupting it. */ }
-          {SEAM_MARKER === "tab" && (
-            <Box
-              aria-hidden="true"
-              sx={theme => ({
-                display: { xs: "none", md: "block" },
+          <Box
+            aria-hidden="true"
+            sx={theme => ({
+              display: { xs: "none", md: "block" },
+              position: "absolute",
+              insetInlineEnd: -18,
+              insetBlockStart: `calc(${theme.spacing(6)} + ${CONTENT_TOP_OFFSET} - 2px)`,
+              inlineSize: 18,
+              blockSize: 36,
+              clipPath: "polygon(0 0, 0 100%, 100% 50%)",
+              bgcolor: SEAM_COLOR,
+              transform: theme.direction === "rtl" ? "scaleX(-1)" : undefined,
+              // The inner fill is the outer triangle's edges offset inward by 1px (for the
+              // 45-degree slants that is 1.4px along each axis), leaving a hairline outline
+              // parallel to the shape; the base is not offset, since the panel border
+              // already draws that line
+              "&::before, &::after": {
+                content: '""',
                 position: "absolute",
-                insetInlineEnd: -18,
-                insetBlockStart: `calc(${theme.spacing(6)} + ${CONTENT_TOP_OFFSET} - 2px)`,
-                inlineSize: 18,
-                blockSize: 36,
-                clipPath: "polygon(0 0, 0 100%, 100% 50%)",
-                bgcolor: SEAM_COLOR,
-                transform: theme.direction === "rtl" ? "scaleX(-1)" : undefined,
-                // The inner fill is the outer triangle's edges offset inward by 1px (for the
-                // 45-degree slants that is 1.4px along each axis), leaving a hairline outline
-                // parallel to the shape; the base is not offset, since the panel border
-                // already draws that line
-                "&::before, &::after": {
-                  content: '""',
-                  position: "absolute",
-                  inset: 0,
-                  clipPath: "polygon(0 1.4px, 0 calc(100% - 1.4px), calc(100% - 1.4px) 50%)",
-                },
-                "&::before": {
-                  bgcolor: "background.default",
-                },
-                "&::after": {
-                  bgcolor: "background.muted",
-                },
-              })}
-            />
-          )}
-          { /* The wordmark's terminal node — solid dot in a faint ring — riding the seam at
-               the heading's alignment line */ }
-          {SEAM_MARKER === "node" && (
-            <Box
-              aria-hidden="true"
-              sx={theme => ({
-                display: { xs: "none", md: "flex" },
-                alignItems: "center",
-                justifyContent: "center",
-                position: "absolute",
-                insetInlineEnd: -9,
-                insetBlockStart: `calc(${theme.spacing(6)} + ${CONTENT_TOP_OFFSET} + 7px)`,
-                inlineSize: 18,
-                blockSize: 18,
-                borderRadius: "50%",
-                border: "1.5px solid",
-                borderColor: `rgba(${theme.vars?.palette.secondary.mainChannel ?? "192 35 60"} / 0.45)`,
-              })}
-            >
-              <Box sx={{ inlineSize: 10, blockSize: 10, borderRadius: "50%", bgcolor: "secondary.main" }} />
-            </Box>
-          )}
+                inset: 0,
+                clipPath: "polygon(0 1.4px, 0 calc(100% - 1.4px), calc(100% - 1.4px) 50%)",
+              },
+              "&::before": {
+                bgcolor: "background.default",
+              },
+              "&::after": {
+                bgcolor: "background.muted",
+              },
+            })}
+          />
           { /* The auto start margin anchors the block to the center seam on wide screens,
                keeping the two panels' contents together however wide the page gets; the top
                padding is the shared offset that keeps the logo level with the sign-in card */ }
