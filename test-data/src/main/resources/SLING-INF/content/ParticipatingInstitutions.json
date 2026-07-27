@@ -1,0 +1,15 @@
+{
+  "jcr:primaryType": "nt:unstructured",
+  "uhn": {
+    "jcr:primaryType": "nt:unstructured",
+    "name": "University Health Network",
+    "logoLight": "/libs/iap/resources/media/default/uhn-logo-light.png",
+    "logoDark": "/libs/iap/resources/media/default/uhn-logo-dark.png",
+    "url": "https://www.uhn.ca"
+  },
+  "camh": {
+    "jcr:primaryType": "nt:unstructured",
+    "name": "Centre for Addiction and Mental Health",
+    "url": "https://www.camh.ca"
+  }
+}

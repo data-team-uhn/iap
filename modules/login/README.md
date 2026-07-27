@@ -36,7 +36,7 @@ institution, in display order:
 
 ```json
 {
-  "jcr:primaryType": "sling:Folder",
+  "jcr:primaryType": "nt:unstructured",
   "label": "Participating institutions",
   "uhn": {
     "jcr:primaryType": "nt:unstructured",
@@ -48,8 +48,10 @@ institution, in display order:
 }
 ```
 
-The `label` property (optional) overrides the strip heading. An institution without logos is
-shown by name. The registry deliberately lives outside `/libs/iap/conf`: `ConfigMetadata`
+The registry node must be an orderable type (`nt:unstructured`, not `sling:Folder`) for the
+institutions to display in the declared order. The `label` property (optional) overrides the
+strip heading. An institution without logos is shown by name; a sample registry (UHN and
+CAMH) ships with the test data, so `./start.sh --test` displays the strip. The registry deliberately lives outside `/libs/iap/conf`: `ConfigMetadata`
 flattens everything below `conf` into one meta map, where an institution's `logoLight` would
 collide with the application logo's. Single-institution deployments simply don't create the
 registry, and nothing is rendered.
