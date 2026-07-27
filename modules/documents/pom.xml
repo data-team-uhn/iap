@@ -21,37 +21,16 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-parent</artifactId>
+    <artifactId>iap-modules</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-modules</artifactId>
+  <artifactId>iap-documents</artifactId>
   <packaging>pom</packaging>
-  <name>IAP - Code modules</name>
+  <name>IAP - Documents</name>
+  <description>Document handling: pre-processing, parsing, chunking, extraction.</description>
 
   <modules>
-    <!-- Keep these alphabetical -->
-    <module>authentication</module>
-    <module>autodoc</module>
-    <module>conditions</module>
-    <module>data-model</module>
-    <module>favicon</module>
-    <module>frontend-commons</module>
-    <module>healthcheck</module>
-    <module>homepage</module>
-    <module>http-requests</module>
-    <module>java-utils</module>
-    <module>login</module>
-    <module>metrics</module>
-    <module>schemas</module>
-    <module>serialization</module>
-    <module>slack-notifications</module>
-    <module>startup-customization</module>
-    <module>status</module>
-    <module>submissions</module>
-    <module>tags</module>
-    <module>ui-extension</module>
-    <module>workflows</module>
-    <module>documents</module>
+    <module>processing</module>
   </modules>
 </project>
