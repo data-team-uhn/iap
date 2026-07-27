@@ -122,4 +122,4 @@ export JAVA_OPTS="${JAVA_MEMORY_LIMIT_MB:+ -Xmx${JAVA_MEMORY_LIMIT_MB}m} ${DEBUG
 # flavor, the complete third-party repository in artifacts/. A volume-mounted ~/.m2 and the
 # remote repositories are fallbacks for the developer flavor.
 chmod +x ./org.apache.sling.feature.launcher/bin/launcher
-./org.apache.sling.feature.launcher/bin/launcher -u "file:///opt/iap/mvnrepo,file:///opt/iap/artifacts,file://$(realpath ${HOME}/.m2/repository),https://nexus.phenotips.org/nexus/content/groups/public,https://repo.maven.apache.org/maven2,https://repository.apache.org/content/groups/snapshots" -p .iap-data -c .iap-data/cache -f mvn:io.uhndata.iap/${PLATFORM_ARTIFACTID}/${PLATFORM_VERSION}/slingosgifeature/core_${STORAGE}${EXT_MONGO_VARIABLES}${SMTPS_VARIABLES}${featureFlagString}
+./org.apache.sling.feature.launcher/bin/launcher -u "file:///opt/iap/mvnrepo,file:///opt/iap/artifacts,file://$(realpath ${HOME}/.m2/repository),https://repo.maven.apache.org/maven2" -p .iap-data -c .iap-data/cache -f mvn:io.uhndata.iap/${PLATFORM_ARTIFACTID}/${PLATFORM_VERSION}/slingosgifeature/core_${STORAGE}${EXT_MONGO_VARIABLES}${SMTPS_VARIABLES}${featureFlagString}
