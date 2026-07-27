@@ -23,10 +23,9 @@ import FooterContent, { FooterCredits } from "@iap/frontend-commons/components/F
 import FormattedText from "@iap/frontend-commons/components/FormattedText";
 import Logo from "@iap/frontend-commons/components/Logo";
 
-import LoginForm from "./LoginForm";
-import { loginRedirectPath } from "./loginRedirect";
 import ParticipatingInstitutions from "./ParticipatingInstitutions";
 import PreLoginExtensions from "./PreLoginExtensions";
+import SignInMethods from "./SignInMethods";
 
 // The panels' inset, and the maximum width of the brand panel's content column: capped at a
 // reading measure rather than a fixed pixel width, so it follows the font size. The cap is
@@ -57,9 +56,9 @@ const seamBorder = (theme: Theme) => `1px solid ${theme.vars?.palette.divider ??
 // on wide screens it renders as the bottom of the muted column, and when the panels stack on
 // narrow screens it slides under the sign-in panel, to the bottom of the page.
 //
-// The sign-in card is the swappable "auth action" area — when authentication is delegated to
-// an external identity provider, the credentials form gives way to a redirect, and nothing
-// else on the page moves.
+// The sign-in card's auth action area is composed from the `iap/login/signInMethod`
+// extension point (see SignInMethods): the credentials form by default, an identity-provider
+// redirect once a deployment registers one — nothing else on the page moves.
 export default function LoginPage() {
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
   const tagline = meta("tagline");
@@ -213,7 +212,7 @@ export default function LoginPage() {
                 {signInHeading}
               </Typography>
             </Box>
-            <LoginForm onSuccess={() => window.location.assign(loginRedirectPath())} />
+            <SignInMethods />
             <ParticipatingInstitutions />
           </Box>
         </Box>

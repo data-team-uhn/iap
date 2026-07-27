@@ -8,9 +8,10 @@ through the `form.login.form` property in this module's `feature.json`; the form
 `/j_security_check` and then navigates to the validated `?resource=` return path.
 
 The page is a split landing page: a muted brand panel introducing the platform, and a paper
-panel with the sign-in action. The credentials form (`LoginForm.tsx`) is the swappable "auth
-action" area, to be replaced with an identity-provider redirect once authentication is
-delegated to Keycloak.
+panel with the sign-in action. The auth action area is composed from the
+`iap/login/signInMethod` extension point (see
+[Sign-in methods](#sign-in-methods)), so an identity provider integration replaces or joins
+the credentials form through content alone.
 
 ## Configuration reference
 
@@ -27,6 +28,40 @@ All texts are content, delivered as meta tags through the standard `/libs/iap/co
 
 `tagline`, `signInLabel`, and `signInHeading` are seeded as repoinit defaults; `introText`
 ships as initial content (`SLING-INF/content/libs/iap/conf/LoginPage.json`).
+
+### Sign-in methods
+
+The ways of signing in are `iap/login/signInMethod` extensions, rendered in their configured
+order: the first enabled method in place, any further ones collapsed behind a quiet link
+labelled by their `iap:collapsedLabel`. This module registers the local credentials form as
+the default method; if no method is registered (or the point fails to load), the page falls
+back to the credentials form directly, so there is always a way to sign in.
+
+An identity-provider integration (e.g. the planned Keycloak module) is content-only on the
+frontend side — register the generic redirect method with a lower order than the credentials
+form (100), which then collapses into its "Use a local account instead" link:
+
+```json
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/login/signInMethod",
+  "iap:extensionName": "Institutional sign-in",
+  "iap:extensionRenderURL": "asset:iap-login.RedirectSignIn.js",
+  "iap:defaultOrder": 10,
+  "iap:targetURL": "/goto-external-login",
+  "iap:actionLabel": "Continue to sign-in",
+  "iap:hint": "You will be redirected to your institution's sign-in page."
+}
+```
+
+The redirect method navigates to `iap:targetURL` with the validated in-app return path
+attached as its `resource` parameter, for the authentication endpoint to round-trip. Where
+local accounts should not be offered at all, disable the credentials form with
+`iap:defaultDisabled: true` on its extension node.
+
+A demo registration of the redirect method (pointing at a placeholder endpoint) ships with
+the test data (`test-data/.../Extensions/SignInMethod/ExternalDemo.json`), so instances
+started with `./start.sh --test` present the two-method composition out of the box.
 
 ### Participating institutions
 
