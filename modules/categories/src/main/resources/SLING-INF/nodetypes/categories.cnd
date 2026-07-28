@@ -1,0 +1,89 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<cat = 'https://iap.uhndata.io/cat/'>
+
+//-----------------------------------------------------------------------------
+//
+// Categories: an admin-editable tree classifying submissions, e.g.
+// "Prospective studies" / "Prospective Interventional Studies" /
+// "Behavioral Interventions". Categories nest by path, and sibling order is
+// the JCR child order, deliberately arranged by administrators.
+//
+// A leaf category (one with no subcategories) is what submissions are
+// actually filed under; it optionally references the sch:SchemaVersion
+// governing those submissions, which in turn references the workflow they
+// follow. Submissions filed under a category without a schema version fall
+// back to a default behavior.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /Categories root path.
+[cat:CategoriesHomepage] > iap:EntityHomepage
+  // Top-level categories are presented in a deliberate, admin-chosen order.
+  orderable
+
+  - sling:resourceType (STRING) = "cat/CategoriesHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains the category tree
+  + * (cat:Category) = cat:Category
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A submission category. The node name is the category's technical name;
+// the label is what submitters see.
+[cat:Category] > iap:Entity
+  // Sibling subcategories are presented in a deliberate, admin-chosen order.
+  orderable
+
+  - sling:resourceType (STRING) = "cat/Category" mandatory autocreated protected
+
+  // Human-readable name displayed to submitters
+  - label (STRING) mandatory
+
+  // Prompt-ready description of what belongs in this category, used both as
+  // guidance for submitters and as input for AI-assisted categorization
+  - description (STRING)
+
+  // The sch:SchemaVersion governing submissions filed under this category;
+  // the schema version in turn references the workflow they follow. Only
+  // leaf categories are expected to carry this - node types cannot express
+  // that restriction, so it is upheld by the administrative UI.
+  - schemaVersion (REFERENCE)
+
+  // When true, no new submissions may be filed under this category or its
+  // subcategories; existing submissions keep referencing it.
+  - retired (BOOLEAN) = false mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Subcategories
+  + * (cat:Category) = cat:Category
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
