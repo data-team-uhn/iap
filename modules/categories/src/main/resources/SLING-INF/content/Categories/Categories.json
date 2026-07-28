@@ -1,0 +1,58 @@
+{
+  "jcr:primaryType": "cat:CategoriesHomepage",
+  "Retrospective": {
+    "jcr:primaryType": "cat:Category",
+    "label": "Retrospective studies",
+    "description": "Studies relying exclusively on data or biological specimens that already exist at the time the study starts, collected for clinical care or for previous research. No new data or specimens are collected from participants, and there is no interaction with participants.",
+    "RetrospectiveData": {
+      "jcr:primaryType": "cat:Category",
+      "label": "Retrospective Data Studies",
+      "description": "Studies analyzing previously collected data only, such as chart reviews, registry analyses, or secondary use of existing research datasets. No biological specimens are used, no new data is collected, and there is no participant contact."
+    },
+    "RetrospectiveBiospecimen": {
+      "jcr:primaryType": "cat:Category",
+      "label": "Retrospective Biospecimen Studies",
+      "description": "Studies analyzing previously collected biological specimens, such as banked blood or tissue samples, possibly together with associated existing data. No new specimens are collected and there is no participant contact."
+    }
+  },
+  "Prospective": {
+    "jcr:primaryType": "cat:Category",
+    "label": "Prospective studies",
+    "description": "Studies collecting new data or new biological specimens from participants going forward, with or without an intervention. Any study involving contact or interaction with participants, or new collection of information about them, is prospective.",
+    "Observational": {
+      "jcr:primaryType": "cat:Category",
+      "label": "Prospective Observational Studies",
+      "description": "Prospective studies that collect new data from or about participants without assigning them to any intervention: participants are observed, surveyed, or interviewed, but their care or behavior is not altered by the study.",
+      "SurveysEducation": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Surveys Education",
+        "description": "Observational studies limited to surveys, questionnaires, interviews, focus groups, or educational research, collecting self-reported or educational data without clinical procedures and without sensitive personal health information beyond what participants choose to report."
+      },
+      "SensitiveDataClinical": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Sensitive Data/Clinical Interactions",
+        "description": "Observational studies involving sensitive personal or health data, or direct clinical interactions with participants, such as physical measurements, clinical assessments, imaging, or collection of biological specimens, without assigning any intervention."
+      }
+    },
+    "Interventional": {
+      "jcr:primaryType": "cat:Category",
+      "label": "Prospective Interventional Studies",
+      "description": "Prospective studies that assign participants to one or more interventions, whether behavioral, procedural, or product-based, in order to evaluate the interventions' effects.",
+      "Behavioral": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Behavioral Interventions",
+        "description": "Interventional studies whose interventions target behavior, lifestyle, education, or psychological well-being, such as counselling programs, training curricula, or lifestyle modification programs, without administering drugs, devices, or other regulated health products."
+      },
+      "SocTrials": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Trials and other studies testing SOC products/techniques",
+        "description": "Interventional studies evaluating drugs, devices, procedures, or techniques that are already part of the standard of care, used within their approved indications, such as comparing two accepted treatments or optimizing an established technique."
+      },
+      "ClinicalTrials": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Clinical trials involving experimental products",
+        "description": "Clinical trials administering investigational or experimental products, such as unapproved drugs, biologics, or devices, or approved products used outside their approved indications, requiring regulatory oversight of the product itself."
+      }
+    }
+  }
+}
