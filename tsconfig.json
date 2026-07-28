@@ -25,6 +25,8 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "paths": {
+      "@iap/admin-console/*": ["./modules/admin-console/src/main/frontend/src/*"],
+      "@iap/categories/*": ["./modules/categories/src/main/frontend/src/*"],
       "@iap/frontend-commons/*": ["./modules/frontend-commons/src/main/frontend/src/*"],
       "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],
       "@iap/test-data/*": ["./test-data/src/main/frontend/src/*"],

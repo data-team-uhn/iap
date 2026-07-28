@@ -38,8 +38,10 @@
     <module>favicon</module>
     <module>startup-customization</module>
     <module>homepage</module>
+    <module>admin-console</module>
     <module>workflows</module>
     <module>schemas</module>
+    <module>categories</module>
     <module>submissions</module>
     <module>healthcheck</module>
     <module>status</module>
