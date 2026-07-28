@@ -41,7 +41,9 @@ import {
   type Breakpoint,
   type Theme
 } from "@mui/material/styles";
+import { useLocation } from "react-router";
 
+import { areaBackground } from "@iap/frontend-commons/areas";
 import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
@@ -407,6 +409,7 @@ interface PageLayoutProps {
 function PageLayout({ children }: PageLayoutProps) {
   const [ regions, setRegions ] = useState<Record<string, Extension[]>>({});
   const region = (point: string) => regions[point] ?? [];
+  const { pathname } = useLocation();
 
   useEffect(() => {
     async function loadRegion(point: string) {
@@ -462,7 +465,18 @@ function PageLayout({ children }: PageLayoutProps) {
         { /* The scrolling middle: page-top extensions, then the main content, then page-bottom
              extensions, all between the rails. minInlineSize lets it shrink below its content's
              intrinsic width instead of pushing the rails off-screen. */ }
-        <Box sx={{ display: "flex", flexDirection: "column", flexGrow: 1, minInlineSize: 0 }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            flexGrow: 1,
+            minInlineSize: 0,
+            // The current area's canvas, painted once here so everything in the scrolling
+            // region (page-top extensions, the view, page-bottom extensions) sits on it
+            // transparently - e.g. the administration area's tinted background.
+            bgcolor: areaBackground(pathname),
+          }}
+        >
           <ExtensionList extensions={region("PageTop")} />
           { /* Page gutters: CssBaseline resets the browser's default body margin, so the main
                content provides its own padding. */ }
