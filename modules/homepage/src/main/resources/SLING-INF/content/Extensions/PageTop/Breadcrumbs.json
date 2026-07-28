@@ -1,0 +1,6 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/pageTop",
+  "iap:extensionName": "Breadcrumbs",
+  "iap:extensionRenderURL": "asset:iap-homepage.Breadcrumbs.js"
+}
