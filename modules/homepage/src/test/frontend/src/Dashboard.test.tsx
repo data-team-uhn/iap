@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 import Dashboard from "@iap/homepage/Dashboard";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
@@ -27,52 +27,19 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// Builds a widget extension as returned by loadExtensions: the parsed iap:Extension
-// JSON with the render asset already resolved to a component.
-const widget = (name: string, order: number) => ({
-  "iap:extensionName": name,
-  "iap:defaultOrder": order,
-  "iap:extensionRender": () => <div>{`${name} content`}</div>,
-});
-
+// The layout itself (grid, frames, loading, empty state) is covered by the shared
+// WidgetDashboard's own tests in frontend-commons; here only the binding matters.
 describe("Dashboard", () => {
-  it("shows a loading indicator until the widgets are retrieved", () => {
-    // A promise that never resolves keeps the dashboard in its loading state
-    mockedLoadExtensions.mockReturnValue(new Promise(() => {}));
+  it("lays out the widgets of the iap/dashboard/widget extension point", async () => {
+    mockedLoadExtensions.mockResolvedValue([{
+      "iap:extensionName": "Welcome",
+      "iap:extensionRender": () => <div>Welcome content</div>,
+    }]);
 
     render(<Dashboard />);
 
-    // The indicator lives in the LoadingOverlay's backdrop; jsdom never completes the fade so it
-    // stays visibility:hidden, hence { hidden: true } to assert it is rendered.
-    expect(screen.getAllByRole("progressbar", { hidden: true }).length).toBeGreaterThan(0);
-  });
-
-  it("wraps each widget's content in a titled Widget frame", async () => {
-    mockedLoadExtensions.mockResolvedValue([widget("Welcome", 0)]);
-
-    render(<Dashboard />);
-
-    // The dashboard frames every widget itself, titling it with the extension's iap:extensionName.
-    const content = await screen.findByText("Welcome content");
-    expect(content.closest(".MuiPaper-root")).not.toBeNull();
+    expect(await screen.findByText("Welcome content")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Welcome" })).toBeInTheDocument();
     expect(mockedLoadExtensions).toHaveBeenCalledWith("DashboardWidget");
-  });
-
-  it("renders a widget's iap:subtitle as a subtitle", async () => {
-    mockedLoadExtensions.mockResolvedValue([{ ...widget("Some widget", 0), "iap:subtitle": "A short hint" }]);
-
-    render(<Dashboard />);
-
-    expect(await screen.findByText("A short hint")).toBeInTheDocument();
-  });
-
-  it("renders an empty dashboard when there are no widgets", async () => {
-    mockedLoadExtensions.mockResolvedValue([]);
-
-    const { container } = render(<Dashboard />);
-
-    await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
-    expect(container.querySelector(".MuiPaper-root")).toBeNull();
   });
 });
