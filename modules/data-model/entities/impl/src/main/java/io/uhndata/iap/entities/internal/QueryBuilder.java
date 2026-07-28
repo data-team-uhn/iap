@@ -19,6 +19,7 @@ package io.uhndata.iap.entities.internal;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 
 /**
  * Assembles the JCR-SQL2 statement for a pagination request: nodes of one type under a scope path, optionally
- * filtered by their own properties and by the properties of a descendant node, ordered by one of their properties.
+ * filtered by their own properties and by the properties of descendant nodes, ordered by one of their properties.
  * Every name interpolated into the statement is validated, and every value is escaped, so the resulting statement
  * only queries what the caller declared.
  *
@@ -48,9 +49,7 @@ final class QueryBuilder
 
     private List<Filter> filters = List.of();
 
-    private String childType;
-
-    private List<Filter> childFilters = List.of();
+    private final Map<String, List<Filter>> childFilters = new LinkedHashMap<>();
 
     private String fullText;
 
@@ -85,25 +84,28 @@ final class QueryBuilder
 
     /**
      * Adds conditions on the properties of a descendant node: a queried node only matches if it has at least one
-     * descendant of the given type satisfying all of the given conditions.
+     * descendant of the given type satisfying all of the given conditions. Each call adds a new required
+     * descendant, so calling this multiple times with distinct types requires one matching descendant per type;
+     * calling it again with an already required type adds to that type's conditions. A call with a {@code null} or
+     * blank type and no conditions is a no-op, leaving previously added descendant conditions untouched.
      *
      * @param newChildType the node type of the descendant, e.g. {@code sub:Review}; may be {@code null} or blank if
      *            no descendant conditions are needed
-     * @param newChildFilters the conditions to impose on the descendant, may be empty
+     * @param newChildFilters the conditions to impose on the descendant, may be {@code null} or empty
      * @return this builder, for chaining
      * @throws IllegalArgumentException if conditions are given without a descendant node type, or the type is not a
      *             valid name
      */
     QueryBuilder withChildFilters(final String newChildType, final List<Filter> newChildFilters)
     {
+        final List<Filter> toAdd = newChildFilters == null ? List.of() : newChildFilters;
         if (newChildType == null || newChildType.isBlank()) {
-            if (!newChildFilters.isEmpty()) {
+            if (!toAdd.isEmpty()) {
                 throw new IllegalArgumentException("Child filters require a childType parameter");
             }
             return this;
         }
-        this.childType = checkName(newChildType);
-        this.childFilters = newChildFilters;
+        this.childFilters.computeIfAbsent(checkName(newChildType), key -> new ArrayList<>()).addAll(toAdd);
         return this;
     }
 
@@ -145,12 +147,18 @@ final class QueryBuilder
     String build()
     {
         final StringBuilder query = new StringBuilder("select n.* from [").append(this.nodeType).append("] as n");
-        if (this.childType != null) {
-            query.append(" inner join [").append(this.childType).append("] as c on isdescendantnode(c, n)");
+        int childIndex = 0;
+        for (final String childType : this.childFilters.keySet()) {
+            final String alias = "c" + childIndex++;
+            query.append(" inner join [").append(childType).append("] as ").append(alias)
+                .append(" on isdescendantnode(").append(alias).append(", n)");
         }
         query.append(" where isdescendantnode(n, '").append(escape(this.scopePath)).append("')");
         appendConditions(query, "n", this.filters);
-        appendConditions(query, "c", this.childFilters);
+        childIndex = 0;
+        for (final List<Filter> filtersForChild : this.childFilters.values()) {
+            appendConditions(query, "c" + childIndex++, filtersForChild);
+        }
         if (this.fullText != null && !this.fullText.isBlank()) {
             query.append(" and contains(n.*, '").append(escape(this.fullText)).append("')");
         }
@@ -161,14 +169,10 @@ final class QueryBuilder
     private static void appendConditions(final StringBuilder query, final String source, final List<Filter> filters)
     {
         for (final List<Filter> group : groupFilters(filters)) {
-            if (group.size() == 1) {
-                query.append(" and ").append(condition(source, group.get(0)));
-            } else {
-                query.append(" and (")
-                    .append(group.stream().map(filter -> condition(source, filter))
-                        .collect(Collectors.joining(" or ")))
-                    .append(')');
-            }
+            query.append(" and (")
+                .append(group.stream().map(filter -> condition(source, filter))
+                    .collect(Collectors.joining(" or ")))
+                .append(')');
         }
     }
 
@@ -207,6 +211,9 @@ final class QueryBuilder
             // `x <> y` is evaluated on each entry of a multi-valued property and never matches an empty one;
             // `not x = y` behaves intuitively for both single and multi-valued properties
             return "not " + property + " = '" + escape(filter.getValue()) + '\'';
+        }
+        if ("NOT LIKE".equals(filter.getComparator())) {
+            return "not " + property + " LIKE '" + escape(filter.getValue()) + '\'';
         }
         if ("ILIKE".equals(filter.getComparator())) {
             // Case-insensitive LIKE, which JCR-SQL2 doesn't have natively: lowercase both sides

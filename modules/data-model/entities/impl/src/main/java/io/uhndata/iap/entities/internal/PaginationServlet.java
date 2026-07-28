@@ -68,8 +68,8 @@ import org.slf4j.LoggerFactory;
  * <li>{@code filter}: a full text search term that the entities must contain</li>
  * <li>{@code fieldName}, {@code fieldComparator}, {@code fieldValue}: repeatable triples imposing a condition on a
  * property of the entity itself, e.g. {@code status = draft}; the supported comparators are {@code =}, {@code <>},
- * {@code <}, {@code <=}, {@code >}, {@code >=}, {@code LIKE}, {@code ILIKE} (case-insensitive {@code LIKE}),
- * {@code NOT ILIKE}, {@code IS NULL} and {@code IS NOT NULL}; if no
+ * {@code <}, {@code <=}, {@code >}, {@code >=}, {@code LIKE}, {@code NOT LIKE}, {@code ILIKE} (case-insensitive
+ * {@code LIKE}), {@code NOT ILIKE}, {@code IS NULL} and {@code IS NOT NULL}; if no
  * comparators are sent, {@code =} is used; the special value {@code @me} is replaced with the current user's id</li>
  * <li>{@code fieldGroup}: optional group identifiers aligned with the field triples; conditions sharing a
  * (non-empty) group are ORed together, while distinct groups and ungrouped conditions are ANDed, so e.g.
@@ -283,8 +283,11 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
                 continue;
             }
             if (seen.size() > offset && returned < limit) {
-                json.write(serializeRow(request.getResourceResolver(), path, selectors));
-                ++returned;
+                final JsonObject row = serializeRow(request.getResourceResolver(), path, selectors);
+                if (row != null) {
+                    json.write(row);
+                    ++returned;
+                }
             }
             if (seen.size() >= lookahead) {
                 more = true;
@@ -300,13 +303,17 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * @param resolver the current resource resolver
      * @param path the path of the entity to serialize
      * @param selectors the extra serialization selectors requested by the client, may be an empty string
-     * @return the serialized entity, or, if the entity cannot be serialized, a small placeholder identifying it by
-     *         path, so that the row counts stay consistent
+     * @return the serialized entity, or {@code null} if the entity cannot be serialized; such entities are left out
+     *         of the response, though they still count towards the reported total
      */
     private JsonObject serializeRow(final ResourceResolver resolver, final String path, final String selectors)
     {
-        final JsonObject json = resolver.resolve(path + selectors).adaptTo(JsonObject.class);
-        return json != null ? json : Json.createObjectBuilder().add("@path", path).build();
+        try {
+            return resolver.resolve(path + selectors).adaptTo(JsonObject.class);
+        } catch (final RuntimeException e) {
+            LOGGER.warn("Failed to serialize {} for pagination: {}", path, e.getMessage(), e);
+            return null;
+        }
     }
 
     /**

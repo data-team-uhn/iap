@@ -93,3 +93,7 @@
 
   // Hardcode the supertype to the parent iap/EntityHomepage type.
   - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // The node type of the entities listed under this homepage. When absent, the type is derived from
+  // the homepage's resource type by naming convention, e.g. sub/SubmissionsHomepage lists sub:Submission.
+  - childNodeType (STRING)

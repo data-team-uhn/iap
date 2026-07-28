@@ -214,15 +214,33 @@ public class PaginationServletTest
     }
 
     @Test
-    public void unserializableResourcesAreListedByPath() throws Exception
+    public void unserializableResourcesAreSkipped() throws Exception
     {
         final Resource broken = Mockito.mock(Resource.class);
         Mockito.when(broken.adaptTo(JsonObject.class)).thenReturn(null);
         Mockito.when(this.resolver.resolve("/Submissions/s1")).thenReturn(broken);
-        mockResults("/Submissions/s1");
+        mockResults("/Submissions/s1", "/Submissions/s2");
         this.servlet.doGet(this.request, this.response);
         final JsonObject result = getResponseJson();
-        Assertions.assertEquals("/Submissions/s1", result.getJsonArray("rows").getJsonObject(0).getString("@path"));
+        Assertions.assertEquals(1, result.getJsonArray("rows").size());
+        Assertions.assertEquals("/Submissions/s2", result.getJsonArray("rows").getJsonObject(0).getString("path"));
+        Assertions.assertEquals(1, result.getJsonNumber("returnedrows").longValue());
+        // The skipped entity is still a match, so it still counts towards the total
+        Assertions.assertEquals(2, result.getJsonNumber("totalrows").longValue());
+    }
+
+    @Test
+    public void serializationErrorsDontBreakTheResponse() throws Exception
+    {
+        final Resource broken = Mockito.mock(Resource.class);
+        Mockito.when(broken.adaptTo(JsonObject.class)).thenThrow(new IllegalStateException("Broken resource"));
+        Mockito.when(this.resolver.resolve("/Submissions/s1")).thenReturn(broken);
+        mockResults("/Submissions/s1", "/Submissions/s2");
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(1, result.getJsonArray("rows").size());
+        Assertions.assertEquals("/Submissions/s2", result.getJsonArray("rows").getJsonObject(0).getString("path"));
+        Assertions.assertFalse(result.containsKey("error"));
     }
 
     @Test
@@ -238,8 +256,8 @@ public class PaginationServletTest
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
-                + " and n.[jcr:createdBy] = 'testUser'"
-                + " and not n.[status] = 'draft'"
+                + " and (n.[jcr:createdBy] = 'testUser')"
+                + " and (not n.[status] = 'draft')"
                 + " and contains(n.*, 'cancer')"
                 + " order by n.[jcr:lastModified] DESC", statement.getValue());
     }
@@ -255,7 +273,7 @@ public class PaginationServletTest
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
-                + " and n.[jcr:createdBy] = 'testUser'"
+                + " and (n.[jcr:createdBy] = 'testUser')"
                 + " and (n.[status] = 'submitted' or n.[status] = 'in-review')"
                 + " order by n.[jcr:created] ASC", statement.getValue());
     }
@@ -277,7 +295,7 @@ public class PaginationServletTest
         withParameter("fieldValue", "draft");
         final ArgumentCaptor<String> statement = mockResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertTrue(statement.getValue().contains("and n.[status] = 'draft'"));
+        Assertions.assertTrue(statement.getValue().contains("and (n.[status] = 'draft')"));
     }
 
     @Test
@@ -291,10 +309,10 @@ public class PaginationServletTest
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n"
-                + " inner join [sub:Review] as c on isdescendantnode(c, n)"
+                + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
                 + " where isdescendantnode(n, '/Submissions')"
-                + " and c.[reviewer] = 'testUser'"
-                + " and not c.[status] = 'approved'"
+                + " and (c0.[reviewer] = 'testUser')"
+                + " and (not c0.[status] = 'approved')"
                 + " order by n.[jcr:created] ASC", statement.getValue());
     }
 

@@ -54,9 +54,9 @@ public class QueryBuilderTest
                 new Filter("schemaVersion", "IS NOT NULL", null)))
             .build();
         Assertions.assertEquals(BASE_QUERY
-            + " and n.[status] = 'draft'"
-            + " and n.[title] LIKE '%consent%'"
-            + " and n.[schemaVersion] IS NOT NULL"
+            + " and (n.[status] = 'draft')"
+            + " and (n.[title] LIKE '%consent%')"
+            + " and (n.[schemaVersion] IS NOT NULL)"
             + " order by n.[jcr:created] ASC", query);
     }
 
@@ -66,7 +66,7 @@ public class QueryBuilderTest
         final String query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "ILIKE", "%CARdiac's%")))
             .build();
-        Assertions.assertEquals(BASE_QUERY + " and LOWER(n.[title]) LIKE '%cardiac\\'s%' order by n.[jcr:created] ASC",
+        Assertions.assertEquals(BASE_QUERY + " and (LOWER(n.[title]) LIKE '%cardiac\\'s%') order by n.[jcr:created] ASC",
             query);
     }
 
@@ -76,7 +76,17 @@ public class QueryBuilderTest
         final String query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "NOT ILIKE", "%Cardiac%")))
             .build();
-        Assertions.assertEquals(BASE_QUERY + " and not LOWER(n.[title]) LIKE '%cardiac%' order by n.[jcr:created] ASC",
+        Assertions.assertEquals(BASE_QUERY + " and (not LOWER(n.[title]) LIKE '%cardiac%') order by n.[jcr:created] ASC",
+            query);
+    }
+
+    @Test
+    public void negatedLikeIsSupported()
+    {
+        final String query = new QueryBuilder(SUBMISSION, SCOPE)
+            .withFilters(List.of(new Filter("title", "NOT LIKE", "%Cardiac%")))
+            .build();
+        Assertions.assertEquals(BASE_QUERY + " and (not n.[title] LIKE '%Cardiac%') order by n.[jcr:created] ASC",
             query);
     }
 
@@ -92,12 +102,11 @@ public class QueryBuilderTest
                 new Filter("status", "<>", "draft", "g2")))
             .build();
         Assertions.assertEquals(BASE_QUERY
-            + " and n.[jcr:createdBy] = 'admin'"
+            + " and (n.[jcr:createdBy] = 'admin')"
             // The group appears at its first member's position, collecting all its members
             + " and (n.[status] = 'submitted' or n.[status] = 'in-review')"
-            + " and LOWER(n.[title]) LIKE '%x%'"
-            // A single-member group is just a plain condition
-            + " and not n.[status] = 'draft'"
+            + " and (LOWER(n.[title]) LIKE '%x%')"
+            + " and (not n.[status] = 'draft')"
             + " order by n.[jcr:created] ASC", query);
     }
 
@@ -107,7 +116,7 @@ public class QueryBuilderTest
         final String query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("status", "<>", "draft")))
             .build();
-        Assertions.assertEquals(BASE_QUERY + " and not n.[status] = 'draft' order by n.[jcr:created] ASC", query);
+        Assertions.assertEquals(BASE_QUERY + " and (not n.[status] = 'draft') order by n.[jcr:created] ASC", query);
     }
 
     @Test
@@ -120,10 +129,43 @@ public class QueryBuilderTest
             .build();
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n"
-                + " inner join [sub:Review] as c on isdescendantnode(c, n)"
+                + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
                 + " where isdescendantnode(n, '/Submissions')"
-                + " and c.[reviewer] = 'alice'"
-                + " and not c.[status] = 'approved'"
+                + " and (c0.[reviewer] = 'alice')"
+                + " and (not c0.[status] = 'approved')"
+                + " order by n.[jcr:created] ASC", query);
+    }
+
+    @Test
+    public void multipleChildTypesEachJoinOnTheirOwnDescendant()
+    {
+        final String query = new QueryBuilder(SUBMISSION, SCOPE)
+            .withChildFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice")))
+            .withChildFilters("sub:Signature", List.of(new Filter("signer", "=", "bob")))
+            .build();
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n"
+                + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
+                + " inner join [sub:Signature] as c1 on isdescendantnode(c1, n)"
+                + " where isdescendantnode(n, '/Submissions')"
+                + " and (c0.[reviewer] = 'alice')"
+                + " and (c1.[signer] = 'bob')"
+                + " order by n.[jcr:created] ASC", query);
+    }
+
+    @Test
+    public void repeatedChildTypeMergesItsFilters()
+    {
+        final String query = new QueryBuilder(SUBMISSION, SCOPE)
+            .withChildFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice")))
+            .withChildFilters("sub:Review", List.of(new Filter("status", "=", "approved")))
+            .build();
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n"
+                + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
+                + " where isdescendantnode(n, '/Submissions')"
+                + " and (c0.[reviewer] = 'alice')"
+                + " and (c0.[status] = 'approved')"
                 + " order by n.[jcr:created] ASC", query);
     }
 
@@ -134,6 +176,19 @@ public class QueryBuilderTest
             new QueryBuilder(SUBMISSION, SCOPE).withChildFilters(null, List.of()).build());
         Assertions.assertEquals(BASE_QUERY + " order by n.[jcr:created] ASC",
             new QueryBuilder(SUBMISSION, SCOPE).withChildFilters(" ", List.of()).build());
+        Assertions.assertEquals(BASE_QUERY + " order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withChildFilters(null, null).build());
+        // A later no-op call doesn't clear previously added child filters
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n"
+                + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
+                + " where isdescendantnode(n, '/Submissions')"
+                + " and (c0.[reviewer] = 'alice')"
+                + " order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE)
+                .withChildFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice")))
+                .withChildFilters(null, null)
+                .build());
     }
 
     @Test
@@ -175,8 +230,8 @@ public class QueryBuilderTest
             .build();
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Sub\\'missions')"
-                + " and n.[title] = 'It\\'s a \\\\ test'"
-                + " and n.[status] = ''"
+                + " and (n.[title] = 'It\\'s a \\\\ test')"
+                + " and (n.[status] = '')"
                 + " and contains(n.*, 'some\\'text')"
                 + " order by n.[jcr:created] ASC", query);
     }

@@ -33,6 +33,10 @@
   - sling:resourceType (STRING) = "wf/WorkflowsHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
 
+  // The listed entities are workflow definitions, not following the naming convention
+  // that would derive wf:Workflow from the resource type.
+  - childNodeType (STRING) = "wf:WorkflowDefinition" mandatory autocreated protected
+
   // Contains workflow definitions
   + * (wf:WorkflowDefinition) = wf:WorkflowDefinition
 
