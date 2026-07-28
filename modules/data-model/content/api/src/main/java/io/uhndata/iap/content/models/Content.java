@@ -59,6 +59,18 @@ public class Content
     private String createdBy;
 
     /**
+     * The resource this model wraps, for callers that need to go below the model API, e.g. to write through the
+     * resource's own resolver.
+     *
+     * @return the wrapped resource
+     */
+    @NotNull
+    public Resource getResource()
+    {
+        return this.resource;
+    }
+
+    /**
      * The path of the wrapped resource.
      *
      * @return an absolute repository path

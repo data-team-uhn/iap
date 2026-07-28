@@ -28,9 +28,20 @@
   <artifactId>iap-data-model-links-api</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Data model - Links - Definitions, APIs and SPIs</name>
+  <description>Node types, Sling Models and the manager service for ad-hoc typed links between resources.</description>
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.rat</groupId>
+        <artifactId>apache-rat-plugin</artifactId>
+        <configuration>
+          <inputExcludes combine.children="append">
+            <!-- One-line Mockito configuration file, cannot hold a license header -->
+            <exclude>src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker</exclude>
+          </inputExcludes>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
@@ -39,8 +50,9 @@
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
             <Sling-Nodetypes>SLING-INF/nodetypes/links.cnd</Sling-Nodetypes>
+            <Sling-Model-Packages>io.uhndata.iap.links.models</Sling-Model-Packages>
             <Sling-Initial-Content>
-              SLING-INF/content/oak%3Aindex/;path:=/oak:index/;overwriteProperties:=true;uninstall:=true
+              SLING-INF/content/libs/iap/;path:=/libs/iap/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -55,16 +67,65 @@
       <artifactId>annotations</artifactId>
     </dependency>
     <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-content-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.jackrabbit</groupId>
-      <artifactId>oak-store-spi</artifactId>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.api</artifactId>
     </dependency>
     <dependency>
-      <groupId>jakarta.json</groupId>
-      <artifactId>jakarta.json-api</artifactId>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.models.api</artifactId>
+      <version>2.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <!-- Referenced by the deprecated methods of the org.apache.sling.api.resource.ResourceResolver interface
+        mocked in tests -->
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- Referenced by the deprecated methods of the org.apache.sling.api.resource.ResourceResolver interface
+        mocked in tests -->
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>javax.annotation</groupId>
+      <artifactId>javax.annotation-api</artifactId>
     </dependency>
   </dependencies>
 </project>
