@@ -18,7 +18,7 @@
 
 import { render, screen } from "@testing-library/react";
 
-import Widget from "@iap/homepage/Widget";
+import Widget from "@iap/frontend-commons/components/Widget";
 
 describe("Widget", () => {
   it("renders its children on a Paper surface", () => {
@@ -69,5 +69,18 @@ describe("Widget", () => {
     const { container } = render(<Widget title="My widget" borderless><div>body</div></Widget>);
 
     expect(getComputedStyle(container.firstElementChild!).borderStyle).toBe("none");
+  });
+
+  it("renders the action in the header, in line with the title", () => {
+    render(<Widget title="My widget" action={<button>Configure</button>}><div>body</div></Widget>);
+
+    expect(screen.getByRole("button", { name: "Configure" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My widget" })).toBeInTheDocument();
+  });
+
+  it("does not render the action when hideHeader is set", () => {
+    render(<Widget title="My widget" action={<button>Configure</button>} hideHeader><div>body</div></Widget>);
+
+    expect(screen.queryByRole("button", { name: "Configure" })).toBeNull();
   });
 });
