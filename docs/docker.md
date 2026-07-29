@@ -1,5 +1,10 @@
 # Docker packaging
 
+`-Pdocker` builds two images: `iap/iap`, the platform itself, described below, and
+`iap/docling`, the document processing daemon — see [The docling image](#the-docling-image).
+
+## The `iap/iap` image
+
 The `packaging/docker` module (activated with `-Pdocker`) builds the `iap/iap` Docker image.
 One image definition serves two flavors, differing only in how much of the artifact
 repository is baked in:
@@ -64,3 +69,27 @@ always present and current:
   inventory of every Java artifact in the deployment;
 - `yarn.lock` — the complete inventory of the frontend JavaScript dependencies;
 - `logo.svg` — the platform logo shipped with this build.
+
+## The docling image
+
+`modules/documents/processing` builds `iap/docling`, the Python daemon that converts uploaded
+PDF/DOC/DOCX documents into cleaned, chunked Markdown. The `docker` profile therefore builds
+both images, as in `mvn clean install -Pdocker`. To build only this one:
+
+```
+mvn install -Pdocker -pl modules/documents/processing
+```
+
+**Note**: the image is roughly 8.7 GB and takes a while to build. This is because it bakes the Docling
+model weights into the image at build time, as without them the first conversion would reach out to
+huggingface.co and fail, and the container would report healthy until the first request. The
+weights are saved in `DOCLING_ARTIFACTS_PATH`, and `HF_HUB_OFFLINE` is set afterwards so that
+the runtime stays offline after downloading.
+
+The daemon publishes **no port**. `modules/documents/processing/docker-compose.yml` runs it as a
+Compose service with no `ports:` entry, so IAP reaches it by service name at
+`http://docling:18765` and nothing outside that network can access it. `POST /parse` takes the document
+in the request body and returns the Markdown and chunk tree in the response.
+
+See `modules/documents/processing/requirements.md` for the endpoints, the system properties IAP
+uses to reach the daemon, and how to run it by hand for local work.
