@@ -16,10 +16,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# If we have not explicitly specified the file system as the Oak Repo
-# back-end for data storage, use MongoDB
-STORAGE=tar
-[ -z $OAK_FILESYSTEM ] && STORAGE=mongo
+# The Oak repository back-end for data storage. `OAK_STORAGE` names it explicitly; without it,
+# the file system is used when `OAK_FILESYSTEM` is set, and MongoDB otherwise.
+STORAGE="$OAK_STORAGE"
+if [ -z "$STORAGE" ]
+then
+  STORAGE=tar
+  [ -z $OAK_FILESYSTEM ] && STORAGE=mongo
+fi
+case "$STORAGE" in
+  tar|mongo|rdb) ;;
+  *) echo "Unsupported OAK_STORAGE '$STORAGE', expected one of: tar, mongo, rdb" >&2; exit 1 ;;
+esac
 
 #If inside a docker-compose environment, wait for a signal...
 [ -z $INSIDE_DOCKER_COMPOSE ] || (while true; do (echo "IAP" | nc router 9999) && break; sleep 5; done)
@@ -76,6 +84,25 @@ then
   EXT_MONGO_VARIABLES="$EXT_MONGO_VARIABLES -V mongo.uri=$AUTH_EXTERNAL_MONGO_URI"
 fi
 
+#Are we using an external relational database service for data storage?
+EXT_RDB_VARIABLES=""
+if [ ! -z $EXTERNAL_RDB_URI ]
+then
+  EXT_RDB_VARIABLES="$EXT_RDB_VARIABLES -V rdb.jdbc.uri=$EXTERNAL_RDB_URI"
+fi
+if [ ! -z $RDB_DRIVER ]
+then
+  EXT_RDB_VARIABLES="$EXT_RDB_VARIABLES -V rdb.jdbc.driver=$RDB_DRIVER"
+fi
+if [ ! -z $RDB_USER ]
+then
+  EXT_RDB_VARIABLES="$EXT_RDB_VARIABLES -V rdb.jdbc.user=$RDB_USER"
+fi
+if [ ! -z $RDB_PASSWORD ]
+then
+  EXT_RDB_VARIABLES="$EXT_RDB_VARIABLES -V rdb.jdbc.password=$RDB_PASSWORD"
+fi
+
 SMTPS_VARIABLES=""
 if [ ! -z $SMTPS_HOST ]
 then
@@ -120,4 +147,4 @@ export JAVA_OPTS="${JAVA_MEMORY_LIMIT_MB:+ -Xmx${JAVA_MEMORY_LIMIT_MB}m} ${DEBUG
 # flavor, the complete third-party repository in artifacts/. A volume-mounted ~/.m2 and the
 # remote repositories are fallbacks for the developer flavor.
 chmod +x ./org.apache.sling.feature.launcher/bin/launcher
-./org.apache.sling.feature.launcher/bin/launcher -u "file:///opt/iap/mvnrepo,file:///opt/iap/artifacts,file://$(realpath ${HOME}/.m2/repository),https://repo.maven.apache.org/maven2" -p .iap-data -c .iap-data/cache -f mvn:io.uhndata.iap/iap-packaging-slingfeature/${PLATFORM_VERSION}/slingosgifeature/core_${STORAGE}${EXT_MONGO_VARIABLES}${SMTPS_VARIABLES}${featureFlagString}
+./org.apache.sling.feature.launcher/bin/launcher -u "file:///opt/iap/mvnrepo,file:///opt/iap/artifacts,file://$(realpath ${HOME}/.m2/repository),https://repo.maven.apache.org/maven2" -p .iap-data -c .iap-data/cache -f mvn:io.uhndata.iap/iap-packaging-slingfeature/${PLATFORM_VERSION}/slingosgifeature/core_${STORAGE}${EXT_MONGO_VARIABLES}${EXT_RDB_VARIABLES}${SMTPS_VARIABLES}${featureFlagString}
