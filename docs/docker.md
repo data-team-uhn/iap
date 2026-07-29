@@ -13,8 +13,8 @@ mvn clean install -Pdocker -Ddocker.production=true   # production flavor: fully
 
 The container starts the Sling Feature Launcher on the aggregated feature
 (`mvn:io.uhndata.iap/iap-packaging-slingfeature/<version>/slingosgifeature/core_<storage>`,
-`tar` or `mongo` chosen by the `OAK_FILESYSTEM` environment variable), resolving artifacts
-from, in order:
+one of `tar`, `mongo` or `rdb` named by the `OAK_STORAGE` environment variable — without it,
+`tar` when `OAK_FILESYSTEM` is set and `mongo` otherwise), resolving artifacts from, in order:
 
 1. `/opt/iap/mvnrepo` — the project's own artifacts, including **every feature file produced
    by the repository**, copied from the build's `.mvnrepo`;
@@ -50,9 +50,21 @@ Extra features can be activated when starting the container:
   requires are listed in `/sling-features.json` (currently empty, pending the first project
   distributions).
 
-Other supported environment variables: `OAK_FILESYSTEM` (TAR segment store instead of
-MongoDB), `EXTERNAL_MONGO_URI`/`MONGO_AUTH`/`CUSTOM_MONGO_DB_NAME`, `SMTPS_*` (mail),
+Other supported environment variables: `OAK_STORAGE` (`tar`, `mongo` or `rdb`) and the older
+`OAK_FILESYSTEM` (TAR segment store instead of MongoDB),
+`EXTERNAL_MONGO_URI`/`MONGO_AUTH`/`CUSTOM_MONGO_DB_NAME`,
+`EXTERNAL_RDB_URI`/`RDB_DRIVER`/`RDB_USER`/`RDB_PASSWORD`, `SMTPS_*` (mail),
 `DEBUG` (JDWP on port 5005), `JAVA_MEMORY_LIMIT_MB`, and a `/volume_mounted_init.sh` hook.
+
+With `OAK_STORAGE=rdb` the repository lives in a relational database, which must be reachable
+and must hold a database the connecting user may create tables in — Oak creates its own tables
+on first start. Only the PostgreSQL JDBC driver is bundled in the image; `RDB_DRIVER` exists
+for deployments that add another vendor's driver through `ADDITIONAL_SLING_FEATURES`:
+
+```
+docker run --rm -e OAK_STORAGE=rdb -e EXTERNAL_RDB_URI=jdbc:postgresql://db:5432/iap \
+  -e RDB_USER=iap -e RDB_PASSWORD=secret -p 8080:8080 -it iap/iap
+```
 
 ## The metadata layer
 
@@ -60,7 +72,7 @@ MongoDB), `EXTERNAL_MONGO_URI`/`MONGO_AUTH`/`CUSTOM_MONGO_DB_NAME`, `SMTPS_*` (m
 always present and current:
 
 - `build-info.txt` — version, git commit, and build timestamp;
-- `core_tar.json` / `core_mongo.json` — the aggregated feature models, the complete versioned
-  inventory of every Java artifact in the deployment;
+- `core_tar.json` / `core_mongo.json` / `core_rdb.json` — the aggregated feature models, the
+  complete versioned inventory of every Java artifact in the deployment;
 - `yarn.lock` — the complete inventory of the frontend JavaScript dependencies;
 - `logo.svg` — the platform logo shipped with this build.
