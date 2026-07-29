@@ -18,19 +18,22 @@
 package io.uhndata.iap.tags.internal;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.spi.TagContext;
 import io.uhndata.iap.tags.spi.TagDefinitions;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * Copies {@link TagDefinitions#isInheritable inheritable} tags down the tree: a node's {@code inheritedTags}
- * property holds every inheritable tag explicitly placed on any of its ancestors, materialized by chaining the
- * parent's explicit and inherited tags.
+ * Copies {@link TagDefinitions#isInheritable inheritable} tags down the tree: a node's {@code inheritedTags} property
+ * holds every inheritable tag placed on any of its ancestors, materialized by chaining the parent's own tags — the
+ * explicit ones and the ones a {@link Phase#LOCAL} processor computed for it — with what the parent itself inherited.
  *
  * @version $Id$
  * @since 0.1.0
@@ -39,18 +42,19 @@ import io.uhndata.iap.tags.spi.TagProcessor;
 public class TagInheritanceProcessor implements TagProcessor
 {
     /** The name of the property holding the tags inherited from ancestors. */
-    public static final String PROPERTY = "inheritedTags";
+    public static final String PROPERTY = Phase.TOP_DOWN.getPropertyName();
+
+    /**
+     * The parent properties an inheritable tag can reach this node through: the tags belonging to the parent itself,
+     * and the chain of what the parent inherited from its own ancestors.
+     */
+    private static final List<String> SOURCES =
+        List.of(TagManager.TAGS_PROPERTY, Phase.LOCAL.getPropertyName(), PROPERTY);
 
     @Override
     public Phase getPhase()
     {
         return Phase.TOP_DOWN;
-    }
-
-    @Override
-    public String getPropertyName()
-    {
-        return PROPERTY;
     }
 
     @Override
@@ -60,23 +64,18 @@ public class TagInheritanceProcessor implements TagProcessor
     }
 
     @Override
-    public Set<String> computeTags(final NodeState node, final NodeState parent, final TagDefinitions definitions)
+    public Set<String> computeTags(final TagContext context)
     {
-        final Set<String> result = new LinkedHashSet<>();
+        final NodeState parent = context.getParent();
         if (parent == null) {
-            return result;
+            return Set.of();
         }
-        for (final String tag : TagProcessor.readTags(parent, TagManager.TAGS_PROPERTY)) {
-            if (definitions.isInheritable(tag)) {
-                result.add(tag);
-            }
-        }
-        // Already filtered when the parent's own property was computed, but re-filter to shed stale values
-        for (final String tag : TagProcessor.readTags(parent, PROPERTY)) {
-            if (definitions.isInheritable(tag)) {
-                result.add(tag);
-            }
-        }
-        return result;
+        final TagDefinitions definitions = context.getDefinitions();
+        // The chained values were already filtered when the parent's own properties were computed, but re-filtering
+        // sheds values left over from a definition that stopped being inheritable
+        return SOURCES.stream()
+            .flatMap(property -> TagProcessor.readTags(parent, property).stream())
+            .filter(definitions::isInheritable)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 }

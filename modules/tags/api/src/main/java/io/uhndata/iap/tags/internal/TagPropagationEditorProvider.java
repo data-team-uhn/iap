@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.tags.internal;
 
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
@@ -35,8 +33,8 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
- * Provides a {@link TagPropagationEditor} for every commit, invoking all the registered {@link TagProcessor}
- * services in ascending priority order, with the tag definitions read from the committed {@code /Tags} state.
+ * Provides a {@link TagPropagationEditor} for every commit, with the registered {@link TagProcessor} services grouped
+ * by phase and the tag definitions read from the committed {@code /Tags} state.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,19 +55,7 @@ public class TagPropagationEditorProvider implements EditorProvider
         if (current == null || current.isEmpty()) {
             return null;
         }
-        final List<TagProcessor> topDown = new ArrayList<>();
-        final List<TagProcessor> bottomUp = new ArrayList<>();
-        for (final TagProcessor processor : current) {
-            if (processor.getPhase() == TagProcessor.Phase.TOP_DOWN) {
-                topDown.add(processor);
-            } else {
-                bottomUp.add(processor);
-            }
-        }
-        final Comparator<TagProcessor> byPriority = Comparator.comparingInt(TagProcessor::getPriority);
-        topDown.sort(byPriority);
-        bottomUp.sort(byPriority);
-        return new TagPropagationEditor(builder, new TagDefinitionsSnapshot(after.getChildNode("Tags")),
-            new TagWritabilityChecker(after), topDown, bottomUp);
+        return new TagPropagationEditor(builder, new TagPropagationConfig(current,
+            new TagDefinitionsSnapshot(after.getChildNode("Tags")), new NodeTypeInspector(after)));
     }
 }

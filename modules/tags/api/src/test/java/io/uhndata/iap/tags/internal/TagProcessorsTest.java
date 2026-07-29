@@ -23,12 +23,17 @@ import java.util.Set;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.Test;
 
+import io.uhndata.iap.tags.spi.TagContext;
 import io.uhndata.iap.tags.spi.TagDefinitions;
 import io.uhndata.iap.tags.spi.TagProcessor;
+import io.uhndata.iap.tags.spi.TagProcessor.Phase;
+import io.uhndata.iap.tags.spi.TagProcessor.Scope;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -80,42 +85,65 @@ class TagProcessorsTest
     @Test
     void describeThemselves()
     {
-        assertEquals(TagProcessor.Phase.TOP_DOWN, this.inheritance.getPhase());
-        assertEquals(TagInheritanceProcessor.PROPERTY, this.inheritance.getPropertyName());
+        assertEquals(Phase.TOP_DOWN, this.inheritance.getPhase());
+        assertEquals(Phase.TOP_DOWN.getPropertyName(), TagInheritanceProcessor.PROPERTY);
+        assertEquals(Scope.NODE, this.inheritance.getScope());
         assertEquals(100, this.inheritance.getPriority());
-        assertEquals(TagProcessor.Phase.BOTTOM_UP, this.aggregation.getPhase());
-        assertEquals(TagAggregationProcessor.PROPERTY, this.aggregation.getPropertyName());
+        assertEquals(Phase.BOTTOM_UP, this.aggregation.getPhase());
+        assertEquals(Phase.BOTTOM_UP.getPropertyName(), TagAggregationProcessor.PROPERTY);
+        assertEquals(Scope.NODE, this.aggregation.getScope());
         assertEquals(100, this.aggregation.getPriority());
     }
 
     @Test
-    void inheritanceChainsParentExplicitAndInheritedTags()
+    void eachPhaseOwnsOneProperty()
+    {
+        assertEquals("inheritedTags", Phase.TOP_DOWN.getPropertyName());
+        assertEquals("computedTags", Phase.LOCAL.getPropertyName());
+        assertEquals("aggregatedTags", Phase.BOTTOM_UP.getPropertyName());
+    }
+
+    @Test
+    void inheritanceChainsAllTagsBelongingToTheParent()
     {
         final NodeBuilder parent = EmptyNodeState.EMPTY_NODE.builder();
-        // Only inheritable tags flow down, both from the parent's explicit and already inherited tags
+        // Only inheritable tags flow down, from the parent's explicit, computed and already inherited tags alike
         parent.setProperty(TAGS, List.of(INH, AGG, "plain", "unknown"), Type.STRINGS);
+        parent.setProperty(Phase.LOCAL.getPropertyName(), List.of(INH, "computedStale"), Type.STRINGS);
         parent.setProperty(TagInheritanceProcessor.PROPERTY, List.of(INH, "stale"), Type.STRINGS);
 
-        assertEquals(Set.of(INH), this.inheritance.computeTags(EmptyNodeState.EMPTY_NODE,
-            parent.getNodeState(), this.definitions));
+        assertEquals(Set.of(INH),
+            this.inheritance.computeTags(context(EmptyNodeState.EMPTY_NODE, parent.getNodeState())));
+    }
+
+    @Test
+    void inheritanceCarriesLocallyComputedTagsOfTheParent()
+    {
+        final NodeBuilder parent = EmptyNodeState.EMPTY_NODE.builder();
+        // A tag no user placed, computed for the parent from its own content, still flows down
+        parent.setProperty(Phase.LOCAL.getPropertyName(), List.of(INH), Type.STRINGS);
+
+        assertEquals(Set.of(INH),
+            this.inheritance.computeTags(context(EmptyNodeState.EMPTY_NODE, parent.getNodeState())));
     }
 
     @Test
     void repositoryRootInheritsNothing()
     {
-        assertTrue(this.inheritance.computeTags(EmptyNodeState.EMPTY_NODE, null, this.definitions).isEmpty());
+        assertTrue(this.inheritance.computeTags(context(EmptyNodeState.EMPTY_NODE, null)).isEmpty());
     }
 
     @Test
-    void aggregationChainsChildrenExplicitAndAggregatedTags()
+    void aggregationChainsAllTagsBelongingToTheChildren()
     {
         final NodeBuilder node = EmptyNodeState.EMPTY_NODE.builder();
-        // Only aggregated tags flow up, both from the children's explicit and already aggregated tags
+        // Only aggregated tags flow up, from the children's explicit, computed and already aggregated tags alike
         node.child("first").setProperty(TAGS, List.of(AGG, INH, "plain", "unknown"), Type.STRINGS);
         node.child("second").setProperty(TagAggregationProcessor.PROPERTY, List.of(AGG, "stale"), Type.STRINGS);
+        node.child("third").setProperty(Phase.LOCAL.getPropertyName(), List.of(AGG, "computedStale"), Type.STRINGS);
         node.child("untagged");
 
-        assertEquals(Set.of(AGG), this.aggregation.computeTags(node.getNodeState(), null, this.definitions));
+        assertEquals(Set.of(AGG), this.aggregation.computeTags(context(node.getNodeState(), null)));
     }
 
     @Test
@@ -124,7 +152,7 @@ class TagProcessorsTest
         final NodeBuilder node = EmptyNodeState.EMPTY_NODE.builder();
         node.child(":hidden").setProperty(TAGS, List.of(AGG), Type.STRINGS);
 
-        assertTrue(this.aggregation.computeTags(node.getNodeState(), null, this.definitions).isEmpty());
+        assertTrue(this.aggregation.computeTags(context(node.getNodeState(), null)).isEmpty());
     }
 
     @Test
@@ -137,5 +165,54 @@ class TagProcessorsTest
         assertEquals(Set.of(AGG), TagProcessor.readTags(node.getNodeState(), TAGS));
         assertTrue(TagProcessor.readTags(node.getNodeState(), "missing").isEmpty());
         assertTrue(TagProcessor.readTags(null, TAGS).isEmpty());
+    }
+
+    @Test
+    void nodeScopedProcessorsGetNoScopeRoot()
+    {
+        assertNull(context(EmptyNodeState.EMPTY_NODE, null).getScopeRoot());
+    }
+
+    /**
+     * A context handing a processor one node and its parent, as the editor would for a node-scoped processor.
+     *
+     * @param node the node being processed
+     * @param parent the node's parent, {@code null} for the repository root
+     * @return a context backed by the fixed test definitions
+     */
+    private TagContext context(final NodeState node, final NodeState parent)
+    {
+        return new TagContext()
+        {
+            @Override
+            public NodeState getNode()
+            {
+                return node;
+            }
+
+            @Override
+            public NodeState getParent()
+            {
+                return parent;
+            }
+
+            @Override
+            public String getPath()
+            {
+                return "/Test";
+            }
+
+            @Override
+            public NodeState getScopeRoot()
+            {
+                return null;
+            }
+
+            @Override
+            public TagDefinitions getDefinitions()
+            {
+                return TagProcessorsTest.this.definitions;
+            }
+        };
     }
 }

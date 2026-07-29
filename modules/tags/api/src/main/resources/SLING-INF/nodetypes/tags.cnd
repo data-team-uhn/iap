@@ -42,6 +42,16 @@
 
   - sling:resourceType (STRING) = "iap/TagsHomepage" mandatory autocreated protected
 
+  // The type of the children listed by the pagination servlet
+  - childNodeType (STRING) = "iap:TagDefinition" mandatory autocreated protected
+
+  // The heading of the served documentation, overriding the empty defaults of
+  // the iap:Documented mixin. Autocreated rather than hardcoded in the model
+  // serving the catalogue, but still editable, so that a deployment can reword
+  // the heading without touching code.
+  - title (STRING) = "Tags" autocreated
+  - description (STRING) = "All the tags defined in this instance, grouped by category." autocreated
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple

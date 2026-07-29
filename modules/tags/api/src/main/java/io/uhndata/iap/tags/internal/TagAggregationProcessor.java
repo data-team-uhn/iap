@@ -18,20 +18,26 @@
 package io.uhndata.iap.tags.internal;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.spi.TagContext;
 import io.uhndata.iap.tags.spi.TagDefinitions;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 /**
  * Copies {@link TagDefinitions#isAggregated aggregated} tags up the tree: a node's {@code aggregatedTags} property
- * holds every aggregated tag explicitly placed on any of its descendants, materialized by chaining the children's
- * explicit and aggregated tags.
+ * holds every aggregated tag placed on any of its descendants, materialized by chaining each child's own tags — the
+ * explicit ones and the ones a {@link Phase#LOCAL} processor computed for it — with what that child already
+ * aggregated from its own descendants.
  *
  * @version $Id$
  * @since 0.1.0
@@ -40,18 +46,19 @@ import io.uhndata.iap.tags.spi.TagProcessor;
 public class TagAggregationProcessor implements TagProcessor
 {
     /** The name of the property holding the tags aggregated from descendants. */
-    public static final String PROPERTY = "aggregatedTags";
+    public static final String PROPERTY = Phase.BOTTOM_UP.getPropertyName();
+
+    /**
+     * The child properties an aggregated tag can reach this node through: the tags belonging to the child itself,
+     * and the chain of what the child aggregated from its own descendants.
+     */
+    private static final List<String> SOURCES =
+        List.of(TagManager.TAGS_PROPERTY, Phase.LOCAL.getPropertyName(), PROPERTY);
 
     @Override
     public Phase getPhase()
     {
         return Phase.BOTTOM_UP;
-    }
-
-    @Override
-    public String getPropertyName()
-    {
-        return PROPERTY;
     }
 
     @Override
@@ -61,27 +68,28 @@ public class TagAggregationProcessor implements TagProcessor
     }
 
     @Override
-    public Set<String> computeTags(final NodeState node, final NodeState parent, final TagDefinitions definitions)
+    public Set<String> computeTags(final TagContext context)
     {
-        final Set<String> result = new LinkedHashSet<>();
-        for (final ChildNodeEntry entry : node.getChildNodeEntries()) {
-            if (entry.getName().charAt(0) == ':') {
-                // Hidden, non-JCR-visible child
-                continue;
-            }
-            final NodeState child = entry.getNodeState();
-            for (final String tag : TagProcessor.readTags(child, TagManager.TAGS_PROPERTY)) {
-                if (definitions.isAggregated(tag)) {
-                    result.add(tag);
-                }
-            }
-            // Already filtered when the child's own property was computed, but re-filter to shed stale values
-            for (final String tag : TagProcessor.readTags(child, PROPERTY)) {
-                if (definitions.isAggregated(tag)) {
-                    result.add(tag);
-                }
-            }
-        }
-        return result;
+        final TagDefinitions definitions = context.getDefinitions();
+        // The chained values were already filtered when the child's own properties were computed, but re-filtering
+        // sheds values left over from a definition that stopped being aggregated
+        return StreamSupport.stream(context.getNode().getChildNodeEntries().spliterator(), false)
+            // Hidden, non-JCR-visible children
+            .filter(entry -> entry.getName().charAt(0) != ':')
+            .map(ChildNodeEntry::getNodeState)
+            .flatMap(TagAggregationProcessor::sourceTags)
+            .filter(definitions::isAggregated)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * All the tags of one child node that can be aggregated further up, whatever property they are stored in.
+     *
+     * @param child the state of a child node
+     * @return the child's own and already aggregated tag names, unfiltered
+     */
+    private static Stream<String> sourceTags(final NodeState child)
+    {
+        return SOURCES.stream().flatMap(property -> TagProcessor.readTags(child, property).stream());
     }
 }

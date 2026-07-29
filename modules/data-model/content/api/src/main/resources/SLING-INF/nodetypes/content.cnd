@@ -45,9 +45,19 @@
   // nor be reverted by a restore.
   - tags (STRING) multiple IGNORE
 
-  // Tags copied from this resource's descendants (`aggregated` tags) or
-  // ancestors (`inheritable` tags), materialized here at commit time by the
-  // tag propagation editor so that queries and status displays can read them
-  // without walking the tree. System-maintained, do not write manually.
+  // Tags derived from this resource's surroundings — copied from its
+  // descendants (`aggregated` tags) or from its ancestors (`inheritable`
+  // tags) — or computed from its own content, all materialized here at commit
+  // time by the tag propagation editor so that queries and status displays can
+  // read them without walking the tree. One property per processing phase.
+  // System-maintained, do not write manually.
   - aggregatedTags (STRING) multiple IGNORE
   - inheritedTags (STRING) multiple IGNORE
+  - computedTags (STRING) multiple IGNORE
+
+  // Set when the derived tags above could not be recomputed, e.g. because a
+  // tag processor failed: they are then the last ones successfully computed,
+  // and may be out of date until the computation is run again. Never fails a
+  // commit, so that user data is saved even when tagging misbehaves.
+  // System-maintained, do not write manually.
+  - tagComputationFailed (BOOLEAN) IGNORE

@@ -66,8 +66,8 @@ public class TagListServlet extends SlingJakartaSafeMethodsServlet
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
 
-        List<TagDefinition> definitions = this.tagManager.findDefinitions(request.getResourceResolver(),
-            request.getParameter("category"), request.getParameter("query"));
+        List<TagDefinition> definitions =
+            this.tagManager.findDefinitions(request.getParameter("category"), request.getParameter("query"));
         final String target = request.getParameter("target");
         if (target != null && !target.isBlank()) {
             final Resource targetResource = request.getResourceResolver().getResource(target);

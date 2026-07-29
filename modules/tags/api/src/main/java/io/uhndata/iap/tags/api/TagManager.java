@@ -23,7 +23,6 @@ import java.util.Set;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.tags.models.TagDefinition;
 
@@ -46,6 +45,13 @@ import io.uhndata.iap.tags.models.TagDefinition;
  * {@link org.apache.sling.api.resource.ResourceResolver#commit}.
  * </p>
  *
+ * <p>
+ * Every method touching user content works through the resolver of the {@code Resource} it is given, so reads and
+ * writes are subject to the caller's own permissions. The definitions, on the other hand, are read through the
+ * manager's own service user: they are platform vocabulary, world-readable by design, and the code most in need of
+ * them — commit hooks, scheduled jobs — often runs with no user session at all.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -54,37 +60,42 @@ public interface TagManager
     /** The name of the property holding the tags of a resource, declared for all {@code iap:Content} nodes. */
     String TAGS_PROPERTY = "tags";
 
+    /**
+     * The name of the flag set on a node whose derived tags could not be computed, e.g. because a tag processor
+     * failed. The tags stored on such a node are the last ones successfully computed, so they may be out of date
+     * until the computation is run again; code that must not act on stale tags, e.g. an access check, has to treat a
+     * flagged node conservatively.
+     */
+    String COMPUTATION_FAILED_PROPERTY = "tagComputationFailed";
+
     /** The path of the {@code iap:TagsHomepage} node holding the tag definitions. */
     String DEFINITIONS_PATH = "/Tags";
 
     /**
      * All the defined tags, in display order.
      *
-     * @param resolver the resource resolver to access the definitions with
      * @return the tag definitions, an empty list if there are none
      */
-    List<TagDefinition> getDefinitions(ResourceResolver resolver);
+    List<TagDefinition> getDefinitions();
 
     /**
      * The definition of the given tag.
      *
-     * @param resolver the resource resolver to access the definitions with
      * @param name a tag name
      * @return the definition whose {@link TagDefinition#getName() name} is exactly {@code name}, or {@code null} if
      *         the tag is not defined
      */
-    TagDefinition getDefinition(ResourceResolver resolver, String name);
+    TagDefinition getDefinition(String name);
 
     /**
      * The defined tags matching the given filters, in display order.
      *
-     * @param resolver the resource resolver to access the definitions with
      * @param category if not blank, only definitions listing this category (ignoring case) are returned
      * @param query if not blank, only definitions containing this text (ignoring case) in their name, label, or
      *            description are returned
      * @return the matching tag definitions, an empty list if none match
      */
-    List<TagDefinition> findDefinitions(ResourceResolver resolver, String category, String query);
+    List<TagDefinition> findDefinitions(String category, String query);
 
     /**
      * The defined tags that may be placed on the given resource, in display order.
@@ -103,10 +114,12 @@ public interface TagManager
     Set<String> getTags(Resource resource);
 
     /**
-     * All the tags the given resource effectively carries: the tags explicitly placed on it, the
-     * {@link TagDefinition#isInheritable() inheritable} tags placed on its ancestors, and the
-     * {@link TagDefinition#isAggregated() aggregated} tags placed on its descendants. Note that computing the
-     * aggregated tags visits the whole subtree, which may be slow on very large subtrees.
+     * All the tags the given resource effectively carries: the tags belonging to it, the
+     * {@link TagDefinition#isInheritable() inheritable} tags of its ancestors, and the
+     * {@link TagDefinition#isAggregated() aggregated} tags of its descendants. A node's own tags are both the ones
+     * explicitly placed on it and the ones a {@code TagProcessor} computed for it, distinguished by their
+     * {@link Tag#getOrigins() origin}. Note that computing the aggregated tags visits the whole subtree, which may
+     * be slow on very large subtrees.
      *
      * @param resource the resource to read
      * @return the effective tags, with their definitions and origins, an empty collection if there are none
@@ -114,11 +127,20 @@ public interface TagManager
     Collection<Tag> getEffectiveTags(Resource resource);
 
     /**
-     * The names of all the tags the given resource effectively carries, read from the explicit {@code tags}
-     * property and the derived tag properties materialized at commit time by the registered
-     * {@code TagProcessor}s. This is the cheap variant of {@link #getEffectiveTags}: it reads a few properties of
-     * the resource itself instead of walking the tree, at the cost of losing the origin information, and of not
-     * seeing changes not yet propagated, e.g. uncommitted ones.
+     * The names of all the tags the given resource effectively carries, read from the explicit {@code tags} property
+     * and from the derived tag properties materialized at commit time, one per {@code TagProcessor.Phase}. This is
+     * the cheap variant of {@link #getEffectiveTags}: it reads a few properties of the resource itself instead of
+     * walking the tree, at the cost of losing the origin information, and of reporting exactly what was
+     * materialized, no more and no less. In particular it does not see
+     * <ul>
+     * <li>changes not yet propagated, e.g. uncommitted ones;</li>
+     * <li>tags on the far side of a <em>propagation boundary</em> — strict node types that reject the derived
+     * properties, e.g. file contents or access control policies, stop the copies from travelling through them, so
+     * such tags are reported by the tree-walking methods but neither here nor by a query;</li>
+     * <li>the deletion of a definition: a derived copy left behind by a tag that stopped being defined, or stopped
+     * being inheritable or aggregated, is reported until the node is recomputed, while {@link #getEffectiveTags} and
+     * {@link #hasTag} filter it out immediately.</li>
+     * </ul>
      *
      * @param resource the resource to read
      * @return the effective tag names, an empty set if there are none
@@ -131,8 +153,8 @@ public interface TagManager
      *
      * @param resource the resource to read
      * @param name a tag name
-     * @return {@code true} if the tag is explicitly placed on the resource, inherited from an ancestor, or
-     *         aggregated from a descendant
+     * @return {@code true} if the tag belongs to the resource, whether explicitly placed on it or computed for it,
+     *         or is inherited from an ancestor, or aggregated from a descendant
      */
     boolean hasTag(Resource resource, String name);
 

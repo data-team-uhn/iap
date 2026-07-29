@@ -105,8 +105,12 @@ class TagsHomepageTest
     @Test
     void documentsTheVocabulary()
     {
-        final Resource resource = this.context.create().resource("/Tags",
-            "sling:resourceType", "iap/TagsHomepage");
+        // The heading properties are autocreated from the defaults declared by the iap:TagsHomepage node type,
+        // which the mock repository does not apply, so the test sets the very values the CND declares
+        final Resource resource = this.context.create().resource("/Tags", Map.of(
+            "sling:resourceType", "iap/TagsHomepage",
+            "title", "Tags",
+            "description", "All the tags defined in this instance, grouped by category."));
         this.context.create().resource("/Tags/draft", Map.of(
             "sling:resourceType", "iap/TagDefinition",
             "label", "Draft",
@@ -152,16 +156,17 @@ class TagsHomepageTest
     }
 
     @Test
-    void blankHeadingsFallBackToTheDefaults()
+    void headingsAreServedAsStored()
     {
+        // A deployment can reword the heading by editing the autocreated properties, and nothing in the model
+        // second-guesses what it stored
         final Resource resource = this.context.create().resource("/Tags", Map.of(
             "sling:resourceType", "iap/TagsHomepage",
-            "title", "",
-            "description", ""));
+            "title", "Markers",
+            "description", "The markers this institution uses."));
 
         final AutoDocumentable documentation = resource.adaptTo(AutoDocumentable.class);
-        assertEquals("Tags", documentation.getDocumentationTitle());
-        assertEquals("All the tags defined in this instance, grouped by category.",
-            documentation.getDocumentationIntro());
+        assertEquals("Markers", documentation.getDocumentationTitle());
+        assertEquals("The markers this institution uses.", documentation.getDocumentationIntro());
     }
 }

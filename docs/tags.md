@@ -33,13 +33,19 @@ The `iap-tags-api` bundle (`modules/tags/api`) exposes:
 
 - **`TagManager`** (`io.uhndata.iap.tags.api`, an OSGi service) — the one entry point for working
   with tags:
-  - *Definitions*: `getDefinitions`, `getDefinition`, `findDefinitions(resolver, category, query)`,
-    `getApplicableDefinitions(resource)`.
+  - *Definitions*: `getDefinitions()`, `getDefinition(name)`, `findDefinitions(category, query)`,
+    `getApplicableDefinitions(resource)`. These take no resolver: the definitions are platform
+    vocabulary, world-readable by design, and the code most in need of them — commit hooks,
+    scheduled jobs — often has no user session at all, so the manager reads them with its own
+    service user and caches them until `/Tags` changes. Restricting an individual definition with
+    an access control policy therefore has no effect. Everything that touches user content, on the
+    other hand, works through the resolver of the `Resource` it is given, and is subject to the
+    caller's own permissions.
   - *Reading*: `getTags(resource)` returns the explicit tags; `getEffectiveTags(resource)` also
-    resolves inherited and aggregated tags, returning `Tag` values carrying the definition, the
-    origins (`EXPLICIT` / `INHERITED` / `AGGREGATED`), and the source paths; `hasTag` /
-    `hasOwnTag` are cheaper single-tag checks. Aggregation visits the whole subtree, so avoid
-    computing effective tags on huge trees.
+    resolves computed, inherited and aggregated tags, returning `Tag` values carrying the
+    definition, the origins (`EXPLICIT` / `COMPUTED` / `INHERITED` / `AGGREGATED`), and the source
+    paths; `hasTag` / `hasOwnTag` are cheaper single-tag checks. Aggregation visits the whole
+    subtree, so avoid computing effective tags on huge trees.
   - *Writing*: `tag`, `untag`, `setTags` validate against the definitions (the tag must exist,
     apply to the resource, and not be a `system` tag — variants with an `allowSystem` parameter
     are reserved for the platform code owning a system tag). Like other Sling persistence
@@ -53,38 +59,61 @@ The `iap-tags-api` bundle (`modules/tags/api`) exposes:
 ## Materialized propagation
 
 Waiting until a tag is needed and then walking the tree to resolve inheritance and aggregation
-would make queries (JQL `JOIN`s) and status displays expensive, so derived tags are **copied up
-and down the tree at commit time** instead:
+would make queries (JQL `JOIN`s) and status displays expensive, so derived tags are **materialized
+at commit time** instead, one property per processing phase:
 
-- `aggregatedTags` holds every `aggregated` tag explicitly placed on any *descendant*;
-- `inheritedTags` holds every `inheritable` tag explicitly placed on any *ancestor*.
+- `inheritedTags` holds every `inheritable` tag belonging to an *ancestor*;
+- `computedTags` holds the tags computed for the node from its *own content*;
+- `aggregatedTags` holds every `aggregated` tag belonging to a *descendant*.
 
-Both are multivalued String properties declared on `iap:Content`, **maintained by the system —
-never write them manually**. Together with the explicit `tags` they answer both needs without
-tree walks: a status display reads the three properties of the node itself (or calls
-`TagManager.getEffectiveTagNames(resource)`), and a query filters without joins:
+All three are multivalued String properties declared on `iap:Content`, **maintained by the system —
+never write them manually**. "Belonging to" a node means both the tags a user placed explicitly and
+the ones a processor computed for it: a computed tag propagates exactly like a hand-placed one.
+
+Together with the explicit `tags` they answer both needs without tree walks: a status display reads
+the four properties of the node itself (or calls `TagManager.getEffectiveTagNames(resource)`), and a
+query filters without joins:
 
 ```sql
 SELECT * FROM [sub:Submission] AS s
- WHERE s.tags = 'incomplete' OR s.aggregatedTags = 'incomplete' OR s.inheritedTags = 'incomplete'
+ WHERE s.tags = 'incomplete' OR s.computedTags = 'incomplete'
+    OR s.aggregatedTags = 'incomplete' OR s.inheritedTags = 'incomplete'
 ```
+
+Properties belong to phases rather than to processors on purpose: a query, and the index behind it,
+have to name the properties they filter on, which is only possible if that set is fixed and known in
+advance rather than depending on which processors a deployment happens to register.
 
 The machinery is an extensible SPI (`io.uhndata.iap.tags.spi`), not a hardcoded editor:
 
-- **`TagProcessor`** — computes the derived tags of one node as a pure function of the node, its
-  parent, and the tag definitions. Each processor declares the property it owns, the traversal
-  phase it runs in (`TOP_DOWN`, seeing the ancestors' freshly recomputed state, or `BOTTOM_UP`,
-  seeing the descendants'), and a priority ordering it within its phase. The two built-in
-  processors are `TagAggregationProcessor` (up) and `TagInheritanceProcessor` (down); new
-  behaviors (e.g. validation-computed tags) plug in as new services.
+- **`TagProcessor`** — contributes tags for one node. Each processor declares the phase it runs in,
+  how much of the repository it needs to see, and a priority ordering it within its phase; every
+  processor of a phase contributes to that phase's single property, which stores the union of what
+  they computed. The phases run in a fixed order on each node — `TOP_DOWN` (the ancestors' tags flow
+  in), `LOCAL` (the node's own content is examined), then `BOTTOM_UP` (the descendants' tags flow
+  up). A `LOCAL` processor may read what its node inherited but never what it aggregated: reading
+  what its own results feed into is what would let a computation cycle form. The two built-in
+  processors are `TagInheritanceProcessor` (down) and `TagAggregationProcessor` (up); a validation
+  or AI-check module contributes its own `LOCAL` ones.
+- **`TagProcessor.Scope`** — how much a processor may look at, which is the same thing as how much
+  re-triggers it: `NODE` (the node and its parent, the cheap and usual case) or `ENTITY` (the whole
+  enclosing `iap:Entity`, recomputed in full whenever anything inside it changes, for a tag that
+  depends on more than one of an entity's parts). Anything wider cannot be a processor at all — a
+  tag depending on a *different* entity belongs in a listener or a job placing explicit `system`
+  tags after the fact, accepting the staleness that comes with it.
+- **`TagContext`** — what a processor is handed for one node: the node, its parent, its path, the
+  scope root if it asked for one, and the definitions. A processor may read state outside all of
+  that only when that state is immutable for the lifetime of the node it tags — nothing else
+  re-triggers the computation when such state changes. A published `sch:SchemaVersion` qualifies,
+  which is what lets an answer be validated against its question.
 - **`TagDefinitions`** — an Oak-level snapshot of the `/Tags` definitions handed to processors,
   so propagation works inside any commit, whatever session it comes from, with no resource
   resolver needed.
-- **`TagPropagationEditor`(`Provider`)** — the Oak commit editor invoking the processors, one
-  after another, on every node whose tag surroundings changed. All writes are compare-and-set,
-  recomputation spreads only while stored values keep changing, and removals converge: copies
-  always derive from *explicit* placements chained in one direction, so deleting the source
-  provably clears every copy.
+- **`TagPropagationEditor`(`Provider`)** — the Oak commit editor running the phases on every node
+  whose tag surroundings, or own content, changed. All writes are compare-and-set, recomputation
+  spreads only while stored values keep changing, and removals converge: copies always derive from
+  the tags *belonging to* a node, chained in one direction, so deleting the source — a hand-placed
+  tag, or the content a tag was computed from — provably clears every copy.
 
 Propagation details worth knowing:
 
@@ -97,6 +126,21 @@ Propagation details worth knowing:
 - `targetResources` restricts where a tag may be *explicitly placed*; derived copies are exempt.
 - Changing a definition's `aggregated`/`inheritable` flags only affects subtrees touched by
   later commits; existing copies are not retroactively recomputed.
+
+### When a computation fails
+
+A failing processor **never fails the commit**. Losing data a user just entered because a tag could
+not be computed would be a far worse outcome than carrying a stale tag — the tags can always be
+computed again, the typing cannot — and the editor runs on *every* commit, including those that have
+nothing to do with tags, so a processor throwing would block unrelated writes too.
+
+Instead, the phase whose processor threw keeps the values it last computed successfully: storing a
+union that is knowingly missing one of its contributors would replace good values with worse ones,
+and a tag that lingers after it stopped applying is safer than one that silently disappears while it
+still does. The node is flagged with `tagComputationFailed` so the affected nodes can be found and
+recomputed, and so that code which must not act on stale tags — an access check, say — can tell.
+The failure itself is logged; once the error-tracking module is in place it will also be reported
+there, which is how a system administrator learns about it.
 
 ## The REST endpoint
 
@@ -116,7 +160,7 @@ available for raw access.
 ## Self-documentation
 
 The tag vocabulary documents itself through the platform's
-[self-documentation mechanism](documentation.md): `GET /Tags.doc.md` renders a human-readable
+[self-documentation mechanism](autodoc.md): `GET /Tags.doc.md` renders a human-readable
 Markdown catalogue — one section per category, one subsection per tag with its description and
 the behaviors that apply to it (inheritable, aggregated, system, allowed targets) — and
 `GET /Tags.doc.json` returns the same catalogue as JSON. Tags belonging to several categories are
@@ -125,8 +169,13 @@ heading can be reworded by setting the `title` and `description` properties on t
 
 ## Future work
 
-- An `oak:index` on `tags`/`aggregatedTags`/`inheritedTags` once querying by tag is needed
-  (deferred together with the other domain indexes).
+- A **recomputation service** re-running the processors over a subtree, and something to trigger
+  it. Three things need it: copies left behind by a deleted definition, copies left behind when a
+  definition stops being `inheritable` or `aggregated`, and the nodes flagged with
+  `tagComputationFailed`. Until it exists, "the tags can be computed again" has no mechanism
+  behind it.
+- An `oak:index` on `tags`/`computedTags`/`aggregatedTags`/`inheritedTags` once querying by tag is
+  needed (deferred together with the other domain indexes).
 - Tag-based access restrictions: an ACL restriction pattern evaluated against a resource's tags,
   e.g. granting write access only while a record is not `submitted`.
 - UI for displaying and filtering by tags, driven by the definitions.

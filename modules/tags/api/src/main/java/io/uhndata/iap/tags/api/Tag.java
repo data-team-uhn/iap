@@ -27,8 +27,8 @@ import io.uhndata.iap.tags.models.TagDefinition;
 
 /**
  * One tag effectively carried by a resource: the tag name, its definition, and how the tag reached the resource —
- * explicitly placed on it, inherited from a tagged ancestor, or aggregated from a tagged descendant. Instances are
- * immutable snapshots computed by the {@link TagManager}.
+ * explicitly placed on it, computed for it from its own content, inherited from a tagged ancestor, or aggregated
+ * from a tagged descendant. Instances are immutable snapshots computed by the {@link TagManager}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,6 +44,9 @@ public final class Tag
     {
         /** The tag is explicitly present in the resource's own {@code tags} property. */
         EXPLICIT,
+
+        /** The tag was computed for the resource from its own content by a tag processor. */
+        COMPUTED,
 
         /** The tag is {@link TagDefinition#isInheritable() inherited} from a tagged ancestor. */
         INHERITED,
@@ -121,9 +124,9 @@ public final class Tag
     }
 
     /**
-     * The paths of the resources explicitly carrying the tag: the resource itself for an {@link Origin#EXPLICIT}
-     * tag, the tagged ancestors for an {@link Origin#INHERITED} one, the tagged descendants for an
-     * {@link Origin#AGGREGATED} one.
+     * The paths of the resources the tag belongs to: the resource itself for an {@link Origin#EXPLICIT} or
+     * {@link Origin#COMPUTED} tag, the tagged ancestors for an {@link Origin#INHERITED} one, the tagged descendants
+     * for an {@link Origin#AGGREGATED} one.
      *
      * @return the source paths, a non-empty read-only set
      */

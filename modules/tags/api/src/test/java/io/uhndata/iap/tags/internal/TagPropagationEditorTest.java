@@ -18,22 +18,27 @@
 package io.uhndata.iap.tags.internal;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.EditorHook;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import io.uhndata.iap.tags.api.TagManager;
+import io.uhndata.iap.tags.spi.TagContext;
 import io.uhndata.iap.tags.spi.TagProcessor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -50,6 +55,14 @@ class TagPropagationEditorTest
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     private static final String CONTENT_TYPE = "iap:TestContent";
+
+    private static final String ENTITY_TYPE = "iap:TestEntity";
+
+    private static final String COMPUTED = TagProcessor.Phase.LOCAL.getPropertyName();
+
+    private static final String STATUS = "status";
+
+    private static final String CONFIDENTIAL = "confidential";
 
     private static final String TAGS = TagManager.TAGS_PROPERTY;
 
@@ -74,11 +87,23 @@ class TagPropagationEditorTest
     @BeforeEach
     void setUp() throws Exception
     {
+        this.hook = hookWith(new TagInheritanceProcessor(), new TagAggregationProcessor());
+    }
+
+    /**
+     * Builds a commit hook driving the given processors, as the repository would.
+     *
+     * @param processors the processors to register
+     * @return a hook ready to process commits
+     * @throws Exception if the provider's reference cannot be injected
+     */
+    private EditorHook hookWith(final TagProcessor... processors) throws Exception
+    {
         final TagPropagationEditorProvider provider = new TagPropagationEditorProvider();
         final Field reference = TagPropagationEditorProvider.class.getDeclaredField("processors");
         reference.setAccessible(true);
-        reference.set(provider, List.of(new TagInheritanceProcessor(), new TagAggregationProcessor()));
-        this.hook = new EditorHook(provider);
+        reference.set(provider, List.of(processors));
+        return new EditorHook(provider);
     }
 
     @Test
@@ -321,6 +346,225 @@ class TagPropagationEditorTest
             EmptyNodeState.EMPTY_NODE.builder(), CommitInfo.EMPTY));
     }
 
+    @Test
+    void locallyComputedTagsGetTheirOwnPropertyAndPropagateLikeExplicitOnes() throws Exception
+    {
+        final EditorHook local = hookWith(new StatusProcessor(), new TagAggregationProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
+
+        final NodeState result = local.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+        // The computed tag lands in the local phase's own property, not in the explicit tags
+        assertEquals(Set.of(INCOMPLETE), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
+        assertTrue(read(result, TAGS, DATA, ENTITY, PART, ANSWER).isEmpty());
+        // ...and from there it bubbles up exactly like a tag a user had placed by hand
+        assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY, PART));
+        assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA));
+    }
+
+    @Test
+    void locallyComputedTagsAreRecomputedWhenTheirNodeChanges() throws Exception
+    {
+        final EditorHook local = hookWith(new StatusProcessor(), new TagAggregationProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder tagging = before.builder();
+        descend(tagging, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
+        final NodeState tagged = local.processCommit(before, tagging.getNodeState(), CommitInfo.EMPTY);
+
+        final NodeBuilder after = tagged.builder();
+        descend(after, DATA, ENTITY, PART, ANSWER).removeProperty(STATUS);
+        final NodeState result = local.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
+
+        // The content the tag was computed from is gone, so the tag and every copy of it are gone too
+        assertTrue(read(result, COMPUTED, DATA, ENTITY, PART, ANSWER).isEmpty());
+        assertTrue(read(result, AGGREGATED, DATA, ENTITY, PART).isEmpty());
+        assertTrue(read(result, AGGREGATED, DATA).isEmpty());
+    }
+
+    @Test
+    void localProcessorsSeeWhatTheirNodeInherited() throws Exception
+    {
+        final EditorHook local = hookWith(new TagInheritanceProcessor(), new EchoInheritedProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        descend(after, DATA, ENTITY).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
+
+        final NodeState result = local.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+        // The top-down phase runs before the local one on every node, including the swept descendants
+        assertEquals(Set.of("draft"), read(result, COMPUTED, DATA, ENTITY, PART));
+        assertEquals(Set.of("draft"), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
+        // The node the tag was placed on inherited nothing, so it computed nothing
+        assertTrue(read(result, COMPUTED, DATA, ENTITY).isEmpty());
+    }
+
+    @Test
+    void aFailingProcessorKeepsTheLastGoodTagsAndFlagsTheNode() throws Exception
+    {
+        final EditorHook working = hookWith(new StatusProcessor(), new TagAggregationProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder tagging = before.builder();
+        descend(tagging, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
+        final NodeState tagged = working.processCommit(before, tagging.getNodeState(), CommitInfo.EMPTY);
+
+        final EditorHook broken = hookWith(new FailingProcessor(), new TagAggregationProcessor());
+        final NodeBuilder after = tagged.builder();
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, "submitted");
+        // The commit goes through: a user's data is never lost because a tag could not be computed
+        final NodeState result = broken.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
+
+        // A union missing one of its contributors would be worse than a stale one, so nothing was written
+        assertEquals(Set.of(INCOMPLETE), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
+        assertTrue(descend(result.builder(), DATA, ENTITY, PART, ANSWER)
+            .getBoolean(TagManager.COMPUTATION_FAILED_PROPERTY));
+        // Only the phase that failed was skipped; the phases that worked still did their job
+        assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY, PART));
+    }
+
+    @Test
+    void aRecoveredNodeLosesItsFailureFlag() throws Exception
+    {
+        final EditorHook broken = hookWith(new FailingProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder failing = before.builder();
+        descend(failing, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
+        final NodeState flagged = broken.processCommit(before, failing.getNodeState(), CommitInfo.EMPTY);
+        assertTrue(descend(flagged.builder(), DATA, ENTITY, PART, ANSWER)
+            .getBoolean(TagManager.COMPUTATION_FAILED_PROPERTY));
+
+        final EditorHook working = hookWith(new StatusProcessor());
+        final NodeBuilder after = flagged.builder();
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, "submitted");
+        final NodeState result = working.processCommit(flagged, after.getNodeState(), CommitInfo.EMPTY);
+
+        assertEquals(Set.of("submitted"), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
+        assertFalse(descend(result.builder(), DATA, ENTITY, PART, ANSWER)
+            .getBoolean(TagManager.COMPUTATION_FAILED_PROPERTY));
+    }
+
+    @Test
+    void entityScopedProcessorsRecomputeEveryNodeOfAChangedEntity() throws Exception
+    {
+        final EditorHook scoped = hookWith(new SecretProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        // Only the deepest node of the entity changes...
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty("secret", true);
+
+        final NodeState result = scoped.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+        // ...yet every node of the entity was recomputed, including the ones the commit never touched
+        assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, ENTITY));
+        assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, ENTITY, PART));
+        assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
+        // Nothing outside the entity is in scope, so nothing there was computed
+        assertTrue(read(result, COMPUTED, DATA).isEmpty());
+    }
+
+    @Test
+    void entityScopedProcessorsRecomputeWhenPartOfTheEntityIsDeleted() throws Exception
+    {
+        final EditorHook scoped = hookWith(new SecretProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder secret = before.builder();
+        descend(secret, DATA, ENTITY, PART, ANSWER).setProperty("secret", true);
+        final NodeState tagged = scoped.processCommit(before, secret.getNodeState(), CommitInfo.EMPTY);
+        assertEquals(Set.of(CONFIDENTIAL), read(tagged, COMPUTED, DATA, ENTITY));
+
+        final NodeBuilder after = tagged.builder();
+        descend(after, DATA, ENTITY, PART).remove();
+        final NodeState result = scoped.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
+
+        // Deleting the only node holding a secret is a change to the entity, so the whole entity is recomputed
+        assertTrue(read(result, COMPUTED, DATA, ENTITY).isEmpty());
+    }
+
+    @Test
+    void entityRecomputationLeavesSkippedSubtreesAlone() throws Exception
+    {
+        final EditorHook scoped = hookWith(new SecretProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        // An access control policy inside the entity must never be written to, even by a whole-entity recomputation
+        descend(after, DATA, ENTITY).child("rep:policy").setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty("secret", true);
+
+        final NodeState result = scoped.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+        assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, ENTITY, PART));
+        assertTrue(read(result, COMPUTED, DATA, ENTITY, "rep:policy").isEmpty());
+    }
+
+    @Test
+    void entitiesOfTheBaseTypeItselfBoundTheScope() throws Exception
+    {
+        final EditorHook scoped = hookWith(new SecretProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        // A node typed exactly iap:Entity, rather than a subtype of it, is just as much of a scope root
+        final NodeBuilder plain = after.child(DATA).child("plain");
+        plain.setProperty(PRIMARY_TYPE, "iap:Entity", Type.NAME);
+        plain.child(PART).setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        plain.setProperty("secret", true);
+
+        final NodeState result = scoped.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+        assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, "plain", PART));
+    }
+
+    @Test
+    void aSweepEnteringAnEntityPicksUpItsScope() throws Exception
+    {
+        final EditorHook scoped = hookWith(new TagInheritanceProcessor(), new SecretProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder seeded = before.builder();
+        descend(seeded, DATA, ENTITY, PART).setProperty("secret", true);
+        final NodeState tagged = scoped.processCommit(before, seeded.getNodeState(), CommitInfo.EMPTY);
+
+        final NodeBuilder after = tagged.builder();
+        // An inheritable tag placed outside the entity sweeps down through it, and the nodes the sweep reaches
+        // inside the entity must be computed with that entity as their scope
+        descend(after, DATA).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
+        final NodeState result = scoped.processCommit(tagged, after.getNodeState(), CommitInfo.EMPTY);
+
+        assertEquals(Set.of(CONFIDENTIAL), read(result, COMPUTED, DATA, ENTITY, PART));
+        // The entity is tagged too, and "confidential" is inheritable, so the part inherits it alongside the
+        // tag that started the sweep
+        assertEquals(Set.of(SENSITIVE, CONFIDENTIAL), read(result, INHERITED, DATA, ENTITY, PART));
+        // The node the sweep started from is outside any entity, so it has no scope to be computed against
+        assertTrue(read(result, COMPUTED, DATA).isEmpty());
+    }
+
+    @Test
+    void entityScopedProcessorsSeeNothingOutsideAnEntity() throws Exception
+    {
+        final EditorHook scoped = hookWith(new SecretProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        // A secret placed outside any entity has no scope root to be found through
+        descend(after, DATA).setProperty("secret", true);
+
+        final NodeState result = scoped.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+        assertTrue(read(result, COMPUTED, DATA).isEmpty());
+    }
+
+    @Test
+    void processorsAreToldWhereTheyAre() throws Exception
+    {
+        final StatusProcessor status = new StatusProcessor();
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
+
+        hookWith(status).processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+        assertTrue(status.paths.contains("/data/entity/part/answer"));
+        assertTrue(status.paths.contains("/data"));
+    }
+
     /**
      * Builds the shared test content: tag definitions for the aggregated {@code incomplete}, inheritable
      * {@code sensitive}, dual-behavior {@code confidential} and plain {@code draft} tags, plus an untagged
@@ -336,6 +580,8 @@ class TagPropagationEditorTest
         final NodeBuilder types = root.child("jcr:system").child("jcr:nodeTypes");
         types.child("iap:Content").child("rep:namedPropertyDefinitions").child(TAGS);
         types.child(CONTENT_TYPE).setProperty("rep:supertypes", List.of("iap:Content"), Type.NAMES);
+        types.child("iap:Entity");
+        types.child(ENTITY_TYPE).setProperty("rep:supertypes", List.of("iap:Content", "iap:Entity"), Type.NAMES);
         types.child("nt:unstructured").child("rep:residualPropertyDefinitions");
         types.child("nt:file");
         types.child("nt:folder").setProperty("rep:supertypes", List.of("nt:base"), Type.NAMES);
@@ -349,7 +595,7 @@ class TagPropagationEditorTest
         NodeBuilder node = root;
         for (final String name : List.of(DATA, ENTITY, PART, ANSWER)) {
             node = node.child(name);
-            node.setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+            node.setProperty(PRIMARY_TYPE, ENTITY.equals(name) ? ENTITY_TYPE : CONTENT_TYPE, Type.NAME);
         }
         return root;
     }
@@ -403,5 +649,140 @@ class TagPropagationEditorTest
             current = current.getChildNode(name);
         }
         return TagProcessor.readTags(current, property);
+    }
+
+    /**
+     * Tags a node with the value of its own {@code status} property, the simplest possible computation from a node's
+     * own content, and records every path it was asked about.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class StatusProcessor implements TagProcessor
+    {
+        private final List<String> paths = new ArrayList<>();
+
+        @Override
+        public Phase getPhase()
+        {
+            return Phase.LOCAL;
+        }
+
+        @Override
+        public int getPriority()
+        {
+            return 100;
+        }
+
+        @Override
+        public Set<String> computeTags(final TagContext context)
+        {
+            this.paths.add(context.getPath());
+            final PropertyState status = context.getNode().getProperty(STATUS);
+            return status == null ? Set.of() : Set.of(status.getValue(Type.STRING));
+        }
+    }
+
+    /**
+     * Computes a tag for every node that inherited anything, which only works if the top-down phase already ran.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class EchoInheritedProcessor implements TagProcessor
+    {
+        @Override
+        public Phase getPhase()
+        {
+            return Phase.LOCAL;
+        }
+
+        @Override
+        public int getPriority()
+        {
+            return 200;
+        }
+
+        @Override
+        public Set<String> computeTags(final TagContext context)
+        {
+            return TagProcessor.readTags(context.getNode(), Phase.TOP_DOWN.getPropertyName()).isEmpty()
+                ? Set.of() : Set.of("draft");
+        }
+    }
+
+    /**
+     * Throws on every node, standing in for a processor with a bug in it.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class FailingProcessor implements TagProcessor
+    {
+        @Override
+        public Phase getPhase()
+        {
+            return Phase.LOCAL;
+        }
+
+        @Override
+        public int getPriority()
+        {
+            return 100;
+        }
+
+        @Override
+        public Set<String> computeTags(final TagContext context)
+        {
+            throw new IllegalStateException("This processor is broken");
+        }
+    }
+
+    /**
+     * Tags every node of an entity that holds a secret anywhere inside it, a computation no single node can answer
+     * on its own.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class SecretProcessor implements TagProcessor
+    {
+        @Override
+        public Phase getPhase()
+        {
+            return Phase.LOCAL;
+        }
+
+        @Override
+        public Scope getScope()
+        {
+            return Scope.ENTITY;
+        }
+
+        @Override
+        public int getPriority()
+        {
+            return 100;
+        }
+
+        @Override
+        public Set<String> computeTags(final TagContext context)
+        {
+            final NodeState scope = context.getScopeRoot();
+            return scope != null && holdsSecret(scope) ? Set.of(CONFIDENTIAL) : Set.of();
+        }
+
+        private boolean holdsSecret(final NodeState node)
+        {
+            if (node.hasProperty("secret")) {
+                return true;
+            }
+            for (final ChildNodeEntry child : node.getChildNodeEntries()) {
+                if (holdsSecret(child.getNodeState())) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }

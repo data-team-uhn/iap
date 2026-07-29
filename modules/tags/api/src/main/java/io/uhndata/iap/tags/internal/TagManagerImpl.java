@@ -28,18 +28,23 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.stream.StreamSupport;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.observation.ResourceChange;
+import org.apache.sling.api.resource.observation.ResourceChangeListener;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.FieldOption;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
-import org.osgi.service.component.annotations.ReferencePolicy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.tags.api.Tag;
 import io.uhndata.iap.tags.api.TagManager;
@@ -49,16 +54,37 @@ import io.uhndata.iap.tags.spi.TagProcessor;
 /**
  * Default implementation of {@link TagManager}.
  *
+ * <p>
+ * The definitions are read with the manager's own service user, since they are world-readable platform vocabulary
+ * needed by callers that may have no user session at all, and they are cached until {@code /Tags} changes: they are
+ * looked up on nearly every tag operation, while being edited very rarely. The cached definitions are Sling Models
+ * bound to the resolver they were read with, which is kept open for as long as they are cached and closed once a
+ * newer set replaces them, so reading a definition's own values is always safe.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = TagManager.class)
-public class TagManagerImpl implements TagManager
+@Component(service = { TagManager.class, ResourceChangeListener.class },
+    property = { ResourceChangeListener.PATHS + "=" + TagManager.DEFINITIONS_PATH })
+public class TagManagerImpl implements TagManager, ResourceChangeListener
 {
-    /** All the registered tag processors, whose materialized properties contribute effective tags. */
-    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
-        fieldOption = FieldOption.REPLACE)
-    private volatile List<TagProcessor> tagProcessors;
+    private static final Logger LOGGER = LoggerFactory.getLogger(TagManagerImpl.class);
+
+    /** The subservice name mapped to the service user allowed to read the tag definitions. */
+    private static final Map<String, Object> SERVICE_USER = Map.of(ResourceResolverFactory.SUBSERVICE, "tags");
+
+    @Reference
+    private ResourceResolverFactory resolverFactory;
+
+    /** Guards the cached definitions and the resolver they are bound to. */
+    private final Object definitionsLock = new Object();
+
+    /** The definitions as last read from {@code /Tags}, {@code null} when the cache must be rebuilt. */
+    private List<TagDefinition> definitions;
+
+    /** The resolver the cached definitions are bound to, closed when a newer set replaces them. */
+    private ResourceResolver definitionsResolver;
 
     /**
      * Gathers the origins and sources of one effective tag while the resource tree is visited.
@@ -72,39 +98,47 @@ public class TagManagerImpl implements TagManager
         private final Set<String> sources = new LinkedHashSet<>();
     }
 
-    @Override
-    public List<TagDefinition> getDefinitions(final ResourceResolver resolver)
+    @Deactivate
+    protected void deactivate()
     {
-        final List<TagDefinition> result = new ArrayList<>();
-        final Resource homepage = resolver.getResource(DEFINITIONS_PATH);
-        if (homepage != null) {
-            for (final Resource child : homepage.getChildren()) {
-                if (!child.isResourceType(TagDefinition.RESOURCE_TYPE)) {
-                    continue;
-                }
-                final TagDefinition definition = child.adaptTo(TagDefinition.class);
-                if (definition != null) {
-                    result.add(definition);
-                }
-            }
+        synchronized (this.definitionsLock) {
+            this.definitions = null;
+            closeResolver();
         }
-        result.sort(TagDefinition.DISPLAY_ORDER);
-        return result;
     }
 
     @Override
-    public TagDefinition getDefinition(final ResourceResolver resolver, final String name)
+    public void onChange(final List<ResourceChange> changes)
     {
-        return getDefinitions(resolver).stream()
+        synchronized (this.definitionsLock) {
+            // Drop the cache; the resolver the stale definitions are bound to is closed by the next read
+            this.definitions = null;
+        }
+    }
+
+    @Override
+    public List<TagDefinition> getDefinitions()
+    {
+        synchronized (this.definitionsLock) {
+            if (this.definitions == null) {
+                readDefinitions();
+            }
+            return this.definitions;
+        }
+    }
+
+    @Override
+    public TagDefinition getDefinition(final String name)
+    {
+        return getDefinitions().stream()
             .filter(definition -> definition.getName().equals(name))
             .findFirst().orElse(null);
     }
 
     @Override
-    public List<TagDefinition> findDefinitions(final ResourceResolver resolver, final String category,
-        final String query)
+    public List<TagDefinition> findDefinitions(final String category, final String query)
     {
-        return getDefinitions(resolver).stream()
+        return getDefinitions().stream()
             .filter(definition -> matchesCategory(definition, category))
             .filter(definition -> matchesQuery(definition, query))
             .toList();
@@ -113,7 +147,7 @@ public class TagManagerImpl implements TagManager
     @Override
     public List<TagDefinition> getApplicableDefinitions(final Resource resource)
     {
-        return getDefinitions(resource.getResourceResolver()).stream()
+        return getDefinitions().stream()
             .filter(definition -> definition.appliesTo(resource))
             .toList();
     }
@@ -128,11 +162,8 @@ public class TagManagerImpl implements TagManager
     public Set<String> getEffectiveTagNames(final Resource resource)
     {
         final Set<String> result = getTags(resource);
-        final List<TagProcessor> processors = this.tagProcessors;
-        if (processors != null) {
-            for (final TagProcessor processor : processors) {
-                result.addAll(readTags(resource, processor.getPropertyName()));
-            }
+        for (final TagProcessor.Phase phase : TagProcessor.Phase.values()) {
+            result.addAll(readTags(resource, phase.getPropertyName()));
         }
         return result;
     }
@@ -140,64 +171,36 @@ public class TagManagerImpl implements TagManager
     @Override
     public Collection<Tag> getEffectiveTags(final Resource resource)
     {
-        final Map<String, TagDefinition> definitions = new HashMap<>();
-        getDefinitions(resource.getResourceResolver())
-            .forEach(definition -> definitions.put(definition.getName(), definition));
+        final Map<String, TagDefinition> knownDefinitions = new HashMap<>();
+        getDefinitions().forEach(definition -> knownDefinitions.put(definition.getName(), definition));
         final Map<String, TagOccurrences> found = new LinkedHashMap<>();
-        final BiConsumer<String, Tag.Origin> add = (name, origin) -> {
-            final TagOccurrences occurrences = found.computeIfAbsent(name, key -> new TagOccurrences());
-            occurrences.origins.add(origin);
-        };
 
-        // The resource's own tags, whether defined or not
-        for (final String name : getTags(resource)) {
-            add.accept(name, Tag.Origin.EXPLICIT);
-            found.get(name).sources.add(resource.getPath());
-        }
-        // Inheritable tags placed on ancestors
-        for (Resource ancestor = resource.getParent(); ancestor != null; ancestor = ancestor.getParent()) {
-            for (final String name : getTags(ancestor)) {
-                final TagDefinition definition = definitions.get(name);
-                if (definition != null && definition.isInheritable()) {
-                    add.accept(name, Tag.Origin.INHERITED);
-                    found.get(name).sources.add(ancestor.getPath());
-                }
-            }
-        }
-        // Aggregated tags placed on descendants
-        final Deque<Resource> toVisit = new ArrayDeque<>();
-        resource.getChildren().forEach(toVisit::add);
-        while (!toVisit.isEmpty()) {
-            final Resource descendant = toVisit.removeFirst();
-            for (final String name : getTags(descendant)) {
-                final TagDefinition definition = definitions.get(name);
-                if (definition != null && definition.isAggregated()) {
-                    add.accept(name, Tag.Origin.AGGREGATED);
-                    found.get(name).sources.add(descendant.getPath());
-                }
-            }
-            descendant.getChildren().forEach(toVisit::add);
-        }
+        // The resource's own tags, whether defined or not, placed explicitly or computed from its content
+        getTags(resource).forEach(name -> record(found, name, Tag.Origin.EXPLICIT, resource.getPath()));
+        readTags(resource, TagProcessor.Phase.LOCAL.getPropertyName())
+            .forEach(name -> record(found, name, Tag.Origin.COMPUTED, resource.getPath()));
+        collectInherited(resource, knownDefinitions, found);
+        collectAggregated(resource, knownDefinitions, found);
 
         final List<Tag> result = new ArrayList<>();
         found.forEach((name, occurrences) ->
-            result.add(new Tag(name, definitions.get(name), occurrences.origins, occurrences.sources)));
+            result.add(new Tag(name, knownDefinitions.get(name), occurrences.origins, occurrences.sources)));
         return result;
     }
 
     @Override
     public boolean hasTag(final Resource resource, final String name)
     {
-        if (hasOwnTag(resource, name)) {
+        if (ownTags(resource).contains(name)) {
             return true;
         }
-        final TagDefinition definition = getDefinition(resource.getResourceResolver(), name);
+        final TagDefinition definition = getDefinition(name);
         if (definition == null) {
             return false;
         }
         if (definition.isInheritable()) {
             for (Resource ancestor = resource.getParent(); ancestor != null; ancestor = ancestor.getParent()) {
-                if (hasOwnTag(ancestor, name)) {
+                if (ownTags(ancestor).contains(name)) {
                     return true;
                 }
             }
@@ -207,7 +210,7 @@ public class TagManagerImpl implements TagManager
             resource.getChildren().forEach(toVisit::add);
             while (!toVisit.isEmpty()) {
                 final Resource descendant = toVisit.removeFirst();
-                if (hasOwnTag(descendant, name)) {
+                if (ownTags(descendant).contains(name)) {
                     return true;
                 }
                 descendant.getChildren().forEach(toVisit::add);
@@ -251,7 +254,7 @@ public class TagManagerImpl implements TagManager
     public boolean untag(final Resource resource, final String name, final boolean allowSystem)
         throws PersistenceException
     {
-        checkRemovable(resource, name, allowSystem);
+        checkRemovable(name, allowSystem);
         final Set<String> tags = getTags(resource);
         if (!tags.remove(name)) {
             return false;
@@ -282,10 +285,47 @@ public class TagManagerImpl implements TagManager
         }
         for (final String name : current) {
             if (!target.contains(name)) {
-                checkRemovable(resource, name, allowSystem);
+                checkRemovable(name, allowSystem);
             }
         }
         write(resource, target);
+    }
+
+    /**
+     * Reads the definitions from {@code /Tags} into the cache, with the service user's own resolver. The resolver
+     * the previous set was bound to is closed once the new one is in place. Must be called while holding the lock.
+     */
+    private void readDefinitions()
+    {
+        final ResourceResolver previous = this.definitionsResolver;
+        try {
+            this.definitionsResolver = this.resolverFactory.getServiceResourceResolver(SERVICE_USER);
+        } catch (final LoginException e) {
+            this.definitionsResolver = previous;
+            this.definitions = List.of();
+            LOGGER.error("Cannot read the tag definitions, the tags service user is not available: {}",
+                e.getMessage(), e);
+            return;
+        }
+        final Resource homepage = this.definitionsResolver.getResource(DEFINITIONS_PATH);
+        this.definitions = homepage == null ? List.of()
+            : StreamSupport.stream(homepage.getChildren().spliterator(), false)
+                .filter(child -> child.isResourceType(TagDefinition.RESOURCE_TYPE))
+                .map(child -> child.adaptTo(TagDefinition.class))
+                .filter(Objects::nonNull)
+                .sorted(TagDefinition.DISPLAY_ORDER)
+                .toList();
+        if (previous != null) {
+            previous.close();
+        }
+    }
+
+    private void closeResolver()
+    {
+        if (this.definitionsResolver != null) {
+            this.definitionsResolver.close();
+            this.definitionsResolver = null;
+        }
     }
 
     private boolean matchesCategory(final TagDefinition definition, final String category)
@@ -320,7 +360,7 @@ public class TagManagerImpl implements TagManager
      */
     private void checkAddable(final Resource resource, final String name, final boolean allowSystem)
     {
-        final TagDefinition definition = getDefinition(resource.getResourceResolver(), name);
+        final TagDefinition definition = getDefinition(name);
         if (definition == null) {
             throw new IllegalArgumentException("Unknown tag: " + name);
         }
@@ -335,14 +375,13 @@ public class TagManagerImpl implements TagManager
      * Checks that a tag may be removed from a resource: it must not be a system tag unless system tags are
      * explicitly allowed. Undefined tags may always be removed.
      *
-     * @param resource the resource to untag
      * @param name the tag name
      * @param allowSystem whether system tags are allowed
      * @throws IllegalArgumentException if the tag may not be removed
      */
-    private void checkRemovable(final Resource resource, final String name, final boolean allowSystem)
+    private void checkRemovable(final String name, final boolean allowSystem)
     {
-        checkSystem(getDefinition(resource.getResourceResolver(), name), allowSystem);
+        checkSystem(getDefinition(name), allowSystem);
     }
 
     private void checkSystem(final TagDefinition definition, final boolean allowSystem)
@@ -351,6 +390,85 @@ public class TagManagerImpl implements TagManager
             throw new IllegalArgumentException(
                 "Tag " + definition.getName() + " is managed by the platform and cannot be manually changed");
         }
+    }
+
+    /**
+     * Notes that one resource carries a tag, reached in one particular way.
+     *
+     * @param found the occurrences gathered so far, updated in place
+     * @param name the tag name
+     * @param origin how the tag reached the resource being described
+     * @param source the path of the resource the tag belongs to
+     */
+    private void record(final Map<String, TagOccurrences> found, final String name, final Tag.Origin origin,
+        final String source)
+    {
+        final TagOccurrences occurrences = found.computeIfAbsent(name, key -> new TagOccurrences());
+        occurrences.origins.add(origin);
+        occurrences.sources.add(source);
+    }
+
+    /**
+     * Gathers the inheritable tags belonging to a resource's ancestors.
+     *
+     * @param resource the resource being described
+     * @param definitions the known definitions, by tag name
+     * @param found the occurrences gathered so far, updated in place
+     */
+    private void collectInherited(final Resource resource, final Map<String, TagDefinition> definitions,
+        final Map<String, TagOccurrences> found)
+    {
+        for (Resource ancestor = resource.getParent(); ancestor != null; ancestor = ancestor.getParent()) {
+            final Resource current = ancestor;
+            ownTags(current).stream()
+                .filter(name -> isInheritable(definitions.get(name)))
+                .forEach(name -> record(found, name, Tag.Origin.INHERITED, current.getPath()));
+        }
+    }
+
+    /**
+     * Gathers the aggregated tags belonging to a resource's descendants, visiting the whole subtree.
+     *
+     * @param resource the resource being described
+     * @param definitions the known definitions, by tag name
+     * @param found the occurrences gathered so far, updated in place
+     */
+    private void collectAggregated(final Resource resource, final Map<String, TagDefinition> definitions,
+        final Map<String, TagOccurrences> found)
+    {
+        final Deque<Resource> toVisit = new ArrayDeque<>();
+        resource.getChildren().forEach(toVisit::add);
+        while (!toVisit.isEmpty()) {
+            final Resource descendant = toVisit.removeFirst();
+            ownTags(descendant).stream()
+                .filter(name -> isAggregated(definitions.get(name)))
+                .forEach(name -> record(found, name, Tag.Origin.AGGREGATED, descendant.getPath()));
+            descendant.getChildren().forEach(toVisit::add);
+        }
+    }
+
+    private boolean isInheritable(final TagDefinition definition)
+    {
+        return definition != null && definition.isInheritable();
+    }
+
+    private boolean isAggregated(final TagDefinition definition)
+    {
+        return definition != null && definition.isAggregated();
+    }
+
+    /**
+     * All the tags belonging to a resource itself, whether a user placed them explicitly or a tag processor computed
+     * them from the resource's content. These are the tags that propagate to the resource's neighbors.
+     *
+     * @param resource the resource to read
+     * @return the resource's own tag names, an empty set if it has none
+     */
+    private Set<String> ownTags(final Resource resource)
+    {
+        final Set<String> result = readTags(resource, TAGS_PROPERTY);
+        result.addAll(readTags(resource, TagProcessor.Phase.LOCAL.getPropertyName()));
+        return result;
     }
 
     private Set<String> readTags(final Resource resource, final String property)

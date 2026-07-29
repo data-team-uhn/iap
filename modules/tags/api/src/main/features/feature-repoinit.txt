@@ -20,3 +20,12 @@ create path (iap:TagsHomepage) /Tags
 set ACL for everyone
     allow   jcr:read    on /Tags
 end
+
+# The tag manager reads the definitions with its own service user, since they are needed by callers that have no
+# user session at all, e.g. commit hooks and scheduled jobs. Reading the definitions is all it may ever do: every
+# operation on tagged content goes through the caller's own session.
+create service user iap-tags
+
+set ACL for iap-tags
+    allow   jcr:read    on /Tags
+end

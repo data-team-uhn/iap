@@ -79,9 +79,13 @@ class TagListServletTest
             "order", 3L));
 
         this.servlet = new TagListServlet();
+        final TagManagerImpl tagManager = new TagManagerImpl();
+        final Field factory = TagManagerImpl.class.getDeclaredField("resolverFactory");
+        factory.setAccessible(true);
+        factory.set(tagManager, new TestResolverFactory(this.context.resourceResolver()));
         final Field reference = TagListServlet.class.getDeclaredField("tagManager");
         reference.setAccessible(true);
-        reference.set(this.servlet, new TagManagerImpl());
+        reference.set(this.servlet, tagManager);
     }
 
     @Test

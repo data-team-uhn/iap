@@ -26,6 +26,7 @@ import java.util.Set;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.api.Tag;
 import io.uhndata.iap.tags.models.TagDefinition;
+import io.uhndata.iap.tags.spi.TagProcessor.Phase;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -61,10 +63,10 @@ class TagManagerImplTest
 
     private final SlingContext context = new SlingContext();
 
-    private final TagManagerImpl tagManager = new TagManagerImpl();
+    private TagManagerImpl tagManager;
 
     @BeforeEach
-    void setUp()
+    void setUp() throws ReflectiveOperationException
     {
         this.context.addModelsForClasses(Content.class, TagDefinition.class);
         this.context.create().resource("/Tags",
@@ -97,13 +99,19 @@ class TagManagerImplTest
         // An extensibility child of another type, not a tag definition
         this.context.create().resource("/Tags/config",
             TYPE_PROPERTY, "iap/Content");
+        // The manager reads the definitions with its own service user, so it needs a resolver factory; the SCR
+        // metadata that would let the mock OSGi runtime inject it is only generated when the bundle is packaged
+        this.tagManager = new TagManagerImpl();
+        final Field factory = TagManagerImpl.class.getDeclaredField("resolverFactory");
+        factory.setAccessible(true);
+        factory.set(this.tagManager, new TestResolverFactory(this.context.resourceResolver()));
     }
 
     @Test
     void listsDefinitionsInDisplayOrder()
     {
         assertEquals(List.of(DRAFT, "submitted", "incomplete", SENSITIVE, "PATIENT SURVEY"),
-            this.tagManager.getDefinitions(this.context.resourceResolver())
+            this.tagManager.getDefinitions()
                 .stream().map(TagDefinition::getName).toList());
     }
 
@@ -111,18 +119,18 @@ class TagManagerImplTest
     void looksUpDefinitionsByName()
     {
         assertEquals("Draft",
-            this.tagManager.getDefinition(this.context.resourceResolver(), DRAFT).getLabel());
+            this.tagManager.getDefinition(DRAFT).getLabel());
         // Explicit name properties are honored, and the node name they override does not match
-        assertNotNull(this.tagManager.getDefinition(this.context.resourceResolver(), "PATIENT SURVEY"));
-        assertNull(this.tagManager.getDefinition(this.context.resourceResolver(), "patientSurvey"));
-        assertNull(this.tagManager.getDefinition(this.context.resourceResolver(), "unknown"));
+        assertNotNull(this.tagManager.getDefinition("PATIENT SURVEY"));
+        assertNull(this.tagManager.getDefinition("patientSurvey"));
+        assertNull(this.tagManager.getDefinition("unknown"));
     }
 
     @Test
     void findsDefinitionsByCategory()
     {
         assertEquals(List.of(DRAFT, "submitted"),
-            this.tagManager.findDefinitions(this.context.resourceResolver(), "LifeCycle", null)
+            this.tagManager.findDefinitions("LifeCycle", null)
                 .stream().map(TagDefinition::getName).toList());
     }
 
@@ -131,10 +139,10 @@ class TagManagerImplTest
     {
         // The query matches names, labels and descriptions, ignoring case
         assertEquals(List.of(DRAFT),
-            this.tagManager.findDefinitions(this.context.resourceResolver(), null, "PROGRESS")
+            this.tagManager.findDefinitions(null, "PROGRESS")
                 .stream().map(TagDefinition::getName).toList());
         assertEquals(List.of("PATIENT SURVEY"),
-            this.tagManager.findDefinitions(this.context.resourceResolver(), null, "survey")
+            this.tagManager.findDefinitions(null, "survey")
                 .stream().map(TagDefinition::getName).toList());
     }
 
@@ -142,15 +150,15 @@ class TagManagerImplTest
     void combinesCategoryAndTextFilters()
     {
         assertEquals(List.of("submitted"),
-            this.tagManager.findDefinitions(this.context.resourceResolver(), "lifecycle", "sub")
+            this.tagManager.findDefinitions("lifecycle", "sub")
                 .stream().map(TagDefinition::getName).toList());
-        assertTrue(this.tagManager.findDefinitions(this.context.resourceResolver(), "privacy", DRAFT).isEmpty());
+        assertTrue(this.tagManager.findDefinitions("privacy", DRAFT).isEmpty());
     }
 
     @Test
     void blankFiltersReturnAllDefinitions()
     {
-        assertEquals(5, this.tagManager.findDefinitions(this.context.resourceResolver(), " ", "").size());
+        assertEquals(5, this.tagManager.findDefinitions(" ", "").size());
     }
 
     @Test
@@ -259,30 +267,113 @@ class TagManagerImplTest
     }
 
     @Test
-    void readsEffectiveTagNamesFromMaterializedProperties() throws Exception
+    void readsEffectiveTagNamesFromEveryPhaseProperty()
     {
-        final Field reference = TagManagerImpl.class.getDeclaredField("tagProcessors");
-        reference.setAccessible(true);
-        reference.set(this.tagManager, List.of(new TagAggregationProcessor(), new TagInheritanceProcessor()));
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
             TYPE_PROPERTY, "iap/Entity",
             "tags", new String[] { DRAFT },
-            TagAggregationProcessor.PROPERTY, new String[] { "incomplete" },
-            TagInheritanceProcessor.PROPERTY, new String[] { SENSITIVE }));
+            Phase.BOTTOM_UP.getPropertyName(), new String[] { "incomplete" },
+            Phase.TOP_DOWN.getPropertyName(), new String[] { SENSITIVE },
+            Phase.LOCAL.getPropertyName(), new String[] { "computed" }));
 
-        assertEquals(Set.of(DRAFT, "incomplete", SENSITIVE), this.tagManager.getEffectiveTagNames(resource));
+        // One property per phase, all read whatever processors happen to be registered
+        assertEquals(Set.of(DRAFT, "incomplete", SENSITIVE, "computed"),
+            this.tagManager.getEffectiveTagNames(resource));
     }
 
     @Test
-    void effectiveTagNamesWithoutProcessorsAreJustTheExplicitTags()
+    void effectiveTagNamesOfAnUntouchedNodeAreJustTheExplicitTags()
     {
-        // Without any registered tag processors there are no materialized properties to read
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
             TYPE_PROPERTY, "iap/Entity",
-            "tags", new String[] { DRAFT },
-            TagAggregationProcessor.PROPERTY, new String[] { "incomplete" }));
+            "tags", new String[] { DRAFT }));
 
         assertEquals(Set.of(DRAFT), this.tagManager.getEffectiveTagNames(resource));
+    }
+
+    @Test
+    void locallyComputedTagsAreOwnTagsWithTheirOwnOrigin()
+    {
+        final Resource entity = this.context.create().resource("/data/entity", Map.of(
+            TYPE_PROPERTY, "iap/Entity",
+            "tags", new String[] { DRAFT },
+            Phase.LOCAL.getPropertyName(), new String[] { SENSITIVE }));
+        final Resource part = this.context.create().resource("/data/entity/part",
+            TYPE_PROPERTY, "iap/EntityPart");
+
+        final Map<String, Tag> entityTags = collect(this.tagManager.getEffectiveTags(entity));
+        assertEquals(Set.of(Tag.Origin.COMPUTED), entityTags.get(SENSITIVE).getOrigins());
+        assertEquals(Set.of(Tag.Origin.EXPLICIT), entityTags.get(DRAFT).getOrigins());
+        // A computed tag propagates exactly like an explicitly placed one
+        assertEquals(Set.of(Tag.Origin.INHERITED),
+            collect(this.tagManager.getEffectiveTags(part)).get(SENSITIVE).getOrigins());
+        assertTrue(this.tagManager.hasTag(part, SENSITIVE));
+        // ...but it is not an explicit tag of the node it was computed for
+        assertFalse(this.tagManager.hasOwnTag(entity, SENSITIVE));
+        assertTrue(this.tagManager.hasTag(entity, SENSITIVE));
+    }
+
+    @Test
+    void aggregatesLocallyComputedTagsOfDescendants()
+    {
+        final Resource entity = this.context.create().resource("/data/entity",
+            TYPE_PROPERTY, "iap/Entity");
+        this.context.create().resource("/data/entity/part", Map.of(
+            TYPE_PROPERTY, "iap/EntityPart",
+            Phase.LOCAL.getPropertyName(), new String[] { "incomplete" }));
+
+        assertTrue(this.tagManager.hasTag(entity, "incomplete"));
+        assertEquals(Set.of(Tag.Origin.AGGREGATED),
+            collect(this.tagManager.getEffectiveTags(entity)).get("incomplete").getOrigins());
+    }
+
+    @Test
+    void rereadsTheDefinitionsWhenTheyChange()
+    {
+        assertNull(this.tagManager.getDefinition("added"));
+
+        this.context.create().resource("/Tags/added", Map.of(
+            TYPE_PROPERTY, "iap/TagDefinition",
+            "label", "Added"));
+        // The definitions are cached until something under /Tags changes
+        assertNull(this.tagManager.getDefinition("added"));
+        this.tagManager.onChange(List.of());
+
+        assertEquals("Added", this.tagManager.getDefinition("added").getLabel());
+    }
+
+    @Test
+    void survivesAMissingServiceUser() throws ReflectiveOperationException
+    {
+        final TagManagerImpl manager = new TagManagerImpl();
+        final Field factory = TagManagerImpl.class.getDeclaredField("resolverFactory");
+        factory.setAccessible(true);
+        factory.set(manager, new TestResolverFactory(null));
+
+        // A misconfigured deployment must not take every tag lookup down with it
+        assertTrue(manager.getDefinitions().isEmpty());
+        assertNull(manager.getDefinition(DRAFT));
+    }
+
+    @Test
+    void releasesItsResolverWhenStopped()
+    {
+        assertFalse(this.tagManager.getDefinitions().isEmpty());
+        this.tagManager.deactivate();
+
+        // The definitions are read again, with a fresh resolver, if the manager is used after being stopped
+        assertFalse(this.tagManager.getDefinitions().isEmpty());
+    }
+
+    @Test
+    void survivesAMissingDefinitionsHomepage() throws PersistenceException
+    {
+        final ResourceResolver resolver = this.context.resourceResolver();
+        resolver.delete(resolver.getResource("/Tags"));
+        resolver.commit();
+        this.tagManager.onChange(List.of());
+
+        assertTrue(this.tagManager.getDefinitions().isEmpty());
     }
 
     @Test
