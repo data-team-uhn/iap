@@ -74,4 +74,41 @@
       </plugin>
     </plugins>
   </build>
+  <profiles>
+    <profile>
+      <!-- If Docker is available&activated, also build the Docling parser daemon image -->
+      <id>docker</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>io.fabric8</groupId>
+            <artifactId>docker-maven-plugin</artifactId>
+            <configuration>
+              <images>
+                <image>
+                  <name>iap/docling:%l</name>
+                  <build>
+                    <contextDir>${project.basedir}</contextDir>
+                    <dockerFile>Dockerfile</dockerFile>
+                  </build>
+                </image>
+              </images>
+            </configuration>
+            <executions>
+              <execution>
+                <id>build</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>build</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
