@@ -1,6 +1,6 @@
-# `parsing` module — Python requirements & setup
+# `processing` module — Python requirements & setup
 
-The `parsing` module holds the Python pipeline that converts uploaded PDF/DOC/DOCX
+The `processing` module holds the Python pipeline that converts uploaded PDF/DOC/DOCX
 documents into cleaned, chunked Markdown plus its pytest suite. The Java side operates daemons and runs communication.
 
 ## Runtime dependencies
@@ -103,7 +103,7 @@ creation is skipped. On start you get:
 ### Manual HTTP daemon start (optional)
 
 ```
-python modules/parsing/src/main/python/docling_daemon.py --host 127.0.0.1 --port 18765
+python modules/documents/processing/src/main/python/docling_daemon.py --host 127.0.0.1 --port 18765
 ```
 
 ### Test endpoints
@@ -125,16 +125,27 @@ disk, use the CLI: `python chunker.py <file>`.
 Send `Accept-Encoding: gzip` — a parsed protocol's reply compresses roughly 5x.
 
 The daemon has **no authentication**. Every endpoint, `/shutdown` included, is open to whoever can
-reach the port, so it must stay on loopback: keep the `--host 127.0.0.1` default when running it by
-hand, and publish the container port as `127.0.0.1:18765:18765` rather than `18765:18765`. In a
-container the process itself still binds `0.0.0.0`, because Docker forwards published ports to the
-container's `eth0` and not to its loopback — the host-side publish address is what confines it.
+reach the port, so nothing that can route to it may be untrusted. Parsing is also slow, which makes
+a reachable endpoint a cheap denial-of-service target. Two ways to hold that line:
+
+- **The deployment** (`docker-compose.yml`) publishes **no port at all**. Every container port is
+  reachable by service name inside a Compose network without publishing, so IAP running as a
+  sibling service reaches the daemon at `http://docling:18765` while nothing on or off the host
+  has a route in. This is the intended setup.
+- **A hand-run daemon** stays on loopback: keep the `--host 127.0.0.1` default when starting it
+  directly, or publish the container port as `127.0.0.1:18765:18765` rather than `18765:18765`. A
+  bare `18765:18765` binds every host interface, and Docker's forwarding rules sit ahead of the
+  host firewall, so it is reachable by anyone who can route to the host.
+
+In a container the process itself still binds `0.0.0.0`, and that cannot be tightened: Docker
+forwards traffic to the container's `eth0`, not its loopback, so a daemon listening only on the
+container's loopback refuses every connection.
 
 ### Configuration (system properties)
 
 | Property | Default | Purpose |
 |----------|---------|---------|
-| `iap.docling.daemon.url` | `http://127.0.0.1:18765` | Daemon base URL |
+| `iap.docling.daemon.url` | `http://127.0.0.1:18765` | Daemon base URL. The default suits a hand-run daemon; the Compose deployment must override it to `http://docling:18765`, the daemon's service name on the Compose network |
 | `iap.docling.timeout.minutes` | `30` | Per-document parse timeout |
 | `iap.parse.output.dir` | `<user.dir>/iap-parsed-markdown` | Where Java writes `<answer-uuid>/<name>.md` and `Chunks/`. Java-side only — the daemon never sees it |
 
