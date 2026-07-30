@@ -19,10 +19,15 @@ package io.uhndata.iap.entities.internal;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -76,7 +81,10 @@ import org.slf4j.LoggerFactory;
  * {@code status = a OR status = b} is expressed as two conditions sharing a group</li>
  * <li>{@code childType}, {@code childFieldName}, {@code childFieldComparator}, {@code childFieldValue},
  * {@code childFieldGroup}: same, but the conditions apply to a descendant of the entity, e.g. only submissions
- * having a {@code sub:Review} descendant with {@code reviewer = @me}</li>
+ * having a {@code sub:Review} descendant with {@code reviewer = @me}; multiple independent descendant conditions
+ * may be sent as numbered families {@code childTypeN}, {@code childFieldNName}, {@code childFieldNComparator},
+ * {@code childFieldNValue}, {@code childFieldNGroup}, where {@code N} is any number, each family requiring its own
+ * matching descendant, e.g. {@code childType1=sub:Review&childField1Name=reviewer&childField1Value=@me}</li>
  * <li>{@code resourceSelectors}: extra selectors to apply when serializing each entity, e.g. {@code deep}</li>
  * <li>{@code req}: an opaque request identifier, echoed back in the response so that the client can discard
  * out-of-order responses</li>
@@ -105,6 +113,10 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * total approximate.
      */
     private static final long LOOKAHEAD_PAGES = 10;
+
+    /** Matches the parameter names of the descendant condition families, capturing the family's number. */
+    private static final Pattern CHILD_PARAMETER =
+        Pattern.compile("childType(\\d*+)|childField(\\d*+)(?:Name|Comparator|Value|Group)");
 
     @Override
     public void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
@@ -140,10 +152,13 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             throw new RepositoryException("The resource resolver is not backed by a JCR session");
         }
         final Resource homepage = request.getResource();
-        final String statement = new QueryBuilder(getNodeType(homepage), homepage.getPath())
-            .withFilters(parseFilters(request, "field", session.getUserID()))
-            .withChildFilters(request.getParameter("childType"),
-                parseFilters(request, "childField", session.getUserID()))
+        final QueryBuilder builder = new QueryBuilder(getNodeType(homepage), homepage.getPath())
+            .withFilters(parseFilters(request, "field", session.getUserID()));
+        for (final String suffix : getChildFilterSuffixes(request)) {
+            builder.withChildFilters(request.getParameter("childType" + suffix),
+                parseFilters(request, "childField" + suffix, session.getUserID()));
+        }
+        final String statement = builder
             .withFullText(request.getParameter("filter"))
             .withSort(request.getParameter("sortBy"), Boolean.parseBoolean(request.getParameter("descending")))
             .build();
@@ -166,6 +181,30 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             return explicit;
         }
         return homepage.getResourceType().replace('/', ':').replaceFirst("sHomepage$", "");
+    }
+
+    /**
+     * Collects the descendant condition families present in the request: the empty suffix for the plain
+     * {@code childType}/{@code childField*} parameters, and one numeric suffix per
+     * {@code childTypeN}/{@code childFieldN*} family. The suffixes are returned in numeric order, with the plain
+     * family first, so the mapping of families onto query joins is deterministic.
+     *
+     * @param request the current request
+     * @return the family suffixes present in the request, possibly empty
+     */
+    private Collection<String> getChildFilterSuffixes(final SlingJakartaHttpServletRequest request)
+    {
+        // Shorter digit strings are smaller numbers, so length-then-lexicographic is numeric order without the
+        // overflow risk of actually parsing untrusted numbers
+        final Set<String> suffixes =
+            new TreeSet<>(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
+        for (final String name : request.getParameterMap().keySet()) {
+            final Matcher matcher = CHILD_PARAMETER.matcher(name);
+            if (matcher.matches()) {
+                suffixes.add(matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
+            }
+        }
+        return suffixes;
     }
 
     /**

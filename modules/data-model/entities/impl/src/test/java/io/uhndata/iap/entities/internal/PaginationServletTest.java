@@ -20,6 +20,7 @@ package io.uhndata.iap.entities.internal;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -72,9 +73,12 @@ public class PaginationServletTest
 
     private StringWriter output;
 
+    private Map<String, String[]> parameters;
+
     @BeforeEach
     public void setup() throws Exception
     {
+        this.parameters = new HashMap<>();
         this.servlet = new PaginationServlet();
         this.request = Mockito.mock(SlingJakartaHttpServletRequest.class);
         this.response = Mockito.mock(SlingJakartaHttpServletResponse.class);
@@ -83,6 +87,7 @@ public class PaginationServletTest
         this.queryManager = Mockito.mock(QueryManager.class);
         this.output = new StringWriter();
 
+        Mockito.when(this.request.getParameterMap()).thenReturn(this.parameters);
         Mockito.when(this.request.getResourceResolver()).thenReturn(this.resolver);
         Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(this.session);
         Mockito.when(this.session.getUserID()).thenReturn("testUser");
@@ -317,6 +322,41 @@ public class PaginationServletTest
     }
 
     @Test
+    public void numberedChildFamiliesEachJoinOnTheirOwnDescendant() throws Exception
+    {
+        withParameter("childType", "sub:Review");
+        withParameter("childFieldName", "reviewer");
+        withParameter("childFieldValue", "@me");
+        // No conditions for this family: only the descendant's existence is required
+        withParameter("childType10", "sub:Attachment");
+        withParameter("childType2", "sub:Signature");
+        withParameter("childField2Name", "signer");
+        withParameter("childField2Value", "bob");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            // The families are joined in numeric order: plain, then 2, then 10
+            "select n.* from [sub:Submission] as n"
+                + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
+                + " inner join [sub:Signature] as c1 on isdescendantnode(c1, n)"
+                + " inner join [sub:Attachment] as c2 on isdescendantnode(c2, n)"
+                + " where isdescendantnode(n, '/Submissions')"
+                + " and (c0.[reviewer] = 'testUser')"
+                + " and (c1.[signer] = 'bob')"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+    }
+
+    @Test
+    public void numberedChildFiltersWithoutMatchingChildTypeAreRejected() throws Exception
+    {
+        withParameter("childType", "sub:Review");
+        withParameter("childField3Name", "reviewer");
+        withParameter("childField3Value", "@me");
+        this.servlet.doGet(this.request, this.response);
+        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+    }
+
+    @Test
     public void explicitChildNodeTypeOverridesTheNamingConvention() throws Exception
     {
         mockHomepage("iap/EntityHomepage", "iap:TestEntity");
@@ -418,6 +458,7 @@ public class PaginationServletTest
 
     private void withParameter(final String name, final String... values)
     {
+        this.parameters.put(name, values);
         Mockito.when(this.request.getParameter(name)).thenReturn(values[0]);
         Mockito.when(this.request.getParameterValues(name)).thenReturn(values);
     }
