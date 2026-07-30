@@ -17,11 +17,11 @@
 <iap = 'https://iap.uhndata.io/'>
 
 //-----------------------------------------------------------------------------
-// Marks a node that serves runtime documentation about a feature, e.g. the
-// catalogue of defined tags or the vocabulary understood by the workflow
-// engine. The documentation is served by appending `.doc.json` or `.doc.md`
-// to the node's path. Node types can extend this mixin directly, or it can be
-// added to individual nodes.
+// Marks an auto-documented node, which serves runtime documentation about a
+// feature, e.g. the catalogue of defined tags or the vocabulary understood by
+// the workflow engine. The documentation is served by appending `.doc.json` or
+// `.doc.md` to the node's path. Node types can extend this mixin directly, or
+// it can be added to individual nodes.
 [iap:Documented]
   mixin
 

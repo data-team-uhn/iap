@@ -27,8 +27,8 @@
 
   <artifactId>iap-autodoc</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Self-documentation</name>
-  <description>Support for features that document themselves at runtime</description>
+  <name>IAP - Autodoc</name>
+  <description>Autodoc: support for features that document themselves at runtime</description>
 
   <build>
     <plugins>

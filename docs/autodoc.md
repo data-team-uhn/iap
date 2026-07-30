@@ -1,13 +1,13 @@
-# Self-documentation
+# Autodoc
 
-The `iap-autodoc` module (`modules/autodoc`) lets configurable and extensible parts of
+The **Autodoc** module (`modules/autodoc`, `iap-autodoc`) lets configurable and extensible parts of
 the platform document themselves at runtime: what tags are defined, what node types the workflow
 engine understands, what metrics are tracked — always current, straight from the running system,
 instead of hand-maintained pages that drift out of date.
 
 ## Reading the documentation
 
-Appending the `doc` selector to the path of a documented node returns its catalogue:
+Appending the `doc` selector to the path of an auto-documented node returns its catalogue:
 
 - `GET <path>.doc.md` — a human-readable Markdown document;
 - `GET <path>.doc.json` — the same data as JSON, for tooling and UIs.
@@ -18,7 +18,7 @@ category are grouped under `uncategorized`, and if nothing declares a category t
 headings are left out entirely). For example, the [tag vocabulary](tags.md) is served at
 `/Tags.doc.md`.
 
-## Making a feature self-documenting
+## Making a feature auto-documented
 
 Three pieces, all provided by this module:
 
