@@ -142,7 +142,7 @@ public class PropertiesProcessorTest
 
         final JsonValue result = this.processor.processProperty(null, property, null, null);
 
-        Assertions.assertEquals("1970-01-01T00:00:00.000Z", ((JsonString) result).getString());
+        Assertions.assertEquals("1970-01-01T00:00:00.000+00:00", ((JsonString) result).getString());
     }
 
     @Test
@@ -248,7 +248,7 @@ public class PropertiesProcessorTest
 
         final JsonArray result = (JsonArray) this.processor.processProperty(null, property, null, null);
 
-        Assertions.assertEquals("1970-01-01T00:00:00.000Z", result.getString(0));
+        Assertions.assertEquals("1970-01-01T00:00:00.000+00:00", result.getString(0));
     }
 
     @Test
