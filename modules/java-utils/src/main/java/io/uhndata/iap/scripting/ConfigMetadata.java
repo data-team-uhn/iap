@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.scripting;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -98,6 +99,6 @@ public class ConfigMetadata
      */
     public Map<String, String> getProperties()
     {
-        return this.properties;
+        return Collections.unmodifiableMap(this.properties);
     }
 }

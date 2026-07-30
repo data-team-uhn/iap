@@ -60,11 +60,12 @@ public class Entity extends Content
     /**
      * The date when the resource was last modified.
      *
-     * @return a calendar, or {@code null} if the resource was never modified
+     * @return a copy of the last modification date, or {@code null} if the resource was never modified
      */
     public Calendar getLastModified()
     {
-        return this.lastModified;
+        // A copy, since Calendar is mutable and callers must not be able to alter the model's own state
+        return this.lastModified == null ? null : (Calendar) this.lastModified.clone();
     }
 
     /**

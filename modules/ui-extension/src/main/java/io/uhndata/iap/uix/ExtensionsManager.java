@@ -18,6 +18,7 @@
 package io.uhndata.iap.uix;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -126,7 +127,7 @@ public class ExtensionsManager implements Use
      */
     public List<Resource> listAll()
     {
-        return this.matchingExtensions;
+        return Collections.unmodifiableList(this.matchingExtensions);
     }
 
     /**

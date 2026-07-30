@@ -45,11 +45,12 @@ public class DocumentRequirement extends Requirement
     /**
      * The accepted MIME types for the uploaded document, e.g. {@code application/pdf}.
      *
-     * @return a list of MIME types, or {@code null} if not restricted
+     * @return a copy of the list of MIME types, or {@code null} if not restricted
      */
     public String[] getAcceptedFileTypes()
     {
-        return this.acceptedFileTypes;
+        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
+        return this.acceptedFileTypes == null ? null : this.acceptedFileTypes.clone();
     }
 
     /**
