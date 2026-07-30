@@ -32,14 +32,14 @@ import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 
-import io.uhndata.iap.autodoc.api.SelfDocumenting;
+import io.uhndata.iap.autodoc.api.AutoDocumentable;
 
 /**
- * Serves the documentation of any {@link SelfDocumenting self-documenting} node: appending {@code .doc.json} or
+ * Serves the documentation of any {@link AutoDocumentable auto-documentable} node: appending {@code .doc.json} or
  * {@code .doc.md} to the path of a node marked with the {@code iap:Documented} mixin returns its catalogue as JSON
  * or as a human-readable Markdown document. The servlet is not tied to any particular resource type: it opts in for
  * the nodes carrying the mixin, whether set explicitly or inherited from their primary type, and renders whatever
- * their {@link SelfDocumenting} model reports; a feature needing a completely different rendering can still
+ * their {@link AutoDocumentable} model reports; a feature needing a completely different rendering can still
  * register its own servlet for the same selector on its resource type, which takes precedence over this one.
  *
  * @version $Id$
@@ -47,8 +47,8 @@ import io.uhndata.iap.autodoc.api.SelfDocumenting;
  */
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(resourceTypes = { "sling/servlet/default" }, methods = { "GET" },
-    selectors = { DocumentationServlet.SELECTOR }, extensions = { "json", "md" })
-public class DocumentationServlet extends SlingJakartaSafeMethodsServlet implements JakartaOptingServlet
+    selectors = { AutodocServlet.SELECTOR }, extensions = { "json", "md" })
+public class AutodocServlet extends SlingJakartaSafeMethodsServlet implements JakartaOptingServlet
 {
     /** The selector under which the documentation is served. */
     public static final String SELECTOR = "doc";
@@ -62,7 +62,7 @@ public class DocumentationServlet extends SlingJakartaSafeMethodsServlet impleme
         try {
             // isNodeType sees the mixin both when set explicitly on the node
             // and when inherited from a supertype of the node's primary type
-            return node != null && node.isNodeType(SelfDocumenting.MIXIN);
+            return node != null && node.isNodeType(AutoDocumentable.MIXIN);
         } catch (final RepositoryException e) {
             return false;
         }
@@ -73,7 +73,7 @@ public class DocumentationServlet extends SlingJakartaSafeMethodsServlet impleme
         throws IOException
     {
         response.setCharacterEncoding("UTF-8");
-        final SelfDocumenting documentation = request.getResource().adaptTo(SelfDocumenting.class);
+        final AutoDocumentable documentation = request.getResource().adaptTo(AutoDocumentable.class);
         if (documentation == null) {
             // The node is marked as documented, but nothing provides its documentation
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);

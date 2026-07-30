@@ -33,30 +33,30 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.autodoc.api.AutoDocumentable;
 import io.uhndata.iap.autodoc.api.DocumentedItem;
-import io.uhndata.iap.autodoc.api.SelfDocumenting;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link DocumentationServlet}.
+ * Unit tests for {@link AutodocServlet}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class DocumentationServletTest
+class AutodocServletTest
 {
     private final SlingContext context = new SlingContext();
 
-    private final DocumentationServlet servlet = new DocumentationServlet();
+    private final AutodocServlet servlet = new AutodocServlet();
 
     /**
      * A fixed documentation catalogue served in the tests.
      */
-    private static final class Catalogue implements SelfDocumenting
+    private static final class Catalogue implements AutoDocumentable
     {
         @Override
         public String getDocumentationTitle()
@@ -87,7 +87,7 @@ class DocumentationServletTest
     void acceptsDocumentedNodes() throws Exception
     {
         final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.isNodeType(SelfDocumenting.MIXIN)).thenReturn(true);
+        Mockito.when(node.isNodeType(AutoDocumentable.MIXIN)).thenReturn(true);
         this.context.registerAdapter(Resource.class, Node.class, node);
 
         assertTrue(this.servlet.accepts(request("md")));
@@ -97,7 +97,7 @@ class DocumentationServletTest
     void declinesUndocumentedNodes() throws Exception
     {
         final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.isNodeType(SelfDocumenting.MIXIN)).thenReturn(false);
+        Mockito.when(node.isNodeType(AutoDocumentable.MIXIN)).thenReturn(false);
         this.context.registerAdapter(Resource.class, Node.class, node);
 
         assertFalse(this.servlet.accepts(request("md")));
@@ -114,7 +114,7 @@ class DocumentationServletTest
     void declinesOnRepositoryErrors() throws Exception
     {
         final Node node = Mockito.mock(Node.class);
-        Mockito.when(node.isNodeType(SelfDocumenting.MIXIN))
+        Mockito.when(node.isNodeType(AutoDocumentable.MIXIN))
             .thenThrow(new RepositoryException("unavailable"));
         this.context.registerAdapter(Resource.class, Node.class, node);
 
@@ -124,7 +124,7 @@ class DocumentationServletTest
     @Test
     void servesMarkdown() throws Exception
     {
-        this.context.registerAdapter(Resource.class, SelfDocumenting.class, new Catalogue());
+        this.context.registerAdapter(Resource.class, AutoDocumentable.class, new Catalogue());
 
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
         this.servlet.service(request("md"), response);
@@ -136,7 +136,7 @@ class DocumentationServletTest
     @Test
     void servesJson() throws Exception
     {
-        this.context.registerAdapter(Resource.class, SelfDocumenting.class, new Catalogue());
+        this.context.registerAdapter(Resource.class, AutoDocumentable.class, new Catalogue());
 
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
         this.servlet.service(request("json"), response);
@@ -148,7 +148,7 @@ class DocumentationServletTest
     @Test
     void reportsMissingDocumentation() throws Exception
     {
-        // The node carries the mixin, but no model provides a SelfDocumenting adaptation
+        // The node carries the mixin, but no model provides a AutoDocumentable adaptation
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
         this.servlet.service(request("json"), response);
 
@@ -161,7 +161,7 @@ class DocumentationServletTest
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
         request.setResource(this.context.resourceResolver().getResource("/Things"));
-        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString(DocumentationServlet.SELECTOR);
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString(AutodocServlet.SELECTOR);
         ((MockRequestPathInfo) request.getRequestPathInfo()).setExtension(extension);
         return request;
     }

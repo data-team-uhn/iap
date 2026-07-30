@@ -29,12 +29,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for the default serializations of {@link SelfDocumenting}.
+ * Unit tests for the default serializations of {@link AutoDocumentable}.
  *
  * @version $Id$
  * @since 0.1.0
  */
-class SelfDocumentingTest
+class AutoDocumentableTest
 {
     /**
      * A simple item with fixed data.
@@ -73,7 +73,7 @@ class SelfDocumentingTest
     /**
      * A simple catalogue with fixed data.
      */
-    private static final class Catalogue implements SelfDocumenting
+    private static final class Catalogue implements AutoDocumentable
     {
         private final String intro;
 
@@ -112,11 +112,11 @@ class SelfDocumentingTest
             new Item("second", "one", "two"),
             new Item("loose")).getDocumentedItemsByCategory();
 
-        assertEquals(List.of("one", "two", SelfDocumenting.UNCATEGORIZED), List.copyOf(groups.keySet()));
+        assertEquals(List.of("one", "two", AutoDocumentable.UNCATEGORIZED), List.copyOf(groups.keySet()));
         assertEquals(2, groups.get("one").size());
         // An item belonging to several categories is repeated under each
         assertEquals("second", groups.get("two").get(0).getName());
-        assertEquals("loose", groups.get(SelfDocumenting.UNCATEGORIZED).get(0).getName());
+        assertEquals("loose", groups.get(AutoDocumentable.UNCATEGORIZED).get(0).getName());
     }
 
     @Test
@@ -165,7 +165,7 @@ class SelfDocumentingTest
     {
         final JsonObject json = new Catalogue(null, new Item("first")).toDocumentationJson();
         assertFalse(json.containsKey("description"));
-        assertTrue(json.getJsonObject("items").containsKey(SelfDocumenting.UNCATEGORIZED));
+        assertTrue(json.getJsonObject("items").containsKey(AutoDocumentable.UNCATEGORIZED));
     }
 
     @Test

@@ -42,7 +42,7 @@ import jakarta.json.JsonObjectBuilder;
  * @version $Id$
  * @since 0.1.0
  */
-public interface SelfDocumenting
+public interface AutoDocumentable
 {
     /** The mixin marking the nodes that serve documentation. */
     String MIXIN = "iap:Documented";

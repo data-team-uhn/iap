@@ -25,7 +25,7 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
 /**
- * One entry in a {@link SelfDocumenting self-documenting} catalogue: a defined tag, a supported workflow node type,
+ * One entry in a {@link AutoDocumentable auto-documentable} catalogue: a defined tag, a supported workflow node type,
  * a tracked metric. The base contract is minimal (a name, an optional label, description and categories), and comes
  * with default JSON and Markdown serializations built from it; an implementation only overrides what it has to say
  * more: typically {@link #getDocumentationDetails} for extra behavior bullets in the Markdown rendering, and

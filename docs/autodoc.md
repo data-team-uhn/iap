@@ -23,7 +23,7 @@ headings are left out entirely). For example, the [tag vocabulary](tags.md) is s
 Three pieces, all provided by this module:
 
 1. **Implement the API** (`io.uhndata.iap.autodoc.api`): a Sling Model for the node serving
-   the documentation implements `SelfDocumenting` (a title, an intro, and the list of items), and
+   the documentation implements `AutoDocumentable` (a title, an intro, and the list of items), and
    the items implement `DocumentedItem` — a minimal contract of `name`, `label`, `description`
    and `category` accessors that `Content`-based models mostly already satisfy. Both interfaces
    carry default Markdown and JSON serializations built from that contract, so a basic catalogue
@@ -35,8 +35,8 @@ Three pieces, all provided by this module:
    workflow node type reporting its kind.
 
 2. **Register the model as an adapter**: the `@Model` annotation must list the interface, e.g.
-   `adapters = { TagsHomepage.class, SelfDocumenting.class }`, with the `resourceType` set, so
-   that the serving node's resource adapts to `SelfDocumenting`.
+   `adapters = { TagsHomepage.class, AutoDocumentable.class }`, with the `resourceType` set, so
+   that the serving node's resource adapts to `AutoDocumentable`.
 
 3. **Mark the node with the `iap:Documented` mixin**, either by adding it to individual nodes or
    by declaring it as a supertype of the node's primary type
