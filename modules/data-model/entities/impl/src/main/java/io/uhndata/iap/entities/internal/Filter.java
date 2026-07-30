@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.entities.internal;
 
-import java.util.List;
-
 /**
  * One property condition parsed from a pagination request: a property name, a comparator, and, unless the comparator
  * is a valueless one like {@code IS NULL}, a value to compare against. A condition may also name a group: conditions
@@ -29,17 +27,9 @@ import java.util.List;
  */
 final class Filter
 {
-    /** The comparators accepted in a request; anything else falls back to {@code =}. */
-    private static final List<String> COMPARATORS =
-        List.of("=", "<>", "<", "<=", ">", ">=", "LIKE", "NOT LIKE", "ILIKE", "NOT ILIKE", "IS NULL",
-            "IS NOT NULL");
-
-    /** The comparators that don't compare against a value. */
-    private static final List<String> VALUELESS_COMPARATORS = List.of("IS NULL", "IS NOT NULL");
-
     private final String name;
 
-    private final String comparator;
+    private final Operator comparator;
 
     private final String value;
 
@@ -68,7 +58,7 @@ final class Filter
     Filter(final String name, final String comparator, final String value, final String group)
     {
         this.name = name;
-        this.comparator = comparator != null && COMPARATORS.contains(comparator) ? comparator : "=";
+        this.comparator = Operator.parse(comparator);
         this.value = value;
         this.group = group;
     }
@@ -86,9 +76,9 @@ final class Filter
     /**
      * The comparator to use in the condition.
      *
-     * @return one of the supported comparators
+     * @return one of the supported operators
      */
-    String getComparator()
+    Operator getComparator()
     {
         return this.comparator;
     }
@@ -121,6 +111,6 @@ final class Filter
      */
     boolean isValueless()
     {
-        return VALUELESS_COMPARATORS.contains(this.comparator);
+        return this.comparator.isValueless();
     }
 }

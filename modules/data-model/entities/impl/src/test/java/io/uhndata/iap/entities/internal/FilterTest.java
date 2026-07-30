@@ -33,7 +33,7 @@ public class FilterTest
     {
         final Filter filter = new Filter("status", "<>", "draft");
         Assertions.assertEquals("status", filter.getName());
-        Assertions.assertEquals("<>", filter.getComparator());
+        Assertions.assertEquals(Operator.NEQ, filter.getComparator());
         Assertions.assertEquals("draft", filter.getValue());
         Assertions.assertFalse(filter.isValueless());
     }
@@ -42,14 +42,14 @@ public class FilterTest
     public void unsupportedComparatorFallsBackToEquals()
     {
         final Filter filter = new Filter("status", "; drop everything", "draft");
-        Assertions.assertEquals("=", filter.getComparator());
+        Assertions.assertEquals(Operator.EQ, filter.getComparator());
     }
 
     @Test
     public void nullComparatorFallsBackToEquals()
     {
         final Filter filter = new Filter("status", null, "draft");
-        Assertions.assertEquals("=", filter.getComparator());
+        Assertions.assertEquals(Operator.EQ, filter.getComparator());
     }
 
     @Test

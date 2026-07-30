@@ -66,8 +66,8 @@ public class QueryBuilderTest
         final String query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "ILIKE", "%CARdiac's%")))
             .build();
-        Assertions.assertEquals(BASE_QUERY + " and (LOWER(n.[title]) LIKE '%cardiac\\'s%') order by n.[jcr:created] ASC",
-            query);
+        Assertions.assertEquals(
+            BASE_QUERY + " and (LOWER(n.[title]) LIKE '%cardiac\\'s%') order by n.[jcr:created] ASC", query);
     }
 
     @Test
@@ -76,8 +76,8 @@ public class QueryBuilderTest
         final String query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "NOT ILIKE", "%Cardiac%")))
             .build();
-        Assertions.assertEquals(BASE_QUERY + " and (not LOWER(n.[title]) LIKE '%cardiac%') order by n.[jcr:created] ASC",
-            query);
+        Assertions.assertEquals(
+            BASE_QUERY + " and (not LOWER(n.[title]) LIKE '%cardiac%') order by n.[jcr:created] ASC", query);
     }
 
     @Test

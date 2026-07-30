@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -203,26 +202,8 @@ final class QueryBuilder
 
     private static String condition(final String source, final Filter filter)
     {
-        final String property = source + ".[" + checkName(filter.getName()) + "]";
-        if (filter.isValueless()) {
-            return property + ' ' + filter.getComparator();
-        }
-        if ("<>".equals(filter.getComparator())) {
-            // `x <> y` is evaluated on each entry of a multi-valued property and never matches an empty one;
-            // `not x = y` behaves intuitively for both single and multi-valued properties
-            return "not " + property + " = '" + escape(filter.getValue()) + '\'';
-        }
-        if ("NOT LIKE".equals(filter.getComparator())) {
-            return "not " + property + " LIKE '" + escape(filter.getValue()) + '\'';
-        }
-        if ("ILIKE".equals(filter.getComparator())) {
-            // Case-insensitive LIKE, which JCR-SQL2 doesn't have natively: lowercase both sides
-            return "LOWER(" + property + ") LIKE '" + escape(filter.getValue()).toLowerCase(Locale.ROOT) + '\'';
-        }
-        if ("NOT ILIKE".equals(filter.getComparator())) {
-            return "not LOWER(" + property + ") LIKE '" + escape(filter.getValue()).toLowerCase(Locale.ROOT) + '\'';
-        }
-        return property + ' ' + filter.getComparator() + " '" + escape(filter.getValue()) + '\'';
+        return filter.getComparator()
+            .apply(source + ".[" + checkName(filter.getName()) + "]", escape(filter.getValue()));
     }
 
     /**
