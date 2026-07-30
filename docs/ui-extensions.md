@@ -100,6 +100,28 @@ platform version + credit. Its links come from their own point:
 | --- | --- | --- |
 | `iap/footer/link` | `FooterLink` | Links in the page footer (Terms of use, User manual, FAQ, ...). **Data-only extensions**: no component, just `iap:extensionName` (the label) and `iap:targetURL` — a path navigates within the app, a full URL opens in a new tab. A link whose target page isn't ready can be hidden with `iap:defaultDisabled: true` until it is. |
 
+### The login page's sign-in methods
+
+The auth action area of the login page composes the ways of signing in:
+
+| Point id | Node name | Purpose |
+| --- | --- | --- |
+| `iap/login/signInMethod` | `SignInMethod` | Sign-in methods on the login page. The first enabled method renders in place; any further methods are collapsed behind a quiet link labelled by their `iap:collapsedLabel` (falling back to `iap:extensionName`), revealed on demand. |
+
+The login module registers the local credentials form as the default method
+(`/Extensions/SignInMethod/CredentialsForm`, order 100, collapsed label "Use a local account
+instead"). If no method is registered at all — or the point cannot be loaded — the page falls
+back to rendering the credentials form directly, so there is always a way to sign in.
+
+An identity-provider integration (e.g. the planned Keycloak module) does not need frontend
+code: the generic `iap-login.RedirectSignIn` asset renders a redirect method from a data-only
+extension — `iap:targetURL` (the endpoint starting the authentication round trip; the
+validated in-app return path is attached as its `resource` parameter), optional
+`iap:actionLabel` (button text, default "Continue to sign-in"), and optional `iap:hint` (a
+short explanation under the button). Register it with a lower `iap:defaultOrder` than the
+credentials form to make it the primary method, and disable the credentials form entirely with
+`iap:defaultDisabled: true` where local accounts should not be offered.
+
 ### The dashboard
 
 | Point id | Node name | Purpose |

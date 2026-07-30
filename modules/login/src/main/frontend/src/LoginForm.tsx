@@ -63,7 +63,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
     <Stack component="form" onSubmit={submit} spacing={2}>
       {failed && <Alert severity="error">Invalid username or password</Alert>}
       <TextField
-        label="Username or email"
+        label="Username"
         name="j_username"
         autoComplete="username"
         required

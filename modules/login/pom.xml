@@ -46,6 +46,8 @@
             <Sling-Initial-Content>
               SLING-INF/content/libs/iap/LoginPage/;path:=/libs/iap/LoginPage/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/conf/;path:=/libs/iap/conf/;overwriteProperties:=true,
+              SLING-INF/content/apps/iap/ExtensionPoints/;path:=/apps/iap/ExtensionPoints/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
