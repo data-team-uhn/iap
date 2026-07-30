@@ -33,6 +33,10 @@
   - sling:resourceType (STRING) = "wf/WorkflowTypesHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
 
+  // The listed entities are flow node types, not following the naming convention
+  // that would derive wf:WorkflowType from the resource type.
+  - childNodeType (STRING) = "wf:FlowNodeType" mandatory autocreated protected
+
   // Contains event and activity type definitions
   + * (wf:FlowNodeType) = wf:FlowNodeType
 
