@@ -18,6 +18,7 @@
 package io.uhndata.iap.autodoc.api;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -74,13 +75,15 @@ public interface AutoDocumentable
     /**
      * The {@link #getDocumentedItems items} grouped by their categories: categories sorted by name, items kept in
      * display order, items belonging to several categories repeated under each, items without a category grouped
-     * under {@value #UNCATEGORIZED}.
+     * under {@value #UNCATEGORIZED}, which always comes last regardless of its alphabetical position.
      *
      * @return the documented items, grouped by category
      */
     default Map<String, List<DocumentedItem>> getDocumentedItemsByCategory()
     {
-        final Map<String, List<DocumentedItem>> categories = new TreeMap<>();
+        final Map<String, List<DocumentedItem>> categories = new TreeMap<>(
+            Comparator.comparing((String category) -> UNCATEGORIZED.equals(category))
+                .thenComparing(Comparator.naturalOrder()));
         for (final DocumentedItem item : getDocumentedItems()) {
             final List<String> declared = item.getDocumentationCategories();
             for (final String category : declared.isEmpty() ? List.of(UNCATEGORIZED) : declared) {

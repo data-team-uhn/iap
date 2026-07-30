@@ -110,9 +110,11 @@ class AutoDocumentableTest
         final Map<String, List<DocumentedItem>> groups = new Catalogue(null,
             new Item("first", "one"),
             new Item("second", "one", "two"),
+            new Item("third", "zebra"),
             new Item("loose")).getDocumentedItemsByCategory();
 
-        assertEquals(List.of("one", "two", AutoDocumentable.UNCATEGORIZED), List.copyOf(groups.keySet()));
+        // The uncategorized group always comes last, even though "zebra" sorts after "uncategorized"
+        assertEquals(List.of("one", "two", "zebra", AutoDocumentable.UNCATEGORIZED), List.copyOf(groups.keySet()));
         assertEquals(2, groups.get("one").size());
         // An item belonging to several categories is repeated under each
         assertEquals("second", groups.get("two").get(0).getName());
