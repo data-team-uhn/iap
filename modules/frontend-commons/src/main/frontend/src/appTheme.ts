@@ -68,6 +68,15 @@ declare module "@mui/material/styles" {
     muted: string;
     admin: string;
   }
+  // A dedicated palette slot for marking administrative zones (e.g. the border around the admin
+  // working panel), so that marking can be tuned - or diverged from the brand secondary - in one
+  // place. It currently matches secondary.
+  interface Palette {
+    admin: Palette["secondary"];
+  }
+  interface PaletteOptions {
+    admin?: PaletteOptions["secondary"];
+  }
   // The main title of a screen (see `pageTitle` in the typography section below)
   interface TypographyVariants {
     pageTitle: CSSProperties;
@@ -136,6 +145,7 @@ const appTheme = createTheme({
       palette: {
         primary: { main: primaryColor },
         secondary: { main: secondaryColor },
+        admin: { main: secondaryColor },
         // Translucent, so they compose with whatever they overlap rather than assuming white
         background: { muted: "rgba(0, 0, 0, 0.04)", admin: alpha(primaryColor, 0.06) },
       },
@@ -146,6 +156,7 @@ const appTheme = createTheme({
         // legible on the dark scheme's dark surfaces.
         primary: { main: lighten(primaryColor, 0.6) },
         secondary: { main: secondaryColor },
+        admin: { main: secondaryColor },
         // The same lightened primary as the scheme's primary colour, so the tint stays a hue
         // shift rather than a muddy darkening
         background: { muted: "rgba(255, 255, 255, 0.08)", admin: alpha(lighten(primaryColor, 0.6), 0.1) },

@@ -52,9 +52,12 @@ describe("AdminScreen", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it("displays the main action next to the heading", () => {
-    renderAt("/admin/categories", <AdminScreen title="Some tool" action={<button>New thing</button>} />);
+  it("displays the main action inside the working panel", () => {
+    renderAt("/admin/categories",
+      <AdminScreen title="Some tool" action={<button>New thing</button>}>content</AdminScreen>);
 
-    expect(screen.getByRole("button", { name: "New thing" })).toBeInTheDocument();
+    const actionButton = screen.getByRole("button", { name: "New thing" });
+    // The action acts on administrative data, so it shares the marked panel with the content
+    expect(actionButton.closest("div")?.parentElement).toContainElement(screen.getByText("content"));
   });
 });
