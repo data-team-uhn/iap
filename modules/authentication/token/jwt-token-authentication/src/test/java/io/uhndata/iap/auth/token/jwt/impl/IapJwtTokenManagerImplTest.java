@@ -217,6 +217,19 @@ public class IapJwtTokenManagerImplTest
     }
 
     @Test
+    public void parseRejectsNonSanitizedKeyId()
+    {
+        // A well-formed token with a `kid` header that contains non-sanitized characters must be rejected
+        final String foreign = Jwts.builder()
+                .subject("attacker")
+                .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
+                .header().keyId("../attacker").and()
+                .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate())
+                .compact();
+        Assert.assertNull("A token with a non-sanitized key ID must not parse", this.manager.parse(foreign));
+    }
+
+    @Test
     public void createThenParseRejectsInvalidAudience()
     {
         // Create a real token, but exclude ourselves from the audience, and then make sure we fail to parse

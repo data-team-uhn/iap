@@ -71,9 +71,7 @@ public class IapJwtTokenImpl implements IapToken
             Claims claims = (Claims) payload;
             this.loginToken = token;
             this.userId = claims.getSubject();
-            Calendar expiration = Calendar.getInstance();
-            expiration.setTime(claims.getExpiration());
-            this.expirationTime = expiration;
+            this.expirationTime = new Calendar.Builder().setInstant(claims.getExpiration()).build();
             Map<String, String> parsedAttributes = new HashMap<>();
             if (claims.containsKey("iap:sessionSubject")) {
                 parsedAttributes.put("iap:sessionSubject", String.valueOf(claims.get("iap:sessionSubject")));
