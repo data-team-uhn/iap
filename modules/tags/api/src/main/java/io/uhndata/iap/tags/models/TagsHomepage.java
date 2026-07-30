@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.autodoc.api.AutoDocumentable;
 import io.uhndata.iap.content.models.Content;
@@ -56,6 +57,7 @@ public class TagsHomepage extends Content implements AutoDocumentable
      *
      * @return the tag definitions, an empty list if there are none
      */
+    @NotNull
     public List<TagDefinition> getDefinitions()
     {
         final List<TagDefinition> result = new ArrayList<>();
@@ -73,18 +75,21 @@ public class TagsHomepage extends Content implements AutoDocumentable
     }
 
     @Override
+    @NotNull
     public String getDocumentationTitle()
     {
         return this.title;
     }
 
     @Override
+    @NotNull
     public String getDocumentationIntro()
     {
         return this.description;
     }
 
     @Override
+    @NotNull
     public List<TagDefinition> getDocumentedItems()
     {
         return getDefinitions();

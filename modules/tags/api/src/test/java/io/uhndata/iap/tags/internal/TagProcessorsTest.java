@@ -164,7 +164,6 @@ class TagProcessorsTest
 
         assertEquals(Set.of(AGG), TagProcessor.readTags(node.getNodeState(), TAGS));
         assertTrue(TagProcessor.readTags(node.getNodeState(), "missing").isEmpty());
-        assertTrue(TagProcessor.readTags(null, TAGS).isEmpty());
     }
 
     @Test

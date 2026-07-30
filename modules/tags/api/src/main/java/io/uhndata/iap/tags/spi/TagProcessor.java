@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Computes the <em>derived</em> tags of a node: tags not explicitly placed on it, but implied by its surroundings, or
@@ -93,6 +94,7 @@ public interface TagProcessor
          *
          * @return a property name
          */
+        @NotNull
         public String getPropertyName()
         {
             return this.propertyName;
@@ -129,6 +131,7 @@ public interface TagProcessor
      *
      * @return the phase
      */
+    @NotNull
     Phase getPhase();
 
     /**
@@ -136,6 +139,7 @@ public interface TagProcessor
      *
      * @return the scope
      */
+    @NotNull
     default Scope getScope()
     {
         return Scope.NODE;
@@ -159,22 +163,21 @@ public interface TagProcessor
      *            definitions in effect for this commit
      * @return the derived tags this processor contributes, an empty set if none apply
      */
-    Set<String> computeTags(TagContext context);
+    @NotNull
+    Set<String> computeTags(@NotNull TagContext context);
 
     /**
      * Reads a multivalued String property of a node state as a set, e.g. the explicit {@code tags} or one of the
      * derived tag properties maintained by the phases.
      *
-     * @param node a node state, may be {@code null}
+     * @param node a node state
      * @param property the name of the property to read
-     * @return the property values in storage order, an empty set if the node or the property is missing
+     * @return the property values in storage order, an empty set if the property is missing
      */
-    static Set<String> readTags(final NodeState node, final String property)
+    @NotNull
+    static Set<String> readTags(@NotNull final NodeState node, @NotNull final String property)
     {
         final Set<String> result = new LinkedHashSet<>();
-        if (node == null) {
-            return result;
-        }
         final PropertyState values = node.getProperty(property);
         if (values == null) {
             return result;

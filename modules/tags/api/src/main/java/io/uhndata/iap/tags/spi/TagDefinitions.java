@@ -19,6 +19,8 @@ package io.uhndata.iap.tags.spi;
 
 import java.util.Set;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * A read-only snapshot of the tag definitions stored under {@code /Tags}, as seen by the commit being processed.
  * Unlike the {@code TagDefinition} Sling Model, this view works at the Oak level, without needing a resource
@@ -34,6 +36,7 @@ public interface TagDefinitions
      *
      * @return the tag names, an empty set if there are no definitions
      */
+    @NotNull
     Set<String> getNames();
 
     /**
@@ -42,7 +45,7 @@ public interface TagDefinitions
      * @param name a tag name
      * @return {@code true} if a definition with this name exists under {@code /Tags}
      */
-    boolean isDefined(String name);
+    boolean isDefined(@NotNull String name);
 
     /**
      * Checks whether a tag is aggregated: a node implicitly carries it when any of its descendants explicitly does.
@@ -50,7 +53,7 @@ public interface TagDefinitions
      * @param name a tag name
      * @return {@code true} if the tag is defined and marked as aggregated
      */
-    boolean isAggregated(String name);
+    boolean isAggregated(@NotNull String name);
 
     /**
      * Checks whether a tag is inheritable: resources under a tagged node implicitly carry it too.
@@ -58,5 +61,5 @@ public interface TagDefinitions
      * @param name a tag name
      * @return {@code true} if the tag is defined and marked as inheritable
      */
-    boolean isInheritable(String name);
+    boolean isInheritable(@NotNull String name);
 }

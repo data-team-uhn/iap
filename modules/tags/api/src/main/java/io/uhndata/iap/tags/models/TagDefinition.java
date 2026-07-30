@@ -29,6 +29,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.content.models.Content;
@@ -95,6 +97,7 @@ public class TagDefinition extends Content implements DocumentedItem
      * @return the tag name
      */
     @Override
+    @NotNull
     public String getName()
     {
         return this.name == null || this.name.isEmpty() ? super.getName() : this.name;
@@ -105,6 +108,7 @@ public class TagDefinition extends Content implements DocumentedItem
      *
      * @return the display label
      */
+    @NotNull
     public String getLabel()
     {
         return this.label == null || this.label.isEmpty() ? getName() : this.label;
@@ -116,6 +120,7 @@ public class TagDefinition extends Content implements DocumentedItem
      * @return the description, or {@code null} if not set
      */
     @Override
+    @Nullable
     public String getDescription()
     {
         return this.description;
@@ -127,6 +132,7 @@ public class TagDefinition extends Content implements DocumentedItem
      *
      * @return the categories, an empty list if none are set
      */
+    @NotNull
     public List<String> getCategories()
     {
         return this.categories == null ? List.of() : List.of(this.categories);
@@ -160,6 +166,7 @@ public class TagDefinition extends Content implements DocumentedItem
      *
      * @return the accepted resource types, an empty list if the tag is unrestricted
      */
+    @NotNull
     public List<String> getTargetResources()
     {
         return this.targetResources == null ? List.of() : List.of(this.targetResources);
@@ -170,6 +177,7 @@ public class TagDefinition extends Content implements DocumentedItem
      *
      * @return the color, or {@code null} if not set
      */
+    @Nullable
     public String getColor()
     {
         return this.color;
@@ -181,6 +189,7 @@ public class TagDefinition extends Content implements DocumentedItem
      *
      * @return the order, or {@code null} if not set
      */
+    @Nullable
     public Long getOrder()
     {
         return this.order;
@@ -205,25 +214,28 @@ public class TagDefinition extends Content implements DocumentedItem
      * @return {@code true} if the resource is of (a subtype of) one of the accepted resource types, or if this
      *         definition doesn't restrict its targets
      */
-    public boolean appliesTo(final Resource target)
+    public boolean appliesTo(@NotNull final Resource target)
     {
         return this.targetResources == null || this.targetResources.length == 0
             || getTargetResources().stream().anyMatch(target::isResourceType);
     }
 
     @Override
+    @NotNull
     public String getDocumentationLabel()
     {
         return getLabel();
     }
 
     @Override
+    @NotNull
     public List<String> getDocumentationCategories()
     {
         return getCategories();
     }
 
     @Override
+    @NotNull
     public List<String> getDocumentationDetails()
     {
         final List<String> details = new ArrayList<>();
@@ -243,6 +255,7 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     @Override
+    @NotNull
     public JsonObjectBuilder documentationJsonBuilder()
     {
         final JsonObjectBuilder json = DocumentedItem.super.documentationJsonBuilder()
@@ -254,11 +267,13 @@ public class TagDefinition extends Content implements DocumentedItem
             getTargetResources().forEach(targets::add);
             json.add("targetResources", targets);
         }
-        if (getColor() != null) {
-            json.add("color", getColor());
+        final String tagColor = getColor();
+        if (tagColor != null) {
+            json.add("color", tagColor);
         }
-        if (getOrder() != null) {
-            json.add("order", getOrder());
+        final Long tagOrder = getOrder();
+        if (tagOrder != null) {
+            json.add("order", tagOrder);
         }
         return json.add("path", getPath());
     }

@@ -23,6 +23,9 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import io.uhndata.iap.tags.models.TagDefinition;
 
 /**
@@ -71,8 +74,8 @@ public final class Tag
      * @param origins how the tag reached the resource, at least one origin
      * @param sources the paths of the resources explicitly carrying the tag
      */
-    public Tag(final String name, final TagDefinition definition, final Set<Origin> origins,
-        final Set<String> sources)
+    public Tag(@NotNull final String name, @Nullable final TagDefinition definition,
+        @NotNull final Set<Origin> origins, @NotNull final Set<String> sources)
     {
         this.name = name;
         this.definition = definition;
@@ -86,6 +89,7 @@ public final class Tag
      *
      * @return the tag name
      */
+    @NotNull
     public String getName()
     {
         return this.name;
@@ -97,6 +101,7 @@ public final class Tag
      *
      * @return the tag definition, or {@code null} if the tag is undefined
      */
+    @Nullable
     public TagDefinition getDefinition()
     {
         return this.definition;
@@ -118,6 +123,7 @@ public final class Tag
      *
      * @return the origins, a non-empty read-only set
      */
+    @NotNull
     public Set<Origin> getOrigins()
     {
         return this.origins;
@@ -130,6 +136,7 @@ public final class Tag
      *
      * @return the source paths, a non-empty read-only set
      */
+    @NotNull
     public Set<String> getSources()
     {
         return this.sources;

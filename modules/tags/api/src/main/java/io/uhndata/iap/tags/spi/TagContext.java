@@ -18,6 +18,8 @@
 package io.uhndata.iap.tags.spi;
 
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Everything a {@link TagProcessor} may look at while computing the derived tags of one node. The context is created
@@ -43,6 +45,7 @@ public interface TagContext
      *
      * @return a node state, never {@code null}
      */
+    @NotNull
     NodeState getNode();
 
     /**
@@ -51,6 +54,7 @@ public interface TagContext
      *
      * @return a node state, {@code null} when the processed node is the repository root
      */
+    @Nullable
     NodeState getParent();
 
     /**
@@ -58,6 +62,7 @@ public interface TagContext
      *
      * @return an absolute path, {@code /} for the repository root
      */
+    @NotNull
     String getPath();
 
     /**
@@ -67,6 +72,7 @@ public interface TagContext
      * @return a node state, {@code null} for a {@link TagProcessor.Scope#NODE} processor, and for an
      *         {@link TagProcessor.Scope#ENTITY} one processing a node outside any entity
      */
+    @Nullable
     NodeState getScopeRoot();
 
     /**
@@ -74,5 +80,6 @@ public interface TagContext
      *
      * @return the definitions, never {@code null}
      */
+    @NotNull
     TagDefinitions getDefinitions();
 }

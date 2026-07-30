@@ -23,6 +23,8 @@ import java.util.Set;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.tags.models.TagDefinition;
 
@@ -76,6 +78,7 @@ public interface TagManager
      *
      * @return the tag definitions, an empty list if there are none
      */
+    @NotNull
     List<TagDefinition> getDefinitions();
 
     /**
@@ -85,7 +88,8 @@ public interface TagManager
      * @return the definition whose {@link TagDefinition#getName() name} is exactly {@code name}, or {@code null} if
      *         the tag is not defined
      */
-    TagDefinition getDefinition(String name);
+    @Nullable
+    TagDefinition getDefinition(@NotNull String name);
 
     /**
      * The defined tags matching the given filters, in display order.
@@ -95,7 +99,8 @@ public interface TagManager
      *            description are returned
      * @return the matching tag definitions, an empty list if none match
      */
-    List<TagDefinition> findDefinitions(String category, String query);
+    @NotNull
+    List<TagDefinition> findDefinitions(@Nullable String category, @Nullable String query);
 
     /**
      * The defined tags that may be placed on the given resource, in display order.
@@ -103,7 +108,8 @@ public interface TagManager
      * @param resource a candidate resource to be tagged
      * @return the tag definitions {@link TagDefinition#appliesTo applying to} the resource, an empty list if none do
      */
-    List<TagDefinition> getApplicableDefinitions(Resource resource);
+    @NotNull
+    List<TagDefinition> getApplicableDefinitions(@NotNull Resource resource);
 
     /**
      * The tags explicitly placed on the given resource, in storage order.
@@ -111,7 +117,8 @@ public interface TagManager
      * @param resource the resource to read
      * @return a snapshot of the resource's own tag names, an empty set if it has none
      */
-    Set<String> getTags(Resource resource);
+    @NotNull
+    Set<String> getTags(@NotNull Resource resource);
 
     /**
      * All the tags the given resource effectively carries: the tags belonging to it, the
@@ -124,7 +131,8 @@ public interface TagManager
      * @param resource the resource to read
      * @return the effective tags, with their definitions and origins, an empty collection if there are none
      */
-    Collection<Tag> getEffectiveTags(Resource resource);
+    @NotNull
+    Collection<Tag> getEffectiveTags(@NotNull Resource resource);
 
     /**
      * The names of all the tags the given resource effectively carries, read from the explicit {@code tags} property
@@ -145,7 +153,8 @@ public interface TagManager
      * @param resource the resource to read
      * @return the effective tag names, an empty set if there are none
      */
-    Set<String> getEffectiveTagNames(Resource resource);
+    @NotNull
+    Set<String> getEffectiveTagNames(@NotNull Resource resource);
 
     /**
      * Checks whether the given resource effectively carries a tag, cheaper than computing all the
@@ -156,7 +165,7 @@ public interface TagManager
      * @return {@code true} if the tag belongs to the resource, whether explicitly placed on it or computed for it,
      *         or is inherited from an ancestor, or aggregated from a descendant
      */
-    boolean hasTag(Resource resource, String name);
+    boolean hasTag(@NotNull Resource resource, @NotNull String name);
 
     /**
      * Checks whether the given tag is explicitly placed on the given resource.
@@ -165,7 +174,7 @@ public interface TagManager
      * @param name a tag name
      * @return {@code true} if the tag is present in the resource's own {@code tags} property
      */
-    boolean hasOwnTag(Resource resource, String name);
+    boolean hasOwnTag(@NotNull Resource resource, @NotNull String name);
 
     /**
      * Places a tag on a resource. The change is not committed, the caller must commit the resource resolver.
@@ -177,7 +186,7 @@ public interface TagManager
      *             system tag
      * @throws PersistenceException if the resource cannot be modified by the current session
      */
-    boolean tag(Resource resource, String name) throws PersistenceException;
+    boolean tag(@NotNull Resource resource, @NotNull String name) throws PersistenceException;
 
     /**
      * Places a tag on a resource, optionally allowing platform-managed system tags. The change is not committed, the
@@ -192,7 +201,7 @@ public interface TagManager
      *             system tag and {@code allowSystem} is not set
      * @throws PersistenceException if the resource cannot be modified by the current session
      */
-    boolean tag(Resource resource, String name, boolean allowSystem) throws PersistenceException;
+    boolean tag(@NotNull Resource resource, @NotNull String name, boolean allowSystem) throws PersistenceException;
 
     /**
      * Removes a tag from a resource. Undefined tags, e.g. left behind after their definition was deleted, may be
@@ -204,7 +213,7 @@ public interface TagManager
      * @throws IllegalArgumentException if the tag is defined as a system tag
      * @throws PersistenceException if the resource cannot be modified by the current session
      */
-    boolean untag(Resource resource, String name) throws PersistenceException;
+    boolean untag(@NotNull Resource resource, @NotNull String name) throws PersistenceException;
 
     /**
      * Removes a tag from a resource, optionally allowing platform-managed system tags. The change is not committed,
@@ -218,7 +227,8 @@ public interface TagManager
      * @throws IllegalArgumentException if the tag is defined as a system tag and {@code allowSystem} is not set
      * @throws PersistenceException if the resource cannot be modified by the current session
      */
-    boolean untag(Resource resource, String name, boolean allowSystem) throws PersistenceException;
+    boolean untag(@NotNull Resource resource, @NotNull String name, boolean allowSystem)
+        throws PersistenceException;
 
     /**
      * Replaces the tags explicitly placed on a resource. The change is not committed, the caller must commit the
@@ -231,7 +241,7 @@ public interface TagManager
      *             or if the change would add or remove a system tag
      * @throws PersistenceException if the resource cannot be modified by the current session
      */
-    void setTags(Resource resource, Collection<String> names) throws PersistenceException;
+    void setTags(@NotNull Resource resource, @NotNull Collection<String> names) throws PersistenceException;
 
     /**
      * Replaces the tags explicitly placed on a resource, optionally allowing platform-managed system tags. The
@@ -245,5 +255,6 @@ public interface TagManager
      *             or if the change would add or remove a system tag and {@code allowSystem} is not set
      * @throws PersistenceException if the resource cannot be modified by the current session
      */
-    void setTags(Resource resource, Collection<String> names, boolean allowSystem) throws PersistenceException;
+    void setTags(@NotNull Resource resource, @NotNull Collection<String> names, boolean allowSystem)
+        throws PersistenceException;
 }
