@@ -47,11 +47,12 @@ public class ConditionOperand extends EntityPart
     /**
      * The value, or a reference to the question whose answer provides the value.
      *
-     * @return the stored value(s), or {@code null} if not set
+     * @return a copy of the stored value(s), or {@code null} if not set
      */
     public String[] getValue()
     {
-        return this.value;
+        // A copy, since arrays are mutable and callers must not be able to alter the model's own state
+        return this.value == null ? null : this.value.clone();
     }
 
     /**

@@ -96,4 +96,14 @@ class DocumentRequirementTest
 
         assertNull(requirement.getTemplate());
     }
+
+    @Test
+    void toleratesMissingAcceptedFileTypes()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/consent",
+            "sling:resourceType", DocumentRequirement.RESOURCE_TYPE);
+        final DocumentRequirement requirement = resource.adaptTo(DocumentRequirement.class);
+
+        assertNull(requirement.getAcceptedFileTypes());
+    }
 }

@@ -89,11 +89,12 @@ public class Content
     /**
      * The date when the resource was created.
      *
-     * @return a calendar, or {@code null} if the creation date is not recorded
+     * @return a copy of the creation date, or {@code null} if the creation date is not recorded
      */
     public Calendar getCreated()
     {
-        return this.created;
+        // A copy, since Calendar is mutable and callers must not be able to alter the model's own state
+        return this.created == null ? null : (Calendar) this.created.clone();
     }
 
     /**
