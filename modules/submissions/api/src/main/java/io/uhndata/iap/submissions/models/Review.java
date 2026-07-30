@@ -24,6 +24,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
@@ -55,6 +57,7 @@ public class Review extends EntityPart
      *
      * @return a principal name
      */
+    @NotNull
     public String getReviewer()
     {
         return this.reviewer;
@@ -66,6 +69,7 @@ public class Review extends EntityPart
      * @return a requirement, or {@code null} if this review does not address a specific requirement, or it is
      *         unresolvable
      */
+    @Nullable
     public Requirement getRequirement()
     {
         return this.getReference(this.requirement, Requirement.class);
@@ -77,6 +81,7 @@ public class Review extends EntityPart
      *
      * @return a status name
      */
+    @NotNull
     public String getStatus()
     {
         return this.status;
@@ -87,6 +92,7 @@ public class Review extends EntityPart
      *
      * @return a list of review comments, empty if none
      */
+    @NotNull
     public List<ReviewComment> getComments()
     {
         return this.getChildren(ReviewComment.RESOURCE_TYPE, ReviewComment.class);
@@ -97,6 +103,7 @@ public class Review extends EntityPart
      *
      * @return a list of unresolved review comments, empty if none
      */
+    @NotNull
     public List<ReviewComment> getUnresolvedComments()
     {
         return this.getComments().stream()

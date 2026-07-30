@@ -214,9 +214,24 @@ public final class QueryCountHealthCheck implements HealthCheck
 
     private String resolveDatePlaceholders(final String query)
     {
+        // One "now" for all three placeholders, so that they cannot straddle midnight
+        final ZonedDateTime now = ZonedDateTime.now();
         return query
-            .replace(YESTERDAY_PLACEHOLDER, DateUtils.toString(DateUtils.atMidnight(ZonedDateTime.now().minusDays(1))))
-            .replace(TODAY_PLACEHOLDER, DateUtils.toString(DateUtils.atMidnight(ZonedDateTime.now())))
-            .replace(TOMORROW_PLACEHOLDER, DateUtils.toString(DateUtils.atMidnight(ZonedDateTime.now().plusDays(1))));
+            .replace(YESTERDAY_PLACEHOLDER, midnightOf(now.minusDays(1)))
+            .replace(TODAY_PLACEHOLDER, midnightOf(now))
+            .replace(TOMORROW_PLACEHOLDER, midnightOf(now.plusDays(1)));
+    }
+
+    /**
+     * Serializes the midnight of the given date. This formats directly instead of going through
+     * {@link DateUtils#toString(java.time.temporal.TemporalAccessor)}, whose result is nullable because it accepts a
+     * nullable input, while a query placeholder always needs an actual value to substitute.
+     *
+     * @param date the date to take the midnight of
+     * @return a date serialization in the canonical JCR format
+     */
+    private static String midnightOf(final ZonedDateTime date)
+    {
+        return DateUtils.PREFERRED_DATETIME_FORMAT.format(DateUtils.atMidnight(date));
     }
 }

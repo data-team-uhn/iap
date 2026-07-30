@@ -34,6 +34,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.scripting.sightly.pojo.Use;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,7 +72,7 @@ public class ExtensionsManager implements Use
     private ResourceResolver resourceResolver;
 
     @Override
-    public void init(final Bindings bindings)
+    public void init(@NotNull final Bindings bindings)
     {
         final String uixp = (String) bindings.get("uixp");
         if (StringUtils.isBlank(uixp)) {
@@ -112,6 +113,7 @@ public class ExtensionsManager implements Use
      * @return a JsonArray with all the matching extensions
      * @see #getEnabled()
      */
+    @NotNull
     public String getAll()
     {
         return toString(listAll());
@@ -125,6 +127,7 @@ public class ExtensionsManager implements Use
      * @return a list of all the matching extensions
      * @see #getEnabled()
      */
+    @NotNull
     public List<Resource> listAll()
     {
         return Collections.unmodifiableList(this.matchingExtensions);
@@ -136,6 +139,7 @@ public class ExtensionsManager implements Use
      *
      * @return a JsonArray with the enabled matching extensions
      */
+    @NotNull
     public String getEnabled()
     {
         return toString(listEnabled());
@@ -146,6 +150,7 @@ public class ExtensionsManager implements Use
      *
      * @return a list of the enabled matching extensions
      */
+    @NotNull
     public List<Resource> listEnabled()
     {
         return this.matchingExtensions.stream()

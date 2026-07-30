@@ -23,6 +23,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.content.models.Content;
 
@@ -52,6 +54,7 @@ public class Entity extends Content
      *
      * @return an UUID
      */
+    @NotNull
     public String getIdentifier()
     {
         return this.identifier;
@@ -62,6 +65,7 @@ public class Entity extends Content
      *
      * @return a copy of the last modification date, or {@code null} if the resource was never modified
      */
+    @Nullable
     public Calendar getLastModified()
     {
         // A copy, since Calendar is mutable and callers must not be able to alter the model's own state
@@ -73,6 +77,7 @@ public class Entity extends Content
      *
      * @return a user name, or {@code null} if the resource was never modified
      */
+    @Nullable
     public String getLastModifiedBy()
     {
         return this.lastModifiedBy;

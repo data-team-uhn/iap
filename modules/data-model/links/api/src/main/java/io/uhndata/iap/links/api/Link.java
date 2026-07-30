@@ -21,6 +21,9 @@ import javax.jcr.Node;
 
 import jakarta.json.JsonObject;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * A Link, a connection from one resource to another.
  *
@@ -55,6 +58,7 @@ public interface Link
      *
      * @return a JCR node
      */
+    @NotNull
     Node getNode();
 
     /**
@@ -62,6 +66,7 @@ public interface Link
      *
      * @return a link definition object
      */
+    @NotNull
     LinkDefinition getDefinition();
 
     /**
@@ -70,6 +75,7 @@ public interface Link
      * @return a formatted label for the resource
      * @see LinkDefinition#getResourceLabelFormat()
      */
+    @NotNull
     String getResourceLabel();
 
     /**
@@ -92,6 +98,7 @@ public interface Link
      *
      * @return a JCR node, may be {@code null} if the linked resource has been deleted
      */
+    @Nullable
     Node getLinkedResource();
 
     /**
@@ -99,6 +106,7 @@ public interface Link
      *
      * @return a JCR node
      */
+    @NotNull
     Node getLinkingResource();
 
     /**
@@ -106,6 +114,7 @@ public interface Link
      *
      * @return a Link object, may be {@code null} if a backlink doesn't exist
      */
+    @Nullable
     Link getBacklink();
 
     /**
@@ -113,6 +122,7 @@ public interface Link
      *
      * @return a string, empty if no label is set
      */
+    @NotNull
     String getLabel();
 
     /**
@@ -120,5 +130,6 @@ public interface Link
      *
      * @return a JSON object
      */
+    @NotNull
     JsonObject toJson();
 }

@@ -272,6 +272,15 @@
         <artifactId>org.osgi.framework</artifactId>
         <version>1.10.0</version>
       </dependency>
+      <!-- Nullability annotations for the exported API and SPI packages. This is the spelling SpotBugs
+           actually acts on: javax.annotation.@Nullable from JSR-305 is silently ignored by its null
+           detectors. CLASS retention, so no Import-Package is generated and nothing is needed at runtime. -->
+      <dependency>
+        <groupId>org.jetbrains</groupId>
+        <artifactId>annotations</artifactId>
+        <version>26.0.2</version>
+        <scope>provided</scope>
+      </dependency>
       <!-- TEST -->
       <dependency>
         <groupId>junit</groupId>
@@ -702,7 +711,7 @@
                       <module name="ClassDataAbstractionCoupling" />
 
                       <module name="ClassFanOutComplexity">
-                        <property name="excludedPackages" value="java.io, java.math, java.text, java.util, java.util.concurrent, java.util.concurrent.atomic, java.util.function, java.util.stream, javax.annotation, javax.inject, javax.servlet, org.apache.commons.collections4, org.apache.commons.lang3, org.json, org.slf4j, org.xwiki.component.annotation, org.apache.sling.servlets.annotations, org.osgi.service.component.annotations" />
+                        <property name="excludedPackages" value="java.io, java.math, java.text, java.util, java.util.concurrent, java.util.concurrent.atomic, java.util.function, java.util.stream, javax.annotation, javax.inject, javax.servlet, org.apache.commons.collections4, org.apache.commons.lang3, org.json, org.slf4j, org.xwiki.component.annotation, org.apache.sling.servlets.annotations, org.osgi.service.component.annotations, org.jetbrains.annotations" />
                       </module>
 
                       <!-- We use the opposite, RedundantModifier. -->
@@ -1293,7 +1302,7 @@
                       <!--module name="ClassDataAbstractionCoupling"/-->
 
                       <!--module name="ClassFanOutComplexity">
-                        <property name="excludedPackages" value="java.io, java.math, java.text, java.util, java.util.concurrent, java.util.concurrent.atomic, java.util.function, java.util.stream, javax.annotation, javax.inject, javax.servlet, org.apache.commons.collections4, org.apache.commons.lang3, org.json, org.slf4j, org.xwiki.component.annotation, org.apache.sling.servlets.annotations, org.osgi.service.component.annotations" />
+                        <property name="excludedPackages" value="java.io, java.math, java.text, java.util, java.util.concurrent, java.util.concurrent.atomic, java.util.function, java.util.stream, javax.annotation, javax.inject, javax.servlet, org.apache.commons.collections4, org.apache.commons.lang3, org.json, org.slf4j, org.xwiki.component.annotation, org.apache.sling.servlets.annotations, org.osgi.service.component.annotations, org.jetbrains.annotations" />
                       </module-->
 
                       <!-- We use the opposite, RedundantModifier. -->

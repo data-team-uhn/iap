@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.entities.models.EntityHomepage;
 
@@ -43,6 +44,7 @@ public class SchemasHomepage extends EntityHomepage
      *
      * @return a list of schemas, empty if none
      */
+    @NotNull
     public List<Schema> getSchemas()
     {
         return this.getChildren(Schema.RESOURCE_TYPE, Schema.class);

@@ -24,6 +24,9 @@ import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * One entry in a {@link AutoDocumentable auto-documentable} catalogue: a defined tag, a supported workflow node type,
  * a tracked metric. The base contract is minimal (a name, an optional label, description and categories), and comes
@@ -42,6 +45,7 @@ public interface DocumentedItem
      *
      * @return a simple string
      */
+    @NotNull
     String getName();
 
     /**
@@ -49,6 +53,7 @@ public interface DocumentedItem
      *
      * @return a short display string, the {@link #getName name} itself unless overridden
      */
+    @NotNull
     default String getDocumentationLabel()
     {
         return getName();
@@ -59,6 +64,7 @@ public interface DocumentedItem
      *
      * @return a description, or {@code null} if there is nothing more to say than the label
      */
+    @Nullable
     String getDescription();
 
     /**
@@ -67,6 +73,7 @@ public interface DocumentedItem
      *
      * @return category names, an empty list if the item is not categorized
      */
+    @NotNull
     default List<String> getDocumentationCategories()
     {
         return List.of();
@@ -78,6 +85,7 @@ public interface DocumentedItem
      *
      * @return Markdown fragments, one per bullet point, an empty list if there is nothing to call out
      */
+    @NotNull
     default List<String> getDocumentationDetails()
     {
         return List.of();
@@ -90,13 +98,15 @@ public interface DocumentedItem
      *
      * @return a JSON object builder holding this item's data, still open for more fields
      */
+    @NotNull
     default JsonObjectBuilder documentationJsonBuilder()
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add("name", getName())
             .add("label", getDocumentationLabel());
-        if (getDescription() != null) {
-            json.add("description", getDescription());
+        final String description = getDescription();
+        if (description != null) {
+            json.add("description", description);
         }
         if (!getDocumentationCategories().isEmpty()) {
             final JsonArrayBuilder categories = Json.createArrayBuilder();
@@ -111,6 +121,7 @@ public interface DocumentedItem
      *
      * @return a JSON object describing this item
      */
+    @NotNull
     default JsonObject toDocumentationJson()
     {
         return documentationJsonBuilder().build();
@@ -122,13 +133,15 @@ public interface DocumentedItem
      *
      * @return a Markdown fragment with a level 3 heading
      */
+    @NotNull
     default String toMarkdown()
     {
         final StringBuilder out =
             new StringBuilder("### " + getDocumentationLabel() + " (`" + getName() + "`)\n");
-        if (getDescription() != null) {
+        final String description = getDescription();
+        if (description != null) {
             // Turn raw line breaks into Markdown hard line breaks
-            out.append('\n').append(getDescription().replaceAll("\n", "  \n")).append('\n');
+            out.append('\n').append(description.replaceAll("\n", "  \n")).append('\n');
         }
         if (!getDocumentationDetails().isEmpty()) {
             out.append('\n');

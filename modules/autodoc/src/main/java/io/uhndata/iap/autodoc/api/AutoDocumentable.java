@@ -28,6 +28,9 @@ import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * A configurable or extensible feature that documents itself at runtime: a title, an introduction, and a catalogue
  * of {@link DocumentedItem items} describing what is currently defined or supported, e.g. the defined tags or the
@@ -56,6 +59,7 @@ public interface AutoDocumentable
      *
      * @return a short display string
      */
+    @NotNull
     String getDocumentationTitle();
 
     /**
@@ -63,6 +67,7 @@ public interface AutoDocumentable
      *
      * @return a piece of text, or {@code null} if there is nothing more to say than the title
      */
+    @Nullable
     String getDocumentationIntro();
 
     /**
@@ -70,6 +75,7 @@ public interface AutoDocumentable
      *
      * @return the documented items, may be empty
      */
+    @NotNull
     List<? extends DocumentedItem> getDocumentedItems();
 
     /**
@@ -79,6 +85,7 @@ public interface AutoDocumentable
      *
      * @return the documented items, grouped by category
      */
+    @NotNull
     default Map<String, List<DocumentedItem>> getDocumentedItemsByCategory()
     {
         final Map<String, List<DocumentedItem>> categories = new TreeMap<>(
@@ -100,12 +107,14 @@ public interface AutoDocumentable
      * @return a JSON object with the {@code title}, optional {@code description}, and {@code items} keys, the
      *         latter holding one array of items per category
      */
+    @NotNull
     default JsonObject toDocumentationJson()
     {
         final JsonObjectBuilder result = Json.createObjectBuilder()
             .add("title", getDocumentationTitle());
-        if (getDocumentationIntro() != null) {
-            result.add("description", getDocumentationIntro());
+        final String intro = getDocumentationIntro();
+        if (intro != null) {
+            result.add("description", intro);
         }
         final JsonObjectBuilder items = Json.createObjectBuilder();
         getDocumentedItemsByCategory().forEach((category, list) -> {
@@ -123,11 +132,13 @@ public interface AutoDocumentable
      *
      * @return a Markdown document
      */
+    @NotNull
     default String toMarkdown()
     {
         final StringBuilder out = new StringBuilder("# ").append(getDocumentationTitle()).append('\n');
-        if (getDocumentationIntro() != null) {
-            out.append('\n').append(getDocumentationIntro()).append('\n');
+        final String intro = getDocumentationIntro();
+        if (intro != null) {
+            out.append('\n').append(intro).append('\n');
         }
         final Map<String, List<DocumentedItem>> categories = getDocumentedItemsByCategory();
         final boolean flat = categories.size() == 1 && categories.containsKey(UNCATEGORIZED);

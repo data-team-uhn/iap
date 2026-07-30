@@ -21,6 +21,7 @@ import javax.script.Bindings;
 
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.scripting.sightly.pojo.Use;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A HTL Use-API that can set the content type of the response. This is needed because HTL cannot call methods that
@@ -40,7 +41,7 @@ public class ContentTypeSetter implements Use
     private SlingJakartaHttpServletResponse response;
 
     @Override
-    public void init(final Bindings bindings)
+    public void init(@NotNull final Bindings bindings)
     {
         this.response = (SlingJakartaHttpServletResponse) bindings.get("jakartaResponse");
     }

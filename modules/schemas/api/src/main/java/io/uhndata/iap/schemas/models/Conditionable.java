@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Implemented by every model that can be made conditionally enabled, independently of its own supertype chain, such
  * as {@link FormItem} and {@link Requirement}.
@@ -32,5 +34,6 @@ public interface Conditionable
      *
      * @return a condition, or {@code null} if this node is always enabled
      */
+    @Nullable
     Condition getCondition();
 }
