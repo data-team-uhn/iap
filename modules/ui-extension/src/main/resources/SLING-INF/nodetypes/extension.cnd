@@ -97,6 +97,11 @@
   // Optional data (stored in the JCR node) to be passed to the rendered component
   - iap:data (STRING)
 
+  // Whether this extension is also displayed on pages served before authentication (currently
+  // the login page, which renders opted-in frameTop extensions above its content). Opt-in, so
+  // that extensions assuming a session (e.g. the app bar) never leak onto pre-auth pages.
+  - iap:visibleBeforeLogin (BOOLEAN)
+
   // And any other properties
   - * (undefined) multiple
   - * (undefined)

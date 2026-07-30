@@ -17,7 +17,7 @@
  */
 
 import { ThemeProvider } from "@mui/material/styles";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
@@ -51,40 +51,45 @@ describe("Footer", () => {
     }
   };
 
-  const renderFooter = () => render(
-    <ThemeProvider theme={appTheme} defaultMode="light">
-      <MemoryRouter>
-        <Footer />
-      </MemoryRouter>
-    </ThemeProvider>
-  );
+  const renderFooter = async () => {
+    const result = render(
+      <ThemeProvider theme={appTheme} defaultMode="light">
+        <MemoryRouter>
+          <Footer />
+        </MemoryRouter>
+      </ThemeProvider>
+    );
+    // Commit the footer-links state update before the test proceeds
+    await act(() => Promise.resolve());
+    return result;
+  };
 
-  it("credits DATA, linking to the team's site", () => {
-    renderFooter();
+  it("credits DATA, linking to the team's site", async () => {
+    await renderFooter();
 
     const credit = screen.getByText("Built by").closest("a");
     expect(credit).toHaveAttribute("href", "https://uhndata.io");
     expect(screen.getByRole("img", { name: "DATA" })).toBeInTheDocument();
   });
 
-  it("shows only the credit when no affiliation is configured", () => {
-    const { container } = renderFooter();
+  it("shows only the credit when no affiliation is configured", async () => {
+    const { container } = await renderFooter();
 
     expect(container.querySelectorAll("img")).toHaveLength(1);
   });
 
-  it("displays the platform version when the page metadata provides it", () => {
+  it("displays the platform version when the page metadata provides it", async () => {
     seedMetas({ platformName: "IAP", version: "1.2.3" });
 
-    renderFooter();
+    await renderFooter();
 
     expect(screen.getByText("IAP 1.2.3")).toBeInTheDocument();
   });
 
-  it("shows the affiliated institution's logo when the deployment configures one", () => {
+  it("shows the affiliated institution's logo when the deployment configures one", async () => {
     seedMetas({ affiliationLogoLight: "/hospital.png", affiliationName: "Some Hospital" });
 
-    renderFooter();
+    await renderFooter();
 
     expect(screen.getByRole("img", { name: "Some Hospital" })).toHaveAttribute("src", "/hospital.png");
     expect(screen.getByRole("img", { name: "DATA" })).toBeInTheDocument();
@@ -96,7 +101,7 @@ describe("Footer", () => {
       { "iap:extensionName": "Report a bug", "iap:targetURL": "https://tracker.example.com" },
     ]);
 
-    renderFooter();
+    await renderFooter();
 
     const faq = await screen.findByRole("link", { name: "FAQ" });
     expect(faq).toHaveAttribute("href", "/faq");

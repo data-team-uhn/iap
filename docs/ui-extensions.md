@@ -81,7 +81,15 @@ The app bar is itself a `frameTop` extension, composed of entries on its own poi
 Current entries: Branding (start), and the dark mode toggle, notifications bell, and user menu
 (end). The middle section is reserved for e.g. a future search bar. A high-visibility element
 like a maintenance banner should register directly on `frameTop` with `iap:defaultOrder` below
-the app bar's (20) to appear above it.
+the app bar's (20) to appear above it; the `iap-commons.NoticeBanner` asset renders such a
+data-only banner extension (markdown message in `iap:data`, optional `iap:severity`).
+Add `iap:visibleBeforeLogin: true` to such a banner to
+also show it on the login page, which renders the `frameTop` extensions carrying this opt-in
+flag (and nothing else from the frame) above its content — so a notice posted once reaches
+users both before and after they sign in. The flag is an interim mechanism: once the upcoming
+tags module lets system tags declare where an extension belongs, it is expected to take over
+this distinction (the conversion is contained: one client-side filter in the login module's
+`PreLoginExtensions`, plus the optional node type property).
 
 ### The footer
 
