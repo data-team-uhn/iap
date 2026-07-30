@@ -17,7 +17,6 @@
  */
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
 
 import PageLayout from "@iap/homepage/PageLayout";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
@@ -51,7 +50,7 @@ describe("PageLayout", () => {
   it("renders the main content even when every extension point is empty", async () => {
     mockPoints();
 
-    render(<MemoryRouter><PageLayout><div>Main content</div></PageLayout></MemoryRouter>);
+    render(<PageLayout><div>Main content</div></PageLayout>);
 
     expect(await screen.findByText("Main content")).toBeInTheDocument();
     for (const point of SHELL_POINTS) {
@@ -69,7 +68,7 @@ describe("PageLayout", () => {
       PageBottom: [ext("Page footer")],
     });
 
-    render(<MemoryRouter><PageLayout><div>Main content</div></PageLayout></MemoryRouter>);
+    render(<PageLayout><div>Main content</div></PageLayout>);
 
     const topBar = await screen.findByText("Top bar content");
     const bottomBar = await screen.findByText("Bottom bar content");
@@ -93,7 +92,7 @@ describe("PageLayout", () => {
       PageTop: [ext("Page header")],
     });
 
-    render(<MemoryRouter><PageLayout>main</PageLayout></MemoryRouter>);
+    render(<PageLayout>main</PageLayout>);
 
     expect((await screen.findByText("Top bar content")).parentElement).toHaveStyle({ position: "sticky" });
     expect((await screen.findByText("Bottom bar content")).parentElement).toHaveStyle({ position: "sticky" });
@@ -104,7 +103,7 @@ describe("PageLayout", () => {
   it("renders no rail at all for an empty side point", async () => {
     mockPoints({ FrameEnd: [ext("End rail")] });
 
-    const { container } = render(<MemoryRouter><PageLayout>main</PageLayout></MemoryRouter>);
+    const { container } = render(<PageLayout>main</PageLayout>);
 
     await screen.findByText("End rail content");
     // Only the end rail rendered its <aside>; the empty start side contributed nothing.
@@ -114,7 +113,7 @@ describe("PageLayout", () => {
   it("pulls a rail over the content as a drawer from its narrow-screen pull tab", async () => {
     mockPoints({ FrameStart: [ext("Rail")] });
 
-    render(<MemoryRouter><PageLayout>main</PageLayout></MemoryRouter>);
+    render(<PageLayout>main</PageLayout>);
 
     // Before pulling, the rail content exists once (the regular rail, CSS-hidden when narrow).
     expect((await screen.findAllByText("Rail content")).length).toBe(1);
@@ -126,7 +125,7 @@ describe("PageLayout", () => {
   it("pulls a frame bar over the content as a drawer from its short-screen pull tab", async () => {
     mockPoints({ FrameTop: [ext("Top bar")] });
 
-    const { container } = render(<MemoryRouter><PageLayout>main</PageLayout></MemoryRouter>);
+    const { container } = render(<PageLayout>main</PageLayout>);
 
     expect((await screen.findAllByText("Top bar content")).length).toBe(1);
     // The bar tabs only become visible below the collapse height; jsdom doesn't evaluate media
@@ -154,7 +153,7 @@ describe("PageLayout", () => {
         FrameStart: [ext("Rail")],
       });
 
-      const { container } = render(<MemoryRouter><PageLayout>main</PageLayout></MemoryRouter>);
+      const { container } = render(<PageLayout>main</PageLayout>);
 
       await screen.findByText("Rail content");
       const shell = container.firstChild as HTMLElement;
@@ -192,7 +191,7 @@ describe("PageLayout", () => {
     try {
       mockPoints({ FrameStart: [ext("Rail")] });
 
-      render(<MemoryRouter><PageLayout>main</PageLayout></MemoryRouter>);
+      render(<PageLayout>main</PageLayout>);
 
       await screen.findByText("Rail content");
       // The hint appears after a short delay, and is remembered so it never flashes again
@@ -210,7 +209,7 @@ describe("PageLayout", () => {
     mockedLoadExtensions.mockImplementation(point =>
       point === "FrameEnd" ? Promise.reject("uixp error") : Promise.resolve([ext(point)]));
 
-    render(<MemoryRouter><PageLayout><div>Main content</div></PageLayout></MemoryRouter>);
+    render(<PageLayout><div>Main content</div></PageLayout>);
 
     expect(await screen.findByText("FrameTop content")).toBeInTheDocument();
     expect(await screen.findByText("PageBottom content")).toBeInTheDocument();

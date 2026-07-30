@@ -71,10 +71,12 @@ function Breadcrumbs() {
   return (
     // The trail reads as a header strip: a hairline divider separates it from the content below.
     // The horizontal inset is margin, not padding, so the divider only spans the content width
-    // (the same gutters the main content keeps) instead of running edge to edge. The strip has
-    // no background of its own - it sits transparently on whatever canvas the shell painted for
-    // the current area (see areaBackground in frontend-commons).
-    <MuiBreadcrumbs separator="/" sx={{ mx: 3, pt: 2, pb: 1, borderBottom: 1, borderColor: "divider" }}>
+    // (the shell-published content gutter keeps it aligned with the main content's edges)
+    // instead of running edge to edge.
+    <MuiBreadcrumbs
+      separator="/"
+      sx={{ mx: "var(--iap-content-gutter)", pt: 2, pb: 1, borderBottom: 1, borderColor: "divider" }}
+    >
       { crumbs.map(crumb => (
         <MuiLink
           key={crumb.path}
