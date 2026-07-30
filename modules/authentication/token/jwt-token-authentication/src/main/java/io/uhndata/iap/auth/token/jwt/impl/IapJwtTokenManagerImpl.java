@@ -101,7 +101,7 @@ public class IapJwtTokenManagerImpl implements TokenManager
     {
         this.rrf = rrf;
         this.selfAud = SELF_ID.replaceAll("\\P{Alnum}", "");
-        PrivateKey result = null;
+        PrivateKey signing = null;
         PublicKey verification = null;
         try (ResourceResolver resolver = rrf.getServiceResourceResolver(null)) {
             Resource res = resolver.resolve(KEY_PATH);
@@ -115,7 +115,7 @@ public class IapJwtTokenManagerImpl implements TokenManager
             if (keyNode.hasProperty(SIGNING_KEY_PROP)
                 && keyNode.hasProperty(VERIFY_PROP)) {
                 // Private key is PKCS-encoded
-                result = KeyFactory.getInstance("RSA").generatePrivate(
+                signing = KeyFactory.getInstance("RSA").generatePrivate(
                     new PKCS8EncodedKeySpec(readKey(keyNode, SIGNING_KEY_PROP)));
                 // Public key is X.509-encoded
                 verification = KeyFactory.getInstance("RSA").generatePublic(
@@ -128,7 +128,7 @@ public class IapJwtTokenManagerImpl implements TokenManager
                     Encoders.BASE64.encode(newPair.getPublic().getEncoded()));
                 resolver.commit();
 
-                result = newPair.getPrivate();
+                signing = newPair.getPrivate();
                 verification = newPair.getPublic();
             }
         } catch (LoginException e) {
@@ -136,7 +136,7 @@ public class IapJwtTokenManagerImpl implements TokenManager
         } catch (Exception e) {
             LOGGER.error("Failed to load JWT Signing key from node: {}", e.getMessage(), e);
         }
-        this.signingKey = result;
+        this.signingKey = signing;
         this.verificationKey = verification;
         this.selfID = getFingerprint(verification);
     }
