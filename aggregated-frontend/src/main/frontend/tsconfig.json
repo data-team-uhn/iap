@@ -22,7 +22,7 @@
     "paths": {
       "@iap/*": ["./src/*"]
     },
-    "types": ["react", "react-dom", "vitest/globals", "@testing-library/jest-dom"]
+    "types": ["node", "react", "react-dom", "vitest/globals", "@testing-library/jest-dom"]
   },
   "include": ["src/**/*"],
   "exclude": ["node", "node_modules"]
