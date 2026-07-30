@@ -155,14 +155,6 @@ public class IapJwtTokenManagerImpl implements TokenManager
         );
     }
 
-    @Override
-    public IapJwtTokenImpl create(final String userId, final Calendar expiration,
-        final Map<String, String> extraData)
-    {
-        // Assume our own audience if none is given
-        return create(userId, expiration, extraData, Set.of(this.selfAud));
-    }
-
     /**
      * Obtain a fingerprint from the given public key.
      *
@@ -177,6 +169,14 @@ public class IapJwtTokenManagerImpl implements TokenManager
         }
 
         return DigestUtils.sha256Hex(Encoders.BASE64.encode(publicKey.getEncoded()));
+    }
+
+    @Override
+    public IapJwtTokenImpl create(final String userId, final Calendar expiration,
+        final Map<String, String> extraData)
+    {
+        // Assume our own audience if none is given
+        return create(userId, expiration, extraData, Set.of(this.selfAud));
     }
 
     /**
