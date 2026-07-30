@@ -39,6 +39,7 @@
     <module>data-model</module>
     <module>deletion</module>
     <module>email-notifications</module>
+    <module>error-tracking</module>
     <module>favicon</module>
     <module>frontend-commons</module>
     <module>healthcheck</module>
