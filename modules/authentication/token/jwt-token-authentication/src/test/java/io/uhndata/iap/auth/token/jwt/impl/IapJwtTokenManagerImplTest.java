@@ -27,6 +27,7 @@ import java.util.Set;
 import javax.jcr.Node;
 import javax.jcr.Property;
 
+import org.apache.sling.api.resource.NonExistingResource;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -41,6 +42,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Encoders;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 /**
@@ -125,6 +127,10 @@ public class IapJwtTokenManagerImplTest
         // the repository.
         final KeyPair keyPair = Jwts.SIG.RS256.keyPair().build();
         when(this.resolverFactory.getServiceResourceResolver(any())).thenReturn(this.resolver);
+        // Calling resolve() can return null in these tests despite being marked @NotNull in the actual resolver
+        // Fix it by throwing a proper error
+        when(this.resolver.resolve(anyString()))
+            .thenAnswer(invocation -> new NonExistingResource(this.resolver, invocation.getArgument(0)));
         when(this.resolver.resolve(KEY_PATH)).thenReturn(this.keyResource);
         when(this.keyResource.adaptTo(Node.class)).thenReturn(this.keyNode);
         when(this.keyNode.hasProperty("key")).thenReturn(true);

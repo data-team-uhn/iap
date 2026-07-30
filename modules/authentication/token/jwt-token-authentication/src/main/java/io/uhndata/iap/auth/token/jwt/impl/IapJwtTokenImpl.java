@@ -37,7 +37,7 @@ import io.uhndata.iap.auth.token.IapToken;
  * @version $Id$
  * @since 0.1.0
  */
-public class IapJwtTokenImpl implements IapToken
+public final class IapJwtTokenImpl implements IapToken
 {
     /** The name of the parent node where tokens for a user are stored. */
     public static final String SYSTEM_NODE_NAME = "jcr:system";
@@ -96,8 +96,8 @@ public class IapJwtTokenImpl implements IapToken
     {
         this.loginToken = jws;
         this.userId = userId;
-        this.expirationTime = expiration;
-        this.attributes = attributes;
+        this.expirationTime = (Calendar) expiration.clone();
+        this.attributes = new HashMap<String, String>(attributes);
     }
 
     // ------------------------------------------------------< TokenInfo >---
@@ -150,12 +150,12 @@ public class IapJwtTokenImpl implements IapToken
     @Override
     public Map<String, String> getPublicAttributes()
     {
-        return this.attributes;
+        return new HashMap<String, String>(this.attributes);
     }
 
     @Override
     public Calendar getExpirationTime()
     {
-        return this.expirationTime;
+        return (Calendar) this.expirationTime.clone();
     }
 }

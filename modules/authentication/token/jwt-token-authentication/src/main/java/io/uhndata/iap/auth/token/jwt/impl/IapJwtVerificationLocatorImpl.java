@@ -110,7 +110,7 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
         try (ResourceResolver resolver = this.rrf.getServiceResourceResolver(null)) {
             // Grab the appropriate key node, if it exists
             final Resource res = resolver.resolve(resourcePath);
-            final Node keyNode = res == null ? null : res.adaptTo(Node.class);
+            final Node keyNode = res.adaptTo(Node.class);
             if (keyNode == null) {
                 throw new JwtException(
                     String.format("Failed to load JWT Verification key for peer %s: node %s could not be read",

@@ -59,7 +59,7 @@ import io.uhndata.iap.auth.token.TokenManager;
  * @since 0.1.0
  */
 @Component(immediate = true, property = "service.ranking:Integer=50", service = { TokenManager.class })
-public class IapJwtTokenManagerImpl implements TokenManager
+public final class IapJwtTokenManagerImpl implements TokenManager
 {
     /** JCR property containing our signing key. */
     public static final String SIGNING_KEY_PROP = "key";
