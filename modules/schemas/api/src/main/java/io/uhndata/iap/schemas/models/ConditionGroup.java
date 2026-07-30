@@ -23,6 +23,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A Sling Model wrapping a {@code sch:ConditionGroup} node: a set of conditions that can be imposed on e.g. the
@@ -59,6 +60,7 @@ public class ConditionGroup extends Condition
      *
      * @return a list of conditions, empty if none
      */
+    @NotNull
     public List<Condition> getConditions()
     {
         return this.getChildren(Condition.RESOURCE_TYPE, Condition.class);

@@ -23,6 +23,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 
@@ -62,6 +64,7 @@ public class ReviewComment extends EntityPart
      *
      * @return the comment text
      */
+    @NotNull
     public String getText()
     {
         return this.text;
@@ -74,6 +77,7 @@ public class ReviewComment extends EntityPart
      *
      * @return a principal name, or an external identifier
      */
+    @NotNull
     public String getAuthor()
     {
         return this.author;
@@ -85,6 +89,7 @@ public class ReviewComment extends EntityPart
      *
      * @return an UUID, or {@code null} if this is a general comment not tied to a specific part
      */
+    @Nullable
     public String getSubject()
     {
         return this.subject;
@@ -95,6 +100,7 @@ public class ReviewComment extends EntityPart
      *
      * @return a flexible, URI-like anchor, or {@code null} if this comment targets the whole subject
      */
+    @Nullable
     public String getSelectionStart()
     {
         return this.selectionStart;
@@ -105,6 +111,7 @@ public class ReviewComment extends EntityPart
      *
      * @return a flexible, URI-like anchor, or {@code null} if this comment targets the whole subject
      */
+    @Nullable
     public String getSelectionEnd()
     {
         return this.selectionEnd;
@@ -125,6 +132,7 @@ public class ReviewComment extends EntityPart
      *
      * @return a list of replies, empty if none
      */
+    @NotNull
     public List<Reply> getReplies()
     {
         return this.getChildren(Reply.RESOURCE_TYPE, Reply.class);

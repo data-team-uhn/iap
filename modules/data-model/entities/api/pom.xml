@@ -52,6 +52,11 @@
   </build>
 
   <dependencies>
+    <!-- Nullability annotations for the exported API/SPI -->
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-model-content-api</artifactId>

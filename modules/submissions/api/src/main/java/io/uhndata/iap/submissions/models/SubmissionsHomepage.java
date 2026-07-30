@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.entities.models.EntityHomepage;
 
@@ -44,6 +45,7 @@ public class SubmissionsHomepage extends EntityHomepage
      *
      * @return a list of submissions, empty if none
      */
+    @NotNull
     public List<Submission> getSubmissions()
     {
         return this.getChildren(Submission.RESOURCE_TYPE, Submission.class);

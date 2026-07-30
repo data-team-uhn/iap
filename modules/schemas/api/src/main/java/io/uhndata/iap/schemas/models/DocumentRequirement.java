@@ -21,6 +21,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code sch:DocumentRequirement} node: a document that the submitter is expected to
@@ -47,6 +48,7 @@ public class DocumentRequirement extends Requirement
      *
      * @return a copy of the list of MIME types, or {@code null} if not restricted
      */
+    @Nullable
     public String[] getAcceptedFileTypes()
     {
         // A copy, since arrays are mutable and callers must not be able to alter the model's own state
@@ -59,6 +61,7 @@ public class DocumentRequirement extends Requirement
      *
      * @return a prompt, or {@code null} if not set
      */
+    @Nullable
     public String getAiCheckPrompt()
     {
         return this.aiCheckPrompt;
@@ -69,6 +72,7 @@ public class DocumentRequirement extends Requirement
      *
      * @return the template file resource, or {@code null} if none was provided
      */
+    @Nullable
     public Resource getTemplate()
     {
         return this.resource.getChild("template");

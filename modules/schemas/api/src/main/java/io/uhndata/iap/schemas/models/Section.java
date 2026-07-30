@@ -23,6 +23,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code sch:Section} node: a logical grouping of questions, which may be nested.
@@ -48,6 +50,7 @@ public class Section extends FormItem
      *
      * @return a title
      */
+    @NotNull
     public String getTitle()
     {
         return this.title;
@@ -58,6 +61,7 @@ public class Section extends FormItem
      *
      * @return a description, or {@code null} if not set
      */
+    @Nullable
     public String getDescription()
     {
         return this.description;
@@ -68,6 +72,7 @@ public class Section extends FormItem
      *
      * @return a list of sections, empty if none
      */
+    @NotNull
     public List<Section> getSections()
     {
         return this.getChildren(Section.RESOURCE_TYPE, Section.class);
@@ -78,6 +83,7 @@ public class Section extends FormItem
      *
      * @return a list of questions, empty if none
      */
+    @NotNull
     public List<Question> getQuestions()
     {
         return this.getChildren(Question.RESOURCE_TYPE, Question.class);
@@ -89,6 +95,7 @@ public class Section extends FormItem
      *
      * @return a list of items, empty if none
      */
+    @NotNull
     public List<FormItem> getChildren()
     {
         return this.getChildren(FormItem.RESOURCE_TYPE, FormItem.class);

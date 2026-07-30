@@ -21,6 +21,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
 
 import io.uhndata.iap.entities.models.EntityPart;
 
@@ -49,6 +50,7 @@ public class Reply extends EntityPart
      *
      * @return the reply text
      */
+    @NotNull
     public String getText()
     {
         return this.text;
@@ -60,6 +62,7 @@ public class Reply extends EntityPart
      *
      * @return a principal name, or an external identifier
      */
+    @NotNull
     public String getAuthor()
     {
         return this.author;

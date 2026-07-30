@@ -23,6 +23,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
 
@@ -57,6 +59,7 @@ public class SchemaVersion extends Entity
      *
      * @return a version label
      */
+    @NotNull
     public String getVersion()
     {
         return this.version;
@@ -67,6 +70,7 @@ public class SchemaVersion extends Entity
      *
      * @return a description, or {@code null} if not set
      */
+    @Nullable
     public String getDescription()
     {
         return this.description;
@@ -89,6 +93,7 @@ public class SchemaVersion extends Entity
      *
      * @return an UUID, or {@code null} if not set
      */
+    @Nullable
     public String getWorkflow()
     {
         return this.workflow;
@@ -99,6 +104,7 @@ public class SchemaVersion extends Entity
      *
      * @return a list of requirements, empty if none
      */
+    @NotNull
     public List<Requirement> getRequirements()
     {
         return this.getChildren(Requirement.RESOURCE_TYPE, Requirement.class);
@@ -109,6 +115,7 @@ public class SchemaVersion extends Entity
      *
      * @return a list of form requirements, empty if none
      */
+    @NotNull
     public List<FormRequirement> getFormRequirements()
     {
         return this.getChildren(FormRequirement.RESOURCE_TYPE, FormRequirement.class);
@@ -119,6 +126,7 @@ public class SchemaVersion extends Entity
      *
      * @return a list of document requirements, empty if none
      */
+    @NotNull
     public List<DocumentRequirement> getDocumentRequirements()
     {
         return this.getChildren(DocumentRequirement.RESOURCE_TYPE, DocumentRequirement.class);
@@ -129,6 +137,7 @@ public class SchemaVersion extends Entity
      *
      * @return a list of approval requirements, empty if none
      */
+    @NotNull
     public List<ApprovalRequirement> getApprovalRequirements()
     {
         return this.getChildren(ApprovalRequirement.RESOURCE_TYPE, ApprovalRequirement.class);

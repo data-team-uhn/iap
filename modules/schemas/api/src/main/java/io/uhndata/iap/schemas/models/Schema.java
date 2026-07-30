@@ -23,6 +23,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
 
@@ -52,6 +54,7 @@ public class Schema extends Entity
      *
      * @return a title
      */
+    @NotNull
     public String getTitle()
     {
         return this.title;
@@ -72,6 +75,7 @@ public class Schema extends Entity
      *
      * @return a list of schema versions, empty if none
      */
+    @NotNull
     public List<SchemaVersion> getVersions()
     {
         return this.getChildren(SchemaVersion.RESOURCE_TYPE, SchemaVersion.class);
@@ -83,6 +87,7 @@ public class Schema extends Entity
      *
      * @return the active schema version, or {@code null} if none of the versions are active
      */
+    @Nullable
     public SchemaVersion getActiveVersion()
     {
         return this.getVersions().stream()

@@ -30,6 +30,7 @@ import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.SlingObject;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A Sling Model that gathers all the metadata to be exposed as {@code <meta>} tags in the HTML source.
@@ -97,6 +98,7 @@ public class ConfigMetadata
      *
      * @return a map of property name to property value
      */
+    @NotNull
     public Map<String, String> getProperties()
     {
         return Collections.unmodifiableMap(this.properties);

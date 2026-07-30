@@ -32,6 +32,8 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.SlingObject;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping an {@code iap:Content} node, the base type of all IAP data nodes. It exposes the generic
@@ -61,6 +63,7 @@ public class Content
      *
      * @return an absolute repository path
      */
+    @NotNull
     public String getPath()
     {
         return this.resource.getPath();
@@ -71,6 +74,7 @@ public class Content
      *
      * @return a node name
      */
+    @NotNull
     public String getName()
     {
         return this.resource.getName();
@@ -81,6 +85,7 @@ public class Content
      *
      * @return a resource type name
      */
+    @NotNull
     public String getType()
     {
         return this.resource.getResourceType();
@@ -91,6 +96,7 @@ public class Content
      *
      * @return a copy of the creation date, or {@code null} if the creation date is not recorded
      */
+    @Nullable
     public Calendar getCreated()
     {
         // A copy, since Calendar is mutable and callers must not be able to alter the model's own state
@@ -102,6 +108,7 @@ public class Content
      *
      * @return a user name, or {@code null} if the creator is not recorded
      */
+    @Nullable
     public String getCreatedBy()
     {
         return this.createdBy;
@@ -115,7 +122,8 @@ public class Content
      * @param name the property name
      * @return the property value (a scalar, or an array for a multi-valued property), or {@code null} if not set
      */
-    public Object get(final String name)
+    @Nullable
+    public Object get(@NotNull final String name)
     {
         return this.resource.getValueMap().get(name);
     }
@@ -125,6 +133,7 @@ public class Content
      *
      * @return a JSON object, or {@code null} if the resource cannot be serialized to JSON
      */
+    @Nullable
     public JsonObject toJson()
     {
         return this.resource.adaptTo(JsonObject.class);
@@ -140,7 +149,8 @@ public class Content
      * @return the adapted resource, or {@code null} if the identifier is {@code null}, unresolvable, or the
      *         resource resolver isn't backed by a JCR session
      */
-    protected <T> T getReference(final String identifier, final Class<T> type)
+    @Nullable
+    protected <T> T getReference(@Nullable final String identifier, @NotNull final Class<T> type)
     {
         if (identifier == null) {
             return null;
@@ -172,7 +182,8 @@ public class Content
      * @return a list of matching, adapted children, in the same order as the underlying resource's children; empty
      *         if none of the children match
      */
-    protected <T> List<T> getChildren(final String resourceType, final Class<T> type)
+    @NotNull
+    protected <T> List<T> getChildren(@NotNull final String resourceType, @NotNull final Class<T> type)
     {
         final List<T> result = new ArrayList<>();
         for (final Resource child : this.resource.getChildren()) {
@@ -196,7 +207,8 @@ public class Content
      * @param <T> the model type
      * @return the adapted child, or {@code null} if there is no such child
      */
-    protected <T> T getChild(final String name, final Class<T> type)
+    @Nullable
+    protected <T> T getChild(@NotNull final String name, @NotNull final Class<T> type)
     {
         final Resource child = this.resource.getChild(name);
         return child == null ? null : child.adaptTo(type);

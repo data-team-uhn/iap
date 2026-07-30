@@ -18,6 +18,8 @@
 package io.uhndata.iap.schemas.models;
 
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 
@@ -51,6 +53,7 @@ public abstract class Requirement extends EntityPart implements Conditionable
      *
      * @return a label
      */
+    @NotNull
     public String getLabel()
     {
         return this.label;
@@ -61,12 +64,14 @@ public abstract class Requirement extends EntityPart implements Conditionable
      *
      * @return a description, or {@code null} if not set
      */
+    @Nullable
     public String getDescription()
     {
         return this.description;
     }
 
     @Override
+    @Nullable
     public Condition getCondition()
     {
         return this.getChild("sch:condition", Condition.class);

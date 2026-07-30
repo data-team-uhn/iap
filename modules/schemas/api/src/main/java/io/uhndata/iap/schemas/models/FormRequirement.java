@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A Sling Model wrapping a {@code sch:FormRequirement} node: a set of questions, grouped into sections, that the
@@ -43,6 +44,7 @@ public class FormRequirement extends Requirement
      *
      * @return a list of sections, empty if none
      */
+    @NotNull
     public List<Section> getSections()
     {
         return this.getChildren(Section.RESOURCE_TYPE, Section.class);
@@ -53,6 +55,7 @@ public class FormRequirement extends Requirement
      *
      * @return a list of questions, empty if none
      */
+    @NotNull
     public List<Question> getQuestions()
     {
         return this.getChildren(Question.RESOURCE_TYPE, Question.class);
@@ -64,6 +67,7 @@ public class FormRequirement extends Requirement
      *
      * @return a list of items, empty if none
      */
+    @NotNull
     public List<FormItem> getChildren()
     {
         return this.getChildren(FormItem.RESOURCE_TYPE, FormItem.class);

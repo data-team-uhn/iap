@@ -49,6 +49,11 @@
   </build>
 
   <dependencies>
+    <!-- Nullability annotations for the exported API/SPI -->
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+    </dependency>
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>

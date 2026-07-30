@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.scripting.sightly.pojo.Use;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A HTL Use-API that can set the response status code. This is needed because HTL cannot call methods that require
@@ -43,7 +44,7 @@ public class StatusCodeSetter implements Use
     private SlingJakartaHttpServletResponse response;
 
     @Override
-    public void init(final Bindings bindings)
+    public void init(@NotNull final Bindings bindings)
     {
         this.response = (SlingJakartaHttpServletResponse) bindings.get("jakartaResponse");
     }

@@ -21,6 +21,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code sch:SingleCondition} node: a single comparison that can be imposed on e.g. the
@@ -47,6 +49,7 @@ public class SingleCondition extends Condition
      *
      * @return a comparator name
      */
+    @NotNull
     public String getComparator()
     {
         return this.comparator;
@@ -57,6 +60,7 @@ public class SingleCondition extends Condition
      *
      * @return a data type name, e.g. {@code text}
      */
+    @NotNull
     public String getDataType()
     {
         return this.dataType;
@@ -67,6 +71,7 @@ public class SingleCondition extends Condition
      *
      * @return a condition operand, or {@code null} if not set
      */
+    @Nullable
     public ConditionOperand getOperandA()
     {
         return this.getChild("operandA", ConditionOperand.class);
@@ -77,6 +82,7 @@ public class SingleCondition extends Condition
      *
      * @return a condition operand, or {@code null} if not set
      */
+    @Nullable
     public ConditionOperand getOperandB()
     {
         return this.getChild("operandB", ConditionOperand.class);

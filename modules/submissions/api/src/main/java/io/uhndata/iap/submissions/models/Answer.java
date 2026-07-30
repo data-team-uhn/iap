@@ -21,6 +21,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Question;
@@ -50,6 +51,7 @@ public class Answer extends EntityPart
      *
      * @return a question, or {@code null} if not set or unresolvable
      */
+    @Nullable
     public Question getQuestion()
     {
         return this.getReference(this.question, Question.class);
@@ -60,6 +62,7 @@ public class Answer extends EntityPart
      *
      * @return a copy of the stored value(s), or {@code null} if not yet answered
      */
+    @Nullable
     public String[] getValue()
     {
         // A copy, since arrays are mutable and callers must not be able to alter the model's own state

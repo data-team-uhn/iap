@@ -24,6 +24,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
@@ -58,6 +60,7 @@ public class Document extends EntityPart
      *
      * @return a title, or {@code null} if not set
      */
+    @Nullable
     public String getTitle()
     {
         return this.title;
@@ -68,6 +71,7 @@ public class Document extends EntityPart
      *
      * @return a description, or {@code null} if not set
      */
+    @Nullable
     public String getDescription()
     {
         return this.description;
@@ -78,6 +82,7 @@ public class Document extends EntityPart
      *
      * @return a requirement, or {@code null} if not set or unresolvable
      */
+    @Nullable
     public Requirement getFulfills()
     {
         return this.getReference(this.fulfills, Requirement.class);
@@ -88,6 +93,7 @@ public class Document extends EntityPart
      *
      * @return a list of file resources, empty if none were attached yet
      */
+    @NotNull
     public List<Resource> getAttachments()
     {
         final List<Resource> result = new ArrayList<>();

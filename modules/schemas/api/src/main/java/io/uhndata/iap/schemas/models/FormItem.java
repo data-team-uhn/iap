@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import org.jetbrains.annotations.Nullable;
+
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
@@ -41,6 +43,7 @@ public abstract class FormItem extends EntityPart implements Conditionable
     public static final String RESOURCE_TYPE = "sch/FormItem";
 
     @Override
+    @Nullable
     public Condition getCondition()
     {
         return this.getChild("sch:condition", Condition.class);

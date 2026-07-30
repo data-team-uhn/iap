@@ -25,6 +25,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
@@ -65,6 +67,7 @@ public class Submission extends Entity
      *
      * @return a title
      */
+    @NotNull
     public String getTitle()
     {
         return this.title;
@@ -75,6 +78,7 @@ public class Submission extends Entity
      *
      * @return a schema version, or {@code null} if not set or unresolvable
      */
+    @Nullable
     public SchemaVersion getSchemaVersion()
     {
         return this.getReference(this.schemaVersion, SchemaVersion.class);
@@ -85,6 +89,7 @@ public class Submission extends Entity
      *
      * @return a status name, e.g. {@code draft} or {@code in-review}
      */
+    @NotNull
     public String getStatus()
     {
         return this.status;
@@ -95,6 +100,7 @@ public class Submission extends Entity
      *
      * @return a list of answers, empty if none
      */
+    @NotNull
     public List<Answer> getAnswers()
     {
         return this.getChildren(Answer.RESOURCE_TYPE, Answer.class);
@@ -105,6 +111,7 @@ public class Submission extends Entity
      *
      * @return a list of documents, empty if none
      */
+    @NotNull
     public List<Document> getDocuments()
     {
         return this.getChildren(Document.RESOURCE_TYPE, Document.class);
@@ -115,6 +122,7 @@ public class Submission extends Entity
      *
      * @return a list of reviews, empty if none
      */
+    @NotNull
     public List<Review> getReviews()
     {
         return this.getChildren(Review.RESOURCE_TYPE, Review.class);
@@ -136,6 +144,7 @@ public class Submission extends Entity
      *
      * @return a list of unresolved review comments, empty if none
      */
+    @NotNull
     public List<ReviewComment> getUnresolvedComments()
     {
         return this.getReviews().stream()
@@ -152,6 +161,7 @@ public class Submission extends Entity
      *
      * @return a list of unfulfilled requirements, empty if none are missing or the schema version is unresolvable
      */
+    @NotNull
     public List<Requirement> getMissingRequirements()
     {
         final SchemaVersion version = this.getSchemaVersion();
@@ -166,14 +176,21 @@ public class Submission extends Entity
     private boolean isFulfilled(final Requirement requirement)
     {
         if (requirement instanceof DocumentRequirement) {
-            return this.getDocuments().stream()
-                .anyMatch(document -> document.getFulfills() != null
-                    && requirement.getPath().equals(document.getFulfills().getPath()));
+            // The reference is resolved into a local, both because resolving it twice would repeat the whole
+            // reference lookup, and because the null check wouldn't apply to a second, separate call
+            return this.getDocuments().stream().anyMatch(document -> {
+                final Requirement fulfilled = document.getFulfills();
+                return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
+            });
         }
         if (requirement instanceof ApprovalRequirement) {
-            return this.getReviews().stream()
-                .anyMatch(review -> review.isApproved() && review.getRequirement() != null
-                    && requirement.getPath().equals(review.getRequirement().getPath()));
+            return this.getReviews().stream().anyMatch(review -> {
+                if (!review.isApproved()) {
+                    return false;
+                }
+                final Requirement reviewed = review.getRequirement();
+                return reviewed != null && requirement.getPath().equals(reviewed.getPath());
+            });
         }
         // FormRequirement is the only other concrete requirement type today.
         return this.getQuestionsOf((FormRequirement) requirement).stream().allMatch(this::isAnswered);
@@ -198,9 +215,14 @@ public class Submission extends Entity
 
     private boolean isAnswered(final Question question)
     {
-        return this.getAnswers().stream()
-            .anyMatch(answer -> answer.getQuestion() != null
-                && question.getPath().equals(answer.getQuestion().getPath())
-                && answer.getValue() != null && answer.getValue().length > 0);
+        return this.getAnswers().stream().anyMatch(answer -> {
+            final Question answered = answer.getQuestion();
+            if (answered == null || !question.getPath().equals(answered.getPath())) {
+                return false;
+            }
+            // Only read once the question matched: every call resolves the reference and copies the value array
+            final String[] value = answer.getValue();
+            return value != null && value.length > 0;
+        });
     }
 }

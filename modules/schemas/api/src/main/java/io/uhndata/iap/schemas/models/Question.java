@@ -21,6 +21,8 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code sch:Question} node: a single question the submitter must answer.
@@ -55,6 +57,7 @@ public class Question extends FormItem
      *
      * @return the question text
      */
+    @NotNull
     public String getText()
     {
         return this.text;
@@ -65,6 +68,7 @@ public class Question extends FormItem
      *
      * @return a description, or {@code null} if not set
      */
+    @Nullable
     public String getDescription()
     {
         return this.description;
@@ -75,6 +79,7 @@ public class Question extends FormItem
      *
      * @return a data type name, e.g. {@code text}, {@code long}, {@code boolean}, {@code file}
      */
+    @NotNull
     public String getDataType()
     {
         return this.dataType;
