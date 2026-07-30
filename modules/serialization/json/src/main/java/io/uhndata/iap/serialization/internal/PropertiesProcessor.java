@@ -20,7 +20,6 @@ package io.uhndata.iap.serialization.internal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.function.Function;
 
@@ -39,6 +38,7 @@ import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
+import io.uhndata.iap.utils.DateUtils;
 
 /**
  * Serialize all node properties. The name of this processor is {@code properties}.
@@ -134,9 +134,7 @@ public class PropertiesProcessor implements ResourceJsonProcessor
     private JsonValue serializeDate(final Calendar value)
     {
         // Use the ISO 8601 date+time format
-        final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-        sdf.setTimeZone(value.getTimeZone());
-        return Json.createValue(sdf.format(value.getTime()));
+        return Json.createValue(DateUtils.toString(value));
     }
 
     private JsonValue serializeInputStream(final InputStream value)
