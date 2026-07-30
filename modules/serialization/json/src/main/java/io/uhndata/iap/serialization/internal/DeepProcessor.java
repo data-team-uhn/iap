@@ -17,18 +17,27 @@
  */
 package io.uhndata.iap.serialization.internal;
 
+import java.util.OptionalInt;
 import java.util.function.Function;
 
 import javax.jcr.Node;
 
 import jakarta.json.JsonValue;
 
+import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
+import io.uhndata.iap.utils.SelectorUtils;
 
 /**
  * Deep serialization of nodes: include all children in the serialization. The name of this processor is {@code deep}.
+ *
+ * <p>
+ * This processor must normally be explicitly requested, but it is also enabled by a depth selector asking for
+ * descendants, so that Sling-style URLs like {@code .1.json} or {@code .infinity.json} work without also requesting
+ * {@code deep}. How deep the serialization actually goes is enforced by {@code ResourceToJsonAdapterFactory}.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,6 +55,14 @@ public class DeepProcessor implements ResourceJsonProcessor
     public int getPriority()
     {
         return 10;
+    }
+
+    @Override
+    public boolean isEnabledByDefault(final Resource resource)
+    {
+        // A depth selector other than 0 asks for descendants, which requires this processor to serialize them
+        final OptionalInt depth = SelectorUtils.parseDepth(resource.getResourceMetadata().getResolutionPathInfo());
+        return depth.isPresent() && depth.getAsInt() != 0;
     }
 
     @Override
