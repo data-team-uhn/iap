@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.Objects;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -69,12 +71,13 @@ public class SingleCondition extends Condition
     /**
      * The first, mandatory operand of this condition.
      *
-     * @return a condition operand, or {@code null} if not set
+     * @return a condition operand
      */
-    @Nullable
+    @NotNull
     public ConditionOperand getOperandA()
     {
-        return this.getChild("operandA", ConditionOperand.class);
+        return Objects.requireNonNull(this.getChild("operandA", ConditionOperand.class),
+            "Missing mandatory operandA child");
     }
 
     /**

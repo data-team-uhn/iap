@@ -19,6 +19,7 @@ package io.uhndata.iap.submissions.models;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
@@ -26,7 +27,6 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
@@ -76,12 +76,13 @@ public class Submission extends Entity
     /**
      * The schema version this submission answers.
      *
-     * @return a schema version, or {@code null} if not set or unresolvable
+     * @return a schema version
      */
-    @Nullable
+    @NotNull
     public SchemaVersion getSchemaVersion()
     {
-        return this.getReference(this.schemaVersion, SchemaVersion.class);
+        return Objects.requireNonNull(this.getReference(this.schemaVersion, SchemaVersion.class),
+            "Missing mandatory schemaVersion reference");
     }
 
     /**
@@ -159,16 +160,12 @@ public class Submission extends Entity
      * requirement's own condition into account, so a requirement that doesn't actually apply to this submission may
      * still be reported as missing.
      *
-     * @return a list of unfulfilled requirements, empty if none are missing or the schema version is unresolvable
+     * @return a list of unfulfilled requirements, empty if none are missing
      */
     @NotNull
     public List<Requirement> getMissingRequirements()
     {
-        final SchemaVersion version = this.getSchemaVersion();
-        if (version == null) {
-            return List.of();
-        }
-        return version.getRequirements().stream()
+        return this.getSchemaVersion().getRequirements().stream()
             .filter(requirement -> !this.isFulfilled(requirement))
             .collect(Collectors.toList());
     }
