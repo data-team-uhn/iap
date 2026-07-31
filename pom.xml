@@ -2369,7 +2369,7 @@
         <activeByDefault>false</activeByDefault>
       </activation>
       <modules>
-        <module>tests</module>
+        <module>integration-tests</module>
       </modules>
     </profile>
   </profiles>

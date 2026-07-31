@@ -1,0 +1,19 @@
+{
+  "name": "iap-integration-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end tests driving a real IAP instance through a browser.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "test": "playwright test",
+    "check-results": "node support/check-results.mjs",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "24.9.2",
+    "typescript": "5.9.3"
+  }
+}
