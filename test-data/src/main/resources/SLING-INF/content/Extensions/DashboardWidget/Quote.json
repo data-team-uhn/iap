@@ -4,6 +4,6 @@
   "iap:extensionName": "Quote of the day",
   "iap:subtitle": "Refreshed daily",
   "iap:widgetWidth": "wide",
-  "iap:extensionRenderURL": "asset:iap-homepage.QuoteWidget.js",
+  "iap:extensionRenderURL": "asset:iap-test-data.QuoteWidget.js",
   "iap:defaultOrder": 3
 }

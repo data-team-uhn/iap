@@ -4,6 +4,6 @@
   "iap:extensionName": "Weather",
   "iap:subtitle": "Current conditions",
   "iap:widgetEmphasis": true,
-  "iap:extensionRenderURL": "asset:iap-homepage.WeatherWidget.js",
+  "iap:extensionRenderURL": "asset:iap-test-data.WeatherWidget.js",
   "iap:defaultOrder": 4
 }

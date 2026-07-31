@@ -4,6 +4,6 @@
   "iap:extensionName": "Recent proposals",
   "iap:subtitle": "Awaiting your review",
   "iap:widgetWidth": "full",
-  "iap:extensionRenderURL": "asset:iap-homepage.TableWidget.js",
+  "iap:extensionRenderURL": "asset:iap-test-data.TableWidget.js",
   "iap:defaultOrder": 5
 }
