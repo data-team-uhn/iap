@@ -79,6 +79,10 @@
     <dependencyCheck.skip>false</dependencyCheck.skip>
     <coverage.instructionRatio>1.00</coverage.instructionRatio>
     <webpackArguments>--mode=development</webpackArguments>
+    <!-- Frontend typecheck (tsc). Webpack compiles the TypeScript through babel-loader, which
+         strips types per file without checking them, so this is the only thing that actually
+         typechecks the frontend. Treated as a quality check: on by default, off in quick builds. -->
+    <typecheck.skip>false</typecheck.skip>
   </properties>
 
   <dependencyManagement>
@@ -1924,6 +1928,21 @@
                 <arguments>install --ignore-scripts</arguments>
               </configuration>
             </execution>
+            <!-- Typechecks the frontend, which webpack itself does not: babel-loader strips
+                 types one file at a time and never type-checks them. Uses the project-root
+                 tsconfig.json, which covers every module's src/main *and* src/test frontend
+                 sources regardless of what has been aggregated, so test code is checked too.
+                 Runs before webpack so type errors surface without waiting for the bundle. -->
+            <execution>
+              <id>yarn-typecheck</id>
+              <goals>
+                <goal>yarn</goal>
+              </goals>
+              <configuration>
+                <arguments>typecheck</arguments>
+                <skip>${typecheck.skip}</skip>
+              </configuration>
+            </execution>
             <!-- Runs webpack to compile the JS source code -->
             <execution>
               <id>webpack</id>
@@ -2102,6 +2121,7 @@
         <skipTests>true</skipTests>
         <rat.skip>true</rat.skip>
         <dependencyCheck.skip>true</dependencyCheck.skip>
+        <typecheck.skip>true</typecheck.skip>
         <webpackArguments>--mode=development --env quick=true</webpackArguments>
       </properties>
     </profile>
@@ -2113,6 +2133,8 @@
         <skip.installyarn>true</skip.installyarn>
         <skip.yarn>true</skip.yarn>
         <skip.webpack>true</skip.webpack>
+        <!-- An execution with its own <skip> does not honour skip.yarn, so opt out explicitly -->
+        <typecheck.skip>true</typecheck.skip>
       </properties>
     </profile>
 
