@@ -62,6 +62,11 @@ export const INSTANCES: readonly Instance[] = [
     // so it cannot be probed this way, and it is only ever read by an API-level test that supplies them.
     readyPaths: ['/libs/iap/ParticipatingInstitutions.1.json'],
   },
+  {
+    name: 'demo',
+    baseURL: enabled(process.env.IAP_DEMO_SKIP, process.env.IAP_DEMO_URL),
+    description: 'the platform with the demo projects (demo_tar)',
+  },
 ];
 
 /**
