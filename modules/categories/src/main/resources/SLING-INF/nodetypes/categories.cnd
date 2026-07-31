@@ -34,8 +34,10 @@
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Homepage node for the /Categories root path.
-[cat:CategoriesHomepage] > iap:EntityHomepage
+// Homepage node for the /Categories root path. iap:Documented makes the tree
+// serve its own catalogue of live leaf categories at /Categories.doc.md and
+// /Categories.doc.json, primarily consumed by AI-assisted categorization.
+[cat:CategoriesHomepage] > iap:EntityHomepage, iap:Documented
   // Top-level categories are presented in a deliberate, admin-chosen order.
   orderable
 
