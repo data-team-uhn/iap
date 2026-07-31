@@ -30,7 +30,7 @@ jobs:
           cache: maven
 
       - name: Cache yarn packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/yarn
           key: yarn-${{ hashFiles('aggregated-frontend/src/main/frontend/yarn.lock') }}
