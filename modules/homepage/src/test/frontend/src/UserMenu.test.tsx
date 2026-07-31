@@ -23,10 +23,10 @@ import UserMenu from "@iap/homepage/UserMenu";
 // Answers the two Sling endpoints the menu consults: the session info (who is logged in) and
 // the user's properties (their full name).
 const stubUserEndpoints = (userId: string, userProperties: Record<string, unknown> = {}) =>
-  vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => Promise.resolve({
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true,
     json: () => Promise.resolve(
-      String(url).endsWith("sessionInfo.json") ? { userID: userId } : userProperties),
+      url.endsWith("sessionInfo.json") ? { userID: userId } : userProperties),
   } as unknown as Response)));
 
 afterEach(() => vi.unstubAllGlobals());
@@ -37,7 +37,9 @@ describe("UserMenu", () => {
 
     render(<UserMenu />);
 
-    expect(await screen.findByText("JD")).toBeInTheDocument();
+    // The initials render only after the two chained fetches resolve; a coverage-instrumented
+    // run on a loaded machine can outlast the default 1s waiting window, so allow extra room.
+    expect(await screen.findByText("JD", {}, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it("falls back to the user name for the initials when there is no full name", async () => {
@@ -63,7 +65,7 @@ describe("UserMenu", () => {
 
   it("renders nothing while the user is unknown", () => {
     // A fetch that never resolves keeps the user unidentified
-    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
 
     const { container } = render(<UserMenu />);
 

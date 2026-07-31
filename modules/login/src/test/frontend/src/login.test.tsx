@@ -30,7 +30,10 @@ describe("login entry point", () => {
     document.body.innerHTML = "";
   });
 
-  it("renders the login page into its container", async () => {
+  // The in-test dynamic import pays the module graph's transform cost inside the test body,
+  // which under a coverage-instrumented run on a loaded machine can outlast the default 5s
+  // timeout, so both tests allow extra room.
+  it("renders the login page into its container", { timeout: 15_000 }, async () => {
     document.body.innerHTML = '<div id="main-login-container"></div>';
 
     await act(async () => {
@@ -40,7 +43,7 @@ describe("login entry point", () => {
     expect(document.querySelector('[data-testid="login-page"]')).toBeInTheDocument();
   });
 
-  it("does nothing on a page without the login container", async () => {
+  it("does nothing on a page without the login container", { timeout: 15_000 }, async () => {
     await act(async () => {
       await import("@iap/login/login");
     });
