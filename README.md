@@ -11,6 +11,14 @@ It runs as an [Apache Sling](https://sling.apache.org/) application (OSGi on Apa
 - **Python 3** — the start process is implemented in Python (`start.py`). Installing the optional `psutil` module enables a more robust bind check (not used on WSL or macOS, where a simpler check is applied automatically).
 - **MongoDB** — only if you run with `--mongo` (see below); the default storage needs nothing extra.
 
+## One-time repository setup (optional)
+
+The repository ships custom diff drivers (better hunk headers and word-diffs for TypeScript and CND files) in a committed [`.gitconfig`](.gitconfig). Git never loads in-repository configuration on its own, so enable it once per clone:
+
+```bash
+git config --local include.path ../.gitconfig
+```
+
 ## Building
 
 ```bash
