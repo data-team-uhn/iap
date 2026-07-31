@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import UserMenu from "@iap/homepage/UserMenu";
 
@@ -68,5 +68,64 @@ describe("UserMenu", () => {
     const { container } = render(<UserMenu />);
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("closes its menu again", async () => {
+    stubUserEndpoints("jdoe", { displayName: "Jane Doe" });
+    render(<UserMenu />);
+    fireEvent.click(await screen.findByRole("button", { name: "Account: jdoe" }));
+    const entry = await screen.findByText("Sign out");
+
+    fireEvent.keyDown(entry, { key: "Escape", code: "Escape" });
+
+    await waitFor(() => { expect(screen.queryByText("Sign out")).not.toBeInTheDocument(); });
+  });
+
+  it("renders nothing when the session reports no user at all", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as unknown as Response)));
+
+    const { container } = render(<UserMenu />);
+
+    await waitFor(() => { expect(container).toBeEmptyDOMElement(); });
+  });
+
+  it("shows no initials for a user whose name is all whitespace", async () => {
+    stubUserEndpoints("   ", { displayName: "   " });
+
+    const { container } = render(<UserMenu />);
+
+    // A blank user name leaves the menu unrendered altogether
+    await waitFor(() => { expect(container).toBeEmptyDOMElement(); });
+  });
+
+  it("reports a failure to identify the user, and renders nothing", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: false, status: 403 } as Response)));
+
+    const { container } = render(<UserMenu />);
+
+    await waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith("Something went wrong identifying the current user", expect.any(Error));
+    });
+    expect(container).toBeEmptyDOMElement();
+    errorSpy.mockRestore();
+  });
+
+  it("falls back to the user name when the profile cannot be read", async () => {
+    vi.stubGlobal("fetch", vi.fn((url: RequestInfo | URL) => Promise.resolve(
+      String(url).endsWith("sessionInfo.json")
+        ? { ok: true, json: () => Promise.resolve({ userID: "jdoe" }) }
+        : { ok: false, status: 500 }
+    ) as unknown as Promise<Response>));
+
+    render(<UserMenu />);
+
+    // The initials still come from the user name, and the menu offers no full name
+    expect(await screen.findByText("J")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Account: jdoe" }));
+    expect(await screen.findByText("jdoe")).toBeInTheDocument();
   });
 });

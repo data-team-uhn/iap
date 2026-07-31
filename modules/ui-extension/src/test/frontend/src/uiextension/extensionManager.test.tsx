@@ -16,14 +16,23 @@
  * limitations under the License.
  */
 
+import { render, screen } from "@testing-library/react";
+
+import type { ComponentType } from "react";
+
 import { loadAsset } from "@iap/frontend-commons/assetManager";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
 // getURLParameters is left un-mocked (it's pure, no side effects) so the `?lazy`
-// detection is exercised for real; only the network-touching loadAsset is mocked.
+// detection is exercised for real; the network-touching loadAsset is mocked, as is LazyAsset,
+// whose own fetch-on-mount behaviour is assetManager's to verify -- here it only needs to record
+// what the extension manager wraps it around.
 vi.mock("@iap/frontend-commons/assetManager", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@iap/frontend-commons/assetManager")>()),
   loadAsset: vi.fn(),
+  LazyAsset: ({ url, ...props }: { url: string } & Record<string, unknown>) => (
+    <div data-testid="lazy-asset" data-url={url} data-props={JSON.stringify(props)} />
+  ),
 }));
 
 const mockedLoadAsset = vi.mocked(loadAsset);
@@ -66,10 +75,21 @@ describe("loadExtensions", () => {
     expect(typeof extension["iap:extensionRender"]).toBe("function");
   });
 
-  // The resolved component's own mount-triggers-fetch behavior belongs to <LazyAsset>
-  // itself (assetManager.tsx); it isn't re-verified here since it calls this file's
-  // mocked `loadAsset` through assetManager's own internal closure, not through this
-  // test's import binding, so mocking it from here wouldn't be observed anyway.
+  it("defers a lazy asset to LazyAsset, passing on the URL and the render props", async () => {
+    mockExtensionPointResponse([
+      { "iap:extensionName": "Lazy", "iap:extensionRenderURL": "asset:iap-x.Lazy.js?lazy" },
+    ]);
+
+    const [extension] = await loadExtensions("Views");
+    const Rendered = extension["iap:extensionRender"] as ComponentType<Record<string, unknown>>;
+    render(<Rendered title="A lazy view" />);
+
+    const placeholder = screen.getByTestId("lazy-asset");
+    expect(placeholder).toHaveAttribute("data-url", "asset:iap-x.Lazy.js?lazy");
+    expect(placeholder).toHaveAttribute("data-props", JSON.stringify({ title: "A lazy view" }));
+    // Still nothing fetched: that only happens once LazyAsset itself mounts for real
+    expect(mockedLoadAsset).not.toHaveBeenCalled();
+  });
 
   it("resolves eager and lazy asset properties independently on the same extension", async () => {
     mockExtensionPointResponse([
@@ -108,5 +128,37 @@ describe("loadExtensions", () => {
     const extensions = await loadExtensions("Views");
 
     expect(extensions).toEqual([]);
+  });
+
+  it("takes an extension point given as a repository path as-is", async () => {
+    mockExtensionPointResponse([]);
+
+    await loadExtensions("/apps/iap/ExtensionPoints/Views");
+
+    expect(global.fetch).toHaveBeenCalledWith("/apps/iap/ExtensionPoints/Views");
+  });
+
+  it("prefixes a bare extension point name", async () => {
+    mockExtensionPointResponse([]);
+
+    await loadExtensions("Views");
+
+    expect(global.fetch).toHaveBeenCalledWith("/apps/iap/ExtensionPoints/Views");
+  });
+
+  it("names an unidentifiable extension 'unknown' when reporting its unresolved asset", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
+    mockExtensionPointResponse([{ "iap:extensionRenderURL": "asset:iap-x.Broken.js" }]);
+    mockedLoadAsset.mockResolvedValue(null);
+
+    expect(await loadExtensions("Views")).toEqual([]);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Skipping an extension of [Views] that failed to load.",
+      expect.objectContaining({
+        message: "Asset [asset:iap-x.Broken.js] for extension [unknown] resolved to nothing",
+      }) as Error,
+    );
+    errorSpy.mockRestore();
   });
 });

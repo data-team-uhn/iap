@@ -64,4 +64,10 @@ describe("Widget", () => {
     // the content itself is still rendered
     expect(screen.getByText("body")).toBeInTheDocument();
   });
+
+  it("drops its frame when borderless is set", () => {
+    const { container } = render(<Widget title="My widget" borderless><div>body</div></Widget>);
+
+    expect(getComputedStyle(container.firstElementChild as Element).borderStyle).toBe("none");
+  });
 });

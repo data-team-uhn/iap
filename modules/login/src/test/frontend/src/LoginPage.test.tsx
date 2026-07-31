@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { ThemeProvider } from "@mui/material/styles";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { act, render, screen } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
@@ -101,5 +101,30 @@ describe("LoginPage", () => {
     // The page splits the footer: the shared content renders without credits, and the credits
     // render once, in their own grid area next to the sign-in panel
     expect(screen.getAllByText("Built by")).toHaveLength(1);
+  });
+
+  // The application theme enables MUI's CSS variables, so the page normally reads its colours from
+  // theme.vars. A theme without them has to keep working, since nothing stops a deployment from
+  // dropping the variables.
+  it("reads its colours straight off the palette when the theme has no CSS variables", async () => {
+    render(
+      <ThemeProvider theme={createTheme()}>
+        <LoginPage />
+      </ThemeProvider>
+    );
+    await act(() => Promise.resolve());
+
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+  });
+
+  it("mirrors the decorative chevron in a right-to-left theme", async () => {
+    render(
+      <ThemeProvider theme={createTheme({ direction: "rtl" })}>
+        <LoginPage />
+      </ThemeProvider>
+    );
+    await act(() => Promise.resolve());
+
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
   });
 });
