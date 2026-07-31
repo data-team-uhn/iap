@@ -49,18 +49,7 @@ import {
 import Modeler from 'bpmn-js/lib/Modeler';
 
 import PropertiesPanel from "./PropertiesPanel";
-
-type JcrNode = {
-  "jcr:primaryType"?: string;
-} & Record<string, unknown>;
-
-interface WorkflowVersionSummary {
-  name: string;
-  path: string;
-  title: string;
-  version: string;
-  description: string;
-}
+import { WORKFLOWS_ROOT, parseWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
 
 type SnackbarSeverity = "success" | "error" | "warning";
 
@@ -89,8 +78,6 @@ function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
   });
 }
 
-const WORKFLOWS_PATH = "/Workflows";
-
 // The diagram is an nt:file child of the version node rather than one of its properties, so it is
 // fetched and posted on its own path; listing the versions no longer carries every diagram with it.
 // The extension earns its keep: Sling types a file from its name, so without it every diagram the
@@ -107,21 +94,6 @@ function bpmnUpload(xml: string, body: FormData = new FormData()): FormData {
   body.set(`./${BPMN_FILE}`, new File([xml], BPMN_FILE, { type: "application/xml" }));
   body.set(`./${BPMN_FILE}@TypeHint`, "nt:file");
   return body;
-}
-
-function extractVersions(defKey: string, defNode: JcrNode): WorkflowVersionSummary[] {
-  return Object.entries(defNode)
-    .filter(([, v]) => v && typeof v === "object" && (v as JcrNode)["jcr:primaryType"] === "wf:WorkflowVersion")
-    .map(([versionKey, versionNode]) => {
-      const version = versionNode as JcrNode;
-      return {
-        name: `${defKey}/${versionKey}`,
-        path: `${WORKFLOWS_PATH}/${defKey}/${versionKey}`,
-        title: (defNode.title as string) || defKey,
-        version: (version.version as string) || "",
-        description: (version.description as string) || "",
-      };
-    });
 }
 
 const EXAMPLE_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -211,16 +183,9 @@ export default function BpmnEditor() {
     // versions under them. The depth selector both turns child serialization on and stops the
     // traversal there, so a version's own children -- the diagram file, and the parsed flow nodes
     // once those exist -- are left as bare paths instead of being dragged into every listing.
-    fetchUtil(`${WORKFLOWS_PATH}.2.json`)
+    fetchUtil(`${WORKFLOWS_ROOT}.2.json`)
       .then(r => r.json())
-      .then((data: Record<string, unknown>) => {
-        // v is untrusted parsed JSON (e.g. a dangling/null JCR entry), not actually guaranteed to
-        // be a JcrNode - typeof null === "object", so the truthy check is required, not redundant.
-        const defs = Object.entries(data)
-          .filter(([, v]) => v && typeof v === "object" && (v as JcrNode)["jcr:primaryType"] === "wf:WorkflowDefinition")
-          .flatMap(([defKey, defNode]) => extractVersions(defKey, defNode as JcrNode));
-        setDefinitions(defs);
-      })
+      .then((data: Record<string, unknown>) => setDefinitions(parseWorkflowList(data)))
       .catch(() => showMessage("Failed to load workflow definitions", "error"))
       .finally(() => setLoadingDefs(false));
   }, [showMessage]);
@@ -299,10 +264,10 @@ export default function BpmnEditor() {
       defBody.set("active", String(newActive));
       defBody.set("active@TypeHint", "Boolean");
 
-      const defResponse = await fetchUtil(`${WORKFLOWS_PATH}/`, { method: "POST", body: defBody });
+      const defResponse = await fetchUtil(`${WORKFLOWS_ROOT}/`, { method: "POST", body: defBody });
       if (!defResponse.ok) throw new Error(`HTTP ${defResponse.status}`);
 
-      let defPath = `${WORKFLOWS_PATH}/${defSlug}`;
+      let defPath = `${WORKFLOWS_ROOT}/${defSlug}`;
       const defLocation = defResponse.headers.get("Location");
       if (defLocation) {
         try { defPath = new URL(defLocation).pathname; } catch { defPath = defLocation; }
@@ -387,7 +352,7 @@ export default function BpmnEditor() {
           {loadingDefs ? (
             <Stack sx={{ py: 2, alignItems: "center" }}><CircularProgress /></Stack>
           ) : definitions.length === 0 ? (
-            <Typography>No workflow definitions found at {WORKFLOWS_PATH}.</Typography>
+            <Typography>No workflow definitions found at {WORKFLOWS_ROOT}.</Typography>
           ) : (
             <List disablePadding>
               {definitions.map(def => (
