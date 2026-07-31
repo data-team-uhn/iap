@@ -89,6 +89,9 @@ Options:
                                  your IDE).
       --test                     Additionally load test content (the
                                  `iap-test-data` feature).
+      --demo                     Additionally load the demo projects (the
+                                 `iap-demo-*` features): complete, working
+                                 processes rather than sample content.
   -h, --help                     Show this help message and exit.
 
 Notes:
@@ -198,6 +201,7 @@ def parse_args(argv):
         'storage': 'tar',
         'debug': False,
         'test': False,
+        'demo': False,
         'passthrough': [],
     }
     i = 0
@@ -228,6 +232,8 @@ def parse_args(argv):
             options['debug'] = True
         elif arg == '--test':
             options['test'] = True
+        elif arg == '--demo':
+            options['demo'] = True
         elif arg == '--':
             options['passthrough'] += argv[i + 1:]
             break
@@ -368,6 +374,9 @@ def main(argv):
     launcher_args = [arg.replace('VERSION', platform_version) for arg in options['passthrough']]
     if options['test']:
         launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-test-data/%s/slingosgifeature' % platform_version]
+    if options['demo']:
+        launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-demo-time-off-request/%s/slingosgifeature'
+                          % platform_version]
     if options['projects']:
         features = resolve_project_features(options['projects'], platform_version, project_version,
                                             options['permissions'])

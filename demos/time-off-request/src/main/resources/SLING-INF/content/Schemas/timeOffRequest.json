@@ -1,0 +1,29 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Time off request",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "active": true,
+    "jcr:reference:workflow": "/Workflows/timeOffRequest/v1",
+    "description": "One day off, asked for and approved. The starting point the rest of the demo grows from.",
+    "details": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Request details",
+      "description": "When you would like to be away.",
+      "day": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which day are you taking off?",
+        "dataType": "date",
+        "required": true
+      }
+    },
+    "approval": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Approval",
+      "description": "Your approver decides whether the request is accepted.",
+      "approverGroup": "time-off-approvers"
+    }
+  }
+}

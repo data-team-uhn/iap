@@ -65,12 +65,25 @@
               <filesInclude>test/*.json</filesInclude>
               <title>IAP With Test Data</title>
             </aggregate>
+            <!-- The platform plus the demo projects: a polished, working process rather than sample
+                 content. What the start script's demo option launches, and what the demo test suite
+                 runs against. -->
+            <aggregate>
+              <classifier>demo_tar</classifier>
+              <filesInclude>*.json</filesInclude>
+              <filesInclude>oak/*.json</filesInclude>
+              <filesInclude>oak/persistence/oak_persistence_sns.json</filesInclude>
+              <filesInclude>core/*.json</filesInclude>
+              <filesInclude>demo/*.json</filesInclude>
+              <title>IAP With Demos</title>
+            </aggregate>
           </aggregates>
           <scans>
             <scan>
               <includeClassifier>core_tar</includeClassifier>
               <includeClassifier>core_mongo</includeClassifier>
               <includeClassifier>test_tar</includeClassifier>
+              <includeClassifier>demo_tar</includeClassifier>
             </scan>
           </scans>
         </configuration>
