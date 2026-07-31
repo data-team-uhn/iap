@@ -54,6 +54,48 @@ def merge_ui_files(root, dir_name, aggregated_frontend_dir, maven_source='main')
         shutil.copytree(path_to_source, path_to_base_source, dirs_exist_ok=True)
 
 
+# The project-root tsconfig.json typechecks the per-module sources where they are authored,
+# without aggregating them first. TypeScript resolves the packages they import by walking up
+# from each source file, so it only finds the aggregated frontend's node_modules if one is
+# reachable from the project root; link it there. The link is gitignored along with every
+# other node_modules, and is refreshed on each build so it cannot go stale.
+def link_node_modules(root_dir, aggregated_frontend_dir):
+    real = path.join(aggregated_frontend_dir, 'src', 'main', 'frontend', 'node_modules')
+    link = path.join(root_dir, 'node_modules')
+    # Nothing to point at until `yarn install` has run (a clean checkout builds the frontend
+    # module before anything typechecks, so this resolves itself)
+    if not path.isdir(real):
+        return
+    target = path.relpath(real, root_dir)
+    if path.islink(link):
+        if os.readlink(link) == target:
+            return
+        os.remove(link)
+    elif path.exists(link):
+        # A real directory here is someone's own install, not ours to replace
+        return
+    os.symlink(target, link, target_is_directory=True)
+
+
+# Every module aggregated under src/<module>/ is importable as @iap/<module>/..., but the
+# project-root tsconfig.json cannot use the aggregated tree's single "@iap/*" mapping and has
+# to name each module's real source tree instead. That list is easy to forget when adding a
+# module, and a missing entry only shows up as an unresolved import in whatever imports it
+# later, so check it here while the authoritative set of modules is known.
+def check_tsconfig_mappings(root_dir, modules):
+    tsconfig = path.join(root_dir, 'tsconfig.json')
+    if not path.exists(tsconfig):
+        return
+    with open(tsconfig, 'rt') as ins:
+        contents = ins.read()
+    mapped = set(re.findall(r'"@iap/([^/"]+)/\*"', contents))
+    missing = sorted(set(modules) - mapped)
+    if missing:
+        sys.exit('Frontend module(s) %s are aggregated but have no "@iap/<module>/*" mapping in '
+            'tsconfig.json. Add one pointing at each module\'s src/main/frontend/src, so that the '
+            'project-root typecheck can resolve imports from them.' % ', '.join(missing))
+
+
 def main(args=sys.argv[1:]):
     # "aggregated-frontend" dir, resolved to an absolute path so that dirname below
     # yields the project root even when a relative path (e.g. ../../..) is passed
@@ -75,6 +117,9 @@ def main(args=sys.argv[1:]):
     # The module directory's base name becomes both its subdirectory in the aggregated tree
     # and its @iap/<module> import namespace, so it must be unique across the whole project
     seen_modules = {}
+    # Of those, the ones that actually ship sources (rather than only an assets.config), which
+    # are the ones the project-root tsconfig.json has to map
+    source_modules = []
 
     for root, dirs, files in os.walk(root_dir):
         # Don't descend into hidden directories (.git, .mvnrepo, .iap-data, etc.)
@@ -86,17 +131,23 @@ def main(args=sys.argv[1:]):
             for name in dirs:
                 if not name == "aggregated-frontend":
                     module_dir = path.join(root, name)
-                    if path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'src')) \
+                    has_sources = path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'src'))
+                    if has_sources \
                             or path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'assets.config')):
                         if name in seen_modules:
                             sys.exit('Frontend module name collision: both %s and %s would be aggregated as '
                                 'src/%s/. Rename one of the module directories.'
                                 % (seen_modules[name], module_dir, name))
                         seen_modules[name] = module_dir
+                        if has_sources:
+                            source_modules.append(name)
                     merge_webpack_files(root, name, aggregated_frontend_dir, webpack_config_entries)
                     merge_ui_files(root, name, aggregated_frontend_dir)
                     if include_tests:
                         merge_ui_files(root, name, aggregated_frontend_dir, 'test')
+
+    check_tsconfig_mappings(root_dir, source_modules)
+    link_node_modules(root_dir, aggregated_frontend_dir)
 
     # Write collected webpack config lines to the main aggregated webpack.config file
     # Remove last ',' in a last string

@@ -72,9 +72,12 @@ export default function ErrorPage(props: ErrorPageProps) {
     <ErrorContainer {...rest}>
       <Grid
         container
-        direction="column"
         spacing={6}
         sx={{
+          // Grid's `direction` prop only accepts the row axis, so the column layout goes
+          // through `flexDirection`. `spacing` sets the gap on both axes, so it applies
+          // either way.
+          flexDirection: "column",
           textAlign: textAlign,
           alignItems: "stretch",
           alignContent: "stretch",

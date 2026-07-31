@@ -28,6 +28,7 @@
     "lint:fix": "eslint 'src/**/*.{ts,tsx}' --fix",
     "aggregate": "python3 webpack_script.py ../../..",
     "aggregate:tests": "python3 webpack_script.py ../../.. --with-tests",
+    "typecheck": "yarn aggregate && tsc -p ../../../../tsconfig.json --noEmit",
     "test": "yarn aggregate:tests && vitest run --coverage",
     "test:watch": "yarn aggregate:tests && vitest",
     "test:coverage": "yarn aggregate:tests && vitest run --coverage"
