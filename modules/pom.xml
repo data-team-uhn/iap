@@ -30,21 +30,22 @@
   <name>IAP - Code modules</name>
 
   <modules>
-    <module>java-utils</module>
-    <module>serialization</module>
+    <!-- Keep these alphabetical -->
+    <module>authentication</module>
     <module>autodoc</module>
     <module>data-model</module>
-    <module>frontend-commons</module>
-    <module>ui-extension</module>
     <module>favicon</module>
-    <module>startup-customization</module>
-    <module>homepage</module>
-    <module>login</module>
-    <module>workflows</module>
-    <module>schemas</module>
-    <module>submissions</module>
+    <module>frontend-commons</module>
     <module>healthcheck</module>
+    <module>homepage</module>
+    <module>java-utils</module>
+    <module>login</module>
+    <module>schemas</module>
+    <module>serialization</module>
+    <module>startup-customization</module>
     <module>status</module>
-    <module>authentication</module>
+    <module>submissions</module>
+    <module>ui-extension</module>
+    <module>workflows</module>
   </modules>
 </project>
