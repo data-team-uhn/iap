@@ -39,9 +39,6 @@ import io.uhndata.iap.auth.token.IapToken;
  */
 public final class IapJwtTokenImpl implements IapToken
 {
-    /** The name of the parent node where tokens for a user are stored. */
-    public static final String SYSTEM_NODE_NAME = "jcr:system";
-
     /** The login token string. */
     private final String loginToken;
 
@@ -67,8 +64,7 @@ public final class IapJwtTokenImpl implements IapToken
     public IapJwtTokenImpl(final Jwt<?, ?> jwt, final String token)
     {
         Object payload = jwt.getPayload();
-        if (payload instanceof Claims) {
-            Claims claims = (Claims) payload;
+        if (payload instanceof Claims claims) {
             this.loginToken = token;
             this.userId = claims.getSubject();
             this.expirationTime = new Calendar.Builder().setInstant(claims.getExpiration()).build();

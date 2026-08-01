@@ -228,8 +228,7 @@ public final class IapJwtTokenManagerImpl implements TokenManager
     {
         // Double check claims in the payload:
         Object payload = jwt.getPayload();
-        if (payload instanceof Claims) {
-            Claims claims = (Claims) payload;
+        if (payload instanceof Claims claims) {
             String expectedIssuer = locator.getResolvedIssuer();
 
             // Double-check that we're the intended audience for this JWT, and that it came from the expected issuer
