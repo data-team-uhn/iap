@@ -155,11 +155,12 @@ describe("TagChip", () => {
     const sneaky = (await screen.findByText("Sneaky")).closest(".MuiChip-root");
     expect(sneaky).toBeInTheDocument();
     expect(sneaky).not.toHaveStyle({ background: "url(https://evil.example/x)" });
-    // Filter choices from the same definitions: the label falls back to the name too
+    // Filter choices from the same definitions: the label falls back to the name too, and
+    // the color rides along raw — consumers whitelist it at the point of styling
     expect(tagValueOptions("custom")()).toEqual([
       { value: "odd", label: "odd" },
-      { value: "broken", label: "Broken" },
-      { value: "sneaky", label: "Sneaky" },
+      { value: "broken", label: "Broken", color: "not-a-color" },
+      { value: "sneaky", label: "Sneaky", color: "#fff;background:url(https://evil.example/x)" },
     ]);
   });
 
@@ -193,10 +194,10 @@ describe("TagChip", () => {
     expect(options()).toEqual([]);
     await vi.waitFor(() => {
       expect(options()).toEqual([
-        { value: "approved", label: "Approved" },
-        { value: "rejected", label: "Rejected" },
-        { value: "in-progress", label: "In progress" },
-        { value: "changes-requested", label: "Changes requested" },
+        { value: "approved", label: "Approved", color: "#2e7d32" },
+        { value: "rejected", label: "Rejected", color: "#d32f2f" },
+        { value: "in-progress", label: "In progress", color: "#0288d1" },
+        { value: "changes-requested", label: "Changes requested", color: "#f57c00" },
       ]);
     });
     // The chips' own fetches share the same cache, so no second request was needed

@@ -30,6 +30,8 @@ import {
   getGridStringOperators,
 } from "@mui/x-data-grid-pro";
 
+import ColoredChipsFilterInput from "./ColoredChipsFilterInput";
+
 import type { PropertyFilter } from "./pagination";
 import type { EntityGridColumn } from "./registry";
 
@@ -169,7 +171,13 @@ function stockOperators(type: EntityGridColumn["type"]) {
 
 function serverFilterOperators(type: EntityGridColumn["type"]) {
   const supported = SUPPORTED_OPERATORS[type ?? "string"] ?? SUPPORTED_OPERATORS.string;
-  return stockOperators(type).filter(operator => supported.includes(operator.value));
+  return stockOperators(type)
+    .filter(operator => supported.includes(operator.value))
+    // On choice columns, values picked in "is any of" show as chips in their options' own
+    // colors, matching how the grid's cells present them
+    .map(operator => type === "singleSelect" && operator.value === "isAnyOf"
+      ? { ...operator, InputComponent: ColoredChipsFilterInput }
+      : operator);
 }
 
 // Narrows every column's filter operators down to the ones the servlet can honor, so the filter

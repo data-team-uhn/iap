@@ -77,6 +77,24 @@ registerEntityType(CUSTOM_CARD_TYPE, {
   listItem: row => <div>Custom card: {String(row.title)}</div>,
 });
 
+// A type with a choice column whose options carry display colors, like tag definitions do
+const CHOICE_TYPE = "test/ChoiceEntity";
+registerEntityType(CHOICE_TYPE, {
+  homepage: "/ChoiceEntities",
+  columns: [
+    { field: "title", headerName: "Title" },
+    {
+      field: "state",
+      headerName: "State",
+      type: "singleSelect",
+      valueOptions: [
+        { value: "open", label: "Open", color: "#2e7d32" },
+        { value: "closed", label: "Closed" },
+      ],
+    },
+  ],
+});
+
 // Makes MUI's useMediaQuery see a narrow viewport, switching the grid to its list mode
 function fakeNarrowScreen() {
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -588,6 +606,36 @@ describe("EntityDataGrid", () => {
 
     expect(screen.getByText("Newest entity")).toBeInTheDocument();
     expect(screen.queryByText("Stale entity")).toBeNull();
+  });
+
+  // The many sequential picker interactions make this the file's slowest test; under a
+  // coverage-instrumented full-suite run it can brush the default timeout, so it gets room
+  it("shows values picked in \"is any of\" as chips in their options' colors", { timeout: 30_000 }, async () => {
+    const user = userEvent.setup();
+    mockPage([]);
+
+    render(<EntityDataGrid entityType={CHOICE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Nothing to show");
+
+    // Point the filter panel's condition at the choice column, with "is any of"
+    await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
+    await user.click(await screen.findByRole("combobox", { name: "Column" }));
+    await user.click(await screen.findByRole("option", { name: "State" }));
+    await user.click(screen.getByRole("combobox", { name: "Operator" }));
+    await user.click(await screen.findByRole("option", { name: "is any of" }));
+
+    // Pick both options; the popup closes after each pick, so it is reopened in between
+    await user.click(screen.getByRole("combobox", { name: "Value" }));
+    await user.click(await screen.findByRole("option", { name: "Open" }));
+    await user.click(screen.getByRole("combobox", { name: "Value" }));
+    await user.click(await screen.findByRole("option", { name: "Closed" }));
+
+    // A colored option fills its chip with the color; one without stays stock outlined
+    const open = screen.getByText("Open").closest(".MuiChip-root");
+    expect(open).toHaveClass("MuiChip-filled");
+    expect(open).toHaveStyle({ backgroundColor: "#2e7d32" });
+    const closed = screen.getByText("Closed").closest(".MuiChip-root");
+    expect(closed).toHaveClass("MuiChip-outlined");
   });
 
   it("docks the filter panel to the bottom of narrow screens, one card per condition", async () => {
