@@ -132,6 +132,12 @@ const appTheme = createTheme({
       fontWeight: baseTypography.fontWeightBold,
       color: headingColor,
     },
+    // No shouting buttons; set at the typography level (not as a MuiButton override) so
+    // anything else using the button type style — e.g. Typography variant="button" labels —
+    // matches the real buttons
+    button: {
+      textTransform: "none",
+    },
   },
   iapShell: {
     // The start rail hosts the more important (navigation-like) content, so it stays in the
@@ -194,12 +200,11 @@ const appTheme = createTheme({
       defaultProps: {
         disableElevation: true,
         variant: "outlined",
+        // Nearly every button in the app wants to be small; the few that should stand out
+        // (like a page's main call to action) can ask for their size explicitly
+        size: "small",
       },
-      styleOverrides: {
-        root: {
-          textTransform: "none",
-        },
-      },
+      // Button inherits its casing (and the rest of its font) from typography.button above
     },
   },
 });
