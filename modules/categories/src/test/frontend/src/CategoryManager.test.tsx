@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import CategoryManager from "@iap/categories/CategoryManager";
@@ -118,5 +118,209 @@ describe("CategoryManager", () => {
 
     expect(await screen.findByText(/cannot be deleted/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retire instead" })).toBeInTheDocument();
+  });
+
+  // The POSTs the manager sends, matched by the payload rather than by call order: every mutation
+  // is followed by a reload, so the request under test is never the only one in flight.
+  const postsMatching = (predicate: (body: string) => boolean) =>
+    vi.mocked(fetch).mock.calls.filter(([, init]) => {
+      const body = (init as RequestInit | undefined)?.body;
+      return body instanceof URLSearchParams && predicate(body.toString());
+    });
+
+  const postTo = (path: string) =>
+    vi.mocked(fetch).mock.calls.filter(([url, init]) => url === path && !!(init as RequestInit | undefined)?.method);
+
+  describe("saving a category", () => {
+    it("creates one under the parent the tree row names", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Retrospective studies");
+
+      fireEvent.click(screen.getByRole("button", { name: "Add subcategory to Paper submissions" }));
+      fireEvent.change(await screen.findByLabelText(/Label/), { target: { value: "Posters" } });
+      fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+      await waitFor(() => { expect(postTo("/Categories/Paper/")).toHaveLength(1); });
+      expect(postsMatching(body => body.includes("label=Posters"))).not.toHaveLength(0);
+    });
+
+    it("updates one in place when its parent is unchanged", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Paper submissions");
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit Paper submissions" }));
+      fireEvent.change(await screen.findByLabelText(/Label/), { target: { value: "Paper forms" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => { expect(postTo("/Categories/Paper")).not.toHaveLength(0); });
+      expect(postsMatching(body => body.includes("label=Paper+forms"))).not.toHaveLength(0);
+      // Nothing was moved: no :operation=move went out
+      expect(postsMatching(body => body.includes("operation=move"))).toHaveLength(0);
+    });
+
+    it("moves one when a different parent is picked", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Paper submissions");
+      fireEvent.click(screen.getByRole("button", { name: "Edit Paper submissions" }));
+
+      // Re-parent it under the other top-level category
+      fireEvent.mouseDown(await screen.findByRole("combobox", { name: /Parent category/ }));
+      fireEvent.click(await screen.findByRole("option", { name: "Retrospective studies" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      await waitFor(() => {
+        expect(postsMatching(body => body.includes("operation=move"))).not.toHaveLength(0);
+      });
+      const move = postsMatching(body => body.includes("operation=move"))[0];
+      expect(((move[1] as RequestInit).body as URLSearchParams).get(":dest")).toBe("/Categories/Retrospective/");
+    });
+
+    it("closes the dialog without saving anything when cancelled", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Paper submissions");
+      fireEvent.click(screen.getByRole("button", { name: "Edit Paper submissions" }));
+      await screen.findByLabelText(/Label/);
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      await waitFor(() => { expect(screen.queryByLabelText(/Label/)).not.toBeInTheDocument(); });
+      expect(postsMatching(() => true)).toHaveLength(0);
+    });
+  });
+
+  describe("acting on a row", () => {
+    it("retires a category, and unretires a retired one", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Retrospective studies");
+
+      fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
+      await waitFor(() => {
+        expect(postsMatching(body => body.includes("retired=true"))).not.toHaveLength(0);
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
+      await waitFor(() => {
+        expect(postsMatching(body => body.includes("retired=false"))).not.toHaveLength(0);
+      });
+    });
+
+    it("reorders a category among its siblings", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Paper submissions");
+
+      fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
+
+      await waitFor(() => {
+        expect(postsMatching(body => body.includes("order=before+Retrospective"))).not.toHaveLength(0);
+      });
+    });
+
+    it("deletes a category once the deletion is confirmed", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Paper submissions");
+      fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
+
+      fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+
+      await waitFor(() => {
+        expect(postsMatching(body => body.includes("operation=delete"))).not.toHaveLength(0);
+      });
+    });
+
+    it("retires a category that could not be deleted", async () => {
+      stubFetch();
+      const fetchMock = vi.mocked(fetch);
+      renderManager();
+      await screen.findByText("Paper submissions");
+      fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 409, statusText: "Conflict" } as unknown as Response);
+      fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+
+      fireEvent.click(await screen.findByRole("button", { name: "Retire instead" }));
+
+      await waitFor(() => {
+        expect(postsMatching(body => body.includes("retired=true"))).not.toHaveLength(0);
+      });
+    });
+
+    it("abandons a deletion that is called off", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Paper submissions");
+      fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
+      await screen.findByRole("button", { name: "Delete" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+      });
+      expect(postsMatching(body => body.includes("operation=delete"))).toHaveLength(0);
+    });
+  });
+
+  describe("when something goes wrong", () => {
+    it("reports a refused row action, and lets the report be dismissed", async () => {
+      stubFetch();
+      const fetchMock = vi.mocked(fetch);
+      renderManager();
+      await screen.findByText("Retrospective studies");
+
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
+      fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
+
+      expect(await screen.findByRole("heading", { name: "The change could not be applied" })).toBeInTheDocument();
+      expect(screen.getByText(/403/)).toBeInTheDocument();
+
+      // ErrorDialog's close button carries no accessible name, so it is reached through the
+      // dialog it is the only button of
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button"));
+
+      await waitFor(() => {
+        expect(screen.queryByRole("heading", { name: "The change could not be applied" })).not.toBeInTheDocument();
+      });
+    });
+
+    it("reports a failure that was not an Error", async () => {
+      stubFetch();
+      const fetchMock = vi.mocked(fetch);
+      renderManager();
+      await screen.findByText("Retrospective studies");
+
+      fetchMock.mockRejectedValueOnce("connection reset");
+      fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
+
+      expect(await screen.findByText("connection reset")).toBeInTheDocument();
+    });
+
+    it("reports a tree that could not be loaded", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+        ok: false, status: 500, statusText: "Server Error",
+      } as unknown as Response)));
+
+      renderManager();
+
+      expect(await screen.findByRole("heading", { name: "The categories could not be loaded" }))
+        .toBeInTheDocument();
+    });
+
+    it("invites the first category when there are none", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+        ok: true, status: 200, statusText: "OK",
+        json: () => Promise.resolve({ "jcr:primaryType": "cat:CategoriesHomepage" }),
+        headers: { get: () => null },
+      } as unknown as Response)));
+
+      renderManager();
+
+      expect(await screen.findByText(/No categories are defined yet/)).toBeInTheDocument();
+    });
   });
 });

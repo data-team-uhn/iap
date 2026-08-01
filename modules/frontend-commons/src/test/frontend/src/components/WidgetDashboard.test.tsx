@@ -108,6 +108,30 @@ describe("WidgetDashboard", () => {
     expect(await screen.findByText("Nothing to see")).toBeInTheDocument();
   });
 
+  it("spans a wide widget further, and treats an unrecognised width as normal", async () => {
+    mockedLoadExtensions.mockResolvedValue([
+      { ...widget("Wide", 0), "iap:widgetWidth": "wide" },
+      { ...widget("Odd", 1), "iap:widgetWidth": "enormous" },
+      widget("Plain", 2),
+    ]);
+
+    render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
+
+    expect(await screen.findByText("Wide content")).toBeInTheDocument();
+    expect(screen.getByText("Odd content")).toBeInTheDocument();
+    expect(screen.getByText("Plain content")).toBeInTheDocument();
+  });
+
+  it("renders a widget that declares no name", async () => {
+    const unnamed: Record<string, unknown> = { ...widget("Unnamed", 0) };
+    delete unnamed["iap:extensionName"];
+    mockedLoadExtensions.mockResolvedValue([unnamed]);
+
+    render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
+
+    expect(await screen.findByText("Unnamed content")).toBeInTheDocument();
+  });
+
   it("renders the empty state, not a crash, when the extension point fails to load", async () => {
     mockedLoadExtensions.mockRejectedValue(new Error("network down"));
 

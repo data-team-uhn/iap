@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { CategoryReferencedError, useCategoryTree } from "@iap/categories/useCategoryTree";
 
@@ -31,7 +31,13 @@ let requests: RecordedRequest[] = [];
 
 // Stubs fetch to answer the tree GET with the given JSON and every POST with a success (or the
 // given status), recording all requests.
-const stubFetch = (treeJson: Record<string, unknown>, postStatus = 200) =>
+// `location` is what the POST responses report as their Location header; null stands for a server
+// that reports none.
+const stubFetch = (
+  treeJson: Record<string, unknown>,
+  postStatus = 200,
+  location: string | null = "/Categories/new-category",
+) =>
   vi.stubGlobal("fetch", vi.fn((url: string, options?: RequestInit) => {
     const method = options?.method ?? "GET";
     requests.push({
@@ -49,7 +55,7 @@ const stubFetch = (treeJson: Record<string, unknown>, postStatus = 200) =>
       ok: postStatus < 400,
       status: postStatus,
       statusText: postStatus === 200 ? "OK" : "Error",
-      headers: { get: (name: string) => name === "Location" ? "/Categories/new-category" : null },
+      headers: { get: (name: string) => name === "Location" ? location : null },
     } as unknown as Response);
   }));
 
@@ -164,6 +170,44 @@ describe("useCategoryTree", () => {
     const post = lastPost();
     expect(post?.params.get("retired")).toBe("true");
     expect(post?.params.get("retired@TypeHint")).toBe("Boolean");
+  });
+
+  it("deletes a category and reloads the tree", async () => {
+    stubFetch(treeJson);
+    const result = await loadedHook();
+
+    await act(() => result.current.remove("/Categories/Retrospective"));
+
+    expect(lastPost()?.params.get(":operation")).toBe("delete");
+    // The reload that follows it
+    expect(requests.filter(request => request.method === "GET")).toHaveLength(2);
+  });
+
+  it("takes the created category's path from the Location the server reports", async () => {
+    stubFetch(treeJson, 200, "/Categories/Retrospective/New%20One.json");
+    const result = await loadedHook();
+
+    await act(async () => {
+      expect(await result.current.create("/Categories/Retrospective", { label: "New One" }))
+        .toBe("/Categories/Retrospective/New One");
+    });
+  });
+
+  it("falls back to the parent when the server reports no Location", async () => {
+    stubFetch(treeJson, 200, null);
+    const result = await loadedHook();
+
+    await act(async () => {
+      expect(await result.current.create("/Categories/Retrospective", { label: "New One" }))
+        .toBe("/Categories/Retrospective");
+    });
+  });
+
+  it("reports a load failure that was not an Error", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject("connection reset")));
+    const result = await loadedHook();
+
+    expect(result.current.loadError).toBe("connection reset");
   });
 
   it("translates a 409 deletion refusal into a CategoryReferencedError", async () => {
