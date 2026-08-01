@@ -110,6 +110,12 @@
       <version>${project.version}</version>
       <scope>provided</scope>
     </dependency>
+    <!-- Not used by this module's own (unexported) code, but SpotBugs needs the annotation classes on the
+         analysis classpath to check this implementation against the annotated TokenManager contract. -->
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+    </dependency>
 
     <!-- TEST -->
     <dependency>

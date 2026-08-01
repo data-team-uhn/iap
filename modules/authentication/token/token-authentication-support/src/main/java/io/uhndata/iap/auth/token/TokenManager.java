@@ -20,6 +20,8 @@ package io.uhndata.iap.auth.token;
 import java.util.Calendar;
 import java.util.Map;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.osgi.annotation.versioning.ProviderType;
 
 /**
@@ -36,16 +38,18 @@ public interface TokenManager
      *
      * @param user local username to associate with the token
      * @param expiration date after which the token becomes invalid
-     * @param extraData optional data to store in the token
-     * @return a new token
+     * @param extraData data to store in the token, may be empty
+     * @return a new token, or {@code null} if this manager is not able to issue tokens
      */
-    IapToken create(String user, Calendar expiration, Map<String, String> extraData);
+    @Nullable
+    IapToken create(@NotNull String user, @NotNull Calendar expiration, @NotNull Map<String, String> extraData);
 
     /**
      * Parse a token's data from its identifier.
      *
      * @param token a token string
-     * @return the parsed token data, or {@code null} if the input is invalid
+     * @return the parsed token data, or {@code null} if the input is {@code null} or invalid
      */
-    IapToken parse(String token);
+    @Nullable
+    IapToken parse(@Nullable String token);
 }
