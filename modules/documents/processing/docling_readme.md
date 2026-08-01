@@ -1,28 +1,25 @@
-# `processing` module — Python requirements & setup
+# Docling parsing
 
-The `processing` module holds the Python pipeline that converts uploaded PDF/DOC/DOCX
-documents into cleaned, chunked Markdown plus its pytest suite. The Java side operates daemons and runs communication.
+Docling converts PDF or DOCX documents Markdown format.
+
+Main processor from `.pdf` and `.docx` to Markdown.
+- Source : https://github.com/docling-project/docling
+- Required version v2.115+
 
 ## Runtime dependencies
 
 | Package | Why |
 |---------|-----|
 | `docling` | Main processor: `.pdf` / `.doc` / `.docx` → `.md`; also drives hierarchical chunking |
-| `pypdf` | Page counting / PDF reading before batching |
+| `pypdf` | Page counting / PDF reading before batching; bookmark extraction |
 | `psutil` | Lets the batch-sizing script self-optimise workers to CPU/RAM |
-| `tiktoken` | Token counting support |
+| `LibreOffice` (`soffice`) | DOC→DOCX, DOC→PDF, DOCX→PDF before Docling |
 
 Test-only: `pytest`.
 
 ---
 
-## Docling
-
-Main processor from `.pdf` and `.docx` to `.md`.
-- Source : https://github.com/docling-project/docling
-- Required versin v2.115+
-
-### Installation
+## Installation
 
 1. **Pre-req:** Python 3.10+ (the pipeline uses PEP 604 `X | None` annotations in
    runtime-evaluated positions, which 3.9 cannot parse)
@@ -45,16 +42,7 @@ Main processor from `.pdf` and `.docx` to `.md`.
 4. Install the dependencies:
 
    ```
-   pip install docling
-   pip install pypdf
-   pip install psutil
-   pip install tiktoken
-   ```
-
-   Or in one line (with the extra tooling used during development):
-
-   ```
-   python -m pip install docling openai pypdf httpx pyinstaller tiktoken psutil
+   pip install docling pypdf psutil
    ```
 
 5. Set the threading environment variables (keeps per-process threads at 1 so the outer
@@ -65,21 +53,11 @@ Main processor from `.pdf` and `.docx` to `.md`.
    DOCLING_NUM_THREADS=1
    ```
 
-   (The scripts also set these defaults on import via `docling_config.py`.)
-
-6. Add the virtual environment folder to `.gitignore`:
-
-   ```
-   Docling_env/
-   ```
-
 ---
 
 ## Docling daemon
 
-The first PDF request after boot is much faster because worker processes and Docling
-models stay loaded between conversions instead of being spawned per file, and converter
-creation is skipped. On start you get:
+On start you get:
 
 - **N warm PDF worker processes** (heavy models, parallel page batches)
 - **1 warm DOCX converter** in the HTTP server process (lighter, single-threaded via
@@ -88,41 +66,27 @@ creation is skipped. On start you get:
 ### Java side
 
 - The daemon is **not** started by Java. Start it with Docker, or by hand for local work.
-- **`DoclingMarkdownGenerator`** / **`DoclingParseClient`** — send the document *bytes* to
-  `POST /parse` and receive the Markdown and chunk tree in one reply. No paths are exchanged, so
-  the daemon needs no access to the JVM's filesystem. If it cannot be reached, parsing falls
-  through to the pure-Java PDFBox/POI generators.
-
-### Daemon internals
-
-- Starts a warm `ProcessPoolExecutor` at boot (models loaded via `_init_worker`), with
-  subprocess workers warmed at startup.
-- Caches a DOCX `DocumentConverter` in the main daemon process, created at startup via
-  `get_docx_converter()` in `DaemonState.__init__`. There is **no** DOCX process pool.
+- Java **stages** the upload once under `/shared-docs/{answerUuid}/{fileName}`, then
+  `DoclingParseClient` calls `POST /parse?path=...`. Python writes all derived files.
+  The reply is a small summary (`ok`, `markdown_path`, `chunked`, `chunks_dir`, `logs`).
 
 ### Manual HTTP daemon start (optional)
 
 ```
+# Optional: only if the shared root is not /shared-docs
+# set IAP_SHARED_DOCS=C:\path\to\shared-docs
+
 python modules/documents/processing/src/main/python/docling_daemon.py --host 127.0.0.1 --port 18765
 ```
 
 ### Test endpoints
 
-- `GET  http://localhost:18765/health` — readiness probe. Reports the PDF worker count
-  only; it does not expose DOCX status. DOCX is still warmed — it is just not counted as a
-  "worker".
-- `POST http://localhost:18765/parse?filename=proto.pdf&chunk=true` — the document bytes as the
-  request body → `{"markdown", "chunked", "outline", "catalog", "chunks":[{"file","text"}], "logs"}`.
-  The only conversion endpoint.
+- `GET  http://localhost:18765/health` — readiness probe (includes `shared_docs` root).
+- `POST http://localhost:18765/parse?path=/shared-docs/.../proto.pdf&chunk=true` —
+  path under the shared root → summary JSON. LibreOffice prep + Docling + `write_chunk_files`.
 - `POST http://localhost:18765/shutdown` — graceful stop.
 
-The daemon accepts **no filesystem paths**. The earlier `POST /convert` (an `input_path`) and
-`POST /chunk` (a `file_path`) are gone: both needed the daemon to see the caller's filesystem, which
-cannot work once it runs in a container, and `/parse` supersedes both. They now return 404, and
-`--parse-output-dir` / `$PARSE_OUTPUT_DIR` no longer exist. To chunk a `.md` that is already on
-disk, use the CLI: `python chunker.py <file>`.
-
-Send `Accept-Encoding: gzip` — a parsed protocol's reply compresses roughly 5x.
+Paths outside `IAP_SHARED_DOCS` (default `/shared-docs`) are refused.
 
 The daemon has **no authentication**. Every endpoint, `/shutdown` included, is open to whoever can
 reach the port, so nothing that can route to it may be untrusted. Parsing is also slow, which makes
@@ -147,7 +111,7 @@ container's loopback refuses every connection.
 |----------|---------|---------|
 | `iap.docling.daemon.url` | `http://127.0.0.1:18765` | Daemon base URL. The default suits a hand-run daemon; the Compose deployment must override it to `http://docling:18765`, the daemon's service name on the Compose network |
 | `iap.docling.timeout.minutes` | `30` | Per-document parse timeout |
-| `iap.parse.output.dir` | `<user.dir>/iap-parsed-markdown` | Where Java writes `<answer-uuid>/<name>.md` and `Chunks/`. Java-side only — the daemon never sees it |
+| `iap.docling.parse.output.dir` | `/shared-docs` | Where Java writes `<answer-uuid>/<name>.md` and `Chunks/`. Java-side only — the daemon never sees it |
 
 Java never starts the daemon. Run it yourself — in Docker for a real deployment, or by hand for
 local work (see [Manual daemon start](#manual-http-daemon-start-optional)).

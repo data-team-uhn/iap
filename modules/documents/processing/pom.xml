@@ -28,7 +28,7 @@
   <artifactId>iap-processing</artifactId>
   <packaging>pom</packaging>
   <name>IAP - Document processing</name>
-  <description>Document-processing pipeline (Docling parse, markdown cleanup, TOC/appendix detection, chunking)</description>
+  <description>>Document-processing pipeline (parsing, markdown cleanup, chunking).</description>
 
   <properties>
     <python.executable>python</python.executable>
