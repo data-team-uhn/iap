@@ -49,7 +49,7 @@ describe("ErrorPage", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("offers the action button only when it has a label", async () => {
+  it("navigates to the link when the action button is pressed", async () => {
     const user = userEvent.setup();
     renderErrorPage({ buttonLabel: "Go home", buttonLink: "/home" });
 
@@ -65,23 +65,13 @@ describe("ErrorPage", () => {
     expect(setHref).toHaveBeenCalledWith("/home");
   });
 
-  it("navigates nowhere in particular when the button has no link", async () => {
-    const user = userEvent.setup();
-    renderErrorPage({ buttonLabel: "Go home" });
-
-    const setHref = vi.fn();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...window.location, set href(value: string) { setHref(value); } },
-    });
-
-    await user.click(screen.getByRole("button", { name: "Go home" }));
-
-    expect(setHref).toHaveBeenCalledWith("");
-  });
-
-  it("hides the button when only a link is supplied", () => {
-    renderErrorPage({ buttonLink: "/home" });
+  // Half a button is worse than none: a label with nowhere to go just reloads the page, and a link
+  // with nothing to label it is a blank button.
+  it.each([
+    ["only a label is supplied", { buttonLabel: "Go home" }],
+    ["only a link is supplied", { buttonLink: "/home" }],
+  ])("offers no action button when %s", (_case, props) => {
+    renderErrorPage(props);
 
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
