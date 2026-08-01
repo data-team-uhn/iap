@@ -22,13 +22,15 @@ import type { DescendantFilter } from "@iap/frontend-commons/entityGrid/paginati
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
 // Only the submissions with an open review assigned to the current user: a sub:Review descendant
-// whose reviewer is `@me` (resolved server-side) and whose state isn't final yet.
+// whose reviewer is `@me` (resolved server-side) and whose tags name no final decision yet.
+// The servlet's `<>` comparator serializes as `not tags = '...'`, which on the multivalued
+// `tags` property correctly means "none of the values is".
 const MY_OPEN_REVIEWS: DescendantFilter = {
   type: "sub:Review",
   filters: [
     { name: "reviewer", value: "@me" },
-    { name: "status", value: "approved", comparator: "<>" },
-    { name: "status", value: "rejected", comparator: "<>" },
+    { name: "tags", value: "approved", comparator: "<>" },
+    { name: "tags", value: "rejected", comparator: "<>" },
   ],
 };
 

@@ -4,6 +4,6 @@
   "description": "The record was submitted and can no longer be edited by its author.",
   "category": ["lifecycle"],
   "system": true,
-  "color": "#4caf50",
+  "color": "#1976d2",
   "order": 20
 }

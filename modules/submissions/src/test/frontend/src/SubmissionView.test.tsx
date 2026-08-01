@@ -20,6 +20,8 @@ import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import SubmissionView from "@iap/submissions/SubmissionView";
+import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
+import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 // A submission as returned by the `deep` serialization: children nested, references expanded
 const DEEP_SUBMISSION = {
@@ -27,7 +29,7 @@ const DEEP_SUBMISSION = {
   "@name": "demo-1",
   "sling:resourceType": "sub/Submission",
   "title": "Test my drug",
-  "status": "in-review",
+  "tags": ["in-review"],
   "jcr:created": "2026-07-01T10:00:00.000-04:00",
   "jcr:createdBy": "admin",
   "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
@@ -149,7 +151,7 @@ const DEEP_SUBMISSION = {
     "@path": "/Submissions/demo-1/r1",
     "sling:resourceType": "sub/Review",
     "reviewer": "jdoe",
-    "status": "changes-requested",
+    "tags": ["changes-requested"],
     "c1": {
       "@path": "/Submissions/demo-1/r1/c1",
       "sling:resourceType": "sub/ReviewComment",
@@ -168,7 +170,7 @@ const DEEP_SUBMISSION = {
     "@path": "/Submissions/demo-1/r2",
     "sling:resourceType": "sub/Review",
     "reviewer": "asmith",
-    "status": "approved",
+    "tags": ["approved"],
     // A review scoped to one requirement, with an already-settled comment
     "requirement": {
       "@path": "/Schemas/ClinicalTrial/1.0/Protocol",
@@ -190,7 +192,7 @@ const BARE_SUBMISSION = {
   "@path": "/Submissions/demo-2",
   "@name": "demo-2",
   "sling:resourceType": "sub/Submission",
-  "status": "draft",
+  "tags": ["draft"],
   "schemaVersion": "f8cfa08e-b315-4eed-9d38-af6473fcd48f",
   "aliases": ["demo2", "second-demo"],
   "d1": {
@@ -235,18 +237,20 @@ function renderAt(path: string) {
 }
 
 describe("SubmissionView", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearTagDefinitionsCache();
+  });
 
   it("displays the submission's answers, per the schema's structure, and its reviews", async () => {
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(DEEP_SUBMISSION) } as unknown as Response));
+    const fetchMock = vi.fn(tagAwareFetch(DEEP_SUBMISSION));
     vi.stubGlobal("fetch", fetchMock);
 
     renderAt("/Submissions/demo-1");
 
-    // Header: title, status, schema, creator
+    // Header: title, the lifecycle tag chip, schema, creator
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
-    expect(screen.getByText("in-review")).toBeInTheDocument();
+    expect(await screen.findByText("In review")).toBeInTheDocument();
     expect(screen.getByText(/ClinicalTrial 1.0/)).toBeInTheDocument();
     expect(screen.getByText(/by admin/)).toBeInTheDocument();
 
@@ -282,9 +286,11 @@ describe("SubmissionView", () => {
     expect(screen.getByText(/No documents attached yet/)).toBeInTheDocument();
     expect(screen.getByText(/expected: Study protocol/)).toBeInTheDocument();
 
-    // The review with its threaded comment ("jdoe" appears as reviewer and as comment author)
+    // The review with its threaded comment ("jdoe" appears as reviewer and as comment author);
+    // its state is a review-category tag chip
     expect(screen.getAllByText("jdoe").length).toBeGreaterThan(0);
-    expect(screen.getByText("changes-requested")).toBeInTheDocument();
+    expect(await screen.findByText("Changes requested")).toBeInTheDocument();
+    expect(await screen.findByText("Approved")).toBeInTheDocument();
     expect(screen.getByText(/Please clarify the dosage/)).toBeInTheDocument();
     expect(screen.getByText(/Clarified in the summary/)).toBeInTheDocument();
 
@@ -295,8 +301,7 @@ describe("SubmissionView", () => {
   });
 
   it("displays attached documents with download links, and minimal submissions without extras", async () => {
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(BARE_SUBMISSION) } as unknown as Response)));
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch(BARE_SUBMISSION)));
 
     renderAt("/Submissions/demo-2");
 

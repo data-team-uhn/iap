@@ -60,7 +60,7 @@ public class Submission extends Entity
     private String schemaVersion;
 
     @ValueMapValue
-    private String status;
+    private List<String> tags;
 
     /**
      * The title of the submission.
@@ -86,14 +86,16 @@ public class Submission extends Entity
     }
 
     /**
-     * The current lifecycle state of the submission, managed by the attached user workflow.
+     * The tags explicitly placed on this submission. The lifecycle state, managed by the attached user workflow,
+     * is one of them: a {@code lifecycle}-category tag like {@code draft} or {@code in-review}, defined under
+     * {@code /Tags}.
      *
-     * @return a status name, e.g. {@code draft} or {@code in-review}
+     * @return the tag names, an empty list if there are none
      */
     @NotNull
-    public String getStatus()
+    public List<String> getTags()
     {
-        return this.status;
+        return this.tags == null ? List.of() : this.tags;
     }
 
     /**
@@ -130,14 +132,14 @@ public class Submission extends Entity
     }
 
     /**
-     * Whether this submission has been approved, i.e. its lifecycle state (set by the attached user workflow) is
-     * {@code approved}.
+     * Whether this submission has been approved, i.e. it carries the {@code approved} lifecycle tag (set by the
+     * attached user workflow).
      *
      * @return {@code true} if approved
      */
     public boolean isApproved()
     {
-        return "approved".equals(this.status);
+        return this.getTags().contains("approved");
     }
 
     /**
