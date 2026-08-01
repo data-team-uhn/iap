@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { Stack, Typography } from "@mui/material";
+
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 import TagChip from "@iap/tags/TagChip";
 import { tagValueOptions } from "@iap/tags/tagDefinitions";
@@ -94,4 +96,19 @@ registerEntityType(SUBMISSION_TYPE, {
   defaultSort: { field: "jcr:lastModified", sort: "desc" },
   // Each submission is viewable on its own page, at its repository path
   rowLink: row => row["@path"] as string | undefined,
+  // The compact card shown per submission in the grid's narrow-screen list mode
+  listItem: row => (
+    <Stack spacing={0.5} sx={{ py: 1, width: "100%" }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+        <Typography variant="subtitle2">
+          {(row.title as string | undefined) ?? (row["@name"] as string | undefined)}
+        </Typography>
+        <TagChip tags={row.tags} category="lifecycle" />
+      </Stack>
+      <Typography variant="caption" color="text.secondary">
+        {[schemaLabel(row.schemaVersion), dateValue(row["jcr:lastModified"])?.toLocaleDateString()]
+          .filter(Boolean).join(" • ")}
+      </Typography>
+    </Stack>
+  ),
 });

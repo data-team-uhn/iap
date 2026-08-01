@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { render, screen } from "@testing-library/react";
+
 import { getEntityTypeConfig } from "@iap/frontend-commons/entityGrid/registry";
 import { SUBMISSION_TYPE, schemaLabel } from "@iap/submissions/submissionGrid";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
@@ -99,5 +101,35 @@ describe("the registered submission grid configuration", () => {
     const schema = valueGetterOf("schemaVersion");
     expect(schema({ "@path": "/Schemas/DemoStudy/1.0", "version": "1.0" })).toBe("DemoStudy 1.0");
     expect(schema(undefined)).toBe("");
+  });
+
+  it("renders a compact card for the grid's narrow-screen list mode", async () => {
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+
+    render(<>{config?.listItem?.({
+      "@path": "/Submissions/s1",
+      "title": "Test my drug",
+      "tags": ["in-review"],
+      "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "version": "1.0" },
+      "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
+    })}</>);
+
+    expect(screen.getByText("Test my drug")).toBeInTheDocument();
+    expect(await screen.findByText("In review")).toBeInTheDocument();
+    expect(screen.getByText(/ClinicalTrial 1.0 •/)).toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+    clearTagDefinitionsCache();
+  });
+
+  it("falls back to the node name in the card when the title is missing", () => {
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+
+    render(<>{config?.listItem?.({ "@path": "/Submissions/bare", "@name": "bare" })}</>);
+
+    expect(screen.getByText("bare")).toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+    clearTagDefinitionsCache();
   });
 });
