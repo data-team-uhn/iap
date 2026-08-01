@@ -74,6 +74,14 @@ declare module "@mui/material/styles" {
 // the user's system preference by default (see the ThemeProvider `defaultMode="system"` at each
 // entry point) and can be switched at runtime via MUI's `useColorScheme()`.
 const appTheme = createTheme({
+  typography: {
+    // No shouting buttons; set at the typography level (not as a MuiButton override) so
+    // anything else using the button type style — e.g. Typography variant="button" labels —
+    // matches the real buttons
+    button: {
+      textTransform: "none",
+    },
+  },
   // A class-based selector (rather than the default `media`) is what lets `useColorScheme()`
   // switch the scheme at runtime — MUI toggles a `light`/`dark` class on the root element. With
   // `media` the scheme would only follow the OS preference and the toggle would do nothing.
@@ -126,12 +134,11 @@ const appTheme = createTheme({
       defaultProps: {
         disableElevation: true,
         variant: "outlined",
+        // Nearly every button in the app wants to be small; the few that should stand out
+        // (like a page's main call to action) can ask for their size explicitly
+        size: "small",
       },
-      styleOverrides: {
-        root: {
-          textTransform: "none",
-        },
-      },
+      // Button inherits its casing (and the rest of its font) from typography.button above
     },
   },
 });
