@@ -21,6 +21,8 @@ import { useEffect, useState } from "react";
 import { Chip, Stack } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
+import { safeCssColor } from "@iap/frontend-commons/safeColor";
+
 import { type TagDefinition, loadTagDefinitions } from "./tagDefinitions";
 
 // The values of a serialized node's `tags` property, normalized: the property is multivalued,
@@ -32,16 +34,11 @@ function tagNames(tags: unknown): string[] {
   return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === "string") : [];
 }
 
-// The color notations a definition may use: hex, rgb() or hsl(). Anything else — including
-// named colors, which the shipped definitions avoid — renders as a plain chip. Being strict
-// here both keeps getContrastText from choking on garbage and keeps a malicious definition
-// from smuggling arbitrary CSS into the chip's generated styles.
-const SAFE_COLOR = /^(#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|(rgb|hsl)a?\([\d\s.,%/]*\))$/i;
-
 // One tag rendered per its definition: the definition's label, on the definition's color.
+// An unusable color — anything outside safeCssColor's whitelist — renders as a plain chip.
 function DefinedTagChip({ definition }: { definition: TagDefinition }) {
   const theme = useTheme();
-  const safeColor = definition.color && SAFE_COLOR.test(definition.color) ? definition.color : undefined;
+  const safeColor = safeCssColor(definition.color);
   const colors = safeColor ? { bgcolor: safeColor, color: theme.palette.getContrastText(safeColor) } : undefined;
   return <Chip size="small" label={definition.label ?? definition.name} sx={colors} />;
 }

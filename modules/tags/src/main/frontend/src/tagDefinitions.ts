@@ -65,15 +65,21 @@ export function loadTagDefinitions(category?: string): Promise<TagDefinition[]> 
 }
 
 // The choices a data grid column (or any other synchronous consumer) should offer when
-// filtering by a category of tags: the defined tag names, labeled like their definitions.
-// Returns a provider function rather than the values, because the definitions are fetched
-// asynchronously: each call answers from the snapshot fetched so far (and triggers the fetch,
-// so a panel opened too early is at most one reopen away from the full list).
-export function tagValueOptions(category: string): () => { value: string; label: string }[] {
+// filtering by a category of tags: the defined tag names, labeled and colored like their
+// definitions (colors are passed through raw; whoever places one into styles is responsible
+// for whitelisting it, like TagChip does). Returns a provider function rather than the
+// values, because the definitions are fetched asynchronously: each call answers from the
+// snapshot fetched so far (and triggers the fetch, so a panel opened too early is at most
+// one reopen away from the full list).
+export function tagValueOptions(category: string): () => { value: string; label: string; color?: string }[] {
   return () => {
     void loadTagDefinitions(category);
     return (resolvedDefinitions.get(category) ?? [])
-      .map(definition => ({ value: definition.name, label: definition.label ?? definition.name }));
+      .map(definition => ({
+        value: definition.name,
+        label: definition.label ?? definition.name,
+        color: definition.color,
+      }));
   };
 }
 

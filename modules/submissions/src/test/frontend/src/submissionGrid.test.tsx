@@ -72,12 +72,13 @@ describe("the registered submission grid configuration", () => {
       : undefined;
     expect(options?.({ field: "tags" })).toEqual([]);
     await vi.waitFor(() => {
+      // The colors ride along, surfacing as colored chips in the "is any of" filter input
       expect(options?.({ field: "tags" })).toEqual([
-        { value: "draft", label: "Draft" },
-        { value: "submitted", label: "Submitted" },
-        { value: "in-review", label: "In review" },
-        { value: "approved", label: "Approved" },
-        { value: "rejected", label: "Rejected" },
+        { value: "draft", label: "Draft", color: "#9e9e9e" },
+        { value: "submitted", label: "Submitted", color: "#1976d2" },
+        { value: "in-review", label: "In review", color: "#ed6c02" },
+        { value: "approved", label: "Approved", color: "#2e7d32" },
+        { value: "rejected", label: "Rejected", color: "#d32f2f" },
       ]);
     });
 
