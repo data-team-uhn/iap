@@ -16,22 +16,38 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import ClearIcon from "@mui/icons-material/Clear";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import SearchIcon from "@mui/icons-material/Search";
+import SwapVertIcon from "@mui/icons-material/SwapVert";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
-import { Alert, Box, Button, InputAdornment, Stack, TextField, Tooltip, Typography } from "@mui/material";
-import { alpha } from "@mui/material/styles";
+import {
+  Alert,
+  Box,
+  Button,
+  InputAdornment,
+  ListItemText,
+  Menu,
+  MenuItem,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
+  useMediaQuery,
+} from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import {
   ColumnsPanelTrigger,
   DataGridPro,
   FilterPanelTrigger,
   type GridColumnVisibilityModel,
   type GridFilterModel,
+  type GridListViewColDef,
   GridLogicOperator,
   type GridPaginationModel,
+  type GridRenderCellParams,
   type GridSortModel,
   QuickFilter,
   QuickFilterClear,
@@ -44,7 +60,7 @@ import { useNavigate } from "react-router";
 // Imported for its side effect: registers the MUI X license before the first Pro render
 import "../muiLicense";
 import { type DescendantFilter, type EntityRow, type PropertyFilter, fetchEntityPage } from "./pagination";
-import { getEntityTypeConfig } from "./registry";
+import { type EntityGridColumn, getEntityTypeConfig } from "./registry";
 import { toPropertyFilters, withServerFilterOperators } from "./serverFilters";
 
 interface EntityDataGridProps {
@@ -68,18 +84,54 @@ interface EntityDataGridProps {
   disableVirtualization?: boolean;
 }
 
+// The grid hands its sorting state to the toolbar through slotProps, so the sort menu — the
+// list mode's replacement for clickable column headers — lives with the other toolbar controls.
+declare module "@mui/x-data-grid" {
+  interface ToolbarPropsOverrides {
+    // The columns offered for sorting, in column order
+    sortableColumns?: { field: string; headerName?: string }[];
+    sortModel?: GridSortModel;
+    onSortModelChange?: (model: GridSortModel) => void;
+    // Only the list mode needs the menu; regular headers already sort on click
+    showSortMenu?: boolean;
+  }
+}
+
+interface EntityGridToolbarProps {
+  sortableColumns?: { field: string; headerName?: string }[];
+  sortModel?: GridSortModel;
+  onSortModelChange?: (model: GridSortModel) => void;
+  showSortMenu?: boolean;
+}
+
 // The grid's toolbar. User feedback (on a sibling product with the same audience) singled out
 // the search box as the most valuable tool and the hardest to find, so unlike the stock toolbar
 // this one keeps it always visible and prominent: leading the toolbar from its start edge,
 // visibly tinted and outlined in the primary color. The panel toggles (columns, filters) stay
 // compact at the trailing end, dropping to their own row when width runs out.
-function EntityGridToolbar() {
+function EntityGridToolbar(props: EntityGridToolbarProps) {
+  const { sortableColumns = [], sortModel = [], onSortModelChange, showSortMenu = false } = props;
+  const [sortAnchor, setSortAnchor] = useState<HTMLElement | null>(null);
+  const currentSort = sortModel.at(0);
+
+  // Picking the already-active column flips its direction, like clicking a header does
+  const sortBy = (field: string) => {
+    const direction = currentSort?.field === field && currentSort.sort === "asc" ? "desc" : "asc";
+    onSortModelChange?.([{ field, sort: direction }]);
+    setSortAnchor(null);
+  };
+
   return (
-    <Toolbar style={{ flexWrap: "wrap" }}>
+    // flex none: the stock toolbar is locked to its 52px min-height (flex-basis 1px), so when
+    // the controls wrap to a second row they would paint over the grid rows below instead of
+    // getting their own space
+    <Toolbar style={{ flexWrap: "wrap", flex: "none" }}>
       {/* The sizing lives on the QuickFilter itself: it renders a wrapper div which is the
           actual flex item in the toolbar, so styles on the text field could not affect the
-          layout. The trailing auto margin pushes everything after it to the far end. */}
-      <QuickFilter expanded style={{ width: 400, maxWidth: "100%", marginInlineEnd: "auto" }}>
+          layout. The trailing auto margin pushes everything after it to the far end, and
+          minWidth 0 lets the box shrink below its 400px target on narrow screens — a flex
+          item's implicit minimum would otherwise force the whole grid that wide. */}
+      <QuickFilter expanded style={{ flexBasis: 400, flexShrink: 1, minWidth: 0, marginInlineEnd: "auto" }}>
         <QuickFilterControl
           render={({ ref, slotProps, ...controlProps }, state) => (
             <TextField
@@ -125,6 +177,31 @@ function EntityGridToolbar() {
           )}
         />
       </QuickFilter>
+      {showSortMenu && sortableColumns.length > 0 && (
+        <>
+          <Tooltip title="Sort">
+            <ToolbarButton aria-label="Sort" onClick={event => setSortAnchor(event.currentTarget)}>
+              <SwapVertIcon fontSize="small" />
+            </ToolbarButton>
+          </Tooltip>
+          <Menu anchorEl={sortAnchor} open={sortAnchor !== null} onClose={() => setSortAnchor(null)}>
+            {sortableColumns.map(column => (
+              <MenuItem
+                key={column.field}
+                selected={currentSort?.field === column.field}
+                onClick={() => sortBy(column.field)}
+              >
+                <ListItemText>{column.headerName ?? column.field}</ListItemText>
+                {currentSort?.field === column.field && (
+                  <Typography variant="body2" color="text.secondary" aria-hidden>
+                    {currentSort.sort === "asc" ? "↑" : "↓"}
+                  </Typography>
+                )}
+              </MenuItem>
+            ))}
+          </Menu>
+        </>
+      )}
       <Tooltip title="Columns">
         <ColumnsPanelTrigger render={<ToolbarButton />}>
           <ViewColumnIcon fontSize="small" />
@@ -136,6 +213,54 @@ function EntityGridToolbar() {
         </FilterPanelTrigger>
       </Tooltip>
     </Toolbar>
+  );
+}
+
+// A generic text rendering of one cell value: dates and primitives have an obvious one,
+// nested objects have none — keep object-like typeofs out of the list, or they would
+// stringify as "[object Object]".
+function scalarContent(value: unknown): ReactNode {
+  if (value instanceof Date) {
+    return value.toLocaleString();
+  }
+  return ["string", "number", "boolean"].includes(typeof value) ? String(value) : null;
+}
+
+// One value of the narrow-screen card, rendered the way its column would render it: through
+// the column's renderCell and valueGetter when present, generically otherwise. Our render
+// callbacks only read the row and value, so the partial params object is enough.
+function columnContent(column: EntityGridColumn, row: EntityRow): ReactNode {
+  const raw = row[column.field];
+  const value = column.valueGetter
+    ? (column.valueGetter as unknown as (value: unknown, row: EntityRow) => unknown)(raw, row)
+    : raw;
+  if (column.renderCell) {
+    const renderCell =
+      column.renderCell as unknown as (params: Pick<GridRenderCellParams, "row" | "value" | "field">) => ReactNode;
+    return renderCell({ row, value, field: column.field });
+  }
+  return scalarContent(value);
+}
+
+// The card shown for one entity in list mode when its type registers no listItem renderer:
+// the first column's content as the card title, the other columns as labeled rows.
+function GenericListItem({ row, columns }: { row: EntityRow; columns: EntityGridColumn[] }) {
+  const [primary, ...details] = columns;
+  return (
+    <Stack spacing={0.5} sx={{ py: 1, width: "100%" }}>
+      <Typography variant="subtitle2" component="div">{columnContent(primary, row)}</Typography>
+      {details.map(column => {
+        const content = columnContent(column, row);
+        return content == null || content === "" ? null : (
+          <Stack key={column.field} direction="row" spacing={1} sx={{ alignItems: "center" }}>
+            <Typography variant="caption" color="text.secondary" component="div" sx={{ minWidth: 96 }}>
+              {column.headerName ?? column.field}
+            </Typography>
+            <Box sx={{ typography: "body2" }}>{content}</Box>
+          </Stack>
+        );
+      })}
+    </Stack>
   );
 }
 
@@ -206,6 +331,10 @@ function EntityDataGrid(props: EntityDataGridProps) {
   } = props;
   const config = getEntityTypeConfig(entityType);
   const navigate = useNavigate();
+  const theme = useTheme();
+  // On narrow (typically touch) screens the grid switches to the Pro list mode: one card per
+  // row instead of columns, with sorting moved into the toolbar's sort menu
+  const compactList = useMediaQuery(theme.breakpoints.down("sm"));
   const columnStorageKey = `iap.entityGrid.${entityType}.columns`;
   const [rows, setRows] = useState<EntityRow[]>([]);
   const [rowCount, setRowCount] = useState(0);
@@ -299,6 +428,14 @@ function EntityDataGrid(props: EntityDataGridProps) {
     setPaginationModel(current => ({ ...current, page: 0 }));
   };
 
+  // The single synthetic "column" rendering each row as a card in list mode
+  const listColumn: GridListViewColDef<EntityRow> = {
+    field: "__listItem__",
+    renderCell: params => config.listItem
+      ? config.listItem(params.row)
+      : <GenericListItem row={params.row} columns={config.columns} />,
+  };
+
   // Clicking a row navigates to the entity's own page, when the entity type declares one
   const { rowLink } = config;
   const openRow = rowLink && ((row: EntityRow) => {
@@ -333,9 +470,15 @@ function EntityDataGrid(props: EntityDataGridProps) {
         onSortModelChange={setSortModel}
         filterMode="server"
         onFilterModelChange={searchFor}
+        listView={compactList}
+        listViewColumn={listColumn}
+        // Cards in list mode have variable height; regular rows keep the default fixed height
+        getRowHeight={compactList ? () => "auto" : undefined}
         slots={{ toolbar: EntityGridToolbar, noRowsOverlay: EntityGridStatusOverlay }}
         slotProps={{
-          // The servlet only combines conditions with AND, so don't offer OR in the filter panel
+          // The servlet only combines conditions with AND, so don't offer OR in the filter
+          // panel. On narrow screens the panel's condition form stacks vertically: its usual
+          // side-by-side selects add up to more width than a phone has.
           filterPanel: {
             logicOperators: [GridLogicOperator.And],
             sx: {
@@ -347,6 +490,10 @@ function EntityDataGrid(props: EntityDataGridProps) {
                 color: "text.secondary",
                 border: "none",
               },
+              ...compactList && {
+                "& .MuiDataGrid-filterForm": { flexDirection: "column", gap: 1 },
+                "& .MuiDataGrid-filterForm .MuiFormControl-root": { width: "100%" },
+              },
             },
           },
           // Filtering happens server-side, so from the grid's point of view an unmatched
@@ -357,6 +504,14 @@ function EntityDataGrid(props: EntityDataGridProps) {
             message: fullText || columnFilters.length > 0 ? noResultsMessage : emptyMessage,
             error,
             onRetry: () => setRetryCount(count => count + 1),
+          },
+          toolbar: {
+            showSortMenu: compactList,
+            sortableColumns: config.columns
+              .filter(column => column.sortable !== false)
+              .map(column => ({ field: column.field, headerName: column.headerName })),
+            sortModel,
+            onSortModelChange: setSortModel,
           },
         }}
         columnVisibilityModel={columnVisibilityModel}
