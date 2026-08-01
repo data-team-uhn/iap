@@ -20,9 +20,14 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import MySubmissionsWidget from "@iap/submissions/MySubmissionsWidget";
+import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
+import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 describe("MySubmissionsWidget", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearTagDefinitionsCache();
+  });
 
   it("lists the current user's submissions with the schema and status columns", async () => {
     const page = {
@@ -30,7 +35,7 @@ describe("MySubmissionsWidget", () => {
         "@path": "/Submissions/s1",
         "@name": "s1",
         "title": "Test my drug",
-        "status": "in-review",
+        "tags": ["in-review"],
         "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "@name": "1.0", "version": "1.0" },
         "jcr:created": "2026-07-01T10:00:00.000-04:00",
         "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
@@ -41,15 +46,15 @@ describe("MySubmissionsWidget", () => {
       totalrows: 1,
       totalIsApproximate: false,
     };
-    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(page) } as unknown as Response));
+    const fetchMock = vi.fn(tagAwareFetch(page));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<MySubmissionsWidget />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
     expect(screen.getByText("ClinicalTrial 1.0")).toBeInTheDocument();
-    expect(screen.getByText("in-review")).toBeInTheDocument();
+    // The lifecycle tag, displayed per its /Tags definition
+    expect(await screen.findByText("In review")).toBeInTheDocument();
 
     const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     expect(url.pathname).toBe("/Submissions.paginate.json");

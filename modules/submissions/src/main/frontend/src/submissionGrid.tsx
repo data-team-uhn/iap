@@ -17,8 +17,8 @@
  */
 
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
-
-import StatusChip from "./StatusChip";
+import TagChip from "@iap/tags/TagChip";
+import { tagValueOptions } from "@iap/tags/tagDefinitions";
 
 // The entity type listed by submission grids, as registered with the entity grid registry.
 export const SUBMISSION_TYPE = "sub/Submission";
@@ -58,12 +58,17 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     valueGetter: value => schemaLabel(value),
   },
   {
-    field: "status",
+    field: "tags",
     headerName: "Status",
     width: 130,
     type: "singleSelect",
-    valueOptions: ["draft", "submitted", "in-review", "approved", "rejected"],
-    renderCell: params => <StatusChip value={params.value as unknown} />,
+    // The filterable choices come from the lifecycle tag definitions under /Tags (the values
+    // are the tag names the filter sends to the servlet; an equality filter on the multivalued
+    // `tags` property matches submissions carrying that tag among others)
+    valueOptions: tagValueOptions("lifecycle"),
+    // Ordering by a multivalued property has no meaningful semantics
+    sortable: false,
+    renderCell: params => <TagChip tags={params.row.tags} category="lifecycle" />,
   },
   {
     field: "jcr:created",

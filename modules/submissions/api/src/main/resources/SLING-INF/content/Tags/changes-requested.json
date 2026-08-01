@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "Changes requested",
+  "description": "The reviewer asked the author to revise the record before a decision can be made.",
+  "category": ["review"],
+  "system": true,
+  "color": "#f57c00",
+  "order": 70
+}
