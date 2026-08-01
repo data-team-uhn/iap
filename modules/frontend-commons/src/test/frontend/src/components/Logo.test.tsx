@@ -77,4 +77,27 @@ describe("Logo", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("follows the system scheme when that is what the deployment defaults to", () => {
+    seedMetas({ title: "IAP", logoLight: "/logo.light.png", logoDark: "/logo.dark.png" });
+
+    render(
+      <ThemeProvider theme={appTheme} defaultMode="system">
+        <Logo />
+      </ThemeProvider>
+    );
+
+    // jsdom reports no colour-scheme preference, so the light variant stands in for the system one
+    expect(screen.getByRole("img", { name: "IAP" })).toHaveAttribute("src", "/logo.light.png");
+  });
+
+  it("leaves the alt text empty when the image has no name to go with it", () => {
+    seedMetas({ affiliationLogoLight: "/affiliation.light.png" });
+
+    const { container } = renderLogo("affiliation");
+
+    // An empty alt makes the image presentational, so it is queried directly rather than by role
+    expect(container.querySelector("img")).toHaveAttribute("src", "/affiliation.light.png");
+    expect(container.querySelector("img")).toHaveAttribute("alt", "");
+  });
 });

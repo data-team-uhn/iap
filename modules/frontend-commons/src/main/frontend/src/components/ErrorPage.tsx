@@ -99,13 +99,15 @@ export default function ErrorPage(props: ErrorPageProps) {
             </FormattedText> }
           </Stack>
         </Grid>
-        { buttonLabel &&
+        { /* Both halves are needed for the button to be worth offering: a label with nowhere to go
+             would reload the page, and a link with nothing to label it would be a blank button. */ }
+        { buttonLabel && buttonLink &&
             <Grid>
               <Button
                 variant="contained"
                 color="primary"
                 startIcon={<NavigationIcon />}
-                onClick={() => window.location.href = buttonLink ?? ""}
+                onClick={() => window.location.href = buttonLink}
               >
                 {buttonLabel}
               </Button>

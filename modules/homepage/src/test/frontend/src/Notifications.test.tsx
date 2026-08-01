@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import Notifications from "@iap/homepage/Notifications";
 
@@ -28,5 +28,17 @@ describe("Notifications", () => {
     fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
 
     expect(await screen.findByText("You have no new notifications")).toBeInTheDocument();
+  });
+
+  it("closes the dropdown again", async () => {
+    render(<Notifications />);
+    fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
+    const entry = await screen.findByText("You have no new notifications");
+
+    fireEvent.keyDown(entry, { key: "Escape", code: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByText("You have no new notifications")).not.toBeInTheDocument();
+    });
   });
 });

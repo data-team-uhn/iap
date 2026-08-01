@@ -49,4 +49,24 @@ describe("RedirectSignIn", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("renders nothing for a target that is not a URL at all", () => {
+    // An unparseable host, so building the URL throws rather than just producing something odd
+    const { container } = render(<RedirectSignIn extension={{ "iap:targetURL": "http://[" }} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("navigates to the identity provider when the button is pressed", () => {
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, assign, origin: window.location.origin, pathname: "/login", search: "" },
+    });
+    render(<RedirectSignIn extension={{ "iap:targetURL": "/goto-external-login" }} />);
+
+    screen.getByRole("button", { name: "Continue to sign-in" }).click();
+
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining("/goto-external-login?resource=%2F") as string);
+  });
 });

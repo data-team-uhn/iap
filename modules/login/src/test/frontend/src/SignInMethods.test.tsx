@@ -70,4 +70,31 @@ describe("SignInMethods", () => {
     expect(await screen.findByLabelText(/Username/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
+
+  it("labels a collapsed method by its name, then by a generic label, when it declares neither", async () => {
+    mockedLoadExtensions.mockResolvedValue([
+      { "iap:extensionName": "Primary", "iap:extensionRender": () => <div>Primary form</div> },
+      { "iap:extensionName": "Named", "iap:extensionRender": () => <div>Named form</div> },
+      { "iap:extensionRender": () => <div>Anonymous form</div> },
+    ]);
+
+    render(<SignInMethods />);
+
+    // No iap:collapsedLabel anywhere: the second falls back to its name, the third to the default
+    expect(await screen.findByRole("button", { name: "Named" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More sign-in options" })).toBeInTheDocument();
+  });
+
+  it("falls back to the credentials form when the methods cannot be loaded", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const failure = new Error("network error");
+    mockedLoadExtensions.mockRejectedValue(failure);
+
+    render(<SignInMethods />);
+
+    expect(await screen.findByLabelText(/Username/)).toBeInTheDocument();
+    expect(errorSpy).toHaveBeenCalledWith("Something went wrong loading the sign-in methods", failure);
+    errorSpy.mockRestore();
+  });
 });

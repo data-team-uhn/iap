@@ -69,6 +69,15 @@ describe("Main routing", () => {
     expect(screen.queryByText("Dashboard view")).not.toBeInTheDocument();
   });
 
+  it("treats views that resolve to nothing as an empty list of routes", async () => {
+    mockedGetRoutes.mockResolvedValue(undefined);
+
+    renderMain(["/"]);
+
+    await vi.waitFor(() => expect(mockedGetRoutes).toHaveBeenCalled());
+    expect(screen.queryByText("Dashboard view")).not.toBeInTheDocument();
+  });
+
   it("treats a failure to load the views as an empty list of routes", async () => {
     mockedGetRoutes.mockRejectedValue(new Error("network error"));
 

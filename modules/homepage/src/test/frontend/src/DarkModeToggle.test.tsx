@@ -62,4 +62,15 @@ describe("DarkModeToggle", () => {
 
     expect(await screen.findByRole("button", { name: "Switch to light mode" })).toBeInTheDocument();
   });
+
+  it("resolves the system scheme when the deployment defaults to it", async () => {
+    render(
+      <ThemeProvider theme={appTheme} defaultMode="system">
+        <DarkModeToggle />
+      </ThemeProvider>
+    );
+
+    // jsdom reports no colour-scheme preference, so the system scheme resolves to light
+    expect(await screen.findByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument();
+  });
 });

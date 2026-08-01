@@ -71,4 +71,44 @@ describe("ParticipatingInstitutions", () => {
 
     expect(await screen.findByText("Réseau participant")).toBeInTheDocument();
   });
+
+  it("prefers the dark logo on the dark scheme, falling back to the light one", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      "both": { "name": "Both", "logoLight": "/light.png", "logoDark": "/dark.png" },
+      "lightOnly": { "name": "Light only", "logoLight": "/only-light.png" },
+    }), { status: 200 }));
+
+    render(
+      <ThemeProvider theme={appTheme} defaultMode="dark">
+        <ParticipatingInstitutions />
+      </ThemeProvider>
+    );
+
+    expect(await screen.findByAltText("Both")).toHaveAttribute("src", "/dark.png");
+    expect(screen.getByAltText("Light only")).toHaveAttribute("src", "/only-light.png");
+  });
+
+  it("links an institution that supplies a URL, and does not link one that does not", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      "linked": { "name": "Linked", "url": "https://example.org" },
+      "plain": { "name": "Plain" },
+    }), { status: 200 }));
+    renderWithTheme();
+
+    const link = await screen.findByRole("link", { name: "Linked" });
+    expect(link).toHaveAttribute("href", "https://example.org");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("Plain")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Plain" })).not.toBeInTheDocument();
+  });
+
+  it("uses an empty alt for a logo whose institution has no name", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      "anonymous": { "logoLight": "/anonymous.png" },
+    }), { status: 200 }));
+    renderWithTheme();
+
+    await waitFor(() => { expect(document.querySelector('img[src="/anonymous.png"]')).toBeInTheDocument(); });
+    expect(document.querySelector('img[src="/anonymous.png"]')).toHaveAttribute("alt", "");
+  });
 });

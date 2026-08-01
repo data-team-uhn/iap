@@ -80,4 +80,18 @@ describe("AppBar", () => {
     // The toolbar frame itself still renders (an empty strip), just with no content
     expect(container.querySelector(".MuiToolbar-root")).not.toBeNull();
   });
+
+  it("reports a failure to load the entries, and still renders the bar", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
+    const failure = new Error("network error");
+    mockedLoadExtensions.mockRejectedValue(failure);
+
+    const { container } = render(<AppBar />);
+
+    await vi.waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith("Something went wrong loading the app bar entries", failure);
+    });
+    expect(container.querySelector(".MuiToolbar-root")).not.toBeNull();
+    errorSpy.mockRestore();
+  });
 });

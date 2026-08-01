@@ -16,7 +16,10 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ThemeProvider } from "@mui/material/styles";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+import { appTheme } from "@iap/frontend-commons/appTheme";
 
 import PageLayout from "@iap/homepage/PageLayout";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
@@ -199,6 +202,157 @@ describe("PageLayout", () => {
       expect(await screen.findByText("The side panel is available here", {}, { timeout: 3000 }))
         .toBeInTheDocument();
       expect(stored.get("iap.pullTabHintSeen")).toBe("true");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // A matchMedia whose "change" listeners can be fired, standing in for a viewport that crosses a
+  // region's breakpoint while the page is open. "all" matches (so the hint machinery runs at all),
+  // the region-expanding queries do not.
+  const stubResizableMedia = () => {
+    const listeners: ((event: MediaQueryListEvent) => void)[] = [];
+    vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
+      matches: query === "all",
+      media: query,
+      onchange: null,
+      addEventListener: (_: string, listener: (event: MediaQueryListEvent) => void) => listeners.push(listener),
+      removeEventListener: () => { /* the component's cleanup, not observed here */ },
+      dispatchEvent: () => false,
+    })));
+    return (matches: boolean) => {
+      act(() => { listeners.forEach(listener => { listener({ matches } as MediaQueryListEvent); }); });
+    };
+  };
+
+  // The hint is once-ever per browser, so tell it that it has already been shown; these tests are
+  // about the live-collapse hint, which is not subject to that.
+  const stubSeenHint = () => vi.stubGlobal("localStorage", {
+    getItem: () => "true",
+    setItem: () => { /* nothing to remember */ },
+    removeItem: () => { /* unused */ },
+    clear: () => { /* unused */ },
+  });
+
+  it("flashes the hint when a region collapses live, and takes it down again after a while", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const crossBreakpoint = stubResizableMedia();
+    stubSeenHint();
+    try {
+      mockPoints({ FrameStart: [ext("Rail")] });
+      render(<PageLayout>main</PageLayout>);
+      await screen.findByText("Rail content");
+      expect(screen.queryByText("The side panel is available here")).toBeNull();
+
+      // The region collapses: the hint appears after its delay...
+      crossBreakpoint(false);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+      expect(screen.getByText("The side panel is available here")).toBeInTheDocument();
+
+      // ...and takes itself down again
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+      await waitFor(() => { expect(screen.queryByText("The side panel is available here")).toBeNull(); });
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("takes the hint down as soon as the region expands again", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const crossBreakpoint = stubResizableMedia();
+    stubSeenHint();
+    try {
+      mockPoints({ FrameStart: [ext("Rail")] });
+      render(<PageLayout>main</PageLayout>);
+      await screen.findByText("Rail content");
+      crossBreakpoint(false);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+      expect(screen.getByText("The side panel is available here")).toBeInTheDocument();
+
+      crossBreakpoint(true);
+
+      await waitFor(() => { expect(screen.queryByText("The side panel is available here")).toBeNull(); });
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("names the pull tab in a tooltip while it is hovered", async () => {
+    mockPoints({ FrameStart: [ext("Rail")] });
+    render(<PageLayout>main</PageLayout>);
+    const tab = await screen.findByRole("button", { name: "Open the side panel" });
+
+    fireEvent.mouseOver(tab);
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Open the side panel");
+
+    fireEvent.mouseLeave(tab);
+
+    await waitFor(() => { expect(screen.queryByRole("tooltip")).not.toBeInTheDocument(); });
+  });
+
+  it("closes the rail drawer again", async () => {
+    mockPoints({ FrameStart: [ext("Rail")] });
+    render(<PageLayout>main</PageLayout>);
+    fireEvent.click(await screen.findByRole("button", { name: "Open the side panel" }));
+    await waitFor(() => { expect(screen.getAllByText("Rail content")).toHaveLength(2); });
+
+    fireEvent.keyDown(screen.getAllByText("Rail content")[1], { key: "Escape", code: "Escape" });
+
+    // Back to just the regular rail, the overlay copy having gone away
+    await waitFor(() => { expect(screen.getAllByText("Rail content")).toHaveLength(1); });
+  });
+
+  it("closes the frame bar drawer again", async () => {
+    mockPoints({ FrameTop: [ext("Top bar")] });
+    const { container } = render(<PageLayout>main</PageLayout>);
+    await screen.findByText("Top bar content");
+    // The bar tabs are display:none until the viewport is short, which hides them from the
+    // accessibility tree, so this one is reached by attribute
+    fireEvent.click(container.querySelector('[aria-label="Open the top panel"]') as HTMLElement);
+    await waitFor(() => { expect(screen.getAllByText("Top bar content")).toHaveLength(2); });
+
+    fireEvent.keyDown(screen.getAllByText("Top bar content")[1], { key: "Escape", code: "Escape" });
+
+    await waitFor(() => { expect(screen.getAllByText("Top bar content")).toHaveLength(1); });
+  });
+
+  it("takes the region dimensions the theme configures, rather than its own defaults", async () => {
+    mockPoints({ FrameStart: [ext("Rail")], FrameTop: [ext("Top bar")] });
+
+    render(
+      <ThemeProvider theme={appTheme} defaultMode="light">
+        <PageLayout>main</PageLayout>
+      </ThemeProvider>
+    );
+
+    // appTheme sets iapShell; without a theme saying otherwise the shell falls back to its own
+    // constants, which the other tests in this file exercise
+    expect(await screen.findByText("Rail content")).toBeInTheDocument();
+    expect(screen.getByText("Top bar content")).toBeInTheDocument();
+  });
+
+  it("stays quiet about the hint when there is nowhere to remember it", async () => {
+    const crossBreakpoint = stubResizableMedia();
+    // Storage that throws on every access, as a browser blocking it would
+    vi.stubGlobal("localStorage", {
+      getItem: () => { throw new Error("storage blocked"); },
+      setItem: () => { throw new Error("storage blocked"); },
+      removeItem: () => { /* unused */ },
+      clear: () => { /* unused */ },
+    });
+    try {
+      mockPoints({ FrameStart: [ext("Rail")] });
+
+      render(<PageLayout>main</PageLayout>);
+
+      await screen.findByText("Rail content");
+      // Unreadable storage is treated as "already seen", so no page-load hint is scheduled; a live
+      // collapse still hints, which is what proves the region is otherwise working
+      expect(screen.queryByText("The side panel is available here")).toBeNull();
+      crossBreakpoint(false);
     } finally {
       vi.unstubAllGlobals();
     }

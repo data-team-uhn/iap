@@ -75,4 +75,43 @@ describe("Dashboard", () => {
     await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
     expect(container.querySelector(".MuiPaper-root")).toBeNull();
   });
+
+  it("spans a wide widget across more columns, and treats an unknown width as normal", async () => {
+    mockedLoadExtensions.mockResolvedValue([
+      { ...widget("Wide", 0), "iap:widgetWidth": "wide" },
+      { ...widget("Odd", 1), "iap:widgetWidth": "enormous" },
+      widget("Default", 2),
+    ]);
+
+    render(<Dashboard />);
+
+    await screen.findByText("Wide content");
+    expect(screen.getByText("Odd content")).toBeInTheDocument();
+    expect(screen.getByText("Default content")).toBeInTheDocument();
+  });
+
+  it("renders a widget that declares no name", async () => {
+    const unnamed: Record<string, unknown> = { ...widget("Unnamed", 0) };
+    delete unnamed["iap:extensionName"];
+    mockedLoadExtensions.mockResolvedValue([unnamed]);
+
+    render(<Dashboard />);
+
+    expect(await screen.findByText("Unnamed content")).toBeInTheDocument();
+  });
+
+  it("reports a failure to load the widgets, and stops waiting for them", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
+    const failure = new Error("network error");
+    mockedLoadExtensions.mockRejectedValue(failure);
+
+    const { container } = render(<Dashboard />);
+
+    await waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith("Something went wrong loading the dashboard", failure);
+    });
+    await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
+    expect(container.querySelector(".MuiPaper-root")).toBeNull();
+    errorSpy.mockRestore();
+  });
 });

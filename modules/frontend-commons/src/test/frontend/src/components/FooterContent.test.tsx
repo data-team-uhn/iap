@@ -48,6 +48,20 @@ describe("FooterContent", () => {
     return result;
   };
 
+  it("leaves the target empty for a link that registers no URL", async () => {
+    mockedLoadExtensions.mockResolvedValue([
+      { "iap:extensionName": "No target" },
+    ]);
+
+    await renderContent();
+
+    // An empty href is not a link as far as accessibility is concerned, so the entry is found by
+    // its text rather than by role
+    const entry = await screen.findByText("No target");
+    expect(entry.tagName).toBe("A");
+    expect(entry).toHaveAttribute("href", "");
+  });
+
   it("navigates in-app links with a plain full-page anchor by default", async () => {
     mockedLoadExtensions.mockResolvedValue([
       { "iap:extensionName": "FAQ", "iap:targetURL": "/faq" },
@@ -107,5 +121,17 @@ describe("FooterCredits", () => {
 
     await waitFor(() => expect(screen.getByRole("img", { name: "DATA" }))
       .toHaveAttribute("src", "/libs/iap/resources/media/default/data-logo.png"));
+  });
+
+  it("follows the system scheme when that is what the deployment defaults to", async () => {
+    render(
+      <ThemeProvider theme={appTheme} defaultMode="system">
+        <FooterCredits />
+      </ThemeProvider>
+    );
+
+    // jsdom reports no colour-scheme preference, so the light-background variant stands in
+    await waitFor(() => expect(screen.getByRole("img", { name: "DATA" }))
+      .toHaveAttribute("src", "/libs/iap/resources/media/default/data-logo_light_bg.png"));
   });
 });
