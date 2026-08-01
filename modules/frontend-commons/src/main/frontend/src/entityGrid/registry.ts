@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import type { ReactNode } from "react";
+
 import type { EntityRow } from "./pagination";
 import type { GridColDef, GridSortDirection } from "@mui/x-data-grid-pro";
 
@@ -40,6 +42,9 @@ export interface EntityGridConfig {
   // Where clicking a row navigates to (an in-app URL). Rows aren't clickable when this is
   // absent, and individual rows aren't when it returns undefined.
   rowLink?: (row: EntityRow) => string | undefined;
+  // Renders one entity as a compact card in the grid's narrow-screen list mode. When absent,
+  // a generic card is derived from the columns (first column prominent, the rest as rows).
+  listItem?: (row: EntityRow) => ReactNode;
 }
 
 const configs = new Map<string, EntityGridConfig>();

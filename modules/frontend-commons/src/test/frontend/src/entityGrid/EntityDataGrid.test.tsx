@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 
@@ -52,6 +52,44 @@ registerEntityType(PLAIN_TYPE, {
     { field: "modified", headerName: "Modified", sortProperty: "jcr:lastModified" },
   ],
 });
+
+// A type exercising every kind of column content the generic list card can face; the "nested"
+// column is also excluded from sorting
+const CARD_TYPE = "test/CardEntity";
+registerEntityType(CARD_TYPE, {
+  homepage: "/CardEntities",
+  columns: [
+    { field: "title", headerName: "Title" },
+    { field: "status", headerName: "Status", renderCell: params => <em>{String((params.row as Record<string, unknown>).status)}</em> },
+    { field: "count", headerName: "Count" },
+    { field: "flag", headerName: "Flag" },
+    { field: "when", headerName: "When", valueGetter: (value: unknown) => new Date(String(value)) },
+    { field: "nested", headerName: "Nested", sortable: false },
+    { field: "extra" },
+  ],
+});
+
+// A type bringing its own card renderer for the list mode
+const CUSTOM_CARD_TYPE = "test/CustomCardEntity";
+registerEntityType(CUSTOM_CARD_TYPE, {
+  homepage: "/CustomCards",
+  columns: [{ field: "title", headerName: "Title" }],
+  listItem: row => <div>Custom card: {String(row.title)}</div>,
+});
+
+// Makes MUI's useMediaQuery see a narrow viewport, switching the grid to its list mode
+function fakeNarrowScreen() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("max-width"),
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+  }));
+}
 
 function mockPage(rows: Record<string, unknown>[]) {
   const page = {
@@ -351,6 +389,116 @@ describe("EntityDataGrid", () => {
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("catastrophe")).toBeInTheDocument();
+  });
+
+  it("switches to a generic card list on narrow screens, keeping rows tappable", async () => {
+    const user = userEvent.setup();
+    fakeNarrowScreen();
+    mockPage([{
+      "@path": "/GridEntities/e1",
+      "title": "First entity",
+      "status": "draft",
+      "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
+    }]);
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />} />
+          <Route path="/GridEntities/e1" element={<div>Entity page</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    // The generic card: first column as the title, the others as labeled rows
+    expect(await screen.findByText("First entity")).toBeInTheDocument();
+    expect(screen.getByText("Status")).toBeInTheDocument();
+    expect(screen.getByText("draft")).toBeInTheDocument();
+
+    // Tapping the card navigates like clicking a row does
+    await user.click(screen.getByText("First entity"));
+    expect(await screen.findByText("Entity page")).toBeInTheDocument();
+  });
+
+  it("renders every kind of column content in the generic card", async () => {
+    fakeNarrowScreen();
+    mockPage([{
+      "@path": "/CardEntities/e1",
+      "title": "Rich entity",
+      "status": "special",
+      "count": 42,
+      "flag": true,
+      "when": "2026-07-02T10:00:00.000Z",
+      "nested": { inner: "value" },
+      "extra": "loose end",
+    }]);
+
+    render(<EntityDataGrid entityType={CARD_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText("Rich entity")).toBeInTheDocument();
+    // renderCell columns render through their own renderer
+    expect(screen.getByText("special").tagName).toBe("EM");
+    // Plain numbers and booleans are stringified, dates from value getters are formatted
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText("true")).toBeInTheDocument();
+    expect(screen.getByText(new Date("2026-07-02T10:00:00.000Z").toLocaleString())).toBeInTheDocument();
+    // Nested objects have no generic rendering: the whole labeled row is skipped
+    expect(screen.queryByText("Nested")).toBeNull();
+    // A column without a header falls back to its field name as the label
+    expect(screen.getByText("extra")).toBeInTheDocument();
+    expect(screen.getByText("loose end")).toBeInTheDocument();
+  });
+
+  it("prefers a type's own card renderer in list mode", async () => {
+    fakeNarrowScreen();
+    mockPage([{ "@path": "/CustomCards/e1", "title": "Bespoke" }]);
+
+    render(<EntityDataGrid entityType={CUSTOM_CARD_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText(/Custom card: Bespoke/)).toBeInTheDocument();
+  });
+
+  it("offers toolbar sorting in list mode, since cards have no headers to click", async () => {
+    const user = userEvent.setup();
+    fakeNarrowScreen();
+    const fetchMock = mockPage([]);
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Nothing to show");
+
+    const toolbar = screen.getByRole("toolbar");
+    await user.click(within(toolbar).getByRole("button", { name: "Sort" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Modified/ }));
+    await waitFor(() => {
+      const lastUrl = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
+      expect(lastUrl.searchParams.get("sortBy")).toBe("jcr:lastModified");
+      expect(lastUrl.searchParams.get("descending")).toBeNull();
+    });
+
+    // Picking the active column again flips the direction
+    await user.click(within(toolbar).getByRole("button", { name: "Sort" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Modified/ }));
+    await waitFor(() => {
+      const lastUrl = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
+      expect(lastUrl.searchParams.get("descending")).toBe("true");
+    });
+
+    // The menu can also be dismissed without picking anything
+    await user.click(within(toolbar).getByRole("button", { name: "Sort" }));
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("menuitem", { name: /Modified/ })).toBeNull();
+    });
+  });
+
+  it("keeps the sort menu out of the regular column view", async () => {
+    mockPage([]);
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Nothing to show");
+
+    // The column headers have their own sort buttons; the toolbar must not double up
+    expect(within(screen.getByRole("toolbar")).queryByRole("button", { name: "Sort" })).toBeNull();
   });
 
   it("keeps the next page reachable when the server's total is approximate", async () => {
