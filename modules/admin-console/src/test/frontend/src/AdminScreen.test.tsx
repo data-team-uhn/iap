@@ -60,4 +60,13 @@ describe("AdminScreen", () => {
     // The action acts on administrative data, so it shares the marked panel with the content
     expect(actionButton.closest("div")?.parentElement).toContainElement(screen.getByText("content"));
   });
+
+  it("keeps the action alone on its row when the panel has no title", () => {
+    renderAt("/admin/categories",
+      <AdminScreen action={<button>New thing</button>}>content</AdminScreen>);
+
+    // Nothing to sit opposite, so the row pushes the action to its end instead of spreading
+    const row = screen.getByRole("button", { name: "New thing" }).closest("div");
+    expect(getComputedStyle(row as Element).justifyContent).toBe("flex-end");
+  });
 });
