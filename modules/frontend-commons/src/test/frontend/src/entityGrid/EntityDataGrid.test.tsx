@@ -589,4 +589,60 @@ describe("EntityDataGrid", () => {
     expect(screen.getByText("Newest entity")).toBeInTheDocument();
     expect(screen.queryByText("Stale entity")).toBeNull();
   });
+
+  it("docks the filter panel to the bottom of narrow screens, one card per condition", async () => {
+    const user = userEvent.setup();
+    fakeNarrowScreen();
+    mockPage([]);
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Nothing to show");
+
+    await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
+    // Flush any panel render work left pending by the click, so the assertions below see the
+    // sheet even under a heavily loaded, coverage-instrumented run (see flushRender)
+    await flushRender();
+
+    // The panel is a fixed bottom sheet rather than a floating popper
+    const panel = document.querySelector(".MuiDataGrid-panel");
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveStyle({ position: "fixed" });
+    // The sheet announces itself with a header, and the condition card carries a labeled
+    // Remove button instead of the desktop layout's delete X
+    expect(await screen.findByText("Filters", {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "Column" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+
+    // The header's own close button dismisses the sheet
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("combobox", { name: "Column" })).toBeNull();
+    });
+
+    // Removing the only (still empty) condition also dismisses the sheet — stock behavior
+    await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("combobox", { name: "Column" })).toBeNull();
+    });
+  });
+
+  it("gives the columns panel the same bottom-sheet header on narrow screens", async () => {
+    const user = userEvent.setup();
+    fakeNarrowScreen();
+    mockPage([]);
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Nothing to show");
+
+    await user.click(screen.getByRole("button", { name: /columns/i }));
+    // Same flush-and-wide-timeout treatment as the filters sheet test above
+    await flushRender();
+
+    expect(await screen.findByText("Columns", {}, { timeout: 10_000 })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Columns")).toBeNull();
+    });
+  });
 });
