@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "In review",
+  "description": "The record was picked up by its reviewers and a decision is pending.",
+  "category": ["lifecycle"],
+  "system": true,
+  "color": "#ed6c02",
+  "order": 30
+}

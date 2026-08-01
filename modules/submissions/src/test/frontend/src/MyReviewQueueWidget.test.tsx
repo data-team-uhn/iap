@@ -37,7 +37,8 @@ describe("MyReviewQueueWidget", () => {
     const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     expect(url.pathname).toBe("/Submissions.paginate.json");
     expect(url.searchParams.get("childType")).toBe("sub:Review");
-    expect(url.searchParams.getAll("childFieldName")).toEqual(["reviewer", "status", "status"]);
+    // "no final decision yet" is expressed on the review's tags: none of them may be a decision
+    expect(url.searchParams.getAll("childFieldName")).toEqual(["reviewer", "tags", "tags"]);
     expect(url.searchParams.getAll("childFieldComparator")).toEqual(["=", "<>", "<>"]);
     expect(url.searchParams.getAll("childFieldValue")).toEqual(["@me", "approved", "rejected"]);
   });

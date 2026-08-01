@@ -18,6 +18,8 @@
 
 import { getEntityTypeConfig } from "@iap/frontend-commons/entityGrid/registry";
 import { SUBMISSION_TYPE, schemaLabel } from "@iap/submissions/submissionGrid";
+import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
+import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 // Importing the module registered the configuration as a side effect
 const config = getEntityTypeConfig(SUBMISSION_TYPE);
@@ -50,6 +52,35 @@ describe("the registered submission grid configuration", () => {
   it("lists submissions from their homepage, latest modified first", () => {
     expect(config?.homepage).toBe("/Submissions");
     expect(config?.defaultSort).toEqual({ field: "jcr:lastModified", sort: "desc" });
+  });
+
+  it("presents the lifecycle state through the multivalued tags property", async () => {
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+
+    const status = config?.columns.find(column => column.field === "tags");
+    expect(status?.headerName).toBe("Status");
+    expect(status?.type).toBe("singleSelect");
+    // Ordering by a multivalued property has no meaningful semantics
+    expect(status?.sortable).toBe(false);
+
+    // The filterable choices come from the lifecycle tag definitions: the first call triggers
+    // the fetch, and once it resolves the defined names are offered with their labels
+    const options = status && "valueOptions" in status && typeof status.valueOptions === "function"
+      ? status.valueOptions
+      : undefined;
+    expect(options?.({ field: "tags" })).toEqual([]);
+    await vi.waitFor(() => {
+      expect(options?.({ field: "tags" })).toEqual([
+        { value: "draft", label: "Draft" },
+        { value: "submitted", label: "Submitted" },
+        { value: "in-review", label: "In review" },
+        { value: "approved", label: "Approved" },
+        { value: "rejected", label: "Rejected" },
+      ]);
+    });
+
+    vi.unstubAllGlobals();
+    clearTagDefinitionsCache();
   });
 
   it("links each row to the submission's own page", () => {

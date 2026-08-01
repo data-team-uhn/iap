@@ -125,7 +125,9 @@ post_node() {
   fi
 }
 
-# Cycles for some variety across the generated submissions
+# Cycles for some variety across the generated submissions. The lifecycle state is a tag (see
+# the tag definitions under /Tags), stored in the multivalued `tags` property — hence the
+# String[] type hints on the POSTs below, without which a single value imports as a plain string.
 STATUSES=(draft submitted in-review in-review approved rejected)
 TOPICS=("cardiac imaging" "gene therapy" "sleep patterns" "novel biomarkers" "wearable sensors"
   "immunotherapy response" "dietary interventions" "cognitive decline" "post-surgical recovery"
@@ -140,7 +142,8 @@ for i in $(seq 1 "$COUNT"); do
   post_node "/Submissions/demo-$i" \
     -F "jcr:primaryType=sub:Submission" \
     --form-string "title=Study #$i: ${TOPIC^}" \
-    -F "status=$STATUS" \
+    -F "tags=$STATUS" \
+    -F "tags@TypeHint=String[]" \
     -F "schemaVersion=$VERSION_UUID" \
     -F "schemaVersion@TypeHint=Reference"
   # Submissions under review get an open review, alternating between admin (visible in admin's
@@ -151,12 +154,14 @@ for i in $(seq 1 "$COUNT"); do
     post_node "/Submissions/demo-$i/Review1" \
       -F "jcr:primaryType=sub:Review" \
       -F "reviewer=$REVIEWER" \
-      -F "status=$REVIEW_STATUS"
+      -F "tags=$REVIEW_STATUS" \
+      -F "tags@TypeHint=String[]"
   elif [ "$STATUS" = "approved" ]; then
     post_node "/Submissions/demo-$i/Review1" \
       -F "jcr:primaryType=sub:Review" \
       -F "reviewer=admin" \
-      -F "status=approved"
+      -F "tags=approved" \
+      -F "tags@TypeHint=String[]"
     # Approved submissions also carry a document fulfilling the protocol requirement, with an
     # attached sample file (uploaded in a follow-up request: a file parameter would make the
     # document creation POST treat all its parameters as node content)

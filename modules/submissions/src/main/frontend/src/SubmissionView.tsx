@@ -22,8 +22,8 @@ import { Alert, Box, Divider, Link, Paper, Stack, Typography } from "@mui/materi
 import { Link as RouterLink, useLocation } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import TagChip from "@iap/tags/TagChip";
 
-import StatusChip from "./StatusChip";
 import { schemaLabel } from "./submissionGrid";
 
 // A serialized JCR node: its properties, plus its children as nested objects.
@@ -156,7 +156,7 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
             <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
               <Typography variant="subtitle2">{String(review.reviewer)}</Typography>
               {requirement ? <Typography color="text.secondary">on {String(requirement.label)}</Typography> : null}
-              <StatusChip value={review.status} />
+              <TagChip tags={review.tags} category="review" />
             </Stack>
             <Stack spacing={1} sx={{ mt: 1 }}>
               {comments.map((comment, commentIndex) => (
@@ -250,7 +250,7 @@ function SubmissionView() {
         <Link component={RouterLink} to="/">← Back to the dashboard</Link>
         <Stack direction="row" spacing={2} sx={{ alignItems: "center", mt: 1 }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>
-          <StatusChip value={submission.status} />
+          <TagChip tags={submission.tags} category="lifecycle" />
         </Stack>
         <Typography color="text.secondary">
           {schemaLabel(schemaVersion)}
