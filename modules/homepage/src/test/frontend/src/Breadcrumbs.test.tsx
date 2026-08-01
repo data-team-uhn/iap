@@ -43,7 +43,10 @@ const renderAt = (url: string) => render(
 );
 
 describe("Breadcrumbs", () => {
-  beforeEach(() => mockedGetRoutes.mockResolvedValue(views));
+  // A block body on purpose: the arrow shorthand returns the mock, and Vitest takes a function
+  // returned from a hook to be a teardown callback -- so it would call getRoutes() again after
+  // every test, which goes unnoticed until an implementation rejects and nothing is listening.
+  beforeEach(() => { mockedGetRoutes.mockResolvedValue(views); });
 
   it("renders nothing on the home page", async () => {
     const { container } = renderAt("/");
@@ -76,6 +79,31 @@ describe("Breadcrumbs", () => {
 
     await waitFor(() => expect(mockedGetRoutes).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("reports a failure to load the views, and renders nothing", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
+    const failure = new Error("network down");
+    mockedGetRoutes.mockRejectedValue(failure);
+
+    const { container } = renderAt("/admin/categories");
+
+    await waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith("Something went wrong loading the views", failure);
+    });
+    expect(container).toBeEmptyDOMElement();
+    errorSpy.mockRestore();
+  });
+
+  it("falls back to the path for a view that registers no name", async () => {
+    mockedGetRoutes.mockResolvedValue([
+      { "iap:targetURL": "/admin" },
+      { "iap:extensionName": "Submission categories", "iap:targetURL": "/admin/categories" },
+    ]);
+
+    renderAt("/admin/categories");
+
+    expect(await screen.findByRole("link", { name: "/admin" })).toBeInTheDocument();
   });
 
   it("renders nothing when the views cannot be loaded at all", async () => {
