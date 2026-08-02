@@ -19,6 +19,7 @@
 package io.uhndata.iap.serialization.internal;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
@@ -105,6 +106,76 @@ public class ResourceToJsonAdapterFactoryTest
     }
 
     @Test
+    public void testDepthSelectorEnablesAndLimitsDeepSerialization()
+        throws Exception
+    {
+        final Node node = mockChain("parent", "child", "grandchild");
+
+        final JsonObject result = this.factory.getAdapter(mockResource(node, ".1.json"), JsonObject.class);
+
+        // A depth selector serializes children without needing the `deep` selector as well
+        final JsonObject child = result.getJsonObject("child");
+        Assertions.assertEquals("/parent/child", child.getString("@path"));
+        // The grandchild is past the requested depth, so only its path is serialized
+        Assertions.assertEquals("/parent/child/grandchild", child.getString("grandchild"));
+    }
+
+    @Test
+    public void testLastNumericSelectorSetsTheDepth()
+        throws Exception
+    {
+        final Node node = mockChain("parent", "child", "grandchild", "greatgrandchild");
+
+        // Selectors that aren't numbers are ignored, and out of the numbers the last one wins
+        final JsonObject result = this.factory.getAdapter(mockResource(node, ".3.deep.2.1b.json"), JsonObject.class);
+
+        final JsonObject grandchild = result.getJsonObject("child").getJsonObject("grandchild");
+        Assertions.assertEquals("/parent/child/grandchild", grandchild.getString("@path"));
+        Assertions.assertEquals("/parent/child/grandchild/greatgrandchild", grandchild.getString("greatgrandchild"));
+    }
+
+    @Test
+    public void testInfinityDepthSerializesTheWholeSubtree()
+        throws Exception
+    {
+        final Node node = mockChain("parent", "child", "grandchild");
+
+        final JsonObject result = this.factory.getAdapter(mockResource(node, ".infinity.json"), JsonObject.class);
+
+        Assertions.assertEquals("/parent/child/grandchild",
+            result.getJsonObject("child").getJsonObject("grandchild").getString("@path"));
+    }
+
+    @Test
+    public void testDeepWithoutADepthSelectorIsUnlimited()
+        throws Exception
+    {
+        final Node node = mockChain("parent", "child", "grandchild");
+
+        final JsonObject result = this.factory.getAdapter(mockResource(node, ".deep.json"), JsonObject.class);
+
+        Assertions.assertEquals("/parent/child/grandchild",
+            result.getJsonObject("child").getJsonObject("grandchild").getString("@path"));
+    }
+
+    @Test
+    public void testZeroDepthOnlySerializesTheNodeItself()
+        throws Exception
+    {
+        final Node target = mockNode("/target", "target");
+        final Node node = mockChain("parent", "child");
+        final PropertyIterator properties = mockPropertyIterator(mockReferenceProperty("reference", target));
+        Mockito.when(node.getProperties()).thenReturn(properties);
+
+        final JsonObject result = this.factory.getAdapter(mockResource(node, ".0.json"), JsonObject.class);
+
+        // Children aren't serialized at all, since a depth of 0 doesn't enable deep serialization
+        Assertions.assertFalse(result.containsKey("child"));
+        // A referenced node would be nested in the output, so only its path is serialized
+        Assertions.assertEquals("/target", result.getString("reference"));
+    }
+
+    @Test
     public void testCircularReferencesAreSerializedAsPaths()
         throws Exception
     {
@@ -178,6 +249,16 @@ public class ResourceToJsonAdapterFactoryTest
     }
 
     @Test
+    public void testNodeWithInaccessiblePath()
+        throws Exception
+    {
+        final Node node = Mockito.mock(Node.class);
+        Mockito.when(node.getPath()).thenThrow(new RepositoryException());
+
+        Assertions.assertNull(this.factory.getAdapter(mockResource(node, ".json"), JsonObject.class));
+    }
+
+    @Test
     public void testCustomProcessorHooks()
         throws Exception
     {
@@ -194,12 +275,6 @@ public class ResourceToJsonAdapterFactoryTest
             public int getPriority()
             {
                 return 20;
-            }
-
-            @Override
-            public boolean isEnabledByDefault(final Resource resource)
-            {
-                return true;
             }
 
             @Override
@@ -227,7 +302,8 @@ public class ResourceToJsonAdapterFactoryTest
         final PropertyIterator properties = mockPropertyIterator(mockStringProperty("secret", "hidden"));
         Mockito.when(node.getProperties()).thenReturn(properties);
 
-        final JsonObject result = this.factory.getAdapter(mockResource(node, ".json"), JsonObject.class);
+        // The custom processor isn't enabled by default, so it must be requested by name
+        final JsonObject result = this.factory.getAdapter(mockResource(node, ".custom.json"), JsonObject.class);
 
         // The serializeNode callbacks received in enter() and leave() are usable; since the node is already being
         // serialized, only its path is returned
@@ -283,6 +359,28 @@ public class ResourceToJsonAdapterFactoryTest
         Mockito.when(node.getProperties()).thenReturn(properties);
         Mockito.when(node.getNodes()).thenReturn(children);
         return node;
+    }
+
+    /**
+     * Mock a chain of nodes, each one being the only child of the previous one.
+     *
+     * @param names the names of the nodes, starting with the topmost one
+     * @return the topmost node
+     */
+    private Node mockChain(final String... names)
+        throws RepositoryException
+    {
+        Node lastNode = null;
+        for (int i = names.length - 1; i >= 0; --i) {
+            final Node node = mockNode("/" + String.join("/", Arrays.copyOf(names, i + 1)), names[i]);
+            if (lastNode != null) {
+                // The iterator must be created before stubbing starts, since creating it stubs other mocks
+                final NodeIterator children = mockNodeIterator(lastNode);
+                Mockito.when(node.getNodes()).thenReturn(children);
+            }
+            lastNode = node;
+        }
+        return lastNode;
     }
 
     private Property mockStringProperty(final String name, final String value)

@@ -24,6 +24,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
@@ -40,6 +42,18 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class SelectorUtils
 {
+    /** The depth value that means "no limit": {@value}. */
+    public static final int UNLIMITED_DEPTH = -1;
+
+    /** The selector requesting unlimited depth, the same keyword that Sling's default JSON renderer uses. */
+    private static final String INFINITY_SELECTOR = "infinity";
+
+    /**
+     * A selector specifying a depth: an integer, optionally negative. At most 9 digits are accepted, both because
+     * longer numbers wouldn't fit in an {@code int}, and because such a depth is unreachable in practice.
+     */
+    private static final Pattern DEPTH_SELECTOR = Pattern.compile("-?\\d{1,9}");
+
     private SelectorUtils()
     {
         // Prevent instantiation of a utility class
@@ -91,6 +105,27 @@ public final class SelectorUtils
     }
 
     /**
+     * Parse the depth requested through the selectors, following the convention of Sling's default JSON renderer: a
+     * numeric selector, or {@code infinity}. The depth is the number of levels of descendants to include, so {@code 0}
+     * means just the resource itself, {@code 1} means the resource and its direct children, and so on, while
+     * {@code infinity} or any negative number means {@link #UNLIMITED_DEPTH unlimited} depth. Selectors that aren't
+     * numbers are ignored, and if more than one depth selector is present, the last one wins, so in
+     * {@code .3.deep.2.1b.json} the requested depth is {@code 2}.
+     *
+     * @param resolutionPathInfo the resolution path info, as received from Sling, may be URL-encoded
+     * @return the requested depth, or an empty result if no depth selector is present
+     */
+    public static OptionalInt parseDepth(final String resolutionPathInfo)
+    {
+        return parseSelectors(resolutionPathInfo).stream()
+            .filter(SelectorUtils::isDepthSelector)
+            .reduce((first, last) -> last)
+            .map(SelectorUtils::toDepth)
+            .map(OptionalInt::of)
+            .orElseGet(OptionalInt::empty);
+    }
+
+    /**
      * Parse the options for a given prefix, for example from {@code .dataFilter:status=SUBMITTED} extracts the pair
      * {@code (status, SUBMITTED)}. This returns all matching pairs, with multiple instances for the same key included
      * if it is present more than once in the path info.
@@ -139,5 +174,15 @@ public final class SelectorUtils
         Map<String, String> result = new HashMap<>();
         allOptions.stream().forEach(pair -> result.put(pair.getKey(), pair.getValue()));
         return result;
+    }
+
+    private static boolean isDepthSelector(final String selector)
+    {
+        return INFINITY_SELECTOR.equalsIgnoreCase(selector) || DEPTH_SELECTOR.matcher(selector).matches();
+    }
+
+    private static int toDepth(final String selector)
+    {
+        return INFINITY_SELECTOR.equalsIgnoreCase(selector) ? UNLIMITED_DEPTH : Integer.parseInt(selector);
     }
 }

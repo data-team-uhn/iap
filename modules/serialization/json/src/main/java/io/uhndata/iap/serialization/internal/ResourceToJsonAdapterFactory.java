@@ -17,10 +17,10 @@
  */
 package io.uhndata.iap.serialization.internal;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Deque;
 import java.util.List;
-import java.util.Stack;
 import java.util.stream.Collectors;
 
 import javax.jcr.Node;
@@ -44,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
+import io.uhndata.iap.utils.SelectorUtils;
 
 /**
  * AdapterFactory that converts Apache Sling resources to JsonObjects. This is just a shell, the actual implementation
@@ -56,6 +57,14 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
  * {@link ResourceJsonProcessor#isEnabledByDefault(Resource) enabled by default}, for example the {@code properties},
  * {@code identify}, and {@code dereference} processors; to disable them, use their name prefixed by {@code -} in the
  * selectors, e.g. {@code /path/to/resource.-dereference.json}.
+ *
+ * <p>
+ * How many levels of descendants to serialize can be limited with a numeric selector, using the same convention as
+ * Sling's default JSON renderer: {@code .0.json} serializes just the resource itself, {@code .1.json} the resource
+ * and its direct children, and {@code .infinity.json} the whole subtree. Nodes past the requested depth, just like
+ * nodes that are already being serialized higher up in the JSON, are included only as their path. Without a numeric
+ * selector the depth is unlimited, so {@code .deep.json} still serializes the whole subtree.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -81,17 +90,14 @@ public class ResourceToJsonAdapterFactory
             return null;
         }
         final Resource resource = (Resource) adaptable;
-        // The list of processors that are enabled for the current resource serialization.
-        List<ResourceJsonProcessor> enabledProcessors = setupProcessors(resource);
+        // The state of this serialization: the processors to invoke, the requested depth, and the nodes processed so
+        // far down the stack.
+        final SerializationContext context = new SerializationContext(resource, setupProcessors(resource));
 
-        // To prevent infinite recursion in case of circular references among nodes, keep track of the nodes processed
-        // so far down the stack.
-        Stack<String> processedNodes = new Stack<>();
-
-        start(resource, enabledProcessors);
+        start(resource, context);
         final Node node = resource.adaptTo(Node.class);
-        JsonValue result = serializeNode(node, enabledProcessors, processedNodes);
-        end(resource, enabledProcessors);
+        JsonValue result = serializeNode(node, context);
+        end(resource, context);
         if (result != null) {
             return type.cast(result);
         }
@@ -100,35 +106,43 @@ public class ResourceToJsonAdapterFactory
 
     /**
      * Serializes a Node into a JSON value. Usually this will be a JSON object listing its items, but to avoid
-     * recursion, it is also possible to be just the node's path as a simple string.
+     * recursion, or to stay within the requested depth, it is also possible to be just the node's path as a simple
+     * string.
      *
      * @param node the node to serialize
+     * @param context the state of the current serialization
      * @return a JSON value, either a JsonObject or a JsonString
      */
-    private JsonValue serializeNode(final Node node, final List<ResourceJsonProcessor> enabledProcessors,
-        final Stack<String> processedNodes)
+    private JsonValue serializeNode(final Node node, final SerializationContext context)
     {
         if (node == null) {
             return null;
         }
 
+        String path = null;
         try {
-            final boolean alreadyProcessed = processedNodes.contains(node.getPath());
-            processedNodes.add(node.getPath());
-            if (!alreadyProcessed) {
+            path = node.getPath();
+            // Serializing a node that is already being serialized higher up the stack would lead to infinite
+            // recursion, and a node deeper than the requested depth isn't wanted; either way, only its path is
+            // included in the output.
+            final boolean summarize = context.isBeingSerialized(path) || context.isTooDeep();
+            context.enter(path);
+            if (!summarize) {
                 final JsonObjectBuilder result = Json.createObjectBuilder();
-                enterNode(node, result, enabledProcessors, processedNodes);
-                processProperties(node, result, enabledProcessors, processedNodes);
-                processChildren(node, result, enabledProcessors, processedNodes);
-                leaveNode(node, result, enabledProcessors, processedNodes);
+                enterNode(node, result, context);
+                processProperties(node, result, context);
+                processChildren(node, result, context);
+                leaveNode(node, result, context);
                 return result.build();
             }
-            // If the node has already been processed, only include its path in the output
-            return Json.createValue(node.getPath());
+            return Json.createValue(path);
         } catch (RepositoryException e) {
             LOGGER.error("Failed to serialize node [{}] to JSON: {}", node, e.getMessage(), e);
         } finally {
-            processedNodes.pop();
+            // The node was entered only if its path could be retrieved
+            if (path != null) {
+                context.leave();
+            }
         }
         return null;
     }
@@ -138,10 +152,11 @@ public class ResourceToJsonAdapterFactory
      * processors.
      *
      * @param resource the resource being serialized
+     * @param context the state of the current serialization
      */
-    private void start(final Resource resource, final List<ResourceJsonProcessor> enabledProcessors)
+    private void start(final Resource resource, final SerializationContext context)
     {
-        enabledProcessors.forEach(p -> p.start(resource));
+        context.processors.forEach(p -> p.start(resource));
     }
 
     /**
@@ -149,11 +164,11 @@ public class ResourceToJsonAdapterFactory
      *
      * @param node the node to serialize
      * @param json the JSON being built
+     * @param context the state of the current serialization
      */
-    private void enterNode(final Node node, final JsonObjectBuilder json,
-        final List<ResourceJsonProcessor> enabledProcessors, final Stack<String> processedNodes)
+    private void enterNode(final Node node, final JsonObjectBuilder json, final SerializationContext context)
     {
-        enabledProcessors.forEach(p -> p.enter(node, json, n -> serializeNode(n, enabledProcessors, processedNodes)));
+        context.processors.forEach(p -> p.enter(node, json, n -> serializeNode(n, context)));
     }
 
     /**
@@ -162,10 +177,10 @@ public class ResourceToJsonAdapterFactory
      *
      * @param node the node to serialize
      * @param json the JSON being built
+     * @param context the state of the current serialization
      * @throws RepositoryException if accessing the repository fails
      */
-    private void processProperties(final Node node, final JsonObjectBuilder json,
-        final List<ResourceJsonProcessor> enabledProcessors, final Stack<String> processedNodes)
+    private void processProperties(final Node node, final JsonObjectBuilder json, final SerializationContext context)
         throws RepositoryException
     {
         final PropertyIterator properties = node.getProperties();
@@ -173,9 +188,8 @@ public class ResourceToJsonAdapterFactory
             Property thisProp = properties.nextProperty();
             JsonValue value = null;
             String name = thisProp.getName();
-            for (ResourceJsonProcessor p : enabledProcessors) {
-                value =
-                    p.processProperty(node, thisProp, value, n -> serializeNode(n, enabledProcessors, processedNodes));
+            for (ResourceJsonProcessor p : context.processors) {
+                value = p.processProperty(node, thisProp, value, n -> serializeNode(n, context));
                 name = p.processPropertyName(node, thisProp, name);
             }
             if (value != null && name != null) {
@@ -190,18 +204,18 @@ public class ResourceToJsonAdapterFactory
      *
      * @param node the node to serialize
      * @param json the JSON being built
+     * @param context the state of the current serialization
      * @throws RepositoryException if accessing the repository fails
      */
-    private void processChildren(final Node node, final JsonObjectBuilder json,
-        final List<ResourceJsonProcessor> enabledProcessors, final Stack<String> processedNodes)
+    private void processChildren(final Node node, final JsonObjectBuilder json, final SerializationContext context)
         throws RepositoryException
     {
         final NodeIterator children = node.getNodes();
         while (children.hasNext()) {
             final Node child = children.nextNode();
             JsonValue value = null;
-            for (ResourceJsonProcessor p : enabledProcessors) {
-                value = p.processChild(node, child, value, n -> serializeNode(n, enabledProcessors, processedNodes));
+            for (ResourceJsonProcessor p : context.processors) {
+                value = p.processChild(node, child, value, n -> serializeNode(n, context));
             }
             if (value != null) {
                 json.add(child.getName(), value);
@@ -215,11 +229,11 @@ public class ResourceToJsonAdapterFactory
      *
      * @param node the node to serialize
      * @param json the JSON being built
+     * @param context the state of the current serialization
      */
-    private void leaveNode(final Node node, final JsonObjectBuilder json,
-        final List<ResourceJsonProcessor> enabledProcessors, final Stack<String> processedNodes)
+    private void leaveNode(final Node node, final JsonObjectBuilder json, final SerializationContext context)
     {
-        enabledProcessors.forEach(p -> p.leave(node, json, n -> serializeNode(n, enabledProcessors, processedNodes)));
+        context.processors.forEach(p -> p.leave(node, json, n -> serializeNode(n, context)));
     }
 
     /**
@@ -227,10 +241,11 @@ public class ResourceToJsonAdapterFactory
      * processors.
      *
      * @param resource the resource that was serialized
+     * @param context the state of the current serialization
      */
-    private void end(final Resource resource, final List<ResourceJsonProcessor> enabledProcessors)
+    private void end(final Resource resource, final SerializationContext context)
     {
-        enabledProcessors.forEach(p -> p.end(resource));
+        context.processors.forEach(p -> p.end(resource));
     }
 
     /**
@@ -246,19 +261,8 @@ public class ResourceToJsonAdapterFactory
         final List<String> defaults = this.allProcessors.stream().filter(p -> p.isEnabledByDefault(resource))
             .map(ResourceJsonProcessor::getName).collect(Collectors.toList());
         // These have been requested
-        final String resolutionPathInfo = resource.getResourceMetadata().getResolutionPathInfo();
-        final List<String> requestedProcessors =
-            // Split by unescaped dots. A backslash escapes a dot, but two backslashes are just one escaped backslash.
-            // Match by:
-            // - no preceding backslash, i.e. start counting at the first backslash (?<!\)
-            // - an even number of backslashes, i.e. any number of groups of two backslashes (?:\\)*
-            // - a literal dot \.
-            // Each backslash, except the \., is escaped twice, once as a special escape char inside a Java string,
-            // and once as a special escape char inside a RegExp. The one before the dot is escaped only once as a
-            // special char inside a Java string, since it must retain its escaping meaning in the RegExp.
-            new ArrayList<>(resolutionPathInfo != null
-                ? Arrays.asList(resolutionPathInfo.split("(?<!\\\\)(?:\\\\\\\\)*\\."))
-                : defaults);
+        final List<String> requestedProcessors = new ArrayList<>(
+            SelectorUtils.parseSelectors(resource.getResourceMetadata().getResolutionPathInfo()));
         // Add the defaults, if not already selected and not explicitly excluded
         for (String def : defaults) {
             if (!requestedProcessors.contains(def) && !requestedProcessors.contains("-" + def)) {
@@ -274,5 +278,70 @@ public class ResourceToJsonAdapterFactory
         enabled.sort((o1, o2) -> o1.getPriority() - o2.getPriority());
 
         return enabled;
+    }
+
+    /**
+     * The state of one serialization process: which processors are enabled, how deep the serialization may go, and
+     * which nodes are currently being serialized higher up in the JSON being built.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class SerializationContext
+    {
+        /** The processors enabled for this serialization, in ascending order of their priority. */
+        private final List<ResourceJsonProcessor> processors;
+
+        /** How many levels of descendants to serialize, negative for no limit. */
+        private final int maxDepth;
+
+        /** The paths of the nodes whose serialization is in progress, the innermost one first. */
+        private final Deque<String> openNodes = new ArrayDeque<>();
+
+        SerializationContext(final Resource resource, final List<ResourceJsonProcessor> processors)
+        {
+            this.processors = processors;
+            this.maxDepth = SelectorUtils.parseDepth(resource.getResourceMetadata().getResolutionPathInfo())
+                .orElse(SelectorUtils.UNLIMITED_DEPTH);
+        }
+
+        /**
+         * Check if a node is already being serialized higher up in the JSON being built, in which case serializing it
+         * again would lead to infinite recursion.
+         *
+         * @param path the path of the node about to be serialized
+         * @return {@code true} if the node's serialization is already in progress
+         */
+        boolean isBeingSerialized(final String path)
+        {
+            return this.openNodes.contains(path);
+        }
+
+        /**
+         * Check if the node about to be serialized is deeper than the requested depth. The topmost node is at depth
+         * {@code 0}, the nodes nested in it at depth {@code 1}, and so on.
+         *
+         * @return {@code true} if the node is past the requested depth
+         */
+        boolean isTooDeep()
+        {
+            return this.maxDepth >= 0 && this.openNodes.size() > this.maxDepth;
+        }
+
+        /**
+         * Record that a node's serialization started.
+         *
+         * @param path the path of the node
+         */
+        void enter(final String path)
+        {
+            this.openNodes.push(path);
+        }
+
+        /** Record that the innermost node's serialization ended. */
+        void leave()
+        {
+            this.openNodes.pop();
+        }
     }
 }

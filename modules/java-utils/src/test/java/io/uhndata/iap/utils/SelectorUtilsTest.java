@@ -102,6 +102,47 @@ public class SelectorUtilsTest
     }
 
     @Test
+    public void testDepthParsing()
+        throws Exception
+    {
+        Assertions.assertEquals(0, SelectorUtils.parseDepth(".0.json").getAsInt());
+        Assertions.assertEquals(1, SelectorUtils.parseDepth(".1.json").getAsInt());
+        Assertions.assertEquals(42, SelectorUtils.parseDepth(".42.json").getAsInt());
+    }
+
+    @Test
+    public void testInfinityDepthParsing()
+        throws Exception
+    {
+        Assertions.assertEquals(SelectorUtils.UNLIMITED_DEPTH, SelectorUtils.parseDepth(".infinity.json").getAsInt());
+        Assertions.assertEquals(SelectorUtils.UNLIMITED_DEPTH, SelectorUtils.parseDepth(".Infinity.json").getAsInt());
+        // Just like Sling, a negative number also means unlimited depth
+        Assertions.assertEquals(SelectorUtils.UNLIMITED_DEPTH, SelectorUtils.parseDepth(".-1.json").getAsInt());
+    }
+
+    @Test
+    public void testMissingDepthParsing()
+        throws Exception
+    {
+        Assertions.assertTrue(SelectorUtils.parseDepth(null).isEmpty());
+        Assertions.assertTrue(SelectorUtils.parseDepth("").isEmpty());
+        Assertions.assertTrue(SelectorUtils.parseDepth(".deep.json").isEmpty());
+        // Only whole numbers are depths
+        Assertions.assertTrue(SelectorUtils.parseDepth(".1b.2\\.5.v3.json").isEmpty());
+        // Numbers too large to be a real depth are ignored, instead of overflowing
+        Assertions.assertTrue(SelectorUtils.parseDepth(".12345678901234567890.json").isEmpty());
+    }
+
+    @Test
+    public void testLastDepthWinsWhenParsing()
+        throws Exception
+    {
+        Assertions.assertEquals(2, SelectorUtils.parseDepth(".3.deep.2.1b.json").getAsInt());
+        Assertions.assertEquals(2, SelectorUtils.parseDepth(".infinity.2.json").getAsInt());
+        Assertions.assertEquals(SelectorUtils.UNLIMITED_DEPTH, SelectorUtils.parseDepth(".2.infinity.json").getAsInt());
+    }
+
+    @Test
     public void testSimpleOptionParsing()
         throws Exception
     {

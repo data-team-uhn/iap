@@ -23,6 +23,8 @@ import javax.jcr.Node;
 import jakarta.json.Json;
 import jakarta.json.JsonValue;
 
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceMetadata;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -44,8 +46,19 @@ public class DeepProcessorTest
     {
         Assertions.assertEquals("deep", this.processor.getName());
         Assertions.assertEquals(10, this.processor.getPriority());
-        // Deep serialization must be explicitly requested
-        Assertions.assertFalse(this.processor.isEnabledByDefault(null));
+    }
+
+    @Test
+    public void testEnabledByDefaultOnlyByADepthSelector()
+    {
+        // Deep serialization must be explicitly requested...
+        Assertions.assertFalse(this.processor.isEnabledByDefault(mockResource(".json")));
+        Assertions.assertFalse(this.processor.isEnabledByDefault(mockResource(".simple.json")));
+        // ...but a depth selector is a request for descendants as well
+        Assertions.assertTrue(this.processor.isEnabledByDefault(mockResource(".2.json")));
+        Assertions.assertTrue(this.processor.isEnabledByDefault(mockResource(".infinity.json")));
+        // A depth of 0 asks for no descendants at all
+        Assertions.assertFalse(this.processor.isEnabledByDefault(mockResource(".0.json")));
     }
 
     @Test
@@ -62,5 +75,14 @@ public class DeepProcessorTest
     {
         Assertions.assertSame(SERIALIZED,
             this.processor.processChild(null, Mockito.mock(Node.class), null, n -> SERIALIZED));
+    }
+
+    private Resource mockResource(final String resolutionPathInfo)
+    {
+        final Resource resource = Mockito.mock(Resource.class);
+        final ResourceMetadata metadata = new ResourceMetadata();
+        metadata.setResolutionPathInfo(resolutionPathInfo);
+        Mockito.when(resource.getResourceMetadata()).thenReturn(metadata);
+        return resource;
     }
 }
