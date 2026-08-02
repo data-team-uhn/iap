@@ -96,19 +96,28 @@ registerEntityType(SUBMISSION_TYPE, {
   defaultSort: { field: "jcr:lastModified", sort: "desc" },
   // Each submission is viewable on its own page, at its repository path
   rowLink: row => row["@path"] as string | undefined,
-  // The compact card shown per submission in the grid's narrow-screen list mode
-  listItem: row => (
-    <Stack spacing={0.5} sx={{ py: 1, width: "100%" }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="subtitle2">
-          {(row.title as string | undefined) ?? (row["@name"] as string | undefined)}
-        </Typography>
-        <TagChip tags={row.tags} category="lifecycle" />
+  // The compact card shown per submission in the grid's narrow-screen list mode. It honors the
+  // column selection like the regular view: hidden columns leave the card too. Only the title
+  // stays regardless — it is the card's identity and its tap target.
+  listItem: (row, visibleFields) => {
+    const meta = [
+      visibleFields.has("schemaVersion") ? schemaLabel(row.schemaVersion) : "",
+      visibleFields.has("jcr:lastModified") ? dateValue(row["jcr:lastModified"])?.toLocaleDateString() ?? "" : "",
+    ].filter(Boolean).join(" • ");
+    return (
+      <Stack spacing={0.5} sx={{ py: 1, width: "100%" }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+          <Typography variant="subtitle2">
+            {(row.title as string | undefined) ?? (row["@name"] as string | undefined)}
+          </Typography>
+          {visibleFields.has("tags") && <TagChip tags={row.tags} category="lifecycle" />}
+        </Stack>
+        {meta !== "" && (
+          <Typography variant="caption" color="text.secondary">
+            {meta}
+          </Typography>
+        )}
       </Stack>
-      <Typography variant="caption" color="text.secondary">
-        {[schemaLabel(row.schemaVersion), dateValue(row["jcr:lastModified"])?.toLocaleDateString()]
-          .filter(Boolean).join(" • ")}
-      </Typography>
-    </Stack>
-  ),
+    );
+  },
 });
