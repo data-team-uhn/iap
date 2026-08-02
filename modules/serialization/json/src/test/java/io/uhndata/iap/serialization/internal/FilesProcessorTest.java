@@ -28,6 +28,8 @@ import javax.jcr.nodetype.NodeType;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 import org.junit.jupiter.api.Assertions;
@@ -74,33 +76,52 @@ public class FilesProcessorTest
         date.setTimeInMillis(0);
         Mockito.when(lastModified.getDate()).thenReturn(date);
 
-        final JsonValue result = this.processor.processChild(null, file, null, null);
+        final JsonObjectBuilder jsonBuilder = Json.createObjectBuilder();
+        this.processor.leave(file, jsonBuilder, null);
+        final JsonObject json = jsonBuilder.build();
 
-        final JsonObject json = (JsonObject) result;
-        Assertions.assertEquals("nt:file", json.getString("jcr:primaryType"));
-        Assertions.assertEquals("/Submissions/s1/doc/consent.pdf", json.getString("@path"));
-        Assertions.assertEquals("consent.pdf", json.getString("@name"));
-        Assertions.assertEquals("application/pdf", json.getString("contentType"));
+        Assertions.assertEquals("application/pdf", json.getString("jcr:mimeType"));
         Assertions.assertEquals(12345L, json.getJsonNumber("size").longValue());
-        Assertions.assertEquals("1970-01-01T00:00:00.000Z", json.getString("lastModified"));
+        Assertions.assertEquals("1970-01-01T00:00:00.000+00:00", json.getString("jcr:lastModified"));
     }
 
     @Test
-    public void serializesFilesWithoutContentOrMetadata() throws Exception
+    public void ignoresNullOutput() throws Exception
     {
-        final Node bareFile = mockFile("/f", "f");
-        JsonObject json = (JsonObject) this.processor.processChild(null, bareFile, null, null);
-        Assertions.assertEquals("/f", json.getString("@path"));
-        Assertions.assertFalse(json.containsKey("contentType"));
+        final Node file = Mockito.mock(Node.class);
+        this.processor.leave(file, null, null);
+        Mockito.verifyNoInteractions(file);
+    }
 
-        final Node emptyContentFile = mockFile("/g", "g");
+    @Test
+    public void serializesFileContentAsDownloadPath() throws Exception
+    {
         final Node content = Mockito.mock(Node.class);
-        Mockito.when(emptyContentFile.hasNode("jcr:content")).thenReturn(true);
-        Mockito.when(emptyContentFile.getNode("jcr:content")).thenReturn(content);
-        json = (JsonObject) this.processor.processChild(null, emptyContentFile, null, null);
-        Assertions.assertFalse(json.containsKey("contentType"));
-        Assertions.assertFalse(json.containsKey("size"));
-        Assertions.assertFalse(json.containsKey("lastModified"));
+        Mockito.when(content.getName()).thenReturn("jcr:content");
+        Mockito.when(content.isNodeType("nt:resource")).thenReturn(true);
+        Mockito.when(content.getPath()).thenReturn("/Submissions/s1/doc/consent.pdf/jcr:content");
+        JsonValue json = this.processor.processChild(null, content, null, null);
+        Assertions.assertEquals("/Submissions/s1/doc/consent.pdf/jcr:content", ((JsonString) json).getString());
+    }
+
+    @Test
+    public void ignoresNonFiles() throws Exception
+    {
+        final Node bareFile = mockFile("/file.pdf/jcr:content", "jcr:content");
+        JsonObject json = (JsonObject) this.processor.processChild(null, bareFile, null, null);
+        Assertions.assertNull(json);
+    }
+
+    @Test
+    public void ignoresAlreadySerializedNodes() throws Exception
+    {
+        final Node content = Mockito.mock(Node.class);
+        Mockito.when(content.getName()).thenReturn("jcr:content");
+        Mockito.when(content.isNodeType("nt:resource")).thenReturn(true);
+        Mockito.when(content.getPath()).thenReturn("/Submissions/s1/doc/consent.pdf/jcr:content");
+        JsonValue input = Json.createValue("X");
+        JsonValue json = this.processor.processChild(null, content, input, null);
+        Assertions.assertSame(input, json);
     }
 
     @Test
@@ -118,8 +139,17 @@ public class FilesProcessorTest
     public void repositoryErrorsLeaveTheChildUnserialized() throws Exception
     {
         final Node child = Mockito.mock(Node.class);
-        Mockito.when(child.isNodeType("nt:file")).thenThrow(new RepositoryException("Inaccessible"));
+        Mockito.when(child.getName()).thenThrow(new RepositoryException("Inaccessible"));
         Assertions.assertNull(this.processor.processChild(null, child, null, null));
+    }
+
+    @Test
+    public void repositoryErrorsAreCaught() throws Exception
+    {
+        final Node file = Mockito.mock(Node.class);
+        final JsonObjectBuilder jsonBuilder = Json.createObjectBuilder();
+        Mockito.when(file.isNodeType("nt:file")).thenThrow(new RepositoryException("Inaccessible"));
+        this.processor.leave(file, jsonBuilder, null);
     }
 
     private Node mockFile(final String path, final String name) throws RepositoryException

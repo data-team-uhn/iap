@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.serialization.internal;
 
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.function.Function;
 
 import javax.jcr.Node;
@@ -34,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
+import io.uhndata.iap.utils.DateUtils;
 
 /**
  * Serialize {@code nt:file} children as a small download descriptor — the file's path (which, requested directly,
@@ -79,7 +78,7 @@ public class FilesProcessor implements ResourceJsonProcessor
             return input;
         }
         try {
-            if (child.isNodeType("nt:file")) {
+            if ("jcr:content".equals(child.getName()) && child.isNodeType("nt:resource")) {
                 return serializeFile(child);
             }
         } catch (RepositoryException e) {
@@ -88,32 +87,32 @@ public class FilesProcessor implements ResourceJsonProcessor
         return input;
     }
 
-    private JsonValue serializeFile(final Node file) throws RepositoryException
+    @Override
+    public void leave(final Node node, final JsonObjectBuilder json, final Function<Node, JsonValue> serializeNode)
     {
-        final JsonObjectBuilder result = Json.createObjectBuilder();
-        result.add("jcr:primaryType", file.getPrimaryNodeType().getName());
-        result.add("@path", file.getPath());
-        result.add("@name", file.getName());
-        if (file.hasNode(CONTENT_CHILD)) {
-            final Node content = file.getNode(CONTENT_CHILD);
-            if (content.hasProperty("jcr:mimeType")) {
-                result.add("contentType", content.getProperty("jcr:mimeType").getString());
-            }
-            if (content.hasProperty("jcr:data")) {
-                result.add("size", content.getProperty("jcr:data").getLength());
-            }
-            if (content.hasProperty("jcr:lastModified")) {
-                result.add("lastModified", serializeDate(content.getProperty("jcr:lastModified").getDate()));
-            }
+        if (json == null) {
+            return;
         }
-        return result.build();
+        try {
+            if (node.isNodeType("nt:file") && node.hasNode(CONTENT_CHILD)) {
+                final Node content = node.getNode(CONTENT_CHILD);
+                if (content.hasProperty("jcr:mimeType")) {
+                    json.add("jcr:mimeType", content.getProperty("jcr:mimeType").getString());
+                }
+                if (content.hasProperty("jcr:data")) {
+                    json.add("size", content.getProperty("jcr:data").getLength());
+                }
+                if (content.hasProperty("jcr:lastModified")) {
+                    json.add("jcr:lastModified", DateUtils.toString(content.getProperty("jcr:lastModified").getDate()));
+                }
+            }
+        } catch (RepositoryException ex) {
+            LOGGER.warn("Failed to serialize file: {}", ex.getMessage());
+        }
     }
 
-    private String serializeDate(final Calendar value)
+    private JsonValue serializeFile(final Node file) throws RepositoryException
     {
-        // Use the ISO 8601 date+time format, same as the properties processor
-        final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
-        sdf.setTimeZone(value.getTimeZone());
-        return sdf.format(value.getTime());
+        return Json.createValue(file.getPath());
     }
 }
