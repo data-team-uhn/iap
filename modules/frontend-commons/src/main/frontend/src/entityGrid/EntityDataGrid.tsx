@@ -25,6 +25,7 @@ import SwapVertIcon from "@mui/icons-material/SwapVert";
 import ViewColumnIcon from "@mui/icons-material/ViewColumn";
 import {
   Alert,
+  Badge,
   Box,
   Button,
   IconButton,
@@ -215,9 +216,15 @@ function EntityGridToolbar(props: EntityGridToolbarProps) {
         </ColumnsPanelTrigger>
       </Tooltip>
       <Tooltip title="Filters">
-        <FilterPanelTrigger render={<ToolbarButton />}>
-          <FilterListIcon fontSize="small" />
-        </FilterPanelTrigger>
+        <FilterPanelTrigger
+          render={(props, state) => (
+            <ToolbarButton {...props}>
+              <Badge badgeContent={state.filterCount} color="primary">
+                <FilterListIcon fontSize="small" />
+              </Badge>
+            </ToolbarButton>
+          )}
+        />
       </Tooltip>
     </Toolbar>
   );
