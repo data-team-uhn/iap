@@ -16,8 +16,6 @@
  * limitations under the License.
  */
 
-import { act, render, screen } from "@testing-library/react";
-
 import { getEntityTypeConfig } from "@iap/frontend-commons/entityGrid/registry";
 import { SUBMISSION_TYPE, schemaLabel } from "@iap/submissions/submissionGrid";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
@@ -105,59 +103,27 @@ describe("the registered submission grid configuration", () => {
     expect(schema(undefined)).toBe("");
   });
 
-  const ALL_CARD_FIELDS = new Set(["title", "schemaVersion", "tags", "jcr:created", "jcr:lastModified"]);
-
-  it("renders a compact card for the grid's narrow-screen list mode", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
-
-    render(<>{config?.listItem?.({
-      "@path": "/Submissions/s1",
-      "title": "Test my drug",
-      "tags": ["in-review"],
-      "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "version": "1.0" },
-      "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
-    }, ALL_CARD_FIELDS)}</>);
-
-    expect(screen.getByText("Test my drug")).toBeInTheDocument();
-    expect(await screen.findByText("In review")).toBeInTheDocument();
-    expect(screen.getByText(/ClinicalTrial 1.0 •/)).toBeInTheDocument();
-
-    vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
+  it("describes the narrow-screen card through the columns' card slots", () => {
+    const slotOf = (field: string) => config?.columns.find(column => column.field === field)?.cardSlot;
+    // Title and status chip lead the card, schema and modification day form the caption line,
+    // and the creation timestamp stays off the card (the modification day already dates it)
+    expect(slotOf("title")).toBe("title");
+    expect(slotOf("tags")).toBe("badge");
+    expect(slotOf("schemaVersion")).toBe("caption");
+    expect(slotOf("jcr:lastModified")).toBe("caption");
+    expect(slotOf("jcr:created")).toBe("omit");
   });
 
-  it("leaves hidden columns out of the card, except the identifying title", async () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
-
-    const { container } = render(<>{config?.listItem?.({
-      "@path": "/Submissions/s1",
-      "title": "Test my drug",
-      "tags": ["in-review"],
-      "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "version": "1.0" },
-      "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
-    }, new Set(["jcr:lastModified"]))}</>);
-
-    // The title stays — it is the card's identity — and the visible date keeps its row,
-    // no longer joined to the hidden schema label
-    expect(screen.getByText("Test my drug")).toBeInTheDocument();
-    expect(screen.getByText(new Date("2026-07-02T10:00:00.000-04:00").toLocaleDateString())).toBeInTheDocument();
-    expect(screen.queryByText(/ClinicalTrial/)).toBeNull();
-    // The status chip is gone: the tag definitions are never even fetched
-    await act(() => Promise.resolve());
-    expect(container.textContent).not.toContain("In review");
-
-    vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
+  it("titles the card with the submission title, falling back to the node name", () => {
+    const title = config?.columns.find(column => column.field === "title")?.cardValue;
+    expect(title?.({ "title": "Test my drug", "@name": "s1" })).toBe("Test my drug");
+    expect(title?.({ "@name": "bare" })).toBe("bare");
   });
 
-  it("falls back to the node name in the card when the title is missing", () => {
-    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
-
-    render(<>{config?.listItem?.({ "@path": "/Submissions/bare", "@name": "bare" }, ALL_CARD_FIELDS)}</>);
-
-    expect(screen.getByText("bare")).toBeInTheDocument();
-
-    vi.unstubAllGlobals();
-    clearTagDefinitionsCache();
+  it("compacts the modification timestamp to a day on the card", () => {
+    const modified = config?.columns.find(column => column.field === "jcr:lastModified")?.cardValue;
+    expect(modified?.({ "jcr:lastModified": "2026-07-02T10:00:00.000-04:00" }))
+      .toBe(new Date("2026-07-02T10:00:00.000-04:00").toLocaleDateString());
+    expect(modified?.({})).toBeUndefined();
   });
 });

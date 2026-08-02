@@ -16,8 +16,6 @@
  * limitations under the License.
  */
 
-import { Stack, Typography } from "@mui/material";
-
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 import TagChip from "@iap/tags/TagChip";
 import { tagValueOptions } from "@iap/tags/tagDefinitions";
@@ -45,9 +43,19 @@ function dateValue(value: unknown): Date | null {
 
 // The columns shared by all grids listing submissions. Fields named after an entity property are
 // sorted server-side by that property; the schema column is computed from a referenced node, so
-// it is not sortable.
+// it is not sortable. The card* properties compose the narrow-screen card: title and status chip
+// leading, schema and modification day on the caption line, nothing else.
 const SUBMISSION_COLUMNS: EntityGridColumn[] = [
-  { field: "title", headerName: "Title", flex: 2, minWidth: 160 },
+  {
+    field: "title",
+    headerName: "Title",
+    flex: 2,
+    minWidth: 160,
+    cardSlot: "title",
+    // Unlike a grid cell, the card cannot leave an untitled submission blank: the title is the
+    // card's identity and its tap target, so it falls back to the node name
+    cardValue: row => (row.title as string | undefined) ?? (row["@name"] as string | undefined),
+  },
   {
     field: "schemaVersion",
     headerName: "Schema",
@@ -58,6 +66,7 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     sortable: false,
     filterable: false,
     valueGetter: value => schemaLabel(value),
+    cardSlot: "caption",
   },
   {
     field: "tags",
@@ -71,6 +80,7 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     // Ordering by a multivalued property has no meaningful semantics
     sortable: false,
     renderCell: params => <TagChip tags={params.row.tags} category="lifecycle" />,
+    cardSlot: "badge",
   },
   {
     field: "jcr:created",
@@ -78,6 +88,8 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     width: 160,
     type: "dateTime",
     valueGetter: value => dateValue(value),
+    // The modification day already dates the card; a second timestamp would just crowd it
+    cardSlot: "omit",
   },
   {
     field: "jcr:lastModified",
@@ -85,6 +97,9 @@ const SUBMISSION_COLUMNS: EntityGridColumn[] = [
     width: 160,
     type: "dateTime",
     valueGetter: value => dateValue(value),
+    cardSlot: "caption",
+    // The full timestamp shown in the grid is too long for the caption line; the day is enough
+    cardValue: row => dateValue(row["jcr:lastModified"])?.toLocaleDateString(),
   },
 ];
 
@@ -96,28 +111,4 @@ registerEntityType(SUBMISSION_TYPE, {
   defaultSort: { field: "jcr:lastModified", sort: "desc" },
   // Each submission is viewable on its own page, at its repository path
   rowLink: row => row["@path"] as string | undefined,
-  // The compact card shown per submission in the grid's narrow-screen list mode. It honors the
-  // column selection like the regular view: hidden columns leave the card too. Only the title
-  // stays regardless — it is the card's identity and its tap target.
-  listItem: (row, visibleFields) => {
-    const meta = [
-      visibleFields.has("schemaVersion") ? schemaLabel(row.schemaVersion) : "",
-      visibleFields.has("jcr:lastModified") ? dateValue(row["jcr:lastModified"])?.toLocaleDateString() ?? "" : "",
-    ].filter(Boolean).join(" • ");
-    return (
-      <Stack spacing={0.5} sx={{ py: 1, width: "100%" }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
-          <Typography variant="subtitle2">
-            {(row.title as string | undefined) ?? (row["@name"] as string | undefined)}
-          </Typography>
-          {visibleFields.has("tags") && <TagChip tags={row.tags} category="lifecycle" />}
-        </Stack>
-        {meta !== "" && (
-          <Typography variant="caption" color="text.secondary">
-            {meta}
-          </Typography>
-        )}
-      </Stack>
-    );
-  },
 });
