@@ -44,7 +44,10 @@ export interface EntityGridConfig {
   rowLink?: (row: EntityRow) => string | undefined;
   // Renders one entity as a compact card in the grid's narrow-screen list mode. When absent,
   // a generic card is derived from the columns (first column prominent, the rest as rows).
-  listItem?: (row: EntityRow) => ReactNode;
+  // The card is expected to honor the user's column selection like the regular view does:
+  // visibleFields holds the `field`s of the currently shown columns, so the renderer can leave
+  // out what the user hid (keeping the card's identity — the title — is fine regardless).
+  listItem?: (row: EntityRow, visibleFields: ReadonlySet<string>) => ReactNode;
 }
 
 const configs = new Map<string, EntityGridConfig>();
