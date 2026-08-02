@@ -75,6 +75,8 @@ if ("application/json".equals(request.getHeader("Accept"))) {
         out.println('    <meta name="' + Packages.org.apache.commons.text.StringEscapeUtils.escapeXml11(entry.getKey()) + '" content="' + Packages.org.apache.commons.text.StringEscapeUtils.escapeXml11(entry.getValue()) + '"/>');
       }
 %>
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&amp;display=swap" class="next-head"/>
     <script src="/system/sling.js"></script>
