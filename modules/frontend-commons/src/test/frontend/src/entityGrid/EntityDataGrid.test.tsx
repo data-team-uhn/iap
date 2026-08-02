@@ -497,7 +497,10 @@ describe("EntityDataGrid", () => {
     // Plain numbers and booleans are stringified, dates from value getters are formatted
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("true")).toBeInTheDocument();
-    expect(screen.getByText(new Date("2026-07-02T10:00:00.000Z").toLocaleString())).toBeInTheDocument();
+    // Timestamps display without seconds throughout the grids
+    expect(screen.getByText(new Date("2026-07-02T10:00:00.000Z").toLocaleString(undefined, {
+      year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric",
+    }))).toBeInTheDocument();
     // Nested objects have no generic rendering: the whole labeled row is skipped
     expect(screen.queryByText("Nested")).toBeNull();
     // A column without a header falls back to its field name as the label
