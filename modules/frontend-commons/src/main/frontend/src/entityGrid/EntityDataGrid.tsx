@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { type ReactNode, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useState } from "react";
 
 import ClearIcon from "@mui/icons-material/Clear";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -283,21 +283,50 @@ function columnContent(column: EntityGridColumn, row: EntityRow): ReactNode {
   return scalarContent(value);
 }
 
-// The card shown for one entity in list mode when its type registers no listItem renderer:
-// the first column's content as the card title, the other columns as labeled rows.
+// The card shown for one entity in list mode, composed from the visible columns according to
+// their card slots: the title column leads the card, badge columns sit beside it, caption
+// columns join into one muted " • " line below, and "row" columns — the default — become
+// labeled rows; omitted columns don't appear at all. Content comes from each column's own
+// rendering, unless its cardValue asks for a more compact form. Without a designated (or
+// visible) title column, the first regular column leads the card, so a plain column list
+// still makes a sensible card with no hints at all.
 function GenericListItem({ row, columns }: { row: EntityRow; columns: EntityGridColumn[] }) {
-  const [primary, ...details] = columns;
+  const content = (column: EntityGridColumn) =>
+    column.cardValue ? column.cardValue(row) : columnContent(column, row);
+  const shown = columns.filter(column => column.cardSlot !== "omit");
+  const badges = shown.filter(column => column.cardSlot === "badge");
+  const captions = shown
+    .filter(column => column.cardSlot === "caption")
+    .map(column => ({ field: column.field, node: content(column) }))
+    .filter(part => part.node != null && part.node !== "");
+  let title = shown.find(column => column.cardSlot === "title");
+  let details = shown.filter(column => (column.cardSlot ?? "row") === "row");
+  if (!title && details.length > 0) {
+    [title, ...details] = details;
+  }
   return (
     <Stack spacing={0.5} sx={{ py: 1, width: "100%" }}>
-      <Typography variant="subtitle2" component="div">{columnContent(primary, row)}</Typography>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+        <Typography variant="subtitle2" component="div">{title && content(title)}</Typography>
+        {badges.length > 0 && (
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+            {badges.map(column => <Fragment key={column.field}>{content(column)}</Fragment>)}
+          </Stack>
+        )}
+      </Stack>
+      {captions.length > 0 && (
+        <Typography variant="caption" color="text.secondary" component="div">
+          {captions.map((part, index) => <Fragment key={part.field}>{index > 0 && " • "}{part.node}</Fragment>)}
+        </Typography>
+      )}
       {details.map(column => {
-        const content = columnContent(column, row);
-        return content == null || content === "" ? null : (
+        const value = content(column);
+        return value == null || value === "" ? null : (
           <Stack key={column.field} direction="row" spacing={1} sx={{ alignItems: "center" }}>
             <Typography variant="caption" color="text.secondary" component="div" sx={{ minWidth: 96 }}>
               {column.headerName ?? column.field}
             </Typography>
-            <Box sx={{ typography: "body2" }}>{content}</Box>
+            <Box sx={{ typography: "body2" }}>{value}</Box>
           </Stack>
         );
       })}

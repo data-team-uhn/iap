@@ -21,13 +21,24 @@ import type { ReactNode } from "react";
 import type { EntityRow } from "./pagination";
 import type { GridColDef, GridSortDirection } from "@mui/x-data-grid-pro";
 
+// Where a column's content goes on the compact card shown in the grid's narrow-screen list
+// mode: leading the card as its "title", as a "badge" beside the title (e.g. a status chip),
+// on the muted "caption" line under it (several caption columns join into one " • " line),
+// as a labeled "row" (the default), or nowhere ("omit").
+export type EntityGridCardSlot = "title" | "badge" | "caption" | "row" | "omit";
+
 // A column of an entity grid: a regular MUI DataGrid column definition, optionally naming the
 // server-side entity property that server-side sorting should order by when this column's own
 // `field` is not a direct property of the entity (e.g. a column rendering a dereferenced
 // `schemaVersion` object). Columns computed from data the server cannot order by should set
-// `sortable: false` instead.
+// `sortable: false` instead. The card* properties shape the narrow-screen card, which is
+// otherwise derived from the column's regular definition.
 export type EntityGridColumn = GridColDef<EntityRow> & {
   sortProperty?: string;
+  cardSlot?: EntityGridCardSlot;
+  // Overrides the column's grid rendering on the card, when the card wants a more compact
+  // form (e.g. a day instead of a full timestamp, or a fallback for a missing title)
+  cardValue?: (row: EntityRow) => ReactNode;
 };
 
 // How to present one entity type in a data grid: where its entities live, the columns to show,
@@ -42,11 +53,12 @@ export interface EntityGridConfig {
   // Where clicking a row navigates to (an in-app URL). Rows aren't clickable when this is
   // absent, and individual rows aren't when it returns undefined.
   rowLink?: (row: EntityRow) => string | undefined;
-  // Renders one entity as a compact card in the grid's narrow-screen list mode. When absent,
-  // a generic card is derived from the columns (first column prominent, the rest as rows).
-  // The card is expected to honor the user's column selection like the regular view does:
-  // visibleFields holds the `field`s of the currently shown columns, so the renderer can leave
-  // out what the user hid (keeping the card's identity — the title — is fine regardless).
+  // The escape hatch for a fully bespoke narrow-screen card, for compositions the columns'
+  // cardSlots cannot describe. When absent — the normal case — the card is composed from the
+  // visible columns according to their cardSlots. A bespoke renderer is expected to honor the
+  // user's column selection itself: visibleFields holds the `field`s of the currently shown
+  // columns, so the renderer can leave out what the user hid (keeping the card's identity —
+  // the title — is fine regardless).
   listItem?: (row: EntityRow, visibleFields: ReadonlySet<string>) => ReactNode;
 }
 

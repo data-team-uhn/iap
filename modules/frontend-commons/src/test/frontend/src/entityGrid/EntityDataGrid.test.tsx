@@ -80,6 +80,35 @@ registerEntityType(CUSTOM_CARD_TYPE, {
   ),
 });
 
+// A type composing its narrow-screen card declaratively, through the columns' card slots
+const SLOTTED_TYPE = "test/SlottedEntity";
+registerEntityType(SLOTTED_TYPE, {
+  homepage: "/SlottedEntities",
+  columns: [
+    {
+      field: "title",
+      headerName: "Title",
+      cardSlot: "title",
+      cardValue: row => String(row.title ?? row["@name"]),
+    },
+    {
+      field: "status",
+      headerName: "Status",
+      cardSlot: "badge",
+      renderCell: params => <em>{String((params.row as Record<string, unknown>).status)}</em>,
+    },
+    { field: "kind", headerName: "Kind", cardSlot: "caption" },
+    {
+      field: "when",
+      headerName: "When",
+      cardSlot: "caption",
+      cardValue: row => new Date(String(row.when)).toLocaleDateString(),
+    },
+    { field: "internal", headerName: "Internal", cardSlot: "omit" },
+    { field: "note", headerName: "Note" },
+  ],
+});
+
 // A type with a choice column whose options carry display colors, like tag definitions do
 const CHOICE_TYPE = "test/ChoiceEntity";
 registerEntityType(CHOICE_TYPE, {
@@ -506,6 +535,54 @@ describe("EntityDataGrid", () => {
 
     expect(await screen.findByText(/Custom card: Bespoke/)).toBeInTheDocument();
     expect(screen.queryByText(/open/)).toBeNull();
+  });
+
+  it("composes the card from the columns' card slots", async () => {
+    fakeNarrowScreen();
+    mockPage([{
+      "@path": "/SlottedEntities/e1",
+      "title": "Slotted entity",
+      "status": "open",
+      "kind": "demo",
+      "when": "2026-07-02T10:00:00.000Z",
+      "internal": "secret",
+      "note": "a labeled row",
+    }]);
+
+    render(<EntityDataGrid entityType={SLOTTED_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    // The title leads the card, with the badge beside it through the column's own renderer
+    expect(await screen.findByText("Slotted entity")).toBeInTheDocument();
+    expect(screen.getByText("open").tagName).toBe("EM");
+    // The caption columns join into one " • " line, compacted through their cardValue
+    const day = new Date("2026-07-02T10:00:00.000Z").toLocaleDateString();
+    expect(screen.getByText((_, element) => element?.textContent === `demo • ${day}`)).toBeInTheDocument();
+    // Unhinted columns stay labeled rows, omitted ones don't appear at all
+    expect(screen.getByText("Note")).toBeInTheDocument();
+    expect(screen.getByText("a labeled row")).toBeInTheDocument();
+    expect(screen.queryByText("secret")).toBeNull();
+  });
+
+  it("keeps the slotted card in step with the column selection", async () => {
+    fakeNarrowScreen();
+    window.localStorage.setItem(`iap.entityGrid.${SLOTTED_TYPE}.columns`,
+      JSON.stringify({ status: false, kind: false }));
+    mockPage([{
+      "@path": "/SlottedEntities/e1",
+      "title": "Slotted entity",
+      "status": "open",
+      "kind": "demo",
+      "when": "2026-07-02T10:00:00.000Z",
+    }]);
+
+    render(<EntityDataGrid entityType={SLOTTED_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    // The hidden badge and caption columns leave the card; the remaining caption keeps its line
+    expect(await screen.findByText("Slotted entity")).toBeInTheDocument();
+    expect(screen.queryByText("open")).toBeNull();
+    expect(screen.queryByText(/demo/)).toBeNull();
+    const day = new Date("2026-07-02T10:00:00.000Z").toLocaleDateString();
+    expect(screen.getByText((_, element) => element?.textContent === day)).toBeInTheDocument();
   });
 
   it("offers toolbar sorting in list mode, since cards have no headers to click", async () => {
