@@ -69,12 +69,15 @@ registerEntityType(CARD_TYPE, {
   ],
 });
 
-// A type bringing its own card renderer for the list mode
+// A type bringing its own card renderer for the list mode; the card applies the column
+// selection to its own composition through the visible fields it receives
 const CUSTOM_CARD_TYPE = "test/CustomCardEntity";
 registerEntityType(CUSTOM_CARD_TYPE, {
   homepage: "/CustomCards",
-  columns: [{ field: "title", headerName: "Title" }],
-  listItem: row => <div>Custom card: {String(row.title)}</div>,
+  columns: [{ field: "title", headerName: "Title" }, { field: "status", headerName: "Status" }],
+  listItem: (row, visibleFields) => (
+    <div>Custom card: {String(row.title)}{visibleFields.has("status") && ` (${String(row.status)})`}</div>
+  ),
 });
 
 // A type with a choice column whose options carry display colors, like tag definitions do
@@ -475,11 +478,34 @@ describe("EntityDataGrid", () => {
 
   it("prefers a type's own card renderer in list mode", async () => {
     fakeNarrowScreen();
-    mockPage([{ "@path": "/CustomCards/e1", "title": "Bespoke" }]);
+    mockPage([{ "@path": "/CustomCards/e1", "title": "Bespoke", "status": "open" }]);
+
+    render(<EntityDataGrid entityType={CUSTOM_CARD_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText(/Custom card: Bespoke \(open\)/)).toBeInTheDocument();
+  });
+
+  it("hides columns the user hid from the generic card too", async () => {
+    fakeNarrowScreen();
+    window.localStorage.setItem(`iap.entityGrid.${TEST_TYPE}.columns`, JSON.stringify({ status: false }));
+    mockPage([{ "@path": "/GridEntities/e1", "title": "First entity", "status": "draft" }]);
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByText("First entity")).toBeInTheDocument();
+    expect(screen.queryByText("Status")).toBeNull();
+    expect(screen.queryByText("draft")).toBeNull();
+  });
+
+  it("hands the column selection to a type's own card renderer", async () => {
+    fakeNarrowScreen();
+    window.localStorage.setItem(`iap.entityGrid.${CUSTOM_CARD_TYPE}.columns`, JSON.stringify({ status: false }));
+    mockPage([{ "@path": "/CustomCards/e1", "title": "Bespoke", "status": "open" }]);
 
     render(<EntityDataGrid entityType={CUSTOM_CARD_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText(/Custom card: Bespoke/)).toBeInTheDocument();
+    expect(screen.queryByText(/open/)).toBeNull();
   });
 
   it("offers toolbar sorting in list mode, since cards have no headers to click", async () => {

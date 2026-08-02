@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 
 import { getEntityTypeConfig } from "@iap/frontend-commons/entityGrid/registry";
 import { SUBMISSION_TYPE, schemaLabel } from "@iap/submissions/submissionGrid";
@@ -105,6 +105,8 @@ describe("the registered submission grid configuration", () => {
     expect(schema(undefined)).toBe("");
   });
 
+  const ALL_CARD_FIELDS = new Set(["title", "schemaVersion", "tags", "jcr:created", "jcr:lastModified"]);
+
   it("renders a compact card for the grid's narrow-screen list mode", async () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
 
@@ -114,7 +116,7 @@ describe("the registered submission grid configuration", () => {
       "tags": ["in-review"],
       "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "version": "1.0" },
       "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
-    })}</>);
+    }, ALL_CARD_FIELDS)}</>);
 
     expect(screen.getByText("Test my drug")).toBeInTheDocument();
     expect(await screen.findByText("In review")).toBeInTheDocument();
@@ -124,10 +126,34 @@ describe("the registered submission grid configuration", () => {
     clearTagDefinitionsCache();
   });
 
+  it("leaves hidden columns out of the card, except the identifying title", async () => {
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+
+    const { container } = render(<>{config?.listItem?.({
+      "@path": "/Submissions/s1",
+      "title": "Test my drug",
+      "tags": ["in-review"],
+      "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "version": "1.0" },
+      "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
+    }, new Set(["jcr:lastModified"]))}</>);
+
+    // The title stays — it is the card's identity — and the visible date keeps its row,
+    // no longer joined to the hidden schema label
+    expect(screen.getByText("Test my drug")).toBeInTheDocument();
+    expect(screen.getByText(new Date("2026-07-02T10:00:00.000-04:00").toLocaleDateString())).toBeInTheDocument();
+    expect(screen.queryByText(/ClinicalTrial/)).toBeNull();
+    // The status chip is gone: the tag definitions are never even fetched
+    await act(() => Promise.resolve());
+    expect(container.textContent).not.toContain("In review");
+
+    vi.unstubAllGlobals();
+    clearTagDefinitionsCache();
+  });
+
   it("falls back to the node name in the card when the title is missing", () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
 
-    render(<>{config?.listItem?.({ "@path": "/Submissions/bare", "@name": "bare" })}</>);
+    render(<>{config?.listItem?.({ "@path": "/Submissions/bare", "@name": "bare" }, ALL_CARD_FIELDS)}</>);
 
     expect(screen.getByText("bare")).toBeInTheDocument();
 

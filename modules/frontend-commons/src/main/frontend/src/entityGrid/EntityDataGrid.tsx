@@ -557,12 +557,19 @@ function EntityDataGrid(props: EntityDataGridProps) {
     setPaginationModel(current => ({ ...current, page: 0 }));
   };
 
-  // The single synthetic "column" rendering each row as a card in list mode
+  // The single synthetic "column" rendering each row as a card in list mode. The cards honor
+  // the column selection just like the regular view, keeping the columns toggle meaningful in
+  // list mode: the generic card derives from the visible columns, and a type's own renderer
+  // receives the visible fields to apply the selection to its composition.
+  // A column absent from the model is visible; the model's index type hides the undefined
+  const visibleColumns = config.columns
+    .filter(column => (columnVisibilityModel[column.field] as boolean | undefined) !== false);
+  const visibleFields = new Set(visibleColumns.map(column => column.field));
   const listColumn: GridListViewColDef<EntityRow> = {
     field: "__listItem__",
     renderCell: params => config.listItem
-      ? config.listItem(params.row)
-      : <GenericListItem row={params.row} columns={config.columns} />,
+      ? config.listItem(params.row, visibleFields)
+      : <GenericListItem row={params.row} columns={visibleColumns} />,
   };
 
   // Clicking a row navigates to the entity's own page, when the entity type declares one
