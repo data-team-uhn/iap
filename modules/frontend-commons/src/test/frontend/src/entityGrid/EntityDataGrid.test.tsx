@@ -254,8 +254,10 @@ describe("EntityDataGrid", () => {
     await screen.findByText("Nothing to show");
 
     // Open the filter panel; it starts with one condition on the first column (Title), using the
-    // first offered operator (contains)
-    await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
+    // first offered operator (contains). The trigger's badge hides while nothing is filtering.
+    const filterTrigger = screen.getAllByRole("button", { name: /filter/i })[0];
+    expect(within(filterTrigger).getByText("0")).toHaveClass("MuiBadge-invisible");
+    await user.click(filterTrigger);
     // Set the value atomically: typing keystroke by keystroke races the debounced re-render
     fireEvent.change(await screen.findByPlaceholderText("Filter value"), { target: { value: "card" } });
 
@@ -268,6 +270,8 @@ describe("EntityDataGrid", () => {
     // An active column filter also counts as "searching" for the empty-state message
     await flushRender();
     expect(await screen.findByText("No results found")).toBeInTheDocument();
+    // The trigger now flags the active condition with a badge
+    expect(within(filterTrigger).getByText("1")).toBeInTheDocument();
   });
 
   it("expands a day picked in the filter panel into boundary conditions", async () => {
@@ -295,6 +299,8 @@ describe("EntityDataGrid", () => {
         new Date("2026-07-26T00:00:00").toISOString(),
       ]);
     });
+    // The trigger's badge counts the panel's single condition, not the expanded server triples
+    expect(within(screen.getAllByRole("button", { name: /filter/i })[0]).getByText("1")).toBeInTheDocument();
   });
 
   it("restores the column selection remembered for the entity type", async () => {
