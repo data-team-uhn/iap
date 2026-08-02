@@ -257,12 +257,32 @@ function EntityGridToolbar(props: EntityGridToolbarProps) {
   );
 }
 
+// How entity timestamps display throughout the grids: like toLocaleString, minus the seconds
+// — no entity timestamp needs second precision in practice, and they widen every date column.
+function formatDateTime(value: Date): string {
+  return value.toLocaleString(undefined, {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+  });
+}
+
+// Puts the compact timestamp rendering on every dateTime column that doesn't bring its own
+// formatter — the stock rendering is a full toLocaleString.
+function withCompactDates(columns: EntityGridColumn[]): EntityGridColumn[] {
+  return columns.map(column => column.type === "dateTime" && !column.valueFormatter
+    ? { ...column, valueFormatter: (value?: Date) => value ? formatDateTime(value) : "" }
+    : column);
+}
+
 // A generic text rendering of one cell value: dates and primitives have an obvious one,
 // nested objects have none — keep object-like typeofs out of the list, or they would
 // stringify as "[object Object]".
 function scalarContent(value: unknown): ReactNode {
   if (value instanceof Date) {
-    return value.toLocaleString();
+    return formatDateTime(value);
   }
   return ["string", "number", "boolean"].includes(typeof value) ? String(value) : null;
 }
@@ -613,7 +633,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   return (
     <Box sx={{ height, width: "100%", "& .MuiDataGrid-row": { cursor: openRow ? "pointer" : "inherit" } }}>
       <DataGridPro
-        columns={withServerFilterOperators(config.columns)}
+        columns={withCompactDates(withServerFilterOperators(config.columns))}
         rows={rows}
         getRowId={row => String(row["@path"] ?? row["@name"])}
         // An approximate total is only a lower bound: report the count as unknown-but-estimated,
