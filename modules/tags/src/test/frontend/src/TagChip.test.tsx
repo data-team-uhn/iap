@@ -35,7 +35,7 @@ describe("TagChip", () => {
     render(<TagChip tags={["in-review"]} category="lifecycle" />);
 
     const chip = await screen.findByText("In review");
-    expect(chip.closest(".MuiChip-root")).toHaveStyle({ backgroundColor: "#ed6c02" });
+    expect(chip.closest(".MuiChip-root")).toHaveStyle({ backgroundColor: "#673ab7" });
   });
 
   it("only shows tags actually belonging to the requested category", async () => {
@@ -72,7 +72,7 @@ describe("TagChip", () => {
 
     render(<TagChip tags={["rejected", "submitted", "not-a-state"]} category="lifecycle" />);
 
-    // "submitted" (order 20) is defined before "rejected" (order 50)
+    // "submitted" (order 20) is defined before "rejected" (order 70)
     expect(await screen.findByText("Submitted")).toBeInTheDocument();
     expect(screen.queryByText("Rejected")).toBeNull();
   });
@@ -194,10 +194,10 @@ describe("TagChip", () => {
     expect(options()).toEqual([]);
     await vi.waitFor(() => {
       expect(options()).toEqual([
+        { value: "in-progress", label: "In progress", color: "#0288d1" },
+        { value: "changes-requested", label: "Changes requested", color: "#ed6c02" },
         { value: "approved", label: "Approved", color: "#2e7d32" },
         { value: "rejected", label: "Rejected", color: "#d32f2f" },
-        { value: "in-progress", label: "In progress", color: "#0288d1" },
-        { value: "changes-requested", label: "Changes requested", color: "#f57c00" },
       ]);
     });
     // The chips' own fetches share the same cache, so no second request was needed

@@ -4,6 +4,6 @@
   "description": "The record was picked up by its reviewers and a decision is pending.",
   "category": ["lifecycle"],
   "system": true,
-  "color": "#ed6c02",
+  "color": "#673ab7",
   "order": 30
 }

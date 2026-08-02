@@ -76,7 +76,8 @@ describe("the registered submission grid configuration", () => {
       expect(options?.({ field: "tags" })).toEqual([
         { value: "draft", label: "Draft", color: "#9e9e9e" },
         { value: "submitted", label: "Submitted", color: "#1976d2" },
-        { value: "in-review", label: "In review", color: "#ed6c02" },
+        { value: "in-review", label: "In review", color: "#673ab7" },
+        { value: "changes-requested", label: "Changes requested", color: "#ed6c02" },
         { value: "approved", label: "Approved", color: "#2e7d32" },
         { value: "rejected", label: "Rejected", color: "#d32f2f" },
       ]);
