@@ -326,10 +326,10 @@ function GenericListItem({ row, columns }: { row: EntityRow; columns: EntityGrid
   }
   return (
     <Stack spacing={0.5} sx={{ py: 1, width: "100%" }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+      <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
         <Typography variant="subtitle2" component="div">{title && content(title)}</Typography>
         {badges.length > 0 && (
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+          <Stack direction="row" sx={{ gap: 0.5, flexWrap: "wrap", alignItems: "center" }}>
             {badges.map(column => <Fragment key={column.field}>{content(column)}</Fragment>)}
           </Stack>
         )}
@@ -342,7 +342,7 @@ function GenericListItem({ row, columns }: { row: EntityRow; columns: EntityGrid
       {details.map(column => {
         const value = content(column);
         return value == null || value === "" ? null : (
-          <Stack key={column.field} direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <Stack key={column.field} direction="row" sx={{ gap: 1, flexWrap: "wrap", alignItems: "center" }}>
             <Typography variant="caption" color="text.secondary" component="div" sx={{ minWidth: 96 }}>
               {column.headerName ?? column.field}
             </Typography>
