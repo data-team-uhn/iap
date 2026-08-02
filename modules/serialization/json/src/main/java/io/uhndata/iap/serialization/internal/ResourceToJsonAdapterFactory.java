@@ -92,7 +92,7 @@ public class ResourceToJsonAdapterFactory
         final Resource resource = (Resource) adaptable;
         // The state of this serialization: the processors to invoke, the requested depth, and the nodes processed so
         // far down the stack.
-        final SerializationContext context = new SerializationContext(resource);
+        final SerializationContext context = new SerializationContext(resource, setupProcessors(resource));
 
         start(resource, context);
         final Node node = resource.adaptTo(Node.class);
@@ -287,7 +287,7 @@ public class ResourceToJsonAdapterFactory
      * @version $Id$
      * @since 0.1.0
      */
-    private final class SerializationContext
+    private static final class SerializationContext
     {
         /** The processors enabled for this serialization, in ascending order of their priority. */
         private final List<ResourceJsonProcessor> processors;
@@ -298,9 +298,9 @@ public class ResourceToJsonAdapterFactory
         /** The paths of the nodes whose serialization is in progress, the innermost one first. */
         private final Deque<String> openNodes = new ArrayDeque<>();
 
-        SerializationContext(final Resource resource)
+        SerializationContext(final Resource resource, final List<ResourceJsonProcessor> processors)
         {
-            this.processors = setupProcessors(resource);
+            this.processors = processors;
             this.maxDepth = SelectorUtils.parseDepth(resource.getResourceMetadata().getResolutionPathInfo())
                 .orElse(SelectorUtils.UNLIMITED_DEPTH);
         }
