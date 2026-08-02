@@ -128,11 +128,10 @@ post_node() {
 # Cycles for some variety across the generated submissions. The lifecycle state is a tag (see
 # the tag definitions under /Tags), stored in the multivalued `tags` property — hence the
 # String[] type hints on the POSTs below, without which a single value imports as a plain string.
-STATUSES=(draft submitted in-review in-review approved rejected)
+STATUSES=(draft submitted in-review changes-requested approved rejected)
 TOPICS=("cardiac imaging" "gene therapy" "sleep patterns" "novel biomarkers" "wearable sensors"
   "immunotherapy response" "dietary interventions" "cognitive decline" "post-surgical recovery"
   "antibiotic resistance")
-REVIEW_STATUSES=(in-progress changes-requested)
 REVIEWERS=(admin jdoe)
 
 echo "Creating $COUNT submissions under /Submissions ..."
@@ -146,11 +145,12 @@ for i in $(seq 1 "$COUNT"); do
     -F "tags@TypeHint=String[]" \
     -F "schemaVersion=$VERSION_UUID" \
     -F "schemaVersion@TypeHint=Reference"
-  # Submissions under review get an open review, alternating between admin (visible in admin's
-  # review queue) and another reviewer (not visible); approved ones get a finished review.
-  if [ "$STATUS" = "in-review" ]; then
+  # Submissions under review or sent back for changes get an open review whose state mirrors
+  # the submission's, alternating between admin (visible in admin's review queue) and another
+  # reviewer (not visible); approved ones get a finished review.
+  if [ "$STATUS" = "in-review" ] || [ "$STATUS" = "changes-requested" ]; then
     REVIEWER="${REVIEWERS[$(( i % ${#REVIEWERS[@]} ))]}"
-    REVIEW_STATUS="${REVIEW_STATUSES[$(( i % ${#REVIEW_STATUSES[@]} ))]}"
+    if [ "$STATUS" = "in-review" ]; then REVIEW_STATUS=in-progress; else REVIEW_STATUS="$STATUS"; fi
     post_node "/Submissions/demo-$i/Review1" \
       -F "jcr:primaryType=sub:Review" \
       -F "reviewer=$REVIEWER" \

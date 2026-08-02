@@ -23,11 +23,12 @@ import type { TagDefinition } from "@iap/tags/tagDefinitions";
 export const TAG_DEFINITIONS: (TagDefinition & { category: string[] })[] = [
   { name: "draft", label: "Draft", color: "#9e9e9e", order: 10, category: ["lifecycle"] },
   { name: "submitted", label: "Submitted", color: "#1976d2", order: 20, category: ["lifecycle"] },
-  { name: "in-review", label: "In review", color: "#ed6c02", order: 30, category: ["lifecycle"] },
-  { name: "approved", label: "Approved", color: "#2e7d32", order: 40, category: ["lifecycle", "review"] },
-  { name: "rejected", label: "Rejected", color: "#d32f2f", order: 50, category: ["lifecycle", "review"] },
-  { name: "in-progress", label: "In progress", color: "#0288d1", order: 60, category: ["review"] },
-  { name: "changes-requested", label: "Changes requested", color: "#f57c00", order: 70, category: ["review"] },
+  { name: "in-review", label: "In review", color: "#673ab7", order: 30, category: ["lifecycle"] },
+  { name: "in-progress", label: "In progress", color: "#0288d1", order: 40, category: ["review"] },
+  { name: "changes-requested", label: "Changes requested", color: "#ed6c02", order: 50,
+    category: ["lifecycle", "review"] },
+  { name: "approved", label: "Approved", color: "#2e7d32", order: 60, category: ["lifecycle", "review"] },
+  { name: "rejected", label: "Rejected", color: "#d32f2f", order: 70, category: ["lifecycle", "review"] },
 ];
 
 // A fetch stand-in that answers the tag definition search like the TagListServlet (filtered by
