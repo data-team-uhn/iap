@@ -136,10 +136,37 @@ function EntityGridToolbar(props: EntityGridToolbarProps) {
     <Toolbar style={{ flexWrap: "wrap", flex: "none" }}>
       {/* The sizing lives on the QuickFilter itself: it renders a wrapper div which is the
           actual flex item in the toolbar, so styles on the text field could not affect the
-          layout. The trailing auto margin pushes everything after it to the far end, and
-          minWidth 0 lets the box shrink below its 400px target on narrow screens — a flex
-          item's implicit minimum would otherwise force the whole grid that wide. */}
-      <QuickFilter expanded style={{ flexBasis: 400, flexShrink: 1, minWidth: 0, marginInlineEnd: "auto" }}>
+          layout — rendered as a Box so the sizing can respond to breakpoints and focus. The
+          trailing auto margin pushes everything after it to the far end, and minWidth 0 lets
+          the box shrink below its target — a flex item's implicit minimum would otherwise
+          force the whole grid that wide. On narrow screens the box claims a full row, so the
+          toolbar is always exactly two tidy rows: an in-between width would otherwise wrap
+          the toggles below it one by one. On wider screens the box rests compact and
+          stretches to its full target while focused or holding a query (clipping a typed
+          query on blur would read as losing it); the panel toggles stay end-anchored, so
+          only the gap between them and the box breathes. */}
+      <QuickFilter
+        expanded
+        render={(
+          <Box
+            sx={theme => ({
+              flexBasis: "100%",
+              flexShrink: 1,
+              minWidth: 0,
+              marginInlineEnd: "auto",
+              [theme.breakpoints.up("sm")]: {
+                flexBasis: 300,
+                transition: theme.transitions.create("flex-basis", {
+                  duration: theme.transitions.duration.standard,
+                  easing: theme.transitions.easing.easeOut,
+                }),
+                "@media (prefers-reduced-motion: reduce)": { transition: "none" },
+                "&:focus-within, &:has(input:not(:placeholder-shown))": { flexBasis: 400 },
+              },
+            })}
+          />
+        )}
+      >
         <QuickFilterControl
           render={({ ref, slotProps, ...controlProps }, state) => (
             <TextField
