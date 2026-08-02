@@ -7,7 +7,7 @@ It runs as an [Apache Sling](https://sling.apache.org/) application (OSGi on Apa
 ## Prerequisites
 
 - **Java 21**
-- **Maven 3.8.7+**
+- **Maven 3.9+**
 - **Python 3** — the start process is implemented in Python (`start.py`). Installing the optional `psutil` module enables a more robust bind check (not used on WSL or macOS, where a simpler check is applied automatically).
 - **MongoDB** — only if you run with `--mongo` (see below); the default storage needs nothing extra.
 
