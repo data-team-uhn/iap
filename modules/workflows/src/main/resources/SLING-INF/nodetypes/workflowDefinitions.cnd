@@ -74,14 +74,19 @@
   // Mandatory version label, e.g. "1.0"
   - version (STRING) mandatory
 
-  // BPMN 2.0 XML source for this workflow
-  - bpmnXml (STRING)
-
-  // SHA-256 hash of the bpmnXml at the time of the last successful parse into flow nodes
+  // SHA-256 hash of the bpmnXml file at the time of the last successful parse into flow nodes
   - bpmnXmlParsedHash (STRING)
 
   // When false, no new instances may be created from this version
   - active (BOOLEAN) = false
+
+  // BPMN 2.0 XML source for this workflow. A whole document, kept as a file so that it can be
+  // downloaded and re-uploaded as one, and so that it stays out of the version's properties.
+  // The .xml extension is what gives it a content type: Sling derives one from the file name,
+  // and an extensionless name would leave every shipped diagram an untyped binary.
+  // Named here to document the contract rather than to enforce it: the inherited sling:Folder
+  // residual accepts any child, and a child of another type named bpmn.xml falls back to it.
+  + bpmn.xml (nt:file)
 
   // Parsed BPMN flow nodes (start/end events, tasks, gateways)
   + * (wf:FlowNode) = wf:FlowNode
