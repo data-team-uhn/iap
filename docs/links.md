@@ -16,6 +16,7 @@ how it behaves:
 | Property | Meaning |
 | --- | --- |
 | `label` | Display name for the type (defaults to the node name). |
+| `description` | Longer explanation of what this type of link means and when it applies, surfaced by the [self-documentation catalogue](#self-documentation). |
 | `displayed` | Whether links of this type appear in the user-facing UI (default `true`). A rendering hint only, not an access control, all links are included when listing them. |
 | `external` | This type records a value instead of referencing a resource (see [external links](#external-links)). |
 | `weak` | The link holds a weak reference: it may break when the target is deleted, instead of preventing that deletion. |
@@ -25,6 +26,16 @@ how it behaves:
 | `backlinkOnly` | This type is only instantiated as an automatic backlink, never directly. |
 | `onDelete` | What happens to the linking resource when the linked one is deleted: `IGNORE` (weak links only), `REMOVE_LINK` (default), `RECURSIVE_DELETE`. Declared in the data model, enforced once the workflow engine handles deletions. |
 | `valuePattern`, `urlTemplate` | External links only: a regex recorded values must match, and a template turning the value into a navigable URL. |
+
+## Self-documentation
+
+The link vocabulary documents itself through the platform's
+[self-documentation mechanism](autodoc.md): `GET /LinkTypes.doc.md` renders a human-readable
+Markdown catalogue — one subsection per link type with its description and the behaviors that
+apply to it (external, weak, backlink, deletion policy, type restrictions, value pattern) — and
+`GET /LinkTypes.doc.json` returns the same catalogue as JSON. Link types have no categories, so
+the catalogue is a flat list. Its heading can be reworded by setting the `title` and
+`description` properties on the `/LinkTypes` node.
 
 ## Working with links
 

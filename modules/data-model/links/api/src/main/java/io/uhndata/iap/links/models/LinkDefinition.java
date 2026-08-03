@@ -17,6 +17,14 @@
  */
 package io.uhndata.iap.links.models;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import jakarta.json.Json;
+import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonObjectBuilder;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -24,19 +32,21 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.content.models.Content;
 
 /**
  * A Sling Model wrapping an {@code iap:LinkDefinition} node: the definition of a type of link, stored under
  * {@code /LinkTypes}. The definition is the single source of truth for what a connection means, what it may
- * connect, and how it behaves.
+ * connect, and how it behaves, and each one documents itself as an entry of the catalogue served at
+ * {@code /LinkTypes.doc.json} and {@code /LinkTypes.doc.md}.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Model(adaptables = Resource.class, resourceType = LinkDefinition.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class LinkDefinition extends Content
+public class LinkDefinition extends Content implements DocumentedItem
 {
     /** The {@code sling:resourceType} of an {@code iap:LinkDefinition} node. */
     public static final String RESOURCE_TYPE = "iap/LinkDefinition";
@@ -59,6 +69,9 @@ public class LinkDefinition extends Content
 
     @ValueMapValue
     private String label;
+
+    @ValueMapValue
+    private String description;
 
     @ValueMapValue
     private Boolean displayed;
@@ -102,6 +115,18 @@ public class LinkDefinition extends Content
     public String getLabel()
     {
         return this.label == null ? this.getName() : this.label;
+    }
+
+    /**
+     * A longer explanation of what this type of link means and when it applies.
+     *
+     * @return a description, or {@code null} if none is set
+     */
+    @Override
+    @Nullable
+    public String getDescription()
+    {
+        return this.description;
     }
 
     /**
@@ -249,5 +274,97 @@ public class LinkDefinition extends Content
     public String getUrlTemplate()
     {
         return this.urlTemplate;
+    }
+
+    @Override
+    @NotNull
+    public String getDocumentationLabel()
+    {
+        return getLabel();
+    }
+
+    @Override
+    @NotNull
+    public List<String> getDocumentationDetails()
+    {
+        final List<String> details = new ArrayList<>();
+        addBehaviorDetails(details);
+        addRestrictionDetails(details);
+        if (!isDisplayed()) {
+            details.add("**Hidden**: not shown in the user-facing UI");
+        }
+        return details;
+    }
+
+    private void addBehaviorDetails(final List<String> details)
+    {
+        if (isExternal()) {
+            details.add("**External**: records a value pointing outside the repository");
+        }
+        if (isWeak()) {
+            details.add("**Weak**: the link may break when the linked resource is deleted,"
+                + " instead of preventing the deletion");
+        }
+        if (hasBacklink()) {
+            details.add("**Backlink**: a reverse `" + this.backlink
+                + "` link is automatically added on the linked resource");
+        }
+        if (isBacklinkOnly()) {
+            details.add("**Backlink only**: never created directly, only as the automatic reverse of another link");
+        }
+        if (getOnDeletePolicy() == OnDelete.IGNORE) {
+            details.add("**On delete**: kept as a broken reference when the linked resource is deleted");
+        } else if (getOnDeletePolicy() == OnDelete.RECURSIVE_DELETE) {
+            details.add("**On delete**: the linking resource is deleted together with the linked resource");
+        }
+    }
+
+    private void addRestrictionDetails(final List<String> details)
+    {
+        if (this.requiredSourceTypes != null && this.requiredSourceTypes.length > 0) {
+            details.add("**May only be placed on**: `" + String.join("`, `", this.requiredSourceTypes) + "`");
+        }
+        if (this.requiredDestinationTypes != null && this.requiredDestinationTypes.length > 0) {
+            details.add("**May only point at**: `" + String.join("`, `", this.requiredDestinationTypes) + "`");
+        }
+        if (this.valuePattern != null) {
+            details.add("**Value pattern**: `" + this.valuePattern + "`");
+        }
+        if (this.urlTemplate != null) {
+            details.add("**URL template**: `" + this.urlTemplate + "`");
+        }
+    }
+
+    @Override
+    @NotNull
+    public JsonObjectBuilder documentationJsonBuilder()
+    {
+        final JsonObjectBuilder json = DocumentedItem.super.documentationJsonBuilder()
+            .add("external", isExternal())
+            .add("weak", isWeak())
+            .add("backlinkOnly", isBacklinkOnly())
+            .add("displayed", isDisplayed())
+            .add("onDelete", getOnDeletePolicy().name());
+        if (hasBacklink()) {
+            json.add("backlink", this.backlink);
+        }
+        addTypeList(json, "requiredSourceTypes", this.requiredSourceTypes);
+        addTypeList(json, "requiredDestinationTypes", this.requiredDestinationTypes);
+        if (this.valuePattern != null) {
+            json.add("valuePattern", this.valuePattern);
+        }
+        if (this.urlTemplate != null) {
+            json.add("urlTemplate", this.urlTemplate);
+        }
+        return json.add("path", getPath());
+    }
+
+    private void addTypeList(final JsonObjectBuilder json, final String name, final String[] types)
+    {
+        if (types != null && types.length > 0) {
+            final JsonArrayBuilder list = Json.createArrayBuilder();
+            Arrays.stream(types).forEach(list::add);
+            json.add(name, list);
+        }
     }
 }

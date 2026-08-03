@@ -17,7 +17,10 @@
  */
 package io.uhndata.iap.links.models;
 
+import java.util.List;
 import java.util.Map;
+
+import jakarta.json.JsonObject;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -163,5 +166,119 @@ class LinkDefinitionTest
         assertTrue(definition.isExternal());
         assertEquals("[0-9]+", definition.getValuePattern());
         assertEquals("https://ehr.example.org/chart/{value}", definition.getUrlTemplate());
+    }
+
+    @Test
+    void documentsItsReferenceBehaviors()
+    {
+        final Resource resource = this.context.create().resource("/LinkTypes/references", Map.of(
+            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            "label", "References",
+            "description", "A generic pointer to related material.",
+            "weak", true,
+            "backlink", "/LinkTypes/referencedBy",
+            "onDelete", "IGNORE",
+            "requiredSourceTypes", new String[]{ "sub:Submission" },
+            "requiredDestinationTypes", new String[]{ "sub:Submission", "sch:Schema" },
+            "displayed", false));
+        final LinkDefinition definition = resource.adaptTo(LinkDefinition.class);
+
+        assertEquals("References", definition.getDocumentationLabel());
+        assertEquals("A generic pointer to related material.", definition.getDescription());
+        assertEquals(List.of(
+            "**Weak**: the link may break when the linked resource is deleted,"
+                + " instead of preventing the deletion",
+            "**Backlink**: a reverse `/LinkTypes/referencedBy` link is automatically added"
+                + " on the linked resource",
+            "**On delete**: kept as a broken reference when the linked resource is deleted",
+            "**May only be placed on**: `sub:Submission`",
+            "**May only point at**: `sub:Submission`, `sch:Schema`",
+            "**Hidden**: not shown in the user-facing UI"), definition.getDocumentationDetails());
+    }
+
+    @Test
+    void documentsItsExternalBehaviors()
+    {
+        final Resource resource = this.context.create().resource("/LinkTypes/ehrChart", Map.of(
+            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            "external", true,
+            "backlinkOnly", true,
+            "onDelete", "RECURSIVE_DELETE",
+            "valuePattern", "[0-9]+",
+            "urlTemplate", "https://ehr.example.org/chart/{value}"));
+
+        assertEquals(List.of(
+            "**External**: records a value pointing outside the repository",
+            "**Backlink only**: never created directly, only as the automatic reverse of another link",
+            "**On delete**: the linking resource is deleted together with the linked resource",
+            "**Value pattern**: `[0-9]+`",
+            "**URL template**: `https://ehr.example.org/chart/{value}`"),
+            resource.adaptTo(LinkDefinition.class).getDocumentationDetails());
+    }
+
+    @Test
+    void plainTypesHaveNothingToCallOut()
+    {
+        final Resource resource = this.context.create().resource("/LinkTypes/bare",
+            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE);
+
+        assertTrue(resource.adaptTo(LinkDefinition.class).getDocumentationDetails().isEmpty());
+        assertNull(resource.adaptTo(LinkDefinition.class).getDescription());
+    }
+
+    @Test
+    void serializesTheFullDefinitionAsJson()
+    {
+        final Resource resource = this.context.create().resource("/LinkTypes/references", Map.of(
+            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            "label", "References",
+            "description", "A generic pointer to related material.",
+            "weak", true,
+            "backlink", "/LinkTypes/referencedBy",
+            "requiredSourceTypes", new String[]{ "sub:Submission" },
+            "requiredDestinationTypes", new String[]{ "sub:Submission", "sch:Schema" },
+            "onDelete", "RECURSIVE_DELETE"));
+
+        final JsonObject json = resource.adaptTo(LinkDefinition.class).toDocumentationJson();
+
+        assertEquals("references", json.getString("name"));
+        assertEquals("References", json.getString("label"));
+        assertEquals("A generic pointer to related material.", json.getString("description"));
+        assertFalse(json.getBoolean("external"));
+        assertTrue(json.getBoolean("weak"));
+        assertFalse(json.getBoolean("backlinkOnly"));
+        assertTrue(json.getBoolean("displayed"));
+        assertEquals("RECURSIVE_DELETE", json.getString("onDelete"));
+        assertEquals("/LinkTypes/referencedBy", json.getString("backlink"));
+        assertEquals(1, json.getJsonArray("requiredSourceTypes").size());
+        assertEquals(2, json.getJsonArray("requiredDestinationTypes").size());
+        assertEquals("/LinkTypes/references", json.getString("path"));
+    }
+
+    @Test
+    void jsonLeavesUnsetOptionalFieldsOut()
+    {
+        final Resource resource = this.context.create().resource("/LinkTypes/ehrChart", Map.of(
+            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            "external", true,
+            "valuePattern", "[0-9]+",
+            "urlTemplate", "https://ehr.example.org/chart/{value}"));
+
+        final JsonObject json = resource.adaptTo(LinkDefinition.class).toDocumentationJson();
+
+        assertTrue(json.getBoolean("external"));
+        assertEquals("[0-9]+", json.getString("valuePattern"));
+        assertEquals("https://ehr.example.org/chart/{value}", json.getString("urlTemplate"));
+        assertFalse(json.containsKey("description"));
+        assertFalse(json.containsKey("backlink"));
+        assertFalse(json.containsKey("requiredSourceTypes"));
+        assertFalse(json.containsKey("requiredDestinationTypes"));
+        assertFalse(json.containsKey("category"));
+
+        final JsonObject bare = this.context.create().resource("/LinkTypes/bare",
+            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE)
+            .adaptTo(LinkDefinition.class).toDocumentationJson();
+        assertFalse(bare.containsKey("valuePattern"));
+        assertFalse(bare.containsKey("urlTemplate"));
     }
 }

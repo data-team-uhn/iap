@@ -22,23 +22,36 @@ import java.util.List;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import io.uhndata.iap.autodoc.api.AutoDocumentable;
 import io.uhndata.iap.content.models.Content;
 
 /**
  * A Sling Model wrapping the {@code iap:LinkTypesHomepage} node at {@code /LinkTypes}, holding the link
- * definitions.
+ * definitions. The homepage documents the whole link vocabulary: the node carries the {@code iap:Documented} mixin
+ * through its primary type, so the catalogue of defined link types is served at {@code /LinkTypes.doc.json} and
+ * {@code /LinkTypes.doc.md}. Its heading comes from the {@code title} and {@code description} properties,
+ * autocreated from the defaults declared by the {@code iap:LinkTypesHomepage} node type and editable by a
+ * deployment wanting to reword it.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = LinkTypesHomepage.RESOURCE_TYPE,
-    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class LinkTypesHomepage extends Content
+@Model(adaptables = Resource.class, adapters = { LinkTypesHomepage.class, AutoDocumentable.class },
+    resourceType = LinkTypesHomepage.RESOURCE_TYPE, defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
+public class LinkTypesHomepage extends Content implements AutoDocumentable
 {
     /** The {@code sling:resourceType} of the {@code iap:LinkTypesHomepage} node. */
     public static final String RESOURCE_TYPE = "iap/LinkTypesHomepage";
+
+    @ValueMapValue
+    private String title;
+
+    @ValueMapValue
+    private String description;
 
     /**
      * All the defined link types.
@@ -49,5 +62,26 @@ public class LinkTypesHomepage extends Content
     public List<LinkDefinition> getDefinitions()
     {
         return this.getChildren(LinkDefinition.RESOURCE_TYPE, LinkDefinition.class);
+    }
+
+    @Override
+    @NotNull
+    public String getDocumentationTitle()
+    {
+        return this.title;
+    }
+
+    @Override
+    @Nullable
+    public String getDocumentationIntro()
+    {
+        return this.description;
+    }
+
+    @Override
+    @NotNull
+    public List<LinkDefinition> getDocumentedItems()
+    {
+        return getDefinitions();
     }
 }
