@@ -38,6 +38,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -103,6 +104,8 @@ class ContentTest
         assertEquals("/content/sample", content.getPath());
         assertEquals("sample", content.getName());
         assertEquals(Content.RESOURCE_TYPE, content.getType());
+        assertTrue(content.isOfType(Content.RESOURCE_TYPE));
+        assertFalse(content.isOfType("iap/SomethingElse"));
     }
 
     @Test

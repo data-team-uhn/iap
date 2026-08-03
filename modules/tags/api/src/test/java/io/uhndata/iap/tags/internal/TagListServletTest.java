@@ -75,7 +75,7 @@ class TagListServletTest
             "sling:resourceType", "iap/TagDefinition",
             "category", new String[] { "privacy" },
             "inheritable", true,
-            "targetResources", new String[] { "iap/Entity" },
+            "targetResourceTypes", new String[] { "iap/Entity" },
             "order", 3L));
 
         this.servlet = new TagListServlet();
@@ -111,8 +111,8 @@ class TagListServletTest
         assertEquals("lifecycle", draft.getJsonArray("category").getString(0));
         assertFalse(draft.getBoolean("inheritable"));
         assertFalse(draft.getBoolean("aggregated"));
-        // An unrestricted tag simply has no targetResources key
-        assertFalse(draft.containsKey("targetResources"));
+        // An unrestricted tag simply has no targetResourceTypes key
+        assertFalse(draft.containsKey("targetResourceTypes"));
         assertEquals("#9e9e9e", draft.getString("color"));
         assertEquals(1, draft.getInt("order"));
         assertFalse(draft.getBoolean("system"));

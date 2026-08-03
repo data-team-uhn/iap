@@ -267,10 +267,10 @@ class TagPropagationEditorTest
     {
         final NodeState before = tagged(TAGS, List.of(SENSITIVE), DATA, ENTITY);
         final NodeBuilder after = before.builder();
-        // A node whose primary type is strict, but which gains taggability through a mixin
+        // A node whose primary type is strict, but which gains taggability through the iap:Taggable mixin
         final NodeBuilder mixed = descend(after, DATA, ENTITY).child("mixed");
         mixed.setProperty(PRIMARY_TYPE, "nt:file", Type.NAME);
-        mixed.setProperty("jcr:mixinTypes", List.of("nt:file", CONTENT_TYPE), Type.NAMES);
+        mixed.setProperty("jcr:mixinTypes", List.of("iap:Taggable"), Type.NAMES);
 
         final NodeState result = process(before, after);
 
@@ -575,13 +575,17 @@ class TagPropagationEditorTest
     private NodeBuilder base()
     {
         final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
-        // A minimal node type registry backing the writability checks: a content type declaring the tag
-        // properties by name, a subtype of it, a free-form type accepting any property, and strict types
+        // A minimal node type registry backing the writability checks: the iap:Taggable mixin declaring the
+        // tag properties by name, content types carrying it through their expanded supertypes, a free-form type
+        // accepting any property, and strict types
         final NodeBuilder types = root.child("jcr:system").child("jcr:nodeTypes");
-        types.child("iap:Content").child("rep:namedPropertyDefinitions").child(TAGS);
-        types.child(CONTENT_TYPE).setProperty("rep:supertypes", List.of("iap:Content"), Type.NAMES);
+        types.child("iap:Taggable").child("rep:namedPropertyDefinitions").child(TAGS);
+        types.child("iap:Content").setProperty("rep:supertypes", List.of("iap:Taggable"), Type.NAMES);
+        types.child(CONTENT_TYPE).setProperty("rep:supertypes", List.of("iap:Content", "iap:Taggable"),
+            Type.NAMES);
         types.child("iap:Entity");
-        types.child(ENTITY_TYPE).setProperty("rep:supertypes", List.of("iap:Content", "iap:Entity"), Type.NAMES);
+        types.child(ENTITY_TYPE)
+            .setProperty("rep:supertypes", List.of("iap:Content", "iap:Entity", "iap:Taggable"), Type.NAMES);
         types.child("nt:unstructured").child("rep:residualPropertyDefinitions");
         types.child("nt:file");
         types.child("nt:folder").setProperty("rep:supertypes", List.of("nt:base"), Type.NAMES);

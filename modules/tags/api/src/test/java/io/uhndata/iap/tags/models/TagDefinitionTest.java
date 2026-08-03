@@ -72,7 +72,7 @@ class TagDefinitionTest
             "description", "Some required answers are missing",
             "category", new String[] { "lifecycle", "validation" },
             "aggregated", true,
-            "targetResources", new String[] { "iap/Entity", "iap/EntityPart" },
+            "targetResourceTypes", new String[] { "iap/Entity", "iap/EntityPart" },
             "color", "#ff9800",
             "order", 25L,
             "system", true));
@@ -84,7 +84,7 @@ class TagDefinitionTest
         assertEquals(List.of("lifecycle", "validation"), definition.getCategories());
         assertFalse(definition.isInheritable());
         assertTrue(definition.isAggregated());
-        assertEquals(List.of("iap/Entity", "iap/EntityPart"), definition.getTargetResources());
+        assertEquals(List.of("iap/Entity", "iap/EntityPart"), definition.getTargetResourceTypes());
         assertEquals("#ff9800", definition.getColor());
         assertEquals(25L, definition.getOrder());
         assertTrue(definition.isSystem());
@@ -104,7 +104,7 @@ class TagDefinitionTest
         assertEquals(List.of(), definition.getCategories());
         assertFalse(definition.isInheritable());
         assertFalse(definition.isAggregated());
-        assertEquals(List.of(), definition.getTargetResources());
+        assertEquals(List.of(), definition.getTargetResourceTypes());
         assertNull(definition.getColor());
         assertNull(definition.getOrder());
         assertFalse(definition.isSystem());
@@ -124,7 +124,7 @@ class TagDefinitionTest
     }
 
     @Test
-    void unrestrictedDefinitionAppliesToAnyResource()
+    void unrestrictedDefinitionAppliesToAnyContent()
     {
         final Resource resource = this.context.create().resource("/Tags/draft",
             "sling:resourceType", "iap/TagDefinition");
@@ -132,38 +132,38 @@ class TagDefinitionTest
         final Resource target = this.context.create().resource("/data/whatever",
             "sling:resourceType", "iap/Content");
 
-        assertTrue(definition.appliesTo(target));
+        assertTrue(definition.appliesTo(target.adaptTo(Content.class)));
     }
 
     @Test
-    void restrictedDefinitionChecksResourceType()
+    void restrictedDefinitionChecksContentType()
     {
         final Resource resource = this.context.create().resource("/Tags/sensitive", Map.of(
             "sling:resourceType", "iap/TagDefinition",
-            "targetResources", new String[] { "iap/Entity" }));
+            "targetResourceTypes", new String[] { "iap/Entity" }));
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
         final Resource entity = this.context.create().resource("/data/entity",
             "sling:resourceType", "iap/Entity");
         final Resource other = this.context.create().resource("/data/other",
             "sling:resourceType", "iap/Content");
 
-        assertTrue(definition.appliesTo(entity));
-        assertFalse(definition.appliesTo(other));
+        assertTrue(definition.appliesTo(entity.adaptTo(Content.class)));
+        assertFalse(definition.appliesTo(other.adaptTo(Content.class)));
     }
 
     @Test
-    void restrictedDefinitionAcceptsResourceSubtypes()
+    void restrictedDefinitionAcceptsSubtypes()
     {
         final Resource resource = this.context.create().resource("/Tags/sensitive", Map.of(
             "sling:resourceType", "iap/TagDefinition",
-            "targetResources", new String[] { "iap/Entity" }));
+            "targetResourceTypes", new String[] { "iap/Entity" }));
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
         // A resource of a more specific type declaring iap/Entity as its supertype is accepted too
         final Resource subtype = this.context.create().resource("/data/submission", Map.of(
             "sling:resourceType", "sub/Submission",
             "sling:resourceSuperType", "iap/Entity"));
 
-        assertTrue(definition.appliesTo(subtype));
+        assertTrue(definition.appliesTo(subtype.adaptTo(Content.class)));
     }
 
     @Test
@@ -196,15 +196,15 @@ class TagDefinitionTest
             "inheritable", true,
             "aggregated", true,
             "system", true,
-            "targetResources", new String[] { "iap/Entity", "iap/EntityPart" }));
+            "targetResourceTypes", new String[] { "iap/Entity", "iap/EntityPart" }));
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
 
         // The generic documentation contract delegates to the tag-specific accessors
         assertEquals("Sensitive", definition.getDocumentationLabel());
         assertEquals(List.of("privacy"), definition.getDocumentationCategories());
         assertEquals(List.of(
-            "**Inheritable**: implicitly carried by everything inside a tagged resource",
-            "**Aggregated**: implicitly carried by a resource when anything inside it is tagged",
+            "**Inheritable**: implicitly carried by everything inside tagged content",
+            "**Aggregated**: implicitly carried by content when anything inside it is tagged",
             "**System**: managed by the platform, cannot be manually added or removed",
             "**May only be placed on**: `iap/Entity`, `iap/EntityPart`"),
             definition.getDocumentationDetails());
@@ -227,7 +227,7 @@ class TagDefinitionTest
             "description", "Contains confidential data",
             "category", new String[] { "privacy" },
             "inheritable", true,
-            "targetResources", new String[] { "iap/Entity" },
+            "targetResourceTypes", new String[] { "iap/Entity" },
             "color", "#f44336",
             "order", 10L,
             "system", true));
@@ -240,7 +240,7 @@ class TagDefinitionTest
         assertTrue(json.getBoolean("inheritable"));
         assertFalse(json.getBoolean("aggregated"));
         assertTrue(json.getBoolean("system"));
-        assertEquals("iap/Entity", json.getJsonArray("targetResources").getString(0));
+        assertEquals("iap/Entity", json.getJsonArray("targetResourceTypes").getString(0));
         assertEquals("#f44336", json.getString("color"));
         assertEquals(10, json.getJsonNumber("order").longValue());
         assertEquals("/Tags/sensitive", json.getString("path"));
@@ -256,7 +256,7 @@ class TagDefinitionTest
         assertEquals("plain", json.getString("name"));
         assertFalse(json.containsKey("description"));
         assertFalse(json.containsKey("category"));
-        assertFalse(json.containsKey("targetResources"));
+        assertFalse(json.containsKey("targetResourceTypes"));
         assertFalse(json.containsKey("color"));
         assertFalse(json.containsKey("order"));
         assertEquals("/Tags/plain", json.getString("path"));

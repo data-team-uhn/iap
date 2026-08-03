@@ -33,6 +33,7 @@ import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.TagsHomepage;
@@ -71,15 +72,16 @@ public class TagListServlet extends SlingJakartaSafeMethodsServlet
         final String target = request.getParameter("target");
         if (target != null && !target.isBlank()) {
             final Resource targetResource = request.getResourceResolver().getResource(target);
-            if (targetResource == null) {
+            final Content targetContent = targetResource == null ? null : targetResource.adaptTo(Content.class);
+            if (targetContent == null) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 response.getWriter().write(Json.createObjectBuilder()
                     .add("status", "error")
-                    .add("error", "Inaccessible target resource: " + target)
+                    .add("error", "Inaccessible target: " + target)
                     .build().toString());
                 return;
             }
-            definitions = definitions.stream().filter(definition -> definition.appliesTo(targetResource)).toList();
+            definitions = definitions.stream().filter(definition -> definition.appliesTo(targetContent)).toList();
         }
 
         final JsonArrayBuilder tags = Json.createArrayBuilder();

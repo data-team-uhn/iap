@@ -64,7 +64,7 @@ public final class NodeTypeInspector
 
     /**
      * Checks whether tag properties may be stored on the given node: one of the node's primary or mixin types, or one
-     * of their supertypes, must either declare the tag properties by name (like {@code iap:Content} does) or accept
+     * of their supertypes, must either declare the tag properties by name (like {@code iap:Taggable} does) or accept
      * residual properties (like {@code nt:unstructured} does). Writing to any other node would be rejected by the
      * type validation, failing the whole commit.
      *

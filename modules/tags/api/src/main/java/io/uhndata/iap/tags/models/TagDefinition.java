@@ -78,7 +78,7 @@ public class TagDefinition extends Content implements DocumentedItem
     private boolean aggregated;
 
     @ValueMapValue
-    private String[] targetResources;
+    private String[] targetResourceTypes;
 
     @ValueMapValue
     private String color;
@@ -139,7 +139,7 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * Whether resources under a tagged node implicitly carry this tag too, e.g. every answer inside a "sensitive"
+     * Whether content under a tagged node implicitly carries this tag too, e.g. every answer inside a "sensitive"
      * submission is itself sensitive.
      *
      * @return {@code true} if this tag is passed down to the descendants of a tagged node
@@ -162,14 +162,14 @@ public class TagDefinition extends Content implements DocumentedItem
 
     /**
      * The {@code sling:resourceType} values of the resources this tag may be placed on, including their subtypes.
-     * When empty, the tag may be placed on any resource.
+     * When empty, the tag may be placed on any content.
      *
      * @return the accepted resource types, an empty list if the tag is unrestricted
      */
     @NotNull
-    public List<String> getTargetResources()
+    public List<String> getTargetResourceTypes()
     {
-        return this.targetResources == null ? List.of() : List.of(this.targetResources);
+        return this.targetResourceTypes == null ? List.of() : List.of(this.targetResourceTypes);
     }
 
     /**
@@ -207,17 +207,17 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * Checks whether this tag may be placed on the given resource, according to the definition's
-     * {@link #getTargetResources() accepted resource types}.
+     * Checks whether this tag may be placed on the given content, according to the definition's
+     * {@link #getTargetResourceTypes() accepted resource types}.
      *
-     * @param target a candidate resource to be tagged
-     * @return {@code true} if the resource is of (a subtype of) one of the accepted resource types, or if this
+     * @param target candidate content to be tagged
+     * @return {@code true} if the content is of (a subtype of) one of the accepted resource types, or if this
      *         definition doesn't restrict its targets
      */
-    public boolean appliesTo(@NotNull final Resource target)
+    public boolean appliesTo(@NotNull final Content target)
     {
-        return this.targetResources == null || this.targetResources.length == 0
-            || getTargetResources().stream().anyMatch(target::isResourceType);
+        return this.targetResourceTypes == null || this.targetResourceTypes.length == 0
+            || getTargetResourceTypes().stream().anyMatch(target::isOfType);
     }
 
     @Override
@@ -240,16 +240,16 @@ public class TagDefinition extends Content implements DocumentedItem
     {
         final List<String> details = new ArrayList<>();
         if (isInheritable()) {
-            details.add("**Inheritable**: implicitly carried by everything inside a tagged resource");
+            details.add("**Inheritable**: implicitly carried by everything inside tagged content");
         }
         if (isAggregated()) {
-            details.add("**Aggregated**: implicitly carried by a resource when anything inside it is tagged");
+            details.add("**Aggregated**: implicitly carried by content when anything inside it is tagged");
         }
         if (isSystem()) {
             details.add("**System**: managed by the platform, cannot be manually added or removed");
         }
-        if (!getTargetResources().isEmpty()) {
-            details.add("**May only be placed on**: `" + String.join("`, `", getTargetResources()) + "`");
+        if (!getTargetResourceTypes().isEmpty()) {
+            details.add("**May only be placed on**: `" + String.join("`, `", getTargetResourceTypes()) + "`");
         }
         return details;
     }
@@ -262,10 +262,10 @@ public class TagDefinition extends Content implements DocumentedItem
             .add("inheritable", isInheritable())
             .add("aggregated", isAggregated())
             .add("system", isSystem());
-        if (!getTargetResources().isEmpty()) {
+        if (!getTargetResourceTypes().isEmpty()) {
             final JsonArrayBuilder targets = Json.createArrayBuilder();
-            getTargetResources().forEach(targets::add);
-            json.add("targetResources", targets);
+            getTargetResourceTypes().forEach(targets::add);
+            json.add("targetResourceTypes", targets);
         }
         final String tagColor = getColor();
         if (tagColor != null) {

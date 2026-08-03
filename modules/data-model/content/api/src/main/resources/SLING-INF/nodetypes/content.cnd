@@ -26,26 +26,22 @@
 //
 //-----------------------------------------------------------------------------
 
-[iap:Content] > sling:Folder, sling:Resource, sling:ResourceSuperType
-  // Attributes:
+//-----------------------------------------------------------------------------
+// Marks content that can carry tags: named markers defined by iap:TagDefinition
+// nodes under /Tags; see the tags module. The mixin declares the tagging
+// properties once — every iap:Content node carries it through its supertypes,
+// and other node types, e.g. nt:file, become taggable by adding the mixin.
+// All the properties are unversioned (IGNORE): tags are living metadata
+// describing the current status of the content, so changing them must neither
+// require a checkout nor be reverted by a restore.
+[iap:Taggable]
+  mixin
 
-  // This is an abstract node type
-  abstract
-
-  // Properties
-
-  // Hardcode the supertype to the parent iap/Entity type.
-  - sling:resourceSuperType (STRING) = "iap/Content" mandatory autocreated protected
-
-  // Tags marking this resource with special statuses or properties, e.g.
-  // "incomplete" or "sensitive". Each value is the name of a tag defined by
-  // an iap:TagDefinition node stored under /Tags; see the tags module.
-  // Not versioned (IGNORE): tags are living metadata describing the current
-  // status of the resource, so changing them must neither require a checkout
-  // nor be reverted by a restore.
+  // Tags explicitly placed on this content, e.g. "incomplete" or "sensitive",
+  // each value the name of a tag defined under /Tags.
   - tags (STRING) multiple IGNORE
 
-  // Tags derived from this resource's surroundings — copied from its
+  // Tags derived from this content's surroundings — copied from its
   // descendants (`aggregated` tags) or from its ancestors (`inheritable`
   // tags) — or computed from its own content, all materialized here at commit
   // time by the tag propagation editor so that queries and status displays can
@@ -61,3 +57,13 @@
   // commit, so that user data is saved even when tagging misbehaves.
   // System-maintained, do not write manually.
   - tagComputationFailed (BOOLEAN) IGNORE
+
+[iap:Content] > sling:Folder, sling:Resource, sling:ResourceSuperType, iap:Taggable
+  // Attributes:
+
+  // This is an abstract node type
+  abstract
+
+  // Properties
+
+  - sling:resourceSuperType (STRING) = "iap/Content" mandatory autocreated protected
