@@ -33,8 +33,8 @@ if (container) {
         <ThemeProvider theme={appTheme} defaultMode="system">
           <CssBaseline enableColorScheme />
           <ErrorPage
-            errorCode={document.querySelector<HTMLMetaElement>('meta[name="statusCode"]')?.content}
-            title={document.querySelector<HTMLMetaElement>('meta[name="statusMessage"]')?.content}
+            errorCode={container.dataset.statusCode}
+            title={container.dataset.statusMessage}
             message=""
           />
         </ThemeProvider>

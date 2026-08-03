@@ -29,7 +29,6 @@ vi.mock("@iap/frontend-commons/components/ErrorPage", () => ({
 // GenericErrorPage.test.tsx.
 describe("generic error page entry point, without status metadata", () => {
   it("renders with no status at all", async () => {
-    document.head.querySelectorAll("meta").forEach(meta => meta.remove());
     document.body.innerHTML = '<div id="main-error-container"></div>';
 
     await act(async () => {
