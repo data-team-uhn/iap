@@ -23,7 +23,9 @@ through their initial content, e.g. the test-data module ships a demo set in
 | `inheritable` | Boolean | The tag flows *down*: resources under a tagged node implicitly carry it too (e.g. everything inside a `sensitive` submission is sensitive) |
 | `aggregated` | Boolean | The tag bubbles *up*: a node implicitly carries it when any descendant explicitly does (e.g. a submission with an `incomplete` answer is incomplete) |
 | `targetResources` | String[] | `sling:resourceType`s the tag may be placed on, subtypes included; empty means unrestricted |
-| `color` | String | Optional CSS color for displaying the tag |
+| `color` | String | Optional CSS color the tag is displayed in; the chip's background, text and border are all derived from it, per the `variant` |
+| `variant` | String | How the tag displays: `soft` (the default) tints the background with the color and clamps the color into readable text, `outlined` draws only that readable text and a matching border on a transparent background, `filled` uses the color as a loud fill under contrasting text |
+| `icon` | String | Optional MUI icon name displayed next to the label, e.g. `EditOutlined`; names outside the UI's curated icon set (the tags module's `tagIcons.tsx`) display no icon |
 | `order` | Long | Optional listing position, lower first, unordered last |
 | `system` | Boolean | Managed by the platform: regular API calls cannot add or remove it |
 
@@ -153,8 +155,8 @@ combined:
 - `target=<path>` — only tags that may be placed on the resource at that path.
 
 The response is `{"tags": [...], "total": <n>}`, each entry serializing the full definition
-(name, label, description, category, inheritable, aggregated, targetResources, color, order,
-system, path). The plain `/Tags.json` (and deeper `.2.json` etc.) default renderings remain
+(name, label, description, category, inheritable, aggregated, targetResources, color, variant,
+icon, order, system, path). The plain `/Tags.json` (and deeper `.2.json` etc.) default renderings remain
 available for raw access.
 
 ## Self-documentation

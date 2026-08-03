@@ -3,6 +3,7 @@
   "label": "Draft",
   "description": "Work on this record is still in progress.",
   "category": ["lifecycle"],
-  "color": "#9e9e9e",
+  "color": "#4c5670",
+  "icon": "EditOutlined",
   "order": 10
 }

@@ -22,15 +22,18 @@ import {
   type GridFilterInputMultipleSingleSelectProps,
 } from "@mui/x-data-grid-pro";
 
-import { safeCssColor } from "../safeColor";
+import { chipStyle } from "../chipStyle";
 
-// A choice a column may offer for filtering. The optional color carries over into the filter
-// panel: values picked in "is any of" show as chips in their option's color, matching how the
-// grid's own cells present them (e.g. tag definition colors).
+// A choice a column may offer for filtering. The optional color and variant carry over into
+// the filter panel: values picked in "is any of" show as chips styled like the grid's own
+// cells present them (e.g. tag definition colors) — everything derived from the one color,
+// per the variant (see chipStyle). Icons deliberately do not carry over: these chips sit
+// inside a dense input, where the label and color say enough.
 export interface ColoredValueOption {
   value: string;
   label: string;
   color?: string;
+  variant?: string;
 }
 
 // The stock "is any of" input for choice columns, with each picked value rendered as a chip
@@ -51,14 +54,12 @@ function ColoredChipsFilterInput(props: GridFilterInputMultipleSingleSelectProps
             // filter's values back through the column's options before rendering, so even a
             // freely typed value never reaches here as a bare string
             chip: option => {
-              const { label, color } = option as ColoredValueOption;
-              const safeColor = safeCssColor(color);
+              const { label, color, variant } = option as ColoredValueOption;
+              const style = chipStyle(theme, color, variant);
               return {
                 label,
-                ...safeColor && {
-                  variant: "filled" as const,
-                  style: { backgroundColor: safeColor, color: theme.palette.getContrastText(safeColor) },
-                },
+                // MUI's chip variant: a neutral filled base that our style fully repaints
+                ...style && { variant: "filled" as const, style },
               };
             },
           },
