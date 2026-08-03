@@ -32,21 +32,11 @@ describe("generic error page entry point", () => {
   beforeEach(() => {
     vi.resetModules();
     document.body.innerHTML = "";
-    document.head.querySelectorAll("meta").forEach(meta => meta.remove());
-  });
-
-  afterEach(() => {
-    document.head.querySelectorAll("meta").forEach(meta => meta.remove());
   });
 
   it("renders the error reported by the server", async () => {
-    document.body.innerHTML = '<div id="main-error-container"></div>';
-    for (const [name, content] of Object.entries({ statusCode: "500", statusMessage: "Internal Server Error" })) {
-      const meta = document.createElement("meta");
-      meta.name = name;
-      meta.content = content;
-      document.head.append(meta);
-    }
+    document.body.innerHTML =
+      '<div id="main-error-container" data-status-code="500" data-status-message="Internal Server Error"></div>';
 
     await act(async () => {
       await import("@iap/frontend-commons/components/GenericErrorPage");
