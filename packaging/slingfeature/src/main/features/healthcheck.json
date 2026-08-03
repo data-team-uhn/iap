@@ -38,16 +38,25 @@
         }
     ],
     "configurations":{
+        // Tagged systemalive so the startup stub outlasts bundle activation: while bundles are
+        // still activating, the scripting classloader gets invalidated repeatedly, and pages that
+        // just rendered fine can transiently fail with "No use provider could resolve identifier".
         "org.apache.felix.hc.generalchecks.BundlesStartedCheck":{
             "hc.tags":[
-                "bundles"
+                "bundles",
+                "systemalive"
             ],
             "useCriticalForInactive": true
         },
+        // Tagged systemalive so the StartupGateFilter keeps serving the
+        // "starting up" stub until all Sling-Initial-Content is actually in the repository:
+        // reaching the target start level only means the bundles started, while the pages
+        // (scripts, webpack assets, config) they carry are still being loaded asynchronously.
         "org.apache.sling.jcr.contentloader.hc.BundleContentLoadedCheck":{
             "hc.tags":[
                 "bundles",
-                "content-loading"
+                "content-loading",
+                "systemalive"
             ]
         },
         "org.apache.felix.hc.generalchecks.CpuCheck":{
@@ -64,6 +73,19 @@
             ],
             "diskPaths":[
                 "."
+            ]
+        },
+        // Without the form authentication handler, unauthenticated visitors get a raw 403 from
+        // the container instead of being redirected to /login, so the startup stub must outlast
+        // its activation. SATISFIED (not yet activated) also counts as ready, so this cannot
+        // deadlock on lazy activation.
+        "org.apache.felix.hc.generalchecks.DsComponentsCheck~login":{
+            "hc.name":"Authentication Handler Ready Check",
+            "hc.tags":[
+                "systemalive"
+            ],
+            "components.list":[
+                "org.apache.sling.auth.form.FormAuthenticationHandler"
             ]
         },
         "org.apache.felix.hc.generalchecks.FrameworkStartCheck":{
@@ -99,18 +121,12 @@
                 "system-resources"
             ]
         },
-        "org.apache.felix.hc.core.impl.filter.ServiceUnavailableFilter~startupandshutdown":{
-            "osgi.http.whiteboard.filter.regex":"(?!/system/).*",
-            "avoid404DuringStartup":true,
-            "service.ranking:Integer":"2147483647",
-            "includeExecutionResult":false,
-            "osgi.http.whiteboard.context.select":"(osgi.http.whiteboard.context.name=*)",
-            "tags":[
-                "systemalive"
-            ],
-            "autoDisableFilter":true,
-            "responseTextFor503":"classpath:io.uhndata.iap.startup-customization:custom_index.html"
-        },
+        // The startup gate serving the "starting up" stub is NOT the Felix ServiceUnavailableFilter:
+        // being configured through OSGi means being restarted (and thus bypassed for seconds) when
+        // the JCR installer re-delivers configurations mid-startup, and it treats a transiently
+        // empty set of checks as healthy. The configuration-free StartupGateFilter in the
+        // startup-customization module serves the same purpose, gated on the systemalive tag and
+        // on the Login Page Ready check specifically.
         "org.apache.felix.hc.core.impl.servlet.HealthCheckExecutorServlet~default":{
             "servletPath":"/system/health",
             "servletContextName":"org.osgi.service.http",
