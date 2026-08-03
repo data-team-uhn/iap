@@ -15,92 +15,199 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<rep = 'internal'>
 <iap = 'https://iap.uhndata.io/'>
 
 //-----------------------------------------------------------------------------
 //
-// Links: a connection between two resources, either mono- or bidirectional.
+// Links: ad-hoc, typed connections from a resource, kept in an `iap:links`
+// child container. A link either references another resource in the
+// repository (iap:Link, iap:WeakLink), or records a correspondence to
+// something outside it, like an identifier in an external system
+// (iap:ExternalLink). Structural relations between resources remain direct
+// REFERENCE properties; links are for the relations that aren't part of a
+// node type's own shape.
+//
+// Every usable link type must first be *defined* as an iap:LinkDefinition
+// node under /LinkTypes: the definition is the single source of truth for
+// what the connection means, what it may connect, and how it behaves.
 //
 //-----------------------------------------------------------------------------
 
+//-----------------------------------------------------------------------------
+// Homepage node for the /LinkTypes root path, holding the link definitions.
+[iap:LinkTypesHomepage] > iap:Content, rep:AccessControllable, iap:Documented
+  // We can query link definitions
+  query
+
+  - sling:resourceType (STRING) = "iap/LinkTypesHomepage" mandatory autocreated protected
+
+  // The heading of the served documentation, overriding the empty defaults of
+  // the iap:Documented mixin. Autocreated rather than hardcoded in the model
+  // serving the catalogue, but still editable, so that a deployment can reword
+  // the heading without touching code.
+  - title (STRING) = "Link types" autocreated
+  - description (STRING) = "All the link types defined in this instance." autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains link definitions
+  + * (iap:LinkDefinition) = iap:LinkDefinition
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
 // The definition of a type of link.
 [iap:LinkDefinition] > iap:Content, mix:referenceable, mix:lastModified
-  // Properties
-
-  // Hardcode the resource type.
   - sling:resourceType (STRING) = "iap/LinkDefinition" mandatory autocreated protected
-
-  // Whether the link should be a hard or a weak link
-  - weak (BOOLEAN) = false
 
   // An optional label for the link type. If not defined, the node name is used.
   - label (STRING)
 
-  // Required node types for the source or destination. Optional, no restrictions are imposed when missing.
+  // An optional longer explanation of what this type of link means and when it
+  // applies, surfaced by the self-documentation catalogue.
+  - description (STRING)
+
+  // Whether links of this type appear in the user-facing UI. This is only a
+  // rendering hint, not access control: the links remain readable by anyone
+  // who can read the resource holding them, and administrative or diagnostic
+  // views ignore it. Should richer rules ever be needed (per role, per state),
+  // the growth path is a display condition, not more values here.
+  - displayed (BOOLEAN) = true
+
+  // Whether links of this type point outside the repository (a recorded value,
+  // e.g. an identifier in an external system) instead of referencing another
+  // resource. External definitions must not declare reference-only settings:
+  // weak, requiredDestinationTypes, backlink, backlinkOnly, onDelete.
+  - external (BOOLEAN) = false
+
+  // Whether the link should be a hard or a weak reference. Hard references
+  // prevent the deletion of the linked resource; weak references may break.
+  - weak (BOOLEAN) = false
+
+  // Required node types for the source or destination. Optional, no
+  // restrictions are imposed when missing.
   - requiredSourceTypes (NAME) multiple
   - requiredDestinationTypes (NAME) multiple
 
-  // An optional label format to be displayed instead of the default reference display.
-  // If a label format is not defined, then the resource's natural label is used
-  - resourceLabelFormat (STRING)
+  // An optional template rendering a nicer label for the link target, e.g.
+  // "{typeLabel}: {name}". Supported placeholders: {name} and {property:xyz}
+  // (the target's node name / one of its properties), {label} (the label set
+  // on the link itself), {typeLabel} (this definition's label), {sourceName}
+  // (the linking resource's node name), and {value} (an external link's
+  // recorded value). When not set, the target's node name (or the recorded
+  // value) is used.
+  - targetLabelTemplate (STRING)
 
-  // An optional reverse link to be added from the linked resource back to the linking resource.
-  // If not defined, a single direct link is added from one resource to another.
-  // If linking to another link definition, then any added link will automatically cause a reverse link to be added.
-  // It is possible to use the same link definition for the back link, for a symmetrical double link between resources.
+  // An optional reverse link to be added automatically from the linked
+  // resource back to the linking resource, named as a path to another link
+  // definition. A definition may name itself, for a symmetrical double link.
+  // Every defined backlink is guaranteed to eventually exist: it is created
+  // together with the link when the user may write to the linked resource,
+  // and by the links service user shortly afterwards otherwise.
   - backlink (PATH)
 
-  // Force adding a backlink on the referenced node, even if access rights would normally prevent write access to it for the current user.
-  - forceBacklink (BOOLEAN) = false
-
-  // Set on link definition that cannot be instantiated directly, but only as automatically created backlinks.
+  // Set on link definitions that cannot be instantiated directly, but only as
+  // automatically created backlinks.
   - backlinkOnly (BOOLEAN) = false
 
-  // How the current resource should behave when the referenced resource is deleted.
-  // Accepted values:
+  // How the linking resource should behave when the linked resource is
+  // deleted. Accepted values:
   // - IGNORE -> keep the link as a broken reference; only valid for weak links
   // - REMOVE_LINK -> only remove the link between resources (default)
-  // - RECURSIVE_DELETE -> also delete this resource, and any others it may impact
-  - onDelete (STRING) = REMOVE_LINK mandatory autocreated
+  // - RECURSIVE_DELETE -> also delete the linking resource, and any others it may impact
+  // Not enforced yet; enforcement arrives with the workflow engine's deletion
+  // handling.
+  - onDelete (STRING) = "REMOVE_LINK" mandatory autocreated
 
-// A set of links to other resources
+  // For external definitions, an optional regular expression that recorded
+  // values must fully match, validated when the link is created.
+  - valuePattern (STRING)
+
+  // For external definitions, an optional URL template turning the recorded
+  // value into a navigable address, e.g. "https://ehr.example.org/chart/{value}".
+  - urlTemplate (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Marks content that holds links: the mixin declares the iap:links container
+// once, so node types opt in by listing it as a supertype, and individual
+// nodes by adding the mixin, instead of re-declaring the same child node. It
+// is only a declaration aid, not an access control or a gate: content whose
+// type allows the container some other way holds links just as well.
+[iap:Linkable]
+  mixin
+
+  // Container for links to other content
+  + iap:links (iap:Links) = iap:Links autocreated IGNORE
+
+//-----------------------------------------------------------------------------
+// The container holding all the links of a resource, as a child node named
+// iap:links. The IGNORE on-parent-version attributes keep links out of the
+// version history of versionable resources.
 [iap:Links] > iap:Content
-  // Properties:
-
-  // Hardcode the resource type.
   - sling:resourceType (STRING) = "iap/Links" mandatory autocreated protected
 
-  // Children:
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
 
-  // A list of links
+  // The links
   + * (iap:Link) = iap:Link IGNORE
   + * (iap:WeakLink) = iap:WeakLink IGNORE
+  + * (iap:ExternalLink) = iap:ExternalLink IGNORE
 
-// A strong link to another resource
+//-----------------------------------------------------------------------------
+// A hard link to another resource.
 [iap:Link] > iap:Content, mix:lastModified
-  // Properties:
+  - sling:resourceType (STRING) = "iap/Link" mandatory autocreated protected
 
-  // The type of link, a reference to a iap:LinkDefinition node
+  // The type of link, a reference to an iap:LinkDefinition node
   - type (REFERENCE) mandatory nofulltext
 
-  // The resource being referenced.
+  // The resource being referenced
   - reference (REFERENCE) mandatory nofulltext
 
   // An optional extra label associated with the link
   - label (STRING)
 
-  // Hardcode the resource type.
-  - sling:resourceType (STRING) = "iap/Link" mandatory autocreated protected
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
 
-// A weak link to another resource
+//-----------------------------------------------------------------------------
+// A weak link to another resource.
 [iap:WeakLink] > iap:Link
-  // Properties:
+  - sling:resourceType (STRING) = "iap/WeakLink" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/Link" mandatory autocreated protected
 
-  // The resource being referenced.
+  // The resource being referenced
   - reference (WEAKREFERENCE) mandatory nofulltext
 
-  // Hardcode the resource type.
-  - sling:resourceType (STRING) = "iap/WeakLink" mandatory autocreated protected
+//-----------------------------------------------------------------------------
+// A link to something outside the repository: the recorded value identifies
+// the target, e.g. this resource's identifier in an external system.
+[iap:ExternalLink] > iap:Content, mix:lastModified
+  - sling:resourceType (STRING) = "iap/ExternalLink" mandatory autocreated protected
 
-  // Hardcode the resource supertype.
-  - sling:resourceSuperType (STRING) = "iap/Link" mandatory autocreated protected
+  // The type of link, a reference to an iap:LinkDefinition node
+  - type (REFERENCE) mandatory nofulltext
+
+  // The recorded value, e.g. an external identifier or a URL
+  - value (STRING) mandatory
+
+  // An optional extra label associated with the link
+  - label (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple

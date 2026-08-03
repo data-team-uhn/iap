@@ -15,10 +15,19 @@
 // limitations under the License.
 
 {
-  "bundles":[
+  "bundles": [
     {
-      "id":"${project.groupId}:${project.artifactId}:${project.version}",
-      "start-order":"22"
+      "id": "${project.groupId}:${project.artifactId}:${project.version}",
+      "start-order": "23"
     }
-  ]
+  ],
+  "configurations": {
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iaplinks": {
+      "user.mapping": [
+        "io.uhndata.iap.data-model-links-api:links=[iap-links]",
+        "io.uhndata.iap.data-model-links-api:link-types=[iap-link-types]"
+      ]
+    }
+  },
+  "repoinit:TEXT|true": "@file"
 }

@@ -15,10 +15,7 @@
 // limitations under the License.
 
 {
-  "bundles":[
-    {
-      "id":"${project.groupId}:${project.artifactId}:${project.version}",
-      "start-order":"22"
+    "prototype":{
+        "id": "${project.groupId}:iap-data-model-links-api:slingosgifeature:${project.version}"
     }
-  ]
 }

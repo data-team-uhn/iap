@@ -28,7 +28,8 @@
 //
 //-----------------------------------------------------------------------------
 
-[iap:Entity] > iap:Content, mix:referenceable, mix:versionable, mix:lastModified
+// The iap:Linkable supertype brings the iap:links container for links to other entities.
+[iap:Entity] > iap:Content, iap:Linkable, mix:referenceable, mix:versionable, mix:lastModified
   // Attributes:
 
   // This is an abstract node type, specific entity types must be defined.
@@ -41,11 +42,6 @@
 
   // Hardcode the supertype to the parent iap/Entity type.
   - sling:resourceSuperType (STRING) = "iap/Entity" mandatory autocreated protected
-
-  // Children
-
-  // Container for links to other entities
-  + iap:links (iap:Links) = iap:Links AUTOCREATED IGNORE
 
 //-----------------------------------------------------------------------------
 //

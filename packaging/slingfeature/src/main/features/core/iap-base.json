@@ -33,12 +33,8 @@
             "start-order":"21"
         },
         {
-            "id":"${project.groupId}:iap-data-model-links-api:${project.version}",
-            "start-order":"22"
-        },
-        {
             "id":"${project.groupId}:iap-data-model-entities-api:${project.version}",
-            "start-order":"23"
+            "start-order":"24"
         },
         {
             "id":"${project.groupId}:iap-data-model-entities-impl:${project.version}",

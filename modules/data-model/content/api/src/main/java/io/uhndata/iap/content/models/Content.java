@@ -37,7 +37,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping an {@code iap:Content} node, the base type of all IAP data nodes. It exposes the generic
- * properties shared by all content nodes, hiding the underlying resource/JCR access from its users.
+ * properties shared by all content nodes, hiding the underlying resource/JCR access from its users. Subclasses may
+ * go below the model API through the protected {@link #resource} field; nothing outside the model hierarchy can.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,6 +58,21 @@ public class Content
 
     @ValueMapValue(name = "jcr:createdBy")
     private String createdBy;
+
+    /**
+     * View the same repository content as another content model, e.g. a links-aware view of a submission. The
+     * bound keeps the conversion inside the model world: only content models can be requested, never the wrapped
+     * resource itself, so this adds nothing beyond what any content model can already see.
+     *
+     * @param type the model class to view this content as
+     * @param <T> the model type
+     * @return the adapted model, or {@code null} if this content cannot be viewed as the requested model
+     */
+    @Nullable
+    public <T extends Content> T as(@NotNull final Class<T> type)
+    {
+        return this.resource.adaptTo(type);
+    }
 
     /**
      * The path of the wrapped resource.

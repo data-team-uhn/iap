@@ -74,6 +74,26 @@ class ContentTest
     }
 
     @Test
+    void viewsContentAsOtherModels()
+    {
+        final Resource resource = this.context.create().resource("/content/sample",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Content content = resource.adaptTo(Content.class);
+
+        // A registered model class yields a new view of the same content
+        final Content view = content.as(Content.class);
+        assertNotNull(view);
+        assertEquals(content.getPath(), view.getPath());
+        // A model class the model factory doesn't know about yields nothing
+        assertNull(content.as(UnknownModel.class));
+    }
+
+    /** A content model that is never registered with the model factory. */
+    private static final class UnknownModel extends Content
+    {
+    }
+
+    @Test
     void exposesResourceDerivedProperties()
     {
         final Resource resource = this.context.create().resource("/content/sample",
