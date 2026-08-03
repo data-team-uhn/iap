@@ -84,7 +84,7 @@
   // used for grouping and filtering tags in listings
   - category (STRING) multiple
 
-  // Whether resources under a tagged node implicitly carry this tag too,
+  // Whether content under a tagged node implicitly carries this tag too,
   // e.g. every answer inside a "sensitive" submission is itself sensitive
   - inheritable (BOOLEAN) = false autocreated
 
@@ -93,10 +93,10 @@
   // itself incomplete
   - aggregated (BOOLEAN) = false autocreated
 
-  // The sling:resourceType values of the resources this tag may be placed
+  // The sling:resourceType values of the content this tag may be placed
   // on, including their subtypes, e.g. "sub/Submission" or "iap/Entity";
-  // when empty, the tag may be placed on any resource
-  - targetResources (STRING) multiple
+  // when empty, the tag may be placed on any content
+  - targetResourceTypes (STRING) multiple
 
   // Optional color used when displaying this tag, as a CSS color value
   - color (STRING)

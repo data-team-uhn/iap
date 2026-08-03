@@ -22,39 +22,50 @@ through their initial content, e.g. the test-data module ships a demo set in
 | `category` | String[] | Grouping/filtering facets, e.g. `lifecycle`, `validation`, `privacy` |
 | `inheritable` | Boolean | The tag flows *down*: resources under a tagged node implicitly carry it too (e.g. everything inside a `sensitive` submission is sensitive) |
 | `aggregated` | Boolean | The tag bubbles *up*: a node implicitly carries it when any descendant explicitly does (e.g. a submission with an `incomplete` answer is incomplete) |
-| `targetResources` | String[] | `sling:resourceType`s the tag may be placed on, subtypes included; empty means unrestricted |
+| `targetResourceTypes` | String[] | `sling:resourceType`s the tag may be placed on, subtypes included; empty means unrestricted |
 | `color` | String | Optional CSS color for displaying the tag |
 | `order` | Long | Optional listing position, lower first, unordered last |
 | `system` | Boolean | Managed by the platform: regular API calls cannot add or remove it |
 
 ## The Java API
 
-The `iap-tags-api` bundle (`modules/tags/api`) exposes:
+The `iap-tags-api` bundle (`modules/tags/api`) exposes a models-only API:
 
-- **`TagManager`** (`io.uhndata.iap.tags.api`, an OSGi service) — the one entry point for working
-  with tags:
-  - *Definitions*: `getDefinitions()`, `getDefinition(name)`, `findDefinitions(category, query)`,
-    `getApplicableDefinitions(resource)`. These take no resolver: the definitions are platform
-    vocabulary, world-readable by design, and the code most in need of them — commit hooks,
-    scheduled jobs — often has no user session at all, so the manager reads them with its own
-    service user and caches them until `/Tags` changes. Restricting an individual definition with
-    an access control policy therefore has no effect. Everything that touches user content, on the
-    other hand, works through the resolver of the `Resource` it is given, and is subject to the
-    caller's own permissions.
-  - *Reading*: `getTags(resource)` returns the explicit tags; `getEffectiveTags(resource)` also
-    resolves computed, inherited and aggregated tags, returning `Tag` values carrying the
-    definition, the origins (`EXPLICIT` / `COMPUTED` / `INHERITED` / `AGGREGATED`), and the source
-    paths; `hasTag` / `hasOwnTag` are cheaper single-tag checks. Aggregation visits the whole
-    subtree, so avoid computing effective tags on huge trees.
+- **`Taggable`** (`io.uhndata.iap.tags.models`, a Sling Model) — the tags-aware view of a piece of
+  content, and the entry point for working with its tags: view any content model as it,
+  `content.as(Taggable.class)`, then read, place, or remove tags. Everything works through the
+  resolver the model was read with, and is subject to the caller's own permissions.
+  - *Reading*: `getTags()` returns the explicit tags; `getEffectiveTags()` also resolves computed,
+    inherited and aggregated tags, returning `Tag` values carrying the definition, the origins
+    (`EXPLICIT` / `COMPUTED` / `INHERITED` / `AGGREGATED`), and the source paths; `hasTag` /
+    `hasOwnTag` are cheaper single-tag checks. Aggregation visits the whole subtree, so avoid
+    computing effective tags on huge trees. `getApplicableDefinitions()` lists what may be placed
+    here.
   - *Writing*: `tag`, `untag`, `setTags` validate against the definitions (the tag must exist,
-    apply to the resource, and not be a `system` tag — variants with an `allowSystem` parameter
+    apply to the content, and not be a `system` tag — variants with an `allowSystem` parameter
     are reserved for the platform code owning a system tag). Like other Sling persistence
     operations, changes are only saved when the caller commits the resource resolver. Undefined
     tag strings already present on a node (e.g. left behind by a deleted definition) are still
     reported by the read methods and may be removed, but never added.
+- **`TagManager`** (`io.uhndata.iap.tags.api`, an OSGi service) — the vocabulary service:
+  `getDefinitions()`, `getDefinition(name)`, `findDefinitions(category, query)`. These take no
+  resolver: the definitions are platform vocabulary, world-readable by design, and the code most
+  in need of them — commit hooks, scheduled jobs — often has no user session at all, so the
+  manager reads them with its own service user and caches them until `/Tags` changes. Restricting
+  an individual definition with an access control policy therefore has no effect.
 - **`TagDefinition`** and **`TagsHomepage`** (`io.uhndata.iap.tags.models`, Sling Models) — typed
-  read access to the definition nodes, including `appliesTo(resource)` and the
+  read access to the definition nodes, including `appliesTo(content)` and the
   `TagDefinition.DISPLAY_ORDER` comparator.
+
+## Marking content taggable
+
+The **`iap:Taggable` mixin** (declared next to `iap:Content` in the content module) declares the
+tagging properties once — the explicit `tags` plus the three materialized phase properties and the
+`tagComputationFailed` flag. Every `iap:Content` node carries the mixin through its supertypes, so
+all domain content is taggable out of the box, and other node types, e.g. `nt:file`, become
+taggable with a plain `addMixin`. The mixin is a declaration aid, not a gate: the `Taggable`
+*model* adapts any content, and writing simply fails on nodes whose types cannot store the
+properties.
 
 ## Materialized propagation
 
@@ -66,12 +77,12 @@ at commit time** instead, one property per processing phase:
 - `computedTags` holds the tags computed for the node from its *own content*;
 - `aggregatedTags` holds every `aggregated` tag belonging to a *descendant*.
 
-All three are multivalued String properties declared on `iap:Content`, **maintained by the system —
-never write them manually**. "Belonging to" a node means both the tags a user placed explicitly and
+All three are multivalued String properties declared by the `iap:Taggable` mixin, **maintained by
+the system — never write them manually**. "Belonging to" a node means both the tags a user placed explicitly and
 the ones a processor computed for it: a computed tag propagates exactly like a hand-placed one.
 
 Together with the explicit `tags` they answer both needs without tree walks: a status display reads
-the four properties of the node itself (or calls `TagManager.getEffectiveTagNames(resource)`), and a
+the four properties of the node itself (or calls `Taggable.getEffectiveTagNames()`), and a
 query filters without joins:
 
 ```sql
@@ -123,7 +134,7 @@ Propagation details worth knowing:
   `iap:Content` node does). Strict node types that would reject extra properties — file contents,
   access control entries, the system and index subtrees — are never touched and act as
   propagation boundaries.
-- `targetResources` restricts where a tag may be *explicitly placed*; derived copies are exempt.
+- `targetResourceTypes` restricts where a tag may be *explicitly placed*; derived copies are exempt.
 - Changing a definition's `aggregated`/`inheritable` flags only affects subtrees touched by
   later commits; existing copies are not retroactively recomputed.
 
@@ -153,7 +164,7 @@ combined:
 - `target=<path>` — only tags that may be placed on the resource at that path.
 
 The response is `{"tags": [...], "total": <n>}`, each entry serializing the full definition
-(name, label, description, category, inheritable, aggregated, targetResources, color, order,
+(name, label, description, category, inheritable, aggregated, targetResourceTypes, color, order,
 system, path). The plain `/Tags.json` (and deeper `.2.json` etc.) default renderings remain
 available for raw access.
 

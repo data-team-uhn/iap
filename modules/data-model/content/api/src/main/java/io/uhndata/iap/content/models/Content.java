@@ -108,6 +108,18 @@ public class Content
     }
 
     /**
+     * Whether this content is of the given resource type, either directly or through its
+     * {@code sling:resourceSuperType} chain, same as {@link Resource#isResourceType}.
+     *
+     * @param type a resource type name, e.g. {@code sub/Submission}
+     * @return {@code true} if this content is of (a subtype of) the given resource type
+     */
+    public boolean isOfType(@NotNull final String type)
+    {
+        return this.resource.isResourceType(type);
+    }
+
+    /**
      * The date when the resource was created.
      *
      * @return a copy of the creation date, or {@code null} if the creation date is not recorded

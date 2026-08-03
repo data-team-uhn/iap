@@ -17,41 +17,23 @@
  */
 package io.uhndata.iap.tags.api;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
-import org.apache.sling.api.resource.PersistenceException;
-import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.tags.models.TagDefinition;
+import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * Works with the tags placed on resources through their multivalued {@code tags} property, and with the
- * {@code iap:TagDefinition} nodes under {@code /Tags} defining them.
+ * The tag vocabulary service, resolving the {@code iap:TagDefinition} nodes stored under
+ * {@value #DEFINITIONS_PATH}. The operations on the tags themselves live on the models: view any content model as
+ * {@link Taggable} to read, place, or remove its tags.
  *
  * <p>
- * Reading distinguishes between the tags <em>explicitly</em> placed on a resource ({@link #getTags}) and the tags a
- * resource <em>effectively</em> carries ({@link #getEffectiveTags}): the explicit ones, plus
- * {@link TagDefinition#isInheritable() inheritable} tags placed on an ancestor, plus
- * {@link TagDefinition#isAggregated() aggregated} tags placed on a descendant.
- * </p>
- *
- * <p>
- * Writing validates against the tag definitions: only defined tags, allowed on the target resource, may be added.
- * Tags defined as {@link TagDefinition#isSystem() system} tags are rejected unless the platform-reserved method
- * variants are explicitly used. Write methods only modify the in-memory resource; like other Sling persistence
- * operations, the changes must be committed by the caller through
- * {@link org.apache.sling.api.resource.ResourceResolver#commit}.
- * </p>
- *
- * <p>
- * Every method touching user content works through the resolver of the {@code Resource} it is given, so reads and
- * writes are subject to the caller's own permissions. The definitions, on the other hand, are read through the
- * manager's own service user: they are platform vocabulary, world-readable by design, and the code most in need of
- * them — commit hooks, scheduled jobs — often runs with no user session at all.
+ * The definitions are read through the manager's own service user: they are platform vocabulary, world-readable by
+ * design, and the code most in need of them — commit hooks, scheduled jobs — often runs with no user session at
+ * all.
  * </p>
  *
  * @version $Id$
@@ -59,7 +41,7 @@ import io.uhndata.iap.tags.models.TagDefinition;
  */
 public interface TagManager
 {
-    /** The name of the property holding the tags of a resource, declared for all {@code iap:Content} nodes. */
+    /** The name of the property holding the tags of a piece of content, declared by the {@code iap:Taggable} mixin. */
     String TAGS_PROPERTY = "tags";
 
     /**
@@ -101,160 +83,4 @@ public interface TagManager
      */
     @NotNull
     List<TagDefinition> findDefinitions(@Nullable String category, @Nullable String query);
-
-    /**
-     * The defined tags that may be placed on the given resource, in display order.
-     *
-     * @param resource a candidate resource to be tagged
-     * @return the tag definitions {@link TagDefinition#appliesTo applying to} the resource, an empty list if none do
-     */
-    @NotNull
-    List<TagDefinition> getApplicableDefinitions(@NotNull Resource resource);
-
-    /**
-     * The tags explicitly placed on the given resource, in storage order.
-     *
-     * @param resource the resource to read
-     * @return a snapshot of the resource's own tag names, an empty set if it has none
-     */
-    @NotNull
-    Set<String> getTags(@NotNull Resource resource);
-
-    /**
-     * All the tags the given resource effectively carries: the tags belonging to it, the
-     * {@link TagDefinition#isInheritable() inheritable} tags of its ancestors, and the
-     * {@link TagDefinition#isAggregated() aggregated} tags of its descendants. A node's own tags are both the ones
-     * explicitly placed on it and the ones a {@code TagProcessor} computed for it, distinguished by their
-     * {@link Tag#getOrigins() origin}. Note that computing the aggregated tags visits the whole subtree, which may
-     * be slow on very large subtrees.
-     *
-     * @param resource the resource to read
-     * @return the effective tags, with their definitions and origins, an empty collection if there are none
-     */
-    @NotNull
-    Collection<Tag> getEffectiveTags(@NotNull Resource resource);
-
-    /**
-     * The names of all the tags the given resource effectively carries, read from the explicit {@code tags} property
-     * and from the derived tag properties materialized at commit time, one per {@code TagProcessor.Phase}. This is
-     * the cheap variant of {@link #getEffectiveTags}: it reads a few properties of the resource itself instead of
-     * walking the tree, at the cost of losing the origin information, and of reporting exactly what was
-     * materialized, no more and no less. In particular it does not see
-     * <ul>
-     * <li>changes not yet propagated, e.g. uncommitted ones;</li>
-     * <li>tags on the far side of a <em>propagation boundary</em> — strict node types that reject the derived
-     * properties, e.g. file contents or access control policies, stop the copies from travelling through them, so
-     * such tags are reported by the tree-walking methods but neither here nor by a query;</li>
-     * <li>the deletion of a definition: a derived copy left behind by a tag that stopped being defined, or stopped
-     * being inheritable or aggregated, is reported until the node is recomputed, while {@link #getEffectiveTags} and
-     * {@link #hasTag} filter it out immediately.</li>
-     * </ul>
-     *
-     * @param resource the resource to read
-     * @return the effective tag names, an empty set if there are none
-     */
-    @NotNull
-    Set<String> getEffectiveTagNames(@NotNull Resource resource);
-
-    /**
-     * Checks whether the given resource effectively carries a tag, cheaper than computing all the
-     * {@link #getEffectiveTags effective tags}.
-     *
-     * @param resource the resource to read
-     * @param name a tag name
-     * @return {@code true} if the tag belongs to the resource, whether explicitly placed on it or computed for it,
-     *         or is inherited from an ancestor, or aggregated from a descendant
-     */
-    boolean hasTag(@NotNull Resource resource, @NotNull String name);
-
-    /**
-     * Checks whether the given tag is explicitly placed on the given resource.
-     *
-     * @param resource the resource to read
-     * @param name a tag name
-     * @return {@code true} if the tag is present in the resource's own {@code tags} property
-     */
-    boolean hasOwnTag(@NotNull Resource resource, @NotNull String name);
-
-    /**
-     * Places a tag on a resource. The change is not committed, the caller must commit the resource resolver.
-     *
-     * @param resource the resource to tag
-     * @param name the name of a defined, non-system tag applicable to the resource
-     * @return {@code true} if the resource was modified, {@code false} if it already carried the tag
-     * @throws IllegalArgumentException if the tag is not defined, may not be placed on this resource, or is a
-     *             system tag
-     * @throws PersistenceException if the resource cannot be modified by the current session
-     */
-    boolean tag(@NotNull Resource resource, @NotNull String name) throws PersistenceException;
-
-    /**
-     * Places a tag on a resource, optionally allowing platform-managed system tags. The change is not committed, the
-     * caller must commit the resource resolver.
-     *
-     * @param resource the resource to tag
-     * @param name the name of a defined tag applicable to the resource
-     * @param allowSystem when {@code true}, {@link TagDefinition#isSystem() system} tags may be placed; reserved for
-     *            the platform code managing the tag in question
-     * @return {@code true} if the resource was modified, {@code false} if it already carried the tag
-     * @throws IllegalArgumentException if the tag is not defined, may not be placed on this resource, or is a
-     *             system tag and {@code allowSystem} is not set
-     * @throws PersistenceException if the resource cannot be modified by the current session
-     */
-    boolean tag(@NotNull Resource resource, @NotNull String name, boolean allowSystem) throws PersistenceException;
-
-    /**
-     * Removes a tag from a resource. Undefined tags, e.g. left behind after their definition was deleted, may be
-     * removed too. The change is not committed, the caller must commit the resource resolver.
-     *
-     * @param resource the resource to untag
-     * @param name the name of a non-system tag
-     * @return {@code true} if the resource was modified, {@code false} if it didn't carry the tag
-     * @throws IllegalArgumentException if the tag is defined as a system tag
-     * @throws PersistenceException if the resource cannot be modified by the current session
-     */
-    boolean untag(@NotNull Resource resource, @NotNull String name) throws PersistenceException;
-
-    /**
-     * Removes a tag from a resource, optionally allowing platform-managed system tags. The change is not committed,
-     * the caller must commit the resource resolver.
-     *
-     * @param resource the resource to untag
-     * @param name a tag name
-     * @param allowSystem when {@code true}, {@link TagDefinition#isSystem() system} tags may be removed; reserved
-     *            for the platform code managing the tag in question
-     * @return {@code true} if the resource was modified, {@code false} if it didn't carry the tag
-     * @throws IllegalArgumentException if the tag is defined as a system tag and {@code allowSystem} is not set
-     * @throws PersistenceException if the resource cannot be modified by the current session
-     */
-    boolean untag(@NotNull Resource resource, @NotNull String name, boolean allowSystem)
-        throws PersistenceException;
-
-    /**
-     * Replaces the tags explicitly placed on a resource. The change is not committed, the caller must commit the
-     * resource resolver.
-     *
-     * @param resource the resource to tag
-     * @param names the names of defined, non-system tags applicable to the resource; system tags already on the
-     *            resource must be included, since they cannot be removed by this method
-     * @throws IllegalArgumentException if a tag to be added is not defined or may not be placed on this resource,
-     *             or if the change would add or remove a system tag
-     * @throws PersistenceException if the resource cannot be modified by the current session
-     */
-    void setTags(@NotNull Resource resource, @NotNull Collection<String> names) throws PersistenceException;
-
-    /**
-     * Replaces the tags explicitly placed on a resource, optionally allowing platform-managed system tags. The
-     * change is not committed, the caller must commit the resource resolver.
-     *
-     * @param resource the resource to tag
-     * @param names the names of defined tags applicable to the resource
-     * @param allowSystem when {@code true}, {@link TagDefinition#isSystem() system} tags may be added and removed;
-     *            reserved for the platform code managing the tags in question
-     * @throws IllegalArgumentException if a tag to be added is not defined or may not be placed on this resource,
-     *             or if the change would add or remove a system tag and {@code allowSystem} is not set
-     * @throws PersistenceException if the resource cannot be modified by the current session
-     */
-    void setTags(@NotNull Resource resource, @NotNull Collection<String> names, boolean allowSystem)
-        throws PersistenceException;
 }

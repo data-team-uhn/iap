@@ -46,6 +46,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.api.Tag;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
@@ -65,9 +66,9 @@ import io.uhndata.iap.tags.spi.TagProcessor;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = { TagManager.class, ResourceChangeListener.class },
+@Component(service = { TagManager.class, TagOperations.class, ResourceChangeListener.class },
     property = { ResourceChangeListener.PATHS + "=" + TagManager.DEFINITIONS_PATH })
-public class TagManagerImpl implements TagManager, ResourceChangeListener
+public class TagManagerImpl implements TagManager, TagOperations, ResourceChangeListener
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(TagManagerImpl.class);
 
@@ -147,8 +148,12 @@ public class TagManagerImpl implements TagManager, ResourceChangeListener
     @Override
     public List<TagDefinition> getApplicableDefinitions(final Resource resource)
     {
+        final Content content = resource.adaptTo(Content.class);
+        if (content == null) {
+            return List.of();
+        }
         return getDefinitions().stream()
-            .filter(definition -> definition.appliesTo(resource))
+            .filter(definition -> definition.appliesTo(content))
             .toList();
     }
 
@@ -226,12 +231,6 @@ public class TagManagerImpl implements TagManager, ResourceChangeListener
     }
 
     @Override
-    public boolean tag(final Resource resource, final String name) throws PersistenceException
-    {
-        return tag(resource, name, false);
-    }
-
-    @Override
     public boolean tag(final Resource resource, final String name, final boolean allowSystem)
         throws PersistenceException
     {
@@ -245,12 +244,6 @@ public class TagManagerImpl implements TagManager, ResourceChangeListener
     }
 
     @Override
-    public boolean untag(final Resource resource, final String name) throws PersistenceException
-    {
-        return untag(resource, name, false);
-    }
-
-    @Override
     public boolean untag(final Resource resource, final String name, final boolean allowSystem)
         throws PersistenceException
     {
@@ -261,12 +254,6 @@ public class TagManagerImpl implements TagManager, ResourceChangeListener
         }
         write(resource, tags);
         return true;
-    }
-
-    @Override
-    public void setTags(final Resource resource, final Collection<String> names) throws PersistenceException
-    {
-        setTags(resource, names, false);
     }
 
     @Override
@@ -364,9 +351,10 @@ public class TagManagerImpl implements TagManager, ResourceChangeListener
         if (definition == null) {
             throw new IllegalArgumentException("Unknown tag: " + name);
         }
-        if (!definition.appliesTo(resource)) {
+        final Content content = resource.adaptTo(Content.class);
+        if (content == null || !definition.appliesTo(content)) {
             throw new IllegalArgumentException(
-                "Tag " + name + " may not be placed on a " + resource.getResourceType() + " resource");
+                "Tag " + name + " may not be placed on " + resource.getResourceType() + " content");
         }
         checkSystem(definition, allowSystem);
     }
