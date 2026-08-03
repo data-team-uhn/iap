@@ -120,7 +120,9 @@ registerEntityType(CHOICE_TYPE, {
       headerName: "State",
       type: "singleSelect",
       valueOptions: [
-        { value: "open", label: "Open", color: "#2e7d32" },
+        // Filled, because the default soft styling is color-mix()/light-dark() CSS that
+        // jsdom cannot verify — chipStyle' own tests pin the soft recipes down
+        { value: "open", label: "Open", color: "#1d6a3a", variant: "filled" },
         { value: "closed", label: "Closed" },
       ],
     },
@@ -769,8 +771,9 @@ describe("EntityDataGrid", () => {
   });
 
   // The many sequential picker interactions make this the file's slowest test; under a
-  // coverage-instrumented full-suite run it can brush the default timeout, so it gets room
-  it("shows values picked in \"is any of\" as chips in their options' colors", { timeout: 30_000 }, async () => {
+  // coverage-instrumented full-suite run it can far exceed the default timeout, so it gets
+  // generous room
+  it("shows values picked in \"is any of\" as chips in their options' colors", { timeout: 60_000 }, async () => {
     const user = userEvent.setup();
     mockPage([]);
 
@@ -790,10 +793,11 @@ describe("EntityDataGrid", () => {
     await user.click(screen.getByRole("combobox", { name: "Value" }));
     await user.click(await screen.findByRole("option", { name: "Closed" }));
 
-    // A colored option fills its chip with the color; one without stays stock outlined
+    // A colored option styles its chip per its color and variant; an option without a color
+    // stays stock outlined
     const open = screen.getByText("Open").closest(".MuiChip-root");
     expect(open).toHaveClass("MuiChip-filled");
-    expect(open).toHaveStyle({ backgroundColor: "#2e7d32" });
+    expect(open).toHaveStyle({ backgroundColor: "#1d6a3a", color: "#fff" });
     const closed = screen.getByText("Closed").closest(".MuiChip-root");
     expect(closed).toHaveClass("MuiChip-outlined");
   });

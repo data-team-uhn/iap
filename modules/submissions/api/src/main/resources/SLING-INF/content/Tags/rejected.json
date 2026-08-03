@@ -4,6 +4,7 @@
   "description": "The reviewers turned this record down.",
   "category": ["lifecycle", "review"],
   "system": true,
-  "color": "#d32f2f",
+  "color": "#8e1b29",
+  "icon": "CancelOutlined",
   "order": 70
 }
