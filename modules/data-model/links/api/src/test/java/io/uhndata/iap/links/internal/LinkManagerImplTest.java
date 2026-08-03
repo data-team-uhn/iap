@@ -47,9 +47,10 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
+import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkDefinition;
-import io.uhndata.iap.links.models.ResourceLink;
+import io.uhndata.iap.links.models.Linkable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -99,15 +100,15 @@ class LinkManagerImplTest
     void setUp()
         throws ReflectiveOperationException
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, ResourceLink.class,
-            ExternalLink.class);
+        this.context.addModelsForClasses(Content.class, LinkDefinition.class, InternalLink.class,
+            ExternalLink.class, Linkable.class);
         // The bundle plugin only generates the DS metadata at packaging time, so the service is
         // instantiated directly and its references are injected by hand.
         this.manager = new LinkManagerImpl();
         this.injectFactory(new TestResolverFactory(this.context.resourceResolver(),
             this.context.getService(ResourceResolverFactory.class)));
-        // The models' write behavior delegates to the manager through its internal LinkWriter face
-        this.context.registerService(LinkWriter.class, this.manager);
+        // The models' write behavior delegates to the manager through its internal LinkOperations face
+        this.context.registerService(LinkOperations.class, this.manager);
     }
 
     private void injectFactory(final ResourceResolverFactory factory)
@@ -241,7 +242,7 @@ class LinkManagerImplTest
         // The failure is cached as an empty vocabulary instead of retrying the login on every call
         assertNull(this.manager.getDefinition(SIMPLE));
         assertThrows(IllegalArgumentException.class,
-            () -> this.manager.addLink(thing, destination, SIMPLE, null));
+            () -> this.manager.addLink(thing, this.asContent(destination), SIMPLE, null));
     }
 
     @Test
@@ -249,15 +250,15 @@ class LinkManagerImplTest
     {
         this.createDefinitions();
         final Resource thing = this.createThings();
-        assertTrue(this.manager.getLinks(this.context.create().resource("/Things/bare")).isEmpty());
+        assertTrue(this.linkable(this.context.create().resource("/Things/bare")).getLinks().isEmpty());
         this.context.create().resource("/Things/a/" + CONTAINER + "/l1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
         this.context.create().resource("/Things/a/" + CONTAINER + "/e1", Map.of(
             SLING_RESOURCE_TYPE, ExternalLink.RESOURCE_TYPE, "type", EXTERNAL_ID, "value", "42"));
         // An unrecognized child is skipped instead of breaking the listing
         this.context.create().resource("/Things/a/" + CONTAINER + "/junk");
 
-        final List<Link> links = this.manager.getLinks(thing);
+        final List<Link> links = this.linkable(thing).getLinks();
 
         assertEquals(2, links.size());
     }
@@ -270,12 +271,12 @@ class LinkManagerImplTest
         this.mockSession();
         final Resource thing = this.createThings();
         this.context.create().resource("/Things/a/" + CONTAINER + "/l1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
         this.context.create().resource("/Things/a/" + CONTAINER + "/l2", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", REFERENCES_ID, "reference", THING_B_ID));
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE, "type", REFERENCES_ID, "reference", THING_B_ID));
 
-        assertEquals(1, this.manager.getLinks(thing, SIMPLE).size());
-        assertTrue(this.manager.getLinks(thing, "missing").isEmpty());
+        assertEquals(1, this.linkable(thing).getLinks(SIMPLE).size());
+        assertTrue(this.linkable(thing).getLinks("missing").isEmpty());
     }
 
     @Test
@@ -284,8 +285,8 @@ class LinkManagerImplTest
         this.createDefinitions();
         final Resource thing = this.createThings();
 
-        final ResourceLink link = this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), SIMPLE, "see also");
+        final InternalLink link = this.linkable(thing)
+            .addLink(this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), SIMPLE, "see also");
 
         assertNotNull(link);
         assertEquals(SIMPLE_ID, link.get("type"));
@@ -303,12 +304,12 @@ class LinkManagerImplTest
         final Resource thing = this.createThings();
         final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
 
-        final ResourceLink first = this.manager.addLink(thing, destination, SIMPLE, null);
-        final ResourceLink second = this.manager.addLink(thing, destination, SIMPLE, null);
-        this.manager.addLink(thing, destination, SIMPLE, "other label");
+        final InternalLink first = this.manager.addLink(thing, this.asContent(destination), SIMPLE, null);
+        final InternalLink second = this.manager.addLink(thing, this.asContent(destination), SIMPLE, null);
+        this.manager.addLink(thing, this.asContent(destination), SIMPLE, "other label");
 
         assertEquals(first.getPath(), second.getPath());
-        assertEquals(2, this.manager.getLinks(thing).size());
+        assertEquals(2, this.linkable(thing).getLinks().size());
     }
 
     @Test
@@ -317,8 +318,8 @@ class LinkManagerImplTest
         this.createDefinitions();
         final Resource thing = this.createThings();
 
-        final ResourceLink link = this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), "weak", null);
+        final InternalLink link = this.manager.addLink(thing,
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "weak", null);
 
         assertEquals("iap:WeakLink", link.get(PRIMARY_TYPE));
     }
@@ -332,13 +333,13 @@ class LinkManagerImplTest
         final Resource unreferenceable = this.context.create().resource("/Things/plain");
 
         assertThrows(IllegalArgumentException.class,
-            () -> this.manager.addLink(thing, destination, "missing", null));
+            () -> this.manager.addLink(thing, this.asContent(destination), "missing", null));
         assertThrows(IllegalArgumentException.class,
-            () -> this.manager.addLink(thing, destination, "ehrChart", null));
+            () -> this.manager.addLink(thing, this.asContent(destination), "ehrChart", null));
         assertThrows(IllegalArgumentException.class,
-            () -> this.manager.addLink(thing, destination, "referencedBy", null));
+            () -> this.manager.addLink(thing, this.asContent(destination), "referencedBy", null));
         assertThrows(IllegalArgumentException.class,
-            () -> this.manager.addLink(thing, unreferenceable, SIMPLE, null));
+            () -> this.manager.addLink(thing, this.asContent(unreferenceable), SIMPLE, null));
     }
 
     @Test
@@ -361,11 +362,14 @@ class LinkManagerImplTest
             "jcr:mixinTypes", new String[]{ "mix:referenceable" }));
 
         // Primary type match on the source, mixin match on the destination
-        assertNotNull(this.manager.addLink(source, mixinDestination, "typed", null));
+        assertNotNull(this.manager.addLink(source, this.asContent(mixinDestination), "typed", null));
         // An untyped source fails the requirement
         final Resource untyped = this.context.resourceResolver().getResource("/Things/a");
         assertThrows(IllegalArgumentException.class,
-            () -> this.manager.addLink(untyped, mixinDestination, "typed", null));
+            () -> this.manager.addLink(untyped, this.asContent(mixinDestination), "typed", null));
+        // And so does an untyped destination
+        assertThrows(IllegalArgumentException.class,
+            () -> this.manager.addLink(source, this.asContent(untyped), "typed", null));
     }
 
     @Test
@@ -385,14 +389,14 @@ class LinkManagerImplTest
         Mockito.when(sourceNode.isNodeType("iap:Entity")).thenReturn(true, false);
 
         // First call: the node type matches; second call: it doesn't
-        assertNotNull(this.manager.addLink(thing, destination, "typed", null));
+        assertNotNull(this.manager.addLink(thing, this.asContent(destination), "typed", null));
         assertThrows(IllegalArgumentException.class,
-            () -> this.manager.addLink(thing, destination, "typed", "second"));
+            () -> this.manager.addLink(thing, this.asContent(destination), "typed", "second"));
 
         // A session that cannot even check the type fails closed
         Mockito.when(session.getNode("/Things/a")).thenThrow(new RepositoryException());
         assertThrows(IllegalArgumentException.class,
-            () -> this.manager.addLink(thing, destination, "typed", "third"));
+            () -> this.manager.addLink(thing, this.asContent(destination), "typed", "third"));
     }
 
     @Test
@@ -410,7 +414,7 @@ class LinkManagerImplTest
             Map.of(UUID_PROPERTY, THING_B_ID));
         this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
 
-        final ResourceLink link = this.manager.addLink(owner, destination, SIMPLE, null);
+        final InternalLink link = this.manager.addLink(owner, this.asContent(destination), SIMPLE, null);
 
         assertNotNull(link);
         assertNotNull(owner.getChild(CONTAINER));
@@ -426,7 +430,7 @@ class LinkManagerImplTest
             Map.of(UUID_PROPERTY, THING_B_ID));
         this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
 
-        final ResourceLink link = this.manager.addLink(owner, destination, SIMPLE, null);
+        final InternalLink link = this.manager.addLink(owner, this.asContent(destination), SIMPLE, null);
 
         assertNotNull(link);
         assertNotNull(owner.getChild(CONTAINER));
@@ -452,7 +456,7 @@ class LinkManagerImplTest
             Map.of(UUID_PROPERTY, THING_B_ID));
         this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
 
-        assertNotNull(this.manager.addLink(owner, destination, SIMPLE, null));
+        assertNotNull(this.manager.addLink(owner, this.asContent(destination), SIMPLE, null));
 
         Mockito.verify(versionManager).checkout("/Committed");
         Mockito.verify(versionManager).checkin("/Committed");
@@ -470,7 +474,7 @@ class LinkManagerImplTest
             Map.of(UUID_PROPERTY, THING_B_ID));
         this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
 
-        assertNotNull(this.manager.addLink(owner, destination, SIMPLE, null));
+        assertNotNull(this.manager.addLink(owner, this.asContent(destination), SIMPLE, null));
     }
 
     @Test
@@ -481,8 +485,8 @@ class LinkManagerImplTest
         this.mockSession();
         final Resource thing = this.createThings();
 
-        final ResourceLink link = this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), "references", "pair");
+        final InternalLink link = this.manager.addLink(thing,
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "references", "pair");
 
         final Resource reverseContainer = this.context.resourceResolver()
             .getResource(THING_B_PATH + "/" + CONTAINER);
@@ -506,7 +510,7 @@ class LinkManagerImplTest
         final Resource thing = this.createThings();
 
         assertNotNull(this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), "references", null));
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "references", null));
 
         assertEquals(0, this.children(this.context.resourceResolver()
             .getResource(THING_B_PATH + "/" + CONTAINER)).size());
@@ -519,8 +523,8 @@ class LinkManagerImplTest
         this.createDefinitions();
         this.mockSession();
         final Resource thing = this.createThings();
-        final ResourceLink link = this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), "references", null);
+        final InternalLink link = this.manager.addLink(thing,
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "references", null);
 
         // Asking again finds the pair complete and creates nothing new
         assertTrue(link.addBacklink());
@@ -537,12 +541,12 @@ class LinkManagerImplTest
         this.createThings();
         // A definition with no backlink at all
         final Resource plain = this.context.create().resource("/Things/a/" + CONTAINER + "/plain", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
         assertFalse(this.manager.addBacklink(plain));
 
         // A link whose type reference cannot be resolved at all
         final Resource untyped = this.context.create().resource("/Things/a/" + CONTAINER + "/untyped", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", "99999999-9999-9999-9999-999999999999", "reference", THING_B_ID));
         assertFalse(this.manager.addBacklink(untyped));
 
@@ -554,13 +558,13 @@ class LinkManagerImplTest
         this.mockNode(this.context.resourceResolver().adaptTo(Session.class),
             "77777777-7777-7777-7777-777777777777", "/LinkTypes/dangling");
         final Resource dangling = this.context.create().resource("/Things/a/" + CONTAINER + "/dangling", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", "77777777-7777-7777-7777-777777777777", "reference", THING_B_ID));
         assertFalse(this.manager.addBacklink(dangling));
 
         // A broken destination reference
         final Resource broken = this.context.create().resource("/Things/a/" + CONTAINER + "/broken", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", REFERENCES_ID, "reference", "99999999-9999-9999-9999-999999999999"));
         assertFalse(this.manager.addBacklink(broken));
 
@@ -569,12 +573,12 @@ class LinkManagerImplTest
 
         // A link node outside any owning resource has nothing to point the reverse link at
         final Resource orphan = this.context.create().resource("/l1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", REFERENCES_ID, "reference", THING_B_ID));
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE, "type", REFERENCES_ID, "reference", THING_B_ID));
         assertFalse(this.manager.addBacklink(orphan));
     }
 
     @Test
-    void refusesBacklinksToUnreferenceableResources()
+    void refusesBacklinksToUnreferenceableSources()
         throws RepositoryException
     {
         this.createDefinitions();
@@ -584,7 +588,7 @@ class LinkManagerImplTest
         this.mockNode(session, "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "/Things/plain");
         this.context.create().resource(THING_B_PATH, Map.of(UUID_PROPERTY, THING_B_ID));
         final Resource link = this.context.create().resource("/Things/plain/" + CONTAINER + "/l1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", REFERENCES_ID, "reference", THING_B_ID));
 
         assertFalse(this.manager.addBacklink(link));
@@ -597,9 +601,9 @@ class LinkManagerImplTest
         this.createDefinitions();
         this.mockSession();
         final Resource thing = this.createThings();
-        final ResourceLink link = this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), "references", null);
-        final ResourceLink backlink = link.getBacklink();
+        final InternalLink link = this.manager.addLink(thing,
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "references", null);
+        final InternalLink backlink = link.getBacklink();
         assertNotNull(backlink);
 
         assertTrue(link.remove(true));
@@ -615,20 +619,20 @@ class LinkManagerImplTest
         this.createDefinitions();
         final Resource thing = this.createThings();
         final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
-        this.manager.addLink(thing, destination, SIMPLE, null);
-        this.manager.addLink(thing, destination, SIMPLE, "labeled");
+        this.manager.addLink(thing, this.asContent(destination), SIMPLE, null);
+        this.manager.addLink(thing, this.asContent(destination), SIMPLE, "labeled");
         this.manager.addExternalLink(thing, "ehrChart", "42", null);
 
         // Unknown type and absent container are quiet no-ops
-        assertEquals(0, this.manager.removeLinks(thing, destination, "missing", null));
-        assertEquals(0, this.manager.removeLinks(
-            this.context.create().resource("/Things/bare"), null, SIMPLE, null));
+        assertEquals(0, this.linkable(thing).removeLinks(this.asContent(destination), "missing", null));
+        assertEquals(0, this.linkable(this.context.create().resource("/Things/bare"))
+            .removeLinks(null, SIMPLE, null));
         // The label filter distinguishes the empty label from any label
-        assertEquals(1, this.manager.removeLinks(thing, destination, SIMPLE, ""));
-        assertEquals(1, this.manager.removeLinks(thing, destination, SIMPLE, null));
+        assertEquals(1, this.linkable(thing).removeLinks(this.asContent(destination), SIMPLE, ""));
+        assertEquals(1, this.linkable(thing).removeLinks(this.asContent(destination), SIMPLE, null));
         // External links can only match without a destination filter
-        assertEquals(0, this.manager.removeLinks(thing, destination, "ehrChart", null));
-        assertEquals(1, this.manager.removeLinks(thing, null, "ehrChart", null));
+        assertEquals(0, this.linkable(thing).removeLinks(this.asContent(destination), "ehrChart", null));
+        assertEquals(1, this.linkable(thing).removeLinks(null, "ehrChart", null));
     }
 
     @Test
@@ -637,8 +641,8 @@ class LinkManagerImplTest
         this.createDefinitions();
         final Resource thing = this.createThings();
 
-        final ExternalLink link = this.manager.addExternalLink(thing, "ehrChart", "12345", "chart");
-        final ExternalLink duplicate = this.manager.addExternalLink(thing, "ehrChart", "12345", "chart");
+        final ExternalLink link = this.linkable(thing).addExternalLink("ehrChart", "12345", "chart");
+        final ExternalLink duplicate = this.linkable(thing).addExternalLink("ehrChart", "12345", "chart");
 
         assertEquals("iap:ExternalLink", link.get(PRIMARY_TYPE));
         assertEquals("12345", link.get("value"));
@@ -669,7 +673,7 @@ class LinkManagerImplTest
         final Session session = this.mockSession();
         this.createThings();
         final Resource link = this.context.create().resource("/Things/a/" + CONTAINER + "/l1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
         final Resource target = this.context.resourceResolver().getResource(THING_B_PATH);
         final Node targetNode = Mockito.mock(Node.class);
         Mockito.when(session.getNode(THING_B_PATH)).thenReturn(targetNode);
@@ -687,7 +691,7 @@ class LinkManagerImplTest
         Mockito.when(targetNode.getReferences("reference")).thenReturn(references);
         Mockito.when(targetNode.getWeakReferences("reference")).thenReturn(weakReferences);
 
-        final List<ResourceLink> backlinks = this.manager.getBacklinks(target);
+        final List<InternalLink> backlinks = this.linkable(target).getBacklinks();
 
         assertEquals(1, backlinks.size());
         assertEquals(link.getPath(), backlinks.get(0).getPath());
@@ -700,12 +704,12 @@ class LinkManagerImplTest
         this.createDefinitions();
         final Resource thing = this.createThings();
         // Without a JCR session there is no reference tracking
-        assertTrue(this.manager.getBacklinks(thing).isEmpty());
+        assertTrue(this.linkable(thing).getBacklinks().isEmpty());
 
         // And a failing session yields an empty result instead of breaking
         final Session session = this.mockSession();
         Mockito.when(session.getNode("/Things/a")).thenThrow(new RepositoryException());
-        assertTrue(this.manager.getBacklinks(thing).isEmpty());
+        assertTrue(this.linkable(thing).getBacklinks().isEmpty());
     }
 
     @Test
@@ -762,7 +766,7 @@ class LinkManagerImplTest
         final Resource thing = this.createThings();
 
         assertNotNull(this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), "references", null));
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "references", null));
 
         assertEquals(0, this.children(this.context.resourceResolver()
             .getResource(THING_B_PATH + "/" + CONTAINER)).size());
@@ -776,8 +780,8 @@ class LinkManagerImplTest
         this.mockSession();
         final Resource thing = this.createThings();
         final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
-        final ResourceLink first = this.manager.addLink(thing, destination, SIMPLE, null);
-        final ResourceLink second = this.manager.addLink(thing, destination, SIMPLE, "labeled");
+        final InternalLink first = this.manager.addLink(thing, this.asContent(destination), SIMPLE, null);
+        final InternalLink second = this.manager.addLink(thing, this.asContent(destination), SIMPLE, "labeled");
 
         // No backlink exists, so asking to remove it is a quiet no-op
         assertTrue(first.remove(true));
@@ -803,7 +807,7 @@ class LinkManagerImplTest
         this.mockSession();
         this.createThings();
         final Resource link = this.context.create().resource("/Things/a/" + CONTAINER + "/l1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", REFERENCES_ID, "reference", THING_B_ID));
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE, "type", REFERENCES_ID, "reference", THING_B_ID));
         // A link node handed in through a resolver that cannot see the link's endpoints
         final ResourceResolver blind = Mockito.mock(ResourceResolver.class);
         final Resource wrapped = Mockito.mock(Resource.class, AdditionalAnswers.delegatesTo(link));
@@ -828,8 +832,8 @@ class LinkManagerImplTest
         this.createDefinitions();
         this.mockSession();
         final Resource thing = this.createThings();
-        final ResourceLink link = this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), "references", null);
+        final InternalLink link = this.manager.addLink(thing,
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "references", null);
         assertNotNull(link.getBacklink());
         // The link is deleted through a resolver that cannot see the reverse link
         final Resource linkResource = this.context.resourceResolver().getResource(link.getPath());
@@ -860,8 +864,10 @@ class LinkManagerImplTest
         this.context.registerAdapter(Resource.class, Node.class, node);
         final Resource thing = this.context.resourceResolver().getResource("/Things/a");
 
-        this.manager.addLink(thing, this.context.resourceResolver().getResource(THING_B_PATH), "weak", null);
-        this.manager.addLink(thing, this.context.resourceResolver().getResource(THING_B_PATH), SIMPLE, null);
+        this.manager.addLink(thing,
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "weak", null);
+        this.manager.addLink(thing,
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), SIMPLE, null);
 
         Mockito.verify(node, Mockito.times(2))
             .setProperty("type", SIMPLE_ID, javax.jcr.PropertyType.REFERENCE);
@@ -881,7 +887,7 @@ class LinkManagerImplTest
         final Resource thing = this.context.resourceResolver().getResource("/Things/a");
 
         assertThrows(IllegalArgumentException.class, () -> this.manager.addLink(thing,
-            this.context.resourceResolver().getResource(THING_B_PATH), SIMPLE, null));
+            this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), SIMPLE, null));
     }
 
     private PropertyIterator iterator(final Property... properties)
@@ -904,5 +910,15 @@ class LinkManagerImplTest
     private List<Resource> children(final Resource parent)
     {
         return StreamSupport.stream(parent.getChildren().spliterator(), false).collect(Collectors.toList());
+    }
+
+    private Linkable linkable(final Resource resource)
+    {
+        return resource.adaptTo(Linkable.class);
+    }
+
+    private Content asContent(final Resource resource)
+    {
+        return resource.adaptTo(Content.class);
     }
 }

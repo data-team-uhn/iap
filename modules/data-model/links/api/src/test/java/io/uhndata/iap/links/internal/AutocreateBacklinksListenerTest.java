@@ -42,8 +42,8 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
+import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.LinkDefinition;
-import io.uhndata.iap.links.models.ResourceLink;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -82,7 +82,7 @@ class AutocreateBacklinksListenerTest
     void setUp()
         throws ReflectiveOperationException, RepositoryException
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, ResourceLink.class,
+        this.context.addModelsForClasses(Content.class, LinkDefinition.class, InternalLink.class,
             ExternalLink.class);
         this.manager = new LinkManagerImpl();
         this.inject(this.manager, LinkManagerImpl.class, "resolverFactory",
@@ -90,7 +90,7 @@ class AutocreateBacklinksListenerTest
         this.listener = new AutocreateBacklinksListener();
         this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory",
             this.context.getService(ResourceResolverFactory.class));
-        this.inject(this.listener, AutocreateBacklinksListener.class, "linkWriter", this.manager);
+        this.inject(this.listener, AutocreateBacklinksListener.class, "linkOperations", this.manager);
 
         final Session session = Mockito.mock(Session.class);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
@@ -135,7 +135,7 @@ class AutocreateBacklinksListenerTest
         final Resource containerA = committer.create(thingA, CONTAINER, Map.of("jcr:primaryType", "iap:Links"));
         committer.create(thingB, CONTAINER, Map.of("jcr:primaryType", "iap:Links"));
         committer.create(containerA, "l1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", REFERENCES_ID,
             "reference", THING_B_ID));
         committer.commit();

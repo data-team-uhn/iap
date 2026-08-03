@@ -89,7 +89,7 @@ public class LinkDefinition extends Content implements DocumentedItem
     private String[] requiredDestinationTypes;
 
     @ValueMapValue
-    private String resourceLabelTemplate;
+    private String targetLabelTemplate;
 
     @ValueMapValue
     private String backlink;
@@ -194,9 +194,9 @@ public class LinkDefinition extends Content implements DocumentedItem
      * @return a template, or {@code null} if the target's natural label should be used
      */
     @Nullable
-    public String getResourceLabelTemplate()
+    public String getTargetLabelTemplate()
     {
-        return this.resourceLabelTemplate;
+        return this.targetLabelTemplate;
     }
 
     /**
@@ -307,7 +307,7 @@ public class LinkDefinition extends Content implements DocumentedItem
         }
         if (hasBacklink()) {
             details.add("**Backlink**: a reverse `" + this.backlink
-                + "` link is automatically added on the linked resource");
+                + "` link is automatically added on the linked content");
         }
         if (isBacklinkOnly()) {
             details.add("**Backlink only**: never created directly, only as the automatic reverse of another link");

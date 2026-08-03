@@ -28,12 +28,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.content.models.Content;
-import io.uhndata.iap.links.internal.LinkWriter;
+import io.uhndata.iap.links.internal.LinkOperations;
 
 /**
  * The abstract base shared by all the links kept in a resource's {@code iap:links} container: a typed, optionally
  * labeled connection from the resource holding it to a target. The target is either another resource in the
- * repository ({@link ResourceLink}) or something outside it, recorded as a value ({@link ExternalLink}). Like the
+ * repository ({@link InternalLink}) or something outside it, recorded as a value ({@link ExternalLink}). Like the
  * other abstract bases in the data model, this class is deliberately not itself a registered Sling Model: each
  * subtype declares {@code adapters = Link.class} on its own {@code @Model}, so {@code resource.adaptTo(Link.class)}
  * dispatches to the actual concrete subtype.
@@ -54,7 +54,7 @@ public abstract class Link extends Content
     // The internal service the write behavior delegates to; the models only hand it their own wrapped resource,
     // which keeps the resource itself out of the public API
     @OSGiService
-    protected LinkWriter writer;
+    protected LinkOperations operations;
 
     @ValueMapValue(name = TYPE_PROPERTY)
     private String type;
@@ -77,9 +77,9 @@ public abstract class Link extends Content
         if (resource == null) {
             return null;
         }
-        if (isLinkKind(resource, ResourceLink.RESOURCE_TYPE, "iap:Link")
-            || isLinkKind(resource, ResourceLink.WEAK_RESOURCE_TYPE, "iap:WeakLink")) {
-            return resource.adaptTo(ResourceLink.class);
+        if (isLinkKind(resource, InternalLink.RESOURCE_TYPE, "iap:Link")
+            || isLinkKind(resource, InternalLink.WEAK_RESOURCE_TYPE, "iap:WeakLink")) {
+            return resource.adaptTo(InternalLink.class);
         }
         if (isLinkKind(resource, ExternalLink.RESOURCE_TYPE, "iap:ExternalLink")) {
             return resource.adaptTo(ExternalLink.class);
@@ -126,16 +126,16 @@ public abstract class Link extends Content
      */
     public boolean remove(final boolean removeBacklink)
     {
-        return this.writer != null && this.writer.remove(this.resource, removeBacklink);
+        return this.operations != null && this.operations.remove(this.resource, removeBacklink);
     }
 
     /**
-     * The resource that this link belongs to, i.e. the owner of the {@code iap:links} container holding it.
+     * The content that this link belongs to, i.e. the owner of the {@code iap:links} container holding it.
      *
      * @return a content model, or {@code null} if the structure is unexpected
      */
     @Nullable
-    public Content getLinkingResource()
+    public Content getSource()
     {
         final Resource container = this.resource.getParent();
         final Resource owner = container == null ? null : container.getParent();
@@ -144,7 +144,7 @@ public abstract class Link extends Content
 
     /**
      * A display label for the link target, rendered through the definition's
-     * {@link LinkDefinition#getResourceLabelTemplate() label template} when one is set, or the target's natural
+     * {@link LinkDefinition#getTargetLabelTemplate() label template} when one is set, or the target's natural
      * label otherwise.
      *
      * @return a display label
@@ -153,7 +153,7 @@ public abstract class Link extends Content
     public String getTargetLabel()
     {
         final LinkDefinition definition = this.getDefinition();
-        final String template = definition == null ? null : definition.getResourceLabelTemplate();
+        final String template = definition == null ? null : definition.getTargetLabelTemplate();
         if (template == null || template.isBlank()) {
             return this.getDefaultTargetLabel();
         }
@@ -178,7 +178,7 @@ public abstract class Link extends Content
             return Objects.requireNonNull(this.getDefinition()).getLabel();
         }
         if ("sourceName".equals(name)) {
-            final Content linkingResource = this.getLinkingResource();
+            final Content linkingResource = this.getSource();
             return linkingResource == null ? "" : linkingResource.getName();
         }
         return this.resolveTargetPlaceholder(name);

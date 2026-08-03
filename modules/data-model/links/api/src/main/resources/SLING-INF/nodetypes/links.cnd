@@ -100,7 +100,7 @@
   // (the linking resource's node name), and {value} (an external link's
   // recorded value). When not set, the target's node name (or the recorded
   // value) is used.
-  - resourceLabelTemplate (STRING)
+  - targetLabelTemplate (STRING)
 
   // An optional reverse link to be added automatically from the linked
   // resource back to the linking resource, named as a path to another link
@@ -137,6 +137,18 @@
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Marks content that holds links: the mixin declares the iap:links container
+// once, so node types opt in by listing it as a supertype, and individual
+// nodes by adding the mixin, instead of re-declaring the same child node. It
+// is only a declaration aid, not an access control or a gate: content whose
+// type allows the container some other way holds links just as well.
+[iap:Linkable]
+  mixin
+
+  // Container for links to other content
+  + iap:links (iap:Links) = iap:Links autocreated IGNORE
 
 //-----------------------------------------------------------------------------
 // The container holding all the links of a resource, as a child node named

@@ -57,7 +57,7 @@ class ExternalLinkTest
     void setUp()
         throws RepositoryException
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, ResourceLink.class,
+        this.context.addModelsForClasses(Content.class, LinkDefinition.class, InternalLink.class,
             ExternalLink.class);
         final Session session = Mockito.mock(Session.class);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
@@ -149,7 +149,7 @@ class ExternalLinkTest
     void resolvesTheValuePlaceholderInTemplates()
     {
         final ExternalLink link = (ExternalLink) this
-            .createFixture(Map.of("label", "EHR chart", "resourceLabelTemplate", "{typeLabel} #{value}{name}"))
+            .createFixture(Map.of("label", "EHR chart", "targetLabelTemplate", "{typeLabel} #{value}{name}"))
             .adaptTo(Link.class);
 
         assertEquals("EHR chart #12345", link.getTargetLabel());

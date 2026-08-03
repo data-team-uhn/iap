@@ -42,13 +42,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link ResourceLink} and the shared {@link Link} behavior.
+ * Unit tests for {@link InternalLink} and the shared {@link Link} behavior.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ResourceLinkTest
+class InternalLinkTest
 {
     private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
 
@@ -68,7 +68,7 @@ class ResourceLinkTest
     void setUp()
         throws RepositoryException
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, ResourceLink.class,
+        this.context.addModelsForClasses(Content.class, LinkDefinition.class, InternalLink.class,
             ExternalLink.class);
         this.session = Mockito.mock(Session.class);
         this.context.registerAdapter(ResourceResolver.class, Session.class, this.session);
@@ -105,7 +105,7 @@ class ResourceLinkTest
         this.context.create().resource("/Things/a", Map.of("jcr:uuid", THING_A_ID, "title", "Thing A"));
         this.context.create().resource("/Things/b", Map.of("jcr:uuid", THING_B_ID, "title", "Thing B"));
         return this.context.create().resource("/Things/a/iap:links/l1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", DEFINITION_ID,
             "reference", THING_B_ID,
             "label", "see also"));
@@ -114,7 +114,7 @@ class ResourceLinkTest
     private Resource createBacklinkFixture()
     {
         return this.context.create().resource("/Things/b/iap:links/l2", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", BACK_DEFINITION_ID,
             "reference", THING_A_ID));
     }
@@ -126,16 +126,16 @@ class ResourceLinkTest
 
         final Link link = resource.adaptTo(Link.class);
 
-        assertEquals(ResourceLink.class, link.getClass());
+        assertEquals(InternalLink.class, link.getClass());
         assertEquals("see also", link.getLabel());
         assertEquals("References", link.getDefinition().getLabel());
-        assertEquals("/Things/a", link.getLinkingResource().getPath());
+        assertEquals("/Things/a", link.getSource().getPath());
     }
 
     @Test
     void resolvesTheDestination()
     {
-        final ResourceLink link = (ResourceLink) this.createFixture().adaptTo(Link.class);
+        final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
 
         assertNotNull(link.getDestination());
         assertEquals("/Things/b", link.getDestination().getPath());
@@ -147,25 +147,25 @@ class ResourceLinkTest
     {
         this.createFixture();
         final Resource resource = this.context.create().resource("/Things/a/iap:links/w1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.WEAK_RESOURCE_TYPE,
-            "sling:resourceSuperType", ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.WEAK_RESOURCE_TYPE,
+            "sling:resourceSuperType", InternalLink.RESOURCE_TYPE,
             "type", DEFINITION_ID,
             "reference", THING_B_ID));
 
         final Link link = resource.adaptTo(Link.class);
 
-        assertEquals(ResourceLink.class, link.getClass());
-        assertTrue(((ResourceLink) link).isWeak());
+        assertEquals(InternalLink.class, link.getClass());
+        assertTrue(((InternalLink) link).isWeak());
     }
 
     @Test
     void findsTheCompletedBacklink()
     {
-        final ResourceLink link = (ResourceLink) this.createFixture().adaptTo(Link.class);
+        final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
         assertNull(link.getBacklink());
         assertFalse(link.isSymmetric());
 
-        final ResourceLink backlink = (ResourceLink) this.createBacklinkFixture().adaptTo(Link.class);
+        final InternalLink backlink = (InternalLink) this.createBacklinkFixture().adaptTo(Link.class);
 
         assertNotNull(link.getBacklink());
         assertEquals("/Things/b/iap:links/l2", link.getBacklink().getPath());
@@ -178,29 +178,29 @@ class ResourceLinkTest
     @Test
     void unrelatedLinksAreNotReverses()
     {
-        final ResourceLink link = (ResourceLink) this.createFixture().adaptTo(Link.class);
+        final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
         // Same definition pair, but pointing at a third resource: endpoints don't swap
         final Resource unrelated = this.context.create().resource("/Things/b/iap:links/l3", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", BACK_DEFINITION_ID,
             "reference", THING_B_ID));
 
-        assertFalse(link.isReverseOf((ResourceLink) unrelated.adaptTo(Link.class)));
+        assertFalse(link.isReverseOf((InternalLink) unrelated.adaptTo(Link.class)));
         assertNull(link.getBacklink());
     }
 
     @Test
     void brokenLinksAreNotReverses()
     {
-        final ResourceLink link = (ResourceLink) this.createFixture().adaptTo(Link.class);
+        final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
         final Resource broken = this.context.create().resource("/Things/b/iap:links/broken", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", BACK_DEFINITION_ID,
             "reference", "99999999-9999-9999-9999-999999999999"));
 
-        assertFalse(link.isReverseOf((ResourceLink) broken.adaptTo(Link.class)));
+        assertFalse(link.isReverseOf((InternalLink) broken.adaptTo(Link.class)));
         // And symmetrically, a link with no reachable destination reverses nothing
-        assertFalse(((ResourceLink) broken.adaptTo(Link.class)).isReverseOf(link));
+        assertFalse(((InternalLink) broken.adaptTo(Link.class)).isReverseOf(link));
     }
 
     @Test
@@ -218,15 +218,15 @@ class ResourceLinkTest
             "jcr:uuid", "55555555-5555-5555-5555-555555555555"));
         this.mockNode("44444444-4444-4444-4444-444444444444", "/LinkTypes/parentOf");
         this.mockNode("55555555-5555-5555-5555-555555555555", "/LinkTypes/childOf");
-        final ResourceLink forward = (ResourceLink) this.context.create()
+        final InternalLink forward = (InternalLink) this.context.create()
             .resource("/Things/a/iap:links/f1", Map.of(
-                SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+                SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
                 "type", "44444444-4444-4444-4444-444444444444",
                 "reference", THING_B_ID))
             .adaptTo(Link.class);
-        final ResourceLink reverse = (ResourceLink) this.context.create()
+        final InternalLink reverse = (InternalLink) this.context.create()
             .resource("/Things/b/iap:links/r1", Map.of(
-                SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+                SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
                 "type", "55555555-5555-5555-5555-555555555555",
                 "reference", THING_A_ID))
             .adaptTo(Link.class);
@@ -239,15 +239,15 @@ class ResourceLinkTest
     @Test
     void linksWithUnresolvableDefinitionsAreNotReverses()
     {
-        final ResourceLink link = (ResourceLink) this.createFixture().adaptTo(Link.class);
+        final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
         final Resource untyped = this.context.create().resource("/Things/b/iap:links/untyped", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", "99999999-9999-9999-9999-999999999999",
             "reference", THING_A_ID));
 
-        assertFalse(link.isReverseOf((ResourceLink) untyped.adaptTo(Link.class)));
+        assertFalse(link.isReverseOf((InternalLink) untyped.adaptTo(Link.class)));
         // With no resolvable definition there is no template either; the natural label still works
-        assertEquals("a", ((ResourceLink) untyped.adaptTo(Link.class)).getTargetLabel());
+        assertEquals("a", ((InternalLink) untyped.adaptTo(Link.class)).getTargetLabel());
     }
 
     @Test
@@ -264,15 +264,15 @@ class ResourceLinkTest
             "jcr:uuid", "77777777-7777-7777-7777-777777777777"));
         this.mockNode("66666666-6666-6666-6666-666666666666", "/LinkTypes/dangling");
         this.mockNode("77777777-7777-7777-7777-777777777777", "/LinkTypes/bare");
-        final ResourceLink bare = (ResourceLink) this.context.create()
+        final InternalLink bare = (InternalLink) this.context.create()
             .resource("/Things/a/iap:links/bare1", Map.of(
-                SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+                SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
                 "type", "77777777-7777-7777-7777-777777777777",
                 "reference", THING_B_ID))
             .adaptTo(Link.class);
-        final ResourceLink dangling = (ResourceLink) this.context.create()
+        final InternalLink dangling = (InternalLink) this.context.create()
             .resource("/Things/b/iap:links/d1", Map.of(
-                SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+                SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
                 "type", "66666666-6666-6666-6666-666666666666",
                 "reference", THING_A_ID))
             .adaptTo(Link.class);
@@ -281,9 +281,9 @@ class ResourceLinkTest
         // The dangling declaration fails the cross-match from its own side too
         assertFalse(dangling.isReverseOf(bare));
         // Two backlink-less definitions never pair, even with swapped endpoints
-        final ResourceLink bareBack = (ResourceLink) this.context.create()
+        final InternalLink bareBack = (InternalLink) this.context.create()
             .resource("/Things/b/iap:links/bareBack", Map.of(
-                SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+                SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
                 "type", "77777777-7777-7777-7777-777777777777",
                 "reference", THING_A_ID))
             .adaptTo(Link.class);
@@ -291,22 +291,22 @@ class ResourceLinkTest
     }
 
     @Test
-    void rootLevelNodesHaveNoLinkingResource()
+    void rootLevelNodesHaveNoSource()
         throws RepositoryException
     {
         this.createFixture();
         this.context.create().resource("/LinkTypes/sourced", Map.of(
             SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "88888888-8888-8888-8888-888888888888",
-            "resourceLabelTemplate", "{sourceName}x"));
+            "targetLabelTemplate", "{sourceName}x"));
         this.mockNode("88888888-8888-8888-8888-888888888888", "/LinkTypes/sourced");
         final Resource orphan = this.context.create().resource("/orphanlink", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", "88888888-8888-8888-8888-888888888888",
             "reference", THING_B_ID));
-        final ResourceLink link = (ResourceLink) orphan.adaptTo(Link.class);
+        final InternalLink link = (InternalLink) orphan.adaptTo(Link.class);
 
-        assertNull(link.getLinkingResource());
+        assertNull(link.getSource());
         assertEquals("x", link.getTargetLabel());
     }
 
@@ -314,9 +314,9 @@ class ResourceLinkTest
     void toleratesALinkNodeAtTheRepositoryRoot()
     {
         // Cannot happen with the real node types, but the owner lookup must not crash on it
-        final ResourceLink link = this.context.resourceResolver().getResource("/").adaptTo(ResourceLink.class);
+        final InternalLink link = this.context.resourceResolver().getResource("/").adaptTo(InternalLink.class);
 
-        assertNull(link.getLinkingResource());
+        assertNull(link.getSource());
     }
 
     @Test
@@ -327,10 +327,10 @@ class ResourceLinkTest
         this.context.create().resource("/LinkTypes/labeled", Map.of(
             SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "88888888-8888-8888-8888-888888888888",
-            "resourceLabelTemplate", "{label}{name}{property:title}"));
+            "targetLabelTemplate", "{label}{name}{property:title}"));
         this.mockNode("88888888-8888-8888-8888-888888888888", "/LinkTypes/labeled");
         final Resource broken = this.context.create().resource("/Things/a/iap:links/nowhere", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", "88888888-8888-8888-8888-888888888888",
             "reference", "99999999-9999-9999-9999-999999999999"));
 
@@ -346,10 +346,10 @@ class ResourceLinkTest
         this.context.create().resource("/LinkTypes/blank", Map.of(
             SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "88888888-8888-8888-8888-888888888888",
-            "resourceLabelTemplate", "  "));
+            "targetLabelTemplate", "  "));
         this.mockNode("88888888-8888-8888-8888-888888888888", "/LinkTypes/blank");
         final Resource resource = this.context.create().resource("/Things/a/iap:links/blank1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", "88888888-8888-8888-8888-888888888888",
             "reference", THING_B_ID));
 
@@ -357,7 +357,7 @@ class ResourceLinkTest
     }
 
     @Test
-    void nonLinkResourcesAdaptToNothing()
+    void nonLinkNodesAdaptToNothing()
     {
         assertNull(Link.toLink(null));
         assertNull(Link.toLink(this.context.create().resource("/Things/c")));
@@ -371,7 +371,7 @@ class ResourceLinkTest
             SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "33333333-3333-3333-3333-333333333333",
             "label", "Related",
-            "resourceLabelTemplate",
+            "targetLabelTemplate",
             "{typeLabel} {label}: {name} ({property:title}) from {sourceName} {bogus}{property:none}"));
         try {
             this.mockNode("33333333-3333-3333-3333-333333333333", "/LinkTypes/templated");
@@ -379,7 +379,7 @@ class ResourceLinkTest
             throw new IllegalStateException(e);
         }
         final Resource resource = this.context.create().resource("/Things/a/iap:links/t1", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", "33333333-3333-3333-3333-333333333333",
             "reference", THING_B_ID,
             "label", "extra"));
@@ -390,7 +390,7 @@ class ResourceLinkTest
     @Test
     void fallsBackToTheDestinationName()
     {
-        final ResourceLink link = (ResourceLink) this.createFixture().adaptTo(Link.class);
+        final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
 
         assertEquals("b", link.getTargetLabel());
     }
@@ -401,21 +401,21 @@ class ResourceLinkTest
         this.createFixture();
         // A weak reference to a deleted resource: the uuid no longer resolves
         final Resource resource = this.context.create().resource("/Things/a/iap:links/broken", Map.of(
-            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", DEFINITION_ID,
             "reference", "99999999-9999-9999-9999-999999999999"));
-        final ResourceLink link = (ResourceLink) resource.adaptTo(Link.class);
+        final InternalLink link = (InternalLink) resource.adaptTo(Link.class);
 
         assertNull(link.getDestination());
         assertNull(link.getBacklink());
-        assertEquals("inaccessible resource", link.getTargetLabel());
+        assertEquals("inaccessible target", link.getTargetLabel());
     }
 
     @Test
-    void writeBehaviorNeedsTheLinkWriterService()
+    void writeBehaviorNeedsTheLinksService()
     {
-        // No LinkWriter service is registered in this context, e.g. a read-only rendering context
-        final ResourceLink link = (ResourceLink) this.createFixture().adaptTo(Link.class);
+        // No links operations service is registered in this context, e.g. a read-only rendering context
+        final InternalLink link = (InternalLink) this.createFixture().adaptTo(Link.class);
 
         assertFalse(link.addBacklink());
         assertFalse(link.remove(true));

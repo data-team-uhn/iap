@@ -30,15 +30,15 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.api.LinkManager;
 
 /**
- * A Sling Model wrapping an {@code iap:Link} or {@code iap:WeakLink} node: a link referencing another resource in
- * the repository.
+ * A Sling Model wrapping an {@code iap:Link} or {@code iap:WeakLink} node: a link referencing other content inside
+ * the repository, as opposed to an {@link ExternalLink} recording a correspondence to something outside it.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, adapters = Link.class, resourceType = ResourceLink.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = Link.class, resourceType = InternalLink.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class ResourceLink extends Link
+public class InternalLink extends Link
 {
     /** The {@code sling:resourceType} of an {@code iap:Link} node. */
     public static final String RESOURCE_TYPE = "iap/Link";
@@ -82,7 +82,7 @@ public class ResourceLink extends Link
      * @return the reverse link, or {@code null} if there is none (yet)
      */
     @Nullable
-    public ResourceLink getBacklink()
+    public InternalLink getBacklink()
     {
         final Content destination = this.getDestination();
         if (destination == null) {
@@ -95,8 +95,8 @@ public class ResourceLink extends Link
         }
         return StreamSupport.stream(container.getChildren().spliterator(), false)
             .map(Link::toLink)
-            .filter(ResourceLink.class::isInstance)
-            .map(ResourceLink.class::cast)
+            .filter(InternalLink.class::isInstance)
+            .map(InternalLink.class::cast)
             .filter(this::isReverseOf)
             .findFirst()
             .orElse(null);
@@ -113,7 +113,7 @@ public class ResourceLink extends Link
      */
     public boolean addBacklink()
     {
-        return this.writer != null && this.writer.addBacklink(this.resource);
+        return this.operations != null && this.operations.addBacklink(this.resource);
     }
 
     /**
@@ -124,17 +124,17 @@ public class ResourceLink extends Link
      * @param other another link
      * @return {@code true} if the two links reverse each other
      */
-    public boolean isReverseOf(@NotNull final ResourceLink other)
+    public boolean isReverseOf(@NotNull final InternalLink other)
     {
         return this.hasSwappedEndpoints(other) && this.definitionsCrossMatch(other);
     }
 
-    private boolean hasSwappedEndpoints(final ResourceLink other)
+    private boolean hasSwappedEndpoints(final InternalLink other)
     {
         final Content thisDestination = this.getDestination();
-        final Content thisSource = this.getLinkingResource();
+        final Content thisSource = this.getSource();
         final Content otherDestination = other.getDestination();
-        final Content otherSource = other.getLinkingResource();
+        final Content otherSource = other.getSource();
         if (thisDestination == null || thisSource == null || otherDestination == null || otherSource == null) {
             return false;
         }
@@ -142,7 +142,7 @@ public class ResourceLink extends Link
             && thisSource.getPath().equals(otherDestination.getPath());
     }
 
-    private boolean definitionsCrossMatch(final ResourceLink other)
+    private boolean definitionsCrossMatch(final InternalLink other)
     {
         final LinkDefinition thisType = this.getDefinition();
         final LinkDefinition otherType = other.getDefinition();
@@ -172,7 +172,7 @@ public class ResourceLink extends Link
     protected String getDefaultTargetLabel()
     {
         final Content destination = this.getDestination();
-        return destination == null ? "inaccessible resource" : destination.getName();
+        return destination == null ? "inaccessible target" : destination.getName();
     }
 
     @Override

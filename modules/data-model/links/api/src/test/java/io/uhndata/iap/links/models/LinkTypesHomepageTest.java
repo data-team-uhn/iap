@@ -110,7 +110,7 @@ class LinkTypesHomepageTest
             + "A generic pointer to related material.\n"
             + "\n"
             + "- **Backlink**: a reverse `/LinkTypes/referencedBy` link is automatically added"
-            + " on the linked resource\n"
+            + " on the linked content\n"
             + "\n"
             + "### ehrChart (`ehrChart`)\n"
             + "\n"

@@ -60,6 +60,21 @@ public class Content
     private String createdBy;
 
     /**
+     * View the same repository content as another content model, e.g. a links-aware view of a submission. The
+     * bound keeps the conversion inside the model world: only content models can be requested, never the wrapped
+     * resource itself, so this adds nothing beyond what any content model can already see.
+     *
+     * @param type the model class to view this content as
+     * @param <T> the model type
+     * @return the adapted model, or {@code null} if this content cannot be viewed as the requested model
+     */
+    @Nullable
+    public <T extends Content> T as(@NotNull final Class<T> type)
+    {
+        return this.resource.adaptTo(type);
+    }
+
+    /**
      * The path of the wrapped resource.
      *
      * @return an absolute repository path

@@ -33,13 +33,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.links.api.LinkManager;
-import io.uhndata.iap.links.models.ResourceLink;
+import io.uhndata.iap.links.models.InternalLink;
 
 /**
  * Completes backlink pairs after links are committed. Links whose reverse the creating user could not write —
  * including links created inside commit hooks, where no second commit is possible — are picked up here and
  * completed with the links service user. Completed pairs are recognized from the stored data itself (see
- * {@link ResourceLink#isReverseOf}), so processing the reverse link's own creation event finds the pair already
+ * {@link InternalLink#isReverseOf}), so processing the reverse link's own creation event finds the pair already
  * complete and stops, instead of ping-ponging new links between the two resources.
  *
  * @version $Id$
@@ -57,7 +57,7 @@ public class AutocreateBacklinksListener implements ResourceChangeListener
     private ResourceResolverFactory resolverFactory;
 
     @Reference
-    private LinkWriter linkWriter;
+    private LinkOperations linkOperations;
 
     @Override
     public void onChange(final List<ResourceChange> changes)
@@ -76,7 +76,7 @@ public class AutocreateBacklinksListener implements ResourceChangeListener
             .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, LinkManagerImpl.SUBSERVICE))) {
             final Resource resource = serviceResolver.getResource(path);
             if (resource != null) {
-                this.linkWriter.addBacklink(resource);
+                this.linkOperations.addBacklink(resource);
                 if (serviceResolver.hasChanges()) {
                     serviceResolver.commit();
                 }

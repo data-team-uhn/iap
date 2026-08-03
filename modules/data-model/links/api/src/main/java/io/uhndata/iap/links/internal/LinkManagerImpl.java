@@ -53,13 +53,13 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
+import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkDefinition;
-import io.uhndata.iap.links.models.ResourceLink;
 
 /**
- * Straightforward implementation of {@link LinkManager}, doubling as the {@link LinkWriter} behind the models'
- * write behavior. The only writes not going through the caller's own resolver are the creation of a missing
+ * Straightforward implementation of {@link LinkManager}, doubling as the {@link LinkOperations} behind the
+ * models' behavior. The only writes not going through the models' own resolver are the creation of a missing
  * {@code iap:links} container — done through the links service user, since it may require checking out a
  * versionable resource — and, indirectly, the automatic completion of backlinks the caller could not create,
  * performed by {@link AutocreateBacklinksListener} after the links are committed.
@@ -76,9 +76,9 @@ import io.uhndata.iap.links.models.ResourceLink;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(service = { LinkManager.class, LinkWriter.class, ResourceChangeListener.class },
+@Component(service = { LinkManager.class, LinkOperations.class, ResourceChangeListener.class },
     property = { ResourceChangeListener.PATHS + "=" + LinkManager.LINK_TYPES_PATH })
-public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeListener
+public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceChangeListener
 {
     /** The subservice name mapped to the {@code iap-links} service user. */
     static final String SUBSERVICE = "links";
@@ -87,6 +87,10 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
     static final String DEFINITIONS_SUBSERVICE = "link-types";
 
     private static final String UUID_PROPERTY = "jcr:uuid";
+
+    private static final String PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
+
+    private static final String MIXIN_TYPES_PROPERTY = "jcr:mixinTypes";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LinkManagerImpl.class);
 
@@ -218,17 +222,17 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
     }
 
     @Override
-    public List<ResourceLink> getBacklinks(final Resource resource)
+    public List<InternalLink> getBacklinks(final Resource resource)
     {
         final Session session = resource.getResourceResolver().adaptTo(Session.class);
         if (session == null) {
             return List.of();
         }
-        final List<ResourceLink> result = new ArrayList<>();
+        final List<InternalLink> result = new ArrayList<>();
         try {
             final Node node = session.getNode(resource.getPath());
-            this.collectBacklinks(node.getReferences(ResourceLink.REFERENCE_PROPERTY), resource, result);
-            this.collectBacklinks(node.getWeakReferences(ResourceLink.REFERENCE_PROPERTY), resource, result);
+            this.collectBacklinks(node.getReferences(InternalLink.REFERENCE_PROPERTY), resource, result);
+            this.collectBacklinks(node.getWeakReferences(InternalLink.REFERENCE_PROPERTY), resource, result);
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to retrieve the links pointing at {}: {}", resource.getPath(), e.getMessage(), e);
         }
@@ -236,21 +240,21 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
     }
 
     private void collectBacklinks(final PropertyIterator references, final Resource resource,
-        final List<ResourceLink> result)
+        final List<InternalLink> result)
         throws RepositoryException
     {
         while (references.hasNext()) {
             final Property property = references.nextProperty();
             final Resource linkResource = resource.getResourceResolver().getResource(property.getParent().getPath());
             final Link link = linkResource == null ? null : Link.toLink(linkResource);
-            if (link instanceof ResourceLink) {
-                result.add((ResourceLink) link);
+            if (link instanceof InternalLink) {
+                result.add((InternalLink) link);
             }
         }
     }
 
     @Override
-    public ResourceLink addLink(final Resource source, final Resource destination, final String type,
+    public InternalLink addLink(final Resource source, final Content destination, final String type,
         final String label)
     {
         final LinkDefinition definition = this.requireDefinition(type);
@@ -263,27 +267,29 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
                 "Link type " + type + " can only be instantiated as an automatic backlink");
         }
         this.checkTypeRequirements(source, definition.getRequiredSourceTypes(), "source");
-        this.checkTypeRequirements(destination, definition.getRequiredDestinationTypes(), "destination");
-        return this.createResourceLink(source, destination, definition, label, true);
+        // The destination model never surfaces its resource; the check runs through the source's own session
+        this.checkTypeRequirements(destination, source.getResourceResolver().adaptTo(Session.class),
+            definition.getRequiredDestinationTypes(), "destination");
+        return this.createInternalLink(source, destination, definition, label, true);
     }
 
-    private ResourceLink createResourceLink(final Resource source, final Resource destination,
+    private InternalLink createInternalLink(final Resource source, final Content destination,
         final LinkDefinition definition, final String label, final boolean withBacklink)
     {
-        final String destinationId = destination.getValueMap().get(UUID_PROPERTY, String.class);
+        final String destinationId = (String) destination.get(UUID_PROPERTY);
         if (destinationId == null) {
             throw new IllegalArgumentException(
-                "The linked resource " + destination.getPath() + " is not referenceable");
+                "The linked content " + destination.getPath() + " is not referenceable");
         }
         final Resource container = this.getOrCreateContainer(source);
         final String definitionId = (String) definition.get(UUID_PROPERTY);
         final Resource existing =
-            this.findExisting(container, definitionId, ResourceLink.REFERENCE_PROPERTY, destinationId, label);
+            this.findExisting(container, definitionId, InternalLink.REFERENCE_PROPERTY, destinationId, label);
         final Resource linkResource = existing != null ? existing
             : this.createLinkNode(container,
                 definition.isWeak() ? "iap:WeakLink" : "iap:Link",
-                definitionId, ResourceLink.REFERENCE_PROPERTY, destinationId, label);
-        final ResourceLink link = linkResource.adaptTo(ResourceLink.class);
+                definitionId, InternalLink.REFERENCE_PROPERTY, destinationId, label);
+        final InternalLink link = linkResource.adaptTo(InternalLink.class);
         if (withBacklink && definition.hasBacklink()) {
             this.addBacklink(linkResource);
         }
@@ -322,10 +328,10 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
     public boolean addBacklink(final Resource link)
     {
         final Link model = Link.toLink(link);
-        if (!(model instanceof ResourceLink)) {
+        if (!(model instanceof InternalLink)) {
             return false;
         }
-        final ResourceLink original = (ResourceLink) model;
+        final InternalLink original = (InternalLink) model;
         final LinkDefinition definition = original.getDefinition();
         if (definition == null || !definition.hasBacklink()) {
             return false;
@@ -338,7 +344,7 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
         return this.createBacklink(link.getResourceResolver(), original, definition.getBacklink());
     }
 
-    private boolean createBacklink(final ResourceResolver resolver, final ResourceLink original,
+    private boolean createBacklink(final ResourceResolver resolver, final InternalLink original,
         final LinkDefinition backlinkDefinition)
     {
         if (backlinkDefinition == null) {
@@ -346,7 +352,7 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
             return false;
         }
         final Content destinationModel = original.getDestination();
-        final Content linkingResource = original.getLinkingResource();
+        final Content linkingResource = original.getSource();
         final Resource destination =
             destinationModel == null ? null : resolver.getResource(destinationModel.getPath());
         final Resource back = linkingResource == null ? null : resolver.getResource(linkingResource.getPath());
@@ -363,7 +369,7 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
             return false;
         }
         // No backlink for the reverse itself: the pair is complete once it is created
-        this.createResourceLink(destination, back, backlinkDefinition, original.getLabel(), false);
+        this.createInternalLink(destination, linkingResource, backlinkDefinition, original.getLabel(), false);
         return true;
     }
 
@@ -390,8 +396,8 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
         if (model == null) {
             return false;
         }
-        if (removeBacklink && model instanceof ResourceLink) {
-            final ResourceLink backlink = ((ResourceLink) model).getBacklink();
+        if (removeBacklink && model instanceof InternalLink) {
+            final InternalLink backlink = ((InternalLink) model).getBacklink();
             final Resource backlinkResource =
                 backlink == null ? null : resolver.getResource(backlink.getPath());
             if (backlinkResource != null) {
@@ -402,7 +408,7 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
     }
 
     @Override
-    public int removeLinks(final Resource source, final Resource destination, final String type,
+    public int removeLinks(final Resource source, final Content destination, final String type,
         final String label)
     {
         final LinkDefinition definition = this.getDefinition(type);
@@ -412,11 +418,11 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
         }
         final String definitionId = (String) definition.get(UUID_PROPERTY);
         final String destinationId =
-            destination == null ? null : destination.getValueMap().get(UUID_PROPERTY, String.class);
+            destination == null ? null : (String) destination.get(UUID_PROPERTY);
         int removed = 0;
         final List<Resource> matching = StreamSupport.stream(container.getChildren().spliterator(), false)
             .filter(child -> this.matches(child.getValueMap(), definitionId,
-                destinationId == null ? null : ResourceLink.REFERENCE_PROPERTY, destinationId, label))
+                destinationId == null ? null : InternalLink.REFERENCE_PROPERTY, destinationId, label))
             .collect(Collectors.toList());
         for (final Resource link : matching) {
             if (this.delete(source.getResourceResolver(), link)) {
@@ -452,28 +458,46 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
             return;
         }
         final Session session = resource.getResourceResolver().adaptTo(Session.class);
+        final ValueMap properties = resource.getValueMap();
         final boolean accepted = Arrays.stream(requiredTypes)
-            .anyMatch(requiredType -> this.isOfType(resource, session, requiredType));
+            .anyMatch(requiredType -> this.isOfType(resource.getPath(),
+                properties.get(PRIMARY_TYPE_PROPERTY, String.class),
+                properties.get(MIXIN_TYPES_PROPERTY, String[].class), session, requiredType));
         if (!accepted) {
-            throw new IllegalArgumentException("The " + role + " resource " + resource.getPath()
+            throw new IllegalArgumentException("The " + role + " content " + resource.getPath()
                 + " is not of one of the required types " + Arrays.toString(requiredTypes));
         }
     }
 
-    private boolean isOfType(final Resource resource, final Session session, final String requiredType)
+    // The models never surface their resource, but their stored type properties remain readable
+    private void checkTypeRequirements(final Content content, final Session session, final String[] requiredTypes,
+        final String role)
+    {
+        if (requiredTypes == null || requiredTypes.length == 0) {
+            return;
+        }
+        final boolean accepted = Arrays.stream(requiredTypes)
+            .anyMatch(requiredType -> this.isOfType(content.getPath(), content.get(PRIMARY_TYPE_PROPERTY),
+                (String[]) content.get(MIXIN_TYPES_PROPERTY), session, requiredType));
+        if (!accepted) {
+            throw new IllegalArgumentException("The " + role + " content " + content.getPath()
+                + " is not of one of the required types " + Arrays.toString(requiredTypes));
+        }
+    }
+
+    private boolean isOfType(final String path, final Object primaryType, final String[] mixins,
+        final Session session, final String requiredType)
     {
         if (session != null) {
             try {
-                return session.getNode(resource.getPath()).isNodeType(requiredType);
+                return session.getNode(path).isNodeType(requiredType);
             } catch (final RepositoryException e) {
-                LOGGER.warn("Failed to check the node type of {}: {}", resource.getPath(), e.getMessage(), e);
+                LOGGER.warn("Failed to check the node type of {}: {}", path, e.getMessage(), e);
                 return false;
             }
         }
         // Without a JCR session only the directly stored types can be compared, without supertype expansion
-        final ValueMap properties = resource.getValueMap();
-        final String[] mixins = properties.get("jcr:mixinTypes", String[].class);
-        return requiredType.equals(properties.get("jcr:primaryType", String.class))
+        return requiredType.equals(primaryType)
             || (mixins != null && Arrays.asList(mixins).contains(requiredType));
     }
 
@@ -527,7 +551,7 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
     Resource createContainer(final ResourceResolver resolver, final Resource owner)
     {
         try {
-            return resolver.create(owner, CONTAINER_NAME, Map.of("jcr:primaryType", "iap:Links"));
+            return resolver.create(owner, CONTAINER_NAME, Map.of(PRIMARY_TYPE_PROPERTY, "iap:Links"));
         } catch (final PersistenceException e) {
             throw new IllegalArgumentException(
                 "Cannot create the links container on " + owner.getPath() + ": " + e.getMessage(), e);
@@ -538,7 +562,7 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
         final String targetProperty, final String targetValue, final String label)
     {
         final Map<String, Object> properties = new HashMap<>();
-        properties.put("jcr:primaryType", primaryType);
+        properties.put(PRIMARY_TYPE_PROPERTY, primaryType);
         properties.put(Link.TYPE_PROPERTY, definitionId);
         properties.put(targetProperty, targetValue);
         if (label != null && !label.isEmpty()) {
@@ -570,7 +594,7 @@ public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeL
         }
         node.setProperty(Link.TYPE_PROPERTY, node.getProperty(Link.TYPE_PROPERTY).getString(),
             PropertyType.REFERENCE);
-        if (ResourceLink.REFERENCE_PROPERTY.equals(targetProperty)) {
+        if (InternalLink.REFERENCE_PROPERTY.equals(targetProperty)) {
             node.setProperty(targetProperty, node.getProperty(targetProperty).getString(),
                 weak ? PropertyType.WEAKREFERENCE : PropertyType.REFERENCE);
         }

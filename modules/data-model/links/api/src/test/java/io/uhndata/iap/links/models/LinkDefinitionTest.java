@@ -66,7 +66,7 @@ class LinkDefinitionTest
             "weak", true,
             "requiredSourceTypes", new String[]{ "sub:Submission" },
             "requiredDestinationTypes", new String[]{ "sub:Submission", "sch:Schema" },
-            "resourceLabelTemplate", "{typeLabel}: {name}",
+            "targetLabelTemplate", "{typeLabel}: {name}",
             "onDelete", "RECURSIVE_DELETE"));
         final LinkDefinition definition = resource.adaptTo(LinkDefinition.class);
 
@@ -76,7 +76,7 @@ class LinkDefinitionTest
         assertTrue(definition.isWeak());
         assertArrayEquals(new String[]{ "sub:Submission" }, definition.getRequiredSourceTypes());
         assertEquals(2, definition.getRequiredDestinationTypes().length);
-        assertEquals("{typeLabel}: {name}", definition.getResourceLabelTemplate());
+        assertEquals("{typeLabel}: {name}", definition.getTargetLabelTemplate());
         assertEquals(LinkDefinition.OnDelete.RECURSIVE_DELETE, definition.getOnDeletePolicy());
         assertFalse(definition.hasBacklink());
         assertNull(definition.getBacklink());
@@ -96,7 +96,7 @@ class LinkDefinitionTest
         assertTrue(definition.isDisplayed());
         assertFalse(definition.isWeak());
         assertNull(definition.getRequiredSourceTypes());
-        assertNull(definition.getResourceLabelTemplate());
+        assertNull(definition.getTargetLabelTemplate());
         assertEquals(LinkDefinition.OnDelete.REMOVE_LINK, definition.getOnDeletePolicy());
         assertNull(definition.getValuePattern());
         assertNull(definition.getUrlTemplate());
@@ -189,7 +189,7 @@ class LinkDefinitionTest
             "**Weak**: the link may break when the linked resource is deleted,"
                 + " instead of preventing the deletion",
             "**Backlink**: a reverse `/LinkTypes/referencedBy` link is automatically added"
-                + " on the linked resource",
+                + " on the linked content",
             "**On delete**: kept as a broken reference when the linked resource is deleted",
             "**May only be placed on**: `sub:Submission`",
             "**May only point at**: `sub:Submission`, `sch:Schema`",
