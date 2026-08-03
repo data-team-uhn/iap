@@ -83,7 +83,6 @@ class ContentTest
         assertEquals("/content/sample", content.getPath());
         assertEquals("sample", content.getName());
         assertEquals(Content.RESOURCE_TYPE, content.getType());
-        assertEquals(resource.getPath(), content.getResource().getPath());
     }
 
     @Test

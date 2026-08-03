@@ -37,7 +37,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping an {@code iap:Content} node, the base type of all IAP data nodes. It exposes the generic
- * properties shared by all content nodes, hiding the underlying resource/JCR access from its users.
+ * properties shared by all content nodes, hiding the underlying resource/JCR access from its users. Subclasses may
+ * go below the model API through the protected {@link #resource} field; nothing outside the model hierarchy can.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,18 +58,6 @@ public class Content
 
     @ValueMapValue(name = "jcr:createdBy")
     private String createdBy;
-
-    /**
-     * The resource this model wraps, for callers that need to go below the model API, e.g. to write through the
-     * resource's own resolver.
-     *
-     * @return the wrapped resource
-     */
-    @NotNull
-    public Resource getResource()
-    {
-        return this.resource;
-    }
 
     /**
      * The path of the wrapped resource.

@@ -410,4 +410,14 @@ class ResourceLinkTest
         assertNull(link.getBacklink());
         assertEquals("inaccessible resource", link.getTargetLabel());
     }
+
+    @Test
+    void writeBehaviorNeedsTheLinkWriterService()
+    {
+        // No LinkWriter service is registered in this context, e.g. a read-only rendering context
+        final ResourceLink link = (ResourceLink) this.createFixture().adaptTo(Link.class);
+
+        assertFalse(link.addBacklink());
+        assertFalse(link.remove(true));
+    }
 }

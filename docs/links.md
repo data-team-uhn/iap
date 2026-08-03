@@ -28,9 +28,11 @@ how it behaves:
 
 ## Working with links
 
-The `LinkManager` OSGi service (`io.uhndata.iap.links.api`) is the write path; the Sling Models
-(`io.uhndata.iap.links.models`: abstract `Link`, concrete `ResourceLink`/`ExternalLink`,
-`LinkDefinition`) are the read path — `resource.adaptTo(Link.class)` yields the concrete model.
+The `LinkManager` OSGi service (`io.uhndata.iap.links.api`) creates links on a resource and lists
+what a resource holds; the Sling Models (`io.uhndata.iap.links.models`: abstract `Link`, concrete
+`ResourceLink`/`ExternalLink`, `LinkDefinition`) represent the links themselves —
+`resource.adaptTo(Link.class)` yields the concrete model — and carry the operations on an
+individual link, like `link.remove(removeBacklink)`.
 
 ```java
 @Reference
@@ -41,11 +43,17 @@ linkManager.addExternalLink(submission, "ehrChart", "12345", null);
 resolver.commit();
 ```
 
-Writes are made in memory through the caller's own resolver and are **the caller's to commit**,
-with two exceptions: creating a missing `iap:links` container is committed immediately through the
-`iap-links` service user (it may require checking out a versionable resource the caller cannot),
-and automatic backlink completion commits its own work. Identical links are deduplicated: adding
-the same (type, target, label) again returns the existing link.
+Writes — the manager's and the models' alike — are made in memory through the caller's own
+resolver and are **the caller's to commit**, with two exceptions: creating a missing `iap:links`
+container is committed immediately through the `iap-links` service user (it may require checking
+out a versionable resource the caller cannot), and automatic backlink completion commits its own
+work. Identical links are deduplicated: adding the same (type, target, label) again returns the
+existing link.
+
+`getDefinition(type)` takes no resolver: the definitions are platform vocabulary, world-readable
+by design, read with the manager's own `iap-link-types` service user — a user that can read
+nothing else — and cached until `/LinkTypes` changes. Restricting an individual definition with
+an access control policy therefore has no effect.
 
 The container attaches through each node type's residual child definitions, which all domain
 types carry; a strict type that forbids unknown children cannot hold links.

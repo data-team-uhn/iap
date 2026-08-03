@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.links.api.LinkManager;
-import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.ResourceLink;
 
 /**
@@ -58,7 +57,7 @@ public class AutocreateBacklinksListener implements ResourceChangeListener
     private ResourceResolverFactory resolverFactory;
 
     @Reference
-    private LinkManager linkManager;
+    private LinkWriter linkWriter;
 
     @Override
     public void onChange(final List<ResourceChange> changes)
@@ -76,9 +75,8 @@ public class AutocreateBacklinksListener implements ResourceChangeListener
         try (ResourceResolver serviceResolver = this.resolverFactory
             .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, LinkManagerImpl.SUBSERVICE))) {
             final Resource resource = serviceResolver.getResource(path);
-            final Link link = resource == null ? null : Link.toLink(resource);
-            if (link instanceof ResourceLink) {
-                this.linkManager.addBacklink((ResourceLink) link);
+            if (resource != null) {
+                this.linkWriter.addBacklink(resource);
                 if (serviceResolver.hasChanges()) {
                     serviceResolver.commit();
                 }

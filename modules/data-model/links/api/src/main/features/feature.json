@@ -18,13 +18,14 @@
   "bundles": [
     {
       "id": "${project.groupId}:${project.artifactId}:${project.version}",
-      "start-order": "22"
+      "start-order": "24"
     }
   ],
   "configurations": {
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iaplinks": {
       "user.mapping": [
-        "io.uhndata.iap.data-model-links-api:links=[iap-links]"
+        "io.uhndata.iap.data-model-links-api:links=[iap-links]",
+        "io.uhndata.iap.data-model-links-api:link-types=[iap-link-types]"
       ]
     }
   },

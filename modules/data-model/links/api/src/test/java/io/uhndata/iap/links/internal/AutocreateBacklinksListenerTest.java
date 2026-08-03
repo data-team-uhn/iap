@@ -90,7 +90,7 @@ class AutocreateBacklinksListenerTest
         this.listener = new AutocreateBacklinksListener();
         this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory",
             this.context.getService(ResourceResolverFactory.class));
-        this.inject(this.listener, AutocreateBacklinksListener.class, "linkManager", this.manager);
+        this.inject(this.listener, AutocreateBacklinksListener.class, "linkWriter", this.manager);
 
         final Session session = Mockito.mock(Session.class);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);

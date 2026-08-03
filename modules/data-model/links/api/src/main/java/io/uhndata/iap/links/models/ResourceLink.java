@@ -103,6 +103,20 @@ public class ResourceLink extends Link
     }
 
     /**
+     * Create the reverse of this link, if its definition declares a backlink and the reverse doesn't exist yet.
+     * The reverse is created in memory through this link's own resolver, only when that session may write to the
+     * linked resource, and committing it stays the caller's responsibility; this is the one legitimate way
+     * {@link LinkDefinition#isBacklinkOnly() backlink-only} definitions are instantiated.
+     *
+     * @return {@code true} if the reverse link now exists in this link's session, {@code false} if there is
+     *         nothing to create or the session may not create it
+     */
+    public boolean addBacklink()
+    {
+        return this.writer != null && this.writer.addBacklink(this.resource);
+    }
+
+    /**
      * Whether this link and another one are the two halves of a backlink pair: their endpoints are swapped, and
      * one's definition declares the other's as its backlink. This is derivable purely from the stored data, so
      * automatic backlink creation can recognize completed pairs without any bookkeeping.

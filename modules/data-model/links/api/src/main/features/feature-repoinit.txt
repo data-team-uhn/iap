@@ -29,3 +29,12 @@ create service user iap-links
 set ACL for iap-links
     allow   jcr:read,rep:write,jcr:versionManagement    on /
 end
+
+# The link manager reads the definitions with its own service user, since they are needed by
+# callers that may have no user session at all. Reading the definitions is all it may ever do:
+# every operation on linked content goes through the caller's own session.
+create service user iap-link-types
+
+set ACL for iap-link-types
+    allow   jcr:read    on /LinkTypes
+end

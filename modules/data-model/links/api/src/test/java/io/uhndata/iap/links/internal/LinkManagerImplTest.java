@@ -33,7 +33,6 @@ import javax.jcr.Session;
 import javax.jcr.Workspace;
 import javax.jcr.version.VersionManager;
 
-import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -42,6 +41,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
@@ -104,7 +104,10 @@ class LinkManagerImplTest
         // The bundle plugin only generates the DS metadata at packaging time, so the service is
         // instantiated directly and its references are injected by hand.
         this.manager = new LinkManagerImpl();
-        this.injectFactory(this.context.getService(ResourceResolverFactory.class));
+        this.injectFactory(new TestResolverFactory(this.context.resourceResolver(),
+            this.context.getService(ResourceResolverFactory.class)));
+        // The models' write behavior delegates to the manager through its internal LinkWriter face
+        this.context.registerService(LinkWriter.class, this.manager);
     }
 
     private void injectFactory(final ResourceResolverFactory factory)
@@ -180,12 +183,65 @@ class LinkManagerImplTest
     {
         this.createDefinitions();
 
-        assertEquals("/LinkTypes/simple",
-            this.manager.getDefinition(this.context.resourceResolver(), SIMPLE).getPath());
-        assertEquals("/LinkTypes/simple",
-            this.manager.getDefinition(this.context.resourceResolver(), "/LinkTypes/simple").getPath());
-        assertNull(this.manager.getDefinition(this.context.resourceResolver(), "missing"));
-        assertNull(this.manager.getDefinition(this.context.resourceResolver(), null));
+        assertEquals("/LinkTypes/simple", this.manager.getDefinition(SIMPLE).getPath());
+        assertEquals("/LinkTypes/simple", this.manager.getDefinition("/LinkTypes/simple").getPath());
+        assertNull(this.manager.getDefinition("missing"));
+        assertNull(this.manager.getDefinition(null));
+        // Paths outside /LinkTypes never resolve: the lookup runs with the manager's own service
+        // user, so it must not be usable as an arbitrary repository read
+        assertNull(this.manager.getDefinition("/Things/a"));
+        assertNull(this.manager.getDefinition("/LinkTypes"));
+    }
+
+    @Test
+    void rereadsTheDefinitionsWhenTheyChange()
+    {
+        this.createDefinitions();
+
+        assertNull(this.manager.getDefinition("late"));
+        this.context.create().resource("/LinkTypes/late", Map.of(
+            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            UUID_PROPERTY, "88888888-8888-8888-8888-888888888888"));
+        // The definitions are cached, so the addition is only picked up when the listener fires
+        assertNull(this.manager.getDefinition("late"));
+        this.manager.onChange(List.of());
+        assertNotNull(this.manager.getDefinition("late"));
+    }
+
+    @Test
+    void releasesItsResolverWhenStopped()
+    {
+        // Stopping before anything was read has nothing to release
+        this.manager.deactivate();
+
+        this.createDefinitions();
+        assertNotNull(this.manager.getDefinition(SIMPLE));
+        this.manager.deactivate();
+        // And the manager remains usable, lazily re-reading on the next call
+        assertNotNull(this.manager.getDefinition(SIMPLE));
+    }
+
+    @Test
+    void survivesAMissingDefinitionsHomepage()
+    {
+        assertNull(this.manager.getDefinition(SIMPLE));
+    }
+
+    @Test
+    void treatsDefinitionsAsUnknownWithoutTheirServiceUser()
+        throws ReflectiveOperationException
+    {
+        this.createDefinitions();
+        this.injectFactory(new TestResolverFactory(null,
+            this.context.getService(ResourceResolverFactory.class)));
+        final Resource thing = this.createThings();
+        final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
+
+        assertNull(this.manager.getDefinition(SIMPLE));
+        // The failure is cached as an empty vocabulary instead of retrying the login on every call
+        assertNull(this.manager.getDefinition(SIMPLE));
+        assertThrows(IllegalArgumentException.class,
+            () -> this.manager.addLink(thing, destination, SIMPLE, null));
     }
 
     @Test
@@ -232,10 +288,10 @@ class LinkManagerImplTest
             this.context.resourceResolver().getResource(THING_B_PATH), SIMPLE, "see also");
 
         assertNotNull(link);
-        assertEquals(SIMPLE_ID, link.getResource().getValueMap().get("type", String.class));
-        assertEquals(THING_B_ID, link.getResource().getValueMap().get("reference", String.class));
-        assertEquals("see also", link.getResource().getValueMap().get("label", String.class));
-        assertEquals("iap:Link", link.getResource().getValueMap().get(PRIMARY_TYPE, String.class));
+        assertEquals(SIMPLE_ID, link.get("type"));
+        assertEquals(THING_B_ID, link.get("reference"));
+        assertEquals("see also", link.get("label"));
+        assertEquals("iap:Link", link.get(PRIMARY_TYPE));
         // The write is not committed; that is the caller's decision
         assertTrue(this.context.resourceResolver().hasChanges());
     }
@@ -264,7 +320,7 @@ class LinkManagerImplTest
         final ResourceLink link = this.manager.addLink(thing,
             this.context.resourceResolver().getResource(THING_B_PATH), "weak", null);
 
-        assertEquals("iap:WeakLink", link.getResource().getValueMap().get(PRIMARY_TYPE, String.class));
+        assertEquals("iap:WeakLink", link.get(PRIMARY_TYPE));
     }
 
     @Test
@@ -407,10 +463,8 @@ class LinkManagerImplTest
         throws Exception
     {
         this.createDefinitions();
-        final ResourceResolverFactory badFactory = Mockito.mock(ResourceResolverFactory.class);
-        Mockito.when(badFactory.getServiceResourceResolver(Mockito.anyMap()))
-            .thenThrow(new LoginException("no such service user"));
-        this.injectFactory(badFactory);
+        // Definitions remain readable, only the container-creating writer user is gone
+        this.injectFactory(new TestResolverFactory(this.context.resourceResolver(), null));
         final Resource owner = this.context.create().resource("/Things/fresh", Map.of(UUID_PROPERTY, THING_A_ID));
         final Resource destination = this.context.create().resource(THING_B_PATH,
             Map.of(UUID_PROPERTY, THING_B_ID));
@@ -438,7 +492,8 @@ class LinkManagerImplTest
         assertEquals(THING_A_ID, reverses.get(0).getValueMap().get("reference", String.class));
         assertEquals("pair", reverses.get(0).getValueMap().get("label", String.class));
         // And crucially, no third link ping-ponged back onto the original resource
-        assertEquals(1, this.children(link.getResource().getParent()).size());
+        assertNotNull(link);
+        assertEquals(1, this.children(thing.getChild(CONTAINER)).size());
     }
 
     @Test
@@ -468,7 +523,7 @@ class LinkManagerImplTest
             this.context.resourceResolver().getResource(THING_B_PATH), "references", null);
 
         // Asking again finds the pair complete and creates nothing new
-        assertTrue(this.manager.addBacklink(link));
+        assertTrue(link.addBacklink());
         assertEquals(1, this.children(this.context.resourceResolver()
             .getResource(THING_B_PATH + "/" + CONTAINER)).size());
     }
@@ -483,13 +538,13 @@ class LinkManagerImplTest
         // A definition with no backlink at all
         final Resource plain = this.context.create().resource("/Things/a/" + CONTAINER + "/plain", Map.of(
             SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", SIMPLE_ID, "reference", THING_B_ID));
-        assertFalse(this.manager.addBacklink((ResourceLink) plain.adaptTo(Link.class)));
+        assertFalse(this.manager.addBacklink(plain));
 
         // A link whose type reference cannot be resolved at all
         final Resource untyped = this.context.create().resource("/Things/a/" + CONTAINER + "/untyped", Map.of(
             SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
             "type", "99999999-9999-9999-9999-999999999999", "reference", THING_B_ID));
-        assertFalse(this.manager.addBacklink((ResourceLink) untyped.adaptTo(Link.class)));
+        assertFalse(this.manager.addBacklink(untyped));
 
         // A backlink definition path that doesn't resolve
         this.context.create().resource("/LinkTypes/dangling", Map.of(
@@ -501,13 +556,21 @@ class LinkManagerImplTest
         final Resource dangling = this.context.create().resource("/Things/a/" + CONTAINER + "/dangling", Map.of(
             SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
             "type", "77777777-7777-7777-7777-777777777777", "reference", THING_B_ID));
-        assertFalse(this.manager.addBacklink((ResourceLink) dangling.adaptTo(Link.class)));
+        assertFalse(this.manager.addBacklink(dangling));
 
         // A broken destination reference
         final Resource broken = this.context.create().resource("/Things/a/" + CONTAINER + "/broken", Map.of(
             SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
             "type", REFERENCES_ID, "reference", "99999999-9999-9999-9999-999999999999"));
-        assertFalse(this.manager.addBacklink((ResourceLink) broken.adaptTo(Link.class)));
+        assertFalse(this.manager.addBacklink(broken));
+
+        // A resource that is not a link at all
+        assertFalse(this.manager.addBacklink(this.context.create().resource("/Things/a/other")));
+
+        // A link node outside any owning resource has nothing to point the reverse link at
+        final Resource orphan = this.context.create().resource("/l1", Map.of(
+            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", REFERENCES_ID, "reference", THING_B_ID));
+        assertFalse(this.manager.addBacklink(orphan));
     }
 
     @Test
@@ -524,7 +587,7 @@ class LinkManagerImplTest
             SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE,
             "type", REFERENCES_ID, "reference", THING_B_ID));
 
-        assertFalse(this.manager.addBacklink((ResourceLink) link.adaptTo(Link.class)));
+        assertFalse(this.manager.addBacklink(link));
     }
 
     @Test
@@ -539,7 +602,7 @@ class LinkManagerImplTest
         final ResourceLink backlink = link.getBacklink();
         assertNotNull(backlink);
 
-        assertTrue(this.manager.removeLink(link, true));
+        assertTrue(link.remove(true));
 
         assertEquals(0, this.children(thing.getChild(CONTAINER)).size());
         assertEquals(0, this.children(this.context.resourceResolver()
@@ -577,8 +640,8 @@ class LinkManagerImplTest
         final ExternalLink link = this.manager.addExternalLink(thing, "ehrChart", "12345", "chart");
         final ExternalLink duplicate = this.manager.addExternalLink(thing, "ehrChart", "12345", "chart");
 
-        assertEquals("iap:ExternalLink", link.getResource().getValueMap().get(PRIMARY_TYPE, String.class));
-        assertEquals("12345", link.getResource().getValueMap().get("value", String.class));
+        assertEquals("iap:ExternalLink", link.get(PRIMARY_TYPE));
+        assertEquals("12345", link.get("value"));
         assertEquals(link.getPath(), duplicate.getPath());
     }
 
@@ -717,10 +780,68 @@ class LinkManagerImplTest
         final ResourceLink second = this.manager.addLink(thing, destination, SIMPLE, "labeled");
 
         // No backlink exists, so asking to remove it is a quiet no-op
-        assertTrue(this.manager.removeLink(first, true));
+        assertTrue(first.remove(true));
         // And not asking about backlinks at all
-        assertTrue(this.manager.removeLink(second, false));
+        assertTrue(second.remove(false));
+        // External links never have a backlink to chase
+        final ExternalLink external = this.manager.addExternalLink(thing, "ehrChart", "42", null);
+        assertTrue(external.remove(true));
         assertEquals(0, this.children(thing.getChild(CONTAINER)).size());
+    }
+
+    @Test
+    void removingANonLinkResourceIsRefused()
+    {
+        assertFalse(this.manager.remove(this.context.create().resource("/Things/junk"), true));
+    }
+
+    @Test
+    void skipsTheBacklinkWhenTheResolverCannotSeeTheEndpoints()
+        throws RepositoryException
+    {
+        this.createDefinitions();
+        this.mockSession();
+        this.createThings();
+        final Resource link = this.context.create().resource("/Things/a/" + CONTAINER + "/l1", Map.of(
+            SLING_RESOURCE_TYPE, ResourceLink.RESOURCE_TYPE, "type", REFERENCES_ID, "reference", THING_B_ID));
+        // A link node handed in through a resolver that cannot see the link's endpoints
+        final ResourceResolver blind = Mockito.mock(ResourceResolver.class);
+        final Resource wrapped = Mockito.mock(Resource.class, AdditionalAnswers.delegatesTo(link));
+        Mockito.doReturn(blind).when(wrapped).getResourceResolver();
+
+        // Neither endpoint is visible
+        assertFalse(this.manager.addBacklink(wrapped));
+        // The linked resource is visible, but the linking one is not
+        Mockito.when(blind.getResource(THING_B_PATH))
+            .thenReturn(this.context.resourceResolver().getResource(THING_B_PATH));
+        assertFalse(this.manager.addBacklink(wrapped));
+        // Both are visible, but the resolver has no JCR session to check write permissions with
+        Mockito.when(blind.getResource("/Things/a"))
+            .thenReturn(this.context.resourceResolver().getResource("/Things/a"));
+        assertFalse(this.manager.addBacklink(wrapped));
+    }
+
+    @Test
+    void skipsAnInvisibleBacklinkOnRemoval()
+        throws RepositoryException
+    {
+        this.createDefinitions();
+        this.mockSession();
+        final Resource thing = this.createThings();
+        final ResourceLink link = this.manager.addLink(thing,
+            this.context.resourceResolver().getResource(THING_B_PATH), "references", null);
+        assertNotNull(link.getBacklink());
+        // The link is deleted through a resolver that cannot see the reverse link
+        final Resource linkResource = this.context.resourceResolver().getResource(link.getPath());
+        final ResourceResolver blind = Mockito.mock(ResourceResolver.class);
+        final Resource wrapped = Mockito.mock(Resource.class, AdditionalAnswers.delegatesTo(linkResource));
+        Mockito.doReturn(blind).when(wrapped).getResourceResolver();
+
+        assertTrue(this.manager.remove(wrapped, true));
+
+        // The invisible reverse was quietly skipped
+        assertEquals(1, this.children(this.context.resourceResolver()
+            .getResource(THING_B_PATH + "/" + CONTAINER)).size());
     }
 
     @Test

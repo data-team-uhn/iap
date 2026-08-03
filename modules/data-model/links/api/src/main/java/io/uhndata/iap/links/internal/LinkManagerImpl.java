@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -41,7 +42,10 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.api.resource.observation.ResourceChange;
+import org.apache.sling.api.resource.observation.ResourceChangeListener;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,36 +58,135 @@ import io.uhndata.iap.links.models.LinkDefinition;
 import io.uhndata.iap.links.models.ResourceLink;
 
 /**
- * Straightforward implementation of {@link LinkManager}. The only writes not going through the caller's own
- * resolver are the creation of a missing {@code iap:links} container — done through the links service user, since
- * it may require checking out a versionable resource — and, indirectly, the automatic completion of backlinks the
- * caller could not create, performed by {@link AutocreateBacklinksListener} after the links are committed.
+ * Straightforward implementation of {@link LinkManager}, doubling as the {@link LinkWriter} behind the models'
+ * write behavior. The only writes not going through the caller's own resolver are the creation of a missing
+ * {@code iap:links} container — done through the links service user, since it may require checking out a
+ * versionable resource — and, indirectly, the automatic completion of backlinks the caller could not create,
+ * performed by {@link AutocreateBacklinksListener} after the links are committed.
+ *
+ * <p>
+ * The definitions are read with the manager's own service user, since they are world-readable platform vocabulary
+ * needed by callers that may have no user session at all, and they are cached until
+ * {@value LinkManager#LINK_TYPES_PATH} changes: they are looked up on every link operation, while being edited
+ * very rarely. The cached definitions are Sling Models bound to the resolver they were read with, which is kept
+ * open for as long as they are cached and closed once a newer set replaces them — never a try-with-resources one,
+ * since the models read through it lazily.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Component
-public class LinkManagerImpl implements LinkManager
+@Component(service = { LinkManager.class, LinkWriter.class, ResourceChangeListener.class },
+    property = { ResourceChangeListener.PATHS + "=" + LinkManager.LINK_TYPES_PATH })
+public class LinkManagerImpl implements LinkManager, LinkWriter, ResourceChangeListener
 {
     /** The subservice name mapped to the {@code iap-links} service user. */
     static final String SUBSERVICE = "links";
+
+    /** The subservice name mapped to the {@code iap-link-types} service user reading the definitions. */
+    static final String DEFINITIONS_SUBSERVICE = "link-types";
 
     private static final String UUID_PROPERTY = "jcr:uuid";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LinkManagerImpl.class);
 
+    private static final Map<String, Object> DEFINITIONS_SERVICE_USER =
+        Map.of(ResourceResolverFactory.SUBSERVICE, DEFINITIONS_SUBSERVICE);
+
     @Reference
     private ResourceResolverFactory resolverFactory;
 
-    @Override
-    public LinkDefinition getDefinition(final ResourceResolver resolver, final String type)
+    /** Guards the cached definitions and the resolver they are bound to. */
+    private final Object definitionsLock = new Object();
+
+    /**
+     * The definitions as last read from {@value LinkManager#LINK_TYPES_PATH}, keyed by name, {@code null} when the
+     * cache must be rebuilt.
+     */
+    private Map<String, LinkDefinition> definitions;
+
+    /** The resolver the cached definitions are bound to, closed when a newer set replaces them. */
+    private ResourceResolver definitionsResolver;
+
+    @Deactivate
+    protected void deactivate()
     {
-        if (type == null) {
+        synchronized (this.definitionsLock) {
+            this.definitions = null;
+            closeResolver();
+        }
+    }
+
+    @Override
+    public void onChange(final List<ResourceChange> changes)
+    {
+        synchronized (this.definitionsLock) {
+            // Drop the cache; the resolver the stale definitions are bound to is closed by the next read
+            this.definitions = null;
+        }
+    }
+
+    @Override
+    public LinkDefinition getDefinition(final String type)
+    {
+        final String name = this.toDefinitionName(type);
+        if (name == null) {
             return null;
         }
-        final Resource resource =
-            resolver.getResource(type.startsWith("/") ? type : LINK_TYPES_PATH + "/" + type);
-        return resource == null ? null : resource.adaptTo(LinkDefinition.class);
+        synchronized (this.definitionsLock) {
+            if (this.definitions == null) {
+                readDefinitions();
+            }
+            return this.definitions.get(name);
+        }
+    }
+
+    /**
+     * Reduces a definition name or path to a plain name; anything outside
+     * {@value LinkManager#LINK_TYPES_PATH} resolves to nothing, so that a definition lookup, made with the
+     * manager's own service user, can never be turned into an arbitrary repository read.
+     */
+    private String toDefinitionName(final String type)
+    {
+        if (type == null || !type.startsWith("/")) {
+            return type;
+        }
+        if (type.startsWith(LINK_TYPES_PATH + "/")) {
+            return type.substring(LINK_TYPES_PATH.length() + 1);
+        }
+        return null;
+    }
+
+    private void readDefinitions()
+    {
+        final ResourceResolver previous = this.definitionsResolver;
+        try {
+            this.definitionsResolver = this.resolverFactory.getServiceResourceResolver(DEFINITIONS_SERVICE_USER);
+        } catch (final LoginException e) {
+            this.definitionsResolver = previous;
+            this.definitions = Map.of();
+            LOGGER.error("Cannot read the link definitions, the link-types service user is not available: {}",
+                e.getMessage(), e);
+            return;
+        }
+        final Resource homepage = this.definitionsResolver.getResource(LINK_TYPES_PATH);
+        this.definitions = homepage == null ? Map.of()
+            : StreamSupport.stream(homepage.getChildren().spliterator(), false)
+                .filter(child -> child.isResourceType(LinkDefinition.RESOURCE_TYPE))
+                .map(child -> child.adaptTo(LinkDefinition.class))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toMap(LinkDefinition::getName, Function.identity()));
+        if (previous != null) {
+            previous.close();
+        }
+    }
+
+    private void closeResolver()
+    {
+        if (this.definitionsResolver != null) {
+            this.definitionsResolver.close();
+            this.definitionsResolver = null;
+        }
     }
 
     @Override
@@ -102,7 +205,7 @@ public class LinkManagerImpl implements LinkManager
     @Override
     public List<Link> getLinks(final Resource resource, final String type)
     {
-        final LinkDefinition definition = this.getDefinition(resource.getResourceResolver(), type);
+        final LinkDefinition definition = this.getDefinition(type);
         if (definition == null) {
             return List.of();
         }
@@ -150,7 +253,7 @@ public class LinkManagerImpl implements LinkManager
     public ResourceLink addLink(final Resource source, final Resource destination, final String type,
         final String label)
     {
-        final LinkDefinition definition = this.requireDefinition(source, type);
+        final LinkDefinition definition = this.requireDefinition(type);
         if (definition.isExternal()) {
             throw new IllegalArgumentException(
                 "Link type " + type + " is external, use addExternalLink to instantiate it");
@@ -182,7 +285,7 @@ public class LinkManagerImpl implements LinkManager
                 definitionId, ResourceLink.REFERENCE_PROPERTY, destinationId, label);
         final ResourceLink link = linkResource.adaptTo(ResourceLink.class);
         if (withBacklink && definition.hasBacklink()) {
-            this.addBacklink(link);
+            this.addBacklink(linkResource);
         }
         return link;
     }
@@ -191,7 +294,7 @@ public class LinkManagerImpl implements LinkManager
     public ExternalLink addExternalLink(final Resource source, final String type, final String value,
         final String label)
     {
-        final LinkDefinition definition = this.requireDefinition(source, type);
+        final LinkDefinition definition = this.requireDefinition(type);
         if (!definition.isExternal()) {
             throw new IllegalArgumentException(
                 "Link type " + type + " references resources, use addLink to instantiate it");
@@ -216,8 +319,13 @@ public class LinkManagerImpl implements LinkManager
     }
 
     @Override
-    public boolean addBacklink(final ResourceLink original)
+    public boolean addBacklink(final Resource link)
     {
+        final Link model = Link.toLink(link);
+        if (!(model instanceof ResourceLink)) {
+            return false;
+        }
+        final ResourceLink original = (ResourceLink) model;
         final LinkDefinition definition = original.getDefinition();
         if (definition == null || !definition.hasBacklink()) {
             return false;
@@ -227,10 +335,11 @@ public class LinkManagerImpl implements LinkManager
             // keeps automatic backlink creation from ping-ponging between the two resources.
             return true;
         }
-        return this.createBacklink(original, definition.getBacklink());
+        return this.createBacklink(link.getResourceResolver(), original, definition.getBacklink());
     }
 
-    private boolean createBacklink(final ResourceLink original, final LinkDefinition backlinkDefinition)
+    private boolean createBacklink(final ResourceResolver resolver, final ResourceLink original,
+        final LinkDefinition backlinkDefinition)
     {
         if (backlinkDefinition == null) {
             LOGGER.warn("The backlink declared for {} cannot be resolved", original.getPath());
@@ -238,16 +347,17 @@ public class LinkManagerImpl implements LinkManager
         }
         final Content destinationModel = original.getDestination();
         final Content linkingResource = original.getLinkingResource();
-        if (destinationModel == null || linkingResource == null) {
+        final Resource destination =
+            destinationModel == null ? null : resolver.getResource(destinationModel.getPath());
+        final Resource back = linkingResource == null ? null : resolver.getResource(linkingResource.getPath());
+        if (destination == null || back == null) {
             return false;
         }
-        final Resource destination = destinationModel.getResource();
-        final Resource back = linkingResource.getResource();
-        if (back.getValueMap().get(UUID_PROPERTY, String.class) == null) {
-            LOGGER.warn("No backlink to {} is possible, it is not referenceable", back.getPath());
+        if (linkingResource.get(UUID_PROPERTY) == null) {
+            LOGGER.warn("No backlink to {} is possible, it is not referenceable", linkingResource.getPath());
             return false;
         }
-        if (!this.mayAddChild(original.getResource().getResourceResolver(), destination)) {
+        if (!this.mayAddChild(resolver, destination)) {
             // This session may not write the reverse link; it will be completed by the links
             // service user once the original link is committed
             return false;
@@ -259,9 +369,11 @@ public class LinkManagerImpl implements LinkManager
 
     private boolean mayAddChild(final ResourceResolver resolver, final Resource target)
     {
-        // A session is guaranteed here: resolving the link's definition, without which backlink
-        // creation is never reached, already required one
-        final Session session = Objects.requireNonNull(resolver.adaptTo(Session.class));
+        final Session session = resolver.adaptTo(Session.class);
+        if (session == null) {
+            // No JCR session to check permissions with; leave the reverse to the links service user
+            return false;
+        }
         try {
             return session.hasPermission(target.getPath(), Session.ACTION_ADD_NODE);
         } catch (final RepositoryException e) {
@@ -271,23 +383,29 @@ public class LinkManagerImpl implements LinkManager
     }
 
     @Override
-    public boolean removeLink(final Link link, final boolean removeBacklink)
+    public boolean remove(final Resource link, final boolean removeBacklink)
     {
-        final ResourceResolver resolver = link.getResource().getResourceResolver();
-        if (removeBacklink && link instanceof ResourceLink) {
-            final ResourceLink backlink = ((ResourceLink) link).getBacklink();
-            if (backlink != null) {
-                this.delete(resolver, backlink.getResource());
+        final ResourceResolver resolver = link.getResourceResolver();
+        final Link model = Link.toLink(link);
+        if (model == null) {
+            return false;
+        }
+        if (removeBacklink && model instanceof ResourceLink) {
+            final ResourceLink backlink = ((ResourceLink) model).getBacklink();
+            final Resource backlinkResource =
+                backlink == null ? null : resolver.getResource(backlink.getPath());
+            if (backlinkResource != null) {
+                this.delete(resolver, backlinkResource);
             }
         }
-        return this.delete(resolver, link.getResource());
+        return this.delete(resolver, link);
     }
 
     @Override
     public int removeLinks(final Resource source, final Resource destination, final String type,
         final String label)
     {
-        final LinkDefinition definition = this.getDefinition(source.getResourceResolver(), type);
+        final LinkDefinition definition = this.getDefinition(type);
         final Resource container = source.getChild(CONTAINER_NAME);
         if (definition == null || container == null) {
             return 0;
@@ -319,9 +437,9 @@ public class LinkManagerImpl implements LinkManager
         }
     }
 
-    private LinkDefinition requireDefinition(final Resource source, final String type)
+    private LinkDefinition requireDefinition(final String type)
     {
-        final LinkDefinition definition = this.getDefinition(source.getResourceResolver(), type);
+        final LinkDefinition definition = this.getDefinition(type);
         if (definition == null) {
             throw new IllegalArgumentException("Unknown link type: " + type);
         }

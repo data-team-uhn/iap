@@ -22,11 +22,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.annotations.injectorspecific.OSGiService;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.links.internal.LinkWriter;
 
 /**
  * The abstract base shared by all the links kept in a resource's {@code iap:links} container: a typed, optionally
@@ -48,6 +50,11 @@ public abstract class Link extends Content
     public static final String LABEL_PROPERTY = "label";
 
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^}]+)\\}");
+
+    // The internal service the write behavior delegates to; the models only hand it their own wrapped resource,
+    // which keeps the resource itself out of the public API
+    @OSGiService
+    protected LinkWriter writer;
 
     @ValueMapValue(name = TYPE_PROPERTY)
     private String type;
@@ -107,6 +114,19 @@ public abstract class Link extends Content
     public String getLabel()
     {
         return this.label;
+    }
+
+    /**
+     * Delete this link, in memory: committing the removal is the caller's responsibility, through the same
+     * resolver this link was read with.
+     *
+     * @param removeBacklink whether the reverse link, if any, should be deleted too; the reverse is only deleted
+     *            when this link's own session may write to the linked resource
+     * @return {@code true} if the link was deleted
+     */
+    public boolean remove(final boolean removeBacklink)
+    {
+        return this.writer != null && this.writer.remove(this.resource, removeBacklink);
     }
 
     /**

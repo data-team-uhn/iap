@@ -20,7 +20,6 @@ package io.uhndata.iap.links.api;
 import java.util.List;
 
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,6 +40,11 @@ import io.uhndata.iap.links.models.ResourceLink;
  * the links service user shortly after the link is committed otherwise.
  * </p>
  *
+ * <p>
+ * The manager works on the linking resources; operations on an individual, already retrieved link live on the
+ * models themselves, e.g. {@link Link#remove}, with the same in-memory, caller-commits semantics.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -53,14 +57,16 @@ public interface LinkManager
     String CONTAINER_NAME = "iap:links";
 
     /**
-     * Resolve a link definition.
+     * Resolve a link definition. The definitions are world-readable platform vocabulary, read with the manager's
+     * own service user — so callers without a session of their own can still resolve them — and cached until
+     * {@value #LINK_TYPES_PATH} changes.
      *
-     * @param resolver the resolver to read with
-     * @param type the name of a definition under {@value #LINK_TYPES_PATH}, or an absolute path to one
+     * @param type the name of a definition under {@value #LINK_TYPES_PATH}, or the absolute path of one; any path
+     *            outside {@value #LINK_TYPES_PATH} yields nothing
      * @return a link definition, or {@code null} if there is no such definition
      */
     @Nullable
-    LinkDefinition getDefinition(@NotNull ResourceResolver resolver, @NotNull String type);
+    LinkDefinition getDefinition(@NotNull String type);
 
     /**
      * Retrieve all the links of a resource, resource and external ones alike.
@@ -124,28 +130,6 @@ public interface LinkManager
     @NotNull
     ExternalLink addExternalLink(@NotNull Resource source, @NotNull String type, @NotNull String value,
         @Nullable String label);
-
-    /**
-     * Create the reverse of a link, if its definition declares a backlink and the reverse doesn't exist yet. The
-     * reverse is created through the original link's own resolver, only when that session may write to the linked
-     * resource; this is the one legitimate way {@link LinkDefinition#isBacklinkOnly() backlink-only} definitions
-     * are instantiated.
-     *
-     * @param original an existing link
-     * @return {@code true} if the reverse link now exists in the original's session, {@code false} if there is
-     *         nothing to create or the session may not create it
-     */
-    boolean addBacklink(@NotNull ResourceLink original);
-
-    /**
-     * Delete a link, in memory: committing the removal is the caller's responsibility.
-     *
-     * @param link the link to delete
-     * @param removeBacklink whether the reverse link, if any, should be deleted too; the reverse is only deleted
-     *            when the caller may write to the linked resource
-     * @return {@code true} if the link was deleted
-     */
-    boolean removeLink(@NotNull Link link, boolean removeBacklink);
 
     /**
      * Delete all the links matching the given criteria, in memory: committing the removals is the caller's
