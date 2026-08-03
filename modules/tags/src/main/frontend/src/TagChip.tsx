@@ -21,9 +21,10 @@ import { useEffect, useState } from "react";
 import { Chip, Stack } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
-import { safeCssColor } from "@iap/frontend-commons/safeColor";
+import { chipStyle } from "@iap/frontend-commons/chipStyle";
 
 import { type TagDefinition, loadTagDefinitions } from "./tagDefinitions";
+import { tagIcon } from "./tagIcons";
 
 // The values of a serialized node's `tags` property, normalized: the property is multivalued,
 // but tolerate a single string, and ignore anything that is not a string.
@@ -34,13 +35,24 @@ function tagNames(tags: unknown): string[] {
   return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === "string") : [];
 }
 
-// One tag rendered per its definition: the definition's label, on the definition's color.
-// An unusable color — anything outside safeCssColor's whitelist — renders as a plain chip.
+// One tag rendered per its definition: the definition's label, styled per its color and
+// variant (see chipStyle), plus its icon, when it names a known one (see tagIcons). Unusable
+// colors and unknown icon names degrade to less styling, never breakage.
 function DefinedTagChip({ definition }: { definition: TagDefinition }) {
   const theme = useTheme();
-  const safeColor = safeCssColor(definition.color);
-  const colors = safeColor ? { bgcolor: safeColor, color: theme.palette.getContrastText(safeColor) } : undefined;
-  return <Chip size="small" label={definition.label ?? definition.name} sx={colors} />;
+  const style = chipStyle(theme, definition.color, definition.variant);
+  return (
+    <Chip
+      size="small"
+      label={definition.label ?? definition.name}
+      icon={tagIcon(definition.icon)}
+      sx={style && {
+        ...style,
+        // The icon follows the text color instead of MUI's default muted icon tint
+        "& .MuiChip-icon": { color: "inherit" },
+      }}
+    />
+  );
 }
 
 // Small chips displaying a node's tags, labeled and colored by their definitions under /Tags.

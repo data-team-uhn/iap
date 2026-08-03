@@ -4,6 +4,7 @@
   "description": "The reviewer asked the author to revise the record before a decision can be made.",
   "category": ["lifecycle", "review"],
   "system": true,
-  "color": "#ed6c02",
+  "color": "#8a5410",
+  "icon": "ReplyOutlined",
   "order": 50
 }

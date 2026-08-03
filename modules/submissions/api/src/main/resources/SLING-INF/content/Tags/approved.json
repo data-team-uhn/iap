@@ -4,6 +4,7 @@
   "description": "The reviewers accepted this record; it is now authoritative.",
   "category": ["lifecycle", "review"],
   "system": true,
-  "color": "#2e7d32",
+  "color": "#1d6a3a",
+  "icon": "CheckCircleOutlined",
   "order": 60
 }

@@ -20,11 +20,15 @@
 // for what a tag means and how it is displayed. See the tags module's TagListServlet for the
 // serving side.
 
-// One tag definition, as served by /Tags.search.json
+// One tag definition, as served by /Tags.search.json. The chip's background, text and border
+// all derive from the one `color`, per the `variant` ("soft" when absent, "outlined", or
+// "filled"); `icon` is a MUI icon name (see tagIcons).
 export interface TagDefinition {
   name: string;
   label?: string;
   color?: string;
+  variant?: string;
+  icon?: string;
   order?: number;
   category?: string[];
 }
@@ -71,7 +75,9 @@ export function loadTagDefinitions(category?: string): Promise<TagDefinition[]> 
 // values, because the definitions are fetched asynchronously: each call answers from the
 // snapshot fetched so far (and triggers the fetch, so a panel opened too early is at most
 // one reopen away from the full list).
-export function tagValueOptions(category: string): () => { value: string; label: string; color?: string }[] {
+export function tagValueOptions(
+  category: string
+): () => { value: string; label: string; color?: string; variant?: string }[] {
   return () => {
     void loadTagDefinitions(category);
     return (resolvedDefinitions.get(category) ?? [])
@@ -79,6 +85,7 @@ export function tagValueOptions(category: string): () => { value: string; label:
         value: definition.name,
         label: definition.label ?? definition.name,
         color: definition.color,
+        variant: definition.variant,
       }));
   };
 }

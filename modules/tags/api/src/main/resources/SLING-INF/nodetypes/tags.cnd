@@ -98,8 +98,22 @@
   // when empty, the tag may be placed on any resource
   - targetResources (STRING) multiple
 
-  // Optional color used when displaying this tag, as a CSS color value
+  // Optional color used when displaying this tag, as a CSS color value; the
+  // chip's background, text and border are all derived from it, according to
+  // the variant
   - color (STRING)
+
+  // How the tag is displayed: "soft" (the default when absent) tints the
+  // background with the color and clamps the color into a readable text,
+  // "outlined" draws only that readable text and a matching border on a
+  // transparent background, and "filled" uses the color as a loud fill
+  // under contrasting text
+  - variant (STRING)
+
+  // Optional icon displayed next to this tag's label, as a MUI icon name,
+  // e.g. "EditOutlined"; names outside the UI's curated icon set (see the
+  // tags module's tagIcons.tsx) display no icon
+  - icon (STRING)
 
   // Optional explicit position of this tag in listings; tags with a lower
   // order are displayed first, tags without an order are displayed last

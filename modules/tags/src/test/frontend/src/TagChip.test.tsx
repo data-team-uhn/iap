@@ -29,13 +29,27 @@ describe("TagChip", () => {
     clearTagDefinitionsCache();
   });
 
-  it("labels and colors the tag from its definition", async () => {
+  it("labels, colors and decorates the tag from its definition", async () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
 
     render(<TagChip tags={["in-review"]} category="lifecycle" />);
 
-    const chip = await screen.findByText("In review");
-    expect(chip.closest(".MuiChip-root")).toHaveStyle({ backgroundColor: "#673ab7" });
+    // The soft styling is derived color-mix()/light-dark() CSS that jsdom cannot compute
+    // (chipStyle' own tests pin it down exactly); what the DOM can vouch for is the label
+    // and the declared icon
+    expect(await screen.findByText("In review")).toBeInTheDocument();
+    expect(screen.getByTestId("VisibilityOutlinedIcon")).toBeInTheDocument();
+  });
+
+  it("fills the chip with the raw color for the filled variant", async () => {
+    const tags = [{ name: "loud", label: "Loud", color: "#673ab7", variant: "filled" }];
+    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
+      { ok: true, json: () => Promise.resolve({ tags, total: tags.length }) } as unknown as Response)));
+
+    render(<TagChip tags={["loud"]} category="custom" />);
+
+    expect((await screen.findByText("Loud")).closest(".MuiChip-root"))
+      .toHaveStyle({ backgroundColor: "#673ab7", color: "#fff" });
   });
 
   it("only shows tags actually belonging to the requested category", async () => {
@@ -134,7 +148,7 @@ describe("TagChip", () => {
     // whitelist — malformed ones, named ones, or attempts at smuggling CSS through the
     // generated styles — fall back to a plain chip instead of breaking (or styling) anything
     const tags = [
-      { name: "odd" },
+      { name: "odd", icon: "constructor" },
       { name: "broken", label: "Broken", color: "not-a-color" },
       { name: "sneaky", label: "Sneaky", color: "#fff;background:url(https://evil.example/x)" },
     ];
@@ -150,6 +164,9 @@ describe("TagChip", () => {
     );
 
     expect(await screen.findByText("odd")).toBeInTheDocument();
+    // An icon name outside the curated set — even one naming an inherited Object.prototype
+    // member — shows no icon rather than breaking
+    expect(screen.getByText("odd").closest(".MuiChip-root")?.querySelector("svg")).toBeNull();
     // The chips still render — as plain default chips — despite the unusable colors
     expect((await screen.findByText("Broken")).closest(".MuiChip-root")).toBeInTheDocument();
     const sneaky = (await screen.findByText("Sneaky")).closest(".MuiChip-root");
@@ -194,10 +211,10 @@ describe("TagChip", () => {
     expect(options()).toEqual([]);
     await vi.waitFor(() => {
       expect(options()).toEqual([
-        { value: "in-progress", label: "In progress", color: "#0288d1" },
-        { value: "changes-requested", label: "Changes requested", color: "#ed6c02" },
-        { value: "approved", label: "Approved", color: "#2e7d32" },
-        { value: "rejected", label: "Rejected", color: "#d32f2f" },
+        { value: "in-progress", label: "In progress", color: "#0b5b85" },
+        { value: "changes-requested", label: "Changes requested", color: "#8a5410" },
+        { value: "approved", label: "Approved", color: "#1d6a3a" },
+        { value: "rejected", label: "Rejected", color: "#8e1b29" },
       ]);
     });
     // The chips' own fetches share the same cache, so no second request was needed
