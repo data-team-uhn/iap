@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.schemas.models;
+package io.uhndata.iap.conditions.models;
 
 import java.util.Map;
 
@@ -29,11 +29,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ConditionOperand}.
@@ -55,48 +53,36 @@ class ConditionOperandTest
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond/operandA",
+        final Resource resource = this.context.create().resource("/Entities/entity/part/cond/operandA",
             "sling:resourceType", ConditionOperand.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(ConditionOperand.class));
     }
 
     @Test
-    void exposesLiteralValue()
+    void exposesValueSourceAndAggregate()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond/operandA",
-            Map.of(
-                "sling:resourceType", ConditionOperand.RESOURCE_TYPE,
-                "value", new String[]{ "yes" },
-                "isReference", false));
-        final ConditionOperand value = resource.adaptTo(ConditionOperand.class);
+        final Resource resource = this.context.create().resource("/Entities/entity/part/cond/operandA", Map.of(
+            "sling:resourceType", ConditionOperand.RESOURCE_TYPE,
+            "value", new String[]{ "age" },
+            "source", "answer",
+            "aggregate", "count"));
+        final ConditionOperand operand = resource.adaptTo(ConditionOperand.class);
 
-        assertArrayEquals(new String[]{ "yes" }, value.getValue());
-        assertFalse(value.isReference());
+        assertEquals(1, operand.getValue().length);
+        assertEquals("age", operand.getValue()[0]);
+        assertEquals("answer", operand.getSource());
+        assertEquals("count", operand.getAggregate());
     }
 
     @Test
-    void exposesReferenceValue()
+    void defaultsToLiteralSourceWithoutAggregation()
     {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond/operandB",
-            Map.of(
-                "sling:resourceType", ConditionOperand.RESOURCE_TYPE,
-                "value", new String[]{ "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345" },
-                "isReference", true));
-        final ConditionOperand value = resource.adaptTo(ConditionOperand.class);
-
-        assertArrayEquals(new String[]{ "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345" }, value.getValue());
-        assertTrue(value.isReference());
-    }
-
-    @Test
-    void toleratesMissingOptionalProperties()
-    {
-        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req/cond/bare",
+        final Resource resource = this.context.create().resource("/Entities/entity/part/cond/operandA",
             "sling:resourceType", ConditionOperand.RESOURCE_TYPE);
-        final ConditionOperand value = resource.adaptTo(ConditionOperand.class);
+        final ConditionOperand operand = resource.adaptTo(ConditionOperand.class);
 
-        assertNotNull(value);
-        assertNull(value.getValue());
-        assertFalse(value.isReference());
+        assertNull(operand.getValue());
+        assertEquals(ConditionOperand.DEFAULT_SOURCE, operand.getSource());
+        assertNull(operand.getAggregate());
     }
 }

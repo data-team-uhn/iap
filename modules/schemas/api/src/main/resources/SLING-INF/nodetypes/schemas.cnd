@@ -16,6 +16,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <iap = 'https://iap.uhndata.io/'>
+<cond = 'https://iap.uhndata.io/cond/'>
 <sch = 'https://iap.uhndata.io/sch/'>
 
 //-----------------------------------------------------------------------------
@@ -108,8 +109,9 @@
 // Abstract base shared by everything that may appear in the body of a form: a
 // single question, or a section grouping more items. Lets callers ask for
 // "the items" of a section or form without caring whether each one is a
-// question or a subsection.
-[sch:FormItem] > iap:EntityPart, sch:Conditionable
+// question or a subsection. Conditionable, so every item may carry a single
+// condition controlling whether it is shown to the submitter.
+[sch:FormItem] > iap:EntityPart, cond:Conditionable
   abstract
 
   // Hardcode the supertype to the parent sch/FormItem type.
@@ -136,93 +138,6 @@
 
   // The questions and subsections grouped in this section
   + * (sch:FormItem)
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// Mixin that can be added to any node type to make it conditionally enabled,
-// independently of that type's own supertype chain (e.g. shared by the
-// unrelated sch:FormItem and sch:Requirement hierarchies).
-[sch:Conditionable]
-  mixin
-
-  // The condition controlling whether the node is enabled; combine multiple
-  // conditions using a sch:ConditionGroup.
-  + sch:condition (sch:Condition)
-
-//-----------------------------------------------------------------------------
-// Abstract base shared by a single condition (SingleCondition) and a
-// composite of conditions (ConditionGroup), so callers can ask for "a
-// condition" without caring whether it is a single comparison or a group of
-// them.
-[sch:Condition] > iap:EntityPart
-  abstract
-
-  // Hardcode the supertype to the parent sch/Condition type.
-  - sling:resourceSuperType (STRING) = "sch/Condition" mandatory autocreated protected
-
-//-----------------------------------------------------------------------------
-// A condition group is a set of conditions that can be imposed on e.g. the
-// display of a section or whether a requirement applies. The conditions are
-// listed as children of this, and may be turned from an OR to an AND via
-// the `requireAll` property.
-[sch:ConditionGroup] > sch:Condition
-  - sling:resourceType (STRING) = "sch/ConditionGroup" mandatory autocreated protected
-
-  - requireAll (BOOLEAN) = false mandatory autocreated
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // A condition group may contain any number of single conditions or nested condition groups
-  + * (sch:Condition)
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// A single comparison that can be imposed on e.g. the display of a section
-// or whether a requirement applies.
-[sch:SingleCondition] > sch:Condition
-  - sling:resourceType (STRING) = "sch/SingleCondition" mandatory autocreated protected
-
-  // A single condition always has exactly one comparator
-  - comparator (STRING) mandatory
-
-  // Specifies how the operands should be treated when performing the comparison
-  - dataType (STRING) = "text" autocreated
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // A single condition will always have a child node called operandA
-  + operandA (sch:ConditionOperand) mandatory
-
-  // A second child operandB may be specified, but leaving it as the default is
-  // OK if the comparator is singular (e.g. "is empty")
-  + operandB (sch:ConditionOperand) = sch:ConditionOperand autocreated
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// A condition operand is either a literal value, or a reference to the
-// question whose answer supplies the value.
-[sch:ConditionOperand] > iap:EntityPart
-  - sling:resourceType (STRING) = "sch/ConditionOperand" mandatory autocreated protected
-
-  // The value, or a reference to the question whose answer provides the value
-  - value (UNDEFINED) multiple
-
-  // Whether value is a reference to a question rather than a literal
-  - isReference (BOOLEAN) = false autocreated
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -260,7 +175,9 @@
 // to answer, an expected document, a required approval, or future
 // requirement types. Referenceable so that submission parts (answers,
 // documents, reviews) can point back at the requirement they fulfill.
-[sch:Requirement] > iap:EntityPart, mix:referenceable, sch:Conditionable
+// Conditionable, so every requirement may carry a single condition
+// controlling whether it applies to a submission.
+[sch:Requirement] > iap:EntityPart, mix:referenceable, cond:Conditionable
   // This is an abstract node type, specific requirement types must be defined.
   abstract
 

@@ -26,6 +26,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.conditions.models.Condition;
+import io.uhndata.iap.conditions.models.ConditionGroup;
+import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
@@ -102,7 +105,7 @@ class RequirementTest
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(
             "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
             "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
-        this.context.create().resource("/Schemas/schema/1.0/req/sch:condition", Map.of(
+        this.context.create().resource("/Schemas/schema/1.0/req/cond:condition", Map.of(
             "sling:resourceType", SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
         final Requirement requirement = resource.adaptTo(Requirement.class);
 
@@ -118,7 +121,7 @@ class RequirementTest
         final Resource resource = this.context.create().resource("/Schemas/schema/1.0/req", Map.of(
             "sling:resourceType", ApprovalRequirement.RESOURCE_TYPE,
             "sling:resourceSuperType", Requirement.RESOURCE_TYPE));
-        this.context.create().resource("/Schemas/schema/1.0/req/sch:condition", Map.of(
+        this.context.create().resource("/Schemas/schema/1.0/req/cond:condition", Map.of(
             "sling:resourceType", ConditionGroup.RESOURCE_TYPE, "requireAll", true));
         final Requirement requirement = resource.adaptTo(Requirement.class);
 

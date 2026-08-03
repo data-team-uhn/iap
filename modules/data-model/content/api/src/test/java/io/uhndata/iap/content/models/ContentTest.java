@@ -109,6 +109,41 @@ class ContentTest
     }
 
     @Test
+    void recognizesItsOwnTypeAndItsSupertypes()
+    {
+        final Resource resource = this.context.create().resource("/content/sample", Map.of(
+            SLING_RESOURCE_TYPE, "iap/Sample",
+            "sling:resourceSuperType", Content.RESOURCE_TYPE));
+        final Content content = resource.adaptTo(Content.class);
+
+        assertTrue(content.isOfType("iap/Sample"));
+        assertTrue(content.isOfType(Content.RESOURCE_TYPE));
+        assertFalse(content.isOfType("iap/Unrelated"));
+    }
+
+    @Test
+    void exposesTheEnclosingContent()
+    {
+        this.context.create().resource("/content/parent", SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource("/content/parent/child",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Content content = resource.adaptTo(Content.class);
+
+        final Content parent = content.getParent();
+
+        assertNotNull(parent);
+        assertEquals("/content/parent", parent.getPath());
+    }
+
+    @Test
+    void hasNoParentAtTheRepositoryRoot()
+    {
+        final Content root = this.context.resourceResolver().getResource("/").adaptTo(Content.class);
+
+        assertNull(root.getParent());
+    }
+
+    @Test
     void exposesCreationMetadata()
     {
         final Resource resource = this.context.create().resource("/content/sample", Map.of(
@@ -165,6 +200,19 @@ class ContentTest
         final Content content = resource.adaptTo(Content.class);
 
         assertNull(content.get("missingProperty"));
+    }
+
+    @Test
+    void convertsArbitraryPropertyToTheRequestedType()
+    {
+        final Resource resource = this.context.create().resource("/content/sample", Map.of(
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE,
+            "customProperty", "customValue"));
+        final Content content = resource.adaptTo(Content.class);
+
+        // A single value reads as an array just as well, following the usual ValueMap conversion rules
+        assertEquals(List.of("customValue"), List.of(content.get("customProperty", String[].class)));
+        assertNull(content.get("missingProperty", String.class));
     }
 
     @Test
@@ -294,6 +342,33 @@ class ContentTest
         final Content content = parent.adaptTo(Content.class);
 
         assertTrue(content.getChildren(Content.RESOURCE_TYPE, Content.class).isEmpty());
+    }
+
+    @Test
+    void listsEveryChildWhenNoTypeIsRequired()
+    {
+        final Resource parent = this.context.create().resource("/content/parent",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        this.context.create().resource("/content/parent/first", SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        // Unlike the type-filtered listing, an unrelated resource type is included too
+        this.context.create().resource("/content/parent/unrelated", SLING_RESOURCE_TYPE, "sling:Folder");
+        final Content content = parent.adaptTo(Content.class);
+
+        final List<Content> children = content.getChildren(Content.class);
+
+        assertEquals(2, children.size());
+        assertEquals("first", children.get(0).getName());
+        assertEquals("unrelated", children.get(1).getName());
+    }
+
+    @Test
+    void listsNoChildrenWhenThereAreNone()
+    {
+        final Resource parent = this.context.create().resource("/content/childless",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Content content = parent.adaptTo(Content.class);
+
+        assertTrue(content.getChildren(Content.class).isEmpty());
     }
 
     @Test

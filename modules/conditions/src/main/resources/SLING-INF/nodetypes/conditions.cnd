@@ -1,0 +1,127 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<cond = 'https://iap.uhndata.io/cond/'>
+
+//-----------------------------------------------------------------------------
+//
+// Conditions: a reusable vocabulary for expressing "does this apply?" rules
+// on any piece of content. A condition is either a single comparison between
+// two operands, or a group of nested conditions combined with AND/OR. Any
+// node type can become conditional by mixing in cond:Conditionable.
+//
+// Conditions are only data; deciding whether one currently holds is the job
+// of the ConditionEvaluator service, which resolves each operand through a
+// pluggable OperandResolver matching the operand's `source`.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Mixin that can be added to any node type to make it conditionally enabled,
+// independently of that type's own supertype chain.
+[cond:Conditionable]
+  mixin
+
+  // The condition controlling whether the node is enabled; combine multiple
+  // conditions using a cond:ConditionGroup.
+  + cond:condition (cond:Condition)
+
+//-----------------------------------------------------------------------------
+// Abstract base shared by a single condition (SingleCondition) and a
+// composite of conditions (ConditionGroup), so callers can ask for "a
+// condition" without caring whether it is a single comparison or a group of
+// them.
+[cond:Condition] > iap:EntityPart
+  abstract
+
+  // Hardcode the supertype to the parent cond/Condition type.
+  - sling:resourceSuperType (STRING) = "cond/Condition" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// A condition group is a set of conditions that can be imposed on e.g. the
+// display of a form section or whether a requirement applies. The conditions
+// are listed as children of this, and may be turned from an OR to an AND via
+// the `requireAll` property.
+[cond:ConditionGroup] > cond:Condition
+  - sling:resourceType (STRING) = "cond/ConditionGroup" mandatory autocreated protected
+
+  - requireAll (BOOLEAN) = false mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // A condition group may contain any number of single conditions or nested condition groups
+  + * (cond:Condition)
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A single comparison that can be imposed on e.g. the display of a form
+// section or whether a requirement applies.
+[cond:SingleCondition] > cond:Condition
+  - sling:resourceType (STRING) = "cond/SingleCondition" mandatory autocreated protected
+
+  // A single condition always has exactly one comparator, e.g. "equals",
+  // "less than", "is empty", "includes any". There is no declared comparison
+  // type: the evaluator unifies the types the operands are known to hold
+  // (e.g. a referenced question's data type, or the stored value types).
+  - comparator (STRING) mandatory
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // A single condition will always have a child node called operandA
+  + operandA (cond:ConditionOperand) mandatory
+
+  // A second child operandB may be specified, but leaving it as the default is
+  // OK if the comparator is unary (e.g. "is empty")
+  + operandB (cond:ConditionOperand) = cond:ConditionOperand autocreated
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A condition operand supplies the value(s) on one side of a comparison. The
+// `source` property names the OperandResolver that computes the actual
+// values at evaluation time, and `value` configures that resolver.
+[cond:ConditionOperand] > iap:EntityPart
+  - sling:resourceType (STRING) = "cond/ConditionOperand" mandatory autocreated protected
+
+  // What the resolver needs to compute the values: the literal values
+  // themselves for `literal`, a question reference for `answer`, a property
+  // name for `property`...
+  - value (UNDEFINED) multiple
+
+  // Where the values come from at evaluation time. Built-in sources are
+  // `literal`, `answer`, `tags` and `property`; new ones can be added by
+  // registering an OperandResolver service with a new source name.
+  - source (STRING) = "literal" autocreated
+
+  // Optional fold collapsing the resolved values into a single value before
+  // the comparison: `count`, `sum`, `min`, `max` or `avg`.
+  - aggregate (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
