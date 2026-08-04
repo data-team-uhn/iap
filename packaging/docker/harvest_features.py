@@ -30,13 +30,28 @@ Usage: find ... | harvest_features.py <groupId:artifactId:version> <outputDirect
 
 import json
 import os
+import re
 import sys
 
+
+def native_path(path):
+    """Convert Git-Bash (/c/...) or WSL (/mnt/c/...) paths to C:/... for Windows Python.
+
+    The paths arrive over stdin, where neither MSYS nor WSL applies its automatic
+    path conversion, so a Windows Python would otherwise fail to open them.
+    """
+    if os.name == "nt":
+        match = re.match(r"^/(?:mnt/)?([A-Za-z])/(.*)$", path)
+        if match:
+            return "%s:/%s" % (match.group(1), match.group(2))
+    return path
+
+
 group_id, artifact_id, version = sys.argv[1].split(":")
-output_directory = sys.argv[2]
+output_directory = native_path(sys.argv[2])
 
 for line in sys.stdin:
-    path = line.strip()
+    path = native_path(line.strip())
     if not path:
         continue
     with open(path, "r") as feature_file:
