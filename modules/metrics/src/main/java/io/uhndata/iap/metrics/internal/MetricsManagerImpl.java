@@ -94,7 +94,9 @@ public class MetricsManagerImpl implements MetricsManager
             return StreamSupport.stream(getHomepage(resolver).getChildren().spliterator(), false)
                 .filter(MetricImpl::isMetric)
                 .sorted(DISPLAY_ORDER)
-                .<Metric>map(metric -> new MetricImpl(this.resolverFactory, metric.getName()))
+                // Hand the properties to the handle: this session has already read them, and a listing is a
+                // point-in-time view anyway, so re-reading each one per accessor would only cost sessions
+                .<Metric>map(metric -> new MetricImpl(this.resolverFactory, metric.getName(), metric.getValueMap()))
                 .toList();
         }
     }

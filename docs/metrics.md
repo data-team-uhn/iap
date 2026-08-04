@@ -59,8 +59,15 @@ The manager only handles defining (`createMetric(name).…create()`) and looking
 accessor for each piece of state: `getCurrentValue()`, `getPreviousValue()`, `getCurrentDelta()`
 (current - previous, the running count of the current period), `getLastDelta()`,
 `getLastRollover()`, `getLastUpdated()`, `getRolloverSchedule()`, `getDefaultOrder()`, plus
-`increment(amount)` and `rollOver()`. Handles are lightweight and never stale — each call opens a
-fresh service session — so they can be kept for the lifetime of a component.
+`increment(amount)` and `rollOver()`.
+
+A handle asked for by name — from `createMetric(…).create()` or `getMetric(name)` — reads the
+repository on every access, so it never goes stale and can be held for the lifetime of a component.
+A handle that came from `getMetrics()` instead reports the values read while listing, because a
+listing is a point-in-time view and reading each value separately would cost a repository session
+each: rendering ten metrics would open seventy sessions instead of one. Either kind writes to the
+repository, so `increment()` and `rollOver()` are always correct — a roll-over closes the period
+against the counter's *current* value, never against the one its handle happens to be reporting.
 
 ## Display order
 

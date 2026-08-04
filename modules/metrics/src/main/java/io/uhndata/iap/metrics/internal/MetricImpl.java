@@ -19,6 +19,8 @@ package io.uhndata.iap.metrics.internal;
 
 import java.time.ZonedDateTime;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -34,6 +36,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.api.wrappers.ValueMapDecorator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,9 +45,11 @@ import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * Default implementation of {@link Metric}: a lightweight handle that opens a short-lived service session for each
- * read or update, so values are always current and handles can be freely cached. Increments go through the
- * repository's atomic counter support, and updates that hit a conflicting concurrent change are retried on a fresh
+ * Default implementation of {@link Metric}: a lightweight handle over a metric node. A handle obtained by name opens
+ * a short-lived service session for each read, so its values are always current and it can be held for as long as
+ * its owner lives; one obtained from a listing answers reads from the properties the listing already read, so that
+ * rendering a page of metrics costs a single session. Updates always go to the repository either way: increments go
+ * through its atomic counter support, and updates that hit a conflicting concurrent change are retried on a fresh
  * session a few times before giving up.
  *
  * @version $Id$
@@ -106,8 +111,11 @@ public class MetricImpl implements Metric
 
     private final String name;
 
+    /** The properties this handle reads from, or {@code null} when each read goes to the repository instead. */
+    private final ValueMap snapshot;
+
     /**
-     * Basic constructor.
+     * Basic constructor, for a handle that reads the repository on every access.
      *
      * @param resolverFactory used to open a service session for each operation
      * @param name the identifier of the metric
@@ -116,6 +124,23 @@ public class MetricImpl implements Metric
     {
         this.resolverFactory = resolverFactory;
         this.name = name;
+        this.snapshot = null;
+    }
+
+    /**
+     * Constructor for a handle whose reads are answered from properties that have already been read, so that listing
+     * many metrics costs one session instead of one per metric per property.
+     *
+     * @param resolverFactory used to open a service session for updates, which never use the snapshot
+     * @param name the identifier of the metric
+     * @param properties the properties of the metric node, copied since the session they were read in is closed by
+     *            the time this handle is used
+     */
+    MetricImpl(final ResourceResolverFactory resolverFactory, final String name, final ValueMap properties)
+    {
+        this.resolverFactory = resolverFactory;
+        this.name = name;
+        this.snapshot = new ValueMapDecorator(Collections.unmodifiableMap(new HashMap<>(properties)));
     }
 
     /**
@@ -293,6 +318,9 @@ public class MetricImpl implements Metric
      */
     private <T> T read(final Function<ValueMap, T> extractor)
     {
+        if (this.snapshot != null) {
+            return extractor.apply(this.snapshot);
+        }
         try (ResourceResolver resolver = openServiceResolver(this.resolverFactory)) {
             return extractor.apply(getMetricResource(resolver).getValueMap());
         }

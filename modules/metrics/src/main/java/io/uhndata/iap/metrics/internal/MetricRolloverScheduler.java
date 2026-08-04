@@ -39,7 +39,6 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
-import io.uhndata.iap.metrics.api.MetricsManager;
 
 /**
  * Automatically {@link Metric#rollOver rolls over} every metric that declares a roll-over schedule: one scheduled
@@ -64,9 +63,6 @@ public class MetricRolloverScheduler implements ResourceChangeListener
 
     @Reference
     private Scheduler scheduler;
-
-    @Reference
-    private MetricsManager metricsManager;
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -176,10 +172,13 @@ public class MetricRolloverScheduler implements ResourceChangeListener
      *
      * @param name the name of the metric to roll over
      */
-    private void rollOver(final String name)
+    void rollOver(final String name)
     {
         try {
-            this.metricsManager.getMetric(name).ifPresent(Metric::rollOver);
+            // Straight to the handle rather than through MetricsManager.getMetric: that would open a session only to
+            // confirm the metric is still there, which the roll-over itself reports anyway. A metric deleted between
+            // being scheduled and firing is now logged below instead of passing silently.
+            new MetricImpl(this.resolverFactory, name).rollOver();
         } catch (final RuntimeException e) {
             LOGGER.warn("Scheduled roll-over of metric {} failed: {}", name, e.getMessage(), e);
         }

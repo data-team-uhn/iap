@@ -136,6 +136,14 @@ public interface MetricsManager
      * and ordered by {@link Metric#getDefaultOrder defaultOrder} within each category. Metrics that agree on all of
      * that are ordered by name, so the listing is stable.
      *
+     * <p>
+     * The returned metrics report the values read while listing them, which is what a report or a dashboard wants,
+     * and costs one repository session for the whole list rather than one per value. They are still perfectly good
+     * for {@link Metric#increment incrementing} and {@link Metric#rollOver rolling over}, since those always go to
+     * the repository; but for a handle that keeps reporting current values, ask for it by name with
+     * {@link #getMetric}.
+     * </p>
+     *
      * @return all metrics, in display order, may be empty
      */
     @NotNull

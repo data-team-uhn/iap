@@ -33,9 +33,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import io.uhndata.iap.metrics.api.MetricsException;
-import io.uhndata.iap.metrics.api.MetricsManager;
-
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -73,7 +70,6 @@ class MetricRolloverSchedulerTest
         inject(this.manager, "resolverFactory", this.factory);
         this.rolloverScheduler = new MetricRolloverScheduler();
         inject(this.rolloverScheduler, "scheduler", this.scheduler);
-        inject(this.rolloverScheduler, "metricsManager", this.manager);
         inject(this.rolloverScheduler, "resolverFactory", this.factory);
         Mockito.when(this.scheduler.EXPR(Mockito.anyString())).thenReturn(this.options);
         Mockito.when(this.scheduler.schedule(Mockito.any(), Mockito.any())).thenReturn(true);
@@ -293,13 +289,16 @@ class MetricRolloverSchedulerTest
     @Test
     void theJobSurvivesRollOverFailures() throws Exception
     {
-        final MetricsManager brokenManager = Mockito.mock(MetricsManager.class);
-        Mockito.when(brokenManager.getMetric("counted")).thenThrow(new MetricsException("repository unavailable"));
-        inject(this.rolloverScheduler, "metricsManager", brokenManager);
         this.manager.createMetric("counted").withRolloverSchedule(NIGHTLY).create();
         final ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
         this.rolloverScheduler.activate();
         Mockito.verify(this.scheduler).schedule(job.capture(), Mockito.any());
+
+        // The repository becomes unreachable only after the job has been scheduled
+        final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
+            .thenThrow(new org.apache.sling.api.resource.LoginException("repository unavailable"));
+        inject(this.rolloverScheduler, "resolverFactory", broken);
 
         assertDoesNotThrow(() -> job.getValue().run());
     }
