@@ -20,6 +20,8 @@ package io.uhndata.iap.httprequests.api;
 import java.io.IOException;
 import java.nio.charset.Charset;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Sends HTTP requests to other services, e.g. a chat webhook or a document checking service.
  *
@@ -44,7 +46,8 @@ public interface HttpRequests
      * @return what the service answered
      * @throws IOException if the request could not be made, e.g. the service is unreachable or stopped answering
      */
-    HttpResponse post(String url, String body, String contentType) throws IOException;
+    @NotNull
+    HttpResponse post(@NotNull String url, @NotNull String body, @NotNull String contentType) throws IOException;
 
     /**
      * Sends a POST request, with a body encoded in the given charset.
@@ -56,5 +59,7 @@ public interface HttpRequests
      * @return what the service answered
      * @throws IOException if the request could not be made, e.g. the service is unreachable or stopped answering
      */
-    HttpResponse post(String url, String body, String contentType, Charset charset) throws IOException;
+    @NotNull
+    HttpResponse post(@NotNull String url, @NotNull String body, @NotNull String contentType,
+        @NotNull Charset charset) throws IOException;
 }

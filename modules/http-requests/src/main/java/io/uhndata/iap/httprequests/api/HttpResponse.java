@@ -17,6 +17,9 @@
  */
 package io.uhndata.iap.httprequests.api;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * What a remote service answered: the status code it answered with, and the body it sent. Instances are immutable.
  *
@@ -33,9 +36,9 @@ public final class HttpResponse
      * Basic constructor.
      *
      * @param statusCode the HTTP status code of the response
-     * @param body the body of the response, never {@code null}, empty when the response had none
+     * @param body the body of the response, {@code null} or empty when the response had none
      */
-    public HttpResponse(final int statusCode, final String body)
+    public HttpResponse(final int statusCode, @Nullable final String body)
     {
         this.statusCode = statusCode;
         this.body = body == null ? "" : body;
@@ -56,6 +59,7 @@ public final class HttpResponse
      *
      * @return a string, empty when the response had no body
      */
+    @NotNull
     public String getBody()
     {
         return this.body;
@@ -73,6 +77,7 @@ public final class HttpResponse
     }
 
     @Override
+    @NotNull
     public String toString()
     {
         return this.statusCode + " " + this.body;
