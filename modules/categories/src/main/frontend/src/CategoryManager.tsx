@@ -29,6 +29,7 @@ import CategoryDialog, { type CategorySubmission } from "./CategoryDialog";
 import CategoryLoadError from "./CategoryLoadError";
 import CategoryTree, { type CategoryActions } from "./CategoryTree";
 import DeleteCategoryDialog from "./DeleteCategoryDialog";
+import RetireCategoryDialog from "./RetireCategoryDialog";
 import { CATEGORIES_ROOT, useCategoryTree } from "./useCategoryTree";
 
 import type { CategoryNode } from "./categoryModel";
@@ -50,6 +51,7 @@ function CategoryManager() {
   const { tree, loading, loadError, reload, create, update, move, reorder, setRetired, remove } = useCategoryTree();
   const [ dialog, setDialog ] = useState<DialogState>();
   const [ deleteTarget, setDeleteTarget ] = useState<CategoryNode>();
+  const [ retireTarget, setRetireTarget ] = useState<CategoryNode>();
   const [ actionError, setActionError ] = useState<string>();
 
   const showError = (error: unknown) =>
@@ -59,7 +61,15 @@ function CategoryManager() {
     onEdit: node => setDialog({ mode: "edit", node, parentPath: parentPathOf(node.path) }),
     onAddChild: node => setDialog({ mode: "create", parentPath: node.path }),
     onDelete: node => setDeleteTarget(node),
-    onToggleRetired: node => { setRetired(node.path, !node.retired).catch(showError); },
+    // Retiring is confirmed, because its effect lands on submitters rather than here; unretiring is
+    // that confirmation's undo, so asking again for it would be noise.
+    onToggleRetired: node => {
+      if (node.retired) {
+        setRetired(node.path, false).catch(showError);
+      } else {
+        setRetireTarget(node);
+      }
+    },
     onReorder: (path, order) => { reorder(path, order).catch(showError); },
   };
 
@@ -113,6 +123,14 @@ function CategoryManager() {
             tree={tree}
             onClose={() => setDialog(undefined)}
             onSave={save}
+          />
+        )}
+      { retireTarget
+        && (
+          <RetireCategoryDialog
+            node={retireTarget}
+            onClose={() => setRetireTarget(undefined)}
+            onRetire={node => setRetired(node.path, true)}
           />
         )}
       { deleteTarget
