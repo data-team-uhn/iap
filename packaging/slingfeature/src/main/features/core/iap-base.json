@@ -17,8 +17,10 @@
 {
     "bundles":[
         {
+            // Early, so the StartupGateFilter inside starts serving the "starting up" stub as soon
+            // as the HTTP stack and the health check executor are up (both at start order 5).
             "id":"${project.groupId}:iap-startup-customization:${project.version}",
-            "start-order":"2"
+            "start-order":"5"
         },
         {
             "id":"${project.groupId}:iap-java-utils:${project.version}",

@@ -19,6 +19,12 @@
     {
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"25"
+    },
+    {
+      // Internal-request helpers, used by the Login Page Ready health check to render the login
+      // page through the SlingRequestProcessor
+      "id":"org.apache.sling:org.apache.sling.servlet-helpers:2.0.0",
+      "start-order":"20"
     }
   ],
   "configurations":{

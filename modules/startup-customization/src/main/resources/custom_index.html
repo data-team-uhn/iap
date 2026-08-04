@@ -15,13 +15,81 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 -->
-<html>
+<!-- This page is served while the system is still starting up, before anything else works, so it
+     must be completely self-contained: no scripts, no images, nothing loaded from the application
+     itself. It hand-copies the layout, typography and colours of the (React/MUI) error pages, with
+     the theme's fallback palette since the deployment's configured branding isn't readable yet. -->
+<!doctype html>
+<html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>IAP is starting up...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="refresh" content="5">
+    <title>Starting up...</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&amp;display=swap">
+    <style>
+      :root {
+        color-scheme: light dark;
+        /* The appTheme fallback primary, and its 60%-lightened variant used on the dark scheme */
+        --primary: #192958;
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --track: rgba(25, 41, 88, 0.2);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary: rgb(163, 169, 188);
+          --text-secondary: rgba(255, 255, 255, 0.7);
+          --track: rgba(163, 169, 188, 0.3);
+        }
+      }
+      body {
+        margin: 0;
+        font-family: "Roboto", "Helvetica", "Arial", sans-serif;
+      }
+      main {
+        display: flex;
+        flex-direction: column;
+        gap: 48px;
+        max-width: 450px;
+        margin: 0 auto;
+        padding: 96px 24px 24px;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--track);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1.4s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      h1 {
+        margin: 0;
+        color: var(--primary);
+        font-size: 2.125rem;
+        font-weight: 700;
+        line-height: 1.235;
+        letter-spacing: 0.00735em;
+      }
+      p {
+        margin: 16px 0 0;
+        color: var(--text-secondary);
+        font-size: 1rem;
+        line-height: 1.75;
+        letter-spacing: 0.00938em;
+      }
+    </style>
   </head>
   <body>
-    <h1>IAP is starting up, please wait</h1>
+    <main>
+      <div class="spinner" role="progressbar" aria-label="Starting up"></div>
+      <div>
+        <h1>Starting up</h1>
+        <p>Please wait while the application initializes. This page refreshes itself, and the
+          application will appear as soon as it is ready.</p>
+      </div>
+    </main>
   </body>
 </html>
