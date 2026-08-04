@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "Known issue",
+  "description": "This failure is understood and a fix is planned or on its way. Recording it again adds nothing until the fix lands — and if it does happen after that, the error asks for attention again by itself.",
+  "category": ["error-triage"],
+  "targetResourceTypes": ["err/LoggedError"],
+  "system": true,
+  "color": "#ffb300",
+  "order": 110
+}

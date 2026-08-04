@@ -37,3 +37,8 @@ Built-in reporters:
   [health checks](healthcheck.md) and reports a `SUCCESS` when everything is OK, a `WARNING`
   for warnings, or an `ERROR` for anything worse; the failed checks are named only in
   privileged reports.
+- **Logged errors** (`iap-error-tracking-impl`, tags `problems`, `errors`) — the
+  [errors recorded](error-tracking.md) by an instance that nobody was there to see: an `ERROR`
+  while any of them still needs attention, an `INFO` once they have all been acknowledged. What
+  broke and how often is reported to anyone; the stack traces, messages and paths only to a reader
+  who is logged in.

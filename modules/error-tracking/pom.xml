@@ -21,34 +21,21 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-parent</artifactId>
+    <artifactId>iap-modules</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-modules</artifactId>
+  <artifactId>iap-error-tracking</artifactId>
   <packaging>pom</packaging>
-  <name>IAP - Code modules</name>
+  <name>IAP - Error Tracking</name>
 
+  <!--
+    Split in two so that the modules whose failures are worth recording can depend on the way in without depending on
+    the recording itself: the API bundle knows nothing about the repository, while the implementation depends on the
+    data model and on tags, both of which have failures of their own to report.
+  -->
   <modules>
-    <!-- Keep these alphabetical -->
-    <module>authentication</module>
-    <module>autodoc</module>
-    <module>conditions</module>
-    <module>data-model</module>
-    <module>error-tracking</module>
-    <module>favicon</module>
-    <module>frontend-commons</module>
-    <module>healthcheck</module>
-    <module>homepage</module>
-    <module>java-utils</module>
-    <module>login</module>
-    <module>schemas</module>
-    <module>serialization</module>
-    <module>startup-customization</module>
-    <module>status</module>
-    <module>submissions</module>
-    <module>tags</module>
-    <module>ui-extension</module>
-    <module>workflows</module>
+    <module>api</module>
+    <module>impl</module>
   </modules>
 </project>
