@@ -29,7 +29,7 @@ function DateWidget() {
   });
 
   return (
-    <Stack alignItems="center">
+    <Stack sx={{ alignItems: "center" }}>
       <Typography variant="h5" component="p">{today}</Typography>
     </Stack>
   );
