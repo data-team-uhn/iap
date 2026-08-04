@@ -45,6 +45,7 @@
     <module>metrics</module>
     <module>schemas</module>
     <module>serialization</module>
+    <module>slack-notifications</module>
     <module>startup-customization</module>
     <module>status</module>
     <module>submissions</module>
