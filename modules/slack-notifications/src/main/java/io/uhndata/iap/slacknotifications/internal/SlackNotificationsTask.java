@@ -18,6 +18,7 @@
 package io.uhndata.iap.slacknotifications.internal;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -77,11 +78,14 @@ public class SlackNotificationsTask implements Runnable
         final Map<String, String> extraParameters, final boolean skipEmpty)
     {
         this.httpRequests = httpRequests;
-        this.producers = producers;
+        // Wrapped, not copied: the caller keeps updating this list as producers come and go, and every run must see
+        // the current set. Wrapping only takes away this task's ability to alter someone else's list
+        this.producers = Collections.unmodifiableList(producers);
         this.endpoint = endpoint;
         this.title = title;
-        this.include = include;
-        this.extraParameters = extraParameters;
+        // Copied, since these come from one configuration and are not meant to change under the task's feet
+        this.include = List.copyOf(include);
+        this.extraParameters = Map.copyOf(extraParameters);
         this.skipEmpty = skipEmpty;
     }
 

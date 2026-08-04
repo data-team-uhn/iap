@@ -22,6 +22,8 @@ import java.util.Map;
 
 import jakarta.json.JsonObject;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Service interface for producing messages to post to a chat webhook. When it is time to send a message, each
  * implementation's {@link #prepareMessages} is invoked, and the results are aggregated into a single post.
@@ -57,6 +59,7 @@ public interface SlackNotificationProducer
      *
      * @return a simple string
      */
+    @NotNull
     String getName();
 
     /**
@@ -68,5 +71,6 @@ public interface SlackNotificationProducer
      * @return a list of JSON objects respecting the attachment API, that will be added to the attachments list of
      *         the message; an empty list when there is nothing to report
      */
-    List<JsonObject> prepareMessages(Map<String, String> extraParameters);
+    @NotNull
+    List<JsonObject> prepareMessages(@NotNull Map<String, String> extraParameters);
 }
