@@ -17,10 +17,10 @@
  */
 package io.uhndata.iap.slacknotifications.internal;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.commons.scheduler.ScheduleOptions;
@@ -63,10 +63,17 @@ public class ScheduledSlackNotification
     /**
      * All the registered notification producers. Updated in place as producers come and go, so the scheduled task
      * sees the current set rather than the one that existed when it was scheduled.
+     *
+     * <p>
+     * That in-place updating is why the list has to be a concurrent one: a producer can be registered or withdrawn
+     * while a notification run is iterating over it, on an unrelated thread, which a plain list answers with a
+     * {@code ConcurrentModificationException} or a half-updated view. Copy-on-write suits the access pattern, since
+     * the list is read once per scheduled run and written only when a producer bundle starts or stops.
+     * </p>
      */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, fieldOption = FieldOption.UPDATE,
         policy = ReferencePolicy.DYNAMIC)
-    private volatile List<SlackNotificationProducer> producers = new ArrayList<>();
+    private volatile List<SlackNotificationProducer> producers = new CopyOnWriteArrayList<>();
 
     @Reference
     private Scheduler scheduler;

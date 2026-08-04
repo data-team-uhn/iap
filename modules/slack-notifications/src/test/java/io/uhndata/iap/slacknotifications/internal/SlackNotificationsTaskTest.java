@@ -22,6 +22,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -169,6 +170,28 @@ class SlackNotificationsTaskTest
         task(List.of(producer("first", "one")), List.of(), "", true).run();
 
         assertTrue(this.webhook.posted.isEmpty());
+    }
+
+    @Test
+    void eachRunAsksTheProducersRegisteredByThen()
+    {
+        // The list the task is given is the live one Declarative Services keeps up to date, so a task scheduled once
+        // must follow it rather than freeze the producers that happened to exist at scheduling time
+        final List<SlackNotificationProducer> registered = new CopyOnWriteArrayList<>();
+        registered.add(producer("first", "one"));
+        final SlackNotificationsTask task = task(registered, List.of(), "", true);
+
+        task.run();
+        assertEquals(1, parse(this.webhook.posted.get(0)).getJsonArray("attachments").size());
+
+        // A producer bundle stops and another starts between the two runs
+        registered.remove(0);
+        registered.add(producer("second", "two"));
+        task.run();
+
+        final JsonObject second = parse(this.webhook.posted.get(1));
+        assertEquals(1, second.getJsonArray("attachments").size());
+        assertEquals("two", second.getJsonArray("attachments").getJsonObject(0).getString("title"));
     }
 
     private SlackNotificationsTask task(final List<SlackNotificationProducer> producers, final List<String> include,

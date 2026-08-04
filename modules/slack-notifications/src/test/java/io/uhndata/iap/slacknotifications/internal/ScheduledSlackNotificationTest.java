@@ -18,6 +18,8 @@
 package io.uhndata.iap.slacknotifications.internal;
 
 import java.lang.reflect.Field;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.commons.scheduler.ScheduleOptions;
@@ -25,7 +27,11 @@ import org.apache.sling.commons.scheduler.Scheduler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -143,6 +149,48 @@ class ScheduledSlackNotificationTest
         this.component.deactivate(configuration("https://example.invalid/hook", "0 0 0 1 * ? *"));
 
         verify(this.scheduler).unschedule(ScheduledSlackNotification.JOB_PREFIX + "nightly");
+    }
+
+    @Test
+    void producersRegisteringDuringARunDoNotDisturbIt() throws ReflectiveOperationException
+    {
+        // Declarative Services updates this list in place, on whichever thread starts or stops a producer bundle,
+        // while a scheduled notification may be iterating it. A plain list answers that with a
+        // ConcurrentModificationException, taking the notification down with it.
+        final List<SlackNotificationProducer> producers = producers();
+        producers.add(mock(SlackNotificationProducer.class));
+
+        assertDoesNotThrow(() -> {
+            final Iterator<SlackNotificationProducer> run = producers.iterator();
+            while (run.hasNext()) {
+                run.next();
+                producers.add(mock(SlackNotificationProducer.class));
+            }
+        });
+    }
+
+    @Test
+    void aRunSeesTheProducersRegisteredSoFarAndNotThoseAddedLater() throws ReflectiveOperationException
+    {
+        final List<SlackNotificationProducer> producers = producers();
+        producers.add(mock(SlackNotificationProducer.class));
+        final Iterator<SlackNotificationProducer> run = producers.iterator();
+
+        producers.add(mock(SlackNotificationProducer.class));
+
+        // The run works from the set that existed when it started; the newcomer is picked up by the next one
+        assertTrue(run.hasNext());
+        run.next();
+        assertFalse(run.hasNext());
+        assertEquals(2, producers.size());
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<SlackNotificationProducer> producers() throws ReflectiveOperationException
+    {
+        final Field field = ScheduledSlackNotification.class.getDeclaredField("producers");
+        field.setAccessible(true);
+        return (List<SlackNotificationProducer>) field.get(this.component);
     }
 
     private void inject(final String name, final Object value) throws ReflectiveOperationException
