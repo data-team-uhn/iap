@@ -100,22 +100,24 @@ class MetricsStatusReporterTest
     @Test
     void groupsMetricsByCategory()
     {
+        // The manager hands them over in display order, uncategorized last; the reporter groups them without
+        // reordering, so an uncategorized metric stays at the end instead of being sorted to the front.
         final List<Metric> metrics = List.of(
-            metric("Loose metric", null, Metric.AccessLevel.PUBLIC, 1, 0, 0, null),
+            metric("Errors", "Problems", Metric.AccessLevel.PUBLIC, 3, 0, 0, null),
             metric("Submitted", "Submissions", Metric.AccessLevel.PUBLIC, 12, -2, 4, RESET_DATE),
-            metric("Errors", "Problems", Metric.AccessLevel.PUBLIC, 3, 0, 0, null));
+            metric("Loose metric", null, Metric.AccessLevel.PUBLIC, 1, 0, 0, null));
         Mockito.when(this.manager.getMetrics()).thenReturn(metrics);
 
         final StatusReport report = this.reporter.report(false);
 
-        assertEquals("Uncategorized:\n"
-            + "- Loose metric: 1\n"
-            + "\n"
-            + "Problems:\n"
+        assertEquals("Problems:\n"
             + "- Errors: 3\n"
             + "\n"
             + "Submissions:\n"
-            + "- Submitted: 12 (-2 since 2026-07-20; previous period: +4)", report.getText());
+            + "- Submitted: 12 (-2 since 2026-07-20; previous period: +4)\n"
+            + "\n"
+            + "Uncategorized:\n"
+            + "- Loose metric: 1", report.getText());
     }
 
     @Test

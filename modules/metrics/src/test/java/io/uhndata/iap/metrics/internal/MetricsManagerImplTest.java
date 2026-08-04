@@ -87,6 +87,7 @@ class MetricsManagerImplTest
         // The protected sling:resourceType property is not set by the code, it is autocreated by the node type
         assertNull(properties.get("sling:resourceType", String.class));
         assertEquals("simple", properties.get("label", String.class));
+        assertEquals(0L, properties.get("iap:defaultOrder", Long.class));
         assertEquals("public", properties.get("accessLevel", String.class));
         assertEquals(0L, properties.get("previousValue", Long.class));
         assertNull(properties.get("description", String.class));
@@ -101,6 +102,7 @@ class MetricsManagerImplTest
             .withLabel("Full metric")
             .withDescription("Counts many things")
             .withCategory("Tests")
+            .withDefaultOrder(20)
             .withAccessLevel(Metric.AccessLevel.ADMIN)
             .withRolloverSchedule("0 0 0 * * ?")
             .create();
@@ -109,6 +111,7 @@ class MetricsManagerImplTest
         assertEquals("Full metric", properties.get("label", String.class));
         assertEquals("Counts many things", properties.get("description", String.class));
         assertEquals("Tests", properties.get("category", String.class));
+        assertEquals(20L, properties.get("iap:defaultOrder", Long.class));
         assertEquals("admin", properties.get("accessLevel", String.class));
         assertEquals("0 0 0 * * ?", properties.get("rolloverSchedule", String.class));
     }
@@ -221,7 +224,7 @@ class MetricsManagerImplTest
     }
 
     @Test
-    void getMetricsListsMetricsSortedByName() throws Exception
+    void getMetricsFallsBackToTheNameWhenNothingElseDiffers() throws Exception
     {
         this.manager.createMetric("charlie").create();
         this.manager.createMetric("alpha").create();
@@ -235,6 +238,49 @@ class MetricsManagerImplTest
 
         final List<Metric> metrics = this.manager.getMetrics();
         assertEquals(List.of("alpha", "bravo", "charlie"), metrics.stream().map(Metric::getName).toList());
+    }
+
+    @Test
+    void getMetricsGroupsByCategoryAndListsUncategorizedLast() throws Exception
+    {
+        this.manager.createMetric("loose").create();
+        this.manager.createMetric("submitted").withCategory("Submissions").create();
+        this.manager.createMetric("failed").withCategory("Problems").create();
+        this.manager.createMetric("approved").withCategory("Submissions").create();
+
+        assertEquals(List.of("failed", "approved", "submitted", "loose"), names());
+    }
+
+    @Test
+    void getMetricsOrdersByDefaultOrderWithinACategory() throws Exception
+    {
+        this.manager.createMetric("third").withCategory("Submissions").withDefaultOrder(30).create();
+        this.manager.createMetric("first").withCategory("Submissions").withDefaultOrder(10).create();
+        this.manager.createMetric("second").withCategory("Submissions").withDefaultOrder(20).create();
+        // A negative order is allowed, and puts the metric ahead of the ones that declare none
+        this.manager.createMetric("zeroth").withCategory("Submissions").withDefaultOrder(-10).create();
+        this.manager.createMetric("unordered").withCategory("Submissions").create();
+
+        assertEquals(List.of("zeroth", "unordered", "first", "second", "third"), names());
+    }
+
+    @Test
+    void getMetricsTreatsABlankCategoryAsUncategorized() throws Exception
+    {
+        this.manager.createMetric("blank").withCategory("   ").create();
+        this.manager.createMetric("categorized").withCategory("Submissions").create();
+
+        assertEquals(List.of("categorized", "blank"), names());
+    }
+
+    @Test
+    void getMetricsOrdersCategoriesAheadOfTheDefaultOrder() throws Exception
+    {
+        // The category wins over the order: a low order in a later category still comes second
+        this.manager.createMetric("early").withCategory("Alpha").withDefaultOrder(90).create();
+        this.manager.createMetric("late").withCategory("Beta").withDefaultOrder(10).create();
+
+        assertEquals(List.of("early", "late"), names());
     }
 
     @Test
@@ -286,6 +332,11 @@ class MetricsManagerImplTest
     private ResourceResolver open() throws Exception
     {
         return this.factory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, "metrics"));
+    }
+
+    private List<String> names()
+    {
+        return this.manager.getMetrics().stream().map(Metric::getName).toList();
     }
 
     private ValueMap properties(final String name) throws Exception

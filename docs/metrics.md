@@ -7,7 +7,7 @@ survive restarts and are shared by every node of a cluster.
 ## The data model
 
 Each metric is an `iap:Metric` node under `/Metrics`, holding descriptive metadata (`label`,
-`description`, `category`, `accessLevel`) next to its counter state. The count itself lives in the
+`description`, `category`, `iap:defaultOrder`, `accessLevel`) next to its counter state. The count itself lives in the
 `oak:counter` property, maintained by the repository's atomic counter support: committing an
 `oak:increment` value on the node atomically adds it to the counter, so concurrent increments from
 different threads or cluster nodes are all applied without conflicting or getting lost.
@@ -45,6 +45,7 @@ this.metric = this.metricsManager.createMetric("submittedProposals")
     .withLabel("Submitted proposals")
     .withDescription("How many research proposals were submitted for review")
     .withCategory("Submissions")
+    .withDefaultOrder(10)                      // placement within the category; 0 if not set
     .withAccessLevel(Metric.AccessLevel.ADMIN) // PUBLIC unless restricted
     .withRolloverSchedule("0 0 0 * * ?")       // nightly periods; manual-only if not set
     .create();
@@ -57,9 +58,23 @@ The manager only handles defining (`createMetric(name).…create()`) and looking
 `getMetrics`) metrics; reads and updates are done on the `Metric` handle itself, with a separate
 accessor for each piece of state: `getCurrentValue()`, `getPreviousValue()`, `getCurrentDelta()`
 (current - previous, the running count of the current period), `getLastDelta()`,
-`getLastRollover()`, `getLastUpdated()`, `getRolloverSchedule()`, plus `increment(amount)` and
-`rollOver()`. Handles are lightweight and never stale — each call opens a fresh service session —
-so they can be kept for the lifetime of a component.
+`getLastRollover()`, `getLastUpdated()`, `getRolloverSchedule()`, `getDefaultOrder()`, plus
+`increment(amount)` and `rollOver()`. Handles are lightweight and never stale — each call opens a
+fresh service session — so they can be kept for the lifetime of a component.
+
+## Display order
+
+`getMetrics()` returns metrics in the order they are meant to be shown, and everything that lists
+them — the HTTP endpoint, the status report — simply follows that order rather than sorting again:
+
+1. by **category**, alphabetically, with the **uncategorized metrics last**;
+2. by **`iap:defaultOrder`** within each category, lower values first — a plain `LONG` on the metric
+   node, defaulting to `0`, and negative values are allowed;
+3. by **name**, for metrics that agree on both, so the listing is stable.
+
+Since the category is compared first, a low order never lifts a metric out of its group. As
+elsewhere in the platform, leave gaps when numbering — multiples of ten — so a metric can later be
+slotted between two existing ones without renumbering them.
 
 A few deliberate behaviors:
 
@@ -92,15 +107,16 @@ custom reporting job that wants to control its own period boundaries.
 
 ## Reading metrics over HTTP
 
-`GET /Metrics.json` returns a JSON object with a `metrics` array, each entry holding `name`,
-`label`, `description`, `category`, `accessLevel`, `currentValue`, `previousValue`,
-`currentDelta` and `lastDelta`, plus the `lastUpdated`/`lastRollover` dates and the
-`rolloverSchedule` when present. The endpoint is reachable without authentication so dashboards
-can poll it, but metrics with the `admin` access level are only listed when the administrator is
-asking.
+`GET /Metrics.json` returns a JSON object with a `metrics` array, in [display order](#display-order),
+each entry holding `name`, `label`, `description`, `category`, `defaultOrder`, `accessLevel`,
+`currentValue`, `previousValue`, `currentDelta` and `lastDelta`, plus the
+`lastUpdated`/`lastRollover` dates and the `rolloverSchedule` when present. The endpoint is
+reachable without authentication so dashboards can poll it, but metrics with the `admin` access
+level are only listed when the administrator is asking.
 
 Metrics are also part of the [status reports](status.md): the **Metrics** reporter (tags
-`metrics`, `activity`) lists every metric as an `INFO` report, grouped by category, e.g.:
+`metrics`, `activity`) lists every metric as an `INFO` report, grouped by category in
+[display order](#display-order), e.g.:
 
 ```
 Submissions:

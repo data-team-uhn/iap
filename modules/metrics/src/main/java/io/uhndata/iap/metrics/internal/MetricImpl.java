@@ -70,6 +70,9 @@ public class MetricImpl implements Metric
     /** The name of the property holding the category. */
     static final String PN_CATEGORY = "category";
 
+    /** The name of the property holding the placement within the category. */
+    static final String PN_DEFAULT_ORDER = "iap:defaultOrder";
+
     /** The name of the property holding the access level. */
     static final String PN_ACCESS_LEVEL = "accessLevel";
 
@@ -168,6 +171,12 @@ public class MetricImpl implements Metric
     }
 
     @Override
+    public long getDefaultOrder()
+    {
+        return read(MetricImpl::defaultOrder);
+    }
+
+    @Override
     public AccessLevel getAccessLevel()
     {
         return read(properties -> AccessLevel.fromPropertyValue(properties.get(PN_ACCESS_LEVEL, String.class)));
@@ -257,6 +266,7 @@ public class MetricImpl implements Metric
                 .add("label", properties.get(PN_LABEL, this.name))
                 .add("description", properties.get(PN_DESCRIPTION, ""))
                 .add("category", properties.get(PN_CATEGORY, ""))
+                .add("defaultOrder", defaultOrder(properties))
                 .add("accessLevel",
                     AccessLevel.fromPropertyValue(properties.get(PN_ACCESS_LEVEL, String.class)).asPropertyValue())
                 .add("currentValue", currentValue(properties))
@@ -340,6 +350,11 @@ public class MetricImpl implements Metric
     private static long previousValue(final ValueMap properties)
     {
         return properties.get(PN_PREVIOUS_VALUE, 0L);
+    }
+
+    private static long defaultOrder(final ValueMap properties)
+    {
+        return properties.get(PN_DEFAULT_ORDER, 0L);
     }
 
     private static long currentDelta(final ValueMap properties)

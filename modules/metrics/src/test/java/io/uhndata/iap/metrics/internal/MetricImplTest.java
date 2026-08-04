@@ -90,6 +90,7 @@ class MetricImplTest
         properties.put("label", "Counted things");
         properties.put("description", "How many things were counted");
         properties.put("category", "Tests");
+        properties.put("iap:defaultOrder", 20L);
         properties.put("accessLevel", "admin");
         properties.put("oak:counter", 5L);
         properties.put("previousValue", 2L);
@@ -103,6 +104,7 @@ class MetricImplTest
         assertEquals("Counted things", this.metric.getLabel());
         assertEquals("How many things were counted", this.metric.getDescription());
         assertEquals("Tests", this.metric.getCategory());
+        assertEquals(20L, this.metric.getDefaultOrder());
         assertEquals(Metric.AccessLevel.ADMIN, this.metric.getAccessLevel());
         assertEquals(5L, this.metric.getCurrentValue());
         assertEquals(2L, this.metric.getPreviousValue());
@@ -121,6 +123,7 @@ class MetricImplTest
         assertEquals(NAME, this.metric.getLabel());
         assertNull(this.metric.getDescription());
         assertNull(this.metric.getCategory());
+        assertEquals(0L, this.metric.getDefaultOrder());
         assertEquals(Metric.AccessLevel.PUBLIC, this.metric.getAccessLevel());
         assertEquals(0L, this.metric.getCurrentValue());
         assertEquals(0L, this.metric.getPreviousValue());
@@ -199,6 +202,7 @@ class MetricImplTest
         properties.put("label", "Counted things");
         properties.put("description", "How many things were counted");
         properties.put("category", "Tests");
+        properties.put("iap:defaultOrder", 20L);
         properties.put("accessLevel", "admin");
         properties.put("oak:counter", 5L);
         properties.put("previousValue", 2L);
@@ -214,6 +218,7 @@ class MetricImplTest
         assertEquals("Counted things", json.getString("label"));
         assertEquals("How many things were counted", json.getString("description"));
         assertEquals("Tests", json.getString("category"));
+        assertEquals(20, json.getJsonNumber("defaultOrder").longValue());
         assertEquals("admin", json.getString("accessLevel"));
         assertEquals(5, json.getJsonNumber("currentValue").longValue());
         assertEquals(2, json.getJsonNumber("previousValue").longValue());
@@ -235,6 +240,7 @@ class MetricImplTest
         assertEquals(NAME, json.getString("label"));
         assertEquals("", json.getString("description"));
         assertEquals("", json.getString("category"));
+        assertEquals(0, json.getJsonNumber("defaultOrder").longValue());
         assertEquals("public", json.getString("accessLevel"));
         assertEquals(0, json.getJsonNumber("currentValue").longValue());
         assertEquals(0, json.getJsonNumber("previousValue").longValue());

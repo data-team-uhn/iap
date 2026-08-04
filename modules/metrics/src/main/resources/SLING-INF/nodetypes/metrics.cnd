@@ -60,6 +60,9 @@
   // Optional category used to group related metrics in reports
   - category (STRING)
 
+  // The order this metric appears in, among the metrics of its own category
+  - iap:defaultOrder (LONG) = "0" mandatory autocreated
+
   // Who may see this metric: everyone, or only administrators
   - accessLevel (STRING) = 'public' mandatory autocreated < 'public', 'admin'
 

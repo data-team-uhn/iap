@@ -109,6 +109,13 @@ public interface Metric
     String getCategory();
 
     /**
+     * Where this metric is placed among the metrics of its own {@link #getCategory category}, lower values first.
+     *
+     * @return the requested order, {@code 0} if none was set
+     */
+    long getDefaultOrder();
+
+    /**
      * Who is allowed to see this metric.
      *
      * @return one of the {@link AccessLevel} values, {@link AccessLevel#PUBLIC} by default
@@ -203,7 +210,8 @@ public interface Metric
      * Serialize this metric as a JSON object.
      *
      * @return a JSON object with the {@code name}, {@code label}, {@code description}, {@code category},
-     *         {@code accessLevel}, {@code currentValue}, {@code previousValue}, {@code currentDelta} and
+     *         {@code defaultOrder}, {@code accessLevel}, {@code currentValue}, {@code previousValue},
+     *         {@code currentDelta} and
      *         {@code lastDelta} keys, plus {@code lastUpdated} and {@code lastRollover} dates and the
      *         {@code rolloverSchedule} when present
      */

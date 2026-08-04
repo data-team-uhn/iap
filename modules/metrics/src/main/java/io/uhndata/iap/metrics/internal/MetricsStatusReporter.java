@@ -20,11 +20,11 @@ package io.uhndata.iap.metrics.internal;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import org.osgi.service.component.annotations.Component;
@@ -61,11 +61,14 @@ public class MetricsStatusReporter implements StatusReporter
     @Override
     public StatusReport report(final boolean unprivileged)
     {
+        // getMetrics() already returns them in display order, so grouping into a map that keeps insertion order
+        // reproduces it here: categories in the order they are met, uncategorized ones last, and each category's
+        // metrics in their own order. Sorting the keys instead would put the uncategorized group first.
         final Map<String, List<Metric>> categories = this.metricsManager.getMetrics().stream()
             .filter(metric -> !unprivileged || metric.getAccessLevel() == Metric.AccessLevel.PUBLIC)
             .collect(Collectors.groupingBy(
                 metric -> Objects.requireNonNullElse(metric.getCategory(), ""),
-                TreeMap::new, Collectors.toList()));
+                LinkedHashMap::new, Collectors.toList()));
         if (categories.isEmpty()) {
             // No metrics to display, or none that may be displayed here, better say nothing than show an empty list
             return null;

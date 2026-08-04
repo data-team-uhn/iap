@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.metrics.internal;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,17 @@ import io.uhndata.iap.metrics.api.MetricsManager;
 public class MetricsManagerImpl implements MetricsManager
 {
     private static final Pattern VALID_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]*");
+
+    /**
+     * The display order of the metrics: by category, uncategorized last, then by {@code iap:defaultOrder} within
+     * each category, and by name for metrics that agree on both, so the listing is stable. This compares the
+     * resources rather than {@link Metric} handles, because every handle read opens a service session of its own,
+     * while the resources are already in the one session the listing has open.
+     */
+    private static final Comparator<Resource> DISPLAY_ORDER =
+        Comparator.comparing(MetricsManagerImpl::category, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparingLong(MetricsManagerImpl::defaultOrder)
+            .thenComparing(Resource::getName);
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -81,9 +93,8 @@ public class MetricsManagerImpl implements MetricsManager
         try (ResourceResolver resolver = MetricImpl.openServiceResolver(this.resolverFactory)) {
             return StreamSupport.stream(getHomepage(resolver).getChildren().spliterator(), false)
                 .filter(MetricImpl::isMetric)
-                .map(Resource::getName)
-                .sorted()
-                .<Metric>map(name -> new MetricImpl(this.resolverFactory, name))
+                .sorted(DISPLAY_ORDER)
+                .<Metric>map(metric -> new MetricImpl(this.resolverFactory, metric.getName()))
                 .toList();
         }
     }
@@ -91,6 +102,29 @@ public class MetricsManagerImpl implements MetricsManager
     private static boolean isValidName(final String name)
     {
         return name != null && VALID_NAME.matcher(name).matches();
+    }
+
+    /**
+     * The category a metric node belongs to, for ordering purposes.
+     *
+     * @param metric a metric resource
+     * @return the category, or {@code null} when the metric is uncategorized, which sorts it last
+     */
+    private static String category(final Resource metric)
+    {
+        final String category = metric.getValueMap().get(MetricImpl.PN_CATEGORY, String.class);
+        return category == null || category.isBlank() ? null : category;
+    }
+
+    /**
+     * The requested placement of a metric node within its category.
+     *
+     * @param metric a metric resource
+     * @return the order, {@code 0} for a metric that doesn't declare one
+     */
+    private static long defaultOrder(final Resource metric)
+    {
+        return metric.getValueMap().get(MetricImpl.PN_DEFAULT_ORDER, 0L);
     }
 
     /**
@@ -124,6 +158,8 @@ public class MetricsManagerImpl implements MetricsManager
 
         private String category;
 
+        private long defaultOrder;
+
         private Metric.AccessLevel accessLevel = Metric.AccessLevel.PUBLIC;
 
         private String rolloverSchedule;
@@ -151,6 +187,13 @@ public class MetricsManagerImpl implements MetricsManager
         public MetricBuilder withCategory(final String category)
         {
             this.category = category;
+            return this;
+        }
+
+        @Override
+        public MetricBuilder withDefaultOrder(final long defaultOrder)
+        {
+            this.defaultOrder = defaultOrder;
             return this;
         }
 
@@ -195,6 +238,7 @@ public class MetricsManagerImpl implements MetricsManager
             properties.put("jcr:mixinTypes", new String[] { "mix:atomicCounter" });
             // The protected sling:resourceType property is autocreated by the node type, it cannot be set manually
             properties.put(MetricImpl.PN_LABEL, this.label == null ? this.name : this.label);
+            properties.put(MetricImpl.PN_DEFAULT_ORDER, this.defaultOrder);
             properties.put(MetricImpl.PN_ACCESS_LEVEL, this.accessLevel.asPropertyValue());
             properties.put(MetricImpl.PN_PREVIOUS_VALUE, 0L);
             if (this.description != null) {
@@ -220,6 +264,7 @@ public class MetricsManagerImpl implements MetricsManager
                 throw new MetricsException("The metric " + this.name + " cannot be modified");
             }
             properties.put(MetricImpl.PN_LABEL, this.label == null ? this.name : this.label);
+            properties.put(MetricImpl.PN_DEFAULT_ORDER, this.defaultOrder);
             properties.put(MetricImpl.PN_ACCESS_LEVEL, this.accessLevel.asPropertyValue());
             setOrRemove(properties, MetricImpl.PN_DESCRIPTION, this.description);
             setOrRemove(properties, MetricImpl.PN_CATEGORY, this.category);

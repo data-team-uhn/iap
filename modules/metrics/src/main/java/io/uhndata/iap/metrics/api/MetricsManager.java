@@ -68,6 +68,17 @@ public interface MetricsManager
         MetricBuilder withCategory(@Nullable String category);
 
         /**
+         * Place the metric among the metrics of its own {@link #withCategory category}, lower values first. The
+         * convention elsewhere in the platform is to leave gaps, e.g. multiples of ten, so that a metric can later
+         * be slotted in between two existing ones without renumbering them.
+         *
+         * @param defaultOrder the requested order; metrics that do not set one are ordered as {@code 0}
+         * @return this builder
+         */
+        @NotNull
+        MetricBuilder withDefaultOrder(long defaultOrder);
+
+        /**
          * Restrict who is allowed to see the metric.
          *
          * @param accessLevel one of the {@link Metric.AccessLevel} values
@@ -120,9 +131,12 @@ public interface MetricsManager
     Optional<Metric> getMetric(@Nullable String name);
 
     /**
-     * List all the defined metrics.
+     * List all the defined metrics, in the order they are meant to be displayed: grouped by
+     * {@link Metric#getCategory category}, categories in alphabetical order with the uncategorized metrics last,
+     * and ordered by {@link Metric#getDefaultOrder defaultOrder} within each category. Metrics that agree on all of
+     * that are ordered by name, so the listing is stable.
      *
-     * @return all metrics, sorted by name, may be empty
+     * @return all metrics, in display order, may be empty
      */
     @NotNull
     List<Metric> getMetrics();
