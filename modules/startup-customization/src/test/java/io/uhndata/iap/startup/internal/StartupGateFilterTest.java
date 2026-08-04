@@ -21,6 +21,10 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletRequest;
@@ -32,10 +36,12 @@ import org.apache.felix.hc.api.execution.HealthCheckExecutor;
 import org.apache.felix.hc.api.execution.HealthCheckMetadata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
+import org.osgi.service.component.ComponentContext;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -51,7 +57,13 @@ class StartupGateFilterTest
 {
     private static final String LOGIN_CHECK = "Login Page Ready Check";
 
+    private static final String OTHER_CHECK = "OSGi Framework Ready Check";
+
     private HealthCheckExecutor executor;
+
+    private ComponentContext componentContext;
+
+    private ScheduledExecutorService poller;
 
     private StartupGateFilter filter;
 
@@ -67,7 +79,9 @@ class StartupGateFilterTest
     void setUp() throws IOException
     {
         this.executor = mock(HealthCheckExecutor.class);
-        this.filter = new StartupGateFilter(this.executor);
+        this.componentContext = mock(ComponentContext.class);
+        this.poller = mock(ScheduledExecutorService.class);
+        this.filter = new StartupGateFilter(this.executor, this.componentContext, this.poller);
         this.request = mock(ServletRequest.class);
         this.response = mock(HttpServletResponse.class);
         this.chain = mock(FilterChain.class);
@@ -86,26 +100,28 @@ class StartupGateFilterTest
         return result;
     }
 
-    @Test
-    void passesRequestsThroughWhenAllChecksPassIncludingTheLoginPageCheck() throws Exception
+    /** Nested stubbing confuses Mockito, so the results are always built before the executor is stubbed. */
+    private void checksReport(final HealthCheckExecutionResult... results)
     {
-        final List<HealthCheckExecutionResult> results =
-            List.of(result("OSGi Framework Ready Check", true), result(LOGIN_CHECK, true));
-        when(this.executor.execute(any())).thenReturn(results);
+        final List<HealthCheckExecutionResult> reported = List.of(results);
+        when(this.executor.execute(any())).thenReturn(reported);
+    }
 
-        this.filter.doFilter(this.request, this.response, this.chain);
-
-        verify(this.chain).doFilter(this.request, this.response);
-        verify(this.response, never()).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+    private void assertStillGated()
+    {
+        verify(this.componentContext, never()).disableComponent(anyString());
     }
 
     @Test
-    void servesTheStartupPageWhenAnyCheckFails() throws Exception
+    void schedulesTheReadinessPoller()
     {
-        final List<HealthCheckExecutionResult> results =
-            List.of(result("OSGi Framework Ready Check", false), result(LOGIN_CHECK, true));
-        when(this.executor.execute(any())).thenReturn(results);
+        verify(this.poller).scheduleWithFixedDelay(any(Runnable.class), eq(StartupGateFilter.POLL_INTERVAL_MS),
+            eq(StartupGateFilter.POLL_INTERVAL_MS), eq(TimeUnit.MILLISECONDS));
+    }
 
+    @Test
+    void staysClosedBeforeTheFirstPoll() throws Exception
+    {
         this.filter.doFilter(this.request, this.response, this.chain);
 
         verify(this.chain, never()).doFilter(this.request, this.response);
@@ -115,24 +131,23 @@ class StartupGateFilterTest
     }
 
     @Test
-    void servesTheStartupPageWhenTheLoginPageCheckIsMissing() throws Exception
+    void opensWhenAllChecksPassIncludingTheLoginPageCheck() throws Exception
     {
-        // Every present check passes, but the one that proves the login page renders is not registered
-        // (yet, or anymore): the gate must fail closed rather than trust an incomplete picture.
-        final List<HealthCheckExecutionResult> results = List.of(result("OSGi Framework Ready Check", true));
-        when(this.executor.execute(any())).thenReturn(results);
+        checksReport(result(OTHER_CHECK, true), result(LOGIN_CHECK, true));
 
+        this.filter.poll(0);
         this.filter.doFilter(this.request, this.response, this.chain);
 
-        verify(this.chain, never()).doFilter(this.request, this.response);
-        verify(this.response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+        verify(this.chain).doFilter(this.request, this.response);
+        verify(this.response, never()).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
     }
 
     @Test
-    void servesTheStartupPageWhenNoChecksAreRegistered() throws Exception
+    void staysClosedWhenAnyCheckFails() throws Exception
     {
-        when(this.executor.execute(any())).thenReturn(List.of());
+        checksReport(result(OTHER_CHECK, false), result(LOGIN_CHECK, true));
 
+        this.filter.poll(0);
         this.filter.doFilter(this.request, this.response, this.chain);
 
         verify(this.chain, never()).doFilter(this.request, this.response);
@@ -141,11 +156,13 @@ class StartupGateFilterTest
     }
 
     @Test
-    void servesTheStartupPageWhenTheLoginPageCheckFails() throws Exception
+    void staysClosedWhenTheLoginPageCheckIsMissing() throws Exception
     {
-        final List<HealthCheckExecutionResult> results = List.of(result(LOGIN_CHECK, false));
-        when(this.executor.execute(any())).thenReturn(results);
+        // Every present check passes, but the one that proves the login page renders is not registered
+        // (yet, or anymore): the gate must fail closed rather than trust an incomplete picture.
+        checksReport(result(OTHER_CHECK, true));
 
+        this.filter.poll(0);
         this.filter.doFilter(this.request, this.response, this.chain);
 
         verify(this.chain, never()).doFilter(this.request, this.response);
@@ -153,14 +170,134 @@ class StartupGateFilterTest
     }
 
     @Test
-    void doFilterIsQuietUnderRepeatedCalls() throws Exception
+    void staysClosedWhenNoChecksAreRegistered() throws Exception
     {
-        final List<HealthCheckExecutionResult> results = List.of(result(LOGIN_CHECK, true));
-        when(this.executor.execute(any())).thenReturn(results);
+        checksReport();
 
-        this.filter.doFilter(this.request, this.response, this.chain);
+        this.filter.poll(0);
         this.filter.doFilter(this.request, this.response, this.chain);
 
-        verify(this.chain, Mockito.times(2)).doFilter(this.request, this.response);
+        verify(this.chain, never()).doFilter(this.request, this.response);
+        verify(this.response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+    }
+
+    @Test
+    void closesAgainWhenReadinessRegresses() throws Exception
+    {
+        checksReport(result(LOGIN_CHECK, true));
+        this.filter.poll(0);
+
+        checksReport(result(LOGIN_CHECK, false));
+        this.filter.poll(StartupGateFilter.SETTLE_NANOS);
+        this.filter.doFilter(this.request, this.response, this.chain);
+
+        verify(this.chain, never()).doFilter(this.request, this.response);
+        verify(this.response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+        assertStillGated();
+    }
+
+    @Test
+    void doesNotRetireBeforeReadinessHasSettled()
+    {
+        checksReport(result(LOGIN_CHECK, true));
+
+        this.filter.poll(0);
+        this.filter.poll(StartupGateFilter.SETTLE_NANOS - 1);
+
+        assertStillGated();
+    }
+
+    @Test
+    void retiresTheWholeGateOnceReadinessHasSettled()
+    {
+        checksReport(result(OTHER_CHECK, true), result(LOGIN_CHECK, true));
+
+        this.filter.poll(0);
+        this.filter.poll(StartupGateFilter.SETTLE_NANOS);
+
+        verify(this.componentContext).disableComponent(StartupPlaceholderServlet.class.getName());
+        verify(this.componentContext).disableComponent(StartupPlaceholderContext.class.getName());
+        verify(this.componentContext).disableComponent(StartupGateFilter.class.getName());
+        verify(this.poller).shutdown();
+    }
+
+    @Test
+    void restartsTheSettleWindowAfterAnInterruption()
+    {
+        // Ready, briefly not ready, ready again: only the last stretch counts, so a pair of ready polls
+        // straddling the interruption must not be mistaken for a system that has been up all along.
+        checksReport(result(LOGIN_CHECK, true));
+        this.filter.poll(0);
+
+        checksReport(result(LOGIN_CHECK, false));
+        this.filter.poll(1);
+
+        checksReport(result(LOGIN_CHECK, true));
+        this.filter.poll(2);
+        this.filter.poll(StartupGateFilter.SETTLE_NANOS);
+
+        assertStillGated();
+
+        this.filter.poll(StartupGateFilter.SETTLE_NANOS + 2);
+
+        verify(this.componentContext).disableComponent(StartupGateFilter.class.getName());
+    }
+
+    @Test
+    void pollsWithTheCurrentTime() throws Exception
+    {
+        checksReport(result(LOGIN_CHECK, true));
+
+        this.filter.poll();
+        this.filter.doFilter(this.request, this.response, this.chain);
+
+        verify(this.chain).doFilter(this.request, this.response);
+        assertStillGated();
+    }
+
+    @Test
+    void stopsPollingWhenDeactivated()
+    {
+        this.filter.deactivate();
+
+        verify(this.poller).shutdownNow();
+    }
+
+    @Test
+    void pollsOnItsOwnScheduleWhenActivatedByOsgi() throws Exception
+    {
+        checksReport(result(LOGIN_CHECK, true));
+        final AtomicBoolean passedThrough = new AtomicBoolean();
+        final FilterChain recordingChain = (req, res) -> passedThrough.set(true);
+        // The real scheduler is in charge here: nothing below calls poll(), so the gate can only open if the
+        // component scheduled its own readiness evaluations.
+        final StartupGateFilter osgiFilter = new StartupGateFilter(this.executor, this.componentContext);
+
+        try {
+            final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (!passedThrough.get() && System.nanoTime() < deadline) {
+                osgiFilter.doFilter(this.request, this.response, recordingChain);
+                Thread.sleep(50);
+            }
+        } finally {
+            osgiFilter.deactivate();
+        }
+
+        assertTrue(passedThrough.get());
+    }
+
+    @Test
+    void pollsOnADaemonThread() throws Exception
+    {
+        final ScheduledExecutorService realPoller = StartupGateFilter.newPoller();
+        try {
+            final CountDownLatch started = new CountDownLatch(1);
+            realPoller.execute(started::countDown);
+
+            assertTrue(started.await(10, TimeUnit.SECONDS));
+            assertTrue(realPoller.submit(() -> Thread.currentThread().isDaemon()).get());
+        } finally {
+            realPoller.shutdownNow();
+        }
     }
 }

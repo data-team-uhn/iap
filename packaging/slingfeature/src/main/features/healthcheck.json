@@ -126,7 +126,9 @@
         // the JCR installer re-delivers configurations mid-startup, and it treats a transiently
         // empty set of checks as healthy. The configuration-free StartupGateFilter in the
         // startup-customization module serves the same purpose, gated on the systemalive tag and
-        // on the Login Page Ready check specifically.
+        // on the Login Page Ready check specifically. It evaluates these checks on a background
+        // poller, never on the request thread, and retires itself once the system has been ready
+        // for a few uninterrupted seconds, so a started system pays nothing for it.
         "org.apache.felix.hc.core.impl.servlet.HealthCheckExecutorServlet~default":{
             "servletPath":"/system/health",
             "servletContextName":"org.osgi.service.http",

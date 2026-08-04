@@ -36,7 +36,9 @@ import org.osgi.service.component.annotations.Component;
  * dispatcher only routes requests into a context that has a matching servlet, so without this catch-all the
  * placeholder context — and with it the {@link StartupGateFilter} — would simply be skipped, and early visitors would
  * get the raw container 404. Since the placeholder context has the lowest possible ranking, this servlet only ever
- * sees requests that no real context could handle, which is exactly the early startup phase.
+ * sees requests that no real context could handle, which is exactly the early startup phase. Like the rest of the
+ * gate, this component is disabled by the {@link StartupGateFilter} once the system is up, and enabled again by the
+ * next restart.
  *
  * @version $Id$
  * @since 0.1.0

@@ -26,7 +26,8 @@ import org.osgi.service.servlet.whiteboard.HttpWhiteboardConstants;
  * servlet context, and the main Sling one only appears once the repository is up, seconds into the startup — until
  * then requests would bypass the {@link StartupGateFilter} and get the raw container 404. This empty context exists
  * so the filter has somewhere to run from the very start; its rock-bottom ranking lets every real context take over
- * as it appears.
+ * as it appears. Like the rest of the gate, this component is disabled by the {@link StartupGateFilter} once the
+ * system is up, and enabled again by the next restart.
  *
  * @version $Id$
  * @since 0.1.0
