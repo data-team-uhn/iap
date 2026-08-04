@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.felix.hc.api.Result;
@@ -67,7 +67,7 @@ class StartupGateFilterTest
 
     private StartupGateFilter filter;
 
-    private ServletRequest request;
+    private HttpServletRequest request;
 
     private HttpServletResponse response;
 
@@ -82,7 +82,8 @@ class StartupGateFilterTest
         this.componentContext = mock(ComponentContext.class);
         this.poller = mock(ScheduledExecutorService.class);
         this.filter = new StartupGateFilter(this.executor, this.componentContext, this.poller);
-        this.request = mock(ServletRequest.class);
+        this.request = mock(HttpServletRequest.class);
+        when(this.request.getRequestURI()).thenReturn("/some/page.html");
         this.response = mock(HttpServletResponse.class);
         this.chain = mock(FilterChain.class);
         this.body = new StringWriter();
@@ -128,6 +129,22 @@ class StartupGateFilterTest
         verify(this.response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         verify(this.response).setHeader("Cache-Control", "no-store");
         assertTrue(this.body.toString().contains("IAP is starting up"));
+    }
+
+    @Test
+    void letsSystemRequestsThroughWhileStillClosed() throws Exception
+    {
+        // The console and the health checks are how a stuck startup gets diagnosed, so they are never gated.
+        // The whiteboard matches its own pattern against context-relative paths, and the console lives in a
+        // context of its own, so this cannot be left to the filter.regex property.
+        checksReport();
+        when(this.request.getRequestURI()).thenReturn("/system/console/bundles.json");
+
+        this.filter.poll(0);
+        this.filter.doFilter(this.request, this.response, this.chain);
+
+        verify(this.chain).doFilter(this.request, this.response);
+        verify(this.response, never()).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
     }
 
     @Test

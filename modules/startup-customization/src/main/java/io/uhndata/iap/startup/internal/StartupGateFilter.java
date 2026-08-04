@@ -32,6 +32,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.felix.hc.api.Result;
@@ -49,10 +50,12 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Serves the static "starting up" page instead of half-working pages until the system is actually ready to face
- * visitors: all the health checks tagged {@code systemalive} must pass, and among them there must be the one that
- * verifies that the login page renders. Requiring that specific check is what makes the gate fail closed: during
- * startup the check components themselves flicker in and out of existence while their configurations are delivered,
- * and a transiently empty or partial set of checks must keep the gate shut, not open it.
+ * visitors, everywhere except under {@code /system/}, which stays reachable throughout so that a stuck startup can be
+ * diagnosed through the console and the health checks. Ready means that all the health checks tagged
+ * {@code systemalive} pass, and that among them is the one verifying that the login page renders. Requiring that
+ * specific check is what makes the gate fail closed: during startup the check components themselves flicker in and out
+ * of existence while their configurations are delivered, and a transiently empty or partial set of checks must keep
+ * the gate shut, not open it.
  *
  * <p>
  * Readiness is evaluated by a background poller rather than on the request thread, because running the checks is
@@ -79,8 +82,9 @@ import org.slf4j.LoggerFactory;
  * @since 0.1.0
  */
 @Component(service = Filter.class, property = {
-    // Everything except /system/, where the console, the health check servlet, and the readiness probes live
-    "osgi.http.whiteboard.filter.regex=(?!/system/).*",
+    // Every request of every context; which ones to actually gate is decided in doFilter, because the whiteboard
+    // matches this pattern against context-relative paths, so it cannot express a rule about absolute ones
+    "osgi.http.whiteboard.filter.regex=.*",
     "osgi.http.whiteboard.context.select=(osgi.http.whiteboard.context.name=*)",
     "service.ranking:Integer=2147483647"
 })
@@ -104,6 +108,9 @@ public final class StartupGateFilter implements Filter
 
     /** The tag selecting the health checks that make up the gate. */
     private static final String GATE_TAG = "systemalive";
+
+    /** Requests below this path are never gated: the console, the health check servlet and the readiness probes. */
+    private static final String SYSTEM_PATH = "/system/";
 
     private final HealthCheckExecutor healthCheckExecutor;
 
@@ -184,7 +191,7 @@ public final class StartupGateFilter implements Filter
     public void doFilter(final ServletRequest request, final ServletResponse response, final FilterChain chain)
         throws IOException, ServletException
     {
-        if (this.open) {
+        if (this.open || ((HttpServletRequest) request).getRequestURI().startsWith(SYSTEM_PATH)) {
             chain.doFilter(request, response);
             return;
         }
