@@ -71,6 +71,9 @@ describe("DeleteCategoryDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(await screen.findByText(/has submissions and cannot be deleted/)).toBeInTheDocument();
+    // Retiring is explained here in the same words the retirement dialog uses
+    expect(screen.getByText(/Existing submissions stay in this category and keep working/))
+      .toBeInTheDocument();
     // The deletion is off the table now, and the dialog stays up to offer the alternative
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
