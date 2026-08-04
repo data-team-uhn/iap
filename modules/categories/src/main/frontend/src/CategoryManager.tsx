@@ -26,6 +26,7 @@ import ErrorDialog from "@iap/frontend-commons/components/ErrorDialog";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 
 import CategoryDialog, { type CategorySubmission } from "./CategoryDialog";
+import CategoryLoadError from "./CategoryLoadError";
 import CategoryTree, { type CategoryActions } from "./CategoryTree";
 import DeleteCategoryDialog from "./DeleteCategoryDialog";
 import { CATEGORIES_ROOT, useCategoryTree } from "./useCategoryTree";
@@ -46,7 +47,7 @@ const parentPathOf = (path: string): string => path.slice(0, path.lastIndexOf("/
 // administrators add, edit, rearrange, retire and delete categories, and bind leaf categories to
 // the schema version their submissions must follow.
 function CategoryManager() {
-  const { tree, loading, loadError, create, update, move, reorder, setRetired, remove } = useCategoryTree();
+  const { tree, loading, loadError, reload, create, update, move, reorder, setRetired, remove } = useCategoryTree();
   const [ dialog, setDialog ] = useState<DialogState>();
   const [ deleteTarget, setDeleteTarget ] = useState<CategoryNode>();
   const [ actionError, setActionError ] = useState<string>();
@@ -93,6 +94,9 @@ function CategoryManager() {
       }
     >
       <LoadingOverlay open={loading} />
+      { /* Reported above the tree rather than in place of it: reloading follows every write too,
+           so this doubles as the "your view is out of date" report over a still-readable tree. */ }
+      { loadError && <CategoryLoadError message={loadError} onRetry={reload} sx={{ mb: 2 }} /> }
       { !loading && tree.length === 0 && !loadError
         && (
           <Typography color="textSecondary">
@@ -121,11 +125,11 @@ function CategoryManager() {
           />
         )}
       <ErrorDialog
-        open={!!loadError || !!actionError}
-        title={loadError ? "The categories could not be loaded" : "The change could not be applied"}
+        open={!!actionError}
+        title="The change could not be applied"
         onClose={() => setActionError(undefined)}
       >
-        { loadError ?? actionError }
+        {actionError}
       </ErrorDialog>
     </AdminScreen>
   );

@@ -22,6 +22,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Chip, CircularProgress, Collapse, IconButton, List, ListItem, Stack, Typography } from "@mui/material";
 
+import CategoryLoadError from "./CategoryLoadError";
 import { useCategoryTree } from "./useCategoryTree";
 
 import type { CategoryNode } from "./categoryModel";
@@ -73,13 +74,13 @@ function CategoryBranch({ nodes, depth }: { nodes: CategoryNode[]; depth: number
 // management UI, which itself is behind the widget frame's "Manage categories" action (see the
 // extension node).
 function CategoriesWidget() {
-  const { tree, loading, loadError } = useCategoryTree();
+  const { tree, loading, loadError, reload } = useCategoryTree();
 
   if (loading) {
     return <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} />;
   }
   if (loadError) {
-    return <Typography color="error" variant="body2">The categories could not be loaded.</Typography>;
+    return <CategoryLoadError message={loadError} onRetry={reload} />;
   }
   if (tree.length === 0) {
     return <Typography color="textSecondary" variant="body2">No categories are defined yet.</Typography>;
