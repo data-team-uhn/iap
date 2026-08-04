@@ -32,6 +32,11 @@ import org.jetbrains.annotations.NotNull;
  * {@code 400} comes back as an unsuccessful {@link HttpResponse}, which callers that care must check.
  * </p>
  *
+ * <p>
+ * An address can itself be a secret, since a chat webhook carries its authorization token in its path, so a failure
+ * never quotes the address it was given, only the service it was trying to reach.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -44,7 +49,8 @@ public interface HttpRequests
      * @param body the body to send
      * @param contentType the media type of the body, e.g. {@code application/json}
      * @return what the service answered
-     * @throws IOException if the request could not be made, e.g. the service is unreachable or stopped answering
+     * @throws IOException if the request could not be made, e.g. the address is not a valid http(s) URL, the
+     *     service is unreachable, or it stopped answering
      */
     @NotNull
     HttpResponse post(@NotNull String url, @NotNull String body, @NotNull String contentType) throws IOException;
@@ -57,7 +63,8 @@ public interface HttpRequests
      * @param contentType the media type of the body, e.g. {@code application/json}
      * @param charset the charset to encode the body with
      * @return what the service answered
-     * @throws IOException if the request could not be made, e.g. the service is unreachable or stopped answering
+     * @throws IOException if the request could not be made, e.g. the address is not a valid http(s) URL, the
+     *     service is unreachable, or it stopped answering
      */
     @NotNull
     HttpResponse post(@NotNull String url, @NotNull String body, @NotNull String contentType,
