@@ -193,17 +193,48 @@ describe("CategoryManager", () => {
   });
 
   describe("acting on a row", () => {
-    it("retires a category, and unretires a retired one", async () => {
+    it("retires a category once the retirement is confirmed", async () => {
       stubFetch();
       renderManager();
       await screen.findByText("Retrospective studies");
 
       fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
+
+      // The row action only asks; the effect is spelled out because it lands on submitters
+      expect(await screen.findByRole("heading", { name: "Retire Retrospective studies?" })).toBeInTheDocument();
+      expect(screen.getByText(/no longer be available for new submissions/)).toBeInTheDocument();
+      expect(postsMatching(body => body.includes("retired=true"))).toHaveLength(0);
+
+      fireEvent.click(screen.getByRole("button", { name: "Retire" }));
+
       await waitFor(() => {
         expect(postsMatching(body => body.includes("retired=true"))).not.toHaveLength(0);
       });
+    });
+
+    it("abandons a retirement that is called off", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Retrospective studies");
+      fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
+      await screen.findByRole("button", { name: "Retire" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "Retire" })).not.toBeInTheDocument();
+      });
+      expect(postsMatching(body => body.includes("retired=true"))).toHaveLength(0);
+    });
+
+    // Unretiring is the confirmation's undo, so it acts directly
+    it("unretires a retired category without asking", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Paper submissions");
 
       fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
+
       await waitFor(() => {
         expect(postsMatching(body => body.includes("retired=false"))).not.toHaveLength(0);
       });
@@ -267,14 +298,17 @@ describe("CategoryManager", () => {
   });
 
   describe("when something goes wrong", () => {
+    // The row actions that act immediately - reordering, and unretiring - have nowhere of their own
+    // to report to, so they still raise the dialog. The ones that ask first report inside the
+    // dialog the user is already looking at.
     it("reports a refused row action, and lets the report be dismissed", async () => {
       stubFetch();
       const fetchMock = vi.mocked(fetch);
       renderManager();
-      await screen.findByText("Retrospective studies");
+      await screen.findByText("Paper submissions");
 
       fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
-      fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
+      fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
 
       expect(await screen.findByRole("heading", { name: "The change could not be applied" })).toBeInTheDocument();
       expect(screen.getByText(/403/)).toBeInTheDocument();
@@ -292,12 +326,28 @@ describe("CategoryManager", () => {
       stubFetch();
       const fetchMock = vi.mocked(fetch);
       renderManager();
-      await screen.findByText("Retrospective studies");
+      await screen.findByText("Paper submissions");
 
       fetchMock.mockRejectedValueOnce("connection reset");
-      fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
+      fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
 
       expect(await screen.findByText("connection reset")).toBeInTheDocument();
+    });
+
+    it("reports a refused retirement inside the dialog that asked for it", async () => {
+      stubFetch();
+      const fetchMock = vi.mocked(fetch);
+      renderManager();
+      await screen.findByText("Retrospective studies");
+      fireEvent.click(screen.getByRole("button", { name: "Retire Retrospective studies" }));
+
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
+      fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
+
+      expect(await screen.findByText(/403/)).toBeInTheDocument();
+      // Reported where it was asked for, and ready to be tried again
+      expect(screen.getByRole("heading", { name: "Retire Retrospective studies?" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "The change could not be applied" })).not.toBeInTheDocument();
     });
 
     // A load failure is reported in place rather than in a modal, because the modal would be a

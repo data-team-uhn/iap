@@ -18,10 +18,11 @@
 
 import { useState } from "react";
 
-import { Alert, Button, DialogActions, DialogContent, DialogContentText } from "@mui/material";
+import { Alert, DialogContentText } from "@mui/material";
 
-import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
 
+import { RETIREMENT_EFFECT } from "./RetireCategoryDialog";
 import { CategoryReferencedError } from "./useCategoryTree";
 
 import type { CategoryNode } from "./categoryModel";
@@ -38,57 +39,40 @@ interface DeleteCategoryDialogProps {
 // The delete confirmation dialog. When the server refuses the deletion because the category
 // has submissions, the dialog switches to offering to retire the category instead.
 function DeleteCategoryDialog({ node, onClose, onDelete, onRetire }: DeleteCategoryDialogProps) {
-  const [ working, setWorking ] = useState(false);
-  const [ error, setError ] = useState<string>();
   const [ referenced, setReferenced ] = useState(false);
 
-  const run = (action: (node: CategoryNode) => Promise<void>) => {
-    setWorking(true);
-    setError(undefined);
-    action(node)
-      .then(onClose)
-      .catch((err: unknown) => {
-        if (err instanceof CategoryReferencedError) {
-          setReferenced(true);
-        } else {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-        setWorking(false);
-      });
+  // A refused deletion is not a failure to report but a fork in the dialog: the deletion comes off
+  // the table and the retirement it suggested takes its place.
+  const takeRefusalAsAnOffer = (error: unknown): boolean => {
+    if (error instanceof CategoryReferencedError) {
+      setReferenced(true);
+      return true;
+    }
+    return false;
   };
 
   return (
-    <ResponsiveDialog open title={`Delete ${node.label}?`} width="xs" withCloseButton onClose={onClose}>
-      <DialogContent dividers>
-        { referenced
-          ? (
-            <Alert severity="warning">
-              This category has submissions and cannot be deleted. Retiring it keeps the existing
-              submissions but allows no new ones.
-            </Alert>
-          )
-          : (
-            <DialogContentText>
-              The category &quot;{node.label}&quot; will be permanently deleted. This cannot be undone.
-            </DialogContentText>
-          )}
-        { error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert> }
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={working}>Cancel</Button>
-        { referenced
-          ? (
-            <Button variant="contained" color="warning" onClick={() => run(onRetire)} disabled={working}>
-              Retire instead
-            </Button>
-          )
-          : (
-            <Button variant="contained" color="error" onClick={() => run(onDelete)} disabled={working}>
-              Delete
-            </Button>
-          )}
-      </DialogActions>
-    </ResponsiveDialog>
+    <ConfirmActionDialog
+      title={`Delete ${node.label}?`}
+      confirmLabel={referenced ? "Retire instead" : "Delete"}
+      confirmColor={referenced ? "warning" : "error"}
+      onConfirm={referenced ? () => onRetire(node) : () => onDelete(node)}
+      // Only a deletion can be refused this way; a failed retirement is reported, not reinterpreted
+      interceptFailure={referenced ? undefined : takeRefusalAsAnOffer}
+      onClose={onClose}
+    >
+      { referenced
+        ? (
+          <Alert severity="warning">
+            This category has submissions and cannot be deleted, but it can be retired. {RETIREMENT_EFFECT}
+          </Alert>
+        )
+        : (
+          <DialogContentText>
+            The category &quot;{node.label}&quot; will be permanently deleted. This cannot be undone.
+          </DialogContentText>
+        )}
+    </ConfirmActionDialog>
   );
 }
 
