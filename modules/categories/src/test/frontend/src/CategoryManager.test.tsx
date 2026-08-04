@@ -300,15 +300,34 @@ describe("CategoryManager", () => {
       expect(await screen.findByText("connection reset")).toBeInTheDocument();
     });
 
-    it("reports a tree that could not be loaded", async () => {
+    // A load failure is reported in place rather than in a modal, because the modal would be a
+    // dead end: there is nothing to acknowledge, only something to try again.
+    it("reports a tree that could not be loaded, in place", async () => {
       vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
         ok: false, status: 500, statusText: "Server Error",
       } as unknown as Response)));
 
       renderManager();
 
-      expect(await screen.findByRole("heading", { name: "The categories could not be loaded" }))
-        .toBeInTheDocument();
+      const report = await screen.findByRole("alert");
+      expect(report).toHaveTextContent("The categories could not be loaded");
+      expect(report).toHaveTextContent("500");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("reloads the tree when the load failure's Retry is used", async () => {
+      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+        ok: false, status: 500, statusText: "Server Error",
+      } as unknown as Response)));
+      renderManager();
+      await screen.findByRole("alert");
+
+      // The next attempt succeeds
+      stubFetch();
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+      expect(await screen.findByText("Retrospective studies")).toBeInTheDocument();
+      await waitFor(() => { expect(screen.queryByRole("alert")).not.toBeInTheDocument(); });
     });
 
     it("invites the first category when there are none", async () => {

@@ -82,7 +82,24 @@ describe("CategoriesWidget", () => {
     } as unknown as Response)));
     render(<CategoriesWidget />);
 
-    expect(await screen.findByText("The categories could not be loaded.")).toBeInTheDocument();
+    const report = await screen.findByRole("alert");
+    expect(report).toHaveTextContent("The categories could not be loaded");
+    expect(report).toHaveTextContent("500");
+  });
+
+  it("reloads the tree when the load failure's Retry is used", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: false, status: 500, statusText: "Server Error",
+    } as unknown as Response)));
+    render(<CategoriesWidget />);
+    await screen.findByRole("alert");
+
+    // The next attempt succeeds
+    stubFetch();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Retrospective studies")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
   it("reports an empty tree", async () => {
