@@ -25,7 +25,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +51,6 @@ class StartupPlaceholderServletTest
 
         verify(response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         verify(response).setHeader("Cache-Control", "no-store");
-        assertTrue(body.toString().contains("IAP is starting up"));
+        assertEquals(StartupPageFixture.stubPage(), body.toString());
     }
 }

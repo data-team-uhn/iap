@@ -38,6 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.osgi.service.component.ComponentContext;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -128,7 +129,7 @@ class StartupGateFilterTest
         verify(this.chain, never()).doFilter(this.request, this.response);
         verify(this.response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
         verify(this.response).setHeader("Cache-Control", "no-store");
-        assertTrue(this.body.toString().contains("IAP is starting up"));
+        assertEquals(StartupPageFixture.stubPage(), this.body.toString());
     }
 
     @Test
@@ -169,7 +170,7 @@ class StartupGateFilterTest
 
         verify(this.chain, never()).doFilter(this.request, this.response);
         verify(this.response).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-        assertTrue(this.body.toString().contains("IAP is starting up"));
+        assertEquals(StartupPageFixture.stubPage(), this.body.toString());
     }
 
     @Test
