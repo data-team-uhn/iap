@@ -16,6 +16,6 @@
 
 {
     "prototype":{
-        "id": "${project.groupId}:iap-error-tracking:slingosgifeature:${project.version}"
+        "id": "${project.groupId}:iap-error-tracking-impl:slingosgifeature:${project.version}"
     }
 }

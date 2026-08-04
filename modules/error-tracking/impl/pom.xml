@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.uhndata.iap</groupId>
+    <artifactId>iap-error-tracking</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>iap-error-tracking-impl</artifactId>
+  <packaging>bundle</packaging>
+  <name>IAP - Error Tracking - Implementation</name>
+  <description>Keeps track of errors by recording them in the repository, and reports the ones nobody has dealt with yet</description>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Include-Resource>{maven-resources}</Include-Resource>
+            <Sling-Nodetypes>SLING-INF/nodetypes/errortracking.cnd</Sling-Nodetypes>
+            <Sling-Model-Packages>io.uhndata.iap.errortracking.models</Sling-Model-Packages>
+            <Sling-Initial-Content>
+              SLING-INF/content/libs/err/LoggedError/;path:=/libs/err/LoggedError/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/err/LoggedFailure/;path:=/libs/err/LoggedFailure/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/err/LoggedProblem/;path:=/libs/err/LoggedProblem/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/err/LoggedErrorsHomepage/;path:=/libs/err/LoggedErrorsHomepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/err/Acknowledgement/;path:=/libs/err/Acknowledgement/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
+            </Sling-Initial-Content>
+          </instructions>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <dependencies>
+    <!-- Nullability annotations for the exported API/SPI -->
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-error-tracking-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-status</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- The Content model the recorded errors are read through -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-content-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- iap:EntityHomepage, which is what makes /LoggedErrors.paginate.json work -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-entities-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- The Taggable model and the TagProcessor SPI deriving the triage markers -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.models.api</artifactId>
+      <version>2.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.servlets.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+    </dependency>
+    <!-- Content.toJson() is part of the inherited model API, so this is no longer test-only -->
+    <dependency>
+      <groupId>jakarta.json</groupId>
+      <artifactId>jakarta.json-api</artifactId>
+    </dependency>
+    <!-- NodeState, the level a tag processor sees the repository at -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-store-spi</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.parsson</groupId>
+      <artifactId>parsson</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- The bundle context a mock Sling request is built against -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.framework</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>javax.annotation</groupId>
+      <artifactId>javax.annotation-api</artifactId>
+    </dependency>
+  </dependencies>
+</project>

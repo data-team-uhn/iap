@@ -26,69 +26,16 @@
   </parent>
 
   <artifactId>iap-error-tracking</artifactId>
-  <packaging>bundle</packaging>
+  <packaging>pom</packaging>
   <name>IAP - Error Tracking</name>
-  <description>Keeps track of errors by storing their stack traces in the repository</description>
 
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.felix</groupId>
-        <artifactId>maven-bundle-plugin</artifactId>
-        <extensions>true</extensions>
-        <configuration>
-          <instructions>
-            <Sling-Nodetypes>SLING-INF/nodetypes/errortracking.cnd</Sling-Nodetypes>
-          </instructions>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
-
-  <dependencies>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-status</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.osgi</groupId>
-      <artifactId>org.osgi.service.component.annotations</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>slf4j-api</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-engine</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.mockito</groupId>
-      <artifactId>mockito-core</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>jakarta.json</groupId>
-      <artifactId>jakarta.json-api</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.glassfish</groupId>
-      <artifactId>jakarta.json</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
+  <!--
+    Split in two so that the modules whose failures are worth recording can depend on the way in without depending on
+    the recording itself: the API bundle knows nothing about the repository, while the implementation depends on the
+    data model and on tags, both of which have failures of their own to report.
+  -->
+  <modules>
+    <module>api</module>
+    <module>impl</module>
+  </modules>
 </project>

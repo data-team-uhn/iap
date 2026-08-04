@@ -40,3 +40,8 @@ Built-in reporters:
 - **Metrics** (`iap-metrics`, tags `metrics`, `activity`) — the current values of all the
   [metrics](metrics.md), grouped by category, as an `INFO` report; admin-only metrics are left
   out of unprivileged reports.
+- **Logged errors** (`iap-error-tracking-impl`, tags `problems`, `errors`) — the
+  [errors recorded](error-tracking.md) by an instance that nobody was there to see: an `ERROR`
+  while any of them still needs attention, an `INFO` once they have all been acknowledged. What
+  broke and how often is reported to anyone; the stack traces, messages and paths only to a reader
+  who is logged in.
