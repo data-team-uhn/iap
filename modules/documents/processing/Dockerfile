@@ -49,6 +49,10 @@ ENV PYTHONUNBUFFERED=1 \
     # letting each worker also thread out oversubscribes the container's CPU quota.
     OMP_NUM_THREADS=1 \
     DOCLING_NUM_THREADS=1 \
+    # The layout model triggers torch.compile, whose TorchInductor backend needs a C++
+    # compiler at runtime; this slim image has none, so every conversion would fail with
+    # InvalidCxxCompiler. Eager mode loses little on CPU with single-threaded workers.
+    TORCHDYNAMO_DISABLE=1 \
     # Where the baked weights live. download_models() saves into DOCLING_ARTIFACTS_PATH,
     # and Docling reads them back from that same layout at runtime.
     DOCLING_ARTIFACTS_PATH=/opt/models/docling \
