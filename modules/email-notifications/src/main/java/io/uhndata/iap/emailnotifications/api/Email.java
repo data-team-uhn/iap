@@ -20,6 +20,9 @@ package io.uhndata.iap.emailnotifications.api;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * A read-only email, ready to be sent. Emails are built from {@link EmailTemplate templates}: read a template, fill in
  * its variables with {@link EmailTemplate#getEmailBuilder(Map)}, set a recipient, and send it with
@@ -48,7 +51,7 @@ public class Email extends EmailTemplate
      *
      * @param template the template this email is based on
      */
-    protected Email(final EmailTemplate template)
+    protected Email(@NotNull final EmailTemplate template)
     {
         super(template);
     }
@@ -58,6 +61,7 @@ public class Email extends EmailTemplate
      *
      * @return a valid email address
      */
+    @NotNull
     public String getRecipientAddress()
     {
         return this.toAddress;
@@ -68,6 +72,7 @@ public class Email extends EmailTemplate
      *
      * @return a display name, {@code null} when the address stands on its own
      */
+    @Nullable
     public String getRecipientName()
     {
         return this.toName;
@@ -78,6 +83,7 @@ public class Email extends EmailTemplate
      *
      * @return a large string, {@code null} if the email has no HTML part
      */
+    @Nullable
     public String getHtmlBody()
     {
         return this.htmlBody;
@@ -88,6 +94,7 @@ public class Email extends EmailTemplate
      *
      * @return a large string, {@code null} if the email has no plain text part
      */
+    @Nullable
     public String getTextBody()
     {
         return this.textBody;
@@ -99,6 +106,7 @@ public class Email extends EmailTemplate
      * @return a subject
      */
     @Override
+    @NotNull
     public String getSubject()
     {
         return this.renderedSubject == null ? super.getSubject() : this.renderedSubject;
@@ -109,6 +117,7 @@ public class Email extends EmailTemplate
      *
      * @return a map from header name to value, in the order they were added
      */
+    @NotNull
     public Map<String, String> getExtraHeaders()
     {
         return new LinkedHashMap<>(this.extraHeaders);
@@ -129,7 +138,7 @@ public class Email extends EmailTemplate
          *
          * @param template the template to base the email on
          */
-        protected Builder(final EmailTemplate template)
+        protected Builder(@NotNull final EmailTemplate template)
         {
             this.instance = new Email(template);
         }
@@ -142,7 +151,8 @@ public class Email extends EmailTemplate
          * @param textBody the plain text part, {@code null} for none
          * @return this builder
          */
-        public Builder withBody(final String htmlBody, final String textBody)
+        @NotNull
+        public Builder withBody(@Nullable final String htmlBody, @Nullable final String textBody)
         {
             this.instance.htmlBody = htmlBody;
             this.instance.textBody = textBody;
@@ -153,10 +163,11 @@ public class Email extends EmailTemplate
          * Set the subject line of this email, overriding the template's. Already done when the builder came from
          * {@link EmailTemplate#getEmailBuilder(Map)}.
          *
-         * @param subject a short string
+         * @param subject a short string, {@code null} to keep the template's own subject
          * @return this builder
          */
-        public Builder withSubject(final String subject)
+        @NotNull
+        public Builder withSubject(@Nullable final String subject)
         {
             this.instance.renderedSubject = subject;
             return this;
@@ -166,10 +177,11 @@ public class Email extends EmailTemplate
          * Set the recipient of this email. The address is required.
          *
          * @param address a valid email address
-         * @param name an optional display name
+         * @param name an optional display name, {@code null} to address the recipient by address alone
          * @return this builder
          */
-        public Builder withRecipient(final String address, final String name)
+        @NotNull
+        public Builder withRecipient(@NotNull final String address, @Nullable final String name)
         {
             this.instance.toAddress = address;
             this.instance.toName = name;
@@ -183,7 +195,8 @@ public class Email extends EmailTemplate
          * @param value the header value
          * @return this builder
          */
-        public Builder withExtraHeader(final String name, final String value)
+        @NotNull
+        public Builder withExtraHeader(@NotNull final String name, @NotNull final String value)
         {
             this.instance.extraHeaders.put(name, value);
             return this;
@@ -195,6 +208,7 @@ public class Email extends EmailTemplate
          * @return an {@link Email}
          * @throws IllegalStateException if the email has no recipient address, or no body at all
          */
+        @NotNull
         public Email build()
         {
             if (this.instance.toAddress == null) {

@@ -120,7 +120,10 @@ EmailUtils.sendHtmlEmail(email, this.mailService);
 
 `getEmailBuilder(variables)` fills in the subject and both bodies; what the caller passes overrides
 the template's own properties. `sendTextEmail` sends only the plain text part; `sendHtmlEmail` sends
-both, plus the inline attachments.
+the HTML one, the plain text part as a fallback for the clients that cannot show it, and the inline
+attachments. Since either body part may be missing, each method needs the one it sends: asking for
+the plain text form of a template that only has an HTML body is an `IllegalArgumentException`, rather
+than an email with no body at all.
 
 ### Checking that mail works at all
 
