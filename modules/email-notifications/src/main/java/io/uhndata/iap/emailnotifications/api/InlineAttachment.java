@@ -17,6 +17,9 @@
  */
 package io.uhndata.iap.emailnotifications.api;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * A file sent along with an email and displayed inside it, usually an image referenced from the HTML body as
  * {@code src="cid:<name>"}.
@@ -37,9 +40,10 @@ public final class InlineAttachment
      *
      * @param name the name of the attachment, which is how the body references it
      * @param mimeType the media type of the content
-     * @param content the content itself
+     * @param content the content itself, {@code null} for an empty attachment
      */
-    public InlineAttachment(final String name, final String mimeType, final byte[] content)
+    public InlineAttachment(@NotNull final String name, @NotNull final String mimeType,
+        @Nullable final byte[] content)
     {
         this.name = name;
         this.mimeType = mimeType;
@@ -51,6 +55,7 @@ public final class InlineAttachment
      *
      * @return a file name, e.g. {@code logo.png}
      */
+    @NotNull
     public String getName()
     {
         return this.name;
@@ -61,6 +66,7 @@ public final class InlineAttachment
      *
      * @return a MIME type, e.g. {@code image/png}
      */
+    @NotNull
     public String getMimeType()
     {
         return this.mimeType;
@@ -71,12 +77,14 @@ public final class InlineAttachment
      *
      * @return the bytes to send, a copy that callers may modify freely
      */
+    @NotNull
     public byte[] getContent()
     {
         return this.content.clone();
     }
 
     @Override
+    @NotNull
     public String toString()
     {
         return this.name + " (" + this.mimeType + ", " + this.content.length + " bytes)";

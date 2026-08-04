@@ -39,6 +39,8 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The sender, subject and body of an email the platform sends, kept in the repository so that a deployment can reword
@@ -126,7 +128,7 @@ public class EmailTemplate
      *
      * @param other the template to copy
      */
-    protected EmailTemplate(final EmailTemplate other)
+    protected EmailTemplate(@NotNull final EmailTemplate other)
     {
         this.senderAddress = other.senderAddress;
         this.senderName = other.senderName;
@@ -145,6 +147,7 @@ public class EmailTemplate
      *
      * @return an email address
      */
+    @NotNull
     public String getSenderAddress()
     {
         return this.senderAddress;
@@ -155,6 +158,7 @@ public class EmailTemplate
      *
      * @return a name, may be {@code null}
      */
+    @Nullable
     public String getSenderName()
     {
         return this.senderName;
@@ -165,6 +169,7 @@ public class EmailTemplate
      *
      * @return an email address
      */
+    @NotNull
     public String getReplyToAddress()
     {
         return StringUtils.defaultIfBlank(this.replyToAddress, getSenderAddress());
@@ -175,6 +180,7 @@ public class EmailTemplate
      *
      * @return a name, may be {@code null}
      */
+    @Nullable
     public String getReplyToName()
     {
         return StringUtils.defaultIfBlank(this.replyToName, getSenderName());
@@ -185,6 +191,7 @@ public class EmailTemplate
      *
      * @return a subject, before any substitution
      */
+    @NotNull
     public String getSubject()
     {
         return this.subject;
@@ -196,6 +203,7 @@ public class EmailTemplate
      *
      * @return a map from variable name to value
      */
+    @NotNull
     public Map<String, String> getExtraProperties()
     {
         return new HashMap<>(this.properties);
@@ -206,6 +214,7 @@ public class EmailTemplate
      *
      * @return the attachments, an empty list if there are none
      */
+    @NotNull
     public List<InlineAttachment> getInlineAttachments()
     {
         return new ArrayList<>(this.inlineAttachments);
@@ -216,6 +225,7 @@ public class EmailTemplate
      *
      * @return a large string, may be {@code null} if the email has no HTML part
      */
+    @Nullable
     public String getHtmlTemplate()
     {
         return this.htmlTemplate;
@@ -226,6 +236,7 @@ public class EmailTemplate
      *
      * @return a large string, may be {@code null} if the email has no plain text part
      */
+    @Nullable
     public String getTextTemplate()
     {
         return this.textTemplate;
@@ -235,10 +246,12 @@ public class EmailTemplate
      * Start instantiating this template into an actual email, with the body parts and the subject already filled in.
      * A recipient still has to be {@link Email.Builder#withRecipient set} before the email can be built.
      *
-     * @param variables the values to substitute, taking precedence over the template's own extra properties
+     * @param variables the values to substitute, taking precedence over the template's own extra properties, may be
+     *            {@code null} when the template's own properties are all there is
      * @return an email builder based on this template
      */
-    public Email.Builder getEmailBuilder(final Map<String, String> variables)
+    @NotNull
+    public Email.Builder getEmailBuilder(@Nullable final Map<String, String> variables)
     {
         final Map<String, String> values = getExtraProperties();
         if (variables != null) {
@@ -255,6 +268,7 @@ public class EmailTemplate
      *
      * @return an email builder based on this template, with no body set
      */
+    @NotNull
     public Email.Builder getEmailBuilder()
     {
         return new Email.Builder(this);
@@ -265,6 +279,7 @@ public class EmailTemplate
      *
      * @return a new template builder
      */
+    @NotNull
     public static Builder builder()
     {
         return new Builder();
@@ -280,7 +295,8 @@ public class EmailTemplate
      * @throws RepositoryException if reading the repository fails
      * @throws IOException if reading the body templates or the attachments fails
      */
-    public static Builder builder(final Node template, final ResourceResolver resolver)
+    @NotNull
+    public static Builder builder(@NotNull final Node template, @NotNull final ResourceResolver resolver)
         throws RepositoryException, IOException
     {
         return new Builder(template, resolver);
@@ -314,10 +330,11 @@ public class EmailTemplate
         /**
          * Set the HTML body template. Optional; a template may have only a plain text body.
          *
-         * @param body a large string
+         * @param body a large string, {@code null} to leave the email without an HTML part
          * @return this builder
          */
-        public Builder withHtmlTemplate(final String body)
+        @NotNull
+        public Builder withHtmlTemplate(@Nullable final String body)
         {
             this.instance.htmlTemplate = body;
             return this;
@@ -326,10 +343,11 @@ public class EmailTemplate
         /**
          * Set the plain text body template. Optional; a template may have only an HTML body.
          *
-         * @param body a large string
+         * @param body a large string, {@code null} to leave the email without a plain text part
          * @return this builder
          */
-        public Builder withTextTemplate(final String body)
+        @NotNull
+        public Builder withTextTemplate(@Nullable final String body)
         {
             this.instance.textTemplate = body;
             return this;
@@ -341,7 +359,8 @@ public class EmailTemplate
          * @param address a valid email address
          * @return this builder
          */
-        public Builder withSenderAddress(final String address)
+        @NotNull
+        public Builder withSenderAddress(@NotNull final String address)
         {
             this.instance.senderAddress = address;
             return this;
@@ -350,10 +369,11 @@ public class EmailTemplate
         /**
          * Set the sender display name. Optional.
          *
-         * @param name a display name
+         * @param name a display name, {@code null} to send from the address alone
          * @return this builder
          */
-        public Builder withSenderName(final String name)
+        @NotNull
+        public Builder withSenderName(@Nullable final String name)
         {
             this.instance.senderName = name;
             return this;
@@ -362,10 +382,11 @@ public class EmailTemplate
         /**
          * Set the address replies should go to. Optional, defaults to the sender address.
          *
-         * @param address a valid email address
+         * @param address a valid email address, {@code null} to reply to the sender
          * @return this builder
          */
-        public Builder withReplyToAddress(final String address)
+        @NotNull
+        public Builder withReplyToAddress(@Nullable final String address)
         {
             this.instance.replyToAddress = address;
             return this;
@@ -374,10 +395,11 @@ public class EmailTemplate
         /**
          * Set the display name for the reply-to address. Optional, defaults to the sender name.
          *
-         * @param name a display name
+         * @param name a display name, {@code null} to reuse the sender name
          * @return this builder
          */
-        public Builder withReplyToName(final String name)
+        @NotNull
+        public Builder withReplyToName(@Nullable final String name)
         {
             this.instance.replyToName = name;
             return this;
@@ -389,7 +411,8 @@ public class EmailTemplate
          * @param subject a short string
          * @return this builder
          */
-        public Builder withSubject(final String subject)
+        @NotNull
+        public Builder withSubject(@NotNull final String subject)
         {
             this.instance.subject = subject;
             return this;
@@ -402,7 +425,8 @@ public class EmailTemplate
          * @param value the value to substitute
          * @return this builder
          */
-        public Builder withProperty(final String name, final String value)
+        @NotNull
+        public Builder withProperty(@NotNull final String name, @NotNull final String value)
         {
             this.instance.properties.put(name, value);
             return this;
@@ -414,10 +438,12 @@ public class EmailTemplate
          *
          * @param name the name of the attachment, and the content ID the body references it by
          * @param mimeType the media type of the content
-         * @param content the content itself
+         * @param content the content itself, {@code null} for an empty attachment
          * @return this builder
          */
-        public Builder withInlineAttachment(final String name, final String mimeType, final byte[] content)
+        @NotNull
+        public Builder withInlineAttachment(@NotNull final String name, @NotNull final String mimeType,
+            @Nullable final byte[] content)
         {
             this.instance.inlineAttachments.removeIf(attachment -> attachment.getName().equals(name));
             this.instance.inlineAttachments.add(new InlineAttachment(name, mimeType, content));
@@ -430,6 +456,7 @@ public class EmailTemplate
          * @return an {@link EmailTemplate}
          * @throws IllegalStateException if the sender address or the subject are missing
          */
+        @NotNull
         public EmailTemplate build()
         {
             if (this.instance.senderAddress == null) {

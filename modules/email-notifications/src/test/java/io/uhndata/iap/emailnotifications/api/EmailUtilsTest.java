@@ -32,6 +32,7 @@ import org.mockito.ArgumentMatchers;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.RETURNS_SELF;
@@ -121,6 +122,46 @@ class EmailUtilsTest
     }
 
     @Test
+    void aSenderWithNoNameIsSetByAddressAlone() throws MessagingException
+    {
+        // With no sender name there is no reply-to name to fall back to either, so both are set by address alone
+        EmailUtils.sendTextEmail(anonymousSenderEmail(), this.mailService);
+
+        verify(this.message).from("noreply@example.invalid");
+        verify(this.message).replyTo("noreply@example.invalid");
+        verify(this.message, never()).from(anyString(), any());
+        verify(this.message, never()).replyTo(anyString(), any());
+    }
+
+    @Test
+    void anHtmlOnlyEmailIsSentWithoutAPlainTextPart() throws MessagingException
+    {
+        EmailUtils.sendHtmlEmail(email("<p>rich text</p>", null), this.mailService);
+
+        verify(this.message).html("<p>rich text</p>");
+        // The plain text part is only a fallback, so there is nothing to set when the template had none
+        verify(this.message, never()).text(anyString());
+        verify(this.mailService).sendMessage(ArgumentMatchers.<MimeMessage>any());
+    }
+
+    @Test
+    void anEmailWithNoPlainTextPartCannotBeSentAsPlainText()
+    {
+        final Email htmlOnly = email("<p>rich text</p>", null);
+
+        // Sending it anyway would hand a null body to the mail service
+        assertThrows(IllegalArgumentException.class, () -> EmailUtils.sendTextEmail(htmlOnly, this.mailService));
+    }
+
+    @Test
+    void anEmailWithNoHtmlPartCannotBeSentAsHtml()
+    {
+        final Email textOnly = email(null, "plain text");
+
+        assertThrows(IllegalArgumentException.class, () -> EmailUtils.sendHtmlEmail(textOnly, this.mailService));
+    }
+
+    @Test
     void isAUtilityClass() throws ReflectiveOperationException
     {
         final Constructor<EmailUtils> constructor = EmailUtils.class.getDeclaredConstructor();
@@ -141,6 +182,31 @@ class EmailUtilsTest
             .withBody("<p>rich text</p>", "plain text")
             .withRecipient("someone@example.invalid", recipientName)
             .withExtraHeader("Auto-Submitted", "auto-generated")
+            .build();
+    }
+
+    private Email email(final String htmlBody, final String textBody)
+    {
+        final EmailTemplate template = EmailTemplate.builder()
+            .withSenderAddress("noreply@example.invalid")
+            .withSenderName("IAP")
+            .withSubject("A subject")
+            .build();
+        return template.getEmailBuilder()
+            .withBody(htmlBody, textBody)
+            .withRecipient("someone@example.invalid", "Bob")
+            .build();
+    }
+
+    private Email anonymousSenderEmail()
+    {
+        final EmailTemplate template = EmailTemplate.builder()
+            .withSenderAddress("noreply@example.invalid")
+            .withSubject("A subject")
+            .build();
+        return template.getEmailBuilder()
+            .withBody(null, "plain text")
+            .withRecipient("someone@example.invalid", "Bob")
             .build();
     }
 }

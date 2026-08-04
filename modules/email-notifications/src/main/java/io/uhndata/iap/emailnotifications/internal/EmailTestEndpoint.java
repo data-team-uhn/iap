@@ -59,7 +59,7 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
     private transient MailService mailService;
 
     @Override
-    public void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
+    protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
         final Writer out = response.getWriter();
