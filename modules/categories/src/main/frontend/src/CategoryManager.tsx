@@ -22,8 +22,8 @@ import AddIcon from "@mui/icons-material/Add";
 import { Button, Typography } from "@mui/material";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
-import ErrorDialog from "@iap/frontend-commons/components/ErrorDialog";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
 
 import CategoryDialog, { type CategorySubmission } from "./CategoryDialog";
 import CategoryLoadError from "./CategoryLoadError";
@@ -52,10 +52,18 @@ function CategoryManager() {
   const [ dialog, setDialog ] = useState<DialogState>();
   const [ deleteTarget, setDeleteTarget ] = useState<CategoryNode>();
   const [ retireTarget, setRetireTarget ] = useState<CategoryNode>();
-  const [ actionError, setActionError ] = useState<string>();
+  const [ notice, setNotice ] = useState<Notice>();
 
-  const showError = (error: unknown) =>
-    setActionError(error instanceof Error ? error.message : String(error));
+  // The row actions that act the moment they are clicked have no dialog of their own to report
+  // back in, so they report over the tree instead - naming what did not happen, and offering the
+  // attempt again. A retry that fails in turn raises its own notice.
+  const run = (title: string, action: () => Promise<void>): void => {
+    action().catch((error: unknown) => setNotice({
+      title,
+      message: error instanceof Error ? error.message : String(error),
+      onRetry: () => { run(title, action); },
+    }));
+  };
 
   const actions: CategoryActions = {
     onEdit: node => setDialog({ mode: "edit", node, parentPath: parentPathOf(node.path) }),
@@ -65,12 +73,14 @@ function CategoryManager() {
     // that confirmation's undo, so asking again for it would be noise.
     onToggleRetired: node => {
       if (node.retired) {
-        setRetired(node.path, false).catch(showError);
+        run(`${node.label} could not be unretired`, () => setRetired(node.path, false));
       } else {
         setRetireTarget(node);
       }
     },
-    onReorder: (path, order) => { reorder(path, order).catch(showError); },
+    onReorder: (node, order) => {
+      run(`${node.label} could not be moved`, () => reorder(node.path, order));
+    },
   };
 
   // Create saves the new category (deriving its fields' types on the server), then, since the
@@ -142,13 +152,7 @@ function CategoryManager() {
             onRetire={node => setRetired(node.path, true)}
           />
         )}
-      <ErrorDialog
-        open={!!actionError}
-        title="The change could not be applied"
-        onClose={() => setActionError(undefined)}
-      >
-        {actionError}
-      </ErrorDialog>
+      <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />
     </AdminScreen>
   );
 }

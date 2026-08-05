@@ -48,8 +48,9 @@ export interface CategoryActions {
   onAddChild: (node: CategoryNode) => void;
   onDelete: (node: CategoryNode) => void;
   onToggleRetired: (node: CategoryNode) => void;
-  // `order` uses the Sling :order syntax, e.g. "before <siblingName>"
-  onReorder: (path: string, order: string) => void;
+  // `order` uses the Sling :order syntax, e.g. "before <siblingName>". The node comes along so that
+  // the manager can name it if the reordering has to be reported.
+  onReorder: (node: CategoryNode, order: string) => void;
 }
 
 interface CategoryTreeProps {
@@ -201,9 +202,9 @@ function CategoryTree({ nodes, actions, depth = 0 }: CategoryTreeProps) {
           node={node}
           actions={actions}
           depth={depth}
-          onMoveUp={index > 0 ? () => actions.onReorder(node.path, `before ${nodes[index - 1].name}`) : undefined}
+          onMoveUp={index > 0 ? () => actions.onReorder(node, `before ${nodes[index - 1].name}`) : undefined}
           onMoveDown={index < nodes.length - 1
-            ? () => actions.onReorder(node.path, `after ${nodes[index + 1].name}`)
+            ? () => actions.onReorder(node, `after ${nodes[index + 1].name}`)
             : undefined}
         />
       ))}
