@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
 // Every description is logged with the original, so the raw failure stays reachable in the console
 let logged: ReturnType<typeof vi.spyOn>;
@@ -38,6 +38,22 @@ describe("RequestError", () => {
     // HTTP/2 drops the reason phrase, so it is never part of what a user might be shown
     expect(error.message).toBe("HTTP 503");
     expect(error).toBeInstanceOf(Error);
+  });
+});
+
+describe("messageOf", () => {
+  it("takes an Error at its word", () => {
+    expect(messageOf(new Error("something specific"))).toBe("something specific");
+  });
+
+  it("makes do with whatever else was thrown", () => {
+    expect(messageOf("connection reset")).toBe("connection reset");
+    expect(messageOf(undefined)).toBe("undefined");
+    expect(messageOf({ toString: () => "an object with opinions" })).toBe("an object with opinions");
+  });
+
+  it("says nothing of its own when an Error carries no message", () => {
+    expect(messageOf(new Error())).toBe("");
   });
 });
 

@@ -24,6 +24,7 @@ import { Button, Typography } from "@mui/material";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
 
 import CategoryDialog, { type CategorySubmission } from "./CategoryDialog";
 import CategoryLoadError from "./CategoryLoadError";
@@ -60,7 +61,7 @@ function CategoryManager() {
   const run = (title: string, action: () => Promise<void>): void => {
     action().catch((error: unknown) => setNotice({
       title,
-      message: error instanceof Error ? error.message : String(error),
+      message: messageOf(error),
       onRetry: () => { run(title, action); },
     }));
   };

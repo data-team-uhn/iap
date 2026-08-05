@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { parseCategoryTree, type CategoryNode, type JcrNode } from "./categoryModel";
 
@@ -114,7 +114,7 @@ export function useCategoryTree() {
         setLoadError(undefined);
       })
       .catch((error: unknown) => {
-        setLoadError(error instanceof Error ? error.message : String(error));
+        setLoadError(messageOf(error));
       })
       .finally(() => setLoading(false)), []);
 
