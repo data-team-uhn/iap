@@ -16,43 +16,23 @@
  * limitations under the License.
  */
 
-import { Alert, AlertTitle, Button } from "@mui/material";
-
-import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
+import LoadError from "@iap/frontend-commons/components/LoadError";
 
 import type { SxProps, Theme } from "@mui/material";
 
 interface CategoryLoadErrorProps {
   // The failure, as reported by the server or by the network layer.
   message: string;
-  // Fetches the category tree again. The attempt is tracked here, so the button can show its
-  // progress; the fetch reports its own outcome by updating (or clearing) the message.
+  // Fetches the category tree again.
   onRetry: () => Promise<void>;
   sx?: SxProps<Theme>;
 }
 
-// How both category screens report a tree they could not load: in place, with the only useful
-// remedy attached. A load failure is a state of the screen rather than an event to acknowledge, so
-// a modal would be a dead end - and reporting in place leaves whatever was last fetched
-// successfully visible underneath, stale but still readable. Both screens are administrative, so
-// both show the underlying failure rather than hiding it behind a generic sentence.
+// The one sentence both category screens use for a tree they could not load, so that the manager
+// and the console widget cannot drift apart on it.
 function CategoryLoadError({ message, onRetry, sx }: CategoryLoadErrorProps) {
-  // Nothing to report from here: a retry that fails updates the very message being displayed
-  const { working: retrying, run } = useAsyncAction<never>({ onFailure: () => undefined });
-
   return (
-    <Alert
-      severity="error"
-      sx={sx}
-      action={
-        <Button color="inherit" size="small" loading={retrying} onClick={() => run(onRetry)}>
-          Retry
-        </Button>
-      }
-    >
-      <AlertTitle>The categories could not be loaded</AlertTitle>
-      {message}
-    </Alert>
+    <LoadError title="The categories could not be loaded" message={message} onRetry={onRetry} sx={sx} />
   );
 }
 
