@@ -21,6 +21,7 @@ import { useState } from "react";
 import { Alert, Button, DialogActions, DialogContent, MenuItem, Stack, TextField } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import { messageOf } from "@iap/frontend-commons/requestFailure";
 
 import { childrenOf, flattenForParentPicker, hasDuplicateLabel, type CategoryNode } from "./categoryModel";
 import SchemaVersionSelect from "./SchemaVersionSelect";
@@ -82,7 +83,7 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
     onSave({ fields, parentPath: parent })
       .then(onClose)
       .catch((error: unknown) => {
-        setSaveError(error instanceof Error ? error.message : String(error));
+        setSaveError(messageOf(error));
         setSaving(false);
       });
   };

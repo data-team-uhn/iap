@@ -29,6 +29,11 @@ export class RequestError extends Error {
   }
 }
 
+// What a rejection has to say for itself. Anything can be thrown, so the many places that end up
+// having to display one need this, and none of them need to care that it is not always an Error.
+export const messageOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 // Says why a request failed, in one sentence a user can act on: the technical detail they would
 // have to relay to a developer is kept, in parentheses, but does not lead.
 //
@@ -64,7 +69,7 @@ const describe = (error: unknown): string => {
           : `The server rejected this. (HTTP ${error.status})`;
     }
   }
-  return `Something went wrong: ${error instanceof Error ? error.message : String(error)}`;
+  return `Something went wrong: ${messageOf(error)}`;
 };
 
 export const describeRequestFailure = (error: unknown): string => {
