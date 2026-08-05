@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import WorkflowsWidget from "@iap/workflows/WorkflowsWidget";
 
@@ -55,13 +55,32 @@ describe("WorkflowsWidget", () => {
     expect(screen.getByText("The initial cut")).toBeInTheDocument();
   });
 
-  it("reports a loading failure without crashing the console", async () => {
+  it("reports a loading failure without crashing the console, and says why", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
       ok: false, status: 500, statusText: "Server Error",
     } as unknown as Response)));
     render(<WorkflowsWidget />);
 
-    expect(await screen.findByText("The workflows could not be loaded.")).toBeInTheDocument();
+    const report = await screen.findByRole("alert");
+    expect(report).toHaveTextContent("The workflows could not be loaded");
+    // The cause, which the widget used to discard
+    expect(report).toHaveTextContent("The server ran into a problem");
+    expect(report).toHaveTextContent("(HTTP 500)");
+  });
+
+  it("reloads the listing when the load failure's Retry is used", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: false, status: 500, statusText: "Server Error",
+    } as unknown as Response)));
+    render(<WorkflowsWidget />);
+    await screen.findByRole("alert");
+
+    // The next attempt succeeds
+    stubFetch(listing);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("Standard review (v1.0)")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
   it("reports an empty workflow list", async () => {
