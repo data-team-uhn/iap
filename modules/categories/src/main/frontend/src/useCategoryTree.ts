@@ -18,6 +18,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+
 import { parseCategoryTree, type CategoryNode, type JcrNode } from "./categoryModel";
 
 // The repository path of the category tree's root.
@@ -46,9 +48,24 @@ const checkOk = (response: Response): Response => {
     throw new CategoryReferencedError();
   }
   if (!response.ok) {
-    throw new Error(`The repository rejected the change (${response.status} ${response.statusText})`);
+    throw new RequestError(response.status);
   }
   return response;
+};
+
+// Every exchange with the repository goes through here, so that a failure - an unreachable server,
+// a refused write, an unreadable response - reaches the UI already worded for the person who will
+// read it. A 409 is the exception: it is not a failure to report but a refusal the UI answers with
+// an offer to retire instead, so it passes through as itself.
+const reporting = async <T>(exchange: () => Promise<T>): Promise<T> => {
+  try {
+    return await exchange();
+  } catch (error: unknown) {
+    if (error instanceof CategoryReferencedError) {
+      throw error;
+    }
+    throw new Error(describeRequestFailure(error));
+  }
 };
 
 // All writes go through the standard Sling POST servlet on the affected node itself:
@@ -57,7 +74,7 @@ const post = (path: string, params: Record<string, string>): Promise<Response> =
   const body = new URLSearchParams(params);
   // Ask for a JSON (non-redirect) response, so the interesting headers survive
   body.append(":http-equiv-accept", "application/json");
-  return fetch(path, { method: "POST", body }).then(checkOk);
+  return reporting(() => fetch(path, { method: "POST", body }).then(checkOk));
 };
 
 const fieldParams = (fields: CategoryFields): Record<string, string> => {
@@ -88,11 +105,12 @@ export function useCategoryTree() {
   // Default serialization selectors: `deep` recurses into the tree, and the default-enabled
   // `dereference` inlines each bound schema version so it can be displayed without extra requests
   const reload = useCallback((): Promise<void> =>
-    fetch(`${CATEGORIES_ROOT}.deep.json`)
-      .then(checkOk)
-      .then(response => response.json() as Promise<JcrNode>)
-      .then(json => {
-        setTree(parseCategoryTree(json));
+    reporting(async () => {
+      const response = checkOk(await fetch(`${CATEGORIES_ROOT}.deep.json`));
+      return parseCategoryTree(await response.json() as JcrNode);
+    })
+      .then(nodes => {
+        setTree(nodes);
         setLoadError(undefined);
       })
       .catch((error: unknown) => {

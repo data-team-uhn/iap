@@ -172,7 +172,8 @@ describe("CategoryDialog", () => {
 
   it("keeps the dialog open and shows the problem when saving fails", async () => {
     stubSchemasEndpoint();
-    const onSave = vi.fn().mockRejectedValue(new Error("The repository rejected the change"));
+    // Already worded for the reader by the time it gets here; see requestFailure
+    const onSave = vi.fn().mockRejectedValue(new Error("You do not have permission to do this. (HTTP 403)"));
     const onClose = vi.fn();
     render(
       <CategoryDialog
@@ -187,7 +188,7 @@ describe("CategoryDialog", () => {
     fireEvent.change(screen.getByLabelText(/Label/), { target: { value: "Something new" } });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText("The repository rejected the change")).toBeInTheDocument();
+    expect(await screen.findByText("You do not have permission to do this. (HTTP 403)")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });
