@@ -29,3 +29,14 @@ create service user iap-tags
 set ACL for iap-tags
     allow   jcr:read    on /Tags
 end
+
+# Repairing tags means marking content that a tag definition change or a failed computation left stale, and letting
+# the propagation editor recompute it. That needs a user of its own: the one above may only read the definitions,
+# and repair has to reach content anywhere, including content no logged-in user is looking at -- the routine sweep
+# runs on a schedule, with no session to borrow. It is still not a writer in any general sense: it sets one marker
+# property, and the recomputation that follows is the commit hook's work, done with the repository's own rights.
+create service user iap-tag-repair
+
+set ACL for iap-tag-repair
+    allow   jcr:read,jcr:modifyProperties    on /
+end

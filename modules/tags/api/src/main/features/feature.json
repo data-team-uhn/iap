@@ -24,7 +24,8 @@
   "configurations":{
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iaptags":{
       "user.mapping":[
-        "io.uhndata.iap.tags-api:tags=[iap-tags]"
+        "io.uhndata.iap.tags-api:tags=[iap-tags]",
+        "io.uhndata.iap.tags-api:tagrepair=[iap-tag-repair]"
       ]
     }
   },
