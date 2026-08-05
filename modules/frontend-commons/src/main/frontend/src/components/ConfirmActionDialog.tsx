@@ -16,11 +16,12 @@
  * limitations under the License.
  */
 
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { Alert, Button, DialogActions, DialogContent, type ButtonProps } from "@mui/material";
 
 import { messageOf } from "../requestFailure";
+import { useAsyncAction } from "../useAsyncAction";
 import ResponsiveDialog from "./ResponsiveDialog";
 
 interface ConfirmActionDialogProps {
@@ -58,31 +59,22 @@ interface ConfirmActionDialogProps {
 function ConfirmActionDialog(
   { title, children, confirmLabel, confirmColor, onConfirm, interceptFailure, onClose }: ConfirmActionDialogProps,
 ) {
-  const [ working, setWorking ] = useState(false);
-  const [ error, setError ] = useState<string>();
-
-  const confirm = () => {
-    setWorking(true);
-    setError(undefined);
-    onConfirm()
-      .then(onClose)
-      .catch((failure: unknown) => {
-        if (!interceptFailure?.(failure)) {
-          setError(messageOf(failure));
-        }
-        setWorking(false);
-      });
-  };
+  const { working, failure, run } = useAsyncAction<string>({
+    // A claimed rejection is discarded here because the caller has taken it over - turned it into an
+    // offer of an alternative, say - and reporting it as a failure as well would contradict that
+    onFailure: error => interceptFailure?.(error) ? undefined : messageOf(error),
+    onSuccess: onClose,
+  });
 
   return (
     <ResponsiveDialog open title={title} width="xs" withCloseButton onClose={onClose}>
       <DialogContent dividers>
         { children }
-        { error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert> }
+        { failure && <Alert severity="error" sx={{ mt: 2 }}>{failure}</Alert> }
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={working}>Cancel</Button>
-        <Button variant="contained" color={confirmColor} onClick={confirm} disabled={working}>
+        <Button variant="contained" color={confirmColor} onClick={() => run(onConfirm)} disabled={working}>
           {confirmLabel}
         </Button>
       </DialogActions>

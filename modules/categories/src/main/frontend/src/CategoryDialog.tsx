@@ -22,6 +22,7 @@ import { Alert, AlertTitle, Button, DialogActions, DialogContent, MenuItem, Stac
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
+import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
 import { childrenOf, flattenForParentPicker, hasDuplicateLabel, type CategoryNode } from "./categoryModel";
 import SchemaVersionSelect from "./SchemaVersionSelect";
@@ -70,8 +71,10 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
   const [ description, setDescription ] = useState(node?.description ?? "");
   const [ schemaVersion, setSchemaVersion ] = useState(node?.schemaVersion?.uuid ?? "");
   const [ parent, setParent ] = useState(parentPath);
-  const [ saving, setSaving ] = useState(false);
-  const [ saveError, setSaveError ] = useState<{ lead: string; detail: string }>();
+  const { working: saving, failure: saveError, run } = useAsyncAction({
+    onFailure: (error: unknown) => ({ lead: leadFor(error), detail: messageOf(error) }),
+    onSuccess: onClose,
+  });
 
   // Only leaf categories may carry a schema version; a category that already has subcategories
   // does not get the picker at all
@@ -102,8 +105,6 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
   };
 
   const save = () => {
-    setSaving(true);
-    setSaveError(undefined);
     const fields: CategoryFields = {
       label: label.trim(),
       description,
@@ -113,12 +114,7 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
         ? (node?.schemaVersion ? null : undefined)
         : schemaVersion,
     };
-    onSave({ fields, parentPath: parent })
-      .then(onClose)
-      .catch((error: unknown) => {
-        setSaveError({ lead: leadFor(error), detail: messageOf(error) });
-        setSaving(false);
-      });
+    run(() => onSave({ fields, parentPath: parent }));
   };
 
   return (
