@@ -43,6 +43,7 @@
             <Sling-Initial-Content>
               SLING-INF/content/libs/iap/TagsHomepage/;path:=/libs/iap/TagsHomepage/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/TagDefinition/;path:=/libs/iap/TagDefinition/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/oak%3Aindex/;path:=/oak:index/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -80,6 +81,14 @@
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.metatype.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.commons.scheduler</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>
