@@ -29,7 +29,9 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /WorkflowTypes root path.
-[wf:WorkflowTypesHomepage] > iap:EntityHomepage
+// Documented: the catalogue served at /WorkflowTypes.doc.json is what populates
+// the toolbars of the visual BPMN editor, so it is a UI contract, not just prose.
+[wf:WorkflowTypesHomepage] > iap:EntityHomepage, iap:Documented
   - sling:resourceType (STRING) = "wf/WorkflowTypesHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
 
@@ -37,8 +39,15 @@
   // that would derive wf:WorkflowType from the resource type.
   - childNodeType (STRING) = "wf:FlowNodeType" mandatory autocreated protected
 
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
   // Contains event and activity type definitions
   + * (wf:FlowNodeType) = wf:FlowNodeType
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
 //
@@ -55,8 +64,17 @@
   // Hardcode the supertype to the parent wf/FlowNodeType type.
   - sling:resourceSuperType (STRING) = "wf/FlowNodeType" mandatory autocreated protected
 
-  // The name of this node type
-  - name (STRING) mandatory
+  // The human-readable name of this node type, e.g. "Message Start Event". The
+  // identifier used to refer to the type is the node name itself, e.g. "MessageStartEvent".
+  - label (STRING) mandatory
+
+  // What this node type means and when to use it, displayed in the documentation
+  // catalogue and as the editor toolbar's tooltip
+  - description (STRING)
+
+  // The toolbar groups this type belongs to, e.g. "Events". When absent, the
+  // group is derived from the concrete wf:FlowNodeType subtype.
+  - category (STRING) multiple
 
   // Higher priorities overrule lower priorities
   - priority (LONG) mandatory
@@ -74,13 +92,20 @@
   // The sub-type of wf:FlowNode that this type should be translated to
   - jcrNodeType (STRING) mandatory
 
-  // JCR properties that should be set for nodes of this type
+  // JCR properties that should be set for nodes of this type, as a JSON object
   - jcrProperties (STRING)
 
 
   //
   // Properties that should be copied from the XML element to the JCR node
   - properties (STRING) multiple
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
 
 
 //-----------------------------------------------------------------------------
@@ -97,3 +122,8 @@
 // A particular type of workflow activity.
 [wf:ActivityType] > wf:FlowNodeType
   - sling:resourceType (STRING) = "wf/ActivityType" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// A particular type of routing node.
+[wf:GatewayType] > wf:FlowNodeType
+  - sling:resourceType (STRING) = "wf/GatewayType" mandatory autocreated protected
