@@ -3,17 +3,21 @@
 Docling converts PDF or DOCX documents Markdown format.
 
 Main processor from `.pdf` and `.docx` to Markdown.
+
 - Source : https://github.com/docling-project/docling
 - Required version v2.115+
 
+**This module is expected to mostly be run from Docker in deployments,**
+**but we provide non-Docker installation instructions below for posterity.**
+
 ## Runtime dependencies
 
-| Package | Why |
-|---------|-----|
-| `docling` | Main processor: `.pdf` / `.doc` / `.docx` → `.md`; also drives hierarchical chunking |
-| `pypdf` | Page counting / PDF reading before batching; bookmark extraction |
-| `psutil` | Lets the batch-sizing script self-optimise workers to CPU/RAM |
-| `LibreOffice` (`soffice`) | DOC→DOCX, DOC→PDF, DOCX→PDF before Docling |
+| Package                   | Why                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `docling`                 | Main processor: `.pdf` / `.doc` / `.docx` → `.md`; also drives hierarchical chunking |
+| `pypdf`                   | Page counting / PDF reading before batching; bookmark extraction                     |
+| `psutil`                  | Lets the batch-sizing script self-optimise workers to CPU/RAM                        |
+| `LibreOffice` (`soffice`) | DOC→DOCX, DOC→PDF, DOCX→PDF before Docling                                           |
 
 Test-only: `pytest`.
 
@@ -107,11 +111,11 @@ container's loopback refuses every connection.
 
 ### Configuration (system properties)
 
-| Property | Default | Purpose |
-|----------|---------|---------|
-| `iap.docling.daemon.url` | `http://127.0.0.1:18765` | Daemon base URL. The default suits a hand-run daemon; the Compose deployment must override it to `http://docling:18765`, the daemon's service name on the Compose network |
-| `iap.docling.timeout.minutes` | `30` | Per-document parse timeout |
-| `iap.docling.parse.output.dir` | `/shared-docs` | Where Java writes `<answer-uuid>/<name>.md` and `Chunks/`. Java-side only — the daemon never sees it |
+| Property                       | Default                  | Purpose                                                                                                                                                                   |
+| ------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `iap.docling.daemon.url`       | `http://127.0.0.1:18765` | Daemon base URL. The default suits a hand-run daemon; the Compose deployment must override it to `http://docling:18765`, the daemon's service name on the Compose network |
+| `iap.docling.timeout.minutes`  | `30`                     | Per-document parse timeout                                                                                                                                                |
+| `iap.docling.parse.output.dir` | `/shared-docs`           | Where Java writes `<answer-uuid>/<name>.md` and `Chunks/`. Java-side only — the daemon never sees it                                                                      |
 
 Java never starts the daemon. Run it yourself — in Docker for a real deployment, or by hand for
 local work (see [Manual daemon start](#manual-http-daemon-start-optional)).
