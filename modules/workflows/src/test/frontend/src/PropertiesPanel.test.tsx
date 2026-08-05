@@ -37,10 +37,13 @@ const createModeler = () => {
     get: vi.fn(() => ({ updateLabel })),
   };
   // Every subscription for an event, since the panel re-subscribes whenever the selection changes
-  // and the newest handler is the one holding the current state.
-  const fire = (event: string, payload: unknown) => act(() => {
-    handlers[event].forEach(handler => (handler as (e: unknown) => void)(payload));
-  });
+  // and the newest handler is the one holding the current state. Synchronous: `act` only has to be
+  // awaited when what it wraps is itself asynchronous.
+  const fire = (event: string, payload: unknown) => {
+    act(() => {
+      handlers[event].forEach(handler => (handler as (e: unknown) => void)(payload));
+    });
+  };
   return { modeler: modeler as unknown as Modeler, fire, updateLabel };
 };
 
@@ -74,66 +77,66 @@ describe("PropertiesPanel", () => {
     expect(modeler.on).toHaveBeenCalledWith("elements.changed", expect.any(Function));
   });
 
-  it("shows the properties of a single selected element", async () => {
+  it("shows the properties of a single selected element", () => {
     const { modeler, fire } = createModeler();
     renderPanel(modeler);
 
-    await fire("selection.changed", { newSelection: [element("StartEvent_1", "Kick off")] });
+    fire("selection.changed", { newSelection: [element("StartEvent_1", "Kick off")] });
 
     expect(screen.getByText("Identifier: StartEvent_1")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("Kick off");
     expect(screen.queryByText("Please select an element.")).not.toBeInTheDocument();
   });
 
-  it("refuses to edit more than one element at a time", async () => {
+  it("refuses to edit more than one element at a time", () => {
     const { modeler, fire } = createModeler();
     renderPanel(modeler);
 
-    await fire("selection.changed", { newSelection: [element("A"), element("B")] });
+    fire("selection.changed", { newSelection: [element("A"), element("B")] });
 
     expect(screen.getByText("Please select a single element.")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("goes back to prompting once the selection is cleared", async () => {
+  it("goes back to prompting once the selection is cleared", () => {
     const { modeler, fire } = createModeler();
     renderPanel(modeler);
 
-    await fire("selection.changed", { newSelection: [element("A", "First")] });
-    await fire("selection.changed", { newSelection: [] });
+    fire("selection.changed", { newSelection: [element("A", "First")] });
+    fire("selection.changed", { newSelection: [] });
 
     expect(screen.getByText("Please select an element.")).toBeInTheDocument();
   });
 
-  it("picks up changes made to the selected element elsewhere", async () => {
+  it("picks up changes made to the selected element elsewhere", () => {
     const { modeler, fire } = createModeler();
     renderPanel(modeler);
-    await fire("selection.changed", { newSelection: [element("Task_1", "Before")] });
+    fire("selection.changed", { newSelection: [element("Task_1", "Before")] });
 
-    await fire("elements.changed", { elements: [element("Other_1", "Untouched"), element("Task_1", "After")] });
+    fire("elements.changed", { elements: [element("Other_1", "Untouched"), element("Task_1", "After")] });
 
     expect(screen.getByRole("textbox")).toHaveValue("After");
   });
 
-  it("ignores changes to other elements", async () => {
+  it("ignores changes to other elements", () => {
     const { modeler, fire } = createModeler();
     renderPanel(modeler);
-    await fire("selection.changed", { newSelection: [element("Task_1", "Before")] });
+    fire("selection.changed", { newSelection: [element("Task_1", "Before")] });
 
-    await fire("elements.changed", { elements: [element("Other_1", "Untouched")] });
+    fire("elements.changed", { elements: [element("Other_1", "Untouched")] });
 
     expect(screen.getByRole("textbox")).toHaveValue("Before");
   });
 
-  it("ignores changes when nothing is selected, or when nothing changed", async () => {
+  it("ignores changes when nothing is selected, or when nothing changed", () => {
     const { modeler, fire } = createModeler();
     renderPanel(modeler);
 
-    await fire("elements.changed", { elements: [element("Task_1", "After")] });
+    fire("elements.changed", { elements: [element("Task_1", "After")] });
     expect(screen.getByText("Please select an element.")).toBeInTheDocument();
 
-    await fire("selection.changed", { newSelection: [element("Task_1", "Before")] });
-    await fire("elements.changed", { elements: [] });
+    fire("selection.changed", { newSelection: [element("Task_1", "Before")] });
+    fire("elements.changed", { elements: [] });
     expect(screen.getByRole("textbox")).toHaveValue("Before");
   });
 });
