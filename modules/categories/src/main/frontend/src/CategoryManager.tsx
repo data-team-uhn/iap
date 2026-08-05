@@ -26,7 +26,7 @@ import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 
-import CategoryDialog, { type CategorySubmission } from "./CategoryDialog";
+import CategoryDialog, { SaveStepFailure, type CategorySubmission, type SaveStep } from "./CategoryDialog";
 import CategoryLoadError from "./CategoryLoadError";
 import CategoryTree, { type CategoryActions } from "./CategoryTree";
 import DeleteCategoryDialog from "./DeleteCategoryDialog";
@@ -44,6 +44,16 @@ interface DialogState {
 }
 
 const parentPathOf = (path: string): string => path.slice(0, path.lastIndexOf("/")) || CATEGORIES_ROOT;
+
+// Runs one write of a save, marking any failure with the step it belongs to so the dialog can say
+// which of them did not happen.
+const attempt = async (step: SaveStep, write: () => Promise<unknown>): Promise<void> => {
+  try {
+    await write();
+  } catch (error: unknown) {
+    throw new SaveStepFailure(step, error);
+  }
+};
 
 // The "Submission categories" administrative tool: displays the category tree and lets
 // administrators add, edit, rearrange, retire and delete categories, and bind leaf categories to
@@ -92,11 +102,12 @@ function CategoryManager() {
       return;
     }
     if (dialog.mode === "create") {
-      await create(dialog.parentPath, fields);
+      await attempt("create", () => create(dialog.parentPath, fields));
     } else if (dialog.node) {
-      await update(dialog.node.path, fields);
-      if (parentPath !== parentPathOf(dialog.node.path)) {
-        await move(dialog.node.path, parentPath);
+      const { path } = dialog.node;
+      await attempt("update", () => update(path, fields));
+      if (parentPath !== parentPathOf(path)) {
+        await attempt("move", () => move(path, parentPath));
       }
     }
   };
