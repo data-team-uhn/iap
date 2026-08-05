@@ -92,13 +92,37 @@ describe("useCategoryTree", () => {
     expect(result.current.loadError).toBeUndefined();
   });
 
-  it("reports a load failure", async () => {
+  // The wording itself is requestFailure's business; what matters here is that the hook hands the
+  // UI a sentence about the cause rather than the protocol, and never one about "the change" when
+  // all it did was read
+  it("reports a load failure in the user's terms", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
       ok: false, status: 500, statusText: "Server Error",
     } as unknown as Response)));
     const result = await loadedHook();
 
-    expect(result.current.loadError).toContain("500");
+    expect(result.current.loadError).toContain("The server ran into a problem");
+    expect(result.current.loadError).toContain("(HTTP 500)");
+    expect(result.current.loadError).not.toContain("change");
+  });
+
+  it("reports a tree that arrived unreadable", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: true, status: 200, statusText: "OK",
+      json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON at position 0")),
+    } as unknown as Response)));
+    const result = await loadedHook();
+
+    expect(result.current.loadError).toBe("The server's response could not be read.");
+  });
+
+  it("reports a server it could not reach", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
+    const result = await loadedHook();
+
+    expect(result.current.loadError).toContain("The server could not be reached");
+    // Chrome's phrasing for it, which means nothing to a user, does not reach the screen
+    expect(result.current.loadError).not.toContain("Failed to fetch");
   });
 
   it("creates a category under its parent and reloads the tree", async () => {
@@ -207,7 +231,7 @@ describe("useCategoryTree", () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject("connection reset")));
     const result = await loadedHook();
 
-    expect(result.current.loadError).toBe("connection reset");
+    expect(result.current.loadError).toBe("Something went wrong: connection reset");
   });
 
   it("translates a 409 deletion refusal into a CategoryReferencedError", async () => {

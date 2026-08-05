@@ -311,7 +311,8 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
 
       expect(await screen.findByRole("heading", { name: "The change could not be applied" })).toBeInTheDocument();
-      expect(screen.getByText(/403/)).toBeInTheDocument();
+      // Why it failed, in the user's terms, with the status kept for whoever has to report it
+      expect(screen.getByText("You do not have permission to do this. (HTTP 403)")).toBeInTheDocument();
 
       // ErrorDialog's close button carries no accessible name, so it is reached through the
       // dialog it is the only button of
@@ -331,7 +332,21 @@ describe("CategoryManager", () => {
       fetchMock.mockRejectedValueOnce("connection reset");
       fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
 
-      expect(await screen.findByText("connection reset")).toBeInTheDocument();
+      expect(await screen.findByText(/connection reset/)).toBeInTheDocument();
+    });
+
+    it("blames the connection when the server cannot be reached at all", async () => {
+      stubFetch();
+      const fetchMock = vi.mocked(fetch);
+      renderManager();
+      await screen.findByText("Paper submissions");
+
+      // What fetch rejects with when the request never completes
+      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
+
+      expect(await screen.findByText(/The server could not be reached/)).toBeInTheDocument();
+      expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
     });
 
     it("reports a refused retirement inside the dialog that asked for it", async () => {
@@ -344,7 +359,7 @@ describe("CategoryManager", () => {
       fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
       fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
 
-      expect(await screen.findByText(/403/)).toBeInTheDocument();
+      expect(await screen.findByText(/You do not have permission/)).toBeInTheDocument();
       // Reported where it was asked for, and ready to be tried again
       expect(screen.getByRole("heading", { name: "Retire Retrospective studies?" })).toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "The change could not be applied" })).not.toBeInTheDocument();
