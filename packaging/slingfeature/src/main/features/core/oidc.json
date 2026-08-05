@@ -46,6 +46,7 @@
         { "id":"org.apache.servicemix.bundles:org.apache.servicemix.bundles.jcip-annotations:1.0_2", "start-order":"24" },
         { "id":"net.minidev:json-smart:2.5.1", "start-order":"24" },
         { "id":"net.minidev:accessors-smart:2.5.1", "start-order":"24" },
+        { "id":"org.ow2.asm:asm:9.7.1", "start-order":"24" },
         { "id":"org.apache.sling:org.apache.sling.commons.crypto:1.1.0", "start-order":"24" },
         { "id":"org.apache.servicemix.bundles:org.apache.servicemix.bundles.jasypt:1.9.3_1", "start-order":"24" },
         { "id":"org.apache.sling:org.apache.sling.auth.oauth-client:0.1.6", "start-order":"25" }
@@ -104,8 +105,14 @@
         // path "/" makes it eligible everywhere; idp is the ExternalIdentityProvider name it
         // registers (matched by the external login module below). callbackUri must exactly match
         // a Valid Redirect URI registered on the Keycloak client.
+        // path "/" lets extractCredentials validate the sling.oidcauth session cookie on every
+        // request (so an OIDC login is recognised app-wide), while the low service.ranking keeps
+        // the form handler ahead of this one for requestCredentials -- so unauthenticated users
+        // still get the /login gate. The more-specific "/oidc-login" holder wins requestCredentials
+        // for the sign-in button regardless of ranking, which is what starts the Keycloak flow.
         "org.apache.sling.auth.oauth_client.impl.OidcAuthenticationHandler~keycloak":{
-            "path":["/"],
+            "path":["/","/oidc-login"],
+            "service.ranking:Integer":"-1000",
             "idp":"keycloak",
             "defaultConnectionName":"keycloak",
             "callbackUri":"$[env:IAP_PUBLIC_URL]/system/sling/oauth/callback",
@@ -148,5 +155,12 @@
         // SecurityProviderRegistration.requiredServicePids in oak/oak_base.json.
         "org.apache.jackrabbit.oak.spi.security.authentication.external.impl.principal.ExternalPrincipalConfiguration":{
         }
-    }
+    },
+
+    // Dedicated OIDC trigger. The sign-in button navigates here; because only the OIDC handler
+    // covers this path (see its `path` above) while the form handler stays the default elsewhere,
+    // hitting it starts the Keycloak round trip without disturbing the /login gate. The oauth
+    // client returns the user to this same path afterwards, where this sling:redirect bounces the
+    // now-authenticated session on to the app.
+    "repoinit:TEXT|true": "create path (nt:unstructured) /oidc-login\nset properties on /oidc-login\n  set sling:resourceType to \"sling:redirect\"\n  set sling:target to \"/\"\nend\nset ACL for everyone\n    allow jcr:read on /oidc-login\nend\n"
 }

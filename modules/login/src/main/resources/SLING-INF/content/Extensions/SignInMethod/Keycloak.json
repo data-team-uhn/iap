@@ -4,7 +4,7 @@
   "iap:extensionName": "Institutional account",
   "iap:extensionRenderURL": "asset:iap-login.RedirectSignIn.js",
   "iap:defaultOrder": 50,
-  "iap:targetURL": "/system/sling/oauth/entry-point?c=keycloak",
+  "iap:targetURL": "/oidc-login",
   "iap:actionLabel": "Continue with institutional credentials",
   "iap:hint": "You'll be redirected to your institution's sign-in page."
 }
