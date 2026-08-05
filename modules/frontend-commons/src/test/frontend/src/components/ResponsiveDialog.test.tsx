@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import type { ComponentProps } from "react";
+
 import { DialogContent } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
@@ -24,7 +26,6 @@ import userEvent from "@testing-library/user-event";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 
-import type { ComponentProps } from "react";
 
 type DialogProps = Partial<ComponentProps<typeof ResponsiveDialog>>;
 
@@ -103,7 +104,7 @@ describe("ResponsiveDialog", () => {
     const onClose = vi.fn();
     renderDialog({ onClose });
 
-    await user.click(document.querySelector(".MuiBackdrop-root") as HTMLElement);
+    await user.click(document.querySelector(".MuiBackdrop-root")!);
 
     expect(onClose).not.toHaveBeenCalled();
   });

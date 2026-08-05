@@ -20,7 +20,6 @@ import { ThemeProvider } from "@mui/material/styles";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
-
 import PageLayout from "@iap/homepage/PageLayout";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
@@ -311,7 +310,7 @@ describe("PageLayout", () => {
     await screen.findByText("Top bar content");
     // The bar tabs are display:none until the viewport is short, which hides them from the
     // accessibility tree, so this one is reached by attribute
-    fireEvent.click(container.querySelector('[aria-label="Open the top panel"]') as HTMLElement);
+    fireEvent.click(container.querySelector('[aria-label="Open the top panel"]')!);
     await waitFor(() => { expect(screen.getAllByText("Top bar content")).toHaveLength(2); });
 
     fireEvent.keyDown(screen.getAllByText("Top bar content")[1], { key: "Escape", code: "Escape" });

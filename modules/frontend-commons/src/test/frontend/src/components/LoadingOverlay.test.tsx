@@ -16,13 +16,14 @@
  * limitations under the License.
  */
 
+import type { ComponentProps } from "react";
+
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 
-import type { ComponentProps } from "react";
 
 const renderOverlay = (props: Partial<ComponentProps<typeof LoadingOverlay>> = {}) => render(
   <ThemeProvider theme={appTheme} defaultMode="light">

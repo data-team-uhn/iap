@@ -34,7 +34,7 @@ beforeAll(() => {
     addEventListener: () => {},
     removeEventListener: () => {},
     dispatchEvent: () => false,
-  }) as unknown as MediaQueryList);
+  }));
 });
 
 // MUI persists the explicitly chosen mode; clear it so tests don't leak into each other.

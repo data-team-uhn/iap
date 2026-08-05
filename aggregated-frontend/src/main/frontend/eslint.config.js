@@ -182,4 +182,56 @@ export default defineConfig([
       "@stylistic/linebreak-style": "off",
     },
   },
+
+  // Test sources are held to the same standard as the rest, minus the rules that only make sense
+  // for application code. Everything below is relaxed because the test idiom it forbids is the
+  // correct way to write the test, not because the tests were easier to leave failing -- keep it
+  // that way, and prefer fixing a test over adding to this list.
+  {
+    files: ["src/**/*.{test,spec}.{ts,tsx}", "src/**/*.fixture.{ts,tsx}"],
+
+    rules: {
+      // Stub collaborators are mostly methods that must exist and do nothing
+      "@typescript-eslint/no-empty-function": "off",
+
+      // describe > describe > it > callback is one level past the limit before a test does
+      // anything at all
+      "max-nested-callbacks": ["error", 5],
+
+      // Passing a spy or a mocked method around by reference is the point of having it
+      "@typescript-eslint/unbound-method": "off",
+
+      // An async test body that only makes assertions still has to be async when the helpers it
+      // calls are
+      "@typescript-eslint/require-await": "off",
+
+      // Rejecting with something that is not an Error is often exactly the case under test
+      "@typescript-eslint/prefer-promise-reject-errors": "off",
+
+      // Fixtures stand in for values whose real type is wider than what the test supplies, so
+      // stringifying a `RequestInfo | URL` the test itself created is safe
+      "@typescript-eslint/no-base-to-string": "off",
+
+      // `vi.mock("x", async importOriginal => ({ ...await importOriginal<typeof import("x")>() }))`
+      // is the documented way to partially mock a module, and needs the inline import type
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports", disallowTypeAnnotations: false },
+      ],
+
+      // Copying a DOM object to stand in for it (a fake `window.location`, say) is a test-only
+      // move that the rule rightly discourages in application code
+      "@typescript-eslint/no-misused-spread": "off",
+
+      // Tests deliberately probe for things the types promise are always there -- a jsdom that
+      // lacks `matchMedia`, say -- and the guard is what keeps them honest about it
+      "@typescript-eslint/no-unnecessary-condition": "off",
+
+      // Reaching into the rendered DOM for something the test just rendered: if it is not there
+      // the assertion fails immediately and says so, which is the outcome a test wants anyway --
+      // and it beats the `as HTMLElement` this rule otherwise pushes tests towards, which would
+      // hide the same mistake behind a wrong type
+      "@typescript-eslint/no-non-null-assertion": "off",
+    },
+  },
 ]);

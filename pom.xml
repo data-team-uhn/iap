@@ -83,6 +83,9 @@
          strips types per file without checking them, so this is the only thing that actually
          typechecks the frontend. Treated as a quality check: on by default, off in quick builds. -->
     <typecheck.skip>false</typecheck.skip>
+    <!-- Frontend lint (ESLint) over the sources *and* the tests; see the yarn-lint execution.
+         Treated as a quality check: on by default, off in quick builds. -->
+    <lint.skip>false</lint.skip>
   </properties>
 
   <dependencyManagement>
@@ -1974,6 +1977,22 @@
                 <arguments>${webpackArguments}</arguments>
               </configuration>
             </execution>
+            <!-- Lints the frontend, test sources included. Webpack's own eslint-webpack-plugin
+                 only ever sees a tree aggregated without them, so this is what holds the tests to
+                 the same standard as the rest (eslint.config.js relaxes the handful of rules that
+                 only make sense for application code, like the Java build's test Checkstyle
+                 profile). Runs after webpack, since aggregating the tests in would otherwise put
+                 them in the tree being bundled. -->
+            <execution>
+              <id>yarn-lint</id>
+              <goals>
+                <goal>yarn</goal>
+              </goals>
+              <configuration>
+                <arguments>lint</arguments>
+                <skip>${lint.skip}</skip>
+              </configuration>
+            </execution>
             <!-- Runs the frontend test suite (Vitest) via the `test` yarn script, which
                  aggregates the module sources+tests and then runs Vitest. Bound to the
                  test phase and gated on ${skipTests}, so it is skipped in quick builds
@@ -2143,6 +2162,7 @@
         <rat.skip>true</rat.skip>
         <dependencyCheck.skip>true</dependencyCheck.skip>
         <typecheck.skip>true</typecheck.skip>
+        <lint.skip>true</lint.skip>
         <webpackArguments>--mode=development --env quick=true</webpackArguments>
       </properties>
     </profile>
@@ -2156,6 +2176,7 @@
         <skip.webpack>true</skip.webpack>
         <!-- An execution with its own <skip> does not honour skip.yarn, so opt out explicitly -->
         <typecheck.skip>true</typecheck.skip>
+        <lint.skip>true</lint.skip>
       </properties>
     </profile>
 

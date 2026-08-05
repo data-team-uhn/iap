@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import type { ComponentProps } from "react";
+
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -23,7 +25,6 @@ import userEvent from "@testing-library/user-event";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import ErrorPage from "@iap/frontend-commons/components/ErrorPage";
 
-import type { ComponentProps } from "react";
 
 const renderErrorPage = (props: Partial<ComponentProps<typeof ErrorPage>> = {}) => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
