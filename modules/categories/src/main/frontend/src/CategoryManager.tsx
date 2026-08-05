@@ -89,8 +89,10 @@ function CategoryManager() {
         setRetireTarget(node);
       }
     },
-    onReorder: (node, order) => {
-      run(`${node.label} could not be moved`, () => reorder(node.path, order));
+    // "Moved up" and "moved down" among siblings, as against the edit dialog's "moved to" another
+    // parent: the UI offers both as moving a category, so a report has to say which one it means
+    onReorder: (node, order, direction) => {
+      run(`${node.label} could not be moved ${direction}`, () => reorder(node.path, order));
     },
   };
 

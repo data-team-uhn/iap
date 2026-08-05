@@ -340,8 +340,9 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
 
       const notice = await screen.findByRole("alert");
-      // Which category, and what did not happen to it - neither of which the row action itself said
-      expect(notice).toHaveTextContent("Paper submissions could not be moved");
+      // Which category, and what did not happen to it - neither of which the row action itself said.
+      // "Up", not just "moved": moving to another parent is a different action with the same verb.
+      expect(notice).toHaveTextContent("Paper submissions could not be moved up");
       // Why, in the user's terms, with the status kept for whoever has to report it
       expect(notice).toHaveTextContent("You do not have permission to do this. (HTTP 403)");
       // Reported over the tree, not in front of it
@@ -350,6 +351,17 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
 
       await waitFor(() => { expect(screen.queryByRole("alert")).not.toBeInTheDocument(); });
+    });
+
+    it("reports the other direction as itself", async () => {
+      stubFetch(body => body.includes("order=after"));
+      renderManager();
+      await screen.findByText("Retrospective studies");
+
+      fireEvent.click(screen.getByRole("button", { name: "Move Retrospective studies down" }));
+
+      expect(await screen.findByRole("alert"))
+        .toHaveTextContent("Retrospective studies could not be moved down");
     });
 
     it("offers the refused action again, and reports a retry that fails in turn", async () => {
