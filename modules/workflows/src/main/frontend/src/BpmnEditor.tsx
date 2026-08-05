@@ -60,7 +60,6 @@ interface WorkflowVersionSummary {
   title: string;
   version: string;
   description: string;
-  bpmnXml: string;
 }
 
 type SnackbarSeverity = "success" | "error" | "warning";
@@ -92,6 +91,24 @@ function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
 
 const WORKFLOWS_PATH = "/Workflows";
 
+// The diagram is an nt:file child of the version node rather than one of its properties, so it is
+// fetched and posted on its own path; listing the versions no longer carries every diagram with it.
+// The extension earns its keep: Sling types a file from its name, so without it every diagram the
+// repository serves would be an untyped binary.
+const BPMN_FILE = "bpmn.xml";
+
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+// A multipart part named after the child node, with the type hint that makes the Sling POST servlet
+// store it as an nt:file; without the hint the same upload lands as a binary property.
+function bpmnUpload(xml: string, body: FormData = new FormData()): FormData {
+  body.set(`./${BPMN_FILE}`, new File([xml], BPMN_FILE, { type: "application/xml" }));
+  body.set(`./${BPMN_FILE}@TypeHint`, "nt:file");
+  return body;
+}
+
 function extractVersions(defKey: string, defNode: JcrNode): WorkflowVersionSummary[] {
   return Object.entries(defNode)
     .filter(([, v]) => v && typeof v === "object" && (v as JcrNode)["jcr:primaryType"] === "wf:WorkflowVersion")
@@ -103,7 +120,6 @@ function extractVersions(defKey: string, defNode: JcrNode): WorkflowVersionSumma
         title: (defNode.title as string) || defKey,
         version: (version.version as string) || "",
         description: (version.description as string) || "",
-        bpmnXml: (version.bpmnXml as string) || "",
       };
     });
 }
@@ -191,6 +207,10 @@ export default function BpmnEditor() {
   const openLoadDialog = useCallback(() => {
     setLoadOpen(true);
     setLoadingDefs(true);
+    // Two levels is exactly what this list renders: the definitions, for their titles, and the
+    // versions under them. The depth selector both turns child serialization on and stops the
+    // traversal there, so a version's own children -- the diagram file, and the parsed flow nodes
+    // once those exist -- are left as bare paths instead of being dragged into every listing.
     fetchUtil(`${WORKFLOWS_PATH}.2.json`)
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
@@ -205,20 +225,31 @@ export default function BpmnEditor() {
       .finally(() => setLoadingDefs(false));
   }, [showMessage]);
 
-  const loadDefinition = useCallback((def: WorkflowVersionSummary) => {
-    if (!def.bpmnXml) {
-      showMessage(`"${def.title}" v${def.version} has no BPMN XML saved yet`, "warning");
-      setLoadOpen(false);
+  const loadDefinition = useCallback(async (def: WorkflowVersionSummary) => {
+    let xml: string;
+    try {
+      const response = await fetchUtil(`${def.path}/${BPMN_FILE}`);
+      if (response.status === 404) {
+        showMessage(`"${def.title}" v${def.version} has no BPMN XML saved yet`, "warning");
+        setLoadOpen(false);
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      xml = await response.text();
+    } catch (err) {
+      showMessage(`Failed to load the diagram: ${errorText(err)}`, "error");
       return;
     }
-    modeler?.importXML(def.bpmnXml)
+    modeler?.importXML(xml)
       .then(() => {
         setCurrentPath(def.path);
         setCurrentTitle(`${def.title} (v${def.version})`);
         setLoadOpen(false);
         showMessage(`Loaded "${def.title}" v${def.version}`);
       })
-      .catch((err: unknown) => showMessage(`Failed to import XML: ${err instanceof Error ? err.message : String(err)}`, "error"));
+      .catch((err: unknown) => showMessage(`Failed to import XML: ${errorText(err)}`, "error"));
   }, [modeler, showMessage]);
 
   const save = useCallback(async () => {
@@ -227,8 +258,7 @@ export default function BpmnEditor() {
     try {
       const { xml } = await modeler.saveXML({ format: true });
       if (!xml) throw new Error("Failed to serialize BPMN XML");
-      const body = new URLSearchParams({ bpmnXml: xml });
-      const response = await fetchUtil(currentPath, { method: "POST", body });
+      const response = await fetchUtil(currentPath, { method: "POST", body: bpmnUpload(xml) });
       if (response.ok) {
         showMessage(`Saved "${currentTitle}"`);
       } else {
@@ -286,7 +316,6 @@ export default function BpmnEditor() {
       if (newDescription.trim()) versionBody.set("description", newDescription.trim());
       versionBody.set("active", String(newActive));
       versionBody.set("active@TypeHint", "Boolean");
-      if (newXml.trim()) versionBody.set("bpmnXml", newXml.trim());
 
       const versionResponse = await fetchUtil(`${defPath}/`, { method: "POST", body: versionBody });
       if (!versionResponse.ok) throw new Error(`HTTP ${versionResponse.status}`);
@@ -295,6 +324,15 @@ export default function BpmnEditor() {
       const versionLocation = versionResponse.headers.get("Location");
       if (versionLocation) {
         try { versionPath = new URL(versionLocation).pathname; } catch { versionPath = versionLocation; }
+      }
+
+      if (newXml.trim()) {
+        // A request of its own rather than one multipart create: Sling creates the node a file
+        // part's path implies before it applies jcr:primaryType, so sending the diagram together
+        // with the version's own properties leaves a sling:Folder behind instead of a
+        // wf:WorkflowVersion.
+        const diagramResponse = await fetchUtil(versionPath, { method: "POST", body: bpmnUpload(newXml.trim()) });
+        if (!diagramResponse.ok) throw new Error(`HTTP ${diagramResponse.status}`);
       }
 
       if (newXml.trim() && modeler) {
@@ -354,7 +392,7 @@ export default function BpmnEditor() {
             <List disablePadding>
               {definitions.map(def => (
                 <ListItem key={def.path} disablePadding>
-                  <ListItemButton onClick={() => loadDefinition(def)}>
+                  <ListItemButton onClick={() => void loadDefinition(def)}>
                     <ListItemText
                       primary={def.title}
                       secondary={[`v${def.version}`, def.description].filter(Boolean).join(" · ") || null}

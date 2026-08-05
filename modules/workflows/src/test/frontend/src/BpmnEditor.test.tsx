@@ -48,8 +48,7 @@ vi.mock("bpmn-js/lib/Modeler", () => ({ default: ModelerMock }));
 
 const WORKFLOW_XML = "<bpmn:definitions/>";
 
-// A /Workflows.2.json payload holding one definition with one version, plus the kinds of entries
-// the editor has to skip: a null, a non-node string, and nodes of unrelated primary types.
+// A /Workflows.2.json payload holding just the workflows and versions descriptions
 const workflowsJson = (overrides: Record<string, unknown> = {}) => ({
   "jcr:primaryType": "sling:Folder",
   danglingEntry: null,
@@ -63,7 +62,6 @@ const workflowsJson = (overrides: Record<string, unknown> = {}) => ({
       "jcr:primaryType": "wf:WorkflowVersion",
       version: "1.0",
       description: "First cut",
-      bpmnXml: WORKFLOW_XML,
     },
   },
   ...overrides,
@@ -83,6 +81,29 @@ const postResponse = (init: { ok?: boolean; status?: number; location?: string }
   url: "",
   headers: new Headers(init.location ? { Location: init.location } : {}),
 }) as unknown as Response;
+
+// The diagram lives in an nt:file child, so loading one is a second request returning the raw XML.
+const fileResponse = (xml: string) => ({
+  ok: true,
+  status: 200,
+  url: "",
+  text: () => Promise.resolve(xml),
+  headers: new Headers(),
+}) as unknown as Response;
+
+const missingFileResponse = () => ({
+  ok: false,
+  status: 404,
+  url: "",
+  text: () => Promise.resolve(""),
+  headers: new Headers(),
+}) as unknown as Response;
+
+// The part the Sling POST servlet stores as the nt:file child, read back out of a multipart body.
+const uploadedBpmn = async (body: FormData) => {
+  const part = body.get("./bpmn.xml");
+  return part instanceof File ? await part.text() : part;
+};
 
 const renderEditor = () => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
@@ -203,6 +224,7 @@ describe("BpmnEditor", () => {
       expect(within(dialog).queryByText(/·/)).not.toBeInTheDocument();
     });
 
+    // A /Workflows holding no definitions at all: the dialog has to say so rather than sit blank.
     it("says so when there is nothing to load", async () => {
       const user = userEvent.setup();
       renderEditor();
@@ -240,9 +262,11 @@ describe("BpmnEditor", () => {
 
       const dialog = await openLoadDialog(user);
       await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      fetchMock.mockResolvedValueOnce(fileResponse(WORKFLOW_XML));
       await user.click(within(dialog).getByText("Approval"));
 
       await waitFor(() => { expect(modelerInstances[0].importXML).toHaveBeenCalledWith(WORKFLOW_XML); });
+      expect(fetchMock).toHaveBeenLastCalledWith("/Workflows/approval/v1/bpmn.xml", undefined);
       expect(await screen.findByText('Loaded "Approval" v1.0')).toBeInTheDocument();
       expect(screen.getByText("Approval (v1.0)")).toBeInTheDocument();
       await waitForDialogToClose();
@@ -253,19 +277,41 @@ describe("BpmnEditor", () => {
       const user = userEvent.setup();
       renderEditor();
 
-      const dialog = await openLoadDialog(user, {
-        approval: {
-          "jcr:primaryType": "wf:WorkflowDefinition",
-          title: "Approval",
-          v1: { "jcr:primaryType": "wf:WorkflowVersion", version: "1.0" },
-        },
-      });
+      const dialog = await openLoadDialog(user);
       await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      // No nt:file child, so Sling answers the file's path with a 404
+      fetchMock.mockResolvedValueOnce(missingFileResponse());
       await user.click(within(dialog).getByText("Approval"));
 
       expect(await screen.findByText('"Approval" v1.0 has no BPMN XML saved yet')).toBeInTheDocument();
       expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
       await waitForDialogToClose();
+    });
+
+    it("reports a diagram the repository refuses to hand over", async () => {
+      const user = userEvent.setup();
+      renderEditor();
+
+      const dialog = await openLoadDialog(user);
+      await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 403, url: "", headers: new Headers() } as Response);
+      await user.click(within(dialog).getByText("Approval"));
+
+      expect(await screen.findByText("Failed to load the diagram: HTTP 403")).toBeInTheDocument();
+      expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
+    });
+
+    it("reports a diagram that could not be fetched at all", async () => {
+      const user = userEvent.setup();
+      renderEditor();
+
+      const dialog = await openLoadDialog(user);
+      await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      fetchMock.mockRejectedValueOnce(new Error("network down"));
+      await user.click(within(dialog).getByText("Approval"));
+
+      expect(await screen.findByText("Failed to load the diagram: network down")).toBeInTheDocument();
+      expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
     it("reports a diagram that will not import", async () => {
@@ -275,6 +321,7 @@ describe("BpmnEditor", () => {
 
       const dialog = await openLoadDialog(user);
       await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      fetchMock.mockResolvedValueOnce(fileResponse(WORKFLOW_XML));
       await user.click(within(dialog).getByText("Approval"));
 
       expect(await screen.findByText("Failed to import XML: malformed")).toBeInTheDocument();
@@ -288,6 +335,7 @@ describe("BpmnEditor", () => {
 
       const dialog = await openLoadDialog(user);
       await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      fetchMock.mockResolvedValueOnce(fileResponse(WORKFLOW_XML));
       await user.click(within(dialog).getByText("Approval"));
 
       expect(await screen.findByText("Failed to import XML: not an Error")).toBeInTheDocument();
@@ -301,7 +349,7 @@ describe("BpmnEditor", () => {
         approval: {
           "jcr:primaryType": "wf:WorkflowDefinition",
           title: "Approval",
-          v1: { "jcr:primaryType": "wf:WorkflowVersion", bpmnXml: WORKFLOW_XML },
+          v1: { "jcr:primaryType": "wf:WorkflowVersion" },
         },
       });
 
@@ -340,6 +388,7 @@ describe("BpmnEditor", () => {
     const loadApproval = async (user: ReturnType<typeof userEvent.setup>) => {
       const dialog = await openLoadDialog(user);
       await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      fetchMock.mockResolvedValueOnce(fileResponse(WORKFLOW_XML));
       await user.click(within(dialog).getByText("Approval"));
       await screen.findByText('Loaded "Approval" v1.0');
       await waitForDialogToClose();
@@ -357,7 +406,10 @@ describe("BpmnEditor", () => {
       const [url, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
       expect(url).toBe("/Workflows/approval/v1");
       expect(init.method).toBe("POST");
-      expect((init.body as URLSearchParams).get("bpmnXml")).toBe("<saved/>");
+      const body = init.body as FormData;
+      expect(await uploadedBpmn(body)).toBe("<saved/>");
+      // Without the hint the same part would be stored as a binary property, not an nt:file
+      expect(body.get("./bpmn.xml@TypeHint")).toBe("nt:file");
     });
 
     it("reports a rejected save", async () => {
@@ -380,8 +432,8 @@ describe("BpmnEditor", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       expect(await screen.findByText("Save failed: Failed to serialize BPMN XML")).toBeInTheDocument();
-      // The failed save must not have been posted anywhere
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // The failed save must not have been posted anywhere: only the listing and the diagram it loaded
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -421,7 +473,8 @@ describe("BpmnEditor", () => {
       });
       fetchMock
         .mockResolvedValueOnce(postResponse())
-        .mockResolvedValueOnce(postResponse());
+        .mockResolvedValueOnce(postResponse())
+        .mockResolvedValueOnce(postResponse({ ok: true, status: 200 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
       expect(await screen.findByText('Created "Consent Review" v2.1')).toBeInTheDocument();
@@ -443,7 +496,14 @@ describe("BpmnEditor", () => {
       expect(versionBody.get(":nameHint")).toBe("2-1");
       expect(versionBody.get("version")).toBe("2.1");
       expect(versionBody.get("description")).toBe("Reviews consent");
-      expect(versionBody.get("bpmnXml")).toBe(WORKFLOW_XML);
+
+      // The diagram follows in a request of its own, onto the version that was just created:
+      // sending it with the version's properties would leave a sling:Folder behind, since Sling
+      // creates the node a file part implies before it applies jcr:primaryType.
+      const [diagramUrl, diagramInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+      expect(diagramUrl).toBe("/Workflows/consent-review/2-1");
+      expect(await uploadedBpmn(diagramInit.body as FormData)).toBe(WORKFLOW_XML);
+      expect((diagramInit.body as FormData).get("./bpmn.xml@TypeHint")).toBe("nt:file");
 
       // The new version is imported into the canvas and becomes the save target
       expect(modelerInstances[0].importXML).toHaveBeenCalledWith(WORKFLOW_XML);
@@ -465,7 +525,8 @@ describe("BpmnEditor", () => {
       await screen.findByText('Created "Bare" v1.0');
       const versionBody = (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as URLSearchParams;
       expect(versionBody.has("description")).toBe(false);
-      expect(versionBody.has("bpmnXml")).toBe(false);
+      // Nothing to upload, so the definition and the version are the only requests
+      expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
@@ -476,12 +537,15 @@ describe("BpmnEditor", () => {
       await fillNewDialog(user, { title: "Consent Review", version: "2.1" });
       fetchMock
         .mockResolvedValueOnce(postResponse({ location: "http://localhost:8080/Workflows/consent-review_2" }))
-        .mockResolvedValueOnce(postResponse({ location: "/Workflows/consent-review_2/2-1_3" }));
+        .mockResolvedValueOnce(postResponse({ location: "/Workflows/consent-review_2/2-1_3" }))
+        .mockResolvedValueOnce(postResponse({ ok: true, status: 200 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
       await screen.findByText('Created "Consent Review" v2.1');
       // An absolute Location is reduced to its path, a relative one is taken as-is
       expect((fetchMock.mock.calls[1] as [string])[0]).toBe("/Workflows/consent-review_2/");
+      // ...and the diagram goes to the version Sling actually created
+      expect((fetchMock.mock.calls[2] as [string])[0]).toBe("/Workflows/consent-review_2/2-1_3");
 
       await waitForDialogToClose();
       fetchMock.mockResolvedValueOnce(postResponse({ ok: true, status: 200 }));
@@ -498,7 +562,8 @@ describe("BpmnEditor", () => {
       await fillNewDialog(user, { title: "Consent Review", version: "2.1" });
       fetchMock
         .mockResolvedValueOnce(postResponse({ location: "/Workflows/consent-review_4" }))
-        .mockResolvedValueOnce(postResponse());
+        .mockResolvedValueOnce(postResponse())
+        .mockResolvedValueOnce(postResponse({ ok: true, status: 200 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
       await screen.findByText('Created "Consent Review" v2.1');
@@ -516,6 +581,21 @@ describe("BpmnEditor", () => {
       expect(await screen.findByText("Create failed: HTTP 409")).toBeInTheDocument();
       // The definition failed, so no version should have been attempted
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports a rejected diagram", async () => {
+      const user = userEvent.setup();
+      renderEditor();
+
+      await fillNewDialog(user, { title: "Consent Review", version: "1.0" });
+      fetchMock
+        .mockResolvedValueOnce(postResponse())
+        .mockResolvedValueOnce(postResponse())
+        .mockResolvedValueOnce(postResponse({ ok: false, status: 403 }));
+      await user.click(screen.getByRole("button", { name: "Create" }));
+
+      expect(await screen.findByText("Create failed: HTTP 403")).toBeInTheDocument();
+      expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
     it("reports a rejected version", async () => {
@@ -553,14 +633,9 @@ describe("BpmnEditor", () => {
 
     // Via a path that closes its dialog, so the alert's own Close button is not left behind an
     // aria-hidden modal
-    const dialog = await openLoadDialog(user, {
-      approval: {
-        "jcr:primaryType": "wf:WorkflowDefinition",
-        title: "Approval",
-        v1: { "jcr:primaryType": "wf:WorkflowVersion", version: "1.0" },
-      },
-    });
+    const dialog = await openLoadDialog(user);
     await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+    fetchMock.mockResolvedValueOnce(missingFileResponse());
     await user.click(within(dialog).getByText("Approval"));
     const message = await screen.findByText('"Approval" v1.0 has no BPMN XML saved yet');
     await waitForDialogToClose();
