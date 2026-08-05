@@ -48,6 +48,8 @@ import {
 } from "@mui/material";
 import Modeler from 'bpmn-js/lib/Modeler';
 
+import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
+
 import PropertiesPanel from "./PropertiesPanel";
 import { WORKFLOWS_ROOT, parseWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
 
@@ -83,10 +85,6 @@ function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
 // The extension earns its keep: Sling types a file from its name, so without it every diagram the
 // repository serves would be an untyped binary.
 const BPMN_FILE = "bpmn.xml";
-
-function errorText(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 // A multipart part named after the child node, with the type hint that makes the Sling POST servlet
 // store it as an nt:file; without the hint the same upload lands as a binary property.
@@ -200,11 +198,11 @@ export default function BpmnEditor() {
         return;
       }
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new RequestError(response.status);
       }
       xml = await response.text();
     } catch (err) {
-      showMessage(`Failed to load the diagram: ${errorText(err)}`, "error");
+      showMessage(`Failed to load the diagram: ${describeRequestFailure(err)}`, "error");
       return;
     }
     modeler?.importXML(xml)
@@ -214,7 +212,7 @@ export default function BpmnEditor() {
         setLoadOpen(false);
         showMessage(`Loaded "${def.title}" v${def.version}`);
       })
-      .catch((err: unknown) => showMessage(`Failed to import XML: ${errorText(err)}`, "error"));
+      .catch((err: unknown) => showMessage(`Failed to import XML: ${messageOf(err)}`, "error"));
   }, [modeler, showMessage]);
 
   const save = useCallback(async () => {
@@ -222,15 +220,19 @@ export default function BpmnEditor() {
     setSaving(true);
     try {
       const { xml } = await modeler.saveXML({ format: true });
-      if (!xml) throw new Error("Failed to serialize BPMN XML");
-      const response = await fetchUtil(currentPath, { method: "POST", body: bpmnUpload(xml) });
-      if (response.ok) {
-        showMessage(`Saved "${currentTitle}"`);
-      } else {
-        throw new Error(`HTTP ${response.status}`);
+      if (!xml) {
+        // Ours rather than the server's, so it is said plainly instead of being described as a
+        // failed request
+        showMessage("Save failed: the diagram could not be serialized", "error");
+        return;
       }
+      const response = await fetchUtil(currentPath, { method: "POST", body: bpmnUpload(xml) });
+      if (!response.ok) {
+        throw new RequestError(response.status);
+      }
+      showMessage(`Saved "${currentTitle}"`);
     } catch (err) {
-      showMessage(`Save failed: ${(err as Error).message}`, "error");
+      showMessage(`Save failed: ${describeRequestFailure(err)}`, "error");
     } finally {
       setSaving(false);
     }
@@ -265,7 +267,7 @@ export default function BpmnEditor() {
       defBody.set("active@TypeHint", "Boolean");
 
       const defResponse = await fetchUtil(`${WORKFLOWS_ROOT}/`, { method: "POST", body: defBody });
-      if (!defResponse.ok) throw new Error(`HTTP ${defResponse.status}`);
+      if (!defResponse.ok) throw new RequestError(defResponse.status);
 
       let defPath = `${WORKFLOWS_ROOT}/${defSlug}`;
       const defLocation = defResponse.headers.get("Location");
@@ -283,7 +285,7 @@ export default function BpmnEditor() {
       versionBody.set("active@TypeHint", "Boolean");
 
       const versionResponse = await fetchUtil(`${defPath}/`, { method: "POST", body: versionBody });
-      if (!versionResponse.ok) throw new Error(`HTTP ${versionResponse.status}`);
+      if (!versionResponse.ok) throw new RequestError(versionResponse.status);
 
       let versionPath = `${defPath}/${versionSlug}`;
       const versionLocation = versionResponse.headers.get("Location");
@@ -297,7 +299,7 @@ export default function BpmnEditor() {
         // with the version's own properties leaves a sling:Folder behind instead of a
         // wf:WorkflowVersion.
         const diagramResponse = await fetchUtil(versionPath, { method: "POST", body: bpmnUpload(newXml.trim()) });
-        if (!diagramResponse.ok) throw new Error(`HTTP ${diagramResponse.status}`);
+        if (!diagramResponse.ok) throw new RequestError(diagramResponse.status);
       }
 
       if (newXml.trim() && modeler) {
@@ -308,7 +310,7 @@ export default function BpmnEditor() {
       showMessage(`Created "${newTitle.trim()}" v${newVersion.trim()}`);
       resetNewDialog();
     } catch (err) {
-      showMessage(`Create failed: ${(err as Error).message}`, "error");
+      showMessage(`Create failed: ${describeRequestFailure(err)}`, "error");
     } finally {
       setCreating(false);
     }

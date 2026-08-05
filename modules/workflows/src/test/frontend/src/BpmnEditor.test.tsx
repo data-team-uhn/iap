@@ -297,7 +297,8 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce({ ok: false, status: 403, url: "", headers: new Headers() });
       await user.click(within(dialog).getByText("Approval"));
 
-      expect(await screen.findByText("Failed to load the diagram: HTTP 403")).toBeInTheDocument();
+      expect(await screen.findByText("Failed to load the diagram: You do not have permission to do this. "
+        + "(HTTP 403)")).toBeInTheDocument();
       expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
@@ -310,7 +311,8 @@ describe("BpmnEditor", () => {
       fetchMock.mockRejectedValueOnce(new Error("network down"));
       await user.click(within(dialog).getByText("Approval"));
 
-      expect(await screen.findByText("Failed to load the diagram: network down")).toBeInTheDocument();
+      expect(await screen.findByText("Failed to load the diagram: Something went wrong: network down"))
+        .toBeInTheDocument();
       expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
@@ -420,7 +422,9 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce(postResponse({ ok: false, status: 403 }));
       await user.click(screen.getByRole("button", { name: "Save" }));
 
-      expect(await screen.findByText("Save failed: HTTP 403")).toBeInTheDocument();
+      // Why it was refused, in the user's terms, with the status kept for a bug report
+      expect(await screen.findByText("Save failed: You do not have permission to do this. (HTTP 403)"))
+        .toBeInTheDocument();
     });
 
     it("reports a diagram that will not serialize", async () => {
@@ -431,7 +435,8 @@ describe("BpmnEditor", () => {
       modelerInstances[0].saveXML.mockResolvedValueOnce({ xml: undefined });
       await user.click(screen.getByRole("button", { name: "Save" }));
 
-      expect(await screen.findByText("Save failed: Failed to serialize BPMN XML")).toBeInTheDocument();
+      // Ours, not the server's: said plainly rather than described as a failed request
+      expect(await screen.findByText("Save failed: the diagram could not be serialized")).toBeInTheDocument();
       // The failed save must not have been posted anywhere: only the listing and the diagram it loaded
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
@@ -578,7 +583,8 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce(postResponse({ ok: false, status: 409 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
-      expect(await screen.findByText("Create failed: HTTP 409")).toBeInTheDocument();
+      expect(await screen.findByText("Create failed: This conflicts with a more recent change. "
+        + "Reload and try again. (HTTP 409)")).toBeInTheDocument();
       // The definition failed, so no version should have been attempted
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
@@ -594,7 +600,8 @@ describe("BpmnEditor", () => {
         .mockResolvedValueOnce(postResponse({ ok: false, status: 403 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
-      expect(await screen.findByText("Create failed: HTTP 403")).toBeInTheDocument();
+      expect(await screen.findByText("Create failed: You do not have permission to do this. (HTTP 403)"))
+        .toBeInTheDocument();
       expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
@@ -608,7 +615,8 @@ describe("BpmnEditor", () => {
         .mockResolvedValueOnce(postResponse({ ok: false, status: 503 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
-      expect(await screen.findByText("Create failed: HTTP 503")).toBeInTheDocument();
+      expect(await screen.findByText("Create failed: The server ran into a problem and could not "
+        + "complete this. Try again in a moment. (HTTP 503)")).toBeInTheDocument();
     });
 
     it("discards what was typed when cancelled", async () => {
