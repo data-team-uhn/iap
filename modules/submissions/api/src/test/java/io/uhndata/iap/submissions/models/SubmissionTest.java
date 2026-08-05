@@ -48,6 +48,8 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.workflows.models.WorkflowInstance;
+import io.uhndata.iap.workflows.models.WorkflowInstances;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -88,7 +90,7 @@ class SubmissionTest
         this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
             Document.class, Review.class, ReviewComment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
-            SingleCondition.class);
+            SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class);
         this.created = Calendar.getInstance();
         this.created.set(2026, Calendar.APRIL, 5, 16, 20, 0);
     }
@@ -510,5 +512,47 @@ class SubmissionTest
         assertEquals(2, missing.size());
         assertEquals(DocumentRequirement.class, missing.get(0).getClass());
         assertEquals(ApprovalRequirement.class, missing.get(1).getClass());
+    }
+
+    @Test
+    void listsTheWorkflowsRunningOverIt()
+    {
+        // The instances live in the container the wf:WorkflowAttachable mixin autocreates, inside the submission
+        // they drive, rather than being pointed at from it
+        final Resource resource = this.context.create().resource("/Submissions/submission",
+            SLING_RESOURCE_TYPE, "sub/Submission");
+        this.context.create().resource("/Submissions/submission/wf:instances",
+            SLING_RESOURCE_TYPE, WorkflowInstances.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/wf:instances/review", Map.of(
+            SLING_RESOURCE_TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "in-review"));
+        this.context.create().resource("/Submissions/submission/wf:instances/reminders", Map.of(
+            SLING_RESOURCE_TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active"));
+
+        final List<WorkflowInstance> instances = resource.adaptTo(Submission.class).getWorkflowInstances();
+
+        assertEquals(2, instances.size());
+        assertEquals("in-review", instances.get(0).getStatus());
+        assertEquals("active", instances.get(1).getStatus());
+    }
+
+    @Test
+    void listsNoWorkflowsWhenTheContainerIsEmpty()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission",
+            SLING_RESOURCE_TYPE, "sub/Submission");
+        this.context.create().resource("/Submissions/submission/wf:instances",
+            SLING_RESOURCE_TYPE, WorkflowInstances.RESOURCE_TYPE);
+
+        assertTrue(resource.adaptTo(Submission.class).getWorkflowInstances().isEmpty());
+    }
+
+    @Test
+    void listsNoWorkflowsWhenTheContainerIsMissing()
+    {
+        // The container is autocreated in the real repository, but the model must not fall over without it
+        final Resource resource = this.context.create().resource("/Submissions/submission",
+            SLING_RESOURCE_TYPE, "sub/Submission");
+
+        assertTrue(resource.adaptTo(Submission.class).getWorkflowInstances().isEmpty());
     }
 }

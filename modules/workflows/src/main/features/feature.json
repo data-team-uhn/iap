@@ -27,7 +27,9 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (wf:WorkflowsHomepage) /Workflows",
-        "create path (wf:WorkflowTypesHomepage) /WorkflowTypes",
+        // /WorkflowTypes is deliberately NOT created here: it is shipped as initial content, vocabulary and all,
+        // and the content loader skips a subtree whose root already exists. Creating it here first would leave
+        // the vocabulary permanently unloaded.
         "create service user workflows \n set ACL for workflows \n allow jcr:all on / \n end"
       ]
     },
