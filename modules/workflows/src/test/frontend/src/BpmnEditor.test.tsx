@@ -570,40 +570,40 @@ describe("BpmnEditor", () => {
     await waitFor(() => { expect(message).not.toBeInTheDocument(); });
   });
 
-  // fetchUtil() treats 401 and 500 as "the session or the server is gone", logs, and then neither
-  // resolves nor rejects, so every caller is left awaiting a promise that never settles. These
-  // tests pin that down as it stands today; see the note in the commit message.
-  describe("a request that never settles", () => {
-    it("leaves the editor waiting when the server returns 500", async () => {
+  // Requests go through useAuthenticatedFetch, so an expired session is recovered from rather
+  // than reported; without a <ReLoginProvider> above it (as in these tests) there is no sign-in to
+  // offer, and it has to fail rather than wait forever. The recovery itself is covered in
+  // reLogin.test.tsx.
+  describe("an expired session", () => {
+    it.each([
+      ["a 401", { ok: false, status: 401, url: "" }],
+      ["a redirect to the login page", { ok: true, status: 200, url: `${window.location.origin}/login?resource=/Workflows` }],
+    ])("is reported rather than waited on, given %s", async (_case, response) => {
       const user = userEvent.setup();
-      const log = vi.spyOn(console, "log").mockImplementation(() => { /* keep the output quiet */ });
       renderEditor();
 
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, url: "", headers: new Headers() } as unknown as Response);
+      fetchMock.mockResolvedValueOnce({ ...response, headers: new Headers() });
       await user.click(screen.getByRole("button", { name: "Load" }));
 
-      await waitFor(() => { expect(log).toHaveBeenCalledWith("Error fetching: 500"); });
-      // Still spinning: no list, no failure message
-      const dialog = screen.getByRole("dialog");
-      expect(within(dialog).getByRole("progressbar")).toBeInTheDocument();
-      expect(screen.queryByText("Failed to load workflow definitions")).not.toBeInTheDocument();
+      expect(await screen.findByText("Failed to load workflow definitions")).toBeInTheDocument();
+      // The spinner gave way, rather than turning forever
+      expect(within(screen.getByRole("dialog")).queryByRole("progressbar")).not.toBeInTheDocument();
     });
 
-    it("leaves the editor waiting when the response redirects to the login page", async () => {
+    it("reports a save that ran into it, instead of leaving the button spinning", async () => {
       const user = userEvent.setup();
-      const log = vi.spyOn(console, "log").mockImplementation(() => { /* keep the output quiet */ });
       renderEditor();
+      const dialog = await openLoadDialog(user);
+      await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      await user.click(within(dialog).getByText("Approval"));
+      await screen.findByText('Loaded "Approval" v1.0');
+      await waitForDialogToClose();
 
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        url: `${window.location.origin}/login?resource=/Workflows`,
-        headers: new Headers(),
-      } as unknown as Response);
-      await user.click(screen.getByRole("button", { name: "Load" }));
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 401, url: "", headers: new Headers() });
+      await user.click(screen.getByRole("button", { name: "Save" }));
 
-      await waitFor(() => { expect(log).toHaveBeenCalledWith("Requested relogin"); });
-      expect(within(screen.getByRole("dialog")).getByRole("progressbar")).toBeInTheDocument();
+      expect(await screen.findByText(/^Save failed: Not authenticated/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     });
   });
 });

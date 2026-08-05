@@ -19,11 +19,17 @@
 
 import { createRoot } from 'react-dom/client';
 
+import { ReLoginProvider } from '@iap/login/ReLoginDialog';
+
 import BpmnEditor from './BpmnEditor';
 
 const container = document.querySelector('#main-container');
 if (container) {
   createRoot(container).render(
-    <BpmnEditor />
+    // Editing a diagram can easily outlast a session, and the editor holds the only copy of the
+    // unsaved work, so signing back in has to happen over the page rather than by navigating away.
+    <ReLoginProvider>
+      <BpmnEditor />
+    </ReLoginProvider>
   );
 }
