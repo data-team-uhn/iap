@@ -18,7 +18,7 @@
 
 import { useState } from "react";
 
-import { Alert, Button, DialogActions, DialogContent, MenuItem, Stack, TextField } from "@mui/material";
+import { Alert, AlertTitle, Button, DialogActions, DialogContent, MenuItem, Stack, TextField } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { messageOf } from "@iap/frontend-commons/requestFailure";
@@ -32,6 +32,23 @@ import { CATEGORIES_ROOT, type CategoryFields } from "./useCategoryTree";
 export interface CategorySubmission {
   fields: CategoryFields;
   parentPath: string;
+}
+
+// Which write did not happen. Editing a category that also changes parent takes two of them - the
+// fields, then the move - so a failure has to say which one it was, or a half-applied edit reads as
+// one that did not happen at all.
+export type SaveStep = "create" | "update" | "move";
+
+// A save failure that knows which step it belongs to. The manager raises it, having done the steps;
+// the dialog words it, having the labels.
+export class SaveStepFailure extends Error {
+  readonly step: SaveStep;
+
+  constructor(step: SaveStep, cause: unknown) {
+    super(messageOf(cause));
+    this.name = "SaveStepFailure";
+    this.step = step;
+  }
 }
 
 interface CategoryDialogProps {
@@ -54,7 +71,7 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
   const [ schemaVersion, setSchemaVersion ] = useState(node?.schemaVersion?.uuid ?? "");
   const [ parent, setParent ] = useState(parentPath);
   const [ saving, setSaving ] = useState(false);
-  const [ saveError, setSaveError ] = useState<string>();
+  const [ saveError, setSaveError ] = useState<{ lead: string; detail: string }>();
 
   // Only leaf categories may carry a schema version; a category that already has subcategories
   // does not get the picker at all
@@ -67,6 +84,22 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
     { path: CATEGORIES_ROOT, label: "— Top level —", depth: -1 },
     ...flattenForParentPicker(tree, node?.path),
   ];
+
+  // The chosen parent as it would be referred to in a sentence, which is not how it is listed in
+  // the picker: the top level is an option there, but a place here.
+  const parentName = parent === CATEGORIES_ROOT
+    ? "the top level"
+    : parentOptions.find(option => option.path === parent)?.label ?? "the chosen category";
+
+  // What did not happen, said before why, as the load report and the tree's notices also do. The
+  // dialog's own title names the category, so these do not repeat it. A move that failed after the
+  // fields were saved is the one case where something did happen, and saying so beats being brief.
+  const leadFor = (error: unknown): string => {
+    if (error instanceof SaveStepFailure && error.step === "move") {
+      return `The changes were saved, but the category could not be moved to ${parentName}`;
+    }
+    return mode === "create" ? "The category could not be created" : "The changes could not be saved";
+  };
 
   const save = () => {
     setSaving(true);
@@ -83,7 +116,7 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
     onSave({ fields, parentPath: parent })
       .then(onClose)
       .catch((error: unknown) => {
-        setSaveError(messageOf(error));
+        setSaveError({ lead: leadFor(error), detail: messageOf(error) });
         setSaving(false);
       });
   };
@@ -136,7 +169,13 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
                 ))}
               </TextField>
             )}
-          { saveError && <Alert severity="error">{saveError}</Alert> }
+          { saveError
+            && (
+              <Alert severity="error">
+                <AlertTitle>{saveError.lead}</AlertTitle>
+                {saveError.detail}
+              </Alert>
+            )}
         </Stack>
       </DialogContent>
       <DialogActions>
