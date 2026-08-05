@@ -48,8 +48,7 @@ vi.mock("bpmn-js/lib/Modeler", () => ({ default: ModelerMock }));
 
 const WORKFLOW_XML = "<bpmn:definitions/>";
 
-// A /Workflows.deep.json payload holding one definition with one version, plus the kinds of entries
-// the editor has to skip: a null, a non-node string, and nodes of unrelated primary types.
+// A /Workflows.2.json payload holding just the workflows and versions descriptions
 const workflowsJson = (overrides: Record<string, unknown> = {}) => ({
   "jcr:primaryType": "sling:Folder",
   danglingEntry: null,
@@ -204,7 +203,7 @@ describe("BpmnEditor", () => {
 
       const dialog = await openLoadDialog(user);
 
-      expect(fetchMock).toHaveBeenCalledWith("/Workflows.deep.json", undefined);
+      expect(fetchMock).toHaveBeenCalledWith("/Workflows.2.json", undefined);
       await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
       expect(within(dialog).getByText("v1.0 · First cut")).toBeInTheDocument();
       expect(within(dialog).getAllByRole("button")).toHaveLength(2); // the one version, plus Cancel
@@ -225,8 +224,7 @@ describe("BpmnEditor", () => {
       expect(within(dialog).queryByText(/·/)).not.toBeInTheDocument();
     });
 
-    // Without the "deep" selector the serializer answers with the homepage's own properties only,
-    // so the dialog would always be empty however many definitions exist.
+    // A /Workflows holding no definitions at all: the dialog has to say so rather than sit blank.
     it("says so when there is nothing to load", async () => {
       const user = userEvent.setup();
       renderEditor();

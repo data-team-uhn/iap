@@ -207,11 +207,11 @@ export default function BpmnEditor() {
   const openLoadDialog = useCallback(() => {
     setLoadOpen(true);
     setLoadingDefs(true);
-    // "deep" is what asks IAP's serializer for children at all -- without it the answer is just
-    // the homepage's own properties and the dialog lists nothing. It descends the whole subtree;
-    // a depth number would only bound how far references are embedded, not the traversal. The
-    // diagrams no longer weigh on this now that they are files rather than properties.
-    fetchUtil(`${WORKFLOWS_PATH}.deep.json`)
+    // Two levels is exactly what this list renders: the definitions, for their titles, and the
+    // versions under them. The depth selector both turns child serialization on and stops the
+    // traversal there, so a version's own children -- the diagram file, and the parsed flow nodes
+    // once those exist -- are left as bare paths instead of being dragged into every listing.
+    fetchUtil(`${WORKFLOWS_PATH}.2.json`)
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
         // v is untrusted parsed JSON (e.g. a dangling/null JCR entry), not actually guaranteed to
