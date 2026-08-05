@@ -298,10 +298,10 @@ describe("CategoryManager", () => {
   });
 
   describe("when something goes wrong", () => {
-    // The row actions that act immediately - reordering, and unretiring - have nowhere of their own
-    // to report to, so they still raise the dialog. The ones that ask first report inside the
-    // dialog the user is already looking at.
-    it("reports a refused row action, and lets the report be dismissed", async () => {
+    // The row actions that act immediately - reordering, and unretiring - have no dialog of their
+    // own to report back in, so they report over the tree. The ones that ask first report inside
+    // the dialog the user is already looking at.
+    it("names what did not happen when a row action is refused, and lets the report be dismissed", async () => {
       stubFetch();
       const fetchMock = vi.mocked(fetch);
       renderManager();
@@ -310,17 +310,53 @@ describe("CategoryManager", () => {
       fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
       fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
 
-      expect(await screen.findByRole("heading", { name: "The change could not be applied" })).toBeInTheDocument();
-      // Why it failed, in the user's terms, with the status kept for whoever has to report it
-      expect(screen.getByText("You do not have permission to do this. (HTTP 403)")).toBeInTheDocument();
+      const notice = await screen.findByRole("alert");
+      // Which category, and what did not happen to it - neither of which the row action itself said
+      expect(notice).toHaveTextContent("Paper submissions could not be moved");
+      // Why, in the user's terms, with the status kept for whoever has to report it
+      expect(notice).toHaveTextContent("You do not have permission to do this. (HTTP 403)");
+      // Reported over the tree, not in front of it
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-      // ErrorDialog's close button carries no accessible name, so it is reached through the
-      // dialog it is the only button of
-      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button"));
+      fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+      await waitFor(() => { expect(screen.queryByRole("alert")).not.toBeInTheDocument(); });
+    });
+
+    it("offers the refused action again, and reports a retry that fails in turn", async () => {
+      stubFetch();
+      const fetchMock = vi.mocked(fetch);
+      renderManager();
+      await screen.findByText("Paper submissions");
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: "Server Error" } as unknown as Response);
+      fireEvent.click(screen.getByRole("button", { name: "Move Paper submissions up" }));
+      await screen.findByRole("alert");
+
+      // Refused a second time: the notice comes back rather than the offer going away
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: "Server Error" } as unknown as Response);
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       await waitFor(() => {
-        expect(screen.queryByRole("heading", { name: "The change could not be applied" })).not.toBeInTheDocument();
+        expect(postsMatching(body => body.includes("order=before+Retrospective"))).toHaveLength(2);
       });
+      expect(await screen.findByRole("alert")).toHaveTextContent("Paper submissions could not be moved");
+    });
+
+    it("carries the action through when its retry is taken up", async () => {
+      stubFetch();
+      const fetchMock = vi.mocked(fetch);
+      renderManager();
+      await screen.findByText("Paper submissions");
+      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
+      await screen.findByRole("alert");
+
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+      await waitFor(() => {
+        expect(postsMatching(body => body.includes("retired=false"))).toHaveLength(2);
+      });
+      await waitFor(() => { expect(screen.queryByRole("alert")).not.toBeInTheDocument(); });
     });
 
     it("reports a failure that was not an Error", async () => {
@@ -359,10 +395,12 @@ describe("CategoryManager", () => {
       fetchMock.mockResolvedValueOnce({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
       fireEvent.click(await screen.findByRole("button", { name: "Retire" }));
 
-      expect(await screen.findByText(/You do not have permission/)).toBeInTheDocument();
       // Reported where it was asked for, and ready to be tried again
+      const dialog = await screen.findByRole("dialog");
+      expect(within(dialog).getByText(/You do not have permission/)).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Retire Retrospective studies?" })).toBeInTheDocument();
-      expect(screen.queryByRole("heading", { name: "The change could not be applied" })).not.toBeInTheDocument();
+      // Not also over the tree: the dismissable notice belongs to the actions that act at once
+      expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument();
     });
 
     // A load failure is reported in place rather than in a modal, because the modal would be a

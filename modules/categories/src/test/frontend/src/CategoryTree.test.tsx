@@ -125,10 +125,10 @@ describe("CategoryTree", () => {
       const { actions } = renderTree([node("First"), node("Middle"), node("Last")]);
 
       fireEvent.click(screen.getByRole("button", { name: "Move Middle up" }));
-      expect(actions.onReorder).toHaveBeenCalledWith("/Categories/Middle", "before First");
+      expect(actions.onReorder).toHaveBeenCalledWith(node("Middle"), "before First");
 
       fireEvent.click(screen.getByRole("button", { name: "Move Middle down" }));
-      expect(actions.onReorder).toHaveBeenCalledWith("/Categories/Middle", "after Last");
+      expect(actions.onReorder).toHaveBeenCalledWith(node("Middle"), "after Last");
     });
 
     it("keeps the categories at each end from moving past it", () => {
@@ -148,7 +148,7 @@ describe("CategoryTree", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Move ChildB up" }));
 
-      expect(actions.onReorder).toHaveBeenCalledWith("/Categories/ChildB", "before ChildA");
+      expect(actions.onReorder).toHaveBeenCalledWith(node("ChildB"), "before ChildA");
     });
   });
 
