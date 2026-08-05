@@ -61,7 +61,7 @@ The `iap-tags-api` bundle (`modules/tags/api`) exposes a models-only API:
 
 The **`iap:Taggable` mixin** (declared next to `iap:Content` in the content module) declares the
 tagging properties once — the explicit `tags` plus the three materialized phase properties and the
-`tagComputationFailed` flag. Every `iap:Content` node carries the mixin through its supertypes, so
+`tagComputationState` marker. Every `iap:Content` node carries the mixin through its supertypes, so
 all domain content is taggable out of the box, and other node types, e.g. `nt:file`, become
 taggable with a plain `addMixin`. The mixin is a declaration aid, not a gate: the `Taggable`
 *model* adapts any content, and writing simply fails on nodes whose types cannot store the
@@ -135,8 +135,9 @@ Propagation details worth knowing:
   access control entries, the system and index subtrees — are never touched and act as
   propagation boundaries.
 - `targetResourceTypes` restricts where a tag may be *explicitly placed*; derived copies are exempt.
-- Changing a definition's `aggregated`/`inheritable` flags only affects subtrees touched by
-  later commits; existing copies are not retroactively recomputed.
+- Changing a definition's `aggregated`/`inheritable` flags does not by itself recompute the copies
+  already stored elsewhere, and neither does deleting a definition: no content changed, so nothing
+  recomputes. Repair those with `POST /Tags.repair.json?tag=<name>` — see [Repair](#repair).
 
 ### When a computation fails
 
@@ -148,10 +149,46 @@ nothing to do with tags, so a processor throwing would block unrelated writes to
 Instead, the phase whose processor threw keeps the values it last computed successfully: storing a
 union that is knowingly missing one of its contributors would replace good values with worse ones,
 and a tag that lingers after it stopped applying is safer than one that silently disappears while it
-still does. The node is flagged with `tagComputationFailed` so the affected nodes can be found and
+still does. The node is marked `tagComputationState = failed` so the affected nodes can be found and
 recomputed, and so that code which must not act on stale tags — an access check, say — can tell.
 The failure itself is logged; once the error-tracking module is in place it will also be reported
 there, which is how a system administrator learns about it.
+
+### Repair
+
+The marker is also how a node is *put right*. Any node carrying `tagComputationState` is recomputed
+in full — every phase, over its whole subtree — by the next commit that reaches it, and the property
+is removed once the values can be trusted again. It has two values, and the difference is only who
+asked:
+
+| value | written by | means |
+|--------------|------------|-----------------------------------------------------------|
+| `failed` | the editor | a processor threw; the stored tags are the last good ones |
+| `recomputing` | a repair | the stored tags were declared untrustworthy |
+
+Nothing branches on the value — the recomputation is the same either way — so it exists to tell an
+operator *why* a node is marked. **`recomputing` should never be observed at rest**: it is written
+and consumed within a single commit, so a node found holding it is one whose commit was interrupted
+in between. The sweep looks for the property's presence rather than for `failed`, so those get picked
+up too. Repair therefore computes nothing itself: it marks the
+affected nodes and lets the propagation editor, the one piece that knows the phase order and the
+scopes, do the work.
+
+Two things trigger it.
+
+- **A sweep runs on a schedule** (`Tag Repair` configuration, hourly by default) and repairs
+  everything flagged. It is driven by an index and writes nothing when there is nothing wrong, so a
+  healthy repository pays almost nothing for it. Turn it off with `enabled=false`.
+- **`POST /Tags.repair.json?tag=<name>`** repairs the content affected by an edited definition. This
+  one is deliberate rather than automatic: how much work it is depends on how widely the tag is
+  used, and starting a repository-wide recomputation as a side effect of somebody saving a
+  definition is a surprise. Whoever may edit the definitions may run it — the permission is read off
+  `/Tags` through the caller's own session. The response reports how many nodes were marked and how
+  many could not be, since a repair reports what it could not do rather than abandoning the rest of
+  the repository over one unwritable node.
+
+Marking is a property write and nothing more, done by a service user (`iap-tag-repair`) that may
+read anywhere and modify properties, but never create or remove a node.
 
 ## The REST endpoint
 
@@ -180,13 +217,6 @@ heading can be reworded by setting the `title` and `description` properties on t
 
 ## Future work
 
-- A **recomputation service** re-running the processors over a subtree, and something to trigger
-  it. Three things need it: copies left behind by a deleted definition, copies left behind when a
-  definition stops being `inheritable` or `aggregated`, and the nodes flagged with
-  `tagComputationFailed`. Until it exists, "the tags can be computed again" has no mechanism
-  behind it.
-- An `oak:index` on `tags`/`computedTags`/`aggregatedTags`/`inheritedTags` once querying by tag is
-  needed (deferred together with the other domain indexes).
 - Tag-based access restrictions: an ACL restriction pattern evaluated against a resource's tags,
   e.g. granting write access only while a record is not `submitted`.
 - UI for displaying and filtering by tags, driven by the definitions.

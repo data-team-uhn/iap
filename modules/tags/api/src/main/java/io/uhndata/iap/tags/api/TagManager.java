@@ -45,12 +45,18 @@ public interface TagManager
     String TAGS_PROPERTY = "tags";
 
     /**
-     * The name of the flag set on a node whose derived tags could not be computed, e.g. because a tag processor
-     * failed. The tags stored on such a node are the last ones successfully computed, so they may be out of date
-     * until the computation is run again; code that must not act on stale tags, e.g. an access check, has to treat a
-     * flagged node conservatively.
+     * The name of the property marking content whose derived tags cannot be trusted, declared by the
+     * {@code iap:Taggable} mixin. Absent when they can. See {@link #STATE_FAILED} and
+     * {@link #STATE_RECOMPUTING} for the two values, and note that the property's presence, not its value, is what
+     * drives the recomputation.
      */
-    String COMPUTATION_FAILED_PROPERTY = "tagComputationFailed";
+    String COMPUTATION_STATE_PROPERTY = "tagComputationState";
+
+    /** A tag processor threw: the stored derived tags are the last ones computed successfully. */
+    String STATE_FAILED = "failed";
+
+    /** The stored derived tags were declared untrustworthy and a recomputation was asked for. */
+    String STATE_RECOMPUTING = "recomputing";
 
     /** The path of the {@code iap:TagsHomepage} node holding the tag definitions. */
     String DEFINITIONS_PATH = "/Tags";

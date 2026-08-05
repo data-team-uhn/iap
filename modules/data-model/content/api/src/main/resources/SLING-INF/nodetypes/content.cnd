@@ -51,12 +51,22 @@
   - inheritedTags (STRING) multiple IGNORE
   - computedTags (STRING) multiple IGNORE
 
-  // Set when the derived tags above could not be recomputed, e.g. because a
-  // tag processor failed: they are then the last ones successfully computed,
-  // and may be out of date until the computation is run again. Never fails a
-  // commit, so that user data is saved even when tagging misbehaves.
+  // Set while the derived tags above cannot be trusted, and absent when they
+  // can. Two values, and the difference is who wrote it:
+  //   failed       a tag processor threw, so the values are the last ones
+  //                computed successfully and may be out of date
+  //   recomputing  something determined the values are untrustworthy and asked
+  //                for them to be redone
+  // Whichever it is, the next commit reaching the node recomputes it in full
+  // and removes this property. `recomputing` should therefore never be seen at
+  // rest: if it is, a commit was interrupted between the request and the
+  // recomputation.
+  // Deliberately NOT constrained to those two values. A CND value constraint is
+  // enforced against commit hooks too, and failing a commit is exactly what the
+  // tagging code must never do -- a wrong value here would stop users saving
+  // their work. The writers share constants instead.
   // System-maintained, do not write manually.
-  - tagComputationFailed (BOOLEAN) IGNORE
+  - tagComputationState (STRING) IGNORE
 
 [iap:Content] > sling:Folder, sling:Resource, sling:ResourceSuperType, iap:Taggable
   // Attributes:
