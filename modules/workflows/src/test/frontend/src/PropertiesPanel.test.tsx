@@ -37,8 +37,10 @@ const createModeler = () => {
     get: vi.fn(() => ({ updateLabel })),
   };
   // Every subscription for an event, since the panel re-subscribes whenever the selection changes
-  // and the newest handler is the one holding the current state.
-  const fire = (event: string, payload: unknown) => act(() => {
+  // and the newest handler is the one holding the current state. The callback is `async` even
+  // though the dispatch is not: that is what makes `act` hand back a promise for the call sites to
+  // await, so the effects the re-subscription schedules are flushed before the assertions run.
+  const fire = (event: string, payload: unknown) => act(async () => {
     handlers[event].forEach(handler => (handler as (e: unknown) => void)(payload));
   });
   return { modeler: modeler as unknown as Modeler, fire, updateLabel };
