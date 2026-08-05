@@ -21,10 +21,6 @@ import { MemoryRouter } from "react-router";
 
 import CategoryManager from "@iap/categories/CategoryManager";
 
-// Rendering the full manager (tree + MUI dialogs) is slow on a loaded machine, e.g. during the
-// Maven build where every suite runs in parallel; the default 5s per-test budget is too tight.
-vi.setConfig({ testTimeout: 15000 });
-
 // A tree with a branch (whose deletion must be blocked), a bound leaf, and a retired category.
 const treeJson = {
   "jcr:primaryType": "cat:CategoriesHomepage",

@@ -41,7 +41,14 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
-    testTimeout: 15000,
+    // Sized for the Maven build rather than for a quiet laptop: the heaviest suites here mount MUI
+    // dialogs or pull in bpmn-js under jsdom, and several already take seconds unloaded.
+    testTimeout: 30000,
+    // Vitest sizes its pool to the machine, but a fork per core - each with its own jsdom, React and
+    // MUI - oversubscribes both cores and memory during a build, and the slowdown lands on
+    // individual tests as timeouts rather than as an honestly slower run. Half the cores is enough
+    // to keep the suite parallel without the whole machine thrashing.
+    maxWorkers: "50%",
     coverage: {
       provider: "v8",
       include: ["src/**/*.{js,jsx,ts,tsx}"],

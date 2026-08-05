@@ -21,10 +21,6 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import CategoryDialog, { SaveStepFailure, type CategorySubmission } from "@iap/categories/CategoryDialog";
 import { parseCategoryTree } from "@iap/categories/categoryModel";
 
-// Rendering the MUI dialog tree is slow on a loaded machine, e.g. during the Maven build where
-// every suite runs in parallel; the default 5s per-test budget is too tight there.
-vi.setConfig({ testTimeout: 15000 });
-
 // A typed onSave mock, so the assertions on its recorded calls stay type-safe.
 const onSaveMock = () => vi.fn<(submission: CategorySubmission) => Promise<void>>()
   .mockResolvedValue(undefined);
