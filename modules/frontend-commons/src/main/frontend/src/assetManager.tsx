@@ -32,6 +32,9 @@ let assetDependenciesJsonRequest: Promise<Record<string, string[]> | undefined> 
 const modules: Record<string, unknown> = {};
 // A cache, mapping between asset URLs to React components loaded from the sources
 const assets: Record<string, unknown> = {};
+// The assets whose dependencies are currently being resolved, so that a dependency cycle is
+// followed once rather than forever
+const loading = new Set<string>();
 
 // Retrieves the JSON containing the mapping between a simple asset name and its actual node name, including a content hash.
 // This is an asynchronous function, it will return a Promise that resolves to the actual JSON.
@@ -167,7 +170,18 @@ const loadAsset = async function(assetURL: string): Promise<unknown> {
   }
   if (!assets[assetURL]) {
     const dependencies = await getAssetDependencies(assetURL);
-    await Promise.all(dependencies.map(dependency => loadAsset(dependency)));
+    // Declared dependencies are followed recursively, so a cycle between them (whether declared by
+    // mistake or by two assets that genuinely need each other) would recurse until the tab dies.
+    // Assets already being loaded further up the chain are skipped: whoever started them is the one
+    // that awaits them.
+    loading.add(assetURL);
+    try {
+      await Promise.all(dependencies
+        .filter(dependency => !loading.has(dependency))
+        .map(dependency => loadAsset(dependency)));
+    } finally {
+      loading.delete(assetURL);
+    }
     return loadModule(assetURL)
       .then(module => {
         if (!module) {
