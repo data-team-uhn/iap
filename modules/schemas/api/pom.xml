@@ -71,6 +71,13 @@
       <artifactId>iap-data-model-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- A schema version names the workflow its submissions are put through. One-directional on purpose:
+         workflows knows nothing about schemas. -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-workflows</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
@@ -92,6 +99,15 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>javax.jcr</groupId>
+      <artifactId>jcr</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>javax.annotation</groupId>
