@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
-
 import { Alert, AlertTitle, Button } from "@mui/material";
+
+import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
 import type { SxProps, Theme } from "@mui/material";
 
@@ -37,19 +37,15 @@ interface CategoryLoadErrorProps {
 // successfully visible underneath, stale but still readable. Both screens are administrative, so
 // both show the underlying failure rather than hiding it behind a generic sentence.
 function CategoryLoadError({ message, onRetry, sx }: CategoryLoadErrorProps) {
-  const [ retrying, setRetrying ] = useState(false);
-
-  const retry = () => {
-    setRetrying(true);
-    void onRetry().finally(() => setRetrying(false));
-  };
+  // Nothing to report from here: a retry that fails updates the very message being displayed
+  const { working: retrying, run } = useAsyncAction<never>({ onFailure: () => undefined });
 
   return (
     <Alert
       severity="error"
       sx={sx}
       action={
-        <Button color="inherit" size="small" loading={retrying} onClick={retry}>
+        <Button color="inherit" size="small" loading={retrying} onClick={() => run(onRetry)}>
           Retry
         </Button>
       }
