@@ -41,6 +41,8 @@ import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.workflows.models.WorkflowInstance;
+import io.uhndata.iap.workflows.models.WorkflowInstances;
 
 /**
  * A Sling Model wrapping a {@code sub:Submission} node, a submission filed by a submitter against a specific
@@ -123,6 +125,20 @@ public class Submission extends Entity
     public List<Review> getReviews()
     {
         return this.getChildren(Review.RESOURCE_TYPE, Review.class);
+    }
+
+    /**
+     * The workflows running over this submission, held in the container the {@code wf:WorkflowAttachable} mixin
+     * autocreates. Several may run at once — a review process and a periodic reminder, say — which is why this is
+     * a list rather than a single lifecycle.
+     *
+     * @return a list of workflow instances, empty if none has ever been started
+     */
+    @NotNull
+    public List<WorkflowInstance> getWorkflowInstances()
+    {
+        final WorkflowInstances container = this.getChild(WorkflowInstances.NODE_NAME, WorkflowInstances.class);
+        return container == null ? List.of() : container.getInstances();
     }
 
     /**

@@ -20,16 +20,23 @@ package io.uhndata.iap.schemas.models;
 import java.util.List;
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -47,6 +54,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class SchemaVersionTest
 {
+    private static final String WORKFLOW_ID = "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
@@ -54,7 +63,7 @@ class SchemaVersionTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class,
             FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            SchemaVersion.class);
+            SchemaVersion.class, WorkflowVersion.class);
     }
 
     @Test
@@ -72,14 +81,32 @@ class SchemaVersionTest
             "sling:resourceType", SchemaVersion.RESOURCE_TYPE,
             "version", "1.0",
             "description", "Initial version",
-            "active", true,
-            "workflow", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345"));
+            "active", true));
         final SchemaVersion version = resource.adaptTo(SchemaVersion.class);
 
         assertEquals("1.0", version.getVersion());
         assertEquals("Initial version", version.getDescription());
         assertTrue(version.isActive());
-        assertEquals("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345", version.getWorkflow());
+    }
+
+    @Test
+    void resolvesTheWorkflowReference()
+        throws RepositoryException
+    {
+        this.context.create().resource("/Workflows/review/1.0", Map.of(
+            "sling:resourceType", WorkflowVersion.RESOURCE_TYPE, "version", "1.0"));
+        final Node targetNode = Mockito.mock(Node.class);
+        Mockito.when(targetNode.getPath()).thenReturn("/Workflows/review/1.0");
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getNodeByIdentifier(WORKFLOW_ID)).thenReturn(targetNode);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0", Map.of(
+            "sling:resourceType", SchemaVersion.RESOURCE_TYPE, "version", "1.0", "workflow", WORKFLOW_ID));
+        final SchemaVersion version = resource.adaptTo(SchemaVersion.class);
+
+        assertNotNull(version.getWorkflow());
+        assertEquals("1.0", version.getWorkflow().getVersion());
     }
 
     @Test
