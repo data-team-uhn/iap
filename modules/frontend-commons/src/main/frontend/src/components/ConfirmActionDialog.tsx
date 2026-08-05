@@ -20,6 +20,7 @@ import { useState, type ReactNode } from "react";
 
 import { Alert, Button, DialogActions, DialogContent, type ButtonProps } from "@mui/material";
 
+import { messageOf } from "../requestFailure";
 import ResponsiveDialog from "./ResponsiveDialog";
 
 interface ConfirmActionDialogProps {
@@ -67,7 +68,7 @@ function ConfirmActionDialog(
       .then(onClose)
       .catch((failure: unknown) => {
         if (!interceptFailure?.(failure)) {
-          setError(failure instanceof Error ? failure.message : String(failure));
+          setError(messageOf(failure));
         }
         setWorking(false);
       });
