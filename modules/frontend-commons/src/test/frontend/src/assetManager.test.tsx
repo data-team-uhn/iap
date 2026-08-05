@@ -22,9 +22,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 // exercised for real. Non-"asset:" URLs are passed through untouched, which is what makes it
 // reachable without having to fake a content-hashed assets.json entry.
 const FIXTURE_URL = "/src/frontend-commons/remoteAsset.fixture.tsx";
-// A second one, for the asset above to depend on. It has to be a genuinely different module:
-// loadAsset resolves dependencies recursively with no cycle detection, so an asset that ends up
-// listed as its own dependency recurses until the process dies.
+// A second one, for the asset above to depend on, and for the dependency-cycle tests.
 const DEPENDENCY_URL = "/src/frontend-commons/remoteDependency.fixture.tsx";
 
 // The resolved manifests and the loaded modules are memoised in module state, so every test starts
@@ -176,6 +174,24 @@ describe("assetManager", () => {
       expect((component as { name: string }).name).toBe("RemoteDefault");
       // Evaluating the dependency's module is what sets this
       expect((globalThis as { __remoteDependencyLoaded?: boolean }).__remoteDependencyLoaded).toBe(true);
+    });
+
+    it("survives an asset that is declared as its own dependency", async () => {
+      stubManifests({}, { [FIXTURE_URL]: [FIXTURE_URL] });
+      const { loadAsset } = await freshAssetManager();
+
+      const component = await loadAsset(FIXTURE_URL);
+
+      expect((component as { name: string }).name).toBe("RemoteDefault");
+    });
+
+    it("survives a cycle between two assets", async () => {
+      stubManifests({}, { [FIXTURE_URL]: [DEPENDENCY_URL], [DEPENDENCY_URL]: [FIXTURE_URL] });
+      const { loadAsset } = await freshAssetManager();
+
+      const component = await loadAsset(FIXTURE_URL);
+
+      expect((component as { name: string }).name).toBe("RemoteDefault");
     });
 
     it("reports an asset whose module cannot be resolved", async () => {
