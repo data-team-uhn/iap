@@ -52,14 +52,22 @@ const treeJson = {
   },
 };
 
-const stubFetch = () =>
-  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
-    ok: true, status: 200, statusText: "OK",
-    json: () => Promise.resolve(url.startsWith("/Schemas")
-      ? { "jcr:primaryType": "sch:SchemasHomepage" }
-      : treeJson),
-    headers: { get: () => null },
-  } as unknown as Response)));
+// A server that answers everything, except the writes `refusing` picks out by their payload - which
+// is how a test singles out one step of a save that takes more than one.
+const stubFetch = (refusing: (body: string) => boolean = () => false) =>
+  vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+    const body = init?.body;
+    if (body instanceof URLSearchParams && refusing(body.toString())) {
+      return Promise.resolve({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
+    }
+    return Promise.resolve({
+      ok: true, status: 200, statusText: "OK",
+      json: () => Promise.resolve(url.startsWith("/Schemas")
+        ? { "jcr:primaryType": "sch:SchemasHomepage" }
+        : treeJson),
+      headers: { get: () => null },
+    } as unknown as Response);
+  }));
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -176,6 +184,27 @@ describe("CategoryManager", () => {
       });
       const move = postsMatching(body => body.includes("operation=move"))[0];
       expect(((move[1] as RequestInit).body as URLSearchParams).get(":dest")).toBe("/Categories/Retrospective/");
+    });
+
+    // The two writes an edit can take are reported separately, because the first one having landed
+    // is what the user has to know: the tree behind the dialog already shows the new label
+    it("says so when the fields were saved but the move was refused", async () => {
+      stubFetch(body => body.includes("operation=move"));
+      renderManager();
+      await screen.findByText("Paper submissions");
+      fireEvent.click(screen.getByRole("button", { name: "Edit Paper submissions" }));
+      fireEvent.change(await screen.findByLabelText(/Label/), { target: { value: "Paper forms" } });
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: /Parent category/ }));
+      fireEvent.click(await screen.findByRole("option", { name: "Retrospective studies" }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+      const dialog = await screen.findByRole("dialog");
+      expect(await within(dialog).findByText(
+        "The changes were saved, but the category could not be moved to Retrospective studies"
+      )).toBeInTheDocument();
+      // The fields did go through, and the dialog stays up rather than closing on a half-done edit
+      expect(postsMatching(body => body.includes("label=Paper+forms"))).not.toHaveLength(0);
     });
 
     it("closes the dialog without saving anything when cancelled", async () => {

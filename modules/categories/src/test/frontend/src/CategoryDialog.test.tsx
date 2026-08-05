@@ -18,7 +18,7 @@
 
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-import CategoryDialog, { type CategorySubmission } from "@iap/categories/CategoryDialog";
+import CategoryDialog, { SaveStepFailure, type CategorySubmission } from "@iap/categories/CategoryDialog";
 import { parseCategoryTree } from "@iap/categories/categoryModel";
 
 // Rendering the MUI dialog tree is slow on a loaded machine, e.g. during the Maven build where
@@ -188,7 +188,75 @@ describe("CategoryDialog", () => {
     fireEvent.change(screen.getByLabelText(/Label/), { target: { value: "Something new" } });
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText("You do not have permission to do this. (HTTP 403)")).toBeInTheDocument();
+    const report = await screen.findByRole("alert");
+    // What did not happen, then why
+    expect(report).toHaveTextContent("The category could not be created");
+    expect(report).toHaveTextContent("You do not have permission to do this. (HTTP 403)");
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("says the changes could not be saved when editing one fails", async () => {
+    stubSchemasEndpoint();
+    const onSave = vi.fn().mockRejectedValue(new SaveStepFailure("update", new Error("HTTP 500")));
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={tree[1]}
+        parentPath="/Categories"
+        tree={tree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("The changes could not be saved")).toBeInTheDocument();
+  });
+
+  // Changing both the fields and the parent takes two writes, and the first one having worked is
+  // exactly what the user needs to be told - otherwise a half-applied edit reads as none at all
+  it("admits the changes were saved when only the move failed", async () => {
+    stubSchemasEndpoint();
+    const onSave = vi.fn().mockRejectedValue(new SaveStepFailure("move", new Error("HTTP 403")));
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={tree[1]}
+        parentPath="/Categories"
+        tree={tree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    fireEvent.mouseDown(await screen.findByRole("combobox", { name: /Parent category/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Retrospective studies" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText(
+      "The changes were saved, but the category could not be moved to Retrospective studies"
+    )).toBeInTheDocument();
+  });
+
+  it("names the top level as a place, not as the picker lists it", async () => {
+    stubSchemasEndpoint();
+    const onSave = vi.fn().mockRejectedValue(new SaveStepFailure("move", new Error("HTTP 403")));
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={tree[0].children[0]}
+        parentPath="/Categories/Retrospective"
+        tree={tree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    fireEvent.mouseDown(await screen.findByRole("combobox", { name: /Parent category/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "— Top level —" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText(/could not be moved to the top level/)).toBeInTheDocument();
   });
 });
