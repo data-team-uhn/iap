@@ -52,6 +52,13 @@ class CategoriesDocumentationTest
 
     private static final String LEAF_UUID = "11111111-2222-3333-4444-555555555555";
 
+    private static final String BARE_LEAF_UUID = "22222222-3333-4444-5555-666666666666";
+
+    /** The headings the node type autocreates, as declared in categories.cnd. */
+    private static final String SHIPPED_TITLE = "Submission categories";
+
+    private static final String SHIPPED_INTRO = "The categories a submission may currently be filed under.";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
@@ -70,8 +77,11 @@ class CategoriesDocumentationTest
      */
     private CategoriesHomepage createTree()
     {
-        final Resource root =
-            this.context.create().resource("/Categories", SLING_RESOURCE_TYPE, CategoriesHomepage.RESOURCE_TYPE);
+        // The headings are autocreated by the node type on a real repository, which the mocks do not apply
+        final Resource root = this.context.create().resource("/Categories", Map.of(
+            SLING_RESOURCE_TYPE, CategoriesHomepage.RESOURCE_TYPE,
+            "title", SHIPPED_TITLE,
+            "description", SHIPPED_INTRO));
         this.context.create().resource("/Categories/Retrospective", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
             "label", "Retrospective studies",
@@ -81,15 +91,17 @@ class CategoriesDocumentationTest
             "label", "Retrospective Data Studies",
             "description", "Chart reviews and analyses of previously collected data.",
             "jcr:uuid", LEAF_UUID));
-        // No label, no description, no uuid: documented with the node name as label, without description and id
-        this.context.create().resource("/Categories/Retrospective/RetrospectiveBiospecimen",
-            SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE);
+        // No label and no description: documented with the node name as label, and without a description
+        this.context.create().resource("/Categories/Retrospective/RetrospectiveBiospecimen", Map.of(
+            SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
+            "jcr:uuid", BARE_LEAF_UUID));
         // A non-category child does not stop its parent from being a leaf
         this.context.create().resource("/Categories/Retrospective/RetrospectiveBiospecimen/attachment",
             SLING_RESOURCE_TYPE, "iap/Content");
         this.context.create().resource("/Categories/Quick", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
-            "label", "Quick projects"));
+            "label", "Quick projects",
+            "jcr:uuid", "33333333-4444-5555-6666-777777777777"));
         this.context.create().resource("/Categories/Paper", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
             "label", "Paper submissions",
@@ -144,16 +156,17 @@ class CategoriesDocumentationTest
 
         assertEquals("RetrospectiveBiospecimen", leaf.getString("label"));
         assertFalse(leaf.containsKey("description"));
-        assertFalse(leaf.containsKey("id"));
+        // The identifier is not optional: every category is referenceable, so it always has one
+        assertEquals(BARE_LEAF_UUID, leaf.getString("id"));
     }
 
     @Test
-    void serializesTheWholeCatalogueWithDefaultHeadings()
+    void serializesTheWholeCatalogueWithTheStoredHeadings()
     {
         final JsonObject catalogue = createTree().toDocumentationJson();
 
-        assertEquals("Submission categories", catalogue.getString("title"));
-        assertEquals("The categories a submission may currently be filed under.", catalogue.getString("description"));
+        assertEquals(SHIPPED_TITLE, catalogue.getString("title"));
+        assertEquals(SHIPPED_INTRO, catalogue.getString("description"));
         // The catalogue is deliberately flat: every leaf lands in the one default group
         assertEquals(3, catalogue.getJsonObject("items").getJsonArray("uncategorized").size());
     }
@@ -176,7 +189,7 @@ class CategoriesDocumentationTest
     {
         final String markdown = createTree().toMarkdown();
 
-        assertTrue(markdown.startsWith("# Submission categories\n"));
+        assertTrue(markdown.startsWith("# " + SHIPPED_TITLE + "\n"));
         // Only the leaves are rendered, flat: their labels are level 2 headings right under the title, with no
         // technical node name after the label, and the branches contribute no headings of their own
         assertTrue(markdown.contains("\n## Retrospective Data Studies\n"));
@@ -191,8 +204,10 @@ class CategoriesDocumentationTest
     @Test
     void documentsAnEmptyTreeAsAnEmptyCatalogue()
     {
-        final Resource root = this.context.create().resource("/Categories",
-            SLING_RESOURCE_TYPE, CategoriesHomepage.RESOURCE_TYPE);
+        final Resource root = this.context.create().resource("/Categories", Map.of(
+            SLING_RESOURCE_TYPE, CategoriesHomepage.RESOURCE_TYPE,
+            "title", SHIPPED_TITLE,
+            "description", SHIPPED_INTRO));
         final CategoriesHomepage homepage = root.adaptTo(CategoriesHomepage.class);
 
         assertTrue(homepage.getDocumentedItems().isEmpty());

@@ -44,6 +44,20 @@
   - sling:resourceType (STRING) = "cat/CategoriesHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
 
+  // The listed entities are categories, not following the naming convention
+  // that would derive cat:Categorie from the resource type.
+  - childNodeType (STRING) = "cat:Category" mandatory autocreated protected
+
+  // The heading of the served documentation, overriding the empty defaults of
+  // the iap:Documented mixin. Autocreated rather than hardcoded in the model
+  // serving the catalogue, but still editable, so that a deployment can reword
+  // the heading without touching code.
+  - title (STRING) = "Submission categories" autocreated
+  // Deliberately terse: the introduction lands in the categorization prompt,
+  // where serving rules (only live leaves are listed) are noise - the catalogue
+  // simply is the set of valid choices.
+  - description (STRING) = "The categories a submission may currently be filed under." autocreated
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
