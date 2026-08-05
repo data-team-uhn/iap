@@ -16,9 +16,12 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CircularProgress, List, ListItem, ListItemText, Typography } from "@mui/material";
+
+import LoadError from "@iap/frontend-commons/components/LoadError";
+import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { WORKFLOWS_ROOT, parseWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
 
@@ -27,22 +30,30 @@ import { WORKFLOWS_ROOT, parseWorkflowList, type WorkflowVersionSummary } from "
 // widget frame's "Manage workflows" action (see the extension node).
 function WorkflowsWidget() {
   const [ versions, setVersions ] = useState<WorkflowVersionSummary[]>();
-  const [ loadError, setLoadError ] = useState(false);
+  const [ loadError, setLoadError ] = useState<string>();
 
-  useEffect(() => {
+  const load = useCallback((): Promise<void> =>
     fetch(`${WORKFLOWS_ROOT}.2.json`)
       .then(response => {
         if (!response.ok) {
-          throw new Error(response.statusText);
+          throw new RequestError(response.status);
         }
-        return response.json();
+        return response.json() as Promise<Record<string, unknown>>;
       })
-      .then((data: Record<string, unknown>) => setVersions(parseWorkflowList(data)))
-      .catch(() => setLoadError(true));
-  }, []);
+      .then(data => {
+        setVersions(parseWorkflowList(data));
+        setLoadError(undefined);
+      })
+      .catch((error: unknown) => {
+        setLoadError(describeRequestFailure(error));
+      }), []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (loadError) {
-    return <Typography color="error" variant="body2">The workflows could not be loaded.</Typography>;
+    return <LoadError title="The workflows could not be loaded" message={loadError} onRetry={load} />;
   }
   if (!versions) {
     return <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} />;
