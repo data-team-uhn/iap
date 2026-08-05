@@ -26,6 +26,7 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.entities.models.Entity;
@@ -64,6 +65,7 @@ public class Category extends Entity implements DocumentedItem
      *
      * @return a label
      */
+    @NotNull
     public String getLabel()
     {
         return this.label;
@@ -76,6 +78,7 @@ public class Category extends Entity implements DocumentedItem
      * @return a description, or {@code null} if not set
      */
     @Override
+    @Nullable
     public String getDescription()
     {
         return this.description;
@@ -99,6 +102,7 @@ public class Category extends Entity implements DocumentedItem
      *
      * @return a schema version, or {@code null} if not set or unresolvable
      */
+    @Nullable
     public SchemaVersion getSchemaVersion()
     {
         return this.getReference(this.schemaVersion, SchemaVersion.class);
@@ -109,6 +113,7 @@ public class Category extends Entity implements DocumentedItem
      *
      * @return a list of categories, empty if none
      */
+    @NotNull
     public List<Category> getSubcategories()
     {
         return this.getChildren(RESOURCE_TYPE, Category.class);
@@ -154,9 +159,8 @@ public class Category extends Entity implements DocumentedItem
     }
 
     /**
-     * Adds the {@code path} and, when available, {@code id} of the category to the base serialization: the
-     * catalogue's consumers reference the chosen category through one of these, since node names are only unique
-     * among siblings.
+     * Adds the {@code path} and {@code id} of the category to the base serialization: the catalogue's consumers
+     * reference the chosen category through one of these, since node names are only unique among siblings.
      *
      * @return a JSON object builder holding this category's data, still open for more fields
      */
@@ -164,11 +168,8 @@ public class Category extends Entity implements DocumentedItem
     @NotNull
     public JsonObjectBuilder documentationJsonBuilder()
     {
-        final JsonObjectBuilder json = DocumentedItem.super.documentationJsonBuilder().add("path", getPath());
-        final String id = getIdentifier();
-        if (id != null) {
-            json.add("id", id);
-        }
-        return json;
+        return DocumentedItem.super.documentationJsonBuilder()
+            .add("path", getPath())
+            .add("id", getIdentifier());
     }
 }

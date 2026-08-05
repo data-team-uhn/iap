@@ -63,6 +63,7 @@ public class CategoriesHomepage extends EntityHomepage implements AutoDocumentab
      *
      * @return a list of categories, empty if none
      */
+    @NotNull
     public List<Category> getCategories()
     {
         return this.getChildren(Category.RESOURCE_TYPE, Category.class);
@@ -72,17 +73,14 @@ public class CategoriesHomepage extends EntityHomepage implements AutoDocumentab
     @NotNull
     public String getDocumentationTitle()
     {
-        return this.title != null ? this.title : "Submission categories";
+        return this.title;
     }
 
     @Override
     @Nullable
     public String getDocumentationIntro()
     {
-        // The default is deliberately terse: the intro lands in the categorization prompt, where serving rules
-        // (only live leaves are listed) are noise - the catalogue simply is the set of valid choices
-        return this.description != null ? this.description
-            : "The categories a submission may currently be filed under.";
+        return this.description;
     }
 
     @Override
