@@ -243,7 +243,29 @@ describe("BpmnEditor", () => {
       fetchMock.mockRejectedValueOnce(new Error("network down"));
       await user.click(screen.getByRole("button", { name: "Load" }));
 
-      expect(await screen.findByText("Failed to load workflow definitions")).toBeInTheDocument();
+      // Reported inside the dialog it failed to fill, not in a snackbar the open dialog would
+      // hide from assistive technology
+      const report = await within(screen.getByRole("dialog")).findByRole("alert");
+      expect(report).toHaveTextContent("The workflows could not be loaded");
+      expect(report).toHaveTextContent("network down");
+      expect(within(report).getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    });
+
+    it("lists the definitions after a failed listing is retried", async () => {
+      const user = userEvent.setup();
+      renderEditor();
+
+      fetchMock.mockRejectedValueOnce(new Error("network down"));
+      await user.click(screen.getByRole("button", { name: "Load" }));
+      const dialog = screen.getByRole("dialog");
+      await within(dialog).findByRole("alert");
+
+      // The next attempt reaches a server that answers
+      fetchMock.mockResolvedValueOnce(jsonResponse(workflowsJson()));
+      await user.click(within(dialog).getByRole("button", { name: "Retry" }));
+
+      await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
     });
 
     it("reports a request that failed with something other than an Error", async () => {
@@ -253,7 +275,8 @@ describe("BpmnEditor", () => {
       fetchMock.mockRejectedValueOnce("connection reset");
       await user.click(screen.getByRole("button", { name: "Load" }));
 
-      expect(await screen.findByText("Failed to load workflow definitions")).toBeInTheDocument();
+      expect(await within(screen.getByRole("dialog")).findByRole("alert"))
+        .toHaveTextContent("connection reset");
     });
 
     it("imports the selected version and starts editing it", async () => {
@@ -297,8 +320,9 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce({ ok: false, status: 403, url: "", headers: new Headers() });
       await user.click(within(dialog).getByText("Approval"));
 
-      expect(await screen.findByText("Failed to load the diagram: You do not have permission to do this. "
-        + "(HTTP 403)")).toBeInTheDocument();
+      // The dialog stays open, so the failure is reported in it
+      const report = await within(dialog).findByRole("alert");
+      expect(report).toHaveTextContent("You do not have permission to do this. (HTTP 403)");
       expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
@@ -311,8 +335,8 @@ describe("BpmnEditor", () => {
       fetchMock.mockRejectedValueOnce(new Error("network down"));
       await user.click(within(dialog).getByText("Approval"));
 
-      expect(await screen.findByText("Failed to load the diagram: Something went wrong: network down"))
-        .toBeInTheDocument();
+      const report = await within(dialog).findByRole("alert");
+      expect(report).toHaveTextContent("Something went wrong: network down");
       expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
@@ -326,7 +350,10 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce(fileResponse(WORKFLOW_XML));
       await user.click(within(dialog).getByText("Approval"));
 
-      expect(await screen.findByText("Failed to import XML: malformed")).toBeInTheDocument();
+      // The dialog stays open, so the failure is reported in it
+      const report = await within(dialog).findByRole("alert");
+      expect(report).toHaveTextContent("The diagram could not be imported");
+      expect(report).toHaveTextContent("malformed");
     });
 
     it("reports an import that failed with something other than an Error", async () => {
@@ -340,7 +367,7 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce(fileResponse(WORKFLOW_XML));
       await user.click(within(dialog).getByText("Approval"));
 
-      expect(await screen.findByText("Failed to import XML: not an Error")).toBeInTheDocument();
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("not an Error");
     });
 
     it("lists a version that declares neither a number nor a description", async () => {
@@ -422,9 +449,12 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce(postResponse({ ok: false, status: 403 }));
       await user.click(screen.getByRole("button", { name: "Save" }));
 
-      // Why it was refused, in the user's terms, with the status kept for a bug report
-      expect(await screen.findByText("Save failed: You do not have permission to do this. (HTTP 403)"))
-        .toBeInTheDocument();
+      const notice = await screen.findByRole("alert");
+      // What did not happen, then why it was refused, with the status kept for a bug report
+      expect(notice).toHaveTextContent('"Approval (v1.0)" could not be saved');
+      expect(notice).toHaveTextContent("You do not have permission to do this. (HTTP 403)");
+      // Saving again is worth offering
+      expect(within(notice).getByRole("button", { name: "Retry" })).toBeInTheDocument();
     });
 
     it("reports a diagram that will not serialize", async () => {
@@ -435,8 +465,11 @@ describe("BpmnEditor", () => {
       modelerInstances[0].saveXML.mockResolvedValueOnce({ xml: undefined });
       await user.click(screen.getByRole("button", { name: "Save" }));
 
-      // Ours, not the server's: said plainly rather than described as a failed request
-      expect(await screen.findByText("Save failed: the diagram could not be serialized")).toBeInTheDocument();
+      // Ours, not the server's: said plainly rather than described as a failed request, and with
+      // no retry, since it would fail the same way again
+      const notice = await screen.findByRole("alert");
+      expect(notice).toHaveTextContent("The diagram could not be serialized.");
+      expect(within(notice).queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
       // The failed save must not have been posted anywhere: only the listing and the diagram it loaded
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
@@ -583,8 +616,10 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce(postResponse({ ok: false, status: 409 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
-      expect(await screen.findByText("Create failed: This conflicts with a more recent change. "
-        + "Reload and try again. (HTTP 409)")).toBeInTheDocument();
+      // Reported in the dialog that asked for it, which stays open with what was typed
+      const report = await within(screen.getByRole("dialog")).findByRole("alert");
+      expect(report).toHaveTextContent("The workflow could not be created");
+      expect(report).toHaveTextContent("This conflicts with a more recent change. Reload and try again. (HTTP 409)");
       // The definition failed, so no version should have been attempted
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
@@ -600,8 +635,9 @@ describe("BpmnEditor", () => {
         .mockResolvedValueOnce(postResponse({ ok: false, status: 403 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
-      expect(await screen.findByText("Create failed: You do not have permission to do this. (HTTP 403)"))
-        .toBeInTheDocument();
+      const report = await within(screen.getByRole("dialog")).findByRole("alert");
+      expect(report).toHaveTextContent("The workflow could not be created");
+      expect(report).toHaveTextContent("You do not have permission to do this. (HTTP 403)");
       expect(modelerInstances[0].importXML).not.toHaveBeenCalled();
     });
 
@@ -615,8 +651,9 @@ describe("BpmnEditor", () => {
         .mockResolvedValueOnce(postResponse({ ok: false, status: 503 }));
       await user.click(screen.getByRole("button", { name: "Create" }));
 
-      expect(await screen.findByText("Create failed: The server ran into a problem and could not "
-        + "complete this. Try again in a moment. (HTTP 503)")).toBeInTheDocument();
+      expect(await within(screen.getByRole("dialog")).findByRole("alert"))
+        .toHaveTextContent("The server ran into a problem and could not complete this. Try again in a moment. "
+          + "(HTTP 503)");
     });
 
     it("discards what was typed when cancelled", async () => {
@@ -639,8 +676,8 @@ describe("BpmnEditor", () => {
     const user = userEvent.setup();
     renderEditor();
 
-    // Via a path that closes its dialog, so the alert's own Close button is not left behind an
-    // aria-hidden modal
+    // Via a path that closes its dialog: what the snackbar still carries are the outcomes of
+    // actions that own no dialog, and behind an open modal its controls would be aria-hidden
     const dialog = await openLoadDialog(user);
     await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
     fetchMock.mockResolvedValueOnce(missingFileResponse());
@@ -648,7 +685,7 @@ describe("BpmnEditor", () => {
     const message = await screen.findByText('"Approval" v1.0 has no BPMN XML saved yet');
     await waitForDialogToClose();
 
-    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
 
     await waitFor(() => { expect(message).not.toBeInTheDocument(); });
   });
@@ -668,9 +705,12 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce({ ...response, headers: new Headers() });
       await user.click(screen.getByRole("button", { name: "Load" }));
 
-      expect(await screen.findByText("Failed to load workflow definitions")).toBeInTheDocument();
+      const dialog = screen.getByRole("dialog");
+      const report = await within(dialog).findByRole("alert");
+      expect(report).toHaveTextContent("The workflows could not be loaded");
+      expect(report).toHaveTextContent(/Not authenticated/);
       // The spinner gave way, rather than turning forever
-      expect(within(screen.getByRole("dialog")).queryByRole("progressbar")).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole("progressbar")).not.toBeInTheDocument();
     });
 
     it("reports a save that ran into it, instead of leaving the button spinning", async () => {
@@ -688,7 +728,9 @@ describe("BpmnEditor", () => {
       fetchMock.mockResolvedValueOnce({ ok: false, status: 401, url: "", headers: new Headers() });
       await user.click(screen.getByRole("button", { name: "Save" }));
 
-      expect(await screen.findByText(/^Save failed: Not authenticated/)).toBeInTheDocument();
+      const notice = await screen.findByRole("alert");
+      expect(notice).toHaveTextContent('"Approval (v1.0)" could not be saved');
+      expect(notice).toHaveTextContent(/Not authenticated/);
       expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
     });
   });
