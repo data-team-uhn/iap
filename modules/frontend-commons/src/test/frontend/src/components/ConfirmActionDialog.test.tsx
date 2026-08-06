@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
+import type { ComponentProps } from "react";
+
 import { ThemeProvider } from "@mui/material/styles";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import ConfirmActionDialog from "@iap/frontend-commons/components/ConfirmActionDialog";
-
-import type { ComponentProps } from "react";
 
 const renderDialog = (props: Partial<ComponentProps<typeof ConfirmActionDialog>> = {}) => {
   const onConfirm = props.onConfirm ?? vi.fn().mockResolvedValue(undefined);

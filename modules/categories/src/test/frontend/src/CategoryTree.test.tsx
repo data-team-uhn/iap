@@ -18,9 +18,8 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import CategoryTree, { type CategoryActions } from "@iap/categories/CategoryTree";
-
 import type { CategoryNode } from "@iap/categories/categoryModel";
+import CategoryTree, { type CategoryActions } from "@iap/categories/CategoryTree";
 
 const node = (name: string, overrides: Partial<CategoryNode> = {}): CategoryNode => ({
   name,

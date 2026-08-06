@@ -18,9 +18,8 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import RetireCategoryDialog from "@iap/categories/RetireCategoryDialog";
-
 import type { CategoryNode } from "@iap/categories/categoryModel";
+import RetireCategoryDialog from "@iap/categories/RetireCategoryDialog";
 
 const node: CategoryNode = {
   name: "Paper",

@@ -18,10 +18,9 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import type { CategoryNode } from "@iap/categories/categoryModel";
 import DeleteCategoryDialog from "@iap/categories/DeleteCategoryDialog";
 import { CategoryReferencedError } from "@iap/categories/useCategoryTree";
-
-import type { CategoryNode } from "@iap/categories/categoryModel";
 
 const node: CategoryNode = {
   name: "Paper",
@@ -31,9 +30,11 @@ const node: CategoryNode = {
   children: [],
 };
 
-const renderDialog = (
-  { onDelete = vi.fn().mockResolvedValue(undefined), onRetire = vi.fn().mockResolvedValue(undefined), onClose = vi.fn() } = {},
-) => {
+const renderDialog = ({
+  onDelete = vi.fn().mockResolvedValue(undefined),
+  onRetire = vi.fn().mockResolvedValue(undefined),
+  onClose = vi.fn(),
+} = {}) => {
   render(<DeleteCategoryDialog node={node} onClose={onClose} onDelete={onDelete} onRetire={onRetire} />);
   return { onDelete, onRetire, onClose };
 };
