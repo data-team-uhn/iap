@@ -22,8 +22,6 @@ The outline is derived by derive_outline, which writes nothing and returns
 ``(document, updates, records, line_index)`` — so what these tests used to write to
 outline.json and read back is simply the second return value."""
 
-from pathlib import Path
-
 import toc_and_appendix_detection as tad
 from bookmarks import build_line_index, build_lines_catalog
 from toc_and_appendix_detection import (
