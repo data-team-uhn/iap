@@ -27,7 +27,6 @@ from pathlib import Path
 
 from bookmarks import build_line_index, build_lines_catalog
 import chunker
-from chunker import DEFAULT_HEADING, DEFAULT_MAX_TOKENS
 
 
 def _md_path(tmp_path: Path) -> Path:
@@ -66,8 +65,8 @@ class TestBackmatterHeading:
         assert chunker._backmatter_heading("- plain item") == ["plain item"]
 
     def test_empty_uses_default(self):
-        assert chunker._backmatter_heading("") == [DEFAULT_HEADING]
-        assert chunker._backmatter_heading("   \n  ") == [DEFAULT_HEADING]
+        assert chunker._backmatter_heading("") == [chunker.DEFAULT_HEADING]
+        assert chunker._backmatter_heading("   \n  ") == [chunker.DEFAULT_HEADING]
 
 
 class TestSplitTrailingPageMarkers:
@@ -163,7 +162,7 @@ class TestOutlineSizeGate:
             self.SMALL,
             "doc.md",
             md_path,
-            DEFAULT_MAX_TOKENS,
+            chunker.DEFAULT_MAX_TOKENS,
             10 ** 9,
         )
 
@@ -190,7 +189,7 @@ class TestOutlineSizeGate:
     def test_a_large_document_runs_the_outline_pass_without_records(self, tmp_path):
         big = self.SMALL + ("Body sentence that carries it along. " * 200)
         tree = chunker.build_chunk_tree(
-            big, "doc.md", _md_path(tmp_path), DEFAULT_MAX_TOKENS, 1
+            big, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
         )
         assert tree["outline"]["toc_source"] == "md-toc"
 
@@ -264,7 +263,7 @@ class TestNoHeadingOnlyChunkFiles:
 
     def _files(self, md, tmp_path):
         tree = chunker.build_chunk_tree(
-            md, "doc.md", _md_path(tmp_path), DEFAULT_MAX_TOKENS, 1
+            md, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
         )
         return [(entry["file"], len(chunk["text"]))
                 for entry, chunk in zip(tree["catalog"]["chunks"], tree["chunks"])]
@@ -349,7 +348,7 @@ class TestPartHeading:
         assert chunker._part_heading("no heading text", ["Prev Heading"]) == ["Prev Heading"]
 
     def test_no_heading_no_previous_uses_default(self):
-        assert chunker._part_heading("no heading text", None) == [DEFAULT_HEADING]
+        assert chunker._part_heading("no heading text", None) == [chunker.DEFAULT_HEADING]
 
 
 class TestFirstChunkHeading:
@@ -363,7 +362,7 @@ class TestFirstChunkHeading:
 
     PARAGRAPH = "Body sentence that carries the section text along. " * 40
 
-    def _tree(self, markdown, tmp_path, max_tokens=DEFAULT_MAX_TOKENS):
+    def _tree(self, markdown, tmp_path, max_tokens=chunker.DEFAULT_MAX_TOKENS):
         return chunker.build_chunk_tree(
             markdown, "doc.md", _md_path(tmp_path), max_tokens, 1
         )
@@ -383,7 +382,7 @@ class TestFirstChunkHeading:
               f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}")
         chunks = self._tree(md, tmp_path, max_tokens=300)["catalog"]["chunks"]
         assert chunks[0]["file"] == "Chunk-0.md"
-        assert chunks[0]["heading"] == [DEFAULT_HEADING]
+        assert chunks[0]["heading"] == [chunker.DEFAULT_HEADING]
         # And the section that follows keeps its own heading.
         assert any(c["heading"] == ["1.0 Introduction"] for c in chunks[1:]), \
             [c["heading"] for c in chunks]
@@ -396,7 +395,7 @@ class TestFirstChunkHeading:
               f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}")
         first = self._tree(md, tmp_path)["catalog"]["chunks"][0]
         assert first["file"] == "Chunk-0.md"
-        assert first["heading"] == [DEFAULT_HEADING]
+        assert first["heading"] == [chunker.DEFAULT_HEADING]
 
     def test_preamble_stand_out_lines_do_not_become_the_label(self, tmp_path):
         # A title block's bold/ALL-CAPS lines are field labels, not section titles.
@@ -404,7 +403,7 @@ class TestFirstChunkHeading:
                     + "Front matter prose that runs on for a while. " * 40)
         md = (f"{preamble}{chr(10)}{chr(10)}# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}")
         chunks = self._tree(md, tmp_path, max_tokens=300)["catalog"]["chunks"]
-        assert chunks[0]["heading"] == [DEFAULT_HEADING]
+        assert chunks[0]["heading"] == [chunker.DEFAULT_HEADING]
 
     def test_later_chunks_unaffected(self, tmp_path):
         md = "".join(
@@ -412,7 +411,7 @@ class TestFirstChunkHeading:
             for i in range(1, 6)
         )
         headings = [c["heading"] for c in self._tree(md, tmp_path)["catalog"]["chunks"]]
-        assert all(h != [DEFAULT_HEADING] for h in headings), headings
+        assert all(h != [chunker.DEFAULT_HEADING] for h in headings), headings
 
 
 class TestRepeatedLines:
@@ -449,7 +448,7 @@ class TestRepeatedLines:
         repeated = frozenset({chunker.normalize_title("CONFIDENTIAL")})
         # Without the set it is accepted as a stand-out heading; with it, the part falls through.
         assert chunker._part_heading(part, None) == ["CONFIDENTIAL"]
-        assert chunker._part_heading(part, None, repeated) == [DEFAULT_HEADING]
+        assert chunker._part_heading(part, None, repeated) == [chunker.DEFAULT_HEADING]
 
     def test_a_real_heading_after_a_page_marker_still_counts(self):
         part = f"<!-- page: 7 -->{chr(10)}**5.0 METHODS**{chr(10)}{chr(10)}Body text follows."
