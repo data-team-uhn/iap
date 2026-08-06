@@ -24,17 +24,10 @@ outline.json and read back is simply the second return value."""
 
 import toc_and_appendix_detection as tad
 from bookmarks import build_line_index, build_lines_catalog
-from toc_and_appendix_detection import (
-    DEFAULT_MIN_STRUCTURE_TOKENS,
-    derive_outline,
-    is_toc_entry_line,
-    read_outline,
-    toc_label_line,
-)
 
 
 def _derive(md, markdown_path=None, min_structure_tokens=1):
-    return derive_outline(md, markdown_path, min_structure_tokens)
+    return tad.derive_outline(md, markdown_path, min_structure_tokens)
 
 
 def _derive_with_bookmarks(monkeypatch, tmp_path, md, records, min_structure_tokens=1):
@@ -44,56 +37,56 @@ def _derive_with_bookmarks(monkeypatch, tmp_path, md, records, min_structure_tok
     # tests control the exact outline without page-correction side effects.
     monkeypatch.setattr(tad, "extract_bookmarks", lambda *a, **k: records)
     monkeypatch.setattr(tad, "verify_bookmarks", lambda *a, **k: records)
-    return derive_outline(md, md_path, min_structure_tokens)
+    return tad.derive_outline(md, md_path, min_structure_tokens)
 
 
 class TestIsTocEntryLine:
     def test_tab_separated_entry(self):
-        assert is_toc_entry_line("Introduction\t3") is True
+        assert tad.is_toc_entry_line("Introduction\t3") is True
 
     def test_numbered_entry_with_tab(self):
-        assert is_toc_entry_line("1.0 General Information\t3") is True
+        assert tad.is_toc_entry_line("1.0 General Information\t3") is True
 
     def test_dash_separated_entry(self):
-        assert is_toc_entry_line("Summary  -  2") is True
+        assert tad.is_toc_entry_line("Summary  -  2") is True
 
     def test_dot_leader_entry(self):
-        assert is_toc_entry_line("Schema.......4") is True
+        assert tad.is_toc_entry_line("Schema.......4") is True
 
     def test_roman_numeral_page(self):
-        assert is_toc_entry_line("Abbreviations - v") is True
+        assert tad.is_toc_entry_line("Abbreviations - v") is True
 
     def test_numbered_outline_without_page(self):
-        assert is_toc_entry_line("2.0 **Introduction**") is True
+        assert tad.is_toc_entry_line("2.0 **Introduction**") is True
 
     def test_too_many_words_rejected(self):
         line = "This heading has far too many words to be a table entry line indeed\t3"
-        assert is_toc_entry_line(line) is False
+        assert tad.is_toc_entry_line(line) is False
 
     def test_plain_sentence_rejected(self):
-        assert is_toc_entry_line("This is a normal sentence.") is False
+        assert tad.is_toc_entry_line("This is a normal sentence.") is False
 
     def test_empty_rejected(self):
-        assert is_toc_entry_line("") is False
+        assert tad.is_toc_entry_line("") is False
 
 
 class TestTocLabelLine:
     def test_decorated_atx_label(self):
         lines = ["# Protocol", "", "## Table of Contents", "", "Intro\t1"]
-        assert toc_label_line(lines) == 2
+        assert tad.toc_label_line(lines) == 2
 
     def test_bold_contents_label(self):
         lines = ["**Contents**", "Intro\t1"]
-        assert toc_label_line(lines) == 0
+        assert tad.toc_label_line(lines) == 0
 
     def test_bare_label_requires_isolation(self):
         isolated = ["", "table of contents", ""]
-        assert toc_label_line(isolated) == 1
+        assert tad.toc_label_line(isolated) == 1
         not_isolated = ["preamble text", "table of contents", "more text"]
-        assert toc_label_line(not_isolated) is None
+        assert tad.toc_label_line(not_isolated) is None
 
     def test_absent_label(self):
-        assert toc_label_line(["# Title", "", "Body"]) is None
+        assert tad.toc_label_line(["# Title", "", "Body"]) is None
 
 
 class TestMarkAndCleanupToc:
@@ -137,14 +130,14 @@ class TestMarkTocAndAppendix:
     def test_size_gate_skips_small_docs_without_bookmarks(self):
         # No bookmarks and tokens below the default threshold → empty updates, no line index.
         md = "# Small\n\nToo short for structure detection.\n"
-        result, updates, records, line_index = derive_outline(md)
+        result, updates, records, line_index = tad.derive_outline(md)
         assert result == md
         assert updates == {}
         assert records == []
         assert line_index is None
 
     def test_default_threshold_constant(self):
-        assert DEFAULT_MIN_STRUCTURE_TOKENS == 20000
+        assert tad.DEFAULT_MIN_STRUCTURE_TOKENS == 20000
 
     def test_records_tokens_when_not_gated(self):
         md = "# Title\n\n" + ("Some content paragraph. " * 40)
@@ -165,13 +158,13 @@ class TestOutlineReader:
     # Only the reader survives: outline.json is written by chunker.write_chunk_files, in one
     # shot from the tree, so there is no merging writer here any more.
     def test_read_missing_returns_empty(self, tmp_path):
-        assert read_outline(tmp_path / "nope.json") == {}
-        assert read_outline(None) == {}
+        assert tad.read_outline(tmp_path / "nope.json") == {}
+        assert tad.read_outline(None) == {}
 
     def test_read_unparseable_returns_empty(self, tmp_path):
         broken = tmp_path / "outline.json"
         broken.write_text("{not json", encoding="utf-8")
-        assert read_outline(broken) == {}
+        assert tad.read_outline(broken) == {}
 
 
 class TestEntryToRecord:
@@ -367,7 +360,7 @@ class TestOverlongTocEntry:
     def test_page_numbered_entry_predicate_ignores_length(self):
         long_entry = ("6.11 Adaptations for outcome assessment for patients who cannot "
                       "attend facility based outcome assessment\t15")
-        assert is_toc_entry_line(long_entry) is False
+        assert tad.is_toc_entry_line(long_entry) is False
         assert tad.is_page_numbered_entry(long_entry) is True
 
     def test_numbered_body_prose_is_not_page_numbered_entry(self):
@@ -411,8 +404,7 @@ class TestBackmatterTocExclusion:
         records = [{"title": "1.0 Background", "page": None}]
         assert tad.backmatter_from_records(records, self._index(), (0, 3)) is None
 
-    def test_end_to_end_records_backmatter_for_a_pageless_toc(self, tmp_path):
-        outline_path = tmp_path / "outline.json"
+    def test_end_to_end_records_backmatter_for_a_pageless_toc(self):
         doc = "\n".join([
             "## Table of Contents",
             "1.0 Background",
