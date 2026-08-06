@@ -128,12 +128,12 @@ describe("CategoryManager", () => {
   // is followed by a reload, so the request under test is never the only one in flight.
   const postsMatching = (predicate: (body: string) => boolean) =>
     vi.mocked(fetch).mock.calls.filter(([, init]) => {
-      const body = (init as RequestInit | undefined)?.body;
+      const body = init?.body;
       return body instanceof URLSearchParams && predicate(body.toString());
     });
 
   const postTo = (path: string) =>
-    vi.mocked(fetch).mock.calls.filter(([url, init]) => url === path && !!(init as RequestInit | undefined)?.method);
+    vi.mocked(fetch).mock.calls.filter(([url, init]) => url === path && !!init?.method);
 
   describe("saving a category", () => {
     it("creates one under the parent the tree row names", async () => {
@@ -179,7 +179,7 @@ describe("CategoryManager", () => {
         expect(postsMatching(body => body.includes("operation=move"))).not.toHaveLength(0);
       });
       const move = postsMatching(body => body.includes("operation=move"))[0];
-      expect(((move[1] as RequestInit).body as URLSearchParams).get(":dest")).toBe("/Categories/Retrospective/");
+      expect((move[1]!.body as URLSearchParams).get(":dest")).toBe("/Categories/Retrospective/");
     });
 
     // The two writes an edit can take are reported separately, because the first one having landed

@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
+import type { ComponentProps } from "react";
+
 import { ThemeProvider } from "@mui/material/styles";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import LoadError from "@iap/frontend-commons/components/LoadError";
-
-import type { ComponentProps } from "react";
 
 const renderLoadError = (props: Partial<ComponentProps<typeof LoadError>> = {}) => {
   const onRetry = props.onRetry ?? vi.fn().mockResolvedValue(undefined);
