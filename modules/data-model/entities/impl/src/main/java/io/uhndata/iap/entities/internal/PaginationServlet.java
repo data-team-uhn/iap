@@ -110,9 +110,16 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
 
     /**
      * How far past the requested page, in pages, to keep counting the total number of matches before declaring the
-     * total approximate.
+     * total approximate. Counting means iterating the indexed query results, which is cheap but not free; a deep
+     * horizon keeps the reported total exact for all but the largest collections, and a good estimate beyond that.
      */
-    private static final long LOOKAHEAD_PAGES = 10;
+    private static final long LOOKAHEAD_PAGES = 100;
+
+    /**
+     * The most rows one counting batch may span, whatever the requested page size: without this bound, a
+     * maximum-limit request could demand counting a hundred thousand rows in one go.
+     */
+    private static final long MAX_LOOKAHEAD_ROWS = 10_000;
 
     /** Matches the parameter names of the descendant condition families, capturing the family's number. */
     private static final Pattern CHILD_PARAMETER =
@@ -311,10 +318,10 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         final String selectors = getResourceSelectors(request);
         final Set<String> seen = new HashSet<>();
         long returned = 0;
-        final long pageSize = LOOKAHEAD_PAGES * Math.max(limit, 1);
+        final long batchSize = Math.min(LOOKAHEAD_PAGES * Math.max(limit, 1), MAX_LOOKAHEAD_ROWS);
         // Count until the end of the batch of pages containing the requested page, plus one more result to know
         // whether the reported total is exact
-        final long lookahead = ((offset + Math.max(limit, 1) + pageSize - 1) / pageSize) * pageSize + 1;
+        final long lookahead = ((offset + Math.max(limit, 1) + batchSize - 1) / batchSize) * batchSize + 1;
         boolean more = false;
         while (rows.hasNext()) {
             final String path = rows.nextRow().getPath("n");

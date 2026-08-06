@@ -159,7 +159,7 @@ final class QueryBuilder
             appendConditions(query, "c" + childIndex++, filtersForChild);
         }
         if (this.fullText != null && !this.fullText.isBlank()) {
-            query.append(" and contains(n.*, '").append(escape(this.fullText)).append("')");
+            query.append(" and contains(n.*, '").append(escapeFullText(this.fullText)).append("')");
         }
         query.append(" order by n.[").append(this.sortBy).append(this.descending ? "] DESC" : "] ASC");
         return query.toString();
@@ -222,13 +222,28 @@ final class QueryBuilder
     }
 
     /**
-     * Escapes a literal value before it is interpolated into a query string.
+     * Escapes a literal value before it is interpolated into a query string. Doubling the quote is JCR-SQL2's
+     * only string escape: backslashes are ordinary characters in a string literal, and a {@code \'} sequence is
+     * a parse error, which used to turn every value containing an apostrophe into a failed query.
      *
      * @param value the value to escape, may be {@code null}
-     * @return the value with quotes and backslashes escaped, or an empty string if the value was {@code null}
+     * @return the value with quotes doubled, or an empty string if the value was {@code null}
      */
     private static String escape(final String value)
     {
-        return value == null ? "" : value.replaceAll("['\\\\]", "\\\\$0");
+        return value == null ? "" : value.replace("'", "''");
+    }
+
+    /**
+     * Escapes a full text search term before it is interpolated into a {@code contains()} call: on top of the
+     * string literal escaping, the full text search grammar has its own layer where the backslash is the escape
+     * character, so literal backslashes must be doubled to keep a trailing one from escaping the closing quote.
+     *
+     * @param value the value to escape, may be {@code null}
+     * @return the escaped search expression, or an empty string if the value was {@code null}
+     */
+    private static String escapeFullText(final String value)
+    {
+        return escape(value).replace("\\", "\\\\");
     }
 }

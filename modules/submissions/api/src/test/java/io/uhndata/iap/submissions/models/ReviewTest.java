@@ -84,13 +84,13 @@ class ReviewTest
             "sling:resourceType", Review.RESOURCE_TYPE,
             "reviewer", "reviewer1",
             "requirement", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
-            "status", "in-progress"));
+            "tags", new String[] { "in-progress" }));
         final Review review = resource.adaptTo(Review.class);
 
         assertEquals("reviewer1", review.getReviewer());
         assertEquals(ApprovalRequirement.class, review.getRequirement().getClass());
         assertEquals("REB approval", review.getRequirement().getLabel());
-        assertEquals("in-progress", review.getStatus());
+        assertEquals(List.of("in-progress"), review.getTags());
     }
 
     @Test
@@ -141,20 +141,43 @@ class ReviewTest
     }
 
     @Test
-    void reportsApprovedWhenStatusIsApproved()
+    void toleratesMissingTags()
+    {
+        // A freshly created review may not be tagged yet; it counts as open, not approved
+        final Resource resource = this.context.create().resource("/Submissions/submission/review",
+            "sling:resourceType", Review.RESOURCE_TYPE);
+        final Review review = resource.adaptTo(Review.class);
+
+        assertTrue(review.getTags().isEmpty());
+        assertFalse(review.isApproved());
+    }
+
+    @Test
+    void reportsApprovedWhenTaggedApproved()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE, "status", "approved");
+            "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Review review = resource.adaptTo(Review.class);
 
         assertTrue(review.isApproved());
     }
 
     @Test
-    void reportsNotApprovedForOtherStatus()
+    void reportsApprovedWhenApprovedIsAmongOtherTags()
+    {
+        // The review state tag shares the multivalued property with unrelated markers
+        final Resource resource = this.context.create().resource("/Submissions/submission/review",
+            "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "flagged", "approved" });
+        final Review review = resource.adaptTo(Review.class);
+
+        assertTrue(review.isApproved());
+    }
+
+    @Test
+    void reportsNotApprovedForOtherTags()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
-            "sling:resourceType", Review.RESOURCE_TYPE, "status", "changes-requested");
+            "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "changes-requested" });
         final Review review = resource.adaptTo(Review.class);
 
         assertFalse(review.isApproved());
