@@ -50,8 +50,7 @@
                 "-/libs",
                 "-/apps",
                 "-/system/sling.js",
-                "-/system/sling/info",
-                "-/system/sling/oauth"
+                "-/system/sling/info"
             ]
         }
     }
