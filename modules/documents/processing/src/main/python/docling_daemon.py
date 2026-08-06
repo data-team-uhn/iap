@@ -68,7 +68,7 @@ class DaemonState:
     """Shared daemon resources."""
 
     def __init__(self, workers: int | None) -> None:
-        # Refresh free-RAM budget at daemon start (not only at module import).
+        # Refresh free-RAM budget at daemon start
         self.worker_count = calc_workers(workers)
         self.pdf_executor = ProcessPoolExecutor(
             max_workers=self.worker_count,
