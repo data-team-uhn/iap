@@ -25,31 +25,23 @@ import pytest
 
 import chunker
 from bookmarks import BOOKMARKS_NAME
-from chunker import (
-    CATALOG_NAME,
-    CHUNKS_DIRNAME,
-    OUTLINE_NAME,
-    chunk_file,
-    is_neutral,
-    valid_heading,
-)
 
 
 class TestValidHeading:
     def test_ordinary_heading(self):
-        assert valid_heading("Introduction") is True
+        assert chunker.valid_heading("Introduction") is True
 
     def test_too_short_rejected(self):
-        assert valid_heading("Hi") is False
+        assert chunker.valid_heading("Hi") is False
 
     def test_table_caption_rejected(self):
-        assert valid_heading("Table 1: Baseline characteristics") is False
+        assert chunker.valid_heading("Table 1: Baseline characteristics") is False
 
     def test_too_many_words_rejected(self):
-        assert valid_heading("one two three four five six seven eight nine ten eleven") is False
+        assert chunker.valid_heading("one two three four five six seven eight nine ten eleven") is False
 
     def test_overlong_word_rejected(self):
-        assert valid_heading("word " + "x" * 101) is False
+        assert chunker.valid_heading("word " + "x" * 101) is False
 
 
 class TestHeadingMatching:
@@ -94,10 +86,10 @@ class TestStandoutHeading:
 
 class TestNeutralAndTokens:
     def test_is_neutral(self):
-        assert is_neutral("") is True
-        assert is_neutral("---") is True
-        assert is_neutral("<!-- page: 3 -->") is True
-        assert is_neutral("Real content") is False
+        assert chunker.is_neutral("") is True
+        assert chunker.is_neutral("---") is True
+        assert chunker.is_neutral("<!-- page: 3 -->") is True
+        assert chunker.is_neutral("Real content") is False
 
     def test_count_tokens_is_quarter_of_length(self):
         assert chunker.count_tokens("a" * 40) == 10
@@ -119,14 +111,14 @@ class TestChunkFile:
 
     def test_missing_file_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
-            chunk_file(str(tmp_path / "does-not-exist.md"))
+            chunker.chunk_file(str(tmp_path / "does-not-exist.md"))
 
     def test_small_document_not_chunked(self, tmp_path):
         path = self._write_small(tmp_path)
-        summary = chunk_file(str(path))
+        summary = chunker.chunk_file(str(path))
         assert summary["chunks"] == 0
 
-        outline_path = path.parent / CHUNKS_DIRNAME / OUTLINE_NAME
+        outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
         assert outline_path.is_file()
         outline = json.loads(outline_path.read_text(encoding="utf-8"))
         assert outline["chunked"] is False
@@ -134,34 +126,34 @@ class TestChunkFile:
         assert outline["toc"] == []
         assert isinstance(outline["tokens"], int) and outline["tokens"] > 0
         # No catalog for an unchunked document.
-        assert not (path.parent / CHUNKS_DIRNAME / CATALOG_NAME).exists()
+        assert not (path.parent / chunker.CHUNKS_DIRNAME / chunker.CATALOG_NAME).exists()
 
     def test_small_document_rerun_is_stable(self, tmp_path):
         path = self._write_small(tmp_path)
-        assert chunk_file(str(path))["chunks"] == 0
-        assert chunk_file(str(path))["chunks"] == 0
+        assert chunker.chunk_file(str(path))["chunks"] == 0
+        assert chunker.chunk_file(str(path))["chunks"] == 0
 
     def test_large_document_chunked(self, tmp_path):
         path = self._write_large(tmp_path)
-        summary = chunk_file(str(path))
+        summary = chunker.chunk_file(str(path))
         assert summary["chunks"] > 0
 
-        chunks_dir = path.parent / CHUNKS_DIRNAME
-        outline = json.loads((chunks_dir / OUTLINE_NAME).read_text(encoding="utf-8"))
+        chunks_dir = path.parent / chunker.CHUNKS_DIRNAME
+        outline = json.loads((chunks_dir / chunker.OUTLINE_NAME).read_text(encoding="utf-8"))
         assert outline["chunked"] is True
-        assert (chunks_dir / CATALOG_NAME).is_file()
-        catalog = json.loads((chunks_dir / CATALOG_NAME).read_text(encoding="utf-8"))
+        assert (chunks_dir / chunker.CATALOG_NAME).is_file()
+        catalog = json.loads((chunks_dir / chunker.CATALOG_NAME).read_text(encoding="utf-8"))
         assert len(catalog["chunks"]) == summary["chunks"]
 
     def test_huge_threshold_forces_unchunked(self, tmp_path):
         path = self._write_large(tmp_path)
-        summary = chunk_file(str(path), min_structure_tokens=10_000_000)
+        summary = chunker.chunk_file(str(path), min_structure_tokens=10_000_000)
         assert summary["chunks"] == 0
         outline = json.loads(
-            (path.parent / CHUNKS_DIRNAME / OUTLINE_NAME).read_text(encoding="utf-8")
+            (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
         )
         assert outline["chunked"] is False
-        assert not (path.parent / CHUNKS_DIRNAME / CATALOG_NAME).exists()
+        assert not (path.parent / chunker.CHUNKS_DIRNAME / chunker.CATALOG_NAME).exists()
 
 
 class TestBookmarksJsonNotWritten:
@@ -185,20 +177,20 @@ class TestBookmarksJsonNotWritten:
     def test_printed_toc_titles_land_in_outline_not_bookmarks_file(self, tmp_path):
         path = tmp_path / "proto.md"
         self._protocol(path)
-        chunk_file(str(path))
+        chunker.chunk_file(str(path))
         outline = json.loads(
-            (path.parent / CHUNKS_DIRNAME / OUTLINE_NAME).read_text(encoding="utf-8")
+            (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
         )
         assert "1.0 Background" in outline["toc"]
         assert "4.0 Analysis" in outline["toc"]
-        assert not (path.parent / CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
+        assert not (path.parent / chunker.CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
         assert not (tmp_path / BOOKMARKS_NAME).exists()
 
     def test_absent_when_no_records_were_resolved(self, tmp_path):
         path = tmp_path / "plain.md"
         path.write_text("# Title\n\n" + self.PARAGRAPH, encoding="utf-8")
-        chunk_file(str(path))
-        assert not (path.parent / CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
+        chunker.chunk_file(str(path))
+        assert not (path.parent / chunker.CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
 
     def test_absent_on_the_unchunked_path_too(self, tmp_path, monkeypatch):
         records = [{"title": "Alpha Section", "level": 1, "page": 1}]
@@ -211,12 +203,12 @@ class TestBookmarksJsonNotWritten:
         path = tmp_path / "small.md"
         path.write_text("# Tiny\n\nshort body\n", encoding="utf-8")
         (tmp_path / "small.pdf").write_bytes(b"%PDF-1.4")
-        assert chunk_file(str(path), min_structure_tokens=10 ** 9)["chunks"] == 0
+        assert chunker.chunk_file(str(path), min_structure_tokens=10 ** 9)["chunks"] == 0
         outline = json.loads(
-            (path.parent / CHUNKS_DIRNAME / OUTLINE_NAME).read_text(encoding="utf-8")
+            (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
         )
         assert outline["toc"] == ["Alpha Section"]
-        assert not (path.parent / CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
+        assert not (path.parent / chunker.CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
 
 
 class TestSidecarCleanup:
@@ -239,28 +231,28 @@ class TestSidecarCleanup:
 
     def _outline(self, path):
         return json.loads(
-            (path.parent / CHUNKS_DIRNAME / OUTLINE_NAME).read_text(encoding="utf-8")
+            (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
         )
 
     def test_no_sidecars_left_beside_the_md(self, tmp_path):
         path = tmp_path / "proto.md"
         self._write(path, ["1.0 Background", "2.0 Objectives", "3.0 Design", "4.0 Analysis"])
-        chunk_file(str(path))
+        chunker.chunk_file(str(path))
         assert self._outline(path)["toc_source"] == "md-toc"
         assert not (tmp_path / BOOKMARKS_NAME).exists()
-        assert not (tmp_path / OUTLINE_NAME).exists()
+        assert not (tmp_path / chunker.OUTLINE_NAME).exists()
 
     def test_rerun_on_new_content_does_not_reuse_the_old_outline(self, tmp_path):
         path = tmp_path / "proto.md"
         self._write(path, ["1.0 Background", "2.0 Objectives", "3.0 Design", "4.0 Analysis"])
-        chunk_file(str(path))
+        chunker.chunk_file(str(path))
         assert self._outline(path)["toc"] == [
             "1.0 Background", "2.0 Objectives", "3.0 Design", "4.0 Analysis",
         ]
 
         # Same output path, entirely different document.
         self._write(path, ["9.0 Completely New", "8.0 Other Topic", "7.0 Third Thing"])
-        chunk_file(str(path))
+        chunker.chunk_file(str(path))
         outline = self._outline(path)
         assert outline["toc_source"] == "md-toc"
         assert outline["toc"] == ["9.0 Completely New", "8.0 Other Topic", "7.0 Third Thing"]
@@ -271,7 +263,7 @@ class TestSidecarCleanup:
         (tmp_path / BOOKMARKS_NAME).write_text(
             json.dumps([{"title": "Alpha Section", "level": 1, "page": 1}]), encoding="utf-8"
         )
-        chunk_file(str(path), min_structure_tokens=10 ** 9)
+        chunker.chunk_file(str(path), min_structure_tokens=10 ** 9)
         # A leftover sidecar is neither honoured nor left behind: the outline comes from
         # the document alone, and the stale file is removed on the unchunked path too.
         assert self._outline(path)["toc"] == []
@@ -282,10 +274,10 @@ class TestSidecarCleanup:
         path = tmp_path / "doc.md"
         path.write_text("# Doc\n\nbody\n", encoding="utf-8")
         (tmp_path / BOOKMARKS_NAME).write_text("[]", encoding="utf-8")
-        (tmp_path / OUTLINE_NAME).write_text("{}", encoding="utf-8")
-        (tmp_path / CHUNKS_DIRNAME).mkdir()
-        (tmp_path / CHUNKS_DIRNAME / "Chunk-1.md").write_text("stale", encoding="utf-8")
+        (tmp_path / chunker.OUTLINE_NAME).write_text("{}", encoding="utf-8")
+        (tmp_path / chunker.CHUNKS_DIRNAME).mkdir()
+        (tmp_path / chunker.CHUNKS_DIRNAME / "Chunk-1.md").write_text("stale", encoding="utf-8")
         chunker.clear_prior_outputs(path)
         assert not (tmp_path / BOOKMARKS_NAME).exists()
-        assert not (tmp_path / OUTLINE_NAME).exists()
-        assert not (tmp_path / CHUNKS_DIRNAME).exists()
+        assert not (tmp_path / chunker.OUTLINE_NAME).exists()
+        assert not (tmp_path / chunker.CHUNKS_DIRNAME).exists()

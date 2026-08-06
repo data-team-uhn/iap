@@ -27,7 +27,6 @@ body draining, health reporting, and the batch-abandon path that runs when a pag
 
 import time
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
