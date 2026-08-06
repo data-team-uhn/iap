@@ -294,7 +294,7 @@ describe("BpmnEditor", () => {
 
       const dialog = await openLoadDialog(user);
       await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 403, url: "", headers: new Headers() } as Response);
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 403, url: "", headers: new Headers() });
       await user.click(within(dialog).getByText("Approval"));
 
       expect(await screen.findByText("Failed to load the diagram: HTTP 403")).toBeInTheDocument();

@@ -603,7 +603,7 @@
             <dependency>
               <groupId>com.puppycrawl.tools</groupId>
               <artifactId>checkstyle</artifactId>
-              <version>13.8.0</version>
+              <version>13.9.0</version>
             </dependency>
           </dependencies>
           <configuration>
@@ -891,8 +891,6 @@
 
                       <module name="JavadocParagraph"/>
 
-                      <module name="JavadocStyle" />
-
                       <module name="JavadocTagContinuationIndentation" />
 
                       <module name="JavadocType">
@@ -1105,8 +1103,7 @@
 
                       <module name="StringLiteralEquality" />
 
-                      <!-- A new feature, adding these to every class is too costly for now. -->
-                      <!--module name="SummaryJavadoc" /-->
+                      <module name="SummaryJavadoc" />
 
                       <module name="SuperClone" />
 
@@ -1487,8 +1484,6 @@
                       <!-- Too strict at the moment -->
                       <!--module name="JavadocParagraph"/-->
 
-                      <module name="JavadocStyle" />
-
                       <module name="JavadocTagContinuationIndentation" />
 
                       <!--module name="JavadocType">
@@ -1700,8 +1695,7 @@
 
                       <module name="StringLiteralEquality" />
 
-                      <!-- A new feature, adding these to every class is too costly for now. -->
-                      <!--module name="SummaryJavadoc" /-->
+                      <module name="SummaryJavadoc" />
 
                       <module name="SuperClone" />
 
