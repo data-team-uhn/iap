@@ -1,0 +1,68 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+{
+    "variables": {
+        "rdb.jdbc.uri":"jdbc:postgresql://postgres:5432/iap",
+        "rdb.jdbc.driver":"org.postgresql.Driver",
+        "rdb.jdbc.user":"iap",
+        "rdb.jdbc.password":"iap"
+    },
+    "bundles":[
+        {
+            "id":"com.h2database:h2-mvstore:2.4.240",
+            "start-order":"15"
+        },
+        {
+            "id":"org.postgresql:postgresql:42.7.13",
+            "start-order":"14"
+        },
+        {
+            "id":"org.apache.sling:org.apache.sling.datasource:1.0.4",
+            "start-order":"14"
+        }
+    ],
+    "configurations":{
+        // The DocumentNodeStore resolves its store through a `javax.sql.DataSource` service
+        // selected by `(datasource.name=oak)`, so the pool must advertise that exact name.
+        "org.apache.sling.datasource.DataSourceFactory~oak":{
+            "datasource.name":"oak",
+            "driverClassName":"${rdb.jdbc.driver}",
+            "url":"${rdb.jdbc.uri}",
+            "username":"${rdb.jdbc.user}",
+            "password":"${rdb.jdbc.password}",
+            // Oak drives its own transactions, so connections must be handed out committing
+            // each statement; leaving this at the driver default breaks the document store.
+            "defaultAutoCommit":"true",
+            "maxActive:Integer":"64",
+            "maxIdle:Integer":"16",
+            "minIdle:Integer":"4",
+            "initialSize:Integer":"4",
+            // Recycle connections dropped by the database or an intermediate proxy, rather
+            // than handing a dead one to Oak on the next repository operation.
+            "testOnBorrow":true,
+            "testWhileIdle":true,
+            "validationQuery":"SELECT 1",
+            "validationInterval:Integer":"30000",
+            // The default interceptor chain includes a statement cache, which conflicts with
+            // the prepared statements Oak reuses across pooled connections.
+            "jdbcInterceptors":"ConnectionState"
+        },
+        "org.apache.jackrabbit.oak.plugins.document.DocumentNodeStoreService":{
+            "documentStoreType":"RDB"
+        }
+    }
+}

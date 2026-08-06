@@ -10,6 +10,7 @@ It runs as an [Apache Sling](https://sling.apache.org/) application (OSGi on Apa
 - **Maven 3.9+**
 - **Python 3** — the start process is implemented in Python (`start.py`). Installing the optional `psutil` module enables a more robust bind check (not used on WSL or macOS, where a simpler check is applied automatically).
 - **MongoDB** — only if you run with `--mongo` (see below); the default storage needs nothing extra.
+- **PostgreSQL** — only if you run with `--postgres` (see below); the default storage needs nothing extra.
 
 ## One-time repository setup (optional)
 
@@ -59,6 +60,10 @@ IAP will be available at <http://localhost:8080> once it has started. Press `Ctr
 | `-p`, `--port <PORT>` | Port to bind to (default `8080`). |
 | `--data <DIR>` | Directory for the runtime state — repository, cache, logs (default `.iap-data`). Each concurrently running instance needs its own data directory and port; the repository takes an exclusive lock on its data directory, so a second instance pointed at the same one will hang waiting for the lock. |
 | `--mongo` | Use a MongoDB document store for the repository instead of the default file-based (TAR/segment) store. Requires a running MongoDB instance. |
+| `--postgres` | Use a PostgreSQL document store for the repository instead of the default file-based (TAR/segment) store. Requires a running PostgreSQL instance and a database the connecting user may create tables in — Oak creates its own tables and indexes on first start. |
+| `--jdbc <URL>` | JDBC URL for `--postgres` (default `jdbc:postgresql://localhost:5432/iap`). |
+| `--db-user <USER>` | Database user for `--postgres`. |
+| `--db-password <PASSWORD>` | Database password for `--postgres`. |
 | `--debug` | Enable Java remote debugging (JDWP) on port `5005`. Startup **pauses until a debugger attaches** — connect with `jdb -attach 5005` (or your IDE). |
 | `--test` | Additionally load test content (the `iap-test-data` feature). |
 | `--permissions <MODE>` | Permissions scheme to apply when resolving project features (used together with `--project`). |
@@ -75,6 +80,7 @@ Notes:
 ./start.sh                 # default: file-based storage on port 8080
 ./start.sh -p 8888         # run on a custom port
 ./start.sh --mongo         # use a MongoDB-backed repository
+./start.sh --postgres --db-user iap --db-password iap    # use a PostgreSQL-backed repository
 ./start.sh --debug         # wait for a debugger to attach on port 5005
 ./start.sh -P myproject    # launch the "iap4myproject" project
 

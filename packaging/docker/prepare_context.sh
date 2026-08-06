@@ -78,6 +78,8 @@ cp "$ROOT_DIR/packaging/slingfeature/target/slingfeature-tmp/feature-core_tar.js
   "$CONTEXT/metadata/core_tar.json"
 cp "$ROOT_DIR/packaging/slingfeature/target/slingfeature-tmp/feature-core_mongo.json" \
   "$CONTEXT/metadata/core_mongo.json"
+cp "$ROOT_DIR/packaging/slingfeature/target/slingfeature-tmp/feature-core_rdb.json" \
+  "$CONTEXT/metadata/core_rdb.json"
 cat > "$CONTEXT/metadata/build-info.txt" <<EOF
 version=$VERSION
 commit=$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)
