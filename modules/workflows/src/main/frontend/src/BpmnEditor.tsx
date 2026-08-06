@@ -28,6 +28,7 @@ import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css";
 import {
   Alert,
+  AlertTitle,
   Button,
   Checkbox,
   CircularProgress,
@@ -41,25 +42,19 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
-  Snackbar,
   Stack,
   TextField,
   Typography,
+  type AlertColor,
 } from "@mui/material";
 import Modeler from 'bpmn-js/lib/Modeler';
 
+import LoadError from "@iap/frontend-commons/components/LoadError";
+import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import PropertiesPanel from "./PropertiesPanel";
 import { WORKFLOWS_ROOT, parseWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
-
-type SnackbarSeverity = "success" | "error" | "warning";
-
-interface SnackbarState {
-  open: boolean;
-  message: string;
-  severity: SnackbarSeverity;
-}
 
 function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
   return new Promise(function(resolve, reject) {
@@ -155,7 +150,13 @@ export default function BpmnEditor() {
   const [creating, setCreating] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: "", severity: "success" });
+  const [notice, setNotice] = useState<Notice>();
+  // A failure raised while a dialog is open belongs in that dialog. MUI marks everything outside an
+  // open Modal aria-hidden, so a snackbar over one is announced to nobody - and the dialog is where
+  // the user is looking anyway. The snackbar keeps the outcomes of the toolbar, which owns no dialog.
+  const [listError, setListError] = useState<string>();
+  const [importError, setImportError] = useState<string>();
+  const [createError, setCreateError] = useState<{ title: string; message?: string; severity: AlertColor }>();
 
   useLayoutEffect(() => {
     const container = bpmnContainerRef.current;
@@ -170,25 +171,38 @@ export default function BpmnEditor() {
     return () => bpmnModeler.destroy();
   }, []);
 
-  const showMessage = useCallback((message: string, severity: SnackbarSeverity = "success") => {
-    setSnackbar({ open: true, message, severity });
+  // What happened, said in one line, for the outcomes that leave no trace on screen of their own.
+  const showMessage = useCallback((message: string, severity: Notice["severity"] = "success") => {
+    setNotice({ title: message, severity });
   }, []);
 
-  const openLoadDialog = useCallback(() => {
-    setLoadOpen(true);
+  // What did not happen, then why, and - where trying again makes sense - the offer to.
+  const report = useCallback((title: string, cause: string, onRetry?: () => void) => {
+    setNotice({ title, message: cause, severity: "error", onRetry });
+  }, []);
+
+  const loadDefinitions = useCallback((): Promise<void> => {
     setLoadingDefs(true);
+    setListError(undefined);
     // Two levels is exactly what this list renders: the definitions, for their titles, and the
     // versions under them. The depth selector both turns child serialization on and stops the
     // traversal there, so a version's own children -- the diagram file, and the parsed flow nodes
     // once those exist -- are left as bare paths instead of being dragged into every listing.
-    fetchUtil(`${WORKFLOWS_ROOT}.2.json`)
+    return fetchUtil(`${WORKFLOWS_ROOT}.2.json`)
       .then(r => r.json())
       .then((data: Record<string, unknown>) => setDefinitions(parseWorkflowList(data)))
-      .catch(() => showMessage("Failed to load workflow definitions", "error"))
+      .catch((err: unknown) => setListError(describeRequestFailure(err)))
       .finally(() => setLoadingDefs(false));
-  }, [showMessage]);
+  }, []);
+
+  const openLoadDialog = useCallback(() => {
+    setLoadOpen(true);
+    setImportError(undefined);
+    void loadDefinitions();
+  }, [loadDefinitions]);
 
   const loadDefinition = useCallback(async (def: WorkflowVersionSummary) => {
+    setImportError(undefined);
     let xml: string;
     try {
       const response = await fetchUtil(`${def.path}/${BPMN_FILE}`);
@@ -202,7 +216,8 @@ export default function BpmnEditor() {
       }
       xml = await response.text();
     } catch (err) {
-      showMessage(`Failed to load the diagram: ${describeRequestFailure(err)}`, "error");
+      // Reported in the dialog the diagram was picked from, which stays open
+      setImportError(describeRequestFailure(err));
       return;
     }
     modeler?.importXML(xml)
@@ -212,18 +227,19 @@ export default function BpmnEditor() {
         setLoadOpen(false);
         showMessage(`Loaded "${def.title}" v${def.version}`);
       })
-      .catch((err: unknown) => showMessage(`Failed to import XML: ${messageOf(err)}`, "error"));
+      // Reported in the dialog the diagram was picked from, which stays open
+      .catch((err: unknown) => setImportError(messageOf(err)));
   }, [modeler, showMessage]);
 
-  const save = useCallback(async () => {
+  const save = useCallback(async function save() {
     if (!currentPath || !modeler) return;
     setSaving(true);
     try {
       const { xml } = await modeler.saveXML({ format: true });
       if (!xml) {
         // Ours rather than the server's, so it is said plainly instead of being described as a
-        // failed request
-        showMessage("Save failed: the diagram could not be serialized", "error");
+        // failed request - and it would fail the same way again, so no retry is offered
+        report(`"${currentTitle}" could not be saved`, "The diagram could not be serialized.");
         return;
       }
       const response = await fetchUtil(currentPath, { method: "POST", body: bpmnUpload(xml) });
@@ -232,13 +248,14 @@ export default function BpmnEditor() {
       }
       showMessage(`Saved "${currentTitle}"`);
     } catch (err) {
-      showMessage(`Save failed: ${describeRequestFailure(err)}`, "error");
+      report(`"${currentTitle}" could not be saved`, describeRequestFailure(err), () => void save());
     } finally {
       setSaving(false);
     }
-  }, [currentPath, currentTitle, modeler, showMessage]);
+  }, [currentPath, currentTitle, modeler, showMessage, report]);
 
   const resetNewDialog = useCallback(() => {
+    setCreateError(undefined);
     setNewTitle("");
     setNewDescription("");
     setNewVersion("1.0");
@@ -249,14 +266,15 @@ export default function BpmnEditor() {
 
   const createDefinition = useCallback(async () => {
     if (!newTitle.trim()) {
-      showMessage("Title is required", "warning");
+      setCreateError({ title: "Title is required", severity: "warning" });
       return;
     }
     if (!newVersion.trim()) {
-      showMessage("Version is required", "warning");
+      setCreateError({ title: "Version is required", severity: "warning" });
       return;
     }
     setCreating(true);
+    setCreateError(undefined);
     try {
       const defSlug = newTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
       const defBody = new URLSearchParams();
@@ -310,7 +328,11 @@ export default function BpmnEditor() {
       showMessage(`Created "${newTitle.trim()}" v${newVersion.trim()}`);
       resetNewDialog();
     } catch (err) {
-      showMessage(`Create failed: ${describeRequestFailure(err)}`, "error");
+      setCreateError({
+        title: "The workflow could not be created",
+        message: describeRequestFailure(err),
+        severity: "error",
+      });
     } finally {
       setCreating(false);
     }
@@ -351,7 +373,9 @@ export default function BpmnEditor() {
       <Dialog open={loadOpen} onClose={() => setLoadOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Load Workflow Definition</DialogTitle>
         <DialogContent dividers>
-          {loadingDefs ? (
+          {listError ? (
+            <LoadError title="The workflows could not be loaded" message={listError} onRetry={loadDefinitions} />
+          ) : loadingDefs ? (
             <Stack sx={{ py: 2, alignItems: "center" }}><CircularProgress /></Stack>
           ) : definitions.length === 0 ? (
             <Typography>No workflow definitions found at {WORKFLOWS_ROOT}.</Typography>
@@ -370,6 +394,13 @@ export default function BpmnEditor() {
             </List>
           )}
         </DialogContent>
+        {/* Pinned above the actions, so a long list cannot scroll the report out of view */}
+        {importError && (
+          <Alert severity="error" sx={{ borderRadius: 0 }}>
+            <AlertTitle>The diagram could not be imported</AlertTitle>
+            {importError}
+          </Alert>
+        )}
         <DialogActions>
           <Button onClick={() => setLoadOpen(false)}>Cancel</Button>
         </DialogActions>
@@ -419,6 +450,14 @@ export default function BpmnEditor() {
             />
           </Stack>
         </DialogContent>
+        {/* Between the content and the actions: only the content scrolls, so a report placed here
+            stays in view on a short screen, next to the button that provoked it */}
+        {createError && (
+          <Alert severity={createError.severity} sx={{ borderRadius: 0 }}>
+            <AlertTitle>{createError.title}</AlertTitle>
+            {createError.message}
+          </Alert>
+        )}
         <DialogActions>
           <Button onClick={resetNewDialog}>Cancel</Button>
           <Button onClick={() => void createDefinition()} variant="contained" disabled={creating}>
@@ -427,15 +466,7 @@ export default function BpmnEditor() {
         </DialogActions>
       </Dialog>
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar(s => ({ ...s, open: false }))}
-      >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar(s => ({ ...s, open: false }))}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      <NoticeSnackbar notice={notice} onClose={() => setNotice(undefined)} />
     </Stack>
   );
 }
