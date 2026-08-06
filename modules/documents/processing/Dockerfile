@@ -40,6 +40,7 @@ RUN apt-get update \
         curl \
         libreoffice-writer \
         libreoffice-java-common \
+        default-jre-headless \
         fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 

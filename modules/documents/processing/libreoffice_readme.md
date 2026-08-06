@@ -1,6 +1,6 @@
 # LibreOffice document conversion in IAP
 
-LibreOffice runs inside the **Python parsing service** (daemon or CLI), not the Java JVM.
+LibreOffice runs inside the **Python parsing service** (daemon or CLI).
 `libreoffice_convert.py` shells out to headless `soffice` before Docling starts.
 
 ## Conversions (saved beside the source immediately)
@@ -13,7 +13,7 @@ LibreOffice runs inside the **Python parsing service** (daemon or CLI), not the 
 
 ### Installation
 
-1. Install LibreOffice from https://www.libreoffice.org/download/ or:
+1. If interested in using CLI install LibreOffice from https://www.libreoffice.org/download/ or:
 
    ```
    # Debian / Ubuntu
@@ -25,8 +25,12 @@ LibreOffice runs inside the **Python parsing service** (daemon or CLI), not the 
 
    ```
    apt-get update && \
-     apt-get install -y libreoffice && \
+     apt-get install -y libreoffice libreoffice-java-common default-jre-headless && \
      rm -rf /var/lib/apt/lists/*
+
+   The Docling image already installs ``libreoffice-writer``, ``libreoffice-java-common``,
+   and ``default-jre-headless`` — Writer PDF export needs a JVM even for headless
+   ``docx`` → ``pdf``.
    ```
 
 2. Ensure `soffice` is on the system PATH (or set `IAP_LIBREOFFICE_SOFFICE`). Common locations:
