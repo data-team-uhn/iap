@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import type { ComponentProps } from "react";
+
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -23,7 +25,6 @@ import userEvent from "@testing-library/user-event";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import UserInputAssistant from "@iap/frontend-commons/components/UserInputAssistant";
 
-import type { ComponentProps } from "react";
 
 type AssistantProps = Partial<ComponentProps<typeof UserInputAssistant>>;
 

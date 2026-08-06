@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import type { ComponentProps } from "react";
+
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -23,7 +25,6 @@ import userEvent from "@testing-library/user-event";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import ErrorDialog from "@iap/frontend-commons/components/ErrorDialog";
 
-import type { ComponentProps } from "react";
 
 const renderDialog = (props: Partial<ComponentProps<typeof ErrorDialog>> = {}) => render(
   <ThemeProvider theme={appTheme} defaultMode="light">

@@ -41,7 +41,7 @@ describe("PageNotFound", () => {
   });
 
   it("explains what went wrong", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 404 } as Response);
+    fetchMock.mockResolvedValue({ ok: false, status: 404 });
 
     renderPageNotFound();
 
@@ -56,7 +56,7 @@ describe("PageNotFound", () => {
       ok: true,
       status: 200,
       json: () => Promise.resolve({ RedirectURL: "/dashboard", RedirectLabel: "Back to the dashboard" }),
-    } as Response);
+    });
 
     renderPageNotFound();
 
@@ -65,7 +65,7 @@ describe("PageNotFound", () => {
   });
 
   it("keeps the default redirect when the server has no suggestion", async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 500 } as Response);
+    fetchMock.mockResolvedValue({ ok: false, status: 500 });
 
     renderPageNotFound();
 

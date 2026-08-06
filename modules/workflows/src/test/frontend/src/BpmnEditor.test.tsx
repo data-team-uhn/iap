@@ -654,7 +654,7 @@ describe("BpmnEditor", () => {
       const log = vi.spyOn(console, "log").mockImplementation(() => { /* keep the output quiet */ });
       renderEditor();
 
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, url: "", headers: new Headers() } as unknown as Response);
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, url: "", headers: new Headers() });
       await user.click(screen.getByRole("button", { name: "Load" }));
 
       await waitFor(() => { expect(log).toHaveBeenCalledWith("Error fetching: 500"); });
@@ -674,7 +674,7 @@ describe("BpmnEditor", () => {
         status: 200,
         url: `${window.location.origin}/login?resource=/Workflows`,
         headers: new Headers(),
-      } as unknown as Response);
+      });
       await user.click(screen.getByRole("button", { name: "Load" }));
 
       await waitFor(() => { expect(log).toHaveBeenCalledWith("Requested relogin"); });

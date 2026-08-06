@@ -16,9 +16,9 @@
  * limitations under the License.
  */
 
-import { render, screen } from "@testing-library/react";
-
 import type { ComponentType } from "react";
+
+import { render, screen } from "@testing-library/react";
 
 import { loadAsset } from "@iap/frontend-commons/assetManager";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
