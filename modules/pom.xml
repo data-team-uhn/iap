@@ -35,6 +35,7 @@
     <module>autodoc</module>
     <module>conditions</module>
     <module>data-model</module>
+    <module>documents</module>
     <module>favicon</module>
     <module>frontend-commons</module>
     <module>healthcheck</module>
@@ -52,6 +53,5 @@
     <module>tags</module>
     <module>ui-extension</module>
     <module>workflows</module>
-    <module>documents</module>
   </modules>
 </project>

@@ -21,7 +21,7 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-modules</artifactId>
+    <artifactId>iap-documents</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
