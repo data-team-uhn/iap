@@ -1,0 +1,658 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.uhndata.iap.search.internal;
+
+import java.io.PrintWriter;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.lang.reflect.Field;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.stream.IntStream;
+
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
+import javax.jcr.Value;
+import javax.jcr.Workspace;
+import javax.jcr.query.InvalidQueryException;
+import javax.jcr.query.Query;
+import javax.jcr.query.QueryManager;
+import javax.jcr.query.QueryResult;
+import javax.jcr.query.Row;
+import javax.jcr.query.RowIterator;
+
+import jakarta.json.Json;
+import jakarta.json.JsonObject;
+
+import org.apache.sling.api.SlingJakartaHttpServletRequest;
+import org.apache.sling.api.SlingJakartaHttpServletResponse;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import io.uhndata.iap.search.api.SearchParameters;
+import io.uhndata.iap.search.spi.QuickSearchEngine;
+
+/**
+ * Unit tests for {@link SearchServlet}.
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
+public class SearchServletTest
+{
+    private static final String ROWS = "rows";
+
+    private static final String TOTAL = "totalrows";
+
+    private static final String SUBMISSION = "sub:Submission";
+
+    private static final String INDEXED_PLAN = "[sub:Submission] as [n] /* property submissionIndex */";
+
+    private SearchServlet servlet;
+
+    private SlingJakartaHttpServletRequest request;
+
+    private SlingJakartaHttpServletResponse response;
+
+    private ResourceResolver resolver;
+
+    private QueryManager queryManager;
+
+    private StringWriter output;
+
+    /** Every statement the servlet asked the repository to run, in order, including the explain ones. */
+    private List<String> statements;
+
+    /** The columns of the row an {@code explain} returns: {@code null} for no row at all. */
+    private String[] planColumns;
+
+    @BeforeEach
+    public void setup() throws Exception
+    {
+        this.servlet = new SearchServlet();
+        this.request = Mockito.mock(SlingJakartaHttpServletRequest.class);
+        this.response = Mockito.mock(SlingJakartaHttpServletResponse.class);
+        this.resolver = Mockito.mock(ResourceResolver.class);
+        this.queryManager = Mockito.mock(QueryManager.class);
+        this.output = new StringWriter();
+        this.statements = new ArrayList<>();
+        this.planColumns = new String[] { INDEXED_PLAN };
+
+        final Session session = Mockito.mock(Session.class);
+        final Workspace workspace = Mockito.mock(Workspace.class);
+        Mockito.when(this.request.getResourceResolver()).thenReturn(this.resolver);
+        Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(session);
+        Mockito.when(session.getWorkspace()).thenReturn(workspace);
+        Mockito.when(workspace.getQueryManager()).thenReturn(this.queryManager);
+        Mockito.when(this.response.getWriter()).thenReturn(new PrintWriter(this.output));
+
+        // Every resolved resource serializes to a small JSON object identifying it by path
+        Mockito.when(this.resolver.resolve(Mockito.anyString())).thenAnswer(invocation -> {
+            final Resource resource = Mockito.mock(Resource.class);
+            Mockito.when(resource.adaptTo(JsonObject.class)).thenReturn(
+                Json.createObjectBuilder().add("path", invocation.getArgument(0, String.class)).build());
+            return resource;
+        });
+        withEngines();
+    }
+
+    @Test
+    public void aRequestWithoutAQueryReturnsNothing() throws Exception
+    {
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(0, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals(0, result.getInt(TOTAL));
+        Assertions.assertEquals(List.of(), this.statements);
+        Mockito.verify(this.response).setContentType("application/json");
+    }
+
+    @Test
+    public void aBlankQueryReturnsNothing() throws Exception
+    {
+        withParameter("query", "   ");
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(0, getResponseJson().getJsonArray(ROWS).size());
+        Assertions.assertEquals(List.of(), this.statements);
+    }
+
+    @Test
+    public void aJcrQueryIsRunAsItIs() throws Exception
+    {
+        final String statement = "select * from [sub:Submission]";
+        withParameter("query", statement);
+        mockNodeResults("/Submissions/s1", "/Submissions/s2");
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(List.of(statement, "explain " + statement), this.statements);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(2, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals("/Submissions/s1", result.getJsonArray(ROWS).getJsonObject(0).getString("path"));
+        Assertions.assertEquals(2, result.getInt(TOTAL));
+    }
+
+    @Test
+    public void nodesReachedTwiceAreReturnedOnce() throws Exception
+    {
+        withParameter("query", "select * from [sub:Submission]");
+        mockNodeResults("/Submissions/s1", "/Submissions/s1", "/Submissions/s2");
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(2, getResponseJson().getInt(TOTAL));
+    }
+
+    @Test
+    public void serializationSelectorsAreAppliedToEachResult() throws Exception
+    {
+        withParameter("query", "select * from [sub:Submission]");
+        withParameter("resourceSelectors", "deep");
+        mockNodeResults("/Submissions/s1");
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("/Submissions/s1.deep",
+            getResponseJson().getJsonArray(ROWS).getJsonObject(0).getString("path"));
+    }
+
+    @Test
+    public void aResultThatCannotBeSerializedIsLeftOut() throws Exception
+    {
+        withParameter("query", "select * from [sub:Submission]");
+        mockNodeResults("/Submissions/s1");
+        Mockito.when(this.resolver.resolve("/Submissions/s1")).thenThrow(new IllegalStateException("Broken"));
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(0, result.getJsonArray(ROWS).size());
+        // It still counts: the query did match it, it just could not be shown
+        Assertions.assertEquals(1, result.getInt(TOTAL));
+    }
+
+    @Test
+    public void rawResultsReturnTheSelectedColumns() throws Exception
+    {
+        withParameter("query", "select f.subject from [sub:Submission] as f");
+        withParameter("rawResults", "true");
+        mockRawResults();
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject row = getResponseJson().getJsonArray(ROWS).getJsonObject(0);
+        Assertions.assertEquals("/Submissions/s1", row.getString("f"));
+        Assertions.assertEquals("value of subject", row.getString("f.subject"));
+    }
+
+    @Test
+    public void rawResultsThatCannotBeReadAreLeftOut() throws Exception
+    {
+        withParameter("query", "select f.subject from [sub:Submission] as f");
+        withParameter("rawResults", "true");
+        final Row row = Mockito.mock(Row.class);
+        Mockito.when(row.getPath("f")).thenThrow(new RepositoryException("Gone"));
+        mockResults(singleRow(row), new String[] { "f" }, new String[] { "f.subject" });
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(0, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals(1, result.getInt(TOTAL));
+    }
+
+    @Test
+    public void rawResultsKeepTheColumnsThatHaveNoValue() throws Exception
+    {
+        withParameter("query", "select f.subject from [sub:Submission] as f");
+        withParameter("rawResults", "true");
+        // A selector may have no node in an outer join, and a column may have no value on the row that matched
+        mockResults(singleRow(Mockito.mock(Row.class)), new String[] { "f" }, new String[] { "f.subject" });
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject row = getResponseJson().getJsonArray(ROWS).getJsonObject(0);
+        Assertions.assertTrue(row.isNull("f"));
+        Assertions.assertTrue(row.isNull("f.subject"));
+    }
+
+    @Test
+    public void aPlanWithNoColumnsStillRuns() throws Exception
+    {
+        this.planColumns = new String[0];
+        withParameter("query", "select * from [sub:Submission]");
+        mockNodeResults("/Submissions/s1");
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(1, getResponseJson().getJsonArray(ROWS).size());
+    }
+
+    @Test
+    public void aFullTextSearchLooksEverywhere() throws Exception
+    {
+        withParameter("fulltext", "diabetes");
+        mockNodeResults("/Submissions/s1");
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')",
+            executedStatement());
+    }
+
+    @Test
+    public void fullTextOperatorsAreEscapedByDefault() throws Exception
+    {
+        withParameter("fulltext", "a-b OR c*");
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'a\\-b OR c\\*')",
+            executedStatement());
+    }
+
+    @Test
+    public void fullTextOperatorsCanBeLeftAlone() throws Exception
+    {
+        withParameter("fulltext", "a-b OR c*");
+        withParameter("doNotEscapeQuery", "true");
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'a-b OR c*')",
+            executedStatement());
+    }
+
+    @Test
+    public void quotesAreAlwaysEscapedIntoTheStatement() throws Exception
+    {
+        // Even when the client asks for its full-text operators to be kept: a quote would end the string literal
+        // and let the rest of the input be read as query syntax
+        withParameter("fulltext", "it's");
+        withParameter("doNotEscapeQuery", "true");
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'it''s')",
+            executedStatement());
+    }
+
+    @Test
+    public void aQueryPreemptsAFullTextSearch() throws Exception
+    {
+        withParameter("query", "select * from [sub:Submission]");
+        withParameter("fulltext", "diabetes");
+        withParameter("quick", "diabetes");
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select * from [sub:Submission]", executedStatement());
+    }
+
+    @Test
+    public void anUnindexedQueryIsReported() throws Exception
+    {
+        this.planColumns = new String[] { "[nt:base] as [n] /* traverse \"*\" */" };
+        withParameter("query", "select * from [nt:base]");
+        mockNodeResults("/Submissions/s1");
+        this.servlet.doGet(this.request, this.response);
+        // The query still runs, the warning is only a warning
+        Assertions.assertEquals(1, getResponseJson().getJsonArray(ROWS).size());
+    }
+
+    @Test
+    public void anUnexplainableQueryStillRuns() throws Exception
+    {
+        withParameter("query", "select * from [sub:Submission]");
+        mockNodeResults("/Submissions/s1");
+        final Query explain = Mockito.mock(Query.class);
+        Mockito.when(explain.execute()).thenThrow(new RepositoryException("No plan for you"));
+        Mockito.when(this.queryManager.createQuery(Mockito.startsWith("explain"), Mockito.eq(Query.JCR_SQL2)))
+            .thenAnswer(invocation -> {
+                this.statements.add(invocation.getArgument(0, String.class));
+                return explain;
+            });
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(1, getResponseJson().getJsonArray(ROWS).size());
+    }
+
+    @Test
+    public void aQueryWithoutAPlanStillRuns() throws Exception
+    {
+        this.planColumns = null;
+        withParameter("query", "select * from [sub:Submission]");
+        mockNodeResults("/Submissions/s1");
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(1, getResponseJson().getJsonArray(ROWS).size());
+    }
+
+    @Test
+    public void anInvalidQueryIsABadRequest() throws Exception
+    {
+        withParameter("query", "this is not a query");
+        Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
+            .thenThrow(new InvalidQueryException("Syntax error"));
+        this.servlet.doGet(this.request, this.response);
+        assertError(SlingJakartaHttpServletResponse.SC_BAD_REQUEST);
+    }
+
+    @Test
+    public void aRepositoryFailureIsAServerError() throws Exception
+    {
+        withParameter("query", "select * from [sub:Submission]");
+        Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
+            .thenThrow(new RepositoryException("Query engine down"));
+        this.servlet.doGet(this.request, this.response);
+        assertError(SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    public void aSessionlessResolverIsAServerError() throws Exception
+    {
+        withParameter("query", "select * from [sub:Submission]");
+        Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(null);
+        this.servlet.doGet(this.request, this.response);
+        assertError(SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    public void quickSearchCollectsFromEveryEngine() throws Exception
+    {
+        withParameter("quick", "diabetes");
+        withEngines(new StubEngine(List.of(SUBMISSION), "s1"), new StubEngine(List.of("sch:Schema"), "sc1"));
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(2, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals("s1", result.getJsonArray(ROWS).getJsonObject(0).getString("name"));
+        Assertions.assertEquals("sc1", result.getJsonArray(ROWS).getJsonObject(1).getString("name"));
+        Assertions.assertEquals(List.of(), this.statements);
+    }
+
+    @Test
+    public void quickSearchOnlyAsksTheEnginesThatCanServeTheRequestedTypes() throws Exception
+    {
+        final StubEngine submissions = new StubEngine(List.of(SUBMISSION), "s1");
+        final StubEngine schemas = new StubEngine(List.of("sch:Schema"), "sc1");
+        withParameter("quick", "diabetes");
+        withParameter("allowedResourceTypes", SUBMISSION);
+        withEngines(submissions, schemas);
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(1, getResponseJson().getJsonArray(ROWS).size());
+        Assertions.assertEquals(List.of(SUBMISSION), submissions.searchedTypes);
+        Assertions.assertNull(schemas.searchedTypes);
+    }
+
+    @Test
+    public void anEngineIsOnlyAskedForTheTypesItWasAllowed() throws Exception
+    {
+        final StubEngine engine = new StubEngine(List.of(SUBMISSION, "sch:Schema"), "s1");
+        withParameter("quick", "diabetes");
+        withParameter("allowedResourceTypes", SUBMISSION);
+        withEngines(engine);
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(List.of(SUBMISSION), engine.searchedTypes);
+    }
+
+    @Test
+    public void withoutARestrictionAnEngineSearchesEverythingItCan() throws Exception
+    {
+        final StubEngine engine = new StubEngine(List.of(SUBMISSION, "sch:Schema"), "s1");
+        withParameter("quick", "diabetes");
+        withEngines(engine);
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(List.of(SUBMISSION, "sch:Schema"), engine.searchedTypes);
+    }
+
+    @Test
+    public void anEmptyTypeRestrictionIsNoRestriction() throws Exception
+    {
+        final StubEngine engine = new StubEngine(List.of(SUBMISSION), "s1");
+        withParameter("quick", "diabetes");
+        Mockito.when(this.request.getParameterValues("allowedResourceTypes")).thenReturn(new String[0]);
+        withEngines(engine);
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(List.of(SUBMISSION), engine.searchedTypes);
+    }
+
+    @Test
+    public void quickSearchResultsOutsideThePageAreSkippedNotSerialized() throws Exception
+    {
+        final StubEngine engine = new StubEngine(List.of(SUBMISSION), "s1", "s2", "s3");
+        withParameter("quick", "diabetes");
+        withParameter("offset", "1");
+        withParameter("limit", "1");
+        withEngines(engine);
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(1, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals("s2", result.getJsonArray(ROWS).getJsonObject(0).getString("name"));
+        Assertions.assertEquals(3, result.getInt(TOTAL));
+        // The two results that are only counted are never turned into JSON
+        Assertions.assertEquals(List.of("s2"), engine.served);
+    }
+
+    @Test
+    public void anEngineIsNotAskedForMoreResultsThanCanBeUsed() throws Exception
+    {
+        final StubEngine engine = new StubEngine(List.of(SUBMISSION), "s1");
+        withParameter("quick", "diabetes");
+        withParameter("limit", "5");
+        withEngines(engine);
+        this.servlet.doGet(this.request, this.response);
+        // Ten pages of five, plus the one result that shows the total is not exact
+        Assertions.assertEquals(51, engine.maxResults);
+    }
+
+    @Test
+    public void enginesAreNotAskedOnceThePageIsFull() throws Exception
+    {
+        final StubEngine first = new StubEngine(List.of(SUBMISSION),
+            IntStream.range(0, 60).mapToObj(i -> "s" + i).toArray(String[]::new));
+        final StubEngine second = new StubEngine(List.of("sch:Schema"), "sc1");
+        withParameter("quick", "diabetes");
+        withParameter("limit", "5");
+        withEngines(first, second);
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertNull(second.searchedTypes);
+        Assertions.assertTrue(getResponseJson().getBoolean("totalIsApproximate"));
+    }
+
+    @Test
+    public void quickSearchWithoutAnyEngineReturnsNothing() throws Exception
+    {
+        withParameter("quick", "diabetes");
+        setEngines(null);
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(0, getResponseJson().getJsonArray(ROWS).size());
+    }
+
+    /**
+     * The statement the servlet actually ran, as opposed to the decorated one it asked the plan for.
+     *
+     * @return a JCR-SQL2 statement
+     */
+    private String executedStatement()
+    {
+        return this.statements.stream().filter(statement -> !statement.startsWith("explain ")).findFirst()
+            .orElseThrow();
+    }
+
+    private void withParameter(final String name, final String... values)
+    {
+        Mockito.when(this.request.getParameter(name)).thenReturn(values[0]);
+        Mockito.when(this.request.getParameterValues(name)).thenReturn(values);
+    }
+
+    private void withEngines(final QuickSearchEngine... engines)
+    {
+        setEngines(List.of(engines));
+    }
+
+    private void setEngines(final List<QuickSearchEngine> engines)
+    {
+        try {
+            final Field field = SearchServlet.class.getDeclaredField("searchEngines");
+            field.setAccessible(true);
+            field.set(this.servlet, engines);
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Mocks the query infrastructure to return rows matching the given node paths.
+     *
+     * @param paths the paths of the nodes the query matches
+     */
+    private void mockNodeResults(final String... paths) throws RepositoryException
+    {
+        final Iterator<String> iterator = List.of(paths).iterator();
+        final RowIterator rows = Mockito.mock(RowIterator.class);
+        Mockito.when(rows.hasNext()).thenAnswer(invocation -> iterator.hasNext());
+        Mockito.when(rows.nextRow()).thenAnswer(invocation -> {
+            final Row row = Mockito.mock(Row.class);
+            Mockito.when(row.getPath()).thenReturn(iterator.next());
+            return row;
+        });
+        mockResults(rows, new String[] { "n" }, new String[] { "n.jcr:path" });
+    }
+
+    /** Mocks the query infrastructure to return one row with one selector and one column. */
+    private void mockRawResults() throws RepositoryException
+    {
+        final Row row = Mockito.mock(Row.class);
+        Mockito.when(row.getPath("f")).thenReturn("/Submissions/s1");
+        final Value value = Mockito.mock(Value.class);
+        Mockito.when(value.getString()).thenReturn("value of subject");
+        Mockito.when(row.getValue("f.subject")).thenReturn(value);
+        mockResults(singleRow(row), new String[] { "f" }, new String[] { "f.subject" });
+    }
+
+    private RowIterator singleRow(final Row row)
+    {
+        final Deque<Row> remaining = new ArrayDeque<>(List.of(row));
+        final RowIterator rows = Mockito.mock(RowIterator.class);
+        Mockito.when(rows.hasNext()).thenAnswer(invocation -> !remaining.isEmpty());
+        Mockito.when(rows.nextRow()).thenAnswer(invocation -> remaining.removeFirst());
+        return rows;
+    }
+
+    /**
+     * Mocks the query manager: an {@code explain} statement returns the configured plan, anything else returns the
+     * given rows. Every statement is recorded in {@link #statements}.
+     */
+    private void mockResults(final RowIterator rows, final String[] selectors, final String[] columns)
+        throws RepositoryException
+    {
+        final QueryResult result = Mockito.mock(QueryResult.class);
+        Mockito.when(result.getRows()).thenReturn(rows);
+        Mockito.when(result.getSelectorNames()).thenReturn(selectors);
+        Mockito.when(result.getColumnNames()).thenReturn(columns);
+        final Query query = Mockito.mock(Query.class);
+        Mockito.when(query.execute()).thenReturn(result);
+
+        final Query explain = Mockito.mock(Query.class);
+        Mockito.when(explain.execute()).thenAnswer(invocation -> {
+            final RowIterator planRows = Mockito.mock(RowIterator.class);
+            if (this.planColumns == null) {
+                Mockito.when(planRows.hasNext()).thenReturn(false);
+            } else {
+                final Value[] values = new Value[this.planColumns.length];
+                for (int i = 0; i < values.length; ++i) {
+                    values[i] = Mockito.mock(Value.class);
+                    Mockito.when(values[i].getString()).thenReturn(this.planColumns[i]);
+                }
+                final Row planRow = Mockito.mock(Row.class);
+                Mockito.when(planRow.getValues()).thenReturn(values);
+                Mockito.when(planRows.hasNext()).thenReturn(true);
+                Mockito.when(planRows.nextRow()).thenReturn(planRow);
+            }
+            final QueryResult planResult = Mockito.mock(QueryResult.class);
+            Mockito.when(planResult.getRows()).thenReturn(planRows);
+            return planResult;
+        });
+
+        Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
+            .thenAnswer(invocation -> {
+                final String statement = invocation.getArgument(0, String.class);
+                this.statements.add(statement);
+                return statement.startsWith("explain ") ? explain : query;
+            });
+    }
+
+    private JsonObject getResponseJson()
+    {
+        return Json.createReader(new StringReader(this.output.toString())).readObject();
+    }
+
+    private void assertError(final int expectedStatus)
+    {
+        Mockito.verify(this.response, Mockito.atLeastOnce()).setStatus(expectedStatus);
+        Assertions.assertTrue(getResponseJson().containsKey("error"));
+    }
+
+    /**
+     * An engine returning a fixed list of results, recording what it was asked for and which results were actually
+     * read, so that a test can tell a served result from a skipped one.
+     *
+     * @since 0.1.0
+     */
+    private static final class StubEngine implements QuickSearchEngine
+    {
+        private final List<String> supportedTypes;
+
+        private final String[] names;
+
+        private List<String> searchedTypes;
+
+        private long maxResults;
+
+        private final List<String> served = new ArrayList<>();
+
+        StubEngine(final List<String> supportedTypes, final String... names)
+        {
+            this.supportedTypes = supportedTypes;
+            this.names = names;
+        }
+
+        @Override
+        public List<String> getSupportedTypes()
+        {
+            return this.supportedTypes;
+        }
+
+        @Override
+        public Results quickSearch(final SearchParameters query, final ResourceResolver resourceResolver)
+        {
+            this.searchedTypes = query.getResourceTypes();
+            this.maxResults = query.getMaxResults();
+            final Deque<String> remaining = new ArrayDeque<>(List.of(this.names));
+            return new Results()
+            {
+                @Override
+                public boolean hasNext()
+                {
+                    return !remaining.isEmpty();
+                }
+
+                @Override
+                public JsonObject next()
+                {
+                    if (remaining.isEmpty()) {
+                        throw new NoSuchElementException();
+                    }
+                    final String name = remaining.removeFirst();
+                    StubEngine.this.served.add(name);
+                    return Json.createObjectBuilder().add("name", name).build();
+                }
+
+                @Override
+                public void skip()
+                {
+                    remaining.removeFirst();
+                }
+            };
+        }
+    }
+}
