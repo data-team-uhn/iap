@@ -28,13 +28,37 @@
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Abstract nodetype that can be extended by any nodetype to attach workflow
-// instances to it.
+// Mixin that can be added to any nodetype to let workflows run over it. The
+// instances live inside the thing they drive, rather than being pointed at from
+// it, so that they are found, secured and deleted along with it.
 [wf:WorkflowAttachable]
   mixin
 
-  // The workflow instances attached to this node
-  - workflowInstances (REFERENCE) multiple
+  // The workflows running over this node. A container rather than loose children:
+  // it keeps them out of the way of whatever else the host stores, gives one node
+  // to place an ACL on, and is the single place the IGNORE below has to be said.
+  + wf:instances (wf:WorkflowInstances) = wf:WorkflowInstances AUTOCREATED IGNORE
+
+//-----------------------------------------------------------------------------
+// The container of the workflow instances running over one resource.
+//
+// IGNORE, on both this node and the instances inside it, is load-bearing. Hosts
+// are typically versionable (every iap:Entity is), and under the default
+// on-parent-version setting checking one in would copy the whole live workflow
+// into version storage, and restoring an earlier version would roll the workflow
+// back with it — quietly un-approving things. Verified against Oak, not assumed.
+[wf:WorkflowInstances] > iap:Content, rep:AccessControllable
+  - sling:resourceType (STRING) = "wf/WorkflowInstances" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The workflows running over the host resource
+  + * (wf:WorkflowInstance) = wf:WorkflowInstance IGNORE
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured IGNORE
 
 //-----------------------------------------------------------------------------
 //
@@ -59,27 +83,48 @@
   // When this instance finished
   - endTime (DATE)
 
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Where each branch of the execution currently rests
+  + * (wf:WorkflowToken) = wf:WorkflowToken
+
+  // The data carried along by this execution
+  + * (wf:Variable) = wf:Variable
+
+  // The user tasks this execution has reached
+  + * (wf:TaskInstance) = wf:TaskInstance
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
 //-----------------------------------------------------------------------------
 // Tracks a single execution branch's current position in a workflow instance.
+// The creation date is the inherited jcr:created.
 [wf:WorkflowToken] > iap:EntityPart
   - sling:resourceType (STRING) = "wf/WorkflowToken" mandatory autocreated protected
 
   // elementId of the flow node currently occupied by this token
   - currentNodeId (STRING) mandatory
 
-  // When this token was created
-  - created (DATE) mandatory
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
 // A running instance of a user task within a workflow instance.
 [wf:TaskInstance] > iap:Entity
   - sling:resourceType (STRING) = "wf/TaskInstance" mandatory autocreated protected
 
-  // elementId of the source wf:UserTask definition
+  // elementId of the wf:Activity this task was created from
   - taskDefinitionId (STRING) mandatory
 
   // Display name for this task
-  - name (STRING) mandatory
+  - label (STRING) mandatory
 
   // User currently assigned to this task
   - assignee (STRING)
@@ -102,16 +147,21 @@
   // Optional associated iap form
   - form (REFERENCE)
 
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
 //-----------------------------------------------------------------------------
-// A named variable stored within a workflow instance.
+// A named variable stored within a workflow instance. The variable's name is the
+// node name, so that looking one up does not mean scanning every sibling.
 [wf:Variable] > iap:EntityPart
   - sling:resourceType (STRING) = "wf/Variable" mandatory autocreated protected
 
-  // Variable name
-  - name (STRING) mandatory
-
   // Declared type: string, long, double, boolean, date, reference
-  - type (STRING) mandatory
+  - dataType (STRING) mandatory
 
   - stringValue (STRING)
   - longValue (LONG)
@@ -119,3 +169,10 @@
   - booleanValue (BOOLEAN)
   - dateValue (DATE)
   - referenceValue (REFERENCE)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

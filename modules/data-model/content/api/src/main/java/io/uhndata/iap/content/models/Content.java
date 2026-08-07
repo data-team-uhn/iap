@@ -259,6 +259,28 @@ public class Content
     }
 
     /**
+     * Adapts the parent of the wrapped resource to the given model type, provided the parent is of the given
+     * resource type. Used to implement the "owner" accessors of the parts that are stored inside something else,
+     * e.g. {@code SequenceFlow.getSource()}.
+     *
+     * <p>The resource type check is not a nicety: with several models registered for one adapter type, a resource
+     * matching none of them is not rejected but handed to whichever implementation happens to come first, so
+     * adapting an unrelated parent would quietly yield a model wrapping the wrong node rather than {@code null}.</p>
+     *
+     * @param resourceType the resource type (or one of its subtypes) the parent must have
+     * @param type the model class the parent is adapted to
+     * @param <T> the model type
+     * @return the adapted parent, or {@code null} if the wrapped resource has no parent, or its parent is of
+     *         another type
+     */
+    @Nullable
+    protected <T> T getParent(@NotNull final String resourceType, @NotNull final Class<T> type)
+    {
+        final Resource parent = this.resource.getParent();
+        return parent == null || !parent.isResourceType(resourceType) ? null : parent.adaptTo(type);
+    }
+
+    /**
      * Lists all the children of the wrapped resource, adapted to the given model type. Unlike
      * {@link #getChildren(String, Class)} this filters nothing, so it is the right tool for walking through
      * arbitrary content — e.g. searching a subtree — where the interesting nodes aren't known by their type.

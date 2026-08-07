@@ -37,8 +37,15 @@
   // that would derive wf:Workflow from the resource type.
   - childNodeType (STRING) = "wf:WorkflowDefinition" mandatory autocreated protected
 
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
   // Contains workflow definitions
   + * (wf:WorkflowDefinition) = wf:WorkflowDefinition
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
 //
@@ -60,8 +67,15 @@
   // Whether the workflow is a system workflow (to be used by technical admins) or not
   - systemWorkflow (BOOLEAN)
 
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
   // Defined versions of this workflow
   + * (wf:WorkflowVersion) = wf:WorkflowVersion
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
 // A particular version of a workflow process.
@@ -80,16 +94,23 @@
   // When false, no new instances may be created from this version
   - active (BOOLEAN) = false
 
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
   // BPMN 2.0 XML source for this workflow. A whole document, kept as a file so that it can be
   // downloaded and re-uploaded as one, and so that it stays out of the version's properties.
   // The .xml extension is what gives it a content type: Sling derives one from the file name,
   // and an extensionless name would leave every shipped diagram an untyped binary.
-  // Named here to document the contract rather than to enforce it: the inherited sling:Folder
-  // residual accepts any child, and a child of another type named bpmn.xml falls back to it.
+  // Named here to document the contract rather than to enforce it: the residual below accepts
+  // any child, and a child of another type named bpmn.xml falls back to it.
   + bpmn.xml (nt:file)
 
   // Parsed BPMN flow nodes (start/end events, tasks, gateways)
   + * (wf:FlowNode) = wf:FlowNode
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
 
 
 //-----------------------------------------------------------------------------
@@ -103,14 +124,24 @@
   // A reference to the wf:FlowNodeType defining this node's type
   - flowNodeType (REFERENCE) mandatory
 
-  // Stable BPMN element identifier, e.g. "task_1"
+  // Stable BPMN element identifier, e.g. "task_1". Distinct from the node name,
+  // which is whatever escaping the BPMN identifier needs to become a JCR name.
   - elementId (STRING) mandatory
 
   // Optional display label
-  - name (STRING)
+  - label (STRING)
+
+  // Allow any other properties for extensibility: the properties a flow node
+  // carries beyond these depend on its type, and are listed by that type's
+  // wf:FlowNodeType.properties
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
 
   // Outgoing sequence flows from this node
   + * (wf:SequenceFlow) = wf:SequenceFlow
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
 
 
 //-----------------------------------------------------------------------------
@@ -142,17 +173,46 @@
   // End events are always throwing
   - catching (BOOLEAN) = false
 
-//-----------------------------------------------------------------------------
-// A catch or throw event occurring mid-process.
-[wf:IntermediateEvent] > wf:Event
-  - sling:resourceType (STRING) = "wf/IntermediateEvent" mandatory autocreated protected
+  // When true, reaching this event ends the whole instance at once, discarding
+  // every other token, rather than just consuming the token that arrived. The
+  // engine has to tell the two apart, so it is a property rather than a separate
+  // kind of end event.
+  - terminate (BOOLEAN) = false
 
 //-----------------------------------------------------------------------------
-// A catching event occurring mid-process.
+// Abstract base for the catch and throw events occurring mid-process. Abstract
+// like the other bases here, so that it can hardcode the resource supertype its
+// subtypes inherit: a concrete type doing that would name itself as its own
+// supertype, and one not doing it would leave its subtypes pointing at wf/Event,
+// with wf/IntermediateEvent missing from the resource type hierarchy entirely.
+[wf:IntermediateEvent] > wf:Event
+  abstract
+
+  // Hardcode the supertype to the parent wf/IntermediateEvent type.
+  - sling:resourceSuperType (STRING) = "wf/IntermediateEvent" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
+// A catching event occurring mid-process, either standing in the flow on its own
+// or attached to an activity. Where it is stored is what tells the two apart: an
+// event nested inside an activity watches that activity and lives only as long as
+// it runs, while one stored directly under the version is reached by a sequence
+// flow like any other node.
 [wf:IntermediateCatchingEvent] > wf:IntermediateEvent
   - sling:resourceType (STRING) = "wf/IntermediateCatchingEvent" mandatory autocreated protected
 
   - catching (BOOLEAN) = true
+
+  // Whether firing cancels the activity being watched, or merely starts a
+  // parallel branch and lets the work carry on. "Escalate after five days but
+  // keep waiting" and "give up after five days" are different processes, and
+  // this is the only thing that distinguishes them.
+  // Parsed from the BPMN cancelActivity attribute, whose default is likewise true,
+  // so the default here must stay true as well: read as false, an attached event
+  // would silently stop cancelling the work it is meant to abort.
+  // Only meaningful on an event nested inside an activity; ignored on a
+  // free-standing one, the same way terminate is ignored on an end event that no
+  // second token can reach.
+  - interrupting (BOOLEAN) = true
 
 //-----------------------------------------------------------------------------
 // A throwing event occurring mid-process.
@@ -163,13 +223,16 @@
 
 
 //-----------------------------------------------------------------------------
-// Abstract base for all BPMN work units.
+// A BPMN work unit. Deliberately concrete and with no subtypes of its own: what
+// kind of work an activity stands for (a user task, a service task, ...) is
+// carried by its flowNodeType reference into the /WorkflowTypes vocabulary, which
+// is what lets a new kind of task be added without a new node type.
 [wf:Activity] > wf:FlowNode
-  // abstract
-
   - sling:resourceType (STRING) = "wf/Activity" mandatory autocreated protected
 
-  // Any boundary events that can occur while this activity is active
+  // Any events that can occur while this activity is active. Nesting them here is
+  // what makes them boundary events; the same node type standing directly under
+  // the version is an ordinary mid-process catch.
   + * (wf:IntermediateCatchingEvent) = wf:IntermediateCatchingEvent
 
 
@@ -196,6 +259,19 @@
 [wf:InclusiveGateway] > wf:Gateway
   - sling:resourceType (STRING) = "wf/InclusiveGateway" mandatory autocreated protected
 
+//-----------------------------------------------------------------------------
+// A gateway that routes on what happens next rather than on data: it parks the
+// token, arms every catching event it leads to, and the first one to fire wins,
+// discarding the rest. This is how "approved, rejected, or nobody answered in
+// time" is expressed, so the engine must tell it apart from the data-based
+// gateways, which evaluate conditions immediately and never wait.
+[wf:EventBasedGateway] > wf:Gateway
+  - sling:resourceType (STRING) = "wf/EventBasedGateway" mandatory autocreated protected
+
+  // When true, the gateway starts a new instance rather than routing an existing
+  // one, the event-based equivalent of several alternative start events.
+  - instantiate (BOOLEAN) = false
+
 
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
@@ -206,14 +282,24 @@
   // Stable BPMN element identifier
   - elementId (STRING) mandatory
 
-  // elementId of the target flow node
+  // elementId of the target flow node, resolved within the owning wf:WorkflowVersion
   - targetRef (STRING) mandatory
 
   // Optional label shown on the arc
-  - name (STRING)
+  - label (STRING)
 
-  // Guard condition evaluated for exclusive/inclusive gateways
+  // Guard condition evaluated for exclusive/inclusive gateways.
+  // TODO: replace this raw expression with the structured conditions mechanism
+  // (the cond:Conditionable mixin plus a cond:condition child), the same way
+  // schema items express their conditions, once the conditions module lands.
   - conditionExpression (STRING)
 
   // When true, this is the default outgoing flow of its source gateway
   - isDefault (BOOLEAN)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

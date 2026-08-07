@@ -1,80 +1,199 @@
 {
+  "jcr:primaryType": "wf:WorkflowTypesHomepage",
   "StartEvent": {
     "jcr:primaryType": "wf:CatchingEventType",
-    "name": "Start Event",
+    "label": "Start Event",
+    "description": "The entry point of a workflow. A new instance is created when this event is triggered.",
+    "category": ["Start Events"],
     "priority": 0,
     "xmlElement": "bpmn:startEvent",
     "jcrNodeType": "wf:StartEvent"
   },
   "MessageStartEvent": {
     "jcr:primaryType": "wf:CatchingEventType",
-    "name": "Message Start Event",
+    "label": "Message Start Event",
+    "description": "The entry point of a workflow, started by a named message rather than by an unqualified request.",
+    "category": ["Start Events"],
     "priority": 10,
     "xmlElement": "bpmn:startEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
     "jcrNodeType": "wf:StartEvent"
   },
+  "TimerStartEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "label": "Timer Start Event",
+    "description": "The entry point of a workflow that starts on a schedule rather than because someone asked.",
+    "category": ["Start Events"],
+    "priority": 10,
+    "xmlElement": "bpmn:startEvent",
+    "xmlChildElement": "bpmn:timerEventDefinition",
+    "jcrNodeType": "wf:StartEvent"
+  },
   "EndEvent": {
     "jcr:primaryType": "wf:ThrowingEventType",
-    "name": "End Event",
+    "label": "End Event",
+    "description": "The exit point of a workflow branch. The instance completes once every branch has reached an end event.",
+    "category": ["End Events"],
     "priority": 0,
     "xmlElement": "bpmn:endEvent",
     "jcrNodeType": "wf:EndEvent"
   },
   "MessageEndEvent": {
     "jcr:primaryType": "wf:ThrowingEventType",
-    "name": "Message End Event",
+    "label": "Message End Event",
+    "description": "The exit point of a workflow branch, sending a named message as it completes.",
+    "category": ["End Events"],
     "priority": 10,
     "xmlElement": "bpmn:endEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
     "jcrNodeType": "wf:EndEvent"
   },
+  "TerminateEndEvent": {
+    "jcr:primaryType": "wf:ThrowingEventType",
+    "label": "Terminate End Event",
+    "description": "Ends the whole workflow at once, abandoning any other branch still in progress.",
+    "category": ["End Events"],
+    "priority": 20,
+    "xmlElement": "bpmn:endEvent",
+    "xmlChildElement": "bpmn:terminateEventDefinition",
+    "jcrNodeType": "wf:EndEvent",
+    "jcrProperties": "{\"terminate\": true}"
+  },
   "IntermediateCatchEvent": {
     "jcr:primaryType": "wf:CatchingEventType",
-    "name": "Intermediate Catch Event",
+    "label": "Intermediate Catch Event",
+    "description": "A point mid-process where the workflow waits for something to happen before continuing.",
+    "category": ["Intermediate Events"],
     "priority": 0,
     "xmlElement": "bpmn:intermediateCatchEvent",
     "jcrNodeType": "wf:IntermediateCatchingEvent",
-    "jcrProperties": "{catching: true}"
+    "jcrProperties": "{\"catching\": true}"
   },
   "MessageIntermediateCatchEvent": {
     "jcr:primaryType": "wf:CatchingEventType",
-    "name": "Message Intermediate Catch Event",
+    "label": "Message Intermediate Catch Event",
+    "description": "A point mid-process where the workflow waits for a named message before continuing.",
+    "category": ["Intermediate Events"],
     "priority": 10,
     "xmlElement": "bpmn:intermediateCatchEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
     "jcrNodeType": "wf:IntermediateCatchingEvent",
-    "jcrProperties": "{catching: true}"
+    "jcrProperties": "{\"catching\": true}"
   },
   "IntermediateThrowEvent": {
     "jcr:primaryType": "wf:ThrowingEventType",
-    "name": "Intermediate Throw Event",
+    "label": "Intermediate Throw Event",
+    "description": "A point mid-process where the workflow announces that something happened, without pausing.",
+    "category": ["Intermediate Events"],
     "priority": 0,
     "xmlElement": "bpmn:intermediateThrowEvent",
     "jcrNodeType": "wf:IntermediateThrowingEvent",
-    "jcrProperties": "{catching: false}"
+    "jcrProperties": "{\"catching\": false}"
   },
   "MessageIntermediateThrowEvent": {
     "jcr:primaryType": "wf:ThrowingEventType",
-    "name": "Message Intermediate Throw Event",
+    "label": "Message Intermediate Throw Event",
+    "description": "A point mid-process where the workflow sends a named message, without pausing.",
+    "category": ["Intermediate Events"],
     "priority": 10,
     "xmlElement": "bpmn:intermediateThrowEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
     "jcrNodeType": "wf:IntermediateThrowingEvent",
-    "jcrProperties": "{catching: false}"
+    "jcrProperties": "{\"catching\": false}"
+  },
+  "TimerIntermediateCatchEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "label": "Timer Intermediate Catch Event",
+    "description": "A point mid-process where the workflow waits for a delay to pass or a date to arrive.",
+    "category": ["Intermediate Events"],
+    "priority": 10,
+    "xmlElement": "bpmn:intermediateCatchEvent",
+    "xmlChildElement": "bpmn:timerEventDefinition",
+    "jcrNodeType": "wf:IntermediateCatchingEvent",
+    "jcrProperties": "{\"catching\": true}"
+  },
+  "TimerBoundaryEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "label": "Timer Boundary Event",
+    "description": "A deadline on a task. Fires if the work is not done in time, either cancelling it or raising a reminder alongside it.",
+    "category": ["Boundary Events"],
+    "priority": 10,
+    "xmlElement": "bpmn:boundaryEvent",
+    "xmlChildElement": "bpmn:timerEventDefinition",
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
+  },
+  "MessageBoundaryEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "label": "Message Boundary Event",
+    "description": "Listens, for as long as a task is open, for a named message such as a withdrawal or a cancellation.",
+    "category": ["Boundary Events"],
+    "priority": 10,
+    "xmlElement": "bpmn:boundaryEvent",
+    "xmlChildElement": "bpmn:messageEventDefinition",
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
+  },
+  "ErrorBoundaryEvent": {
+    "jcr:primaryType": "wf:CatchingEventType",
+    "label": "Error Boundary Event",
+    "description": "Catches a failure of the task it is attached to, giving the workflow somewhere to go when the work cannot be completed.",
+    "category": ["Boundary Events"],
+    "priority": 10,
+    "xmlElement": "bpmn:boundaryEvent",
+    "xmlChildElement": "bpmn:errorEventDefinition",
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
   },
   "UserTask": {
     "jcr:primaryType": "wf:ActivityType",
-    "name": "User Task",
+    "label": "User Task",
+    "description": "Work that a person must carry out. The workflow waits until the task is completed.",
+    "category": ["Activities"],
     "priority": 0,
     "xmlElement": "bpmn:userTask",
     "jcrNodeType": "wf:Activity"
   },
   "ServiceTask": {
     "jcr:primaryType": "wf:ActivityType",
-    "name": "Service Task",
+    "label": "Service Task",
+    "description": "Work that the platform carries out on its own, without waiting for a person.",
+    "category": ["Activities"],
     "priority": 0,
     "xmlElement": "bpmn:serviceTask",
     "jcrNodeType": "wf:Activity"
+  },
+  "ExclusiveGateway": {
+    "jcr:primaryType": "wf:GatewayType",
+    "label": "Exclusive Gateway",
+    "description": "A fork where exactly one outgoing path is taken, the first whose condition holds.",
+    "category": ["Gateways"],
+    "priority": 0,
+    "xmlElement": "bpmn:exclusiveGateway",
+    "jcrNodeType": "wf:ExclusiveGateway"
+  },
+  "ParallelGateway": {
+    "jcr:primaryType": "wf:GatewayType",
+    "label": "Parallel Gateway",
+    "description": "A fork where every outgoing path is taken at once, or a join waiting for every incoming path.",
+    "category": ["Gateways"],
+    "priority": 0,
+    "xmlElement": "bpmn:parallelGateway",
+    "jcrNodeType": "wf:ParallelGateway"
+  },
+  "InclusiveGateway": {
+    "jcr:primaryType": "wf:GatewayType",
+    "label": "Inclusive Gateway",
+    "description": "A fork where every outgoing path whose condition holds is taken.",
+    "category": ["Gateways"],
+    "priority": 0,
+    "xmlElement": "bpmn:inclusiveGateway",
+    "jcrNodeType": "wf:InclusiveGateway"
+  },
+  "EventBasedGateway": {
+    "jcr:primaryType": "wf:GatewayType",
+    "label": "Event Based Gateway",
+    "description": "A fork decided by whatever happens first rather than by data: the workflow waits, and the first of the events it leads to wins.",
+    "category": ["Gateways"],
+    "priority": 0,
+    "xmlElement": "bpmn:eventBasedGateway",
+    "jcrNodeType": "wf:EventBasedGateway"
   }
 }

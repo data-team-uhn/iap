@@ -43,9 +43,10 @@
               SLING-INF/nodetypes/workflowProcesses.cnd,
               SLING-INF/nodetypes/workflowTypes.cnd
             </Sling-Nodetypes>
+            <Sling-Model-Packages>io.uhndata.iap.workflows.models</Sling-Model-Packages>
             <Sling-Initial-Content>
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/wf/WorkflowsHomepage/;path:=/libs/wf/WorkflowsHomepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/wf/;path:=/libs/wf/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/WorkflowTypes;path:=/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
@@ -53,4 +54,72 @@
       </plugin>
     </plugins>
   </build>
+
+  <dependencies>
+    <!-- Nullability annotations for the exported API -->
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-content-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-entities-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- The /WorkflowTypes vocabulary documents itself through this -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-autodoc</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.models.api</artifactId>
+      <version>2.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.json</groupId>
+      <artifactId>jakarta.json-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.glassfish</groupId>
+      <artifactId>jakarta.json</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>javax.jcr</groupId>
+      <artifactId>jcr</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>javax.annotation</groupId>
+      <artifactId>javax.annotation-api</artifactId>
+    </dependency>
+  </dependencies>
 </project>

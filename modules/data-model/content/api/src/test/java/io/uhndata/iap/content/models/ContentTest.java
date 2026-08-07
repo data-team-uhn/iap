@@ -394,4 +394,40 @@ class ContentTest
 
         assertNull(content.getChild("missing", Content.class));
     }
+
+    @Test
+    void adaptsParentOfTheExpectedType()
+    {
+        this.context.create().resource("/content/owner", SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource("/content/owner/part",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Content content = resource.adaptTo(Content.class);
+
+        final Content owner = content.getParent(Content.RESOURCE_TYPE, Content.class);
+
+        assertNotNull(owner);
+        assertEquals("owner", owner.getName());
+    }
+
+    @Test
+    void returnsNullWhenTheParentIsOfAnotherType()
+    {
+        // Without the type check the parent would still be adapted, since a resource matching no registered model
+        // is handed to whichever implementation comes first rather than rejected
+        this.context.create().resource("/content/folder", SLING_RESOURCE_TYPE, "sling:Folder");
+        final Resource resource = this.context.create().resource("/content/folder/part",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Content content = resource.adaptTo(Content.class);
+
+        assertNull(content.getParent(Content.RESOURCE_TYPE, Content.class));
+    }
+
+    @Test
+    void returnsNullWhenThereIsNoParent()
+    {
+        final Content root = this.context.resourceResolver().getResource("/").adaptTo(Content.class);
+
+        assertNotNull(root);
+        assertNull(root.getParent(Content.RESOURCE_TYPE, Content.class));
+    }
 }
