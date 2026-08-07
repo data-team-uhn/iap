@@ -50,6 +50,8 @@ public class PaginatedJsonResponseTest
 
     private static final String APPROXIMATE = "totalIsApproximate";
 
+    private static final String A = "/a";
+
     private StringWriter output;
 
     private JsonGenerator json;
@@ -134,11 +136,11 @@ public class PaginatedJsonResponseTest
     public void duplicatesAreCountedOnce()
     {
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 10));
-        page.offer("/a", () -> row("/a"));
+        page.offer(A, () -> row(A));
         page.offer("/b", () -> row("/b"));
-        page.offer("/a", () -> row("/a"));
+        page.offer(A, () -> row(A));
         final JsonObject result = finish(page, null);
-        Assertions.assertEquals(List.of("/a", "/b"), pathsOf(result));
+        Assertions.assertEquals(List.of(A, "/b"), pathsOf(result));
         Assertions.assertEquals(2, result.getInt(TOTAL));
     }
 
@@ -146,10 +148,10 @@ public class PaginatedJsonResponseTest
     public void nullKeySkipsDeduplication()
     {
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 10));
-        page.offer(null, () -> row("/a"));
-        page.offer(null, () -> row("/a"));
+        page.offer(null, () -> row(A));
+        page.offer(null, () -> row(A));
         final JsonObject result = finish(page, null);
-        Assertions.assertEquals(List.of("/a", "/a"), pathsOf(result));
+        Assertions.assertEquals(List.of(A, A), pathsOf(result));
         Assertions.assertEquals(2, result.getInt(TOTAL));
     }
 
@@ -157,11 +159,11 @@ public class PaginatedJsonResponseTest
     public void unserializableResultsAreCountedButLeftOut()
     {
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 10));
-        page.offer("/a", () -> row("/a"));
+        page.offer(A, () -> row(A));
         page.offer("/b", () -> null);
         page.offer("/c", () -> row("/c"));
         final JsonObject result = finish(page, null);
-        Assertions.assertEquals(List.of("/a", "/c"), pathsOf(result));
+        Assertions.assertEquals(List.of(A, "/c"), pathsOf(result));
         Assertions.assertEquals(2, result.getInt(RETURNED));
         Assertions.assertEquals(3, result.getInt(TOTAL));
     }
@@ -202,8 +204,52 @@ public class PaginatedJsonResponseTest
         while (!page.isFull()) {
             page.offer(null, () -> row("/x"));
         }
-        Assertions.assertFalse(page.offer("/a", () -> row("/a")));
-        Assertions.assertFalse(page.offer("/a", () -> row("/a")), "A duplicate must not revive a full page");
+        Assertions.assertFalse(page.offer(A, () -> row(A)));
+        Assertions.assertFalse(page.offer(A, () -> row(A)), "A duplicate must not revive a full page");
+    }
+
+    @Test
+    public void aSourceThatMustBeToldToAdvanceIsSkippedInsteadOfRead()
+    {
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 1, 1));
+        final List<String> skipped = new ArrayList<>();
+        for (int i = 0; i < 3; ++i) {
+            final String path = "/r" + i;
+            page.offer(null, () -> row(path), () -> skipped.add(path));
+        }
+        final JsonObject result = finish(page, null);
+        Assertions.assertEquals(List.of("/r1"), pathsOf(result));
+        // Exactly one of the two callbacks runs for every result
+        Assertions.assertEquals(List.of("/r1"), this.serialized);
+        Assertions.assertEquals(List.of("/r0", "/r2"), skipped);
+        Assertions.assertEquals(3, result.getInt(TOTAL));
+    }
+
+    @Test
+    public void aDuplicateIsNeitherReadNorSkipped()
+    {
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 10));
+        final List<String> skipped = new ArrayList<>();
+        page.offer(A, () -> row(A), () -> skipped.add(A));
+        page.offer(A, () -> row(A), () -> skipped.add(A));
+        finish(page, null);
+        // The caller had to read the result to have its key, so there is nothing left to skip
+        Assertions.assertEquals(List.of(), skipped);
+        Assertions.assertEquals(List.of(A), this.serialized);
+    }
+
+    @Test
+    public void remainingCapacityShrinksToZero()
+    {
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 1));
+        final long initial = page.getRemainingCapacity();
+        Assertions.assertEquals(PaginatedJsonResponse.LOOKAHEAD_PAGES + 1, initial);
+        offerAll(page, 1);
+        Assertions.assertEquals(initial - 1, page.getRemainingCapacity());
+        while (!page.isFull()) {
+            page.offer(null, () -> row("/x"));
+        }
+        Assertions.assertEquals(0, page.getRemainingCapacity());
     }
 
     @Test
