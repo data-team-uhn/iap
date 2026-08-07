@@ -226,6 +226,26 @@ public final class PaginatedJsonResponse
      */
     public boolean offer(@Nullable final String key, @NotNull final Supplier<JsonObject> serializer)
     {
+        return offer(key, serializer, () -> {
+            // The caller has already moved past this result on its own
+        });
+    }
+
+    /**
+     * Offers one result to the page, for a source that only moves forward when it is told to. Exactly one of the two
+     * callbacks is invoked for every result that isn't a duplicate: the serializer for the results that go into the
+     * response, the skipper for the ones that are only counted.
+     *
+     * @param key a value uniquely identifying the result, or {@code null} to skip the duplicate check; a caller that
+     *            has a key has necessarily already read the result, so the skipper is not called for a duplicate
+     * @param serializer reads the result and computes its JSON; returning {@code null} leaves the result out of the
+     *            response, although it still counts towards the total
+     * @param skipper moves past the result without reading it
+     * @return {@code true} if more results are wanted, {@code false} once enough have been seen
+     */
+    public boolean offer(@Nullable final String key, @NotNull final Supplier<JsonObject> serializer,
+        @NotNull final Runnable skipper)
+    {
         if (this.more) {
             return false;
         }
@@ -239,6 +259,8 @@ public final class PaginatedJsonResponse
                 this.json.write(row);
                 ++this.returned;
             }
+        } else {
+            skipper.run();
         }
         this.more = this.counted >= this.lookahead;
         return !this.more;
@@ -253,6 +275,17 @@ public final class PaginatedJsonResponse
     public boolean isFull()
     {
         return this.more;
+    }
+
+    /**
+     * How many more results can still change the response. A caller asking a source for results should not ask for
+     * more than this many, since anything past them is discarded.
+     *
+     * @return the number of results still wanted, {@code 0} once the page {@link #isFull() is full}
+     */
+    public long getRemainingCapacity()
+    {
+        return Math.max(0, this.lookahead - this.counted);
     }
 
     /**
