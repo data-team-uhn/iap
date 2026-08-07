@@ -55,7 +55,7 @@
     "uuid": "14.0.1",
     "history": "5.3.0",
     "remove-markdown": "0.6.4",
-    "bpmn-js": "18.22.0"
+    "bpmn-js": "18.22.1"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
@@ -70,19 +70,19 @@
     "eslint-plugin-unused-imports": "4.4.1",
     "eslint": "9.24.0",
     "eslint-webpack-plugin": "6.0.0",
-    "webpack": "5.109.1",
-    "webpack-cli": "7.2.1",
+    "webpack": "5.109.2",
+    "webpack-cli": "7.2.2",
     "webpack-assets-manifest": "6.5.2",
     "html-webpack-plugin": "5.6.8",
     "minimizer-webpack-plugin": "5.6.1",
     "css-loader": "7.1.4",
     "style-loader": "4.0.0",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.65.0",
+    "typescript-eslint": "8.66.0",
     "@stylistic/eslint-plugin": "5.10.0",
     "@types/node": "26.1.2",
-    "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
     "react-compiler-webpack": "1.0.1",
     "babel-plugin-react-compiler": "1.0.0",
     "vitest": "4.1.10",
@@ -91,7 +91,7 @@
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.2",
     "@testing-library/jest-dom": "7.0.0",
-    "@testing-library/user-event": "14.6.1"
+    "@testing-library/user-event": "14.6.3"
   },
   "resolutions": {
     "@babel/runtime": "^7.29.7",
