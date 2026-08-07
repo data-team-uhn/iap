@@ -32,6 +32,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: iap/docling:latest
+    user: docling
     environment:
       IAP_SHARED_DOCS: /shared-docs
     volumes:
@@ -48,3 +49,5 @@ services:
       retries: 3
       start_period: 180s
     restart: unless-stopped
+    ports:
+      - 127.0.0.1:18765:18765
