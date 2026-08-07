@@ -125,7 +125,7 @@ class FlowNodeTest
         final Resource activity = this.context.create().resource(VERSION_PATH + "/task_1", Map.of(
             TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1"));
         final Resource boundary = this.context.create().resource(VERSION_PATH + "/task_1/boundary_1", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "boundary_1"));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "boundary_1"));
 
         // A direct child finds it as its parent, a boundary event has to walk one level further up
         assertEquals("1.0", activity.adaptTo(FlowNode.class).getWorkflowVersion().getVersion());
@@ -147,17 +147,19 @@ class FlowNodeTest
         final Resource resource = this.context.create().resource(VERSION_PATH + "/task_1", Map.of(
             TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1"));
         this.context.create().resource(VERSION_PATH + "/task_1/timeout", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "timeout", "catching", true));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout", "catching", true));
         // An outgoing flow is a child too, but it is not a boundary event
         this.context.create().resource(VERSION_PATH + "/task_1/flow_1", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_1", "targetRef", "end_1"));
 
         final Activity activity = (Activity) resource.adaptTo(FlowNode.class);
-        final List<BoundaryEvent> boundaries = activity.getBoundaryEvents();
+        final List<IntermediateCatchingEvent> boundaries = activity.getBoundaryEvents();
 
         assertEquals(1, boundaries.size());
         assertEquals("timeout", boundaries.get(0).getElementId());
         assertTrue(boundaries.get(0).isCatching());
+        // Nesting is the whole of what makes it a boundary event: it reports the activity it watches
+        assertEquals("task_1", boundaries.get(0).getActivity().getElementId());
         // The same children, seen as plain nested nodes
         assertEquals(1, activity.getNestedNodes().size());
     }

@@ -161,7 +161,9 @@ class WorkflowVersionTest
         final FlowNode boundary = version.getFlowNode("boundary_1");
 
         assertNotNull(boundary);
-        assertEquals(BoundaryEvent.class, boundary.getClass());
+        assertEquals(IntermediateCatchingEvent.class, boundary.getClass());
+        // Nesting, not the node type, is what makes it a boundary event
+        assertEquals("task_1", ((IntermediateCatchingEvent) boundary).getActivity().getElementId());
     }
 
     @Test
@@ -187,7 +189,7 @@ class WorkflowVersionTest
         this.context.create().resource(VERSION_PATH + "/task_1", Map.of(
             TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1"));
         this.context.create().resource(VERSION_PATH + "/task_1/boundary_1", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "boundary_1"));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "boundary_1"));
         this.context.create().resource(VERSION_PATH + "/gateway_1", Map.of(
             TYPE, ExclusiveGateway.RESOURCE_TYPE, "elementId", "gateway_1"));
         this.context.create().resource(VERSION_PATH + "/end_1", Map.of(

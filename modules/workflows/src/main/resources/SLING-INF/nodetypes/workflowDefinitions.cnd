@@ -192,32 +192,26 @@
   - sling:resourceSuperType (STRING) = "wf/IntermediateEvent" mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
-// A catching event occurring mid-process.
+// A catching event occurring mid-process, either standing in the flow on its own
+// or attached to an activity. Where it is stored is what tells the two apart: an
+// event nested inside an activity watches that activity and lives only as long as
+// it runs, while one stored directly under the version is reached by a sequence
+// flow like any other node.
 [wf:IntermediateCatchingEvent] > wf:IntermediateEvent
   - sling:resourceType (STRING) = "wf/IntermediateCatchingEvent" mandatory autocreated protected
 
-  - catching (BOOLEAN) = true
-
-//-----------------------------------------------------------------------------
-// A catching event attached to an activity, listening only for as long as that
-// activity is running: a deadline expiring, a cancellation arriving, the work
-// itself failing. Stored inside the activity it watches, which is what makes it
-// a boundary event rather than a free-standing one.
-// Sits beside wf:IntermediateCatchingEvent rather than under it, even though it
-// is one: every base in this hierarchy is abstract and every leaf is concrete, and
-// hanging a subtype off a concrete type breaks both the resource supertype chain
-// and Sling Models' field injection.
-[wf:BoundaryEvent] > wf:IntermediateEvent
-  - sling:resourceType (STRING) = "wf/BoundaryEvent" mandatory autocreated protected
-
-  // Boundary events always catch
   - catching (BOOLEAN) = true
 
   // Whether firing cancels the activity being watched, or merely starts a
   // parallel branch and lets the work carry on. "Escalate after five days but
   // keep waiting" and "give up after five days" are different processes, and
   // this is the only thing that distinguishes them.
-  // Parsed from the BPMN cancelActivity attribute, whose default is likewise true.
+  // Parsed from the BPMN cancelActivity attribute, whose default is likewise true,
+  // so the default here must stay true as well: read as false, an attached event
+  // would silently stop cancelling the work it is meant to abort.
+  // Only meaningful on an event nested inside an activity; ignored on a
+  // free-standing one, the same way terminate is ignored on an end event that no
+  // second token can reach.
   - interrupting (BOOLEAN) = true
 
 //-----------------------------------------------------------------------------
@@ -236,8 +230,10 @@
 [wf:Activity] > wf:FlowNode
   - sling:resourceType (STRING) = "wf/Activity" mandatory autocreated protected
 
-  // Any boundary events that can occur while this activity is active
-  + * (wf:BoundaryEvent) = wf:BoundaryEvent
+  // Any events that can occur while this activity is active. Nesting them here is
+  // what makes them boundary events; the same node type standing directly under
+  // the version is an ordinary mid-process catch.
+  + * (wf:IntermediateCatchingEvent) = wf:IntermediateCatchingEvent
 
 
 //-----------------------------------------------------------------------------

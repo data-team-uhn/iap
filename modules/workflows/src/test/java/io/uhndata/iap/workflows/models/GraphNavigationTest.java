@@ -147,7 +147,7 @@ class GraphNavigationTest
         this.context.create().resource(VERSION_PATH + "/task_1/from_task", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "from_task", "targetRef", "join_1"));
         this.context.create().resource(VERSION_PATH + "/task_1/reminder", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "reminder", "interrupting", false));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "reminder", "interrupting", false));
         this.context.create().resource(VERSION_PATH + "/task_1/reminder/from_reminder", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "from_reminder", "targetRef", "join_1"));
         this.context.create().resource(VERSION_PATH + "/join_1", Map.of(

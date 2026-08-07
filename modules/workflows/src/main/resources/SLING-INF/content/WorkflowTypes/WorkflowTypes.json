@@ -120,7 +120,7 @@
     "priority": 10,
     "xmlElement": "bpmn:boundaryEvent",
     "xmlChildElement": "bpmn:timerEventDefinition",
-    "jcrNodeType": "wf:BoundaryEvent"
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
   },
   "MessageBoundaryEvent": {
     "jcr:primaryType": "wf:CatchingEventType",
@@ -130,7 +130,7 @@
     "priority": 10,
     "xmlElement": "bpmn:boundaryEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
-    "jcrNodeType": "wf:BoundaryEvent"
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
   },
   "ErrorBoundaryEvent": {
     "jcr:primaryType": "wf:CatchingEventType",
@@ -140,7 +140,7 @@
     "priority": 10,
     "xmlElement": "bpmn:boundaryEvent",
     "xmlChildElement": "bpmn:errorEventDefinition",
-    "jcrNodeType": "wf:BoundaryEvent"
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
   },
   "UserTask": {
     "jcr:primaryType": "wf:ActivityType",
