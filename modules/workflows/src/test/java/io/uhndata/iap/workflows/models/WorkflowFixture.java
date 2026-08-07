@@ -83,7 +83,6 @@ final class WorkflowFixture
         registerType(context, "IntermediateEvent", Event.RESOURCE_TYPE);
         registerType(context, "IntermediateCatchingEvent", IntermediateEvent.RESOURCE_TYPE);
         registerType(context, "IntermediateThrowingEvent", IntermediateEvent.RESOURCE_TYPE);
-        registerType(context, "BoundaryEvent", IntermediateEvent.RESOURCE_TYPE);
         registerType(context, "Activity", FlowNode.RESOURCE_TYPE);
         registerType(context, "Gateway", FlowNode.RESOURCE_TYPE);
         registerType(context, "ExclusiveGateway", Gateway.RESOURCE_TYPE);
