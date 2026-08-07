@@ -41,15 +41,16 @@ public class Activity extends FlowNode
     public static final String RESOURCE_TYPE = "wf/Activity";
 
     /**
-     * The events watching this activity while it runs, e.g. a deadline expiring or a cancellation arriving. They
-     * are stored inside the activity precisely because they only listen for as long as it runs. Not all of them
-     * necessarily cancel it — see {@link BoundaryEvent#isInterrupting()}.
+     * The events watching this activity while it runs, e.g. a deadline expiring or a cancellation arriving. They are
+     * stored inside the activity precisely because they only listen for as long as it runs, and being stored here is
+     * the whole of what makes them boundary events rather than free-standing ones. Not all of them necessarily
+     * cancel the activity — see {@link IntermediateCatchingEvent#isInterrupting()}.
      *
      * @return a list of boundary events, empty if nothing is watching this activity
      */
     @NotNull
-    public List<BoundaryEvent> getBoundaryEvents()
+    public List<IntermediateCatchingEvent> getBoundaryEvents()
     {
-        return this.getChildren(BoundaryEvent.RESOURCE_TYPE, BoundaryEvent.class);
+        return this.getChildren(IntermediateCatchingEvent.RESOURCE_TYPE, IntermediateCatchingEvent.class);
     }
 }

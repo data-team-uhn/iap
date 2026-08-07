@@ -18,8 +18,11 @@
 package io.uhndata.iap.workflows.models;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code wf:IntermediateCatchingEvent} node: a point mid-process where the workflow waits.
@@ -37,4 +40,37 @@ public class IntermediateCatchingEvent extends IntermediateEvent
 {
     /** The {@code sling:resourceType} of a {@code wf:IntermediateCatchingEvent} node. */
     public static final String RESOURCE_TYPE = "wf/IntermediateCatchingEvent";
+
+    // The CND declares the default as true but does not autocreate the property, so an event that never had it
+    // written would read as false here without this annotation -- the exact inversion of the BPMN cancelActivity
+    // default, and a silent one.
+    @ValueMapValue
+    @Default(booleanValues = true)
+    private boolean interrupting;
+
+    /**
+     * Whether firing this event cancels the activity being watched, or merely starts a parallel branch and lets the
+     * work carry on. "Escalate after five days but keep waiting" and "give up after five days" are different
+     * processes, and this is the only thing that tells them apart. Only meaningful when this event is attached to an
+     * activity, which {@link #getActivity()} reports.
+     *
+     * @return {@code true} if firing cancels the watched activity
+     */
+    public boolean isInterrupting()
+    {
+        return this.interrupting;
+    }
+
+    /**
+     * The activity this event is attached to, which is simply its parent. An event stored directly under the version
+     * stands in the flow on its own and watches nothing, so this is how to tell a boundary event from a free-standing
+     * one.
+     *
+     * @return the watched activity, or {@code null} if this event does not sit inside one
+     */
+    @Nullable
+    public Activity getActivity()
+    {
+        return this.getParent(Activity.RESOURCE_TYPE, Activity.class);
+    }
 }

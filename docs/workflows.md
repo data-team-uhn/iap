@@ -27,7 +27,7 @@ what exists today is everything it will read and write.
         │   └── flow_1             wf:SequenceFlow         elementId, targetRef
         ├── approve                wf:Activity
         │   ├── flow_2             wf:SequenceFlow
-        │   └── timeout            wf:BoundaryEvent        elementId, interrupting
+        │   └── timeout            wf:IntermediateCatchingEvent  elementId, interrupting
         └── end_1                  wf:EndEvent             terminate
 ```
 
@@ -62,10 +62,16 @@ Two things about how the graph is addressed:
   identifiers. `WorkflowVersion.getFlowNode(elementId)` resolves them, boundary events included.
 
 Boundary events are the one place the tree is not flat: an event watching an activity is stored *inside*
-that activity, because it only listens for as long as the activity runs. Whether it **interrupts** that
-activity is the difference between "give up after five days" and "send a reminder after five days but
-keep waiting" — two quite different processes that are otherwise drawn identically, so the flag is not
-decoration. It is parsed from BPMN's `cancelActivity`, whose default is likewise true.
+that activity, because it only listens for as long as the activity runs. There is no separate node type
+for one — a `wf:IntermediateCatchingEvent` nested in an activity **is** a boundary event, and the same
+node type standing directly under the version is an ordinary mid-process catch. Being stored there is
+the whole of the distinction, so an event does not have to be modelled twice to be usable in both
+positions. `IntermediateCatchingEvent.getActivity()` reports which case a given node is.
+
+Whether it **interrupts** that activity is the difference between "give up after five days" and "send a
+reminder after five days but keep waiting" — two quite different processes that are otherwise drawn
+identically, so the flag is not decoration. It is parsed from BPMN's `cancelActivity`, whose default is
+likewise true, and it is meaningful only on an attached event; on a free-standing one it is ignored.
 
 ### The vocabulary
 
@@ -100,7 +106,7 @@ shallower than BPMN's, and it is the test to apply before adding to it:
 | Timer vs. message start event | Vocabulary | Both start the workflow; only the trigger differs |
 | Exclusive vs. parallel gateway | Node type | The engine routes one token or all of them |
 | Event-based gateway | Node type | It waits instead of evaluating, unlike every other gateway |
-| Boundary vs. free-standing catch | Node type | Its lifetime is bound to an activity's |
+| Boundary vs. free-standing catch | Containment | Same event; only where it is stored differs |
 | Terminate vs. ordinary end | Property | Same node, but it ends the instance rather than a branch |
 
 ### Self-documentation, and why its shape matters

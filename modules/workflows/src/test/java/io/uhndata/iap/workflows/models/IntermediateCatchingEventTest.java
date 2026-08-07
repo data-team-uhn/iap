@@ -34,13 +34,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link BoundaryEvent}.
+ * Unit tests for {@link IntermediateCatchingEvent}, covering it both as a free-standing node in the flow and as an
+ * event attached to an activity, since where it is stored is the only thing that separates the two.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class BoundaryEventTest
+class IntermediateCatchingEventTest
 {
     private static final String VERSION_PATH = "/Workflows/timeOff/1.0";
 
@@ -60,16 +61,14 @@ class BoundaryEventTest
     @Test
     void cancelsTheActivityWhenInterrupting()
     {
-        // catching is autocreated to true by wf:BoundaryEvent in the real CND; sling-mock knows no node types,
-        // so it has to be set explicitly here
+        // catching is autocreated to true in the real CND; sling-mock knows no node types, so it is set here
         final Resource resource = this.context.create().resource(ACTIVITY_PATH + "/timeout", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "timeout", "interrupting", true,
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout", "interrupting", true,
             "catching", true));
-        final BoundaryEvent event = (BoundaryEvent) resource.adaptTo(FlowNode.class);
+        final IntermediateCatchingEvent event = (IntermediateCatchingEvent) resource.adaptTo(FlowNode.class);
 
         assertNotNull(event);
         assertTrue(event.isInterrupting());
-        // Still a catching intermediate event, whatever else it is
         assertTrue(event.isCatching());
     }
 
@@ -78,30 +77,43 @@ class BoundaryEventTest
     {
         // "Escalate after five days but keep waiting" — the same shape as a deadline, a different process
         final Resource resource = this.context.create().resource(ACTIVITY_PATH + "/reminder", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "reminder", "interrupting", false));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "reminder", "interrupting", false));
 
-        assertFalse(((BoundaryEvent) resource.adaptTo(FlowNode.class)).isInterrupting());
+        assertFalse(((IntermediateCatchingEvent) resource.adaptTo(FlowNode.class)).isInterrupting());
+    }
+
+    @Test
+    void interruptsByDefaultWhenTheAttributeWasNeverWritten()
+    {
+        // BPMN's cancelActivity defaults to true, and nothing in the vocabulary maps that attribute yet, so every
+        // attached event created today relies on this default. Read as false, a deadline would silently stop
+        // cancelling the work it exists to abort.
+        final Resource resource = this.context.create().resource(ACTIVITY_PATH + "/timeout", Map.of(
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout"));
+
+        assertTrue(((IntermediateCatchingEvent) resource.adaptTo(FlowNode.class)).isInterrupting());
     }
 
     @Test
     void findsTheActivityItWatches()
     {
         final Resource resource = this.context.create().resource(ACTIVITY_PATH + "/timeout", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "timeout"));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout"));
 
-        final Activity watched = ((BoundaryEvent) resource.adaptTo(FlowNode.class)).getActivity();
+        final Activity watched = ((IntermediateCatchingEvent) resource.adaptTo(FlowNode.class)).getActivity();
 
         assertNotNull(watched);
         assertEquals("task_1", watched.getElementId());
     }
 
     @Test
-    void watchesNothingWhenStoredOutsideAnActivity()
+    void watchesNothingWhenStandingInTheFlowOnItsOwn()
     {
-        final Resource resource = this.context.create().resource(VERSION_PATH + "/loose", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "loose"));
+        // Stored under the version rather than inside an activity: an ordinary mid-process catch
+        final Resource resource = this.context.create().resource(VERSION_PATH + "/wait_1", Map.of(
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "wait_1"));
 
-        assertNull(((BoundaryEvent) resource.adaptTo(FlowNode.class)).getActivity());
+        assertNull(((IntermediateCatchingEvent) resource.adaptTo(FlowNode.class)).getActivity());
     }
 
     @Test
@@ -109,11 +121,12 @@ class BoundaryEventTest
     {
         // Three levels of abstract base, so this is a strong check that the /libs supertype chain holds
         final Resource resource = this.context.create().resource(ACTIVITY_PATH + "/timeout", Map.of(
-            TYPE, BoundaryEvent.RESOURCE_TYPE, "elementId", "timeout"));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout"));
 
-        assertEquals(BoundaryEvent.class, resource.adaptTo(FlowNode.class).getClass());
-        assertEquals(BoundaryEvent.class, resource.adaptTo(Event.class).getClass());
-        assertEquals(BoundaryEvent.class, resource.adaptTo(IntermediateEvent.class).getClass());
-        assertEquals(BoundaryEvent.class, resource.adaptTo(BoundaryEvent.class).getClass());
+        assertEquals(IntermediateCatchingEvent.class, resource.adaptTo(FlowNode.class).getClass());
+        assertEquals(IntermediateCatchingEvent.class, resource.adaptTo(Event.class).getClass());
+        assertEquals(IntermediateCatchingEvent.class, resource.adaptTo(IntermediateEvent.class).getClass());
+        assertEquals(IntermediateCatchingEvent.class,
+            resource.adaptTo(IntermediateCatchingEvent.class).getClass());
     }
 }
