@@ -50,6 +50,13 @@
     <!-- Only Chromium by default: the other engines multiply the download and the CI system packages
          they need, for very little extra signal on an internal application. -->
     <playwright.browsers>chromium</playwright.browsers>
+    <!-- Extra arguments for the browser download. CI passes the "with deps" flag here, which makes
+         Playwright apt-get the 21 shared libraries Chromium links against; a developer machine already
+         has them, and installing them needs root, which is not something an ordinary build should ask
+         for. Empty by default, so only the environment that wants that behaviour opts into it.
+         (Spelled without the leading dashes above because an XML comment may not contain a double
+         dash; the value CI passes is in .github/workflows/pull-request-build.yml.) -->
+    <playwright.install.deps></playwright.install.deps>
     <e2e.directory>src/test/e2e</e2e.directory>
     <!-- Nothing here is a Java artifact, so the inherited coverage gate has nothing to measure -->
     <jacoco.skip>true</jacoco.skip>
@@ -220,7 +227,7 @@
             </goals>
             <phase>generate-test-resources</phase>
             <configuration>
-              <arguments>playwright install ${playwright.browsers}</arguments>
+              <arguments>playwright install ${playwright.install.deps} ${playwright.browsers}</arguments>
             </configuration>
           </execution>
           <execution>
