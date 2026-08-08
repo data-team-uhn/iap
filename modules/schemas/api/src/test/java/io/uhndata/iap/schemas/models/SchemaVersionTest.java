@@ -63,7 +63,7 @@ class SchemaVersionTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class,
             FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            SchemaVersion.class, WorkflowVersion.class);
+            Schema.class, SchemaVersion.class, WorkflowVersion.class);
     }
 
     @Test
@@ -87,6 +87,29 @@ class SchemaVersionTest
         assertEquals("1.0", version.getVersion());
         assertEquals("Initial version", version.getDescription());
         assertTrue(version.isActive());
+    }
+
+    @Test
+    void findsTheSchemaItBelongsTo()
+    {
+        this.context.create().resource("/Schemas/schema", Map.of(
+            "sling:resourceType", Schema.RESOURCE_TYPE, "title", "Owning schema"));
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0",
+            "sling:resourceType", SchemaVersion.RESOURCE_TYPE);
+
+        final Schema schema = resource.adaptTo(SchemaVersion.class).getSchema();
+
+        assertNotNull(schema);
+        assertEquals("Owning schema", schema.getTitle());
+    }
+
+    @Test
+    void hasNoSchemaWhenStoredOutsideOne()
+    {
+        final Resource resource = this.context.create().resource("/loose",
+            "sling:resourceType", SchemaVersion.RESOURCE_TYPE);
+
+        assertNull(resource.adaptTo(SchemaVersion.class).getSchema());
     }
 
     @Test
