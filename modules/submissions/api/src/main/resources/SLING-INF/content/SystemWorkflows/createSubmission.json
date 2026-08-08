@@ -1,0 +1,56 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Create a submission",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/SubmissionsHomepage",
+    "description": "What happens when a new submission is raised: check the schema version it answers, create the submission in its draft state, put it under the workflow that schema version names, and send the submitter to it. That the review process starts on creation is itself content - a deployment that wants submissions to sit as drafts until explicitly sent can remove the second activity. Shipped by the submissions module - each module contributes the system workflows for its own homepages - and editable per deployment. Raising a submission is what ordinary users are here to do, so the start event admits everyone; a deployment that only accepts submissions from, say, credentialed researchers names that group instead.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Submission requested",
+      "messageName": "create",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toCreate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCreate",
+        "targetRef": "create"
+      }
+    },
+    "create": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "create",
+      "label": "Create the submission",
+      "handler": "createSubmission",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toStart": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toStart",
+        "targetRef": "start"
+      }
+    },
+    "start": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "start",
+      "label": "Put it under its workflow",
+      "handler": "startWorkflow",
+      "workflowFrom": "schemaVersion/workflow",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Submission created",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
