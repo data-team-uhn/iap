@@ -51,11 +51,26 @@
               <filesInclude>core/*.json</filesInclude>
               <title>IAP With Oak Document NS Mongo Persistence</title>
             </aggregate>
+            <!-- The platform plus the sample content, as one launchable artifact. The integration tests need
+                 both, and the feature launcher Maven plugin can only be pointed at a single feature, so they
+                 are combined here rather than composed at launch time. Worth doing regardless: what the tests
+                 ran against is then one versioned coordinate, and analyse-features checks the combination at
+                 build time instead of it failing on startup. -->
+            <aggregate>
+              <classifier>test_tar</classifier>
+              <filesInclude>*.json</filesInclude>
+              <filesInclude>oak/*.json</filesInclude>
+              <filesInclude>oak/persistence/oak_persistence_sns.json</filesInclude>
+              <filesInclude>core/*.json</filesInclude>
+              <filesInclude>test/*.json</filesInclude>
+              <title>IAP With Test Data</title>
+            </aggregate>
           </aggregates>
           <scans>
             <scan>
               <includeClassifier>core_tar</includeClassifier>
               <includeClassifier>core_mongo</includeClassifier>
+              <includeClassifier>test_tar</includeClassifier>
             </scan>
           </scans>
         </configuration>

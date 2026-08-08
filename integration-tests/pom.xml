@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.uhndata.iap</groupId>
+    <artifactId>iap-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>iap-integration-tests</artifactId>
+  <packaging>pom</packaging>
+  <name>IAP - Integration tests</name>
+  <description>End-to-end tests driving a real IAP instance through a browser.</description>
+
+  <!--
+    One instance per test suite, each launched from its own aggregated feature, each on its own port:
+
+      platform   core_tar   the bare platform, with no content beyond what the modules ship
+      test-data  test_tar   the platform plus the sample content, so every feature is exercisable
+
+    A suite can be turned off with its skip property, e.g. `-Dit.platform.skip=true`, which is how a CI
+    matrix runs one instance per job instead of all of them at once.
+
+    Only reachable through the `integrationTests` profile in the root POM, since a browser download plus
+    an instance boot has no place in an ordinary build:
+
+      mvn clean install -PintegrationTests
+  -->
+  <properties>
+    <it.platform.skip>false</it.platform.skip>
+    <it.testdata.skip>false</it.testdata.skip>
+    <!-- Only Chromium by default: the other engines multiply the download and the CI system packages
+         they need, for very little extra signal on an internal application. -->
+    <playwright.browsers>chromium</playwright.browsers>
+    <!-- Extra arguments for the browser download. CI passes the "with deps" flag here, which makes
+         Playwright apt-get the 21 shared libraries Chromium links against; a developer machine already
+         has them, and installing them needs root, which is not something an ordinary build should ask
+         for. Empty by default, so only the environment that wants that behaviour opts into it.
+         (Spelled without the leading dashes above because an XML comment may not contain a double
+         dash; the value CI passes is in .github/workflows/pull-request-build.yml.) -->
+    <playwright.install.deps></playwright.install.deps>
+    <e2e.directory>src/test/e2e</e2e.directory>
+    <!-- Nothing here is a Java artifact, so the inherited coverage gate has nothing to measure -->
+    <jacoco.skip>true</jacoco.skip>
+    <!-- The platform disables tests by default, and frontend-maven-plugin honours that for any execution
+         bound to a testing phase - which silently turns the whole suite into a no-op that still reports
+         BUILD SUCCESS. This module exists only to run tests, and is already gated behind the
+         integrationTests profile, so it opts back in rather than requiring -Ptests as well. -->
+    <skipTests>false</skipTests>
+    <maven.test.skip>false</maven.test.skip>
+  </properties>
+
+  <build>
+    <plugins>
+      <!-- Reserve a free port per instance, so that concurrent builds on one machine, and anything
+           already listening on 8080, do not collide. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>reserve-instance-ports</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>reserve-network-port</goal>
+            </goals>
+            <configuration>
+              <minPortNumber>8080</minPortNumber>
+              <portNames>
+                <portName>platform.http.port</portName>
+                <portName>testdata.http.port</portName>
+              </portNames>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Discard each instance's repository before launching it.
+           Two reasons, both learned the hard way. An instance killed rather than stopped - which is what
+           happens whenever a test fails, since the failure skips post-integration-test and the plugin's
+           shutdown hook takes over - leaves a repository behind that the next run may fail to recover,
+           and did. And a suite that runs against whatever the last run left behind is not reproducible:
+           a test can pass on content it created itself an hour ago. Declared before the launcher plugin
+           so that it runs first within the phase. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-clean-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>discard-previous-instances</id>
+            <phase>pre-integration-test</phase>
+            <goals>
+              <goal>clean</goal>
+            </goals>
+            <configuration>
+              <excludeDefaultDirectories>true</excludeDefaultDirectories>
+              <filesets>
+                <fileset>
+                  <directory>${project.build.directory}/launchers</directory>
+                  <includes>
+                    <include>platform/**</include>
+                    <include>test-data/**</include>
+                  </includes>
+                </fileset>
+              </filesets>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Launch the instances under test. This is the same Apache Sling feature launcher that start.py
+           runs, pointed at the same published artifacts, so what the tests drive is the real runtime
+           rather than something assembled for testing. -->
+      <plugin>
+        <groupId>org.apache.sling</groupId>
+        <artifactId>feature-launcher-maven-plugin</artifactId>
+        <version>1.0.4</version>
+        <configuration>
+          <launches>
+            <launch>
+              <id>platform</id>
+              <skip>${it.platform.skip}</skip>
+              <feature>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>iap-packaging-slingfeature</artifactId>
+                <version>${project.version}</version>
+                <classifier>core_tar</classifier>
+                <type>slingosgifeature</type>
+              </feature>
+              <launcherArguments>
+                <vmOptions>
+                  <vmOption>-Djdk.xml.entityExpansionLimit=0</vmOption>
+                </vmOptions>
+                <frameworkProperties>
+                  <org.osgi.service.http.port>${platform.http.port}</org.osgi.service.http.port>
+                </frameworkProperties>
+              </launcherArguments>
+              <startTimeoutSeconds>300</startTimeoutSeconds>
+            </launch>
+            <launch>
+              <id>test-data</id>
+              <skip>${it.testdata.skip}</skip>
+              <feature>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>iap-packaging-slingfeature</artifactId>
+                <version>${project.version}</version>
+                <classifier>test_tar</classifier>
+                <type>slingosgifeature</type>
+              </feature>
+              <launcherArguments>
+                <vmOptions>
+                  <vmOption>-Djdk.xml.entityExpansionLimit=0</vmOption>
+                </vmOptions>
+                <frameworkProperties>
+                  <org.osgi.service.http.port>${testdata.http.port}</org.osgi.service.http.port>
+                </frameworkProperties>
+              </launcherArguments>
+              <startTimeoutSeconds>300</startTimeoutSeconds>
+            </launch>
+          </launches>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>start</goal>
+              <goal>stop</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>com.github.eirslett</groupId>
+        <artifactId>frontend-maven-plugin</artifactId>
+        <executions>
+          <!-- The inherited executions build and test the application frontend; the two that bundle it
+               do not apply here. Note that the plugin-wide workingDirectory below redirects every
+               inherited execution at the end-to-end package, so the ones left enabled run this package's
+               own scripts - which is how yarn-typecheck and yarn-lint come to check the Playwright
+               sources, holding them to the same standard as the rest of the frontend code. -->
+          <execution>
+            <id>webpack</id>
+            <phase>none</phase>
+          </execution>
+          <execution>
+            <id>yarn-test</id>
+            <phase>none</phase>
+          </execution>
+
+          <execution>
+            <id>install node and yarn</id>
+            <goals>
+              <goal>install-node-and-yarn</goal>
+            </goals>
+            <phase>initialize</phase>
+          </execution>
+          <!-- Bound to initialize, not to one of the test phases where this module's dependencies would
+               otherwise belong, because the inherited yarn-typecheck and yarn-lint both run at
+               generate-resources and need node_modules to already be there: tsc and eslint are
+               dependencies of this package, so without it the script dies with "tsc: not found" long
+               before any test phase is reached. The order that leaves - install, then typecheck and lint,
+               then the browser download at generate-test-resources - also means a type or lint error is
+               reported without first fetching 150MB of Chromium. -->
+          <execution>
+            <id>yarn install</id>
+            <goals>
+              <goal>yarn</goal>
+            </goals>
+            <phase>initialize</phase>
+            <configuration>
+              <arguments>install --ignore-scripts</arguments>
+            </configuration>
+          </execution>
+          <!-- Downloaded before the instances start rather than alongside them, so that a missing system
+               dependency fails fast instead of after a two-minute boot. -->
+          <execution>
+            <id>install browsers</id>
+            <goals>
+              <goal>yarn</goal>
+            </goals>
+            <phase>generate-test-resources</phase>
+            <configuration>
+              <arguments>playwright install ${playwright.install.deps} ${playwright.browsers}</arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>run e2e tests</id>
+            <goals>
+              <goal>yarn</goal>
+            </goals>
+            <phase>integration-test</phase>
+            <configuration>
+              <arguments>test</arguments>
+              <!-- The failure must not stop the build here, or post-integration-test never runs and the
+                   instances are left behind: the launcher plugin's shutdown hook kills the launcher script
+                   but not the JVM under it, so a failed run orphans a full Sling instance and keeps its
+                   port. The verdict is enforced at verify instead, once the instances are stopped. This is
+                   the same deferral maven-failsafe-plugin performs for Java integration tests. -->
+              <testFailureIgnore>true</testFailureIgnore>
+              <environmentVariables>
+                <!-- Which instances exist, and where. A suite whose URL is absent is skipped by the
+                     Playwright config, so switching a launch off needs no second edit here. -->
+                <IAP_PLATFORM_URL>http://localhost:${platform.http.port}</IAP_PLATFORM_URL>
+                <IAP_TESTDATA_URL>http://localhost:${testdata.http.port}</IAP_TESTDATA_URL>
+                <IAP_PLATFORM_SKIP>${it.platform.skip}</IAP_PLATFORM_SKIP>
+                <IAP_TESTDATA_SKIP>${it.testdata.skip}</IAP_TESTDATA_SKIP>
+              </environmentVariables>
+            </configuration>
+          </execution>
+          <!-- Fails the build for the run deferred above, now that the instances are down -->
+          <execution>
+            <id>check e2e results</id>
+            <goals>
+              <goal>yarn</goal>
+            </goals>
+            <phase>verify</phase>
+            <configuration>
+              <arguments>check-results</arguments>
+            </configuration>
+          </execution>
+        </executions>
+        <configuration>
+          <workingDirectory>${e2e.directory}</workingDirectory>
+          <!-- Keep the downloaded Node out of the source tree, where it would land in every diff and
+               have to be excluded from the license check -->
+          <installDirectory>${project.build.directory}</installDirectory>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
