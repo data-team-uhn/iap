@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "iap:ExtensionPoint",
+  "iap:extensionPointId": "iap/adminDashboard/entry",
+  "iap:extensionPointName": "Tools listed on the administration console"
+}
