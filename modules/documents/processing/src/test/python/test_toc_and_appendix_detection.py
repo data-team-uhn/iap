@@ -180,6 +180,69 @@ class TestEntryToRecord:
     def test_no_page_keeps_level(self):
         assert tad._entry_to_record("2.0 Introduction") == {"title": "2.0 Introduction", "level": 1, "page": None}
 
+    def test_section_letters_are_not_roman_pages(self):
+        # "Appendix C" used to parse as title "Appendix", page 100 — the truncated title then
+        # never matched its body heading, so the appendix was never marked as backmatter.
+        for entry in ("Appendix C", "Appendix D", "Appendix I", "Annex X"):
+            assert tad._entry_to_record(entry) == {"title": entry, "level": None, "page": None}
+
+    def test_trailing_initials_are_not_pages(self):
+        assert tad._entry_to_record("Participant ID") == {
+            "title": "Participant ID", "level": None, "page": None,
+        }
+
+    def test_uppercase_roman_still_reads_after_a_strong_separator(self):
+        # A dash or dot leaders make it unambiguously a TOC line, so case does not matter.
+        assert tad._entry_to_record("Preface - IV")["page"] == 4
+        assert tad._entry_to_record("Preface .... IV")["page"] == 4
+
+    def test_lowercase_roman_reads_after_a_bare_space(self):
+        assert tad._entry_to_record("List of Abbreviations vii")["page"] == 7
+
+    def test_malformed_roman_is_not_a_page(self):
+        assert tad._entry_to_record("Section iiii")["page"] is None
+
+
+class TestTableTocConfirmation:
+    """A table under a "Contents" label is only flattened when it really is a TOC."""
+
+    def _doc(self, rows):
+        return "**Contents**\n\n" + rows + "\nBody text follows here.\n"
+
+    def test_a_real_table_toc_is_still_flattened(self):
+        rows = (
+            "| Section | Title | Page |\n"
+            "| --- | --- | --- |\n"
+            "| 1.0 | Introduction | 3 |\n"
+            "| 2.0 | Objectives | 5 |\n"
+            "| 3.0 | Study Design | 8 |\n"
+            "| 4.0 | Statistics | 12 |\n"
+        )
+        result, fields = tad._detect_toc(self._doc(rows))
+        assert "1.0 Introduction 3" in fields["toc"]
+        assert "| 1.0 |" not in result
+
+    def test_a_data_table_under_a_contents_label_is_left_alone(self):
+        # Kit/shipment "Contents" sections are data tables. Flattening one destroys it:
+        # separator rows dropped, cells merged, duplicate cells removed.
+        rows = (
+            "| Item | Quantity |\n"
+            "| --- | --- |\n"
+            "| Syringe 10 mL | 4 |\n"
+            "| Needle 21G | 12 |\n"
+            "| Alcohol swab | 2 |\n"
+            "| Label sheet | 1 |\n"
+        )
+        doc = self._doc(rows)
+        result, fields = tad._detect_toc(doc)
+        assert fields == {}
+        assert result == doc
+
+    def test_too_few_rows_is_not_a_toc(self):
+        rows = "| Item | Page |\n| --- | --- |\n| Only one | 3 |\n"
+        doc = self._doc(rows)
+        assert tad._detect_toc(doc) == (doc, {})
+
 
 class TestMarkTocAndAppendixFork:
     def _doc_with_toc(self):

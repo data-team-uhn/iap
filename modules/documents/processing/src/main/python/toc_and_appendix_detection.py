@@ -342,6 +342,40 @@ def _confirm_plain_toc(lines: list[str], label_index: int) -> bool:
     return matches >= MIN_DENSITY_MATCHES
 
 
+def _confirm_table_toc(flattened: list[str]) -> bool:
+    """Whether a flattened table under a "Contents" label really is a table of contents.
+
+    The plain-line path has :func:`_confirm_plain_toc`; without the same check here any table
+    within two lines of a "Contents"-shaped label was flattened into the document. That is
+    destructive — separator rows dropped, every row collapsed to one space-joined line with
+    duplicate cells removed — and protocols do have "Contents" sections listing what is in a
+    shipment or kit, which are data tables, not outlines.
+
+    A TOC row ends in a page number, and a TOC's pages do not run backwards. A quantity or
+    dose column usually does. ``is_toc_entry_line`` alone is not enough here: flattening
+    joins cells with a single space, which its patterns do not accept as a separator.
+    """
+    pages: list[int] = []
+    rows = 0
+    for line in flattened:
+        stripped = line.strip()
+        if stripped == "" or PAGE_MARKER_LINE.match(stripped):
+            continue
+        rows += 1
+        page = _entry_to_record(stripped)["page"]
+        if page is not None:
+            pages.append(page)
+        elif is_toc_entry_line(stripped):
+            # A page-less outline entry ("2.0 Introduction") is still TOC structure; carry
+            # the running page so it neither breaks nor fakes the ordering.
+            pages.append(pages[-1] if pages else 0)
+        if rows >= DENSITY_WINDOW:
+            break
+    if len(pages) < MIN_DENSITY_MATCHES:
+        return False
+    return all(earlier <= later for earlier, later in zip(pages, pages[1:]))
+
+
 def _skip_to_next_content(lines: list[str], index: int) -> int:
     """Skip forward over blank/rule lines only (not page markers) to the first
     substantive line at or after ``index``."""
@@ -518,6 +552,8 @@ def _detect_toc(md: str) -> tuple[str, dict]:
     if table_start is not None:
         raw_block, boundary = _scan_region(lines, table_start, _is_markdown_table_line)
         block_lines = _flatten_table_block(raw_block)
+        if not _confirm_table_toc(block_lines):
+            return md, {}
     else:
         if not _confirm_plain_toc(lines, label_index):
             return md, {}
@@ -578,27 +614,54 @@ def _detect_toc(md: str) -> tuple[str, dict]:
     return result, fields
 
 
-# Trailing "<separator><page number>" of a cleaned TOC entry, capturing the page (arabic or
-# roman). The separator is a dash, dot-leaders, or whitespace (a tab collapses to one space).
+# Trailing "<separator><page number>" of a cleaned TOC entry, capturing the separator and the
+# page (arabic or roman). The separator is a dash, dot-leaders, or whitespace (a tab collapses
+# to one space); which one it is decides how much the roman alternative can be trusted, see
+# :func:`_page_number`.
 _ENTRY_PAGE = re.compile(
     r"""
-    (?:
+    (?P<sep>
         \s+[-–—]\s+
         | \s*[.…·]{2,}\s*
         | \s+
     )
     (?:page\s*)?
-    (\d{1,4}|[ivxlcdm]{1,8})
+    (?P<page>\d{1,4}|[ivxlcdm]{1,8})
     \s*$
     """,
     re.IGNORECASE | re.VERBOSE,
 )
 
+# A dash or dot-leader separator is a strong TOC signal; a bare space is not.
+_STRONG_SEPARATOR = re.compile(r"[-–—.…·]")
 
-def _page_number(token: str) -> int | None:
-    """Parse a TOC page token (arabic ``"12"`` or roman ``"iv"``) to an int, or ``None``."""
+# A well-formed roman numeral, so "Appendix D" is not read as page 500. The lookahead keeps
+# the empty string out, which every group being optional would otherwise allow.
+_ROMAN_PAGE = re.compile(
+    r"(?=[mdclxvi])m{0,4}(?:cm|cd|d?c{0,3})(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$",
+    re.IGNORECASE,
+)
+
+
+def _page_number(token: str, *, strong_separator: bool) -> int | None:
+    """Parse a TOC page token (arabic ``"12"`` or roman ``"iv"``) to an int, or ``None``.
+
+    Rejects a roman-looking token that is really a section letter. ``"Appendix C"`` and
+    ``"Participant ID"`` both end in letters drawn from the roman alphabet, and reading them
+    as pages truncated the title to ``"Appendix"`` / ``"Participant"`` — which then never
+    matched its body heading, so the appendix was never marked and got summarized.
+
+    Two things separate a page from a label: the token has to be a valid numeral at all, and
+    after a bare space it also has to be lowercase. Printed front matter is numbered in
+    lowercase roman ("iv"), while section labels are uppercase ("Appendix C"). After a dash
+    or dot leaders the entry is unambiguously a TOC line, so either case is fine there.
+    """
     if token.isdigit():
         return int(token)
+    if not _ROMAN_PAGE.match(token):
+        return None
+    if not strong_separator and token != token.lower():
+        return None
     vector = roman_numbering(token)
     return vector[0] if vector else None
 
@@ -606,14 +669,18 @@ def _page_number(token: str) -> int | None:
 def _entry_to_record(entry: str) -> dict:
     """Convert a cleaned TOC entry string into an outline record: title (trailing page
     stripped), ``page`` (its page number, or ``None``), ``level`` (numbering depth, or ``None``).
+
+    The title only loses its tail when that tail really is a page number; otherwise the whole
+    entry is the title.
     """
     match = _ENTRY_PAGE.search(entry)
+    page = None
     if match:
-        title = entry[: match.start()].strip()
-        page = _page_number(match.group(1))
-    else:
-        title = entry.strip()
-        page = None
+        page = _page_number(
+            match.group("page"),
+            strong_separator=bool(_STRONG_SEPARATOR.search(match.group("sep"))),
+        )
+    title = entry[: match.start()].strip() if page is not None else entry.strip()
     return {"title": title, "level": numbering_depth(title) or None, "page": page}
 
 
