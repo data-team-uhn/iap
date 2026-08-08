@@ -57,6 +57,9 @@ public class Content
     private Calendar created;
 
     @ValueMapValue(name = "jcr:createdBy")
+    private String writtenBy;
+
+    @ValueMapValue
     private String createdBy;
 
     /**
@@ -148,12 +151,17 @@ public class Content
     /**
      * The user that created the resource.
      *
+     * <p>Content raised through a workflow is <em>written</em> by the engine's service user, since that is who
+     * holds the rights to write it, so the repository's own {@code jcr:createdBy} records the machinery rather
+     * than the person. Where the engine has recorded who it was acting for, that is the answer; {@code
+     * jcr:createdBy} is the fallback for everything else.</p>
+     *
      * @return a user name, or {@code null} if the creator is not recorded
      */
     @Nullable
     public String getCreatedBy()
     {
-        return this.createdBy;
+        return this.createdBy == null ? this.writtenBy : this.createdBy;
     }
 
     /**
