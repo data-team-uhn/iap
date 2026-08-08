@@ -25,6 +25,7 @@ here is the plumbing around Docling rather than Docling itself: shared-docs path
 body draining, health reporting, and the batch-abandon path that runs when a page batch fails.
 """
 
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
@@ -307,6 +308,32 @@ class TestParseErrorStatus:
         handler = self._handler({"path": str(pdf)})
         daemon.DoclingDaemonHandler._handle_parse(handler)
         assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+class TestCliBatchPagesFlag:
+    """--batch-pages was parsed and validated, then dropped before the converter saw it."""
+
+    def _run(self, monkeypatch, tmp_path, *flags):
+        import docling_parser
+
+        pdf = tmp_path / "doc.pdf"
+        pdf.write_bytes(b"%PDF")
+        seen: dict = {}
+
+        def capture(_input_path, **kwargs):
+            seen.update(kwargs)
+            return {"markdown_path": str(tmp_path / "doc.md"), "chunked": False, "logs": ""}
+
+        monkeypatch.setattr(docling_parser, "parse_document", capture)
+        monkeypatch.setattr(sys, "argv", ["docling_parser.py", str(pdf), *flags])
+        docling_parser.main()
+        return seen
+
+    def test_batch_pages_reaches_the_converter(self, monkeypatch, tmp_path):
+        assert self._run(monkeypatch, tmp_path, "--batch-pages", "1")["pdf_batch_pages"] == 1
+
+    def test_omitting_it_leaves_the_size_automatic(self, monkeypatch, tmp_path):
+        assert self._run(monkeypatch, tmp_path)["pdf_batch_pages"] is None
 
 
 class TestRunPdfChunksBrokenPool:
