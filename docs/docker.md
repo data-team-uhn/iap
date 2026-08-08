@@ -58,9 +58,9 @@ Other supported environment variables: `OAK_STORAGE` (`tar`, `mongo` or `rdb`) a
 `/volume_mounted_init.sh` hook.
 
 With `OAK_STORAGE=rdb` the repository lives in a relational database, which must be reachable
-and must hold a database the connecting user may create tables in — Oak creates its own tables
-on first start. Only the PostgreSQL JDBC driver is bundled in the image; `RDB_DRIVER` exists
-for deployments that add another vendor's driver through `ADDITIONAL_SLING_FEATURES`:
+and must hold a database named `iap` the connecting user may create tables in — Oak creates
+its own tables on first start. Only the PostgreSQL JDBC driver is bundled in the image;
+`RDB_DRIVER` exists for deployments that add another vendor's driver through `ADDITIONAL_SLING_FEATURES`:
 
 ```
 docker run --rm -e OAK_STORAGE=rdb -e EXTERNAL_RDB_URI=jdbc:postgresql://db:5432/iap \
