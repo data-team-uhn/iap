@@ -53,8 +53,9 @@ Extra features can be activated when starting the container:
 Other supported environment variables: `OAK_STORAGE` (`tar`, `mongo` or `rdb`) and the older
 `OAK_FILESYSTEM` (TAR segment store instead of MongoDB),
 `EXTERNAL_MONGO_URI`/`MONGO_AUTH`/`CUSTOM_MONGO_DB_NAME`,
-`EXTERNAL_RDB_URI`/`RDB_DRIVER`/`RDB_USER`/`RDB_PASSWORD`, `SMTPS_*` (mail),
-`DEBUG` (JDWP on port 5005), `JAVA_MEMORY_LIMIT_MB`, and a `/volume_mounted_init.sh` hook.
+`EXTERNAL_RDB_URI`/`RDB_DRIVER`/`RDB_USER`/`RDB_PASSWORD`, `OAK_MACHINE_ID` (see below),
+`SMTPS_*` (mail), `DEBUG` (JDWP on port 5005), `JAVA_MEMORY_LIMIT_MB`, and a
+`/volume_mounted_init.sh` hook.
 
 With `OAK_STORAGE=rdb` the repository lives in a relational database, which must be reachable
 and must hold a database the connecting user may create tables in — Oak creates its own tables
@@ -65,6 +66,40 @@ for deployments that add another vendor's driver through `ADDITIONAL_SLING_FEATU
 docker run --rm -e OAK_STORAGE=rdb -e EXTERNAL_RDB_URI=jdbc:postgresql://db:5432/iap \
   -e RDB_USER=iap -e RDB_PASSWORD=secret -p 8080:8080 -it iap/iap
 ```
+
+**PostgreSQL collation — required**: the database **must** be created with `C` (or `POSIX`)
+collation. Oak's `RDBDocumentStore` orders the node `id` column by Unicode code point (its queries
+use `ORDER BY` on `id`, and the primary-key index ordering must match); a locale collation such as
+`en_US.utf8` — the default the official `postgres` image initializes — orders those ids differently,
+so Oak mis-resolves already-persisted data. The symptom is insidious: the *first* start succeeds
+(the database is empty, nothing to read back), but *every restart* then fails during activation with
+`ClusterRepositoryInfo getOrCreateId: both setting and then reading of /:clusterConfig/:clusterId
+failed` and the instance hangs. Create the database accordingly:
+
+```
+CREATE DATABASE iap OWNER iap TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';
+```
+
+For the official `postgres` image, set `POSTGRES_INITDB_ARGS=--encoding=UTF8 --lc-collate=C --lc-ctype=C`
+on a **fresh** data volume (collation is fixed when the database is created and cannot be changed
+afterwards). The entrypoint verifies this on start and refuses to launch against a non-`C` database.
+See the [Oak RDB DocumentStore documentation](https://jackrabbit.apache.org/oak/docs/nodestore/document/rdb-document-store.html).
+
+**Cluster node identity**: both document-store back-ends, `mongo` and `rdb`, record a *cluster
+node* in the database, identified by the hardware address and the working directory, and reclaim
+it on the next start. A container is given a fresh MAC address every run, so without help a
+restart that happens before the previous lease expires — two minutes — cannot reclaim or wait for
+the old cluster node. It takes a new cluster id instead and leaves the old entry behind, marked
+active forever and therefore never recovered. Setting `OAK_MACHINE_ID` to any stable value (e.g.
+`ca2d50000001`) pins the address, so that a restarted container reclaims its own cluster node.
+
+It is **opt-in, with no default, on purpose**. Several IAP containers routinely share one
+database, and they distinguish themselves precisely by having different hardware addresses; a
+shared default would collapse them all onto a single cluster node, which corrupts the repository
+rather than merely failing. Set it only for a single-instance deployment, or give every instance
+its own distinct value.
+
+`start.py` reads `OAK_MACHINE_ID` too, for the same reason, when it is set in the environment.
 
 ## The metadata layer
 

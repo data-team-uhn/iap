@@ -60,7 +60,7 @@ IAP will be available at <http://localhost:8080> once it has started. Press `Ctr
 | `-p`, `--port <PORT>` | Port to bind to (default `8080`). |
 | `--data <DIR>` | Directory for the runtime state — repository, cache, logs (default `.iap-data`). Each concurrently running instance needs its own data directory and port; the repository takes an exclusive lock on its data directory, so a second instance pointed at the same one will hang waiting for the lock. |
 | `--mongo` | Use a MongoDB document store for the repository instead of the default file-based (TAR/segment) store. Requires a running MongoDB instance. |
-| `--postgres` | Use a PostgreSQL document store for the repository instead of the default file-based (TAR/segment) store. Requires a running PostgreSQL instance and a database the connecting user may create tables in — Oak creates its own tables and indexes on first start. |
+| `--postgres` | Use a PostgreSQL document store for the repository instead of the default file-based (TAR/segment) store. Requires a running PostgreSQL instance and a database the connecting user may create tables in — Oak creates its own tables and indexes on first start. The database **must** be created with `C` collation (`CREATE DATABASE iap OWNER iap TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C';`); with a locale collation the first start succeeds but every restart wedges, see [docs/docker.md](docs/docker.md). |
 | `--jdbc <URL>` | JDBC URL for `--postgres` (default `jdbc:postgresql://localhost:5432/iap`). |
 | `--db-user <USER>` | Database user for `--postgres`. |
 | `--db-password <PASSWORD>` | Database password for `--postgres`. |
