@@ -21,6 +21,7 @@ every function here is exercised with explicit inputs."""
 
 import argparse
 import math
+from types import SimpleNamespace
 
 import pytest
 
@@ -219,8 +220,52 @@ class TestCgroupLimits:
 
     def test_ram_readings_capped_by_the_container(self, tmp_path, monkeypatch):
         self._cgroup_v2(tmp_path, monkeypatch, "max 100000\n", f"{1 * 1024 ** 3}\n")
+        self._no_usage_files(tmp_path, monkeypatch)
         assert bs.read_total_ram_gb() == 1.0
         assert bs.read_available_ram_gb() <= 1.0
+
+    def _no_usage_files(self, tmp_path, monkeypatch):
+        for name in ("_CGROUP_V2_MEMORY_CURRENT", "_CGROUP_V2_MEMORY_STAT",
+                     "_CGROUP_V1_MEMORY_USAGE", "_CGROUP_V1_MEMORY_STAT"):
+            monkeypatch.setattr(bs, name, str(tmp_path / "absent"))
+
+    def _usage_v2(self, tmp_path, monkeypatch, current, inactive_file):
+        (tmp_path / "memory.current").write_text(f"{current}\n", encoding="utf-8")
+        (tmp_path / "memory.stat").write_text(
+            f"anon 1024\ninactive_file {inactive_file}\nslab 512\n", encoding="utf-8"
+        )
+        monkeypatch.setattr(bs, "_CGROUP_V2_MEMORY_CURRENT", str(tmp_path / "memory.current"))
+        monkeypatch.setattr(bs, "_CGROUP_V2_MEMORY_STAT", str(tmp_path / "memory.stat"))
+        monkeypatch.setattr(bs, "_CGROUP_V1_MEMORY_USAGE", str(tmp_path / "absent"))
+        monkeypatch.setattr(bs, "_CGROUP_V1_MEMORY_STAT", str(tmp_path / "absent"))
+
+    def test_usage_is_read_without_reclaimable_page_cache(self, tmp_path, monkeypatch):
+        self._usage_v2(tmp_path, monkeypatch, 3 * 1024 ** 3, 1 * 1024 ** 3)
+        assert bs.read_cgroup_memory_usage_gb() == 2.0
+
+    def test_available_ram_subtracts_what_the_container_already_uses(
+        self, tmp_path, monkeypatch
+    ):
+        # The bug: capping host-free RAM by the limit reported the full 8 GB as free no
+        # matter how much of it was already gone, so the figure never moved.
+        self._cgroup_v2(tmp_path, monkeypatch, "max 100000\n", f"{8 * 1024 ** 3}\n")
+        self._usage_v2(tmp_path, monkeypatch, 6 * 1024 ** 3, 0)
+        monkeypatch.setattr(
+            bs.psutil, "virtual_memory",
+            lambda: SimpleNamespace(total=64 * 1024 ** 3, available=40 * 1024 ** 3),
+        )
+        assert bs.read_available_ram_gb() == 2.0
+
+    def test_available_ram_never_goes_negative(self, tmp_path, monkeypatch):
+        self._cgroup_v2(tmp_path, monkeypatch, "max 100000\n", f"{2 * 1024 ** 3}\n")
+        self._usage_v2(tmp_path, monkeypatch, 3 * 1024 ** 3, 0)
+        assert bs.read_available_ram_gb() == 0.0
+
+    def test_missing_usage_files_fall_back_to_the_limit(self, tmp_path, monkeypatch):
+        self._cgroup_v2(tmp_path, monkeypatch, "max 100000\n", f"{4 * 1024 ** 3}\n")
+        self._no_usage_files(tmp_path, monkeypatch)
+        assert bs.read_cgroup_memory_usage_gb() is None
+        assert bs.read_available_ram_gb() <= 4.0
 
     def test_cores_never_exceed_the_quota(self, tmp_path, monkeypatch):
         # <= rather than ==, which is what the name claims: the function returns
