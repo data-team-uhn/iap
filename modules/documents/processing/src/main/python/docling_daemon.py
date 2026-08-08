@@ -41,13 +41,14 @@ import os
 import signal
 import sys
 import threading
+import traceback
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import docling_config  # noqa: F401 — apply shared Docling settings on import
 
@@ -62,6 +63,17 @@ from toc_and_appendix_detection import DEFAULT_MIN_STRUCTURE_TOKENS
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 18765
 DEFAULT_SHARED_DOCS = "/shared-docs"
+
+
+class ParseRequestError(ValueError):
+    """The caller's request is wrong, so the reply is a 400.
+
+    Only bad query parameters raise this. Conversion itself raises plenty of ordinary
+    ValueErrors from deep inside pypdf, Docling and the chunker; those are server-side
+    failures and must stay 500s, or a caller that (correctly) does not retry 4xx would
+    permanently mark a re-parseable document as bad. Subclasses ValueError so existing
+    callers that catch ValueError still work.
+    """
 
 
 class DaemonState:
@@ -112,26 +124,31 @@ def shared_docs_root() -> Path:
 def resolve_parse_path(raw_path: str) -> Path:
     """Resolve and allowlist a caller-supplied document path under the shared docs root.
 
-    @param raw_path: absolute path from the ``path`` query parameter
+    ``raw_path`` is already URL-decoded: ``parse_qs`` decodes query values, so decoding
+    again here would turn a correctly-encoded ``report%2520final.pdf`` into
+    ``report final.pdf`` -- a different file -- and would also let ``%252e%252e`` collapse
+    into ``..`` after the caller believed it had escaped it.
+
+    @param raw_path: absolute, already-decoded path from the ``path`` query parameter
     @return: resolved existing file path
-    @raise ValueError: when the path is empty, outside the shared root, or not a file
+    @raise ParseRequestError: when the path is empty, outside the shared root, or not a file
     """
     text = (raw_path or "").strip()
     if not text:
-        raise ValueError("path query parameter is required")
-    candidate = Path(unquote(text)).resolve()
+        raise ParseRequestError("path query parameter is required")
+    candidate = Path(text).resolve()
     root = shared_docs_root()
     try:
         candidate.relative_to(root)
     except ValueError as exc:
-        raise ValueError(
+        raise ParseRequestError(
             f"path must be under {root}; got {candidate}"
         ) from exc
     if not candidate.is_file():
-        raise ValueError(f"document does not exist: {candidate}")
+        raise ParseRequestError(f"document does not exist: {candidate}")
     suffix = candidate.suffix.lower()
     if suffix not in INPUT_SUFFIXES:
-        raise ValueError(
+        raise ParseRequestError(
             f"path must end in one of {', '.join(INPUT_SUFFIXES)}; got {candidate.name!r}"
         )
     return candidate
@@ -280,9 +297,11 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                     try:
                         parsed = int(raw)
                     except ValueError:
-                        raise ValueError(f"{name} must be an integer; got {raw!r}") from None
+                        raise ParseRequestError(
+                            f"{name} must be an integer; got {raw!r}"
+                        ) from None
                     if parsed < 1:
-                        raise ValueError(f"{name} must be 1 or greater; got {parsed}")
+                        raise ParseRequestError(f"{name} must be 1 or greater; got {parsed}")
                     options[name] = parsed
 
             payload = _run_parse(
@@ -294,9 +313,13 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                 ),
             )
             _json_response(self, HTTPStatus.OK, payload)
-        except ValueError as exc:
+        except ParseRequestError as exc:
             _json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except Exception as exc:
+            # Everything else is a server-side failure, including the ValueErrors Docling,
+            # pypdf and the chunker raise on a malformed document. Log the traceback: the
+            # reply carries only the message.
+            traceback.print_exc(file=sys.stderr)
             _json_response(self, HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
 
 
