@@ -76,6 +76,14 @@ _CGROUP_V1_CPU_QUOTA = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us"
 _CGROUP_V1_CPU_PERIOD = "/sys/fs/cgroup/cpu/cpu.cfs_period_us"
 _CGROUP_V1_MEMORY_LIMIT = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
 
+#   Current usage, needed to turn the ceiling above into "how much is still free". Read
+#   alongside memory.stat, because page cache counts towards usage but is handed back under
+#   pressure instead of causing an OOM kill.
+_CGROUP_V2_MEMORY_CURRENT = "/sys/fs/cgroup/memory.current"
+_CGROUP_V2_MEMORY_STAT = "/sys/fs/cgroup/memory.stat"
+_CGROUP_V1_MEMORY_USAGE = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+_CGROUP_V1_MEMORY_STAT = "/sys/fs/cgroup/memory/memory.stat"
+
 #   A cgroup memory ceiling at or above this is "unlimited" in practice, not a real limit.
 _CGROUP_UNLIMITED_BYTES = 1 << 62
 
@@ -126,6 +134,42 @@ def read_cgroup_memory_limit_gb() -> float | None:
             return limit / (1024 ** 3)
     return None
 
+def _read_stat_field(path: str, field: str) -> int | None:
+    """One ``<name> <value>`` field from a cgroup ``memory.stat``, or ``None``."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            for line in handle:
+                name, _, value = line.partition(" ")
+                if name == field:
+                    return int(value.strip())
+    except (OSError, ValueError):
+        return None
+    return None
+
+def read_cgroup_memory_usage_gb() -> float | None:
+    """The container's non-reclaimable memory use in GB, or ``None`` when not containerised.
+
+    Inactive page cache is subtracted: it counts towards the cgroup's usage but is reclaimed
+    under pressure rather than causing an OOM kill, so charging it against the budget would
+    starve the workers on any container that has read a few large PDFs.
+    """
+    for usage_path, stat_path, cache_field in (
+        (_CGROUP_V2_MEMORY_CURRENT, _CGROUP_V2_MEMORY_STAT, "inactive_file"),
+        (_CGROUP_V1_MEMORY_USAGE, _CGROUP_V1_MEMORY_STAT, "total_inactive_file"),
+    ):
+        raw = _read_first_line(usage_path)
+        if not raw:
+            continue
+        try:
+            usage = int(raw)
+        except ValueError:
+            continue
+        if usage < 0:
+            continue
+        cache = _read_stat_field(stat_path, cache_field) or 0
+        return max(0, usage - cache) / (1024 ** 3)
+    return None
+
 def read_logical_core_count() -> int:
     """
     Read usable logical CPU count, honouring a container quota and CPU affinity.
@@ -163,11 +207,21 @@ def read_total_ram_gb() -> float:
 
 def read_available_ram_gb() -> float:
     """
-    Read free RAM in gigabytes now, capped by the container's memory ceiling.
+    Read free RAM in gigabytes now, honouring the container's memory ceiling.
+
+    psutil reports the *host's* free memory inside a container. Capping that by the cgroup
+    limit was not enough on its own: it returned the whole limit however much the container
+    had already used, so the reading never moved. :func:`refresh_default_max_workers` then
+    recomputed the same budget every call, and ``calc_ram_budget_gb`` could never reach its
+    tight-memory branch. What is actually free is the limit minus current usage.
     """
     available = psutil.virtual_memory().available / (1024 ** 3)
     limit = read_cgroup_memory_limit_gb()
-    return min(available, limit) if limit is not None else available
+    if limit is None:
+        return available
+    usage = read_cgroup_memory_usage_gb()
+    headroom = limit if usage is None else limit - usage
+    return max(0.0, min(available, headroom))
 
 def calc_ram_budget_gb(total_gb: float, available_gb: float) -> float:
     """
