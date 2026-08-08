@@ -39,6 +39,7 @@
         <configuration>
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
+            <Sling-Nodetypes>SLING-INF/nodetypes/i18n.cnd</Sling-Nodetypes>
           </instructions>
         </configuration>
       </plugin>
