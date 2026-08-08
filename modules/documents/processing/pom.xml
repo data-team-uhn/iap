@@ -48,7 +48,9 @@
         </configuration>
       </plugin>
 
-      <!-- Run the pytest suite during the test phase, honouring the shared skipTests flag. -->
+      <!-- Run the pytest suite during the test phase, honouring the shared skipTests flag.
+           Needs Python on the PATH with the packages in requirements-test.txt installed;
+           CI does that in .github/workflows/pull-request-build.yml. -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
