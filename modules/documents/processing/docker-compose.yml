@@ -22,7 +22,13 @@
 #
 #   POST http://localhost:18765/parse?path=/shared-docs/<dir>/<file>.pdf
 #
-# See PARSING_PIPELINE.md for the full flow.
+# On Linux the daemon has to run as whoever owns the host directory behind /shared-docs, or
+# it cannot write {stem}.md and Chunks/ back. Set IAP_DOCLING_UID / IAP_DOCLING_GID to that
+# owner ("id -u" / "id -g", usually 1000, which is the default here). The image's own chown
+# only stamps the image layer; a bind mount arrives with the host's ownership on top of it.
+# Docker Desktop virtualises this, so the value does not matter on Windows or macOS.
+#
+# See processing.md for the full flow.
 
 services:
   docling:
@@ -30,9 +36,13 @@ services:
       context: .
       dockerfile: Dockerfile
     image: iap/docling:latest
-    user: docling
+    user: "${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}"
     environment:
       IAP_SHARED_DOCS: /shared-docs
+      # An overridden uid has no passwd entry, so HOME would be unset. Point it somewhere
+      # writable for any library that still wants a home directory. LibreOffice does not
+      # need it (libreoffice_convert passes its own -env:UserInstallation temp profile).
+      HOME: /tmp
     volumes:
       - ${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs
     deploy:
