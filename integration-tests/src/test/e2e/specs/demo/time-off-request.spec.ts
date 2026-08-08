@@ -22,21 +22,34 @@ import { LoginPage } from '../../pages/login.page';
 
 const asAdmin = { Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}` };
 
+const asRequester = {
+  Authorization: `Basic ${Buffer.from('demo-requester:demo-requester').toString('base64')}`,
+};
+
+const asApprover = {
+  Authorization: `Basic ${Buffer.from('demo-approver:demo-approver').toString('base64')}`,
+};
+
 /**
  * The time off request demo.
  *
  * This suite grows with the demo, and the demo grows with the platform: the point of both is that each
- * capability is proved by something in use rather than only by its own unit tests. Today the workflow
- * engine does not exist, so what can be asserted is that the process is *defined* and installed — the
- * schema a requester fills in, and the BPMN the engine will execute. As the engine lands, the tests
- * asserting that a request can actually be raised and approved belong here.
+ * capability is proved by something in use rather than only by its own unit tests. It now runs the whole
+ * process — a requester raises a request, an approver decides it, and the submission ends up approved or
+ * refused — which is worth more than any of the pieces asserted on separately, because it is the only
+ * thing that proves they fit together.
  */
 test.describe('the time off request demo', () => {
   test('installs the request schema', async ({ request }) => {
-    const response = await request.get('/Schemas/timeOffRequest/v1.json', { headers: asAdmin });
+    const response = await request.get('/Schemas/timeOffRequest/v1.json', {
+      headers: asAdmin,
+    });
 
     expect(response.ok()).toBeTruthy();
-    const version = (await response.json()) as { version?: string; active?: boolean };
+    const version = (await response.json()) as {
+      version?: string;
+      active?: boolean;
+    };
     expect(version.version).toBe('1.0');
     expect(version.active).toBe(true);
   });
@@ -45,7 +58,11 @@ test.describe('the time off request demo', () => {
     const response = await request.get('/Schemas/timeOffRequest/v1/details/day.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
-    const question = (await response.json()) as { text?: string; dataType?: string; required?: boolean };
+    const question = (await response.json()) as {
+      text?: string;
+      dataType?: string;
+      required?: boolean;
+    };
     expect(question.text).toBe('Which day are you taking off?');
     expect(question.dataType).toBe('date');
     expect(question.required).toBe(true);
@@ -68,8 +85,12 @@ test.describe('the time off request demo', () => {
     // identifier. That embedding is deliberate and on by default, but it is configurable — so asserting on
     // the embedded node would make this test depend on a serialization default rather than on the demo.
     const [schema, workflow] = await Promise.all([
-      request.get('/Schemas/timeOffRequest/v1.-dereference.json', { headers: asAdmin }),
-      request.get('/Workflows/timeOffRequest/v1.-dereference.json', { headers: asAdmin }),
+      request.get('/Schemas/timeOffRequest/v1.-dereference.json', {
+        headers: asAdmin,
+      }),
+      request.get('/Workflows/timeOffRequest/v1.-dereference.json', {
+        headers: asAdmin,
+      }),
     ]);
 
     expect(schema.ok()).toBeTruthy();
@@ -115,6 +136,232 @@ test.describe('the time off request demo', () => {
     expect(bpmn).toContain('<bpmn:endEvent id="requestRejected"');
     // Diagram interchange too, or the visual editor has nothing to draw
     expect(bpmn).toContain('<bpmndi:BPMNDiagram');
+  });
+
+  test('raises a submission against the demo schema', async ({ request }) => {
+    // The demo's first real submission: the bootstrap system workflow on /Submissions vets the schema
+    // version and creates the entity, all through the engine — no CRUD endpoint involved
+    const response = await request.post('/Submissions', {
+      headers: asAdmin,
+      form: {
+        title: 'A very sunny Friday',
+        schemaVersion: '/Schemas/timeOffRequest/v1',
+      },
+      maxRedirects: 0,
+    });
+
+    expect(response.status()).toBe(302);
+    const location = response.headers()['location'];
+    expect(location).toBe('/Submissions/aVerySunnyFriday');
+
+    const created = await request.get(`${location}.json`, { headers: asAdmin });
+    expect(created.ok()).toBeTruthy();
+    const submission = (await created.json()) as {
+      'jcr:primaryType'?: string;
+      title?: string;
+      status?: string;
+      schemaVersion?: { '@path'?: string };
+    };
+    expect(submission['jcr:primaryType']).toBe('sub:Submission');
+    expect(submission.title).toBe('A very sunny Friday');
+    // Autocreated by the node type, which only a real repository does — the unit tests cannot see this
+    expect(submission.status).toBe('draft');
+    // The stored identifier became a real REFERENCE: the serializer can only embed what actually resolves
+    expect(submission.schemaVersion?.['@path']).toBe('/Schemas/timeOffRequest/v1');
+  });
+
+  test('refuses submissions against an inactive schema version', async ({ request }) => {
+    // The demo schema is active; ask for something that is real but retired to prove the vetting runs.
+    // There is no inactive version in the demo content, so use the workflow tree instead: a path that
+    // exists but is not a schema version at all.
+    const response = await request.post('/Submissions', {
+      headers: asAdmin,
+      form: { title: 'Sneaky', schemaVersion: '/Workflows/timeOffRequest/v1' },
+      maxRedirects: 0,
+    });
+
+    expect(response.status()).toBe(400);
+    expect(((await response.json()) as { error?: string }).error).toContain('no schema version');
+  });
+
+  // The process, told in order. These tests are one story rather than several checks — a request has to exist
+  // before it can be read, and be decided before there is nothing left to decide — so they run serially even
+  // though the suite is otherwise parallel. Left parallel they race each other for the same task, and the engine
+  // rightly refuses the loser.
+  test.describe.serial('raising and deciding a request', () => {
+    test('lets an ordinary user raise a request they hold no rights to create', async ({ request }) => {
+      // The whole authorization model in one request. demo-requester has no write access anywhere — the only ACL
+      // they benefit from makes /Submissions itself visible so that a POST can be routed. What lets this succeed is
+      // the bootstrap's start event naming `everyone` as a performer; the engine checks that, then does the writing
+      // as its own service user.
+      const response = await request.post('/Submissions', {
+        headers: asRequester,
+        form: {
+          title: 'A long weekend',
+          schemaVersion: '/Schemas/timeOffRequest/v1',
+        },
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(302);
+      expect(response.headers()['location']).toBe('/Submissions/aLongWeekend');
+
+      // The engine wrote it, so jcr:createdBy names the service user; the human is remembered separately
+      const created = await request.get('/Submissions/aLongWeekend.json', {
+        headers: asAdmin,
+      });
+      const submission = (await created.json()) as {
+        createdBy?: string;
+        'jcr:createdBy'?: string;
+      };
+      expect(submission.createdBy).toBe('demo-requester');
+      expect(submission['jcr:createdBy']).toBe('workflows');
+    });
+
+    test('refuses to let an ordinary user author a workflow', async ({ request }) => {
+      // Same user, same kind of request, different answer — and nothing about the data changed. The definition at
+      // /SystemWorkflows/createWorkflow names iap-administrators as its performer, so that is where the no is said.
+      const response = await request.post('/Workflows', {
+        headers: asRequester,
+        form: { title: 'Something I should not be authoring' },
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(403);
+      expect(((await response.json()) as { error?: string }).error).toContain('not allowed');
+      // And nothing was created on the way to being refused
+      const listing = await request.get('/Workflows.2.json', {
+        headers: asAdmin,
+      });
+      expect(JSON.stringify(await listing.json())).not.toContain('should not be authoring');
+    });
+
+    test('lets the people the workflow involves read the request', async ({ request }) => {
+      // Reads cannot go through the engine — no workflow can run per row of a query — so the workflow *declares*
+      // and the engine materializes: starting the instance granted read to the requester and to the performers of
+      // its user task. Nobody wrote an ACL by hand, and nobody else can see it.
+      const [byRequester, byApprover, someoneElses] = await Promise.all([
+        request.get('/Submissions/aLongWeekend.json', { headers: asRequester }),
+        request.get('/Submissions/aLongWeekend.json', { headers: asApprover }),
+        // The negative control, and the reason this test means anything: a request the requester neither raised
+        // nor approves stays invisible to them, so what they can see was granted rather than merely universal
+        request.get('/Submissions/aVerySunnyFriday.json', {
+          headers: asRequester,
+        }),
+      ]);
+
+      expect(byRequester.status()).toBe(200);
+      expect(byApprover.status()).toBe(200);
+      expect(someoneElses.status()).toBe(404);
+    });
+
+    test('puts the new request under its workflow, waiting on the approver', async ({ request }) => {
+      // The submission's schema version names the workflow, so raising one starts it — and the instance lives
+      // inside the submission, which is what makes it findable, securable and disposable along with it
+      // `deep` is what asks the serializer for child nodes; without it a resource is its own properties and the
+      // references they embed, which is the right default for a tree that now holds running workflows
+      const response = await request.get('/Submissions/aLongWeekend.deep.-dereference.infinity.json', {
+        headers: asApprover,
+      });
+      expect(response.ok()).toBeTruthy();
+      const submission = (await response.json()) as Record<string, any>;
+
+      const instance = submission['wf:instances']?.timeOffRequest;
+      expect(instance).toBeTruthy();
+      expect(instance.status).toBe('active');
+      // Parked on the user task, with a token recording exactly where
+      expect(instance.token.currentNodeId).toBe('approveRequest');
+      expect(instance.approveRequest.status).toBe('created');
+      expect(instance.approveRequest.label).toBe('Approve the request');
+      expect(instance.approveRequest.taskDefinitionId).toBe('approveRequest');
+    });
+
+    test('refuses a decision from someone the task does not name', async ({ request }) => {
+      // The requester can see the task — they can see their own submission — but seeing it and being allowed to
+      // decide it are different questions, and the second is answered by the activity's performers
+      const response = await request.post(
+        '/Submissions/aLongWeekend/wf:instances/timeOffRequest/approveRequest',
+        {
+          headers: asRequester,
+          form: { outcome: 'approved' },
+          maxRedirects: 0,
+        },
+      );
+
+      expect(response.status()).toBe(403);
+    });
+
+    test('carries the request through to approval when the approver decides', async ({ request }) => {
+      const decision = await request.post(
+        '/Submissions/aLongWeekend/wf:instances/timeOffRequest/approveRequest',
+        { headers: asApprover, form: { outcome: 'approved' }, maxRedirects: 0 },
+      );
+      expect(decision.status()).toBe(200);
+
+      const response = await request.get('/Submissions/aLongWeekend.deep.-dereference.infinity.json', {
+        headers: asApprover,
+      });
+      const submission = (await response.json()) as Record<string, any>;
+
+      // The end event the gateway routed to said what finishing that way means to the submission
+      expect(submission.status).toBe('approved');
+      const instance = submission['wf:instances'].timeOffRequest;
+      expect(instance.status).toBe('completed');
+      expect(instance.endTime).toBeTruthy();
+      // The task records who decided and what they decided; the token is spent and gone
+      expect(instance.approveRequest.status).toBe('completed');
+      expect(instance.approveRequest.outcome).toBe('approved');
+      expect(instance.approveRequest.assignee).toBe('demo-approver');
+      expect(instance.token).toBeUndefined();
+    });
+
+    test('has nothing left to decide once the task is done', async ({ request }) => {
+      const response = await request.post(
+        '/Submissions/aLongWeekend/wf:instances/timeOffRequest/approveRequest',
+        {
+          headers: asApprover,
+          form: { outcome: 'rejected' },
+          maxRedirects: 0,
+        },
+      );
+
+      expect(response.status()).toBe(409);
+    });
+
+    test('routes a refusal down the other arc of the gateway', async ({ request }) => {
+      // The same definition, the other outcome: proving the gateway actually chooses rather than always taking the
+      // first arc. `rejected` matches no condition, so the arc marked as the default carries it.
+      const raised = await request.post('/Submissions', {
+        headers: asRequester,
+        form: {
+          title: 'A day I will not get',
+          schemaVersion: '/Schemas/timeOffRequest/v1',
+        },
+        maxRedirects: 0,
+      });
+      expect(raised.status()).toBe(302);
+
+      const decision = await request.post(
+        '/Submissions/aDayIWillNotGet/wf:instances/timeOffRequest/approveRequest',
+        { headers: asApprover, form: { outcome: 'rejected' }, maxRedirects: 0 },
+      );
+      expect(decision.status()).toBe(200);
+
+      const response = await request.get('/Submissions/aDayIWillNotGet.json', {
+        headers: asApprover,
+      });
+      expect(((await response.json()) as { status?: string }).status).toBe('rejected');
+    });
+
+    test('keeps the system workflows out of sight', async ({ request }) => {
+      // They are the engine's own tree, read through its service user; an ordinary user has no business seeing
+      // which definitions decide what they may do
+      const response = await request.get('/SystemWorkflows.json', {
+        headers: asRequester,
+      });
+
+      expect(response.status()).toBe(404);
+    });
   });
 
   test('creates the two people the demo is about', async ({ page }) => {
