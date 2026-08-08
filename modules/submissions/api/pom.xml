@@ -45,6 +45,7 @@
               SLING-INF/content/libs/sub/;path:=/libs/sub/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -84,10 +85,16 @@
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- A submission has workflows attached to it, through the wf:WorkflowAttachable mixin -->
+    <!-- A submission has workflows attached to it, through the wf:WorkflowAttachable mixin, and the
+         module plugs its create-a-submission behavior into the engine's service task extension point -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-workflows</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -149,7 +156,6 @@
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>

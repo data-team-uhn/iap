@@ -32,7 +32,13 @@
     "org.apache.sling.jcr.repoinit.RepositoryInitializer~submissions": {
       "service.ranking:Integer": 300,
       "scripts": [
-        "create path (sub:SubmissionsHomepage) /Submissions"
+        "create path (sub:SubmissionsHomepage) /Submissions",
+        // Enough for a POST to reach the engine, and not one node more: Sling resolves the posted-to resource
+        // before it dispatches, so an invisible /Submissions would answer 404 instead of letting the workflow
+        // decide. Restricting the grant to the homepage's own node type leaves the sub:Submission nodes below it
+        // unreadable — who may see one is the workflow's business, and until it grants that, not even their
+        // author can read them back.
+        "set ACL on /Submissions \n allow jcr:read for everyone restriction(rep:ntNames,sub:SubmissionsHomepage) \n end"
       ]
     }
   }

@@ -88,6 +88,17 @@ public class SchemaVersion extends Entity
     }
 
     /**
+     * The schema this version belongs to, which is simply its parent.
+     *
+     * @return the owning schema, or {@code null} if this version is stored outside one
+     */
+    @Nullable
+    public Schema getSchema()
+    {
+        return this.getParent(Schema.RESOURCE_TYPE, Schema.class);
+    }
+
+    /**
      * The version of the workflow driving submissions filed under this schema version: what a submission is put
      * through once it exists, as against what this schema says a submission must contain.
      *
