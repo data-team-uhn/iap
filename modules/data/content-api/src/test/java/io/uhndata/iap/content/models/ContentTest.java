@@ -157,6 +157,19 @@ class ContentTest
     }
 
     @Test
+    void prefersTheRecordedActorToWhoeverDidTheWriting()
+    {
+        // Content raised through a workflow is written by the engine's service user, so jcr:createdBy names the
+        // machinery; the person it was acting for is recorded separately, and is the honest answer
+        final Resource resource = this.context.create().resource("/content/raised", Map.of(
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE,
+            "jcr:createdBy", "workflows",
+            "createdBy", "alice"));
+
+        assertEquals("alice", resource.adaptTo(Content.class).getCreatedBy());
+    }
+
+    @Test
     void toleratesMissingOptionalMetadata()
     {
         // A node without the optional jcr:created / jcr:createdBy still adapts, thanks to the
