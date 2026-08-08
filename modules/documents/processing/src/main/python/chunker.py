@@ -106,6 +106,7 @@ from markdown_markers import (
     PAGE_MARKER_LINE,
     RULE_LINE,
     count_tokens,
+    tokens_for_length,
     within_word_limits,
 )
 from toc_and_appendix_detection import (
@@ -462,19 +463,26 @@ def _split_by_paragraphs(text: str, max_tokens: int) -> list[str]:
     When a part is closed, a trailing ``<!-- page: N -->`` run is moved onto the next paragraph.
     """
     parts: list[str] = []
-    current: str | None = None
+    # The part under construction is kept unjoined: measuring a candidate by length instead
+    # of building it keeps this linear in the size of the text (see :func:`_pack_blocks`).
+    pieces: list[str] = []
+    length = 0
     for paragraph in text.split("\n\n"):
         if paragraph.strip() == "":
             continue
-        candidate = paragraph if current is None else current + "\n\n" + paragraph
-        if current is None or count_tokens(candidate) <= max_tokens:
-            current = candidate
+        if not pieces:
+            pieces, length = [paragraph], len(paragraph)
             continue
-        body, current = _flush_without_trailing_page_markers(current, paragraph)
+        if tokens_for_length(length + 2 + len(paragraph)) <= max_tokens:
+            pieces.append(paragraph)
+            length += 2 + len(paragraph)
+            continue
+        body, current = _flush_without_trailing_page_markers("\n\n".join(pieces), paragraph)
         if body is not None:
             parts.append(body)
-    if current is not None:
-        parts.append(current)
+        pieces, length = [current], len(current)
+    if pieces:
+        parts.append("\n\n".join(pieces))
     return _move_trailing_page_markers(parts)
 
 
@@ -502,46 +510,63 @@ def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
     move onto the start of the next part.
     """
     parts: list[str] = []
-    current: str | None = None
+    # The part under construction is kept as unjoined pieces plus the length it would have
+    # once joined. Building ``current + "\n\n" + block`` just to measure it copied the whole
+    # accumulated part on every block — and on every lookahead, which is always discarded —
+    # making packing quadratic in the number of sections. tokens_for_length measures the
+    # concatenation without doing it, and is exactly what count_tokens would have returned.
+    pieces: list[str] = []
+    length = 0
     index = 0
     n = len(blocks)
+
+    def take(block: str) -> None:
+        nonlocal length
+        length += (2 if pieces else 0) + len(block)
+        pieces.append(block)
+
+    def restart(text: str) -> None:
+        nonlocal pieces, length
+        pieces, length = [text], len(text)
+
     while index < n:
         block = blocks[index]
-        if current is None:
-            current = block
+        if not pieces:
+            restart(block)
             index += 1
             continue
 
         if _is_standalone_heading(block) and index + 1 < n:
             following = blocks[index + 1]
-            lookahead = current + "\n\n" + block + "\n\n" + following
-            if count_tokens(lookahead) <= max_tokens:
-                current = current + "\n\n" + block
+            lookahead = length + 2 + len(block) + 2 + len(following)
+            if tokens_for_length(lookahead) <= max_tokens:
+                take(block)
                 index += 1
                 continue
-            body, current = _flush_without_trailing_page_markers(current, block)
+            body, current = _flush_without_trailing_page_markers("\n\n".join(pieces), block)
             if body is not None:
                 parts.append(body)
+            restart(current)
             index += 1
             continue
 
-        candidate = current + "\n\n" + block
-        if count_tokens(candidate) <= max_tokens:
-            current = candidate
+        if tokens_for_length(length + 2 + len(block)) <= max_tokens:
+            take(block)
             index += 1
             continue
-        if _is_standalone_heading(current):
+        if _is_standalone_heading("\n\n".join(pieces)):
             # Do not emit a heading-only part — pull the next block in even over budget.
-            current = candidate
+            take(block)
             index += 1
             continue
-        body, current = _flush_without_trailing_page_markers(current, block)
+        body, current = _flush_without_trailing_page_markers("\n\n".join(pieces), block)
         if body is not None:
             parts.append(body)
+        restart(current)
         index += 1
 
-    if current is not None:
-        parts.append(current)
+    if pieces:
+        parts.append("\n\n".join(pieces))
     return _move_trailing_page_markers(parts)
 
 
@@ -693,6 +718,39 @@ def _part_heading(
     return previous_heading or [DEFAULT_HEADING]
 
 
+def _preamble_heading(
+    part_text: str, preamble_text: str, repeated: frozenset = frozenset()
+) -> list[str]:
+    """Heading array for the part that carries the document preamble.
+
+    The preamble is the content before the first boundary heading, so it has no heading of
+    its own and is labelled :data:`DEFAULT_HEADING`. But :func:`_pack_blocks` merges it with
+    as many following top-level sections as the budget allows, and labelling that whole
+    merged part ``DEFAULT_HEADING`` dropped every one of those sections' headings from the
+    catalog — a short document came out as one untitled blob. Keep the label, then add the
+    real headings that were merged in after it.
+
+    @param part_text: the emitted chunk part
+    @param preamble_text: the preamble chunk's text, to tell "preamble only" from "merged"
+    @param repeated: recurring lines to refuse (see :func:`repeated_lines`)
+    @return: the heading array for this part
+    """
+    if part_text.strip() == preamble_text.strip():
+        return [DEFAULT_HEADING]
+    headings = _part_heading(part_text, None, repeated)
+    return headings if headings == [DEFAULT_HEADING] else [DEFAULT_HEADING] + headings
+
+
+def chunk_file_content(text: str) -> str:
+    """The exact content written for a chunk file: the chunk text plus a trailing newline.
+
+    :func:`build_chunk_tree` records this length in ``catalog.json`` and
+    :func:`write_chunk_files` writes it, so the two have to agree. The catalog used to
+    record ``len(text)``, one character short of every file on disk.
+    """
+    return text + "\n"
+
+
 def _write_json(path: Path, data: object) -> None:
     """Write ``data`` as pretty-printed UTF-8 JSON with a trailing newline."""
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -823,7 +881,9 @@ def write_chunk_files(
         )
 
     for chunk in tree["chunks"]:
-        (chunks_dir / chunk["file"]).write_text(chunk["text"] + "\n", encoding="utf-8")
+        (chunks_dir / chunk["file"]).write_text(
+            chunk_file_content(chunk["text"]), encoding="utf-8"
+        )
     # write catalog.json file
     _write_json(chunks_dir / CATALOG_NAME, tree["catalog"])
     return ChunkingSummary(
@@ -919,10 +979,12 @@ def build_chunk_tree(
     # those united parts that are still over budget (a single oversized section).
     top_chunks = _split_into_top_chunks(main_lines, boundary_level)
     top_texts = [chunk["text"] for chunk in top_chunks if chunk["text"]]
+    # _pack_blocks already ends with _move_trailing_page_markers, so nothing more is needed
+    # here; a second pass only re-walked and re-split every packed part to find nothing.
     packed = _pack_blocks(top_texts, max_tokens) if top_texts else []
-    packed = _move_trailing_page_markers(packed)
     # Prefer Chunk-0 when the document has a leading preamble; otherwise start at 1.
     first_number = 0 if (top_chunks and top_chunks[0]["number"] == 0) else 1
+    preamble_text = top_chunks[0]["text"] if first_number == 0 else ""
     split_level = boundary_level if boundary_level is not None else 0
     # Size gate already returned above when derive_outline skipped the index.
     assert line_index is not None
@@ -940,7 +1002,7 @@ def build_chunk_tree(
             "questions_answered": [],
             "extraction_hints": [],
             "pages": _pages_in(text),
-            "length": len(text),
+            "length": len(chunk_file_content(text)),
             "isAppendix": is_appendix,
         })
         next_id += 1
@@ -952,6 +1014,10 @@ def build_chunk_tree(
         else:
             parts = [packed_text]
         parts = _merge_heading_only_parts(parts)
+        # This pass is not redundant, unlike the one that used to follow _pack_blocks above.
+        # _split_oversized re-splits individual packed parts, and the last piece of each split
+        # keeps its trailing markers — which lands in the middle of the list once the next
+        # packed part follows it. Merging parts can leave one mid-list too.
         parts = _move_trailing_page_markers(_merge_small_text_tails(parts, MIN_TAIL_TOKENS))
 
         single_part = len(parts) == 1
@@ -959,8 +1025,7 @@ def build_chunk_tree(
             name = f"Chunk-{number}.md" if single_part else f"Chunk-{number}.{part_index}.md"
             previous_heading = catalog_chunks[-1]["heading"] if catalog_chunks else None
             if first_number == 0 and not catalog_chunks:
-                # The preamble chunk is labelled DEFAULT_HEADING whatever it contains
-                heading = [DEFAULT_HEADING]
+                heading = _preamble_heading(part_text, preamble_text, repeated)
             else:
                 # Everything else gets its real heading
                 heading = _part_heading(part_text, previous_heading, repeated)
