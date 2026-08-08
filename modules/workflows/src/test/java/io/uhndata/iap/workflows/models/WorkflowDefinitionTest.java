@@ -63,18 +63,16 @@ class WorkflowDefinitionTest
         final Resource resource = this.context.create().resource(PATH, Map.of(
             TYPE, WorkflowDefinition.RESOURCE_TYPE,
             "title", "Time off request",
-            "active", true,
-            "systemWorkflow", true));
+            "active", true));
         final WorkflowDefinition definition = resource.adaptTo(WorkflowDefinition.class);
 
         assertNotNull(definition);
         assertEquals("Time off request", definition.getTitle());
         assertTrue(definition.isActive());
-        assertTrue(definition.isSystemWorkflow());
     }
 
     @Test
-    void defaultsToInactiveAndNotASystemWorkflow()
+    void defaultsToInactive()
     {
         final Resource resource = this.context.create().resource(PATH, TYPE, WorkflowDefinition.RESOURCE_TYPE);
         final WorkflowDefinition definition = resource.adaptTo(WorkflowDefinition.class);
@@ -82,7 +80,6 @@ class WorkflowDefinitionTest
         assertNotNull(definition);
         assertNull(definition.getTitle());
         assertFalse(definition.isActive());
-        assertFalse(definition.isSystemWorkflow());
         assertTrue(definition.getVersions().isEmpty());
     }
 

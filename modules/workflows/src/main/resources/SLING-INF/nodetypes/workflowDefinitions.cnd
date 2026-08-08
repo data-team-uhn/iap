@@ -48,6 +48,32 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
+// Homepage node for the /SystemWorkflows root path: the workflows that ARE the
+// platform's own behavior, e.g. what happens when a POST asks a homepage for a
+// new entity. Deliberately a separate tree rather than a flag on /Workflows:
+// being under /SystemWorkflows is what makes a workflow a system one, the two
+// audiences get separate ACLs wholesale, and user-facing listings need no
+// filtering. The engine reads this tree through its service user, so ordinary
+// users need no access to it at all.
+[wf:SystemWorkflowsHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "wf/SystemWorkflowsHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // The listed entities are ordinary workflow definitions; only their location
+  // makes them system workflows.
+  - childNodeType (STRING) = "wf:WorkflowDefinition" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains workflow definitions
+  + * (wf:WorkflowDefinition) = wf:WorkflowDefinition
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
 //
 // Workflow Definitions
 //
@@ -63,9 +89,6 @@
 
   // When false, no new instances may be created from this definition
   - active (BOOLEAN) = false
-
-  // Whether the workflow is a system workflow (to be used by technical admins) or not
-  - systemWorkflow (BOOLEAN)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -93,6 +116,12 @@
 
   // When false, no new instances may be created from this version
   - active (BOOLEAN) = false
+
+  // The resource type of the node whose events this version handles, e.g.
+  // "wf/WorkflowsHomepage". This is how the engine matches an incoming event's
+  // target to a system workflow; user workflows don't need it, since they are
+  // reached through the schema version that references them.
+  - targetResourceType (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -131,6 +160,19 @@
   // Optional display label
   - label (STRING)
 
+  // The principals — users or groups — allowed to make execution pass through
+  // this node: who may fire a catching event, and later, who may complete a user
+  // task. This is where authorization lives. Nobody holds repository rights on
+  // the content workflows manage; the engine writes with its own service user
+  // once it has decided the actor belongs here, so this property, not an ACL, is
+  // what says who may do what. Absent or empty means nobody, deliberately: a
+  // definition has to name its performers, silence is never permission. The
+  // built-in "everyone" group means any authenticated user.
+  //
+  // Corresponds to BPMN's potentialOwner resource role, and to the lane a node
+  // sits in when the diagram is drawn with lanes.
+  - performers (STRING) multiple
+
   // Allow any other properties for extensibility: the properties a flow node
   // carries beyond these depend on its type, and are listed by that type's
   // wf:FlowNodeType.properties
@@ -155,6 +197,12 @@
   // true = catching event, false = throwing event
   - catching (BOOLEAN) = true
 
+  // The resolved name of the BPMN message this event catches or throws — the
+  // domain event name the engine matches incoming events against. Only set for
+  // message-flavored events; the parser will resolve it from the messageRef,
+  // hand-authored definitions set it directly.
+  - messageName (STRING)
+
 //-----------------------------------------------------------------------------
 // Entry point of a workflow process.
 [wf:StartEvent] > wf:Event
@@ -178,6 +226,13 @@
   // engine has to tell the two apart, so it is a property rather than a separate
   // kind of end event.
   - terminate (BOOLEAN) = false
+
+  // The status to write on the host resource when an instance ends here, e.g.
+  // "approved". What finishing this way means to the thing being processed
+  // belongs with the end event that says so, rather than needing a service task
+  // whose only job is to record it. Also the kind of thing a BPMN parser can
+  // carry across, being a plain attribute on the element.
+  - hostStatus (STRING)
 
 //-----------------------------------------------------------------------------
 // Abstract base for the catch and throw events occurring mid-process. Abstract
@@ -229,6 +284,11 @@
 // is what lets a new kind of task be added without a new node type.
 [wf:Activity] > wf:FlowNode
   - sling:resourceType (STRING) = "wf/Activity" mandatory autocreated protected
+
+  // The name of the ServiceTaskHandler that performs this activity. Only
+  // meaningful on service-task-typed activities: user tasks are performed by
+  // people, so they wait instead of naming a handler.
+  - handler (STRING)
 
   // Any events that can occur while this activity is active. Nesting them here is
   // what makes them boundary events; the same node type standing directly under

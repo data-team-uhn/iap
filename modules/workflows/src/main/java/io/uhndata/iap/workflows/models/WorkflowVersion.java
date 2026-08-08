@@ -60,6 +60,9 @@ public class WorkflowVersion extends Entity
     @ValueMapValue
     private String bpmnXmlParsedHash;
 
+    @ValueMapValue
+    private String targetResourceType;
+
     /**
      * The version label, e.g. "1.0".
      *
@@ -90,6 +93,19 @@ public class WorkflowVersion extends Entity
     public boolean isActive()
     {
         return this.active;
+    }
+
+    /**
+     * The resource type of the node whose events this version handles, e.g. {@code wf/WorkflowsHomepage} —
+     * how the engine matches an incoming event's target to a system workflow. User workflows don't need it,
+     * since they are reached through the schema version that references them.
+     *
+     * @return a resource type, or {@code null} when this version is not matched by target
+     */
+    @Nullable
+    public String getTargetResourceType()
+    {
+        return this.targetResourceType;
     }
 
     /**

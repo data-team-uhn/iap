@@ -22,7 +22,9 @@ import java.util.List;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code wf:Activity} node: a unit of work the workflow has to get done. Whether that work
@@ -39,6 +41,22 @@ public class Activity extends FlowNode
 {
     /** The {@code sling:resourceType} of a {@code wf:Activity} node. */
     public static final String RESOURCE_TYPE = "wf/Activity";
+
+    @ValueMapValue
+    private String handler;
+
+    /**
+     * The name of the {@code ServiceTaskHandler} that performs this activity. Only meaningful on
+     * service-task-typed activities: user tasks are performed by people, so they wait instead of naming a
+     * handler.
+     *
+     * @return a handler name, or {@code null} when nothing performs this activity automatically
+     */
+    @Nullable
+    public String getHandler()
+    {
+        return this.handler;
+    }
 
     /**
      * The events watching this activity while it runs, e.g. a deadline expiring or a cancellation arriving. They are

@@ -48,9 +48,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class WorkflowVersionTest
 {
-    private static final String VERSION_PATH = "/Workflows/timeOff/1.0";
-
     private static final String BPMN = "<bpmn:definitions/>";
+
+    private static final String VERSION_PATH = "/Workflows/timeOff/1.0";
 
     private final SlingContext context = new SlingContext();
 
@@ -68,7 +68,8 @@ class WorkflowVersionTest
             "version", "1.0",
             "description", "The first cut",
             "active", true,
-            "bpmnXmlParsedHash", "abc123"));
+            "bpmnXmlParsedHash", "abc123",
+            "targetResourceType", "wf/WorkflowsHomepage"));
         // The source is a file child, not a property, so it is loaded as one
         this.context.load().binaryFile(new ByteArrayInputStream(BPMN.getBytes(StandardCharsets.UTF_8)),
             VERSION_PATH + "/bpmn.xml", "application/xml");
@@ -80,6 +81,7 @@ class WorkflowVersionTest
         assertTrue(version.isActive());
         assertEquals(BPMN, read(version.getBpmnFile()));
         assertEquals("abc123", version.getBpmnXmlParsedHash());
+        assertEquals("wf/WorkflowsHomepage", version.getTargetResourceType());
     }
 
     @Test
@@ -110,6 +112,7 @@ class WorkflowVersionTest
         assertNull(version.getDescription());
         assertNull(version.getBpmnFile());
         assertNull(version.getBpmnXmlParsedHash());
+        assertNull(version.getTargetResourceType());
         assertFalse(version.isActive());
         assertTrue(version.getFlowNodes().isEmpty());
         assertTrue(version.getStartEvents().isEmpty());
@@ -199,8 +202,8 @@ class WorkflowVersionTest
 
     /**
      * Reads a file resource the way a caller of {@link WorkflowVersion#getBpmnFile} would, which is the point of
-     * handing back the file rather than its contents. Decoded through the charset rather than a String
-     * constructor, which checkstyle forbids.
+     * handing back the file rather than its contents. Decoded through the charset rather than a String constructor,
+     * which checkstyle forbids.
      *
      * @param file the file resource to read
      * @return its contents, decoded as UTF-8

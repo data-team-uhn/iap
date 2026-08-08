@@ -59,6 +59,9 @@ public abstract class FlowNode extends EntityPart
     @ValueMapValue
     private String flowNodeType;
 
+    @ValueMapValue
+    private String[] performers;
+
     /**
      * The stable BPMN identifier of this node, e.g. {@code task_1}. This, not the node name, is how the rest of the
      * graph refers to it: the node name is only whatever escaping the identifier needed to become a JCR name.
@@ -92,6 +95,24 @@ public abstract class FlowNode extends EntityPart
     public FlowNodeType getFlowNodeType()
     {
         return this.getReference(this.flowNodeType, FlowNodeType.class);
+    }
+
+    /**
+     * The principals allowed to make execution pass through this node: who may fire this event, and — once user
+     * tasks run — who may complete this task. This is the authorization of the whole platform: the content a
+     * workflow manages grants nobody any rights, so what a user may do is what the definitions let them do here,
+     * rather than what an access control list on the data says.
+     *
+     * <p>An empty list means nobody. That is deliberate rather than an oversight to be lenient about: a definition
+     * that forgot to say who may use it should refuse everyone until it does, not admit everyone. The one principal
+     * with a wider meaning is the built-in {@code everyone} group, which matches any authenticated user.</p>
+     *
+     * @return the names of the users and groups allowed here, empty if none are named
+     */
+    @NotNull
+    public List<String> getPerformers()
+    {
+        return this.performers == null ? List.of() : List.of(this.performers);
     }
 
     /**
