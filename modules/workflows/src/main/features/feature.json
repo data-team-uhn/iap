@@ -27,11 +27,25 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (wf:WorkflowsHomepage) /Workflows",
+        "create path (wf:SystemWorkflowsHomepage) /SystemWorkflows",
         // /WorkflowTypes is not created here: the vocabulary is shipped as initial content whose descriptor
         // declares the homepage's node type itself, leaving repoinit nothing to do. Add it back if this tree
         // ever needs an ACL, since only repoinit can set one; the content loader copes either way, reusing a
         // node that already exists and creating the children under it.
-        "create service user workflows \n set ACL for workflows \n allow jcr:all on / \n end"
+        "create service user workflows \n set ACL for workflows \n allow jcr:all on / \n end",
+        // The group the shipped system workflows name as the performer of administrative acts. It exists so that
+        // the definitions have something real to point at; who belongs to it is a deployment's business.
+        "create group iap-administrators",
+        // Authorization does not live here. Users get no rights on the content workflows manage — the engine
+        // writes as its own service user, once the definition has said the actor may — so the only grant anyone
+        // needs is the one that lets a request reach a workflow endpoint at all. Sling resolves the posted-to
+        // resource before dispatching, and an unreadable path resolves to nothing, so the homepage node itself
+        // has to be visible or the servlet is never reached and the refusal would be a 404 rather than the
+        // engine's own answer. Restricting by node type rather than by path grants exactly the homepage: the
+        // definitions below it are wf:WorkflowDefinition nodes, and stay invisible.
+        // /SystemWorkflows gets no such grant: it is the engine's own tree, read through the service user, and
+        // nothing is ever posted to it.
+        "set ACL on /Workflows \n allow jcr:read for everyone restriction(rep:ntNames,wf:WorkflowsHomepage) \n end"
       ]
     },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~workflows": {
