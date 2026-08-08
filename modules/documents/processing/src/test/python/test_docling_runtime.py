@@ -27,13 +27,17 @@ body draining, health reporting, and the batch-abandon path that runs when a pag
 
 import time
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
+from http import HTTPStatus
 from types import SimpleNamespace
+from urllib.parse import urlencode
 
 import pytest
 
 pytest.importorskip("docling", reason="docling not installed; conversion plumbing skipped")
 
 import docling_daemon as daemon  # noqa: E402 -- must follow the importorskip guard
+import docling_pdf_parser as pdf_parser  # noqa: E402
 from docling_pdf_parser import _abandon_batches  # noqa: E402
 
 
@@ -204,6 +208,21 @@ class TestResolveParsePath:
         with pytest.raises(ValueError, match="required"):
             daemon.resolve_parse_path("   ")
 
+    def test_does_not_decode_an_already_decoded_path(self, monkeypatch, tmp_path):
+        # parse_qs decodes query values, so a file literally named "report%20final.pdf"
+        # arrives here with its percent sign intact. Decoding again would look for
+        # "report final.pdf" and report a file that is right there as missing.
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        literal = tmp_path / "report%20final.pdf"
+        literal.write_bytes(b"%PDF")
+        assert daemon.resolve_parse_path(str(literal)) == literal.resolve()
+
+    def test_rejections_are_request_errors(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        with pytest.raises(daemon.ParseRequestError):
+            daemon.resolve_parse_path(str(tmp_path / "missing.pdf"))
+        assert issubclass(daemon.ParseRequestError, ValueError)
+
 
 class TestHealthReporting:
     """``/health`` must fail its status line when the daemon is unusable."""
@@ -240,12 +259,84 @@ class TestHealthReporting:
         assert daemon._health_status() == "starting"
 
 
+class TestParseErrorStatus:
+    """A bad query parameter is the caller's fault; a failed conversion is ours."""
+
+    def _handler(self, query: dict):
+        handler = _FakeHandler(b"")
+        del handler.headers["Content-Length"]
+        handler.path = "/parse?" + urlencode(query)
+        return handler
+
+    def _ready(self, monkeypatch):
+        state = SimpleNamespace(shutdown_requested=False, pdf_executor_broken=False)
+        state.is_ready = lambda: True
+        monkeypatch.setattr(daemon, "_STATE", state)
+
+    def _staged_pdf(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        pdf = tmp_path / "doc.pdf"
+        pdf.write_bytes(b"%PDF")
+        return pdf
+
+    def test_missing_path_is_400(self, monkeypatch, tmp_path):
+        self._ready(monkeypatch)
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        handler = self._handler({})
+        daemon.DoclingDaemonHandler._handle_parse(handler)
+        assert handler.header_value("status") == HTTPStatus.BAD_REQUEST
+
+    def test_unparseable_max_tokens_is_400(self, monkeypatch, tmp_path):
+        self._ready(monkeypatch)
+        pdf = self._staged_pdf(monkeypatch, tmp_path)
+        handler = self._handler({"path": str(pdf), "max_tokens": "abc"})
+        daemon.DoclingDaemonHandler._handle_parse(handler)
+        assert handler.header_value("status") == HTTPStatus.BAD_REQUEST
+
+    def test_a_value_error_from_conversion_is_500(self, monkeypatch, tmp_path):
+        # pypdf, Docling and the chunker all raise plain ValueErrors on a malformed
+        # document. Reporting those as 400 tells a caller not to retry a document that
+        # may well parse next time.
+        self._ready(monkeypatch)
+        pdf = self._staged_pdf(monkeypatch, tmp_path)
+
+        def explode(*args, **kwargs):
+            raise ValueError("invalid xref table")
+
+        monkeypatch.setattr(daemon, "_run_parse", explode)
+        handler = self._handler({"path": str(pdf)})
+        daemon.DoclingDaemonHandler._handle_parse(handler)
+        assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+class TestRunPdfChunksBrokenPool:
+    """A dead pool must surface as BrokenProcessPool so the daemon can act on it."""
+
+    def test_broken_pool_propagates(self, monkeypatch):
+        def explode(_chunk):
+            raise BrokenProcessPool("worker was killed")
+
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", explode)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            with pytest.raises(BrokenProcessPool):
+                pdf_parser._run_pdf_chunks(
+                    [("doc.pdf", 1, 2), ("doc.pdf", 3, 4)], pool, log=lambda _m: None
+                )
+
+    def test_an_ordinary_batch_failure_still_becomes_a_runtime_error(self, monkeypatch):
+        def explode(_chunk):
+            raise RuntimeError("page 3 is broken")
+
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", explode)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(RuntimeError, match="One or more page batches failed"):
+                pdf_parser._run_pdf_chunks([("doc.pdf", 1, 2)], pool, log=lambda _m: None)
+
+
 class TestBrokenPoolShutsDown:
     """A broken PDF pool has to end the process, not just flip a flag."""
 
     def test_broken_pool_requests_shutdown(self, monkeypatch, tmp_path):
-        from concurrent.futures.process import BrokenProcessPool
-
         state = SimpleNamespace(
             shutdown_requested=False, pdf_executor_broken=False,
             pdf_executor=None, worker_count=1, docx_lock=None, docx_converter=None,

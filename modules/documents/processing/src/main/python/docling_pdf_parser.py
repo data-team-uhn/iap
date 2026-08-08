@@ -25,6 +25,7 @@ Each worker process loads the converter once via _init_worker(); page batches ar
 import gc
 import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from time import perf_counter
 from typing import Callable
@@ -102,6 +103,15 @@ def _run_pdf_chunks(
         _, start_page, end_page = future_to_chunk[future]
         try:
             result = future.result()
+        except BrokenProcessPool:
+            # The pool itself is dead (a worker was OOM-killed or crashed), not just this
+            # batch. It cannot recover in-process, so the caller has to see the real
+            # exception type: the daemon's handler flags the pool broken and asks for a
+            # restart. Turning it into a "failed batch" tuple below would hide that behind a
+            # generic RuntimeError and leave the daemon reporting itself healthy forever.
+            for pending in future_to_chunk:
+                pending.cancel()
+            raise
         except Exception as e:
             result = (
                 start_page,
