@@ -23,12 +23,28 @@ mvn clean install
 Passwords match the usernames. That is fine precisely because this only ever runs behind `--demo` or the
 demo integration-test suite; a real deployment installs none of it.
 
-## The engine does not exist yet
+## What runs
 
-So today this defines the process without executing it. That is still worth having: it is the target the
-engine gets built against, and `integration-tests/src/test/e2e/specs/demo/` already asserts that the
-schema, the workflow and the accounts are installed and correct. As the engine lands, the tests that raise
-a request and approve it belong in that same suite, and this file should stop making this excuse.
+The whole process, end to end, and `specs/demo/` walks through exactly this:
+
+1. **`demo-requester` raises a request** — `POST /Submissions` with a `title` and this schema's version
+   path. They hold no repository rights whatsoever; the bootstrap's start event names `everyone` as a
+   performer, so the engine vets the schema version, creates the submission in its `draft` state and writes
+   it on their behalf. The same user POSTing to `/Workflows` is refused with a 403, because that definition
+   names `iap-administrators` instead — the two answers differ only in what the workflows say.
+2. **The request goes under its workflow immediately**, because the schema version names one. A
+   `wf:WorkflowInstance` appears inside the submission with a token parked on `approveRequest`, and the
+   task waiting for the approver appears beside it.
+3. **Reading follows from the same declarations**: starting the instance granted read to the requester and
+   to `time-off-approvers`. A request `demo-requester` neither raised nor approves stays invisible to them.
+4. **`demo-approver` decides** — `POST` to the task with `outcome=approved` or `rejected`. The gateway
+   routes on the outcome, the end event it reaches says what that means to the submission, and its `status`
+   becomes `approved` or `rejected`. The requester, who can see the task, is refused a 403 if they try to
+   decide it themselves.
+
+What the demo does *not* yet show: the boundary event and the reminder-after-two-days shape, since nothing
+delivers timers yet; and the flow nodes here are hand-written to mirror the diagram, because the BPMN
+parser that would generate them does not exist.
 
 The schema version does point at its workflow version, so the two halves are already joined.
 

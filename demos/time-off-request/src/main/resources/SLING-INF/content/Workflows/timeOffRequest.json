@@ -2,11 +2,67 @@
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Time off request",
   "active": true,
-  "systemWorkflow": false,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
-    "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built."
+    "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element, hand-written only because the BPMN parser does not exist yet - once it does, it generates exactly this. Two places where the two forms differ deliberately: the gateway's conditionExpression here is the interim literal outcome the engine matches on, where the diagram carries the real expression a conditions module will compile; and hostStatus on the end events, which says what finishing that way means to the submission, is the kind of plain attribute the parser will be able to carry across.",
+    "requestSubmitted": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requestSubmitted",
+      "label": "Request submitted",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toApproval": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproval",
+        "targetRef": "approveRequest"
+      }
+    },
+    "approveRequest": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "approveRequest",
+      "label": "Approve the request",
+      "performers": [
+        "time-off-approvers"
+      ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toDecision": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDecision",
+        "targetRef": "decision"
+      }
+    },
+    "decision": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "decision",
+      "label": "Approved?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toApproved": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproved",
+        "targetRef": "requestApproved",
+        "conditionExpression": "approved"
+      },
+      "toRejected": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejected",
+        "targetRef": "requestRejected",
+        "isDefault": true
+      }
+    },
+    "requestApproved": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestApproved",
+      "label": "Time off approved",
+      "hostStatus": "approved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "requestRejected": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestRejected",
+      "label": "Time off refused",
+      "hostStatus": "rejected",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
   }
 }
