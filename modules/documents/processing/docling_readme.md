@@ -67,11 +67,11 @@ On start you get:
 - **1 warm DOCX converter** in the HTTP server process (lighter, single-threaded via
   `docx_lock`)
 
-### Java side
+### Caller side
 
-- The daemon is **not** started by Java. Start it with Docker, or by hand for local work.
-- Java **stages** the upload once under `/shared-docs/{answerUuid}/{fileName}`, then
-  `DoclingParseClient` calls `POST /parse?path=...`. Python writes all derived files.
+- Nothing starts the daemon for you. Start it with Docker, or by hand for local work.
+- The caller **stages** the upload once under `/shared-docs/{uuid}/{fileName}`, then calls
+  `POST /parse?path=...`. Python writes all derived files.
   The reply is a small summary (`ok`, `markdown_path`, `chunked`, `chunks_dir`, `logs`).
 
 ### Manual HTTP daemon start (optional)
@@ -96,30 +96,40 @@ The daemon has **no authentication**. Every endpoint, `/shutdown` included, is o
 reach the port, so nothing that can route to it may be untrusted. Parsing is also slow, which makes
 a reachable endpoint a cheap denial-of-service target. Two ways to hold that line:
 
-- **The deployment** (`docker-compose.yml`) publishes **no port at all**. Every container port is
-  reachable by service name inside a Compose network without publishing, so IAP running as a
-  sibling service reaches the daemon at `http://docling:18765` while nothing on or off the host
-  has a route in. This is the intended setup.
+- **The deployment** (`docker-compose.yml`) publishes the port as `127.0.0.1:18765:18765`, so only
+  this host can reach it. A bare `18765:18765` would bind every host interface, and Docker's
+  forwarding rules sit ahead of the host firewall, so it would be open to anyone who can route to
+  the host. A sibling service on the same Compose network reaches the daemon by service name
+  (`http://docling:18765`) without the published port, so drop the `ports:` block entirely if
+  nothing on the host needs to call it.
 - **A hand-run daemon** stays on loopback: keep the `--host 127.0.0.1` default when starting it
-  directly, or publish the container port as `127.0.0.1:18765:18765` rather than `18765:18765`. A
-  bare `18765:18765` binds every host interface, and Docker's forwarding rules sit ahead of the
-  host firewall, so it is reachable by anyone who can route to the host.
+  directly. The daemon prints a warning to stderr if you bind anything else.
 
 In a container the process itself still binds `0.0.0.0`, and that cannot be tightened: Docker
 forwards traffic to the container's `eth0`, not its loopback, so a daemon listening only on the
 container's loopback refuses every connection.
 
-### Configuration (system properties)
+### Configuration
 
-| Property                       | Default                  | Purpose                                                                                                                                                                   |
-| ------------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `iap.docling.daemon.url`       | `http://127.0.0.1:18765` | Daemon base URL. The default suits a hand-run daemon; the Compose deployment must override it to `http://docling:18765`, the daemon's service name on the Compose network |
-| `iap.docling.timeout.minutes`  | `30`                     | Per-document parse timeout                                                                                                                                                |
-| `iap.docling.parse.output.dir` | `/shared-docs`           | Where Java writes `<answer-uuid>/<name>.md` and `Chunks/`. Java-side only — the daemon never sees it                                                                      |
+Environment:
 
-Java never starts the daemon. Run it yourself — in Docker for a real deployment, or by hand for
-local work (see [Manual daemon start](#manual-http-daemon-start-optional)).
+| Variable                                       | Default        | Purpose                                                                                                                        |
+| ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `IAP_SHARED_DOCS`                              | `/shared-docs` | Shared root. `?path=` is resolved against it, and paths outside it are refused                                                 |
+| `IAP_LIBREOFFICE_SOFFICE` / `LIBREOFFICE_PATH` | `soffice`      | LibreOffice executable                                                                                                         |
+| `OMP_NUM_THREADS` / `DOCLING_NUM_THREADS`      | `1`            | Per-process thread caps, so the outer `ProcessPoolExecutor` owns the parallelism (set on import by `docling_config.py`)        |
 
-Java talks to the daemon over `POST /parse` and nothing else; when the
-daemon cannot be reached, parsing falls through to the pure-Java PDFBox/POI generators, which need
-nothing external.
+Daemon flags:
+
+| Flag           | Default                      | Purpose                        |
+| -------------- | ---------------------------- | ------------------------------ |
+| `--host`       | `127.0.0.1`                  | Bind address                   |
+| `--port`       | `18765`                      | Listen port                    |
+| `--workers N`  | auto, from cores + RAM budget | Parallel PDF worker processes  |
+
+Per-request options go on the `/parse` query string: `chunk` (default true), `max_tokens`
+(2000) and `min_structure_tokens` (20000).
+
+Run the daemon yourself — in Docker for a real deployment, or by hand for local work (see
+[Manual daemon start](#manual-http-daemon-start-optional)). Docling is the only processor: if
+the daemon cannot be reached, or Docling fails, the parse fails. There is no fallback.
