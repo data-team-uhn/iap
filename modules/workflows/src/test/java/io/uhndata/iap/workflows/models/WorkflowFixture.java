@@ -39,13 +39,13 @@ import io.uhndata.iap.entities.models.EntityPart;
  * @version $Id$
  * @since 0.1.0
  */
-final class WorkflowFixture
+public final class WorkflowFixture
 {
     /** The {@code sling:resourceType} property name, spelled out often enough to be worth a constant. */
-    static final String TYPE = "sling:resourceType";
+    public static final String TYPE = "sling:resourceType";
 
     /** The {@code sling:resourceSuperType} property name. */
-    static final String SUPER_TYPE = "sling:resourceSuperType";
+    public static final String SUPER_TYPE = "sling:resourceSuperType";
 
     private WorkflowFixture()
     {
@@ -62,7 +62,7 @@ final class WorkflowFixture
      *
      * @param context the Sling context to set up
      */
-    static void setUp(final SlingContext context)
+    public static void setUp(final SlingContext context)
     {
         context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, EntityHomepage.class);
         context.addModelsForPackage("io.uhndata.iap.workflows.models");
@@ -108,7 +108,7 @@ final class WorkflowFixture
      * @param path the path the identifier stands for
      * @throws RepositoryException never, only declared by the mocked JCR API
      */
-    static void resolveReference(final SlingContext context, final String identifier, final String path)
+    public static void resolveReference(final SlingContext context, final String identifier, final String path)
         throws RepositoryException
     {
         final Node target = Mockito.mock(Node.class);
