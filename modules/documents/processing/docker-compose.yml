@@ -1,0 +1,51 @@
+# Copyright 2026 DATA @ UHN. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Run the Docling processing daemon with a shared /shared-docs volume.
+#
+# The caller must mount the same host directory (or set IAP_SHARED_DOCS to match) so it can
+# stage uploads and the daemon can write {stem}.md + Chunks/ beside them. The daemon is
+# path-based: it only parses files that are already on the shared volume.
+#
+#   POST http://localhost:18765/parse?path=/shared-docs/<dir>/<file>.pdf
+#
+# See PARSING_PIPELINE.md for the full flow.
+
+services:
+  docling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: iap/docling:latest
+    user: docling
+    environment:
+      IAP_SHARED_DOCS: /shared-docs
+    volumes:
+      - ${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18765/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:18765:18765
