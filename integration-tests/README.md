@@ -90,6 +90,23 @@ download and the system packages for very little extra signal on an internal app
   `yarn report` — for anything that only fails on CI, that is the difference between a diagnosis and a
   guess.
 
+## Typechecking and linting
+
+These sources are held to the same standard as the application frontend, and both checks gate the build
+— they run at `generate-resources`, before the instances boot and before Chromium is downloaded, so a
+type error or a lint violation is reported in seconds rather than after a full launch:
+
+```
+yarn typecheck        # tsc --noEmit
+yarn lint             # eslint .
+yarn lint --fix       # for the formatting and import-order ones
+```
+
+`eslint.config.mjs` is the frontend's configuration with the React-only parts removed; the rule set that
+remains is deliberately identical, so a rule tightened there is worth tightening here. `support/*.mjs`
+runs under bare Node rather than through Playwright's transpiler, so it is linted without the type-aware
+rules, which would have no type information to work from.
+
 ## Why the test run does not fail the build directly
 
 The run is deferred and the verdict enforced at `verify` by `support/check-results.mjs`, the same way

@@ -64,6 +64,12 @@ export const INSTANCES: readonly Instance[] = [
   },
 ];
 
+/**
+ * An instance that is being run, and therefore has a URL. `activeInstances` is the only way to obtain
+ * one, so whatever holds an `ActiveInstance` can address it without re-checking that it is there.
+ */
+export type ActiveInstance = Instance & { baseURL: string };
+
 /** The instances actually being exercised on this run. */
-export const activeInstances = (): Instance[] =>
-  INSTANCES.filter((instance): instance is Instance & { baseURL: string } => Boolean(instance.baseURL));
+export const activeInstances = (): ActiveInstance[] =>
+  INSTANCES.filter((instance): instance is ActiveInstance => Boolean(instance.baseURL));

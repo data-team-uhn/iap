@@ -191,7 +191,11 @@
         <groupId>com.github.eirslett</groupId>
         <artifactId>frontend-maven-plugin</artifactId>
         <executions>
-          <!-- The inherited executions build and test the application frontend; none of them apply here. -->
+          <!-- The inherited executions build and test the application frontend; the two that bundle it
+               do not apply here. Note that the plugin-wide workingDirectory below redirects every
+               inherited execution at the end-to-end package, so the ones left enabled run this package's
+               own scripts - which is how yarn-typecheck and yarn-lint come to check the Playwright
+               sources, holding them to the same standard as the rest of the frontend code. -->
           <execution>
             <id>webpack</id>
             <phase>none</phase>
@@ -208,12 +212,19 @@
             </goals>
             <phase>initialize</phase>
           </execution>
+          <!-- Bound to initialize, not to one of the test phases where this module's dependencies would
+               otherwise belong, because the inherited yarn-typecheck and yarn-lint both run at
+               generate-resources and need node_modules to already be there: tsc and eslint are
+               dependencies of this package, so without it the script dies with "tsc: not found" long
+               before any test phase is reached. The order that leaves - install, then typecheck and lint,
+               then the browser download at generate-test-resources - also means a type or lint error is
+               reported without first fetching 150MB of Chromium. -->
           <execution>
             <id>yarn install</id>
             <goals>
               <goal>yarn</goal>
             </goals>
-            <phase>generate-test-resources</phase>
+            <phase>initialize</phase>
             <configuration>
               <arguments>install --ignore-scripts</arguments>
             </configuration>

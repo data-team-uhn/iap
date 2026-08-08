@@ -77,7 +77,7 @@ test.describe('the instance with test data', () => {
     expect(response.ok()).toBeTruthy();
     const registry = (await response.json()) as Record<string, { name?: string }>;
     const names = Object.values(registry)
-      .map(entry => entry?.name)
+      .map(entry => entry.name)
       .filter(Boolean);
     expect(names).toContain('University Health Network');
     expect(names).toContain('Centre for Addiction and Mental Health');

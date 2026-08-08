@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { activeInstances, type Instance } from './instances';
+import { activeInstances, type ActiveInstance } from './instances';
 
 /**
  * How long to wait for an instance to become ready. Generous, because a first boot has to install every
@@ -44,7 +44,7 @@ const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAI
  * A WARN is deliberately not blocking. It means something is worth looking at, not that the instance is
  * unusable, and treating it as fatal here would turn a passing suite into a startup timeout.
  */
-const isReady = async (instance: Instance & { baseURL: string }): Promise<boolean> => {
+const isReady = async (instance: ActiveInstance): Promise<boolean> => {
   try {
     const health = await fetch(`${instance.baseURL}/system/health.json?tags=iap`, {
       headers: { Authorization: AUTHORIZATION },
@@ -72,7 +72,7 @@ const isReady = async (instance: Instance & { baseURL: string }): Promise<boolea
   }
 };
 
-const waitFor = async (instance: Instance & { baseURL: string }): Promise<void> => {
+const waitFor = async (instance: ActiveInstance): Promise<void> => {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let lastError = 'no response';
   while (Date.now() < deadline) {
