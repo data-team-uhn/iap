@@ -18,19 +18,26 @@
 
 import { ThemeProvider } from "@mui/material/styles";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
-import WorkflowEditorWidget from "@iap/workflows/WorkflowEditorWidget";
+import WorkflowsManager from "@iap/workflows/WorkflowsManager";
 
-describe("WorkflowEditorWidget", () => {
-  it("links to the full workflow editor", () => {
+// The editor itself is covered by its own suite, and it talks to the repository on mount; the tool
+// only has to place it in the administration chrome.
+vi.mock("@iap/workflows/BpmnEditor", () => ({
+  default: () => <div data-testid="bpmn-editor" />,
+}));
+
+describe("WorkflowsManager", () => {
+  it("hosts the BPMN editor in the administration chrome", () => {
     render(
-      <ThemeProvider theme={appTheme} defaultMode="light">
-        <WorkflowEditorWidget />
+      <ThemeProvider theme={appTheme}>
+        <MemoryRouter initialEntries={["/admin/workflows"]}><WorkflowsManager /></MemoryRouter>
       </ThemeProvider>
     );
 
-    expect(screen.getByText("Create and edit workflow definitions using the visual BPMN editor.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open Workflow Editor" })).toHaveAttribute("href", "/Workflows.html");
+    expect(screen.getByRole("heading", { name: "Workflows" })).toBeInTheDocument();
+    expect(screen.getByTestId("bpmn-editor")).toBeInTheDocument();
   });
 });

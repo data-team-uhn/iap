@@ -16,20 +16,19 @@
  * limitations under the License.
  */
 
-import { Button, Stack, Typography } from "@mui/material";
+import AdminScreen from "@iap/admin-console/AdminScreen";
 
-// A small dashboard widget linking to the full workflow editor
-function WorkflowEditorWidget() {
+import BpmnEditor from "./BpmnEditor";
+
+// The "Workflows" administrative tool: the visual BPMN editor for creating and editing workflow
+// definitions, wrapped in the shared administration chrome (routed at /admin/workflows, see the
+// extension node under Extensions/Admin/Views).
+function WorkflowsManager() {
   return (
-    <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
-      <Typography variant="body2" color="text.secondary">
-        Create and edit workflow definitions using the visual BPMN editor.
-      </Typography>
-      <Button href="/Workflows.html">
-        Open Workflow Editor
-      </Button>
-    </Stack>
+    <AdminScreen title="Workflows">
+      <BpmnEditor />
+    </AdminScreen>
   );
 }
 
-export default WorkflowEditorWidget;
+export default WorkflowsManager;

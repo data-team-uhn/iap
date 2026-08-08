@@ -174,8 +174,8 @@ the shared `AdminScreen` chrome (`@iap/admin-console/AdminScreen`), which provid
 heading and an optional main action slot, and marks the administrative area as a danger zone:
 a panel bordered and tinted with the theme's `admin` palette, hugging the tool content. The
 chrome adds no wayfinding of its own — that is left to the shell (the
-[breadcrumb trail](#the-breadcrumb-trail) on `pageTop`). The first tool is the category manager (`/admin/categories`, from the `categories`
-module).
+[breadcrumb trail](#the-breadcrumb-trail) on `pageTop`). The first tools are the category manager (`/admin/categories`, from the `categories`
+module) and the workflow editor (`/admin/workflows`, from the `workflows` module).
 
 **Access control convention:** admin-only extension nodes — the tiles, their `Views` routing
 nodes, and the console's own app-bar entry — all live under `/Extensions/Admin/<PointName>/`,
