@@ -1,0 +1,35 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "en",
+  "sling:basename": "iap.interface",
+  "usernameLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.username.label",
+    "sling:message": "Username",
+    "iap:description": "Field label on the sign-in form. The name the person signs in with, which is not necessarily their email address."
+  },
+  "passwordLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.password.label",
+    "sling:message": "Password",
+    "iap:description": "Field label on the sign-in form, beneath the username."
+  },
+  "invalidCredentials": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.error.invalidCredentials",
+    "sling:message": "Invalid username or password",
+    "iap:description": "Shown after a failed sign-in. Deliberately does not say which of the two was wrong, so that the form cannot be used to discover whether an account exists."
+  },
+  "moreSignInOptions": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.signInMethods.moreOptions.label",
+    "sling:message": "More sign-in options",
+    "iap:description": "Reveals the sign-in methods that are not the primary one, e.g. a local account where an institutional login comes first."
+  },
+  "aboutThePlatform": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.page.aboutPlatform.label",
+    "sling:message": "About the platform",
+    "iap:description": "Accessible name for the side of the sign-in page that introduces the product. Read aloud, never seen."
+  }
+}

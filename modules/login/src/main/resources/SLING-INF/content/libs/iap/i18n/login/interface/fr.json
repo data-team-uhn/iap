@@ -1,0 +1,30 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "fr",
+  "sling:basename": "iap.interface",
+  "usernameLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.username.label",
+    "sling:message": "Nom d'utilisateur"
+  },
+  "passwordLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.password.label",
+    "sling:message": "Mot de passe"
+  },
+  "invalidCredentials": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.error.invalidCredentials",
+    "sling:message": "Nom d'utilisateur ou mot de passe invalide"
+  },
+  "moreSignInOptions": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.signInMethods.moreOptions.label",
+    "sling:message": "Plus d'options de connexion"
+  },
+  "aboutThePlatform": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.page.aboutPlatform.label",
+    "sling:message": "À propos de la plateforme"
+  }
+}
