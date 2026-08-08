@@ -237,6 +237,12 @@
             <id>yarn-test</id>
             <phase>none</phase>
           </execution>
+          <!-- The inherited typecheck does apply — these are TypeScript sources — but its inherited binding
+               fires before this module's yarn install has run, so it is rebound to just after it. -->
+          <execution>
+            <id>yarn-typecheck</id>
+            <phase>process-test-resources</phase>
+          </execution>
 
           <execution>
             <id>install node and yarn</id>
