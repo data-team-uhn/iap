@@ -145,6 +145,18 @@ class TestChunkFile:
         catalog = json.loads((chunks_dir / chunker.CATALOG_NAME).read_text(encoding="utf-8"))
         assert len(catalog["chunks"]) == summary["chunks"]
 
+    def test_catalog_length_matches_the_chunk_file(self, tmp_path):
+        # "length" is documented as the character count of the chunk file's content, and the
+        # writer appends a newline — so it used to be one short for every chunk.
+        path = self._write_large(tmp_path)
+        chunker.chunk_file(str(path))
+        chunks_dir = path.parent / chunker.CHUNKS_DIRNAME
+        catalog = json.loads((chunks_dir / chunker.CATALOG_NAME).read_text(encoding="utf-8"))
+        assert catalog["chunks"]
+        for entry in catalog["chunks"]:
+            written = (chunks_dir / entry["file"]).read_text(encoding="utf-8")
+            assert entry["length"] == len(written), entry["file"]
+
     def test_huge_threshold_forces_unchunked(self, tmp_path):
         path = self._write_large(tmp_path)
         summary = chunker.chunk_file(str(path), min_structure_tokens=10_000_000)

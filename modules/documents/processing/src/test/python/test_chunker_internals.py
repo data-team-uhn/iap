@@ -387,14 +387,23 @@ class TestFirstChunkHeading:
         assert any(c["heading"] == ["1.0 Introduction"] for c in chunks[1:]), \
             [c["heading"] for c in chunks]
 
-    def test_preamble_chunk_keeps_the_default_even_when_packed(self, tmp_path):
-        # A short preamble is packed together with the following section, so the chunk does
-        # contain "1.0 Introduction" — but Chunk-0 is front matter and is labelled as such
-        # regardless of what got packed into it.
+    def test_packed_preamble_keeps_the_default_and_the_packed_headings(self, tmp_path):
+        # A short preamble is packed together with the following sections. Chunk-0 is still
+        # front matter and keeps the default label, but the sections packed in with it keep
+        # their headings too — dropping them left the whole chunk untitled in the catalog.
         md = (f"One short front-matter line.{chr(10)}{chr(10)}"
-              f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}")
+              f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}{chr(10)}{chr(10)}"
+              f"# 2.0 Methods{chr(10)}{chr(10)}{self.PARAGRAPH}")
         first = self._tree(md, tmp_path)["catalog"]["chunks"][0]
         assert first["file"] == "Chunk-0.md"
+        assert first["heading"][0] == chunker.DEFAULT_HEADING
+        assert "1.0 Introduction" in first["heading"]
+        assert "2.0 Methods" in first["heading"]
+
+    def test_preamble_alone_is_only_the_default(self, tmp_path):
+        # Nothing packed in with it, so there is no real heading to add.
+        md = f"One short front-matter line.{chr(10)}"
+        first = self._tree(md, tmp_path)["catalog"]["chunks"][0]
         assert first["heading"] == [chunker.DEFAULT_HEADING]
 
     def test_preamble_stand_out_lines_do_not_become_the_label(self, tmp_path):

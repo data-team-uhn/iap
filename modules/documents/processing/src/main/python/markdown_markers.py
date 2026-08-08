@@ -87,7 +87,20 @@ def count_tokens(text: str) -> int:
     @param text: the string to measure
     @return: the estimated token count
     """
-    return len(text) // 4
+    return tokens_for_length(len(text))
+
+
+def tokens_for_length(length: int) -> int:
+    """Estimate the token count of a string of ``length`` characters.
+
+    Lets a caller measure a concatenation it has not built yet — the chunker tests whether
+    the next block still fits before committing to joining it. :func:`count_tokens` is
+    defined in terms of this, so the two cannot drift apart.
+
+    @param length: the character count to measure
+    @return: the estimated token count
+    """
+    return length // 4
 
 
 def within_word_limits(text: str) -> bool:
