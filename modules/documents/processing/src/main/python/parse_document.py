@@ -50,6 +50,7 @@ def parse_document(
     min_structure_tokens: int = DEFAULT_MIN_STRUCTURE_TOKENS,
     pdf_executor: ProcessPoolExecutor | None = None,
     pdf_workers: int | None = None,
+    pdf_batch_pages: int | None = None,
     docx_lock: threading.Lock | None = None,
     docx_converter: DocumentConverter | None = None,
     log: LogFn | None = None,
@@ -62,6 +63,7 @@ def parse_document(
     @param min_structure_tokens: leave the document unchunked below this size
     @param pdf_executor: warm PDF pool (daemon); ``None`` lets Docling size its own pool
     @param pdf_workers: worker count hint for the PDF pool
+    @param pdf_batch_pages: pages per worker batch; ``None`` sizes it automatically
     @param docx_lock: optional lock serialising DOCX Docling conversion (daemon)
     @param docx_converter: optional warm DOCX converter (daemon)
     @param log: optional line logger
@@ -98,6 +100,7 @@ def parse_document(
             docling_input,
             executor=pdf_executor,
             workers=pdf_workers,
+            batch_pages=pdf_batch_pages,
             log=_log,
             source_file=filename,
         )

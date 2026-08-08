@@ -55,7 +55,7 @@ def parse_args():
         metavar="N",
         help=(
             "pages per worker batch (default: auto from page count and workers, "
-            f"max {MAX_BATCH_PAGES}; ignored by the shared parse path today — kept for CLI compat)"
+            f"max {MAX_BATCH_PAGES}). Lower it to cut peak memory on a large PDF"
         ),
     )
     parser.add_argument(
@@ -90,6 +90,7 @@ def main() -> None:
             input_path,
             min_structure_tokens=args.min_structure_tokens,
             pdf_workers=args.workers,
+            pdf_batch_pages=args.batch_pages,
             log=lambda message: print(message, flush=True),
         )
     except Exception as exc:
