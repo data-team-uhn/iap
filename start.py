@@ -55,6 +55,11 @@ TERMINAL_YELLOW = '\033[0;33m'
 JAVA_DEBUGGING_FLAGS = ('-Xdebug -Xnoagent -Djava.compiler=NONE'
                         ' -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5005')
 
+# The JDBC connection used by `--postgres` unless `--jdbc` overrides it. The aggregated feature
+# defaults to the `postgres` host of a container deployment, which does not resolve on a
+# developer machine, so a locally started instance points at localhost instead.
+DEV_JDBC_URL = 'jdbc:postgresql://localhost:5432/iap'
+
 ROOT = Path(__file__).resolve().parent
 
 IS_WINDOWS = os.name == 'nt'
@@ -83,6 +88,16 @@ Options:
       --mongo                    Use a MongoDB document store for the repository
                                  instead of the default file-based (TAR/segment)
                                  store. Requires a running MongoDB instance.
+      --postgres                 Use a PostgreSQL document store for the
+                                 repository instead of the default file-based
+                                 (TAR/segment) store. Requires a running
+                                 PostgreSQL instance holding a database the
+                                 connecting user may create tables in; Oak
+                                 creates its own tables on first start.
+      --jdbc <url>               JDBC URL for `--postgres` (default:
+                                 `%s`).
+      --db-user <user>           Database user for `--postgres`.
+      --db-password <password>   Database password for `--postgres`.
       --debug                    Enable Java remote debugging (JDWP) on port
                                  `5005`. Startup pauses until a debugger
                                  attaches - connect with `jdb -attach 5005` (or
@@ -95,7 +110,7 @@ Notes:
   - Any argument not listed above is passed through to the Sling feature
     launcher. For the arguments it accepts, see the Apache Sling Feature
     Launcher documentation:
-    https://github.com/apache/sling-org-apache-sling-feature-launcher"""
+    https://github.com/apache/sling-org-apache-sling-feature-launcher""" % DEV_JDBC_URL
 
 
 def banner(color, *lines):
@@ -196,6 +211,9 @@ def parse_args(argv):
         'permissions': '',
         'projects': [],
         'storage': 'tar',
+        'jdbc_url': DEV_JDBC_URL,
+        'db_user': '',
+        'db_password': '',
         'debug': False,
         'test': False,
         'passthrough': [],
@@ -224,6 +242,17 @@ def parse_args(argv):
             options['projects'] += require_value(argv, i, arg).split(',')
         elif arg == '--mongo':
             options['storage'] = 'mongo'
+        elif arg == '--postgres':
+            options['storage'] = 'rdb'
+        elif arg == '--jdbc':
+            i += 1
+            options['jdbc_url'] = require_value(argv, i, arg)
+        elif arg == '--db-user':
+            i += 1
+            options['db_user'] = require_value(argv, i, arg)
+        elif arg == '--db-password':
+            i += 1
+            options['db_password'] = require_value(argv, i, arg)
         elif arg == '--debug':
             options['debug'] = True
         elif arg == '--test':
@@ -372,6 +401,13 @@ def main(argv):
         features = resolve_project_features(options['projects'], platform_version, project_version,
                                             options['permissions'])
         launcher_args += ['-f', ','.join(features)]
+    if options['storage'] == 'rdb':
+        # Override the container-oriented connection baked into the aggregated feature
+        launcher_args += ['-V', 'rdb.jdbc.uri=' + options['jdbc_url']]
+        if options['db_user']:
+            launcher_args += ['-V', 'rdb.jdbc.user=' + options['db_user']]
+        if options['db_password']:
+            launcher_args += ['-V', 'rdb.jdbc.password=' + options['db_password']]
 
     launcher = (ROOT / 'packaging' / 'target' / 'dependency' / 'org.apache.sling.feature.launcher'
                 / 'bin' / ('launcher.bat' if IS_WINDOWS else 'launcher'))
@@ -381,6 +417,14 @@ def main(argv):
     java_opts = '-Djdk.xml.entityExpansionLimit=0 -Dorg.osgi.service.http.port=%d' % bind_port
     if options['debug']:
         java_opts = JAVA_DEBUGGING_FLAGS + ' ' + java_opts
+    # The document stores identify a cluster node by hardware address plus working directory, and
+    # only reclaim a previous entry when both still match. OAK_MACHINE_ID pins the first half, which
+    # is needed wherever the hardware address is not stable across restarts, such as a container.
+    # See docs/docker.md.
+    machine_id = os.environ.get('OAK_MACHINE_ID')
+    if machine_id:
+        java_opts += (' -Dorg.apache.jackrabbit.oak.plugins.document.ClusterNodeInfo.HWADDRESS=%s'
+                      % machine_id)
     env = dict(os.environ, JAVA_OPTS=java_opts)
 
     # Path.as_uri() produces the platform-correct form (file:///home/... or file:///C:/...)
