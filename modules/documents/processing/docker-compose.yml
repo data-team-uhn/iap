@@ -16,15 +16,13 @@
 
 # Run the Docling processing daemon with a shared /shared-docs volume.
 #
-# The main IAP app must mount the same host directory at the same path (or configure
-# iap.parse.output.dir / IAP_SHARED_DOCS to match) so Java can stage uploads and the
-# daemon can write {stem}.md + Chunks/ beside them.
+# The caller must mount the same host directory (or set IAP_SHARED_DOCS to match) so it can
+# stage uploads and the daemon can write {stem}.md + Chunks/ beside them. The daemon is
+# path-based: it only parses files that are already on the shared volume.
 #
-# On the JVM side:
-#   -Diap.docling.daemon.url=http://docling:18765
-#   -Diap.docling.daemon.autostart=true   # also launch a local daemon
-#   -Diap.docling.parse.combined=true
-#   -Diap.docling.parse.output.dir=/shared-docs
+#   POST http://localhost:18765/parse?path=/shared-docs/<dir>/<file>.pdf
+#
+# See PARSING_PIPELINE.md for the full flow.
 
 services:
   docling:
