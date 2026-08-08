@@ -340,6 +340,20 @@
         <version>26.1.0</version>
         <scope>provided</scope>
       </dependency>
+      <!-- ICU's MessageFormat, for messages that have to be right in every language rather than only in
+           English: CLDR plural categories (a rule for `one` is wrong in Polish and absent in Japanese),
+           named arguments, `select` and `selectordinal`. Deliberately NOT java.text.MessageFormat, which
+           has positional indices, `choice` instead of `plural`, and no CLDR data — the two are easy to
+           confuse and share a class name.
+           This is the MessageFormat 1 syntax. MessageFormat 2 is the newer standard and was evaluated
+           first, but `com.ibm.icu.message2` is not one of the five packages icu4j exports to OSGi, so it
+           can only be used by embedding the whole ~15MB jar; MF1 lives in the exported
+           `com.ibm.icu.text`, which removes the problem rather than working around it. -->
+      <dependency>
+        <groupId>com.ibm.icu</groupId>
+        <artifactId>icu4j</artifactId>
+        <version>78.3</version>
+      </dependency>
       <!-- TEST -->
       <dependency>
         <groupId>org.junit.jupiter</groupId>
