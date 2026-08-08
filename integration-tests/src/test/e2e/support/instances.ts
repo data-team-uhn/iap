@@ -78,6 +78,6 @@ export const INSTANCES: readonly Instance[] = [
  */
 export type ActiveInstance = Instance & { baseURL: string };
 
-/** The instances actually being exercised on this run. */
+/** The instances actually being exercised on this run, with the URL narrowing that filtering proved. */
 export const activeInstances = (): ActiveInstance[] =>
   INSTANCES.filter((instance): instance is ActiveInstance => Boolean(instance.baseURL));
