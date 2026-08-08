@@ -19,7 +19,14 @@ Main processor from `.pdf` and `.docx` to Markdown.
 | `psutil`                  | Lets the batch-sizing script self-optimise workers to CPU/RAM                        |
 | `LibreOffice` (`soffice`) | DOC→DOCX, DOC→PDF, DOCX→PDF before Docling                                           |
 
-Test-only: `pytest`.
+Test-only: `pytest`. `mvn -Ptests` runs the suite, so it needs these on the PATH:
+
+```
+pip install -r modules/documents/processing/requirements-test.txt
+```
+
+That file leaves `docling` out on purpose — it is a multi-GB install, and the tests that need
+it skip themselves when it is missing, so the rest of the suite still runs without it.
 
 ---
 
@@ -117,6 +124,7 @@ Environment:
 | ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `IAP_SHARED_DOCS`                              | `/shared-docs` | Shared root. `?path=` is resolved against it, and paths outside it are refused                                                 |
 | `IAP_LIBREOFFICE_SOFFICE` / `LIBREOFFICE_PATH` | `soffice`      | LibreOffice executable                                                                                                         |
+| `IAP_DOCLING_UID` / `IAP_DOCLING_GID`          | `1000`         | Compose only. Who the container runs as; must own the host directory behind `/shared-docs` or the daemon cannot write its output |
 | `OMP_NUM_THREADS` / `DOCLING_NUM_THREADS`      | `1`            | Per-process thread caps, so the outer `ProcessPoolExecutor` owns the parallelism (set on import by `docling_config.py`)        |
 
 Daemon flags:
