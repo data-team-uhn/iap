@@ -2378,6 +2378,7 @@
     <module>modules</module>
     <module>aggregated-frontend</module>
     <module>test-data</module>
+    <module>demos</module>
     <module>packaging</module>
     <module>tools</module>
   </modules>
