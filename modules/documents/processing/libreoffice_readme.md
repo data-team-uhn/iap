@@ -80,28 +80,25 @@ LibreOffice runs inside the **Python parsing service** (daemon or CLI).
      input.doc
    ```
 
-### Configuration (system properties / env)
+### Configuration (env)
 
-| Property / env                                     | Default                  | Purpose                            |
-| -------------------------------------------------- | ------------------------ | ---------------------------------- |
-| `iap.docling.daemon.url`                           | `http://127.0.0.1:18765` | Daemon base URL                    |
-| `iap.docling.timeout.minutes`                      | `30`                     | Per-document parse timeout         |
-| `iap.docling.parse.output.dir` / `IAP_SHARED_DOCS` | `/shared-docs`           | Shared staging + parse output root |
-| `IAP_LIBREOFFICE_SOFFICE`                          | `soffice`                | LibreOffice executable             |
+| Variable                                       | Default        | Purpose                            |
+| ---------------------------------------------- | -------------- | ---------------------------------- |
+| `IAP_LIBREOFFICE_SOFFICE` / `LIBREOFFICE_PATH` | `soffice`      | LibreOffice executable             |
+| `IAP_SHARED_DOCS`                              | `/shared-docs` | Shared staging + parse output root |
 
-Java never starts the daemon. When the daemon cannot be reached, parsing fails. There is no
+Nothing starts the daemon for you. When the daemon cannot be reached, parsing fails. There is no
 fallback processor.
 
 ---
 
 ## Shared volume
 
-Java and the Docling daemon share **`/shared-docs`** (env `IAP_SHARED_DOCS`, JVM property
-`iap.docling.parse.output.dir`). Layout:
+The caller and the Docling daemon share **`/shared-docs`** (env `IAP_SHARED_DOCS`). Layout:
 
 ```
-/shared-docs/{answerUuid}/
-  {stem}.pdf|.docx|.doc   # staged by Java
+/shared-docs/{uuid}/
+  {stem}.pdf|.docx|.doc     # staged by the caller
   {stem}.docx / {stem}.pdf  # LibreOffice conversions (Python)
   {stem}.md                 # write_chunk_files only
   Chunks/                   # write_chunk_files only
