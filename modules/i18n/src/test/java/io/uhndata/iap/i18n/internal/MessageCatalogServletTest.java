@@ -131,6 +131,19 @@ class MessageCatalogServletTest
     }
 
     @Test
+    void treatsBlankParametersAsAbsentOnes() throws Exception
+    {
+        // A client building the URL from empty state sends `?catalog=&locale=`, which should mean "give me
+        // the usual" rather than "give me the catalog named empty string in the locale named empty string".
+        offer(Messages.INTERFACE, Locale.ENGLISH, Map.of("iap.greeting", "Good morning"));
+
+        final String body = get(Map.of("catalog", "", "locale", ""), Locale.ENGLISH).getOutputAsString();
+
+        assertTrue(body.contains("\"catalog\":\"" + Messages.INTERFACE + "\""), body);
+        assertTrue(body.contains("Good morning"), body);
+    }
+
+    @Test
     void answersWithAnEmptyCatalogueWhenThereIsNoSuchOne() throws Exception
     {
         when(this.bundles.getResourceBundle(any(), any())).thenReturn(null);
