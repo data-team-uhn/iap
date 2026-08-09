@@ -26,10 +26,28 @@ const CATALOG_URL = "/libs/iap/messages.json";
 
 type Catalog = Record<string, string>;
 
-// One catalog per name, and one request for it however many components ask at once — the same
-// fetch-once shape assetManager uses, for the same reason: every page needs this before it can render.
+// One catalog per name and language, and one request for it however many components ask at once — the
+// same fetch-once shape assetManager uses, for the same reason: every page needs this before it can render.
+// Keyed by language as well as by name, or switching language would be answered from the cache in the
+// language just left.
 const catalogs = new Map<string, Catalog>();
 const requests = new Map<string, Promise<Catalog>>();
+
+const cacheKey = (catalog: string, locale: string | null) => `${catalog}\u0000${locale ?? ""}`;
+
+// The language the URL names, if it names one.
+//
+// Read from the URL rather than from a stored preference because the server has already used this same
+// parameter to render the page's content-driven text into its <meta> tags. One source of truth for both
+// halves is what keeps them in the same language; a preference the browser kept to itself could not, and
+// the page would sign you in in French under an English heading.
+//
+// It follows that changing language is a page load, not a re-render — the server has to be asked again.
+// It also follows that the choice lasts as long as the URL does, which is the whole of the sign-in page
+// and no further. A preference that outlives the visit belongs to a signed-in user's profile.
+export const currentLocale = function(): string | null {
+  return new URLSearchParams(window.location.search).get("locale");
+};
 
 // Fetches a catalog, reusing the one already loaded or the request already in flight.
 //
@@ -40,21 +58,24 @@ const requests = new Map<string, Promise<Catalog>>();
 // @param catalog which catalog to load, defaulting to the interface strings
 // @return a Promise resolving to the catalog's messages
 export const loadMessages = async function(catalog: string = INTERFACE_CATALOG): Promise<Catalog> {
-  const loaded = catalogs.get(catalog);
+  const locale = currentLocale();
+  const key = cacheKey(catalog, locale);
+  const loaded = catalogs.get(key);
   if (loaded) {
     return loaded;
   }
-  let request = requests.get(catalog);
+  let request = requests.get(key);
   if (!request) {
-    request = fetch(`${CATALOG_URL}?catalog=${encodeURIComponent(catalog)}`)
+    const named = locale === null ? "" : `&locale=${encodeURIComponent(locale)}`;
+    request = fetch(`${CATALOG_URL}?catalog=${encodeURIComponent(catalog)}${named}`)
       .then(response => (response.ok ? response.json() as Promise<{ messages?: Catalog }> : { messages: {} }))
       .then(body => {
         const messages = body.messages ?? {};
-        catalogs.set(catalog, messages);
+        catalogs.set(key, messages);
         return messages;
       })
       .catch(() => ({}));
-    requests.set(catalog, request);
+    requests.set(key, request);
   }
   return request;
 };
@@ -72,7 +93,7 @@ export const forgetMessages = function(): void {
 // @param messages the messages to make available
 // @param catalog which catalog they belong to
 export const seedMessages = function(messages: Catalog, catalog: string = INTERFACE_CATALOG): void {
-  catalogs.set(catalog, messages);
+  catalogs.set(cacheKey(catalog, currentLocale()), messages);
 };
 
 const MessagesContext = createContext<Catalog>({});
@@ -90,7 +111,8 @@ interface MessagesProviderProps {
 // translated one that has not arrived yet — including to the pseudo-locale check, whose entire job is to
 // notice English on screen.
 export function MessagesProvider({ catalog = INTERFACE_CATALOG, children }: MessagesProviderProps) {
-  const [ messages, setMessages ] = useState<Catalog | null>(catalogs.get(catalog) ?? null);
+  const [ messages, setMessages ] = useState<Catalog | null>(
+    catalogs.get(cacheKey(catalog, currentLocale())) ?? null);
 
   useEffect(() => {
     let current = true;

@@ -18,7 +18,9 @@
 
 import { render, screen, waitFor } from "@testing-library/react";
 
-import { MessagesProvider, forgetMessages, loadMessages, useMessage } from "@iap/frontend-commons/messages";
+import {
+  MessagesProvider, currentLocale, forgetMessages, loadMessages, useMessage,
+} from "@iap/frontend-commons/messages";
 
 // Shows one message, so a test can read what the hook returned off the screen
 function Greeting({ messageKey }: { messageKey: string }) {
@@ -39,6 +41,7 @@ describe("messages", () => {
   beforeEach(() => {
     forgetMessages();
     vi.unstubAllGlobals();
+    window.history.pushState({}, "", "/login");
   });
 
   it("shows a message from the catalog", async () => {
@@ -122,6 +125,38 @@ describe("messages", () => {
     await loadMessages();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the language the URL asks for", async () => {
+    // The same parameter the server has already used to render this page's <meta> tags, so both halves of
+    // the page are in one language rather than the heading being in one and the form in another
+    window.history.pushState({}, "", "/login?locale=fr");
+    const fetchMock = answerWith({});
+
+    await loadMessages();
+
+    expect(fetchMock).toHaveBeenCalledWith("/libs/iap/messages.json?catalog=iap.interface&locale=fr");
+  });
+
+  it("keeps one language's catalog from answering for another", async () => {
+    // Cached by name alone, switching language would be served the language just left
+    const fetchMock = answerWith({ "iap.a": "A" });
+    await loadMessages();
+
+    window.history.pushState({}, "", "/login?locale=fr");
+    await loadMessages();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads the language back off the URL", () => {
+    window.history.pushState({}, "", "/login?locale=en-XA");
+
+    expect(currentLocale()).toBe("en-XA");
+  });
+
+  it("names no language when the URL names none", () => {
+    expect(currentLocale()).toBeNull();
   });
 
   it("names the catalog it is asking for", async () => {

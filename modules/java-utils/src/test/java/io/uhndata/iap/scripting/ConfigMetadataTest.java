@@ -90,6 +90,26 @@ class ConfigMetadataTest
     }
 
     @Test
+    void prefersTheLanguageTheUrlNamesOverTheOneTheBrowserAnnounces()
+    {
+        // Somebody who has landed on a sign-in page in a language they do not read has to be able to say so,
+        // and changing a browser preference to read one page is not something to ask of a visitor.
+        this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
+        offerEchoing(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        assertEquals("Bienvenue", forANamed(Locale.ENGLISH, "fr").getProperties().get("introText"));
+    }
+
+    @Test
+    void fallsBackToTheBrowserWhenTheUrlNamesNothing()
+    {
+        this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
+        offerEchoing(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        assertEquals("Bienvenue", forANamed(Locale.FRENCH, "").getProperties().get("introText"));
+    }
+
+    @Test
     void leavesConfigurationAsShippedWhenThereIsNoReader()
     {
         // Adapted from a plain resource rather than a request — a background job, say. There is nobody whose
@@ -99,6 +119,23 @@ class ConfigMetadataTest
         final Resource resource = this.context.create().resource("/content/page");
 
         assertEquals("Welcome", resource.adaptTo(ConfigMetadata.class).getProperties().get("introText"));
+    }
+
+    /**
+     * A request from a browser announcing one language while the URL names another.
+     *
+     * @param announced what the browser asked for
+     * @param named what the URL asks for
+     * @return the model built from that request
+     */
+    private ConfigMetadata forANamed(final Locale announced, final String named)
+    {
+        final MockSlingJakartaHttpServletRequest request =
+            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
+        request.setResource(this.context.create().resource("/content/named" + named));
+        request.setLocale(announced);
+        request.setParameterMap(Map.of("locale", named));
+        return request.adaptTo(ConfigMetadata.class);
     }
 
     private ConfigMetadata forA(final Locale locale)

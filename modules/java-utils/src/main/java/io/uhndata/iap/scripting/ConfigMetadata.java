@@ -77,6 +77,9 @@ public class ConfigMetadata
      */
     private static final String CONTENT_CATALOG = "iap.content";
 
+    /** The request parameter naming a language outright, overriding whatever the browser announced. */
+    private static final String LOCALE = "locale";
+
     @SlingObject
     private ResourceResolver resourceResolver;
 
@@ -106,6 +109,11 @@ public class ConfigMetadata
      * <p>Adapted from a plain resource — from a background job, say — there is no reader and therefore no
      * language, so the configuration is returned exactly as stored.</p>
      *
+     * <p>A named language wins over the browser's own. This page is where somebody who has landed in the
+     * wrong language has to be able to say so, and they cannot: changing a browser's language preference to
+     * read one page is not something to ask of a visitor, and the reader who most needs the escape is the one
+     * least able to follow instructions written in a language they do not read.</p>
+     *
      * @return the content catalog in the reader's language, or {@code null} to leave everything as stored
      */
     private ResourceBundle translations()
@@ -113,7 +121,9 @@ public class ConfigMetadata
         if (this.bundles == null || this.request == null) {
             return null;
         }
-        final Locale locale = this.request.getLocale();
+        final String named = this.request.getParameter(LOCALE);
+        final Locale locale = named == null || named.isBlank()
+            ? this.request.getLocale() : Locale.forLanguageTag(named);
         return locale == null ? null : this.bundles.getResourceBundle(CONTENT_CATALOG, locale);
     }
 
