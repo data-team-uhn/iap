@@ -22,9 +22,11 @@
 # a missing key shows a reader a raw dotted identifier, while an unused one wastes a translator's
 # time and overstates how much of the product is translated.
 #
-# Only the interface catalogs are checked. Content catalogs are keyed by the repository path of the
-# property each entry translates, so nothing in the source tree references them by name and the
-# question "is this key used" can only be answered against a running repository.
+# Both kinds of catalog are checked, by different questions, because they are keyed differently.
+# Interface messages are keyed by a name a developer chose and referenced from code, so the question
+# is whether the code and the catalog name the same set. Content messages are keyed by the
+# repository path of the property they translate and referenced by no code at all, so the question is
+# whether that property is really there and still says what the catalog thinks it says.
 
 import json
 import os
@@ -40,9 +42,15 @@ CATALOG_DIR = path.join('SLING-INF', 'content', 'libs', 'iap', 'i18n')
 # tests, which this deliberately does not count.
 NOT_SOURCES = ('node_modules', 'target', 'dist', 'aggregated-frontend')
 
+# Where a module keeps the content it ships: .../SLING-INF/content/<repository path>.json
+CONTENT_DIR = path.join('SLING-INF', 'content')
+
 # The property naming the message, on an entry node. Sling looks the message up by this, not by the
 # node's own name, so this is the only string that has to match what the code asks for.
-KEY_PROPERTY = 'sling:key' 
+KEY_PROPERTY = 'sling:key'
+
+# The message itself, on an entry node.
+MESSAGE_PROPERTY = 'sling:message'
 
 # The language the code is written in, and therefore the one that defines which keys exist. A key
 # missing from a translation is untranslated, which is a different and much less urgent fault.
@@ -56,12 +64,18 @@ HOOK_BINDING = re.compile(r'(?:const|let)\s+(\w+)\s*=\s*useMessage\s*\(\s*\)')
 JAVA_KEY = re.compile(r'"(iap\.[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+)"')
 
 
-def catalog_files(root_dir):
-    """Every interface catalog in the project, as (area, language, path) triples."""
+def catalog_files(root_dir, kind='interface'):
+    """Every catalog of one kind in the project, as (area, language, path) triples.
+
+    Args:
+        root_dir: where to look
+        kind: `interface` for the developer-authored strings, `content` for translations of shipped
+            content
+    """
     found = []
     for root, dirs, files in os.walk(root_dir):
         dirs[:] = [d for d in dirs if not d.startswith('.') and d not in NOT_SOURCES]
-        if not root.endswith('interface'):
+        if not root.endswith(kind):
             continue
         area = path.basename(path.dirname(root))
         if CATALOG_DIR not in root:
@@ -70,6 +84,45 @@ def catalog_files(root_dir):
             if name.endswith('.json'):
                 found.append((area, name[:-len('.json')], path.join(root, name)))
     return found
+
+
+def shipped_properties(root_dir):
+    """Every property of every node the project ships, by its path in the repository.
+
+    Sling initial content is laid out as the repository is: a file at
+    `SLING-INF/content/libs/iap/conf/LoginPage.json` becomes the node `/libs/iap/conf/LoginPage`, and a
+    nested object inside it becomes a child of that node. Rebuilding the paths is what lets a content
+    catalog -- which is keyed by them -- be checked against something rather than taken on trust.
+    """
+    properties = {}
+    for root, dirs, files in os.walk(root_dir):
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in NOT_SOURCES]
+        if CONTENT_DIR not in root or CATALOG_DIR in root:
+            continue
+        for name in files:
+            if not name.endswith('.json'):
+                continue
+            file = path.join(root, name)
+            base = file[file.index(CONTENT_DIR) + len(CONTENT_DIR):-len('.json')]
+            try:
+                with open(file, 'rt', encoding='utf-8') as handle:
+                    collect_properties(json.load(handle), base.replace(os.sep, '/'), properties)
+            except ValueError:
+                # Not every .json under a content tree is a node definition; one that will not parse is
+                # something else's business, and failing here would only report it in the wrong words
+                continue
+    return properties
+
+
+def collect_properties(node, node_path, out):
+    """Flattens one node definition into `out`, keyed by repository path."""
+    if not isinstance(node, dict):
+        return
+    for name, value in node.items():
+        if isinstance(value, dict):
+            collect_properties(value, node_path + '/' + name, out)
+        elif isinstance(value, str):
+            out[node_path + '/' + name] = value
 
 
 def catalog_keys(entries):
@@ -131,6 +184,73 @@ def referenced_keys(root_dir):
     return keys, unresolved
 
 
+def content_entries(entries):
+    """The (key, message) pairs a content catalog defines."""
+    return {entry[KEY_PROPERTY]: entry.get(MESSAGE_PROPERTY, '') for entry in entries.values()
+            if isinstance(entry, dict) and KEY_PROPERTY in entry}
+
+
+def check_content(root_dir):
+    """The three ways a content catalog stops meaning what it says.
+
+    Nothing in the source tree references these keys, so they cannot be checked the way interface keys
+    are. What can be checked is the other end: each key names a property of shipped content, and that
+    property is right there in the same repository.
+    """
+    shipped = shipped_properties(root_dir)
+    dangling = []
+    shadowing = []
+    undeclared = []
+
+    for area, language, file, entries in [(a, l, f, read(f)) for a, l, f in catalog_files(root_dir, 'content')]:
+        where = path.relpath(file, root_dir)
+        source = content_entries(read(source_catalog(root_dir, area))) if language != SOURCE_LANGUAGE else {}
+        for key, message in content_entries(entries).items():
+            if key not in shipped:
+                dangling.append('%s  in %s' % (key, where))
+            elif language == SOURCE_LANGUAGE and message != shipped[key]:
+                shadowing.append('%s  in %s' % (key, where))
+            if language != SOURCE_LANGUAGE and key not in source:
+                undeclared.append('%s  in %s' % (key, where))
+
+    faults = report(
+        'Translations of content that does not exist', dangling,
+        'Nothing has a property at that path, so these can never be shown. Usually a property that was '
+        'renamed or moved after it was translated.')
+    faults |= report(
+        'Translations that quietly replace the content they came from', shadowing,
+        'The ' + SOURCE_LANGUAGE + ' entry no longer matches the property it repeats, and the entry is what '
+        'gets rendered — so editing the content changes nothing anybody sees. Copy the property across, or '
+        'edit it here instead.')
+    faults |= report(
+        'Content translated in one language but never declared in ' + SOURCE_LANGUAGE, undeclared,
+        'These do reach a reader of that language, but an entry in the ' + SOURCE_LANGUAGE + ' catalog is '
+        'what marks a property as prose, so the pseudo-locale check steps over them and any layout they '
+        'break goes unnoticed.')
+    return faults
+
+
+def source_catalog(root_dir, area):
+    """Where an area keeps the content catalog in the language it was written in."""
+    for other_area, language, file in catalog_files(root_dir, 'content'):
+        if other_area == area and language == SOURCE_LANGUAGE:
+            return file
+    return None
+
+
+def read(file):
+    """One catalog, or nothing where there is no such file."""
+    if file is None:
+        return {}
+    with open(file, 'rt', encoding='utf-8') as handle:
+        return json.load(handle)
+
+
+def counted(number, singular, plural=None):
+    """A number and its noun, agreeing."""
+    return '%d %s' % (number, singular if number == 1 else plural or singular + 's')
+
+
 def report(title, entries, explanation):
     """Prints one group of faults, and says whether there were any."""
     if not entries:
@@ -154,9 +274,7 @@ def main(args):
     defined = {}
     translated_only = []
     for area, language, file in catalogs:
-        with open(file, 'rt', encoding='utf-8') as handle:
-            entries = json.load(handle)
-        keys = catalog_keys(entries)
+        keys = catalog_keys(read(file))
         if language == SOURCE_LANGUAGE:
             defined.update({key: path.relpath(file, root_dir) for key in keys})
         else:
@@ -171,7 +289,7 @@ def main(args):
         source = {key for key, origin in defined.items() if path.dirname(origin).endswith(path.join(area, 'interface'))}
         orphaned += ['%s  in %s' % (key, file) for key in keys - source]
 
-    faults = False
+    faults = check_content(root_dir)
     faults |= report(
         'Messages asked for but never defined', missing,
         'A reader sees the key itself where the words should be. Add it to the ' + SOURCE_LANGUAGE + ' catalog.')
@@ -191,7 +309,10 @@ def main(args):
     if faults:
         sys.exit('\nMessage catalogs and code disagree. See above.')
 
-    print('Message catalogs agree with the code: %d keys, all defined and all used.' % len(defined))
+    content = {key for _, _, file in catalog_files(root_dir, 'content') for key in content_entries(read(file))}
+    print('Message catalogs agree with the code: %s, all defined and all used; %s translated, '
+          'all present and unshadowed.' % (counted(len(defined), 'interface key'),
+                                           counted(len(content), 'content property', 'content properties')))
 
 
 if __name__ == '__main__':
