@@ -19,8 +19,6 @@ package io.uhndata.iap.i18n.internal;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.MissingResourceException;
-import java.util.ResourceBundle;
 import java.util.function.Function;
 
 import javax.jcr.Node;
@@ -32,7 +30,6 @@ import jakarta.json.JsonString;
 import jakarta.json.JsonValue;
 
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.i18n.ResourceBundleProvider;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
@@ -79,7 +76,7 @@ public class LocalizeProcessor implements ResourceJsonProcessor
     private final ThreadLocal<Locale> locale = new ThreadLocal<>();
 
     @Reference
-    private ResourceBundleProvider bundles;
+    private Messages messages;
 
     @Override
     public String getName()
@@ -124,25 +121,13 @@ public class LocalizeProcessor implements ResourceJsonProcessor
         final Function<Node, JsonValue> serializeNode)
     {
         final Locale requested = this.locale.get();
-        if (requested == null || !(input instanceof JsonString)) {
+        if (requested == null || !(input instanceof JsonString shipped)) {
             // No language asked for, or nothing a translation could replace
             return input;
         }
-        final ResourceBundle bundle = this.bundles.getResourceBundle(Messages.CONTENT, requested);
-        if (bundle == null) {
-            return input;
-        }
-        final String key = pathOf(property);
-        try {
-            final String translated = bundle.getString(key);
-            // Sling's own bundles answer a miss with the key itself rather than throwing, so catching the
-            // exception is not enough: without this check every untranslated property would be replaced by
-            // its own path. Untranslated is the ordinary case for most properties.
-            return translated == null || translated.equals(key) ? input : Json.createValue(translated);
-        } catch (final MissingResourceException e) {
-            // A bundle that does throw, which the specification allows and some implementations do
-            return input;
-        }
+        final String translated =
+            this.messages.translate(Messages.CONTENT, pathOf(property), requested, shipped.getString());
+        return translated.equals(shipped.getString()) ? input : Json.createValue(translated);
     }
 
     private static String pathOf(final Property property)

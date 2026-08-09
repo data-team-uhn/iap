@@ -225,6 +225,25 @@ class PseudoLocaleTest
     }
 
     @Test
+    void disfiguresTextThatIsNotAPatternAtAll()
+    {
+        // Configured content is ordinary prose, not an ICU pattern, and a stray brace in a sentence somebody
+        // typed is a typo rather than a reason to fail the page it is on.
+        final String result = PseudoLocale.transform("Ask for {an approval", Style.ACCENTED);
+
+        assertTrue(result.startsWith("[") && result.endsWith("]"), result);
+        assertFalse(result.contains("approval"), result);
+    }
+
+    @Test
+    void turnsAroundTextThatIsNotAPatternAtAll()
+    {
+        final String result = PseudoLocale.transform("Ask for {an approval", Style.SHORTENED);
+
+        assertTrue(result.startsWith("\u202e") && result.endsWith("\u202c"), result);
+    }
+
+    @Test
     void hasNoInstances() throws Exception
     {
         final Constructor<PseudoLocale> constructor = PseudoLocale.class.getDeclaredConstructor();

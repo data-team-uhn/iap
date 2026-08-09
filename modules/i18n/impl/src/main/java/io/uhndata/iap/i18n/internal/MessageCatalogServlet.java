@@ -19,9 +19,8 @@ package io.uhndata.iap.i18n.internal;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.Locale;
-import java.util.ResourceBundle;
+import java.util.SortedMap;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
@@ -31,7 +30,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
-import org.apache.sling.i18n.ResourceBundleProvider;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
@@ -69,7 +67,7 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
     private static final String LOCALE = "locale";
 
     @Reference
-    private transient ResourceBundleProvider bundles;
+    private transient Messages messages;
 
     @Reference
     private transient Locales locales;
@@ -80,14 +78,8 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
     {
         final String catalog = catalogOf(request);
         final Locale locale = localeOf(request);
-        final PseudoLocale.Style pseudo = PseudoLocale.styleOf(locale);
-        // A pseudo-locale is derived from the source language on the spot rather than stored. Derived, it
-        // cannot drift from the catalog it is testing and cannot be partially written: every key is present,
-        // so the fallback never fires and any plain English left on screen is provably a string that never
-        // went through a catalog at all.
-        final ResourceBundle bundle =
-            this.bundles.getResourceBundle(catalog, pseudo == null ? locale : Locale.ENGLISH);
-        final String body = serialize(catalog, locale, bundle, pseudo, this.locales.isRightToLeft(locale));
+        final String body = serialize(catalog, locale, this.messages.getAll(catalog, locale),
+            this.locales.isRightToLeft(locale));
 
         // Every page needs this before it can render, so re-fetching it on each navigation is worth avoiding
         // — but a stale catalog shows the wrong words indefinitely, and somebody who has just reworded a
@@ -113,20 +105,15 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
      *
      * @param catalog the catalog being served
      * @param locale the language it is being served in
-     * @param bundle the messages, or {@code null} when no such catalog exists
-     * @param pseudo how to disfigure each message, or {@code null} to serve it as written
+     * @param catalogued the messages, by key, already in the reader's language
      * @param rightToLeft whether this language runs right to left
      * @return the response body
      */
-    private static String serialize(final String catalog, final Locale locale, final ResourceBundle bundle,
-        final PseudoLocale.Style pseudo, final boolean rightToLeft)
+    private static String serialize(final String catalog, final Locale locale,
+        final SortedMap<String, String> catalogued, final boolean rightToLeft)
     {
         final JsonObjectBuilder messages = Json.createObjectBuilder();
-        if (bundle != null) {
-            Collections.list(bundle.getKeys()).stream().sorted()
-                .forEach(key -> messages.add(key,
-                    pseudo == null ? bundle.getString(key) : PseudoLocale.transform(bundle.getString(key), pseudo)));
-        }
+        catalogued.forEach(messages::add);
         return Json.createObjectBuilder()
             .add(CATALOG, catalog)
             .add(LOCALE, locale.toLanguageTag())

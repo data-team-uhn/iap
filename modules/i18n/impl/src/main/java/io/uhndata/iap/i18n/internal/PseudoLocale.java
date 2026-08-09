@@ -138,7 +138,15 @@ public final class PseudoLocale
      */
     public static String transform(final String pattern, final Style style)
     {
-        final MessagePattern parsed = new MessagePattern(pattern);
+        final MessagePattern parsed;
+        try {
+            parsed = new MessagePattern(pattern);
+        } catch (final IllegalArgumentException e) {
+            // Not every string reaching here is an ICU pattern. Configured content is ordinary prose, and a
+            // stray brace in it is a typo at worst — certainly not a reason to fail the page. Treated as
+            // readable text throughout, which is exactly what it is.
+            return wrap(disfigure(pattern, style), style, pattern.length());
+        }
         final StringBuilder result = new StringBuilder(pattern.length() * 2);
         int readableLength = 0;
         int cursor = 0;
@@ -166,14 +174,28 @@ public final class PseudoLocale
         }
         // No tail to handle: a parsed pattern always ends with its MSG_LIMIT part, so the loop above has
         // already consumed everything.
-        // The padding goes here, once, rather than after each run of text. Inserted mid-pattern it lands
-        // next to whatever follows, and beside an apostrophe -- MessageFormat's quoting character -- that
-        // changes how the rest of the pattern is read. Measured: it turned two SKIP_SYNTAX parts into
-        // INSERT_CHAR ones, which is a different message, silently.
+        return wrap(result.toString(), style, readableLength);
+    }
+
+    /**
+     * Marks a disfigured message as one, in whichever way its style is recognised by.
+     *
+     * <p>Applied once around the whole message rather than around each run of readable text. Inserted
+     * mid-pattern the padding lands next to whatever follows, and beside an apostrophe — MessageFormat's
+     * quoting character — that changes how the rest of the pattern is read. Measured: it turned two
+     * SKIP_SYNTAX parts into INSERT_CHAR ones, which is a different message, silently.</p>
+     *
+     * @param message the message with its readable text already disfigured
+     * @param style which pseudo-locale is being produced
+     * @param readableLength how much of the message a reader actually sees
+     * @return the message, marked
+     */
+    private static String wrap(final String message, final Style style, final int readableLength)
+    {
         if (style == Style.ACCENTED) {
-            return "[" + result + padding(readableLength) + "]";
+            return "[" + message + padding(readableLength) + "]";
         }
-        return RIGHT_TO_LEFT_OVERRIDE + result + POP_DIRECTION;
+        return RIGHT_TO_LEFT_OVERRIDE + message + POP_DIRECTION;
     }
 
     /**

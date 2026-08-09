@@ -18,6 +18,8 @@
 package io.uhndata.iap.i18n.internal;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.ListResourceBundle;
 import java.util.Locale;
 import java.util.Map;
@@ -31,6 +33,8 @@ import org.mockito.Mockito;
 import io.uhndata.iap.i18n.api.Messages;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -45,6 +49,9 @@ class MessagesImplTest
 {
     private static final String GREETING = "iap.test.greeting";
 
+    /** A content key, which is the path of the property it translates rather than a name somebody chose. */
+    private static final String PATH = "/Categories/Retrospective/label";
+
     private ResourceBundleProvider bundles;
 
     private MessagesImpl messages;
@@ -53,10 +60,27 @@ class MessagesImplTest
     void setUp() throws Exception
     {
         this.bundles = Mockito.mock(ResourceBundleProvider.class);
-        this.messages = new MessagesImpl();
+        this.messages = messagesBackedBy(this.bundles);
+    }
+
+    /**
+     * A working service over a given set of catalogs.
+     *
+     * <p>Shared with the tests of the things that call it, which use the real service rather than a stand-in:
+     * what a pseudo-locale does to a message is decided here, so a stubbed one would let those tests pass
+     * while the page they describe came out in plain English.</p>
+     *
+     * @param bundles where the catalogs come from
+     * @return the service under test
+     * @throws Exception if the field cannot be set, which would be a rename of it
+     */
+    static MessagesImpl messagesBackedBy(final ResourceBundleProvider bundles) throws Exception
+    {
+        final MessagesImpl messages = new MessagesImpl();
         final Field field = MessagesImpl.class.getDeclaredField("bundles");
         field.setAccessible(true);
-        field.set(this.messages, this.bundles);
+        field.set(messages, bundles);
+        return messages;
     }
 
     @Test
@@ -125,6 +149,124 @@ class MessagesImplTest
 
         assertEquals("Good morning, Ada",
             this.messages.format(Messages.INTERFACE, GREETING, null, Map.of("name", "Ada")));
+    }
+
+    @Test
+    void answersWithTheShippedTextWhenNobodyHasTranslatedIt()
+    {
+        // The ordinary case for content, and what makes the mechanism additive: a deployment that has
+        // translated half its pages renders the other half in the language it was written in.
+        content(Locale.FRENCH, Map.of("/somewhere/else", "Autre"));
+
+        assertEquals("Retrospective studies",
+            this.messages.translate(Messages.CONTENT, PATH, Locale.FRENCH, "Retrospective studies"));
+    }
+
+    @Test
+    void answersWithTheShippedTextWhenTheCatalogueEchoesMissingKeys()
+    {
+        // Sling's own bundles answer a miss with the key itself rather than throwing, so allowing only for
+        // the exception replaces every untranslated property with its own repository path. That is not
+        // hypothetical: it is what a rendered page showed before this check existed.
+        when(this.bundles.getResourceBundle(eq(Messages.CONTENT), eq(Locale.FRENCH)))
+            .thenReturn(new ResourceBundle()
+            {
+                @Override
+                protected Object handleGetObject(final String key)
+                {
+                    return key;
+                }
+
+                @Override
+                public Enumeration<String> getKeys()
+                {
+                    return Collections.emptyEnumeration();
+                }
+            });
+
+        assertEquals("Retrospective studies",
+            this.messages.translate(Messages.CONTENT, PATH, Locale.FRENCH, "Retrospective studies"));
+    }
+
+    @Test
+    void answersWithTheShippedTextWhenThereIsNoCatalogueForThatLanguage()
+    {
+        when(this.bundles.getResourceBundle(any(), any())).thenReturn(null);
+
+        assertEquals("Retrospective studies",
+            this.messages.translate(Messages.CONTENT, PATH, Locale.FRENCH, "Retrospective studies"));
+    }
+
+    @Test
+    void answersWithTheTranslationWhereThereIsOne()
+    {
+        content(Locale.FRENCH, Map.of(PATH, "Études rétrospectives"));
+
+        assertEquals("Études rétrospectives",
+            this.messages.translate(Messages.CONTENT, PATH, Locale.FRENCH, "Retrospective studies"));
+    }
+
+    @Test
+    void disfiguresCataloguedContentForAPseudoLocale()
+    {
+        // How server-rendered text takes part in the check at all: the source-language catalog is what says
+        // this property is prose somebody reads, so the pseudo-locale can disfigure it and a layout that
+        // cannot hold a longer version of it fails in a build.
+        content(Locale.ENGLISH, Map.of(PATH, "Welcome"));
+
+        final String disfigured =
+            this.messages.translate(Messages.CONTENT, PATH, Locale.forLanguageTag("en-XA"), "Welcome");
+
+        assertTrue(disfigured.startsWith("[") && disfigured.endsWith("]"), disfigured);
+        assertFalse(disfigured.contains("Welcome"), disfigured);
+    }
+
+    @Test
+    void leavesUncataloguedContentAloneEvenUnderAPseudoLocale()
+    {
+        // Everything a page is built from arrives here, not only its prose: resource types, identifiers, the
+        // list of languages the switcher offers. Disfiguring those would break the page rather than test it,
+        // and mangling that last one would leave a reader in a pseudo-locale with no way back out.
+        content(Locale.ENGLISH, Map.of());
+
+        assertEquals("en fr",
+            this.messages.translate(Messages.CONTENT, PATH, Locale.forLanguageTag("en-XA"), "en fr"));
+    }
+
+    @Test
+    void disfiguresEveryMessageInACatalogue()
+    {
+        catalogue(Locale.ENGLISH, Map.of(GREETING, "Good morning", "iap.test.other", "Something else"));
+
+        final Map<String, String> all = this.messages.getAll(Messages.INTERFACE, Locale.forLanguageTag("en-XA"));
+
+        assertEquals(2, all.size());
+        all.values().forEach(message -> assertTrue(message.startsWith("["), message));
+    }
+
+    @Test
+    void answersWithNothingWhenThereIsNoSuchCatalogue()
+    {
+        when(this.bundles.getResourceBundle(any(), any())).thenReturn(null);
+
+        // Empty rather than an error: a page asking for a catalog nobody has written yet should render in
+        // the source language rather than fail to render
+        assertTrue(this.messages.getAll("iap.nonexistent", Locale.ENGLISH).isEmpty());
+    }
+
+    @Test
+    void leavesAMissingKeyLegibleUnderAPseudoLocale()
+    {
+        // A key answered with itself is the signal that something is missing. Dressed up as a
+        // pseudo-translation it would look like every other string on the page and stop being a signal.
+        catalogue(Locale.ENGLISH, Map.of());
+
+        assertEquals(GREETING, this.messages.get(Messages.INTERFACE, GREETING, Locale.forLanguageTag("en-XA")));
+    }
+
+    private void content(final Locale locale, final Map<String, String> entries)
+    {
+        when(this.bundles.getResourceBundle(eq(Messages.CONTENT), eq(locale))).thenReturn(bundleOf(entries));
     }
 
     private void catalogue(final Locale locale, final Map<String, String> entries)

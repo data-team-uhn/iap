@@ -63,7 +63,9 @@ class MessageCatalogServletTest
     {
         this.bundles = Mockito.mock(ResourceBundleProvider.class);
         this.servlet = new MessageCatalogServlet();
-        inject("bundles", this.bundles);
+        // The real message service, not a stand-in: deriving a pseudo-locale is its work, and these are the
+        // tests that describe what a caller actually receives when it asks for one
+        inject("messages", MessagesImplTest.messagesBackedBy(this.bundles));
         // The real resolver rather than a stand-in: how a request's language is worked out is exactly what
         // these tests are about, and a stub would only assert that this test agrees with itself
         inject("locales", LocalesImplTest.locales("en", "fr"));
