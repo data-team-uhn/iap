@@ -47,6 +47,9 @@ record RequestLocales(Optional<Locale> chosen, Locale announced)
     /** Remembers a choice made before there is an account to store it against. */
     static final String COOKIE = "iap.locale";
 
+    /** Where the filter leaves the direction that language reads in, as {@code ltr} or {@code rtl}. */
+    static final String DIRECTION_ATTRIBUTE = "io.uhndata.iap.i18n.direction";
+
     /**
      * Where the filter leaves the language it worked out, for code in bundles that cannot depend on this one.
      *
@@ -55,7 +58,7 @@ record RequestLocales(Optional<Locale> chosen, Locale announced)
      * stay here, which is the part that would actually hurt to have two of. The proper fix is an interfaces-
      * only bundle both can depend on, and that is worth doing when the second such caller appears.</p>
      */
-    static final String ATTRIBUTE = "io.uhndata.iap.i18n.requestLocale";
+    static final String ATTRIBUTE = "io.uhndata.iap.i18n.locale";
 
     /**
      * What a language tag is allowed to look like. Anything else is somebody else's idea rather than a

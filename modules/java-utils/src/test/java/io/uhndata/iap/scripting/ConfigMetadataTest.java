@@ -90,6 +90,44 @@ class ConfigMetadataTest
     }
 
     @Test
+    void tellsThePageWhichLanguageItIsIn()
+    {
+        // Rendered into <html lang> while the page is being parsed: a screen reader picks its voice and its
+        // pronunciation from that attribute, and a script correcting it afterwards is already too late
+        assertEquals("fr", forANamed(Locale.ENGLISH, "fr").getLanguage());
+        assertEquals("", forA(Locale.ENGLISH).getLanguage());
+    }
+
+    @Test
+    void tellsThePageWhichWayItReads()
+    {
+        assertEquals("ltr", forA(Locale.ENGLISH).getDirection());
+    }
+
+    @Test
+    void tellsThePageToTurnAroundForALanguageThatReadsThatWay()
+    {
+        final MockSlingJakartaHttpServletRequest request =
+            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
+        request.setResource(this.context.create().resource("/content/mirrored"));
+        request.setAttribute("io.uhndata.iap.i18n.direction", "rtl");
+
+        assertEquals("rtl", request.adaptTo(ConfigMetadata.class).getDirection());
+    }
+
+    @Test
+    void namesNoLanguageWhereThereIsNoReaderToHaveOne()
+    {
+        // Adapted from a plain resource — a background job, say — there is nobody the page is being rendered
+        // for, so it claims neither a language nor a direction rather than inventing one
+        final ConfigMetadata config =
+            this.context.create().resource("/content/nobody").adaptTo(ConfigMetadata.class);
+
+        assertEquals("", config.getLanguage());
+        assertEquals("ltr", config.getDirection());
+    }
+
+    @Test
     void prefersTheLanguageTheRequestAsksForOverTheOneTheBrowserAnnounces()
     {
         // Somebody who has landed on a sign-in page in a language they do not read has to be able to say so,
@@ -135,7 +173,7 @@ class ConfigMetadataTest
         request.setResource(this.context.create().resource("/content/named" + named));
         request.setLocale(announced);
         if (!named.isEmpty()) {
-            request.setAttribute("io.uhndata.iap.i18n.requestLocale", Locale.forLanguageTag(named));
+            request.setAttribute("io.uhndata.iap.i18n.locale", Locale.forLanguageTag(named));
         }
         return request.adaptTo(ConfigMetadata.class);
     }

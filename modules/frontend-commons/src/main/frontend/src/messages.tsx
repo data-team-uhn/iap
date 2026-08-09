@@ -33,10 +33,6 @@ type Catalog = Record<string, string>;
 const catalogs = new Map<string, Catalog>();
 const requests = new Map<string, Promise<Catalog>>();
 
-// Which way each catalog's language runs. Answered by the server rather than worked out here, so that no
-// list of right-to-left languages has to be kept in the browser and kept correct.
-const directions = new Map<string, string>();
-
 const cacheKey = (catalog: string, locale: string | null) => `${catalog}\u0000${locale ?? ""}`;
 
 // The language the URL names, if it names one.
@@ -72,13 +68,10 @@ export const loadMessages = async function(catalog: string = INTERFACE_CATALOG):
   if (!request) {
     const named = locale === null ? "" : `&locale=${encodeURIComponent(locale)}`;
     request = fetch(`${CATALOG_URL}?catalog=${encodeURIComponent(catalog)}${named}`)
-      .then(response => (response.ok
-        ? response.json() as Promise<{ messages?: Catalog; direction?: string }>
-        : { messages: {}, direction: undefined }))
+      .then(response => (response.ok ? response.json() as Promise<{ messages?: Catalog }> : { messages: {} }))
       .then(body => {
         const messages = body.messages ?? {};
         catalogs.set(key, messages);
-        directions.set(key, body.direction ?? "ltr");
         return messages;
       })
       .catch(() => ({}));
@@ -91,7 +84,6 @@ export const loadMessages = async function(catalog: string = INTERFACE_CATALOG):
 export const forgetMessages = function(): void {
   catalogs.clear();
   requests.clear();
-  directions.clear();
 };
 
 // Puts a catalog in place without fetching it. Only for tests: a component test cares what the interface
@@ -127,14 +119,6 @@ export function MessagesProvider({ catalog = INTERFACE_CATALOG, children }: Mess
     void loadMessages(catalog).then(loaded => {
       if (current) {
         setMessages(loaded);
-        // On the document rather than on a wrapper, so the page's own text — rendered server-side into its
-        // <meta> tags, and outside this tree entirely — turns around with the interface rather than against
-        // it. Logical CSS properties then mirror the layout on their own.
-        //
-        // This attribute is what carries direction through the app. A MUI theme is built before the language
-        // is known, so theme.direction stays "ltr" however the page is rendering: style that has to know
-        // which way round it is should ask for a [dir="rtl"] ancestor, not the theme.
-        document.documentElement.dir = directions.get(cacheKey(catalog, currentLocale())) ?? "ltr";
       }
     });
     return () => {

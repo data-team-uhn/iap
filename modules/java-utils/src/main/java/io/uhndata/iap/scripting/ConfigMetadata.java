@@ -85,7 +85,10 @@ public class ConfigMetadata
      * on this one, so this one cannot depend back on it. Only the name is duplicated — how a request's
      * language is worked out lives there, once.</p>
      */
-    private static final String REQUEST_LOCALE = "io.uhndata.iap.i18n.requestLocale";
+    private static final String REQUEST_LOCALE = "io.uhndata.iap.i18n.locale";
+
+    /** Where that same filter leaves the direction the language reads in. */
+    private static final String DIRECTION = "io.uhndata.iap.i18n.direction";
 
     @SlingObject
     private ResourceResolver resourceResolver;
@@ -108,6 +111,39 @@ public class ConfigMetadata
         if (root != null) {
             collect(root, this.properties, translations());
         }
+    }
+
+    /**
+     * The language this page is being rendered in, as a tag for {@code <html lang>}.
+     *
+     * <p>Rendered by the server rather than set by a script, because a screen reader chooses its voice and
+     * its pronunciation rules from this attribute while the page is being parsed — by the time a script could
+     * correct it, the page has already been announced in the wrong accent.</p>
+     *
+     * @return a language tag, or the empty string where there is no reader to have one
+     */
+    @NotNull
+    public String getLanguage()
+    {
+        final Object asked = this.request == null ? null : this.request.getAttribute(REQUEST_LOCALE);
+        return asked instanceof Locale named ? named.toLanguageTag() : "";
+    }
+
+    /**
+     * Which way this page reads, as {@code ltr} or {@code rtl} for {@code <html dir>}.
+     *
+     * <p>Also the server's job, and for a second reason beyond the first paint: the theme is built when the
+     * frontend bundle loads, and anything asking it which way round the page is has to be able to get a
+     * truthful answer then. A direction applied afterwards would leave every such question answered "ltr"
+     * for the life of the page.</p>
+     *
+     * @return {@code rtl} or {@code ltr}, defaulting to {@code ltr} where nothing said
+     */
+    @NotNull
+    public String getDirection()
+    {
+        final Object direction = this.request == null ? null : this.request.getAttribute(DIRECTION);
+        return "rtl".equals(direction) ? "rtl" : "ltr";
     }
 
     /**

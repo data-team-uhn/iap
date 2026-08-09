@@ -30,6 +30,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+
+import io.uhndata.iap.i18n.api.Locales;
 
 /**
  * Notices what each request has to say about language, and remembers a reader's choice.
@@ -64,6 +67,9 @@ public class RequestLocaleFilter implements Filter
     /** How long a browser is asked to remember a choice: long enough to be a preference rather than a mood. */
     private static final int A_YEAR = 365 * 24 * 60 * 60;
 
+    @Reference
+    private Locales localeService;
+
     @Override
     public void doFilter(final ServletRequest request, final ServletResponse response, final FilterChain chain)
         throws IOException, ServletException
@@ -73,12 +79,17 @@ public class RequestLocaleFilter implements Filter
             return;
         }
 
-        final RequestLocales locales = RequestLocales.from(http);
-        remember(http, response);
-        // Also on the request itself, for code holding one in a bundle that cannot depend on this
-        locales.chosen().ifPresent(chosen -> http.setAttribute(RequestLocales.ATTRIBUTE, chosen));
-        RequestLocaleHolder.set(locales);
+        RequestLocaleHolder.set(RequestLocales.from(http));
         try {
+            // The resolved language, not merely the one asked for, and left on the request itself so that
+            // bundles which cannot depend on this one can still read it. The page shell renders it into
+            // <html lang> and <html dir> before a single script has run, so the page arrives the right way
+            // round rather than turning around once the interface strings catch up.
+            final Locale resolved = this.localeService.getReaderLocale();
+            http.setAttribute(RequestLocales.ATTRIBUTE, resolved);
+            http.setAttribute(RequestLocales.DIRECTION_ATTRIBUTE,
+                this.localeService.isRightToLeft(resolved) ? "rtl" : "ltr");
+            remember(http, response);
             chain.doFilter(request, response);
         } finally {
             // In a finally without exception: threads are pooled, so a value left behind here is handed to

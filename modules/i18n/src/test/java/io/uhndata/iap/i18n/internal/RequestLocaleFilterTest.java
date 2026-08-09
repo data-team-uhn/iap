@@ -29,6 +29,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletResponse;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
@@ -51,10 +52,43 @@ class RequestLocaleFilterTest
 
     private final RequestLocaleFilter filter = new RequestLocaleFilter();
 
+    @BeforeEach
+    void setUp() throws Exception
+    {
+        // The real resolver: what the filter leaves on the request is the resolved language, so a stub here
+        // would only assert that this test agrees with itself
+        final java.lang.reflect.Field field = RequestLocaleFilter.class.getDeclaredField("localeService");
+        field.setAccessible(true);
+        field.set(this.filter, LocalesImplTest.locales("en", "fr"));
+    }
+
     @AfterEach
     void tidy()
     {
         RequestLocaleHolder.clear();
+    }
+
+    @Test
+    void leavesTheResolvedLanguageOnTheRequest() throws Exception
+    {
+        // The page shell renders this into <html lang> and <html dir> before a script has run, so the page
+        // arrives the right way round rather than turning around once the interface strings catch up
+        final MockSlingJakartaHttpServletRequest request = request("fr", null);
+
+        this.filter.doFilter(request, new MockSlingJakartaHttpServletResponse(), (rq, rs) -> { });
+
+        assertEquals(Locale.FRENCH, request.getAttribute(RequestLocales.ATTRIBUTE));
+        assertEquals("ltr", request.getAttribute(RequestLocales.DIRECTION_ATTRIBUTE));
+    }
+
+    @Test
+    void saysWhichWayTheResolvedLanguageReads() throws Exception
+    {
+        final MockSlingJakartaHttpServletRequest request = request("en-XB", null);
+
+        this.filter.doFilter(request, new MockSlingJakartaHttpServletResponse(), (rq, rs) -> { });
+
+        assertEquals("rtl", request.getAttribute(RequestLocales.DIRECTION_ATTRIBUTE));
     }
 
     @Test

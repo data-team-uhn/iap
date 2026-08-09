@@ -111,6 +111,11 @@ const headingColor = "var(--mui-palette-primary-main)";
 const baseTypography = createTheme().typography;
 
 const appTheme = createTheme({
+  // Read from what the server rendered onto <html>, which is there before this module runs. The language is
+  // settled on the server — from the URL, a remembered choice, or the browser's own header — so this is the
+  // first moment the browser can know it, and building the theme with it means anything asking the theme
+  // which way round the page is gets a truthful answer for the life of the page.
+  direction: document.documentElement.dir === "rtl" ? "rtl" : "ltr",
   // A class-based selector (rather than the default `media`) is what lets `useColorScheme()`
   // switch the scheme at runtime — MUI toggles a `light`/`dark` class on the root element. With
   // `media` the scheme would only follow the OS preference and the toggle would do nothing.
