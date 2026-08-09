@@ -89,6 +89,30 @@ test.describe('reading the platform in another language', () => {
     await expect(page.getByText(/accompagne les études de recherche/)).toBeVisible();
   });
 
+  test('translates the footer, both its own words and the links a deployment configures', async ({ page }) => {
+    // Two mechanisms again, and this time in one strip of the page. "Conçu par" is a developer-authored
+    // string the browser fetches from the interface catalog; the link labels are repository content a
+    // deployment rewrites, translated server-side by the path of the property holding each one. A footer
+    // half in French would be the visible proof that one of them had been forgotten.
+    const login = new LoginPage(page);
+    await login.open('fr');
+
+    await expect(page.getByText('Conçu par')).toBeVisible();
+    await expect(login.footerLink("Conditions d'utilisation")).toBeVisible();
+    await expect(login.footerLink('Signaler un problème')).toBeVisible();
+    await expect(login.footerLink("Guide de l'utilisateur")).toBeVisible();
+  });
+
+  test('leaves a configured link pointing where it pointed', async ({ page }) => {
+    // Only the label is words. Everything else an extension carries — where it goes, which point it hangs
+    // off, what order it sits in — is machinery, and a catalog that reached those would break the link
+    // rather than translate it.
+    const login = new LoginPage(page);
+    await login.open('fr');
+
+    await expect(login.footerLink("Conditions d'utilisation")).toHaveAttribute('href', '/terms-of-use');
+  });
+
   test('says which language the page is in, before a script could', async ({ page }) => {
     // The half of this nobody can see, and therefore the half that regresses unnoticed. A screen reader
     // chooses its voice and its pronunciation rules from this attribute while the page is being parsed, so

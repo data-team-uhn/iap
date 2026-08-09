@@ -73,6 +73,19 @@ export class LoginPage {
   }
 
   /**
+   * A link in the page footer, by the words on it.
+   *
+   * Scoped to the footer landmark rather than the whole page, so this cannot accidentally match a link of
+   * the same name elsewhere — and so it goes on working when the footer moves.
+   *
+   * @param name the link's label, in whatever language the page is being read in
+   * @return the link
+   */
+  footerLink(name: string): Locator {
+    return this.page.locator('footer').getByRole('link', { name });
+  }
+
+  /**
    * A piece of shipped configuration as the server rendered it into the page.
    *
    * Read from the `<meta>` tag rather than from the paragraph it ends up in, because the tag is the thing

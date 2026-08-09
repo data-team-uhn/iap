@@ -33,6 +33,10 @@ export const SIGN_IN_MESSAGES: Record<string, string> = {
   "iap.login.credentialsForm.error.invalidCredentials": "Invalid username or password",
   "iap.login.signInMethods.moreOptions.label": "More sign-in options",
   "iap.login.page.aboutPlatform.label": "About the platform",
+  // The shared footer renders on this page as well, so its wording has to be here for the page to render
+  // as a reader sees it
+  "iap.footer.landmark.label": "Footer",
+  "iap.footer.credit.builtBy": "Built by",
 };
 
 // Renders something with the sign-in page's messages already in place.

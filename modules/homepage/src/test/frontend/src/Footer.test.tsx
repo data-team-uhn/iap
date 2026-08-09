@@ -21,6 +21,7 @@ import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { MessagesProvider, seedMessages } from "@iap/frontend-commons/messages";
 import Footer from "@iap/homepage/Footer";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
@@ -52,12 +53,17 @@ describe("Footer", () => {
   };
 
   const renderFooter = async () => {
+    // The footer's own wording, seeded rather than fetched: what this file is about is what the shell
+    // puts in its footer, not how a catalog reaches the browser
+    seedMessages({ "iap.footer.landmark.label": "Footer", "iap.footer.credit.builtBy": "Built by" });
     const result = render(
-      <ThemeProvider theme={appTheme} defaultMode="light">
-        <MemoryRouter>
-          <Footer />
-        </MemoryRouter>
-      </ThemeProvider>
+      <MessagesProvider>
+        <ThemeProvider theme={appTheme} defaultMode="light">
+          <MemoryRouter>
+            <Footer />
+          </MemoryRouter>
+        </ThemeProvider>
+      </MessagesProvider>
     );
     // Commit the footer-links state update before the test proceeds
     await act(() => Promise.resolve());
