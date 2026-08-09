@@ -22,6 +22,7 @@ import { type Theme } from "@mui/material/styles";
 import FooterContent, { FooterCredits } from "@iap/frontend-commons/components/FooterContent";
 import FormattedText from "@iap/frontend-commons/components/FormattedText";
 import Logo from "@iap/frontend-commons/components/Logo";
+import LanguageSwitcher from "@iap/frontend-commons/LanguageSwitcher";
 import { useMessage } from "@iap/frontend-commons/messages";
 
 import ParticipatingInstitutions from "./ParticipatingInstitutions";
@@ -67,6 +68,9 @@ export default function LoginPage() {
   const introText = meta("introText");
   const signInLabel = meta("signInLabel") ?? "Sign in";
   const signInHeading = meta("signInHeading") ?? "Continue with institutional credentials";
+  // Which languages this deployment offers, configured rather than compiled in: a deployment that adds a
+  // translation should not need a new build to let anyone reach it.
+  const languages = meta("languages")?.split(/\s+/).filter(Boolean) ?? [];
 
   return (
     <Box sx={{ minBlockSize: "100dvh", display: "flex", flexDirection: "column" }}>
@@ -248,12 +252,15 @@ export default function LoginPage() {
             gridArea: "credits",
             display: "flex",
             alignItems: "center",
-            justifyContent: "flex-start",
+            justifyContent: "space-between",
+            gap: 2,
+            flexWrap: "wrap",
             px: PANEL_PADDING,
             py: 2,
           }}
         >
           <FooterCredits />
+          <LanguageSwitcher languages={languages} />
         </Box>
       </Box>
     </Box>
