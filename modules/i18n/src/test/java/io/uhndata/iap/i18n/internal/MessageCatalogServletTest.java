@@ -63,10 +63,18 @@ class MessageCatalogServletTest
     {
         this.bundles = Mockito.mock(ResourceBundleProvider.class);
         this.servlet = new MessageCatalogServlet();
-        final Field field = MessageCatalogServlet.class.getDeclaredField("bundles");
-        field.setAccessible(true);
-        field.set(this.servlet, this.bundles);
+        inject("bundles", this.bundles);
+        // The real resolver rather than a stand-in: how a request's language is worked out is exactly what
+        // these tests are about, and a stub would only assert that this test agrees with itself
+        inject("locales", LocalesImplTest.locales("en", "fr"));
         this.context.create().resource("/libs/iap/messages", "sling:resourceType", "iap/Messages");
+    }
+
+    private void inject(final String name, final Object value) throws Exception
+    {
+        final Field field = MessageCatalogServlet.class.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(this.servlet, value);
     }
 
     @Test

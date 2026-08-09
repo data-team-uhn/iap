@@ -21,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
 
 import com.ibm.icu.text.MessagePattern;
 
@@ -47,6 +48,12 @@ import com.ibm.icu.text.MessagePattern;
  */
 public final class PseudoLocale
 {
+    /** The region asking for the long, accented pseudo-locale, following Android and Chrome. */
+    private static final String ACCENTED_REGION = "XA";
+
+    /** The region asking for the short one. */
+    private static final String SHORTENED_REGION = "XB";
+
     /**
      * How to disfigure a message.
      *
@@ -75,6 +82,29 @@ public final class PseudoLocale
     private PseudoLocale()
     {
         // Utility class
+    }
+
+    /**
+     * Which pseudo-locale, if any, a language names.
+     *
+     * <p>XA and XB are user-assigned region codes, so they can never collide with a real locale — the same
+     * convention Android and Chrome use for the same purpose.</p>
+     *
+     * @param locale the language being asked for
+     * @return how to disfigure the messages, or {@code null} for an ordinary language
+     */
+    public static Style styleOf(final Locale locale)
+    {
+        if (locale == null || !Locale.ENGLISH.getLanguage().equals(locale.getLanguage())) {
+            return null;
+        }
+        if (ACCENTED_REGION.equals(locale.getCountry())) {
+            return Style.ACCENTED;
+        }
+        if (SHORTENED_REGION.equals(locale.getCountry())) {
+            return Style.SHORTENED;
+        }
+        return null;
     }
 
     /**

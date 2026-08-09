@@ -36,6 +36,7 @@ import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import io.uhndata.iap.i18n.api.Locales;
 import io.uhndata.iap.i18n.api.Messages;
 
 /**
@@ -67,14 +68,11 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
     /** Which language to serve it in; defaults to the one the request asked for. */
     private static final String LOCALE = "locale";
 
-    /** The region asking for the long, accented pseudo-locale, following Android and Chrome. */
-    private static final String ACCENTED_REGION = "XA";
-
-    /** The region asking for the short one. */
-    private static final String SHORTENED_REGION = "XB";
-
     @Reference
     private transient ResourceBundleProvider bundles;
+
+    @Reference
+    private transient Locales locales;
 
     @Override
     protected void doGet(final SlingJakartaHttpServletRequest request,
@@ -82,7 +80,7 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
     {
         final String catalog = catalogOf(request);
         final Locale locale = localeOf(request);
-        final PseudoLocale.Style pseudo = styleOf(locale);
+        final PseudoLocale.Style pseudo = PseudoLocale.styleOf(locale);
         // A pseudo-locale is derived from the source language on the spot rather than stored. Derived, it
         // cannot drift from the catalog it is testing and cannot be partially written: every key is present,
         // so the fallback never fires and any plain English left on screen is provably a string that never
@@ -135,29 +133,6 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
             .build().toString();
     }
 
-    /**
-     * Which pseudo-locale, if any, is being asked for.
-     *
-     * <p>XA and XB are user-assigned region codes, so they can never collide with a real locale — the
-     * convention Android and Chrome use for the same purpose.</p>
-     *
-     * @param locale the language being asked for
-     * @return how to disfigure the messages, or {@code null} for an ordinary language
-     */
-    private static PseudoLocale.Style styleOf(final Locale locale)
-    {
-        if (!Locale.ENGLISH.getLanguage().equals(locale.getLanguage())) {
-            return null;
-        }
-        if (ACCENTED_REGION.equals(locale.getCountry())) {
-            return PseudoLocale.Style.ACCENTED;
-        }
-        if (SHORTENED_REGION.equals(locale.getCountry())) {
-            return PseudoLocale.Style.SHORTENED;
-        }
-        return null;
-    }
-
     private static String catalogOf(final SlingJakartaHttpServletRequest request)
     {
         final String requested = request.getParameter(CATALOG);
@@ -165,23 +140,23 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * The language to answer in: the one asked for by name, or else the one the request itself carries, which
-     * Sling resolves from the {@code Accept-Language} header.
+     * The language to answer in: what this request asked for — named in the URL, or remembered in a cookie
+     * from when it was — and failing that, what the browser announced.
      *
-     * <p>Naming one is the only way to reach a pseudo-locale. Sling resolves the header against the languages
-     * it can find in the repository and falls back to the default when it recognises none, so a browser
-     * announcing {@code en-XA} is answered in ordinary English — the fallback is doing its job, since nothing
-     * is stored under that name. A caller that wants the check has to ask for it.</p>
+     * <p>Read from the request in hand rather than from the ambient one. A servlet holding a request has no
+     * business reaching through a thread-local to ask about it, and doing so would be wrong on any thread
+     * this did not expect to be on.</p>
+     *
+     * <p>Naming a language is the only way to reach a pseudo-locale. Sling resolves {@code Accept-Language}
+     * against the languages it can find in the repository and falls back to the default when it recognises
+     * none, so a browser merely announcing {@code en-XA} is answered in ordinary English — the fallback doing
+     * its job, since nothing is stored under that name. A caller that wants the check has to ask for it.</p>
      *
      * @param request the current request
      * @return a locale, never {@code null}
      */
-    private static Locale localeOf(final SlingJakartaHttpServletRequest request)
+    private Locale localeOf(final SlingJakartaHttpServletRequest request)
     {
-        final String requested = request.getParameter(LOCALE);
-        if (requested == null || requested.isBlank()) {
-            return request.getLocale();
-        }
-        return Locale.forLanguageTag(requested);
+        return this.locales.getRequestLocale(request).orElseGet(request::getLocale);
     }
 }

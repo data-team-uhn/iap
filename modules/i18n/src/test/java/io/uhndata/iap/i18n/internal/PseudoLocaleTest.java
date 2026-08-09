@@ -27,6 +27,7 @@ import com.ibm.icu.text.MessageFormat;
 import io.uhndata.iap.i18n.internal.PseudoLocale.Style;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,6 +48,16 @@ class PseudoLocaleTest
 
     private static final String SELECT =
         "{gender, select, female {She approved it} male {He approved it} other {They approved it}}";
+
+    @Test
+    void namesNoPseudoLocaleForNothing()
+    {
+        assertNull(PseudoLocale.styleOf(null));
+        assertNull(PseudoLocale.styleOf(Locale.FRENCH));
+        assertNull(PseudoLocale.styleOf(Locale.CANADA));
+        assertEquals(PseudoLocale.Style.ACCENTED, PseudoLocale.styleOf(Locale.forLanguageTag("en-XA")));
+        assertEquals(PseudoLocale.Style.SHORTENED, PseudoLocale.styleOf(Locale.forLanguageTag("en-XB")));
+    }
 
     @Test
     void accentsAndLengthensOrdinaryProse()
