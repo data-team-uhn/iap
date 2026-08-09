@@ -17,14 +17,23 @@
  */
 package io.uhndata.iap.scripting;
 
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.ListResourceBundle;
+import java.util.Locale;
 import java.util.Map;
+import java.util.ResourceBundle;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.i18n.ResourceBundleProvider;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
+import org.osgi.framework.Constants;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,6 +54,122 @@ class ConfigMetadataTest
     void setUp()
     {
         this.context.addModelsForClasses(ConfigMetadata.class);
+    }
+
+    @Test
+    void translatesConfigurationForAReaderWhoAsksForAnotherLanguage()
+    {
+        // The sign-in page's intro text reaches the browser as a <meta> tag rendered here, not as JSON, so
+        // this is where a translation of shipped configuration has to be applied.
+        this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        assertEquals("Bienvenue", forA(Locale.FRENCH).getProperties().get("introText"));
+    }
+
+    @Test
+    void leavesConfigurationAsShippedWhereNoTranslationExists()
+    {
+        this.context.create().resource("/libs/iap/conf/Version", Map.of("version", "1.0.0"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        // Additive: a version number has no translation and should not acquire one
+        assertEquals("1.0.0", forA(Locale.FRENCH).getProperties().get("version"));
+    }
+
+    @Test
+    void leavesConfigurationAsShippedWhenTheCatalogueEchoesMissingKeys()
+    {
+        // Sling's own bundles answer a miss with the key itself rather than throwing. Without allowing for
+        // that, every untranslated property comes out as its own repository path — which is exactly what the
+        // sign-in page showed in English before this was handled.
+        this.context.create().resource("/libs/iap/conf/Version", Map.of("version", "1.0.0"));
+        offerEchoing(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        assertEquals("1.0.0", forA(Locale.FRENCH).getProperties().get("version"));
+    }
+
+    @Test
+    void leavesConfigurationAsShippedWhenThereIsNoReader()
+    {
+        // Adapted from a plain resource rather than a request — a background job, say. There is nobody whose
+        // language it could be, so nothing is translated.
+        this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+        final Resource resource = this.context.create().resource("/content/page");
+
+        assertEquals("Welcome", resource.adaptTo(ConfigMetadata.class).getProperties().get("introText"));
+    }
+
+    private ConfigMetadata forA(final Locale locale)
+    {
+        final MockSlingJakartaHttpServletRequest request =
+            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
+        request.setResource(this.context.create().resource("/content/page" + locale));
+        request.setLocale(locale);
+        return request.adaptTo(ConfigMetadata.class);
+    }
+
+    /** A catalog that behaves the way Sling's do: a missing key comes back as itself. */
+    private void offerEchoing(final Locale locale, final Map<String, String> entries)
+    {
+        register(locale, new ResourceBundle()
+        {
+            @Override
+            protected Object handleGetObject(final String key)
+            {
+                return entries.getOrDefault(key, key);
+            }
+
+            @Override
+            public Enumeration<String> getKeys()
+            {
+                return Collections.enumeration(entries.keySet());
+            }
+        });
+    }
+
+    private void offer(final Locale locale, final Map<String, String> entries)
+    {
+        final ResourceBundleProvider bundles = Mockito.mock(ResourceBundleProvider.class);
+        Mockito.when(bundles.getResourceBundle(Mockito.eq("iap.content"), Mockito.eq(locale)))
+            .thenReturn(new ListResourceBundle()
+            {
+                @Override
+                protected Object[][] getContents()
+                {
+                    return entries.entrySet().stream()
+                        .map(entry -> new Object[] { entry.getKey(), entry.getValue() })
+                        .toArray(Object[][]::new);
+                }
+            });
+        // sling-mock registers a provider of its own, whose bundles answer any miss with the key itself.
+        // Outranking it is what makes this test see the catalog it set up rather than that one.
+        register(locale, bundleOf(entries));
+    }
+
+    private void register(final Locale locale, final ResourceBundle bundle)
+    {
+        final ResourceBundleProvider bundles = Mockito.mock(ResourceBundleProvider.class);
+        Mockito.when(bundles.getResourceBundle(Mockito.eq("iap.content"), Mockito.eq(locale))).thenReturn(bundle);
+        // sling-mock registers a provider of its own, whose bundles answer any miss with the key itself.
+        // Outranking it is what makes this test see the catalog it set up rather than that one.
+        this.context.registerService(ResourceBundleProvider.class, bundles,
+            Map.of(Constants.SERVICE_RANKING, Integer.valueOf(1000)));
+    }
+
+    private static ResourceBundle bundleOf(final Map<String, String> entries)
+    {
+        return new ListResourceBundle()
+        {
+            @Override
+            protected Object[][] getContents()
+            {
+                return entries.entrySet().stream()
+                    .map(entry -> new Object[] { entry.getKey(), entry.getValue() })
+                    .toArray(Object[][]::new);
+            }
+        };
     }
 
     @Test

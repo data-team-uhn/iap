@@ -18,6 +18,8 @@
 package io.uhndata.iap.i18n.internal;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.ListResourceBundle;
 import java.util.Locale;
 import java.util.Map;
@@ -101,6 +103,34 @@ class LocalizeProcessorTest
         // The ordinary case, and the reason the whole mechanism is additive: a half-translated deployment
         // renders in a mix of languages rather than showing holes where translations are missing.
         translations(Locale.FRENCH, Map.of("/somewhere/else", "Autre"));
+        this.processor.start(resource(".localize:fr.json"));
+        final JsonValue stored = Json.createValue("Retrospective studies");
+
+        assertSame(stored, this.processor.processProperty(
+            Mockito.mock(Node.class), property(TITLE_PATH), stored, node -> null));
+    }
+
+    @Test
+    void leavesValuesAloneWhenTheCatalogueEchoesMissingKeys() throws Exception
+    {
+        // Sling's own bundles answer a miss with the key itself rather than throwing. Allowing only for the
+        // exception would replace every untranslated property with its own repository path — observed on a
+        // running instance before this was handled.
+        when(this.bundles.getResourceBundle(eq(Messages.CONTENT), eq(Locale.FRENCH)))
+            .thenReturn(new ResourceBundle()
+            {
+                @Override
+                protected Object handleGetObject(final String key)
+                {
+                    return key;
+                }
+
+                @Override
+                public Enumeration<String> getKeys()
+                {
+                    return Collections.emptyEnumeration();
+                }
+            });
         this.processor.start(resource(".localize:fr.json"));
         final JsonValue stored = Json.createValue("Retrospective studies");
 

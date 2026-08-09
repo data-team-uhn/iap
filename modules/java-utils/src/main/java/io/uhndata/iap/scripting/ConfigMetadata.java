@@ -19,16 +19,22 @@ package io.uhndata.iap.scripting;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.MissingResourceException;
+import java.util.ResourceBundle;
 
 import javax.annotation.PostConstruct;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.i18n.ResourceBundleProvider;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.OSGiService;
 import org.apache.sling.models.annotations.injectorspecific.SlingObject;
 import org.jetbrains.annotations.NotNull;
 
@@ -54,14 +60,33 @@ import org.jetbrains.annotations.NotNull;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
+@Model(adaptables = { Resource.class, SlingJakartaHttpServletRequest.class },
+    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class ConfigMetadata
 {
     /** The JCR node under which all the config nodes to be collected live. */
     public static final String CONF_ROOT = "/libs/iap/conf";
 
+    /**
+     * The catalog holding translations of shipped content, keyed by the path of the property each one
+     * translates.
+     *
+     * <p>Spelled out rather than imported from the i18n module, which cannot be depended on from here: this
+     * bundle starts at the same order, and the feature analyser requires a package's exporter to start no
+     * later than its importer. One duplicated string is the smaller price.</p>
+     */
+    private static final String CONTENT_CATALOG = "iap.content";
+
     @SlingObject
     private ResourceResolver resourceResolver;
+
+    /** Present when adapted from a request, which is the only case that has a reader with a language. */
+    @SlingObject
+    private SlingJakartaHttpServletRequest request;
+
+    /** Absent until the i18n bundle is up, which is later than this one. */
+    @OSGiService
+    private ResourceBundleProvider bundles;
 
     private Map<String, String> properties;
 
@@ -71,11 +96,28 @@ public class ConfigMetadata
         this.properties = new LinkedHashMap<>();
         final Resource root = this.resourceResolver.getResource(CONF_ROOT);
         if (root != null) {
-            collect(root, this.properties);
+            collect(root, this.properties, translations());
         }
     }
 
-    private void collect(final Resource resource, final Map<String, String> out)
+    /**
+     * The translations to apply, if there are any to apply and anybody to apply them for.
+     *
+     * <p>Adapted from a plain resource — from a background job, say — there is no reader and therefore no
+     * language, so the configuration is returned exactly as stored.</p>
+     *
+     * @return the content catalog in the reader's language, or {@code null} to leave everything as stored
+     */
+    private ResourceBundle translations()
+    {
+        if (this.bundles == null || this.request == null) {
+            return null;
+        }
+        final Locale locale = this.request.getLocale();
+        return locale == null ? null : this.bundles.getResourceBundle(CONTENT_CATALOG, locale);
+    }
+
+    private void collect(final Resource resource, final Map<String, String> out, final ResourceBundle translations)
     {
         final ValueMap values = resource.getValueMap();
         for (Map.Entry<String, Object> entry : values.entrySet()) {
@@ -85,11 +127,42 @@ public class ConfigMetadata
             }
             final String value = values.get(name, String.class);
             if (StringUtils.isNotBlank(value)) {
-                out.put(name, value);
+                out.put(name, translate(resource, name, value, translations));
             }
         }
         for (Resource child : resource.getChildren()) {
-            collect(child, out);
+            collect(child, out, translations);
+        }
+    }
+
+    /**
+     * One property in the reader's language, where a translation for it exists.
+     *
+     * <p>Keyed by the property's own path, so a translation is added without touching the content it
+     * translates and the shipped English goes on being its own fallback.</p>
+     *
+     * @param resource the config node the property belongs to
+     * @param name the property name
+     * @param value the value as stored
+     * @param translations the catalog, or {@code null} when there is nothing to apply
+     * @return the translated value, or the stored one
+     */
+    private String translate(final Resource resource, final String name, final String value,
+        final ResourceBundle translations)
+    {
+        if (translations == null) {
+            return value;
+        }
+        final String key = resource.getPath() + "/" + name;
+        try {
+            final String translated = translations.getString(key);
+            // Sling's own bundles answer a miss with the key itself rather than throwing, so the exception
+            // below is not enough on its own: without this check every untranslated property would be
+            // replaced by its own path. Found by rendering the page in English and reading it back.
+            return translated == null || translated.equals(key) ? value : translated;
+        } catch (final MissingResourceException e) {
+            // A bundle that does throw, which the specification allows and some implementations do
+            return value;
         }
     }
 

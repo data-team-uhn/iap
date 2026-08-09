@@ -132,10 +132,15 @@ public class LocalizeProcessor implements ResourceJsonProcessor
         if (bundle == null) {
             return input;
         }
+        final String key = pathOf(property);
         try {
-            return Json.createValue(bundle.getString(pathOf(property)));
+            final String translated = bundle.getString(key);
+            // Sling's own bundles answer a miss with the key itself rather than throwing, so catching the
+            // exception is not enough: without this check every untranslated property would be replaced by
+            // its own path. Untranslated is the ordinary case for most properties.
+            return translated == null || translated.equals(key) ? input : Json.createValue(translated);
         } catch (final MissingResourceException e) {
-            // Untranslated, which is the ordinary case for most properties: the stored value stands
+            // A bundle that does throw, which the specification allows and some implementations do
             return input;
         }
     }
