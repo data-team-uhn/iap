@@ -16,6 +16,6 @@
 
 {
     "prototype":{
-        "id": "${project.groupId}:iap-i18n:slingosgifeature:${project.version}"
+        "id": "${project.groupId}:iap-i18n-impl:slingosgifeature:${project.version}"
     }
 }

@@ -23,6 +23,14 @@
       "start-order": "20"
     },
     {
+      // Interfaces only, and strictly before java-utils (20), which imports them. The feature analyser
+      // requires a package's exporter to start no later than the bundles importing it, and the
+      // implementation cannot start that early -- it starts at 22, after the node types it depends on are
+      // registered. Separating the interfaces is what lets both be true at once.
+      "id": "${project.groupId}:iap-i18n-api:${project.version}",
+      "start-order": "19"
+    },
+    {
       // After sling.i18n (20) on two counts: its ResourceBundleProvider is what this wraps, and its CND
       // declares mix:language and sling:Message, which this module's node types extend -- node type
       // registration is start-order sensitive, so an earlier start would simply fail. Before anything that
