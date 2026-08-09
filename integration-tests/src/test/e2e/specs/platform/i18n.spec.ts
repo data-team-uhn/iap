@@ -75,6 +75,20 @@ test.describe('reading the platform in another language', () => {
     await expect(page.getByRole('button', { name: 'Se connecter' })).toBeVisible();
   });
 
+  test('remembers the language after the reader has chosen it', async ({ page }) => {
+    // The choice has to survive the navigation that is certain to follow — signing in — or somebody switches
+    // to French, signs in, and lands back in English
+    const login = new LoginPage(page);
+    await login.open();
+    await login.language('français').click();
+    await expect(page.getByLabel("Nom d'utilisateur")).toBeVisible();
+
+    await login.open();
+
+    await expect(page.getByLabel("Nom d'utilisateur")).toBeVisible();
+    await expect(page.getByText(/accompagne les études de recherche/)).toBeVisible();
+  });
+
   test('lets a French reader find their way back', async ({ page }) => {
     // The language being read stays a link rather than becoming plain text, so the way back is in the
     // same place as the way out
@@ -182,6 +196,29 @@ test.describe('the mirrored pseudo-locale', () => {
     });
     expect(overrides.opened).toBeGreaterThan(0);
     expect(overrides.popped).toBe(overrides.opened);
+  });
+
+  test('turns the seam pointer around with the page', async ({ page }) => {
+    // A clip path is drawn in physical coordinates, so it is the one thing here that logical properties
+    // cannot mirror. Left alone it changes sides and goes on pointing the same way — which, in a mirrored
+    // layout, is back into the seam instead of across it toward the sign-in panel.
+    const pointerTransform = async () => page.evaluate(() => {
+      const pointer = Array.from(document.querySelectorAll('[aria-hidden="true"]'))
+        .find(element => getComputedStyle(element).clipPath.startsWith('polygon'));
+      return pointer === undefined ? null : getComputedStyle(pointer).transform;
+    });
+
+    const login = new LoginPage(page);
+    await login.open('en-XB');
+    await expect(login.labels().first()).toBeVisible();
+    expect(await pointerTransform()).toBe('matrix(-1, 0, 0, 1, 0, 0)');
+
+    // Named rather than left to default: visiting the mirrored locale above was a choice, and the server
+    // remembered it, so a bare /login in this same browser is still mirrored — which is the point of the
+    // cookie, and would look like a failure here
+    await login.open('en');
+    await expect(login.labels().first()).toBeVisible();
+    expect(await pointerTransform()).toBe('none');
   });
 
   test('says which way each language runs', async ({ request }) => {

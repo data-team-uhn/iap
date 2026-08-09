@@ -120,7 +120,14 @@ export default function LoginPage() {
               blockSize: 36,
               clipPath: "polygon(0 0, 0 100%, 100% 50%)",
               bgcolor: SEAM_COLOR,
-              transform: theme.direction === "rtl" ? "scaleX(-1)" : undefined,
+              // A clip path is drawn in physical coordinates, so this is the one thing on the page that
+              // logical properties cannot mirror: without it the pointer changes sides but goes on pointing
+              // the same way, which in a mirrored layout is back into the seam instead of across it.
+              //
+              // Keyed off the document's dir attribute, which is what actually carries direction here — the
+              // language is settled after this theme is built, so theme.direction is "ltr" whatever the page
+              // is doing, and a guard written against it would silently never fire.
+              '[dir="rtl"] &': { transform: "scaleX(-1)" },
               // The inner fill is the outer triangle's edges offset inward by 1px (for the
               // 45-degree slants that is 1.4px along each axis), leaving a hairline outline
               // parallel to the shape; the base is not offset, since the panel border

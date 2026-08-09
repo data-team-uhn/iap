@@ -130,6 +130,10 @@ export function MessagesProvider({ catalog = INTERFACE_CATALOG, children }: Mess
         // On the document rather than on a wrapper, so the page's own text — rendered server-side into its
         // <meta> tags, and outside this tree entirely — turns around with the interface rather than against
         // it. Logical CSS properties then mirror the layout on their own.
+        //
+        // This attribute is what carries direction through the app. A MUI theme is built before the language
+        // is known, so theme.direction stays "ltr" however the page is rendering: style that has to know
+        // which way round it is should ask for a [dir="rtl"] ancestor, not the theme.
         document.documentElement.dir = directions.get(cacheKey(catalog, currentLocale())) ?? "ltr";
       }
     });
