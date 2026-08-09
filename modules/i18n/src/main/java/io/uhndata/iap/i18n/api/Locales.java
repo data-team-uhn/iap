@@ -112,6 +112,17 @@ public interface Locales
     Optional<Locale> getUserPreferredLocale(@NotNull Authorizable user);
 
     /**
+     * Whether a language is written right to left.
+     *
+     * <p>Asked of the language itself rather than looked up in a list of them, so Arabic, Hebrew, Persian and
+     * Urdu are all answered correctly without anybody having had to think of them.</p>
+     *
+     * @param locale the language to ask about
+     * @return {@code true} where text in it runs right to left
+     */
+    boolean isRightToLeft(@NotNull Locale locale);
+
+    /**
      * The languages this deployment offers.
      *
      * <p>What a language switcher should list, and what every other answer here is narrowed to: resolving to

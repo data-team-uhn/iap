@@ -29,10 +29,10 @@ function Greeting({ messageKey }: { messageKey: string }) {
 }
 
 describe("messages", () => {
-  const answerWith = (messages: Record<string, string>, ok = true) => {
+  const answerWith = (messages: Record<string, string>, ok = true, direction = "ltr") => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok,
-      json: () => Promise.resolve({ catalog: "iap.interface", locale: "en", messages }),
+      json: () => Promise.resolve({ catalog: "iap.interface", locale: "en", direction, messages }),
     });
     vi.stubGlobal("fetch", fetchMock);
     return fetchMock;
@@ -42,6 +42,7 @@ describe("messages", () => {
     forgetMessages();
     vi.unstubAllGlobals();
     window.history.pushState({}, "", "/login");
+    document.documentElement.dir = "";
   });
 
   it("shows a message from the catalog", async () => {
@@ -125,6 +126,35 @@ describe("messages", () => {
     await loadMessages();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns the page around for a language that reads that way", async () => {
+    // On the document, so the server-rendered text outside this tree turns around with the interface rather
+    // than against it
+    answerWith({ "iap.a": "A" }, true, "rtl");
+
+    render(<MessagesProvider><Greeting messageKey="iap.a" /></MessagesProvider>);
+
+    await waitFor(() => expect(document.documentElement.dir).toBe("rtl"));
+  });
+
+  it("leaves the page the way it reads for everything else", async () => {
+    answerWith({ "iap.a": "A" });
+
+    render(<MessagesProvider><Greeting messageKey="iap.a" /></MessagesProvider>);
+
+    await waitFor(() => expect(document.documentElement.dir).toBe("ltr"));
+  });
+
+  it("assumes the usual direction when the server says nothing", async () => {
+    // An older server, or one having a bad day, should not leave the page mirrored
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true, json: () => Promise.resolve({ messages: { "iap.a": "A" } }),
+    }));
+
+    render(<MessagesProvider><Greeting messageKey="iap.a" /></MessagesProvider>);
+
+    await waitFor(() => expect(document.documentElement.dir).toBe("ltr"));
   });
 
   it("names the language the URL asks for", async () => {

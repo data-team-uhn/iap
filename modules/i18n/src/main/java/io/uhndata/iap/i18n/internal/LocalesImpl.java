@@ -30,6 +30,7 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.metatype.annotations.Designate;
 
+import com.ibm.icu.util.ULocale;
 import io.uhndata.iap.i18n.api.Locales;
 
 /**
@@ -97,6 +98,16 @@ public class LocalesImpl implements Locales
     public Optional<Locale> getUserPreferredLocale(@NotNull final Authorizable user)
     {
         throw new UnsupportedOperationException("Nothing stores a language preference against an account yet");
+    }
+
+    @Override
+    public boolean isRightToLeft(@NotNull final Locale locale)
+    {
+        // The mirrored pseudo-locale is English underneath, so nothing but this knows it should turn around
+        if (PseudoLocale.styleOf(locale) == PseudoLocale.Style.SHORTENED) {
+            return true;
+        }
+        return ULocale.forLocale(locale).isRightToLeft();
     }
 
     @Override

@@ -49,6 +49,12 @@ class PseudoLocaleTest
     private static final String SELECT =
         "{gender, select, female {She approved it} male {He approved it} other {They approved it}}";
 
+    /** The text as written, with the direction override taken back off. */
+    private static String unmirrored(final String text)
+    {
+        return text.replace("\u202e", "").replace("\u202c", "");
+    }
+
     @Test
     void namesNoPseudoLocaleForNothing()
     {
@@ -166,7 +172,48 @@ class PseudoLocaleTest
         // different sentence rather than a shorter one.
         final String result = PseudoLocale.transform("{first} {second}", Style.SHORTENED);
 
-        assertEquals("{first} {second}", result);
+        assertEquals("{first} {second}", unmirrored(result));
+    }
+
+    @Test
+    void turnsTheShortenedFormAround()
+    {
+        // Hebrew and Arabic are both more compact than English and both read the other way, so one
+        // pseudo-locale meeting a layout with both is closer to a real language than two separate checks
+        final String result = PseudoLocale.transform("Sign in", Style.SHORTENED);
+
+        assertTrue(result.startsWith("\u202e"), result);
+        assertTrue(result.endsWith("\u202c"), result);
+    }
+
+    @Test
+    void leavesTheWordsThemselvesTheRightWayRound()
+    {
+        // Wrapped in an override rather than reversed, so a test still finds the text where it expects it, a
+        // screen reader still reads it, and it can still be copied — only the rendering turns around
+        final String result = PseudoLocale.transform("Sign in", Style.SHORTENED);
+
+        assertFalse(unmirrored(result).contains("ni ngiS"), result);
+        assertTrue("Sign in".startsWith(unmirrored(result)), result);
+    }
+
+    @Test
+    void doesNotTurnTheRestOfThePageAround()
+    {
+        // An override that is never popped runs on into whatever follows it on the page
+        final String result = PseudoLocale.transform("Sign in", Style.SHORTENED);
+
+        assertEquals(1, result.chars().filter(c -> c == 0x202E).count(), result);
+        assertEquals(1, result.chars().filter(c -> c == 0x202C).count(), result);
+    }
+
+    @Test
+    void leavesTheLongFormTheWayItReads()
+    {
+        // Only the short one mirrors; bracketing and turning around at once would tell you less about each
+        final String result = PseudoLocale.transform("Sign in", Style.ACCENTED);
+
+        assertFalse(result.contains("\u202e"), result);
     }
 
     @Test

@@ -34,6 +34,10 @@ import com.ibm.icu.text.MessagePattern;
  * obvious; {@link Style#SHORTENED} is the short one, and is deliberately left unmarked, since brackets would
  * add back the width it exists to remove.</p>
  *
+ * <p>The short one also renders right-to-left, which makes it a simulation of a real family of languages
+ * rather than two unrelated checks: Hebrew and Arabic are both more compact than English and both read the
+ * other way, so a layout meeting them meets them together.</p>
+ *
  * <p>These are generated from the source language, never written by hand. A hand-written pseudo-locale is
  * partial, so a missing key falls back to plain English and reads exactly like a string that was never
  * translatable in the first place — which defeats the entire purpose. Generated, every key is present, the
@@ -64,7 +68,7 @@ public final class PseudoLocale
     {
         /** Accented and padded, bracketed at both ends: the "everything is longer" case. */
         ACCENTED,
-        /** Shortened, unmarked: the "everything is shorter" case. */
+        /** Shortened and mirrored, unmarked: the "compact and right-to-left" case. */
         SHORTENED
     }
 
@@ -78,6 +82,24 @@ public final class PseudoLocale
 
     /** How much of the original the shortened form keeps. */
     private static final double CONTRACTION = 0.6;
+
+    /**
+     * Renders what follows right-to-left whatever direction its characters naturally have, until popped.
+     *
+     * <p>An override rather than a mark or an isolate: only this makes Latin letters lay out the other way,
+     * which is the point. A mark ({@code U+200F}) is merely an invisible strong character and an isolate
+     * ({@code U+2067}) contains direction without overriding it, so English inside either still reads
+     * left-to-right — and the mirroring being tested for would never appear.</p>
+     *
+     * <p>Wrapping rather than reversing the letters, which is the other way to fake this. The text itself is
+     * left exactly as it was, so a test still finds "Sign in" where it expects it, a screen reader still
+     * reads it, and it can still be copied — only the rendering turns around. Reversal would corrupt all
+     * three to achieve the same picture.</p>
+     */
+    private static final String RIGHT_TO_LEFT_OVERRIDE = "\u202e";
+
+    /** Ends the override. Unbalanced, it would turn the rest of the page around with it. */
+    private static final String POP_DIRECTION = "\u202c";
 
     private PseudoLocale()
     {
@@ -148,7 +170,10 @@ public final class PseudoLocale
         // next to whatever follows, and beside an apostrophe -- MessageFormat's quoting character -- that
         // changes how the rest of the pattern is read. Measured: it turned two SKIP_SYNTAX parts into
         // INSERT_CHAR ones, which is a different message, silently.
-        return style == Style.ACCENTED ? "[" + result + padding(readableLength) + "]" : result.toString();
+        if (style == Style.ACCENTED) {
+            return "[" + result + padding(readableLength) + "]";
+        }
+        return RIGHT_TO_LEFT_OVERRIDE + result + POP_DIRECTION;
     }
 
     /**

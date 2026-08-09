@@ -135,6 +135,69 @@ test.describe('the pseudo-locale check', () => {
 });
 
 /**
+ * The mirrored pseudo-locale.
+ *
+ * <p>en-XB is shorter than English and reads the other way, which together make it a stand-in for a real
+ * family of languages rather than two unrelated checks: Hebrew and Arabic are both more compact and both
+ * right-to-left, so a layout meets them together or not at all.</p>
+ */
+test.describe('the mirrored pseudo-locale', () => {
+  test('turns the page around', async ({ page }) => {
+    const login = new LoginPage(page);
+    await login.open('en-XB');
+
+    await expect(login.labels().first()).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  });
+
+  test('leaves the page alone for a language that reads the usual way', async ({ page }) => {
+    const login = new LoginPage(page);
+    await login.open('fr');
+
+    await expect(page.getByLabel("Nom d'utilisateur")).toBeVisible();
+    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  });
+
+  test('leaves the words themselves the right way round', async ({ page }) => {
+    // The whole reason for wrapping the text in a direction override rather than reversing it: only the
+    // rendering turns around, so this suite goes on finding text where it says it is, a screen reader goes
+    // on reading it, and it can still be copied. Reversal would have cost all three.
+    const login = new LoginPage(page);
+    await login.open('en-XB');
+
+    await expect(page.locator('form button[type="submit"]')).toHaveText(/Sign/);
+  });
+
+  test('does not turn the rest of the page around with it', async ({ page }) => {
+    // An override that is never popped runs on into whatever follows it
+    const login = new LoginPage(page);
+    await login.open('en-XB');
+
+    await expect(login.labels().first()).toBeVisible();
+    const overrides = await page.evaluate(() => {
+      const text = document.body.innerText;
+      const opened = (text.match(/\u202E/g) ?? []).length;
+      const popped = (text.match(/\u202C/g) ?? []).length;
+      return { opened, popped };
+    });
+    expect(overrides.opened).toBeGreaterThan(0);
+    expect(overrides.popped).toBe(overrides.opened);
+  });
+
+  test('says which way each language runs', async ({ request }) => {
+    // Answered by the server, so no list of right-to-left languages has to be kept in the browser and kept
+    // correct — and real Arabic and Hebrew are answered by the same code that answers this one
+    const mirrored = await (await request.get('/libs/iap/messages.json?locale=en-XB', { maxRedirects: 0 }))
+      .json() as { direction: string };
+    const plain = await (await request.get('/libs/iap/messages.json?locale=fr', { maxRedirects: 0 }))
+      .json() as { direction: string };
+
+    expect(mirrored.direction).toBe('rtl');
+    expect(plain.direction).toBe('ltr');
+  });
+});
+
+/**
  * The catalog endpoint itself.
  */
 test.describe('the message catalog', () => {

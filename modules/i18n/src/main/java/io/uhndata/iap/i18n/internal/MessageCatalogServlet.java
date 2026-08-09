@@ -87,7 +87,7 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
         // went through a catalog at all.
         final ResourceBundle bundle =
             this.bundles.getResourceBundle(catalog, pseudo == null ? locale : Locale.ENGLISH);
-        final String body = serialize(catalog, locale, bundle, pseudo);
+        final String body = serialize(catalog, locale, bundle, pseudo, this.locales.isRightToLeft(locale));
 
         // Every page needs this before it can render, so re-fetching it on each navigation is worth avoiding
         // — but a stale catalog shows the wrong words indefinitely, and somebody who has just reworded a
@@ -115,10 +115,11 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
      * @param locale the language it is being served in
      * @param bundle the messages, or {@code null} when no such catalog exists
      * @param pseudo how to disfigure each message, or {@code null} to serve it as written
+     * @param rightToLeft whether this language runs right to left
      * @return the response body
      */
     private static String serialize(final String catalog, final Locale locale, final ResourceBundle bundle,
-        final PseudoLocale.Style pseudo)
+        final PseudoLocale.Style pseudo, final boolean rightToLeft)
     {
         final JsonObjectBuilder messages = Json.createObjectBuilder();
         if (bundle != null) {
@@ -129,6 +130,8 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
         return Json.createObjectBuilder()
             .add(CATALOG, catalog)
             .add(LOCALE, locale.toLanguageTag())
+            // Answered here so the page turns around without the browser having to know which languages do
+            .add("direction", rightToLeft ? "rtl" : "ltr")
             .add("messages", messages)
             .build().toString();
     }
