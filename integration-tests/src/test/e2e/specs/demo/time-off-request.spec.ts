@@ -81,16 +81,33 @@ test.describe('the time off request demo', () => {
     expect(reference).toBe(identifier);
   });
 
-  test('installs the workflow, with BPMN the engine can be pointed at', async ({ request }) => {
+  test('installs the workflow the engine can be pointed at', async ({ request }) => {
     const response = await request.get('/Workflows/timeOffRequest/v1.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
-    const version = (await response.json()) as { active?: boolean; bpmnXml?: string };
+    const version = (await response.json()) as { active?: boolean; 'jcr:primaryType'?: string };
     expect(version.active).toBe(true);
+
+    expect(version['jcr:primaryType']).toBe('wf:WorkflowVersion');
+
+    // The diagram is a file child of the version, not a property on it, so it must not turn up here
+    expect(version).not.toHaveProperty('bpmnXml');
+  });
+
+  test('ships the BPMN as a file, served as XML', async ({ request }) => {
+    const node = await request.get('/Workflows/timeOffRequest/v1/bpmn.xml.json', { headers: asAdmin });
+
+    expect(node.ok()).toBeTruthy();
+    expect(((await node.json()) as { 'jcr:primaryType'?: string })['jcr:primaryType']).toBe('nt:file');
+
+    const response = await request.get('/Workflows/timeOffRequest/v1/bpmn.xml', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    expect(response.headers()['content-type']).toContain('application/xml');
 
     // Asserted on as a process rather than as a string: these are the element identifiers the engine will
     // resolve, so a diagram edited into a shape the demo no longer describes should fail here.
-    const bpmn = version.bpmnXml ?? '';
+    const bpmn = await response.text();
     expect(bpmn).toContain('<bpmn:startEvent id="requestSubmitted"');
     expect(bpmn).toContain('<bpmn:userTask id="approveRequest"');
     expect(bpmn).toContain('<bpmn:exclusiveGateway id="decision"');
