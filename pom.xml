@@ -2015,6 +2015,22 @@
                 <skip>${typecheck.skip}</skip>
               </configuration>
             </execution>
+            <!-- Checks that the message catalogs and the code that reads them agree: every key the
+                 code asks for exists, and every key a catalog defines is asked for. The complement
+                 of the pseudo-locale check in the integration suite, which proves no string reached
+                 the screen without going through a catalog; this proves the catalog and the code
+                 have not drifted apart. Cheap and static, so it runs with the other quality gates
+                 rather than waiting for an instance to start. -->
+            <execution>
+              <id>yarn-check-messages</id>
+              <goals>
+                <goal>yarn</goal>
+              </goals>
+              <configuration>
+                <arguments>check:messages</arguments>
+                <skip>${typecheck.skip}</skip>
+              </configuration>
+            </execution>
             <!-- Runs webpack to compile the JS source code -->
             <execution>
               <id>webpack</id>
