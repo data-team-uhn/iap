@@ -68,7 +68,7 @@ public final class PseudoLocale
     {
         /** Accented and padded, bracketed at both ends: the "everything is longer" case. */
         ACCENTED,
-        /** Shortened and mirrored, unmarked: the "compact and right-to-left" case. */
+        /** Devowelled and mirrored, unmarked: the "compact and right-to-left" case. */
         SHORTENED
     }
 
@@ -80,8 +80,17 @@ public final class PseudoLocale
     /** How much longer the accented form runs, which is roughly what a German translation costs. */
     private static final double EXPANSION = 1.4;
 
-    /** How much of the original the shortened form keeps. */
-    private static final double CONTRACTION = 0.6;
+    /**
+     * The letters the shortened form drops.
+     *
+     * <p>Dropping vowels rather than cutting the text short, which is what this did first and what made it
+     * unusable. Shipped text is written in Markdown, so cutting at a measured fraction of the length lands
+     * mid-token as often as not: {@code **faster**} came out as {@code **faster*}, and one unbalanced
+     * delimiter changes how everything after it is parsed. Removing letters cannot do that -- it never
+     * touches a character that is not a letter, so every delimiter, apostrophe and brace survives exactly
+     * where it was, and the result is still readable enough to recognise on screen.</p>
+     */
+    private static final String VOWELS = "aeiouAEIOU";
 
     /**
      * Renders what follows right-to-left whatever direction its characters naturally have, until popped.
@@ -91,10 +100,10 @@ public final class PseudoLocale
      * ({@code U+2067}) contains direction without overriding it, so English inside either still reads
      * left-to-right — and the mirroring being tested for would never appear.</p>
      *
-     * <p>Wrapping rather than reversing the letters, which is the other way to fake this. The text itself is
-     * left exactly as it was, so a test still finds "Sign in" where it expects it, a screen reader still
-     * reads it, and it can still be copied — only the rendering turns around. Reversal would corrupt all
-     * three to achieve the same picture.</p>
+     * <p>Wrapping rather than reversing the letters, which is the other way to fake this. The letters
+     * keep their order, so a screen reader still reads the words as words, they can still be copied, and a
+     * test still finds them by what survives of what they say — only the rendering turns around. Reversal
+     * would corrupt all three to achieve the same picture.</p>
      */
     private static final String RIGHT_TO_LEFT_OVERRIDE = "\u202e";
 
@@ -225,7 +234,7 @@ public final class PseudoLocale
     private static String disfigure(final String text, final Style style)
     {
         if (style == Style.SHORTENED) {
-            return shorten(text);
+            return reopenPerLine(shorten(text));
         }
         final StringBuilder accented = new StringBuilder(text.length());
         for (final char c : text.toCharArray()) {
@@ -249,13 +258,76 @@ public final class PseudoLocale
         return extra <= 0 ? "" : " " + "·".repeat(extra);
     }
 
+    /**
+     * The text with its vowels removed, which is how the shortened form gets shorter.
+     *
+     * <p>Word by word rather than letter by letter, so that a word made only of vowels -- "a", "I" --
+     * leaves something behind instead of vanishing and gluing its neighbours into a different
+     * sentence.</p>
+     *
+     * @param text a run of text a reader sees
+     * @return the same text, shorter
+     */
     private static String shorten(final String text)
     {
-        if (text.isBlank()) {
-            return text;
+        final StringBuilder result = new StringBuilder(text.length());
+        int index = 0;
+        while (index < text.length()) {
+            if (!Character.isLetter(text.charAt(index))) {
+                // Everything that is not a letter stays exactly where it was: Markdown delimiters,
+                // apostrophes, braces, whitespace. That is what makes this safe on text with markup in it.
+                result.append(text.charAt(index));
+                index++;
+                continue;
+            }
+            int end = index;
+            while (end < text.length() && Character.isLetter(text.charAt(end))) {
+                end++;
+            }
+            result.append(devowel(text, index, end));
+            index = end;
         }
-        final int keep = Math.max(1, (int) Math.round(text.length() * CONTRACTION));
-        return text.substring(0, keep);
+        return result.toString();
+    }
+
+    /**
+     * One word without its vowels.
+     *
+     * @param text the text being disfigured
+     * @param from where the word starts
+     * @param to where it ends
+     * @return the word's consonants, or its first letter where it has none
+     */
+    private static String devowel(final String text, final int from, final int to)
+    {
+        final StringBuilder word = new StringBuilder(to - from);
+        for (int i = from; i < to; i++) {
+            if (VOWELS.indexOf(text.charAt(i)) < 0) {
+                word.append(text.charAt(i));
+            }
+        }
+        return word.length() == 0 ? text.substring(from, from + 1) : word.toString();
+    }
+
+    /**
+     * Closes and re-opens the direction override around every line break.
+     *
+     * <p>A direction override reaches as far as the end of its <em>bidi paragraph</em>, and a forced line
+     * break ends one -- so a {@code <br>}, or a blank line that Markdown turns into a second paragraph,
+     * drops the override and everything after it reads left to right again. One override around the whole
+     * message therefore turned only its first line around, which is worse than turning none of it: the
+     * layout looks checked, and the half that was not checked looks exactly like the half that was.</p>
+     *
+     * <p>Done here, on text a reader sees, rather than on the finished pattern. A newline can also fall
+     * inside an argument's header -- a {@code plural} and its categories written across several lines --
+     * and inserting anything there would rewrite the message instead of restyling it.</p>
+     *
+     * @param text a run of text a reader sees, already shortened
+     * @return the same text, with each of its lines overridden in its own right
+     */
+    private static String reopenPerLine(final String text)
+    {
+        return text.replace("\n", POP_DIRECTION + "\n" + RIGHT_TO_LEFT_OVERRIDE);
     }
 
     /**

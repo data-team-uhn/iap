@@ -83,7 +83,41 @@ class PseudoLocaleTest
 
         // Unmarked on purpose: brackets would add back the width this exists to take away
         assertFalse(result.startsWith("["), result);
-        assertTrue(result.length() < "Sign in to continue".length(), result);
+        assertEquals("Sgn n t cntn", unmirrored(result));
+    }
+
+    @Test
+    void leavesMarkdownDelimitersWhereTheyWere()
+    {
+        // What cutting the text short got wrong, and the reason it is gone. Shipped text is Markdown, and a
+        // measured fraction of its length lands mid-token as often as not: "**faster**" came back as
+        // "**faster*", and one unbalanced delimiter changes how everything after it is parsed. Dropping
+        // letters cannot reach a character that is not one.
+        final String result = PseudoLocale.transform("Designed to make the process **faster**", Style.SHORTENED);
+
+        assertEquals("Dsgnd t mk th prcss **fstr**", unmirrored(result));
+    }
+
+    @Test
+    void leavesAWordThatIsNothingButVowelsBehind()
+    {
+        // Removing every letter of a word would run its neighbours together into a different sentence, which
+        // is a change of meaning rather than of length
+        assertEquals("Sbmt a d", unmirrored(PseudoLocale.transform("Submit a idea", Style.SHORTENED)));
+    }
+
+    @Test
+    void overridesEachLineInItsOwnRight()
+    {
+        // A direction override reaches the end of its bidi paragraph and no further, and a forced line break
+        // ends one. With a single override around the whole message only the first line turned around, and
+        // the rest read left to right -- a layout half-checked, with the unchecked half invisible.
+        final String result = PseudoLocale.transform("First line\nSecond line", Style.SHORTENED);
+
+        for (final String line : result.split("\n")) {
+            assertTrue(line.startsWith("\u202e"), line);
+            assertTrue(line.endsWith("\u202c"), line);
+        }
     }
 
     @Test
@@ -194,7 +228,31 @@ class PseudoLocaleTest
         final String result = PseudoLocale.transform("Sign in", Style.SHORTENED);
 
         assertFalse(unmirrored(result).contains("ni ngiS"), result);
-        assertTrue("Sign in".startsWith(unmirrored(result)), result);
+        assertTrue(inWrittenOrder(unmirrored(result), "Sign in"), result);
+    }
+
+    /**
+     * Whether every character that survived is still in the order it was written in.
+     *
+     * <p>What "not reversed" actually means, now that the shortened form drops letters from the middle
+     * rather than cutting the end off: the surviving letters are a subsequence of the original, never a
+     * rearrangement of it.</p>
+     *
+     * @param kept the disfigured text
+     * @param original the text it was made from
+     * @return {@code true} where nothing has moved
+     */
+    private static boolean inWrittenOrder(final String kept, final String original)
+    {
+        int index = 0;
+        for (final char c : kept.toCharArray()) {
+            index = original.indexOf(c, index);
+            if (index < 0) {
+                return false;
+            }
+            index++;
+        }
+        return true;
     }
 
     @Test

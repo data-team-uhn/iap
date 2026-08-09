@@ -211,10 +211,43 @@ test.describe('the mirrored pseudo-locale', () => {
     // The whole reason for wrapping the text in a direction override rather than reversing it: only the
     // rendering turns around, so this suite goes on finding text where it says it is, a screen reader goes
     // on reading it, and it can still be copied. Reversal would have cost all three.
+    //
+    // "Sgn" rather than "Sign" because this locale drops vowels to get shorter. The letters that remain are
+    // still in the order they were written in, which is exactly what is being asserted.
     const login = new LoginPage(page);
     await login.open('en-XB');
 
-    await expect(page.locator('form button[type="submit"]')).toHaveText(/Sign/);
+    await expect(page.locator('form button[type="submit"]')).toHaveText(/Sgn/);
+  });
+
+  test('does not cut a markup delimiter in half', async ({ page }) => {
+    // Shipped text is Markdown, and this locale used to get shorter by cutting at a fraction of the
+    // length — which landed mid-token and left "**faster*" behind. One unbalanced delimiter changes how
+    // everything after it is parsed, so the page it was testing is not the page anybody would ship.
+    const login = new LoginPage(page);
+    await login.open('en-XB');
+    await expect(login.labels().first()).toBeVisible();
+
+    const intro = (await login.configured('introText')) ?? '';
+    expect((intro.match(/\*\*/g) ?? []).length % 2, `unbalanced emphasis in "${intro}"`).toBe(0);
+    // And it still reached the page as emphasis rather than as literal asterisks
+    await expect(page.locator('strong').first()).toBeVisible();
+  });
+
+  test('turns every line around, not only the first', async ({ page }) => {
+    // A direction override reaches the end of its bidi paragraph and no further, and the line break
+    // Markdown puts in the middle of this paragraph ends one. With a single override around the whole
+    // message the first line turned around and the rest did not — the worst of the three outcomes, since
+    // the half that was never checked looks exactly like the half that was.
+    const login = new LoginPage(page);
+    await login.open('en-XB');
+    await expect(login.labels().first()).toBeVisible();
+
+    const intro = (await login.configured('introText')) ?? '';
+    const opened = (intro.match(/\u202E/g) ?? []).length;
+    const popped = (intro.match(/\u202C/g) ?? []).length;
+    expect(opened, `only one override in "${intro}"`).toBeGreaterThan(1);
+    expect(popped).toBe(opened);
   });
 
   test('does not turn the rest of the page around with it', async ({ page }) => {
