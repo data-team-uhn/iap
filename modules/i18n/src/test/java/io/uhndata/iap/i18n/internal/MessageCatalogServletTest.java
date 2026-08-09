@@ -37,6 +37,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.i18n.api.Messages;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -80,6 +81,61 @@ class MessageCatalogServletTest
         final String body = response.getOutputAsString();
         assertTrue(body.contains("\"catalog\":\"" + Messages.INTERFACE + "\""), body);
         assertTrue(body.contains("\"First\"") && body.contains("\"Second\""), body);
+    }
+
+    @Test
+    void derivesAPseudoLocaleFromTheSourceLanguage() throws Exception
+    {
+        // Nothing is stored for en-XA. Asking for it must still answer, from the English catalog, or the
+        // whole check is testing a translation somebody remembered to write rather than the interface.
+        offer(Messages.INTERFACE, Locale.ENGLISH, Map.of("iap.a", "Username"));
+
+        final String body = get(Map.of(), Locale.forLanguageTag("en-XA")).getOutputAsString();
+
+        assertTrue(body.contains("\"locale\":\"en-XA\""), body);
+        // Bracketed and longer than what it came from, so a string that never reached a catalog is obvious
+        // on sight and a layout that cannot hold a longer translation fails here rather than in French.
+        // Which letters carry which accents is PseudoLocale's business and is tested there.
+        final String message = body.replaceAll(".*\"iap.a\":\"([^\"]*)\".*", "$1");
+        assertFalse(message.contains("Username"), body);
+        assertTrue(message.startsWith("[") && message.endsWith("]"), body);
+        assertTrue(message.length() > "Username".length(), body);
+    }
+
+    @Test
+    void servesEveryKeyInAPseudoLocale() throws Exception
+    {
+        // The point of deriving rather than authoring: a hand-written pseudo-catalog would be partial, and
+        // a key it missed would fall back to English and read as a bug that is not there.
+        offer(Messages.INTERFACE, Locale.ENGLISH, Map.of("iap.a", "One", "iap.b", "Two", "iap.c", "Three"));
+
+        final String body = get(Map.of(), Locale.forLanguageTag("en-XA")).getOutputAsString();
+
+        assertTrue(body.contains("iap.a") && body.contains("iap.b") && body.contains("iap.c"), body);
+        assertFalse(body.contains("\"One\"") || body.contains("\"Two\"") || body.contains("\"Three\""), body);
+    }
+
+    @Test
+    void servesTheShortPseudoLocaleUnmarked() throws Exception
+    {
+        // en-XB is the length check, and brackets would themselves take room; its own width is the measure
+        offer(Messages.INTERFACE, Locale.ENGLISH, Map.of("iap.a", "Username"));
+
+        final String body = get(Map.of(), Locale.forLanguageTag("en-XB")).getOutputAsString();
+
+        assertTrue(body.contains("\"locale\":\"en-XB\""), body);
+        assertFalse(body.contains("["), body);
+    }
+
+    @Test
+    void leavesAnOrdinaryLocaleAlone() throws Exception
+    {
+        // en-CA is a real locale that happens to look like the pseudo ones. Only XA and XB are reserved.
+        offer(Messages.INTERFACE, Locale.CANADA, Map.of("iap.a", "Username"));
+
+        final String body = get(Map.of(), Locale.CANADA).getOutputAsString();
+
+        assertTrue(body.contains("\"Username\""), body);
     }
 
     @Test

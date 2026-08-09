@@ -67,6 +67,12 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
     /** Which language to serve it in; defaults to the one the request asked for. */
     private static final String LOCALE = "locale";
 
+    /** The region asking for the long, accented pseudo-locale, following Android and Chrome. */
+    private static final String ACCENTED_REGION = "XA";
+
+    /** The region asking for the short one. */
+    private static final String SHORTENED_REGION = "XB";
+
     @Reference
     private transient ResourceBundleProvider bundles;
 
@@ -76,7 +82,14 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
     {
         final String catalog = catalogOf(request);
         final Locale locale = localeOf(request);
-        final String body = serialize(catalog, locale, this.bundles.getResourceBundle(catalog, locale));
+        final PseudoLocale.Style pseudo = styleOf(locale);
+        // A pseudo-locale is derived from the source language on the spot rather than stored. Derived, it
+        // cannot drift from the catalog it is testing and cannot be partially written: every key is present,
+        // so the fallback never fires and any plain English left on screen is provably a string that never
+        // went through a catalog at all.
+        final ResourceBundle bundle =
+            this.bundles.getResourceBundle(catalog, pseudo == null ? locale : Locale.ENGLISH);
+        final String body = serialize(catalog, locale, bundle, pseudo);
 
         // Every page needs this before it can render, so re-fetching it on each navigation is worth avoiding
         // — but a stale catalog shows the wrong words indefinitely, and somebody who has just reworded a
@@ -103,20 +116,46 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
      * @param catalog the catalog being served
      * @param locale the language it is being served in
      * @param bundle the messages, or {@code null} when no such catalog exists
+     * @param pseudo how to disfigure each message, or {@code null} to serve it as written
      * @return the response body
      */
-    private static String serialize(final String catalog, final Locale locale, final ResourceBundle bundle)
+    private static String serialize(final String catalog, final Locale locale, final ResourceBundle bundle,
+        final PseudoLocale.Style pseudo)
     {
         final JsonObjectBuilder messages = Json.createObjectBuilder();
         if (bundle != null) {
             Collections.list(bundle.getKeys()).stream().sorted()
-                .forEach(key -> messages.add(key, bundle.getString(key)));
+                .forEach(key -> messages.add(key,
+                    pseudo == null ? bundle.getString(key) : PseudoLocale.transform(bundle.getString(key), pseudo)));
         }
         return Json.createObjectBuilder()
             .add(CATALOG, catalog)
             .add(LOCALE, locale.toLanguageTag())
             .add("messages", messages)
             .build().toString();
+    }
+
+    /**
+     * Which pseudo-locale, if any, is being asked for.
+     *
+     * <p>XA and XB are user-assigned region codes, so they can never collide with a real locale — the
+     * convention Android and Chrome use for the same purpose.</p>
+     *
+     * @param locale the language being asked for
+     * @return how to disfigure the messages, or {@code null} for an ordinary language
+     */
+    private static PseudoLocale.Style styleOf(final Locale locale)
+    {
+        if (!Locale.ENGLISH.getLanguage().equals(locale.getLanguage())) {
+            return null;
+        }
+        if (ACCENTED_REGION.equals(locale.getCountry())) {
+            return PseudoLocale.Style.ACCENTED;
+        }
+        if (SHORTENED_REGION.equals(locale.getCountry())) {
+            return PseudoLocale.Style.SHORTENED;
+        }
+        return null;
     }
 
     private static String catalogOf(final SlingJakartaHttpServletRequest request)
@@ -128,6 +167,11 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
     /**
      * The language to answer in: the one asked for by name, or else the one the request itself carries, which
      * Sling resolves from the {@code Accept-Language} header.
+     *
+     * <p>Naming one is the only way to reach a pseudo-locale. Sling resolves the header against the languages
+     * it can find in the repository and falls back to the default when it recognises none, so a browser
+     * announcing {@code en-XA} is answered in ordinary English — the fallback is doing its job, since nothing
+     * is stored under that name. A caller that wants the check has to ask for it.</p>
      *
      * @param request the current request
      * @return a locale, never {@code null}
