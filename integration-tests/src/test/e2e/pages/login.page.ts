@@ -49,8 +49,27 @@ export class LoginPage {
     this.participatingInstitutions = page.getByRole('heading', { name: 'Participating institutions' });
   }
 
-  async open(): Promise<void> {
-    await this.page.goto('/login');
+  /**
+   * Opens the sign-in page, optionally naming the language to read it in.
+   *
+   * Naming it in the URL rather than setting the browser's language on purpose: that is the mechanism the
+   * page actually offers a visitor, and it is the only way to reach a pseudo-locale, which Sling resolves
+   * away to the default because nothing is stored under that name.
+   *
+   * @param locale the language to ask for, or nothing to let the browser decide
+   */
+  async open(locale?: string): Promise<void> {
+    await this.page.goto(locale === undefined ? '/login' : `/login?locale=${encodeURIComponent(locale)}`);
+  }
+
+  /** Every label in the credentials form, as a reader sees it. */
+  labels(): Locator {
+    return this.page.locator('form label');
+  }
+
+  /** The link that switches to a given language, named in that language. */
+  language(name: string): Locator {
+    return this.page.getByRole('link', { name });
   }
 
   /**
