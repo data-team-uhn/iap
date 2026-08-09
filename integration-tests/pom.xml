@@ -237,6 +237,13 @@
             <id>yarn-test</id>
             <phase>none</phase>
           </execution>
+          <!-- The message-catalog check reads the whole project from the aggregated frontend, where it
+               is already run once. This package has neither catalogs nor code that asks for a message,
+               and the workingDirectory redirect above would have it look for a script that is not here. -->
+          <execution>
+            <id>yarn-check-messages</id>
+            <phase>none</phase>
+          </execution>
 
           <execution>
             <id>install node and yarn</id>
