@@ -90,7 +90,7 @@ class ConfigMetadataTest
     }
 
     @Test
-    void prefersTheLanguageTheUrlNamesOverTheOneTheBrowserAnnounces()
+    void prefersTheLanguageTheRequestAsksForOverTheOneTheBrowserAnnounces()
     {
         // Somebody who has landed on a sign-in page in a language they do not read has to be able to say so,
         // and changing a browser preference to read one page is not something to ask of a visitor.
@@ -101,7 +101,7 @@ class ConfigMetadataTest
     }
 
     @Test
-    void fallsBackToTheBrowserWhenTheUrlNamesNothing()
+    void fallsBackToTheBrowserWhenTheRequestAsksForNothing()
     {
         this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
         offerEchoing(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
@@ -124,8 +124,8 @@ class ConfigMetadataTest
     /**
      * A request from a browser announcing one language while the URL names another.
      *
-     * @param announced what the browser asked for
-     * @param named what the URL asks for
+     * @param announced what the browser announced
+     * @param named the language the request asked for, or empty for none
      * @return the model built from that request
      */
     private ConfigMetadata forANamed(final Locale announced, final String named)
@@ -134,7 +134,9 @@ class ConfigMetadataTest
             new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
         request.setResource(this.context.create().resource("/content/named" + named));
         request.setLocale(announced);
-        request.setParameterMap(Map.of("locale", named));
+        if (!named.isEmpty()) {
+            request.setAttribute("io.uhndata.iap.i18n.requestLocale", Locale.forLanguageTag(named));
+        }
         return request.adaptTo(ConfigMetadata.class);
     }
 

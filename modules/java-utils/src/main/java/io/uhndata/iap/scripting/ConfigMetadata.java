@@ -77,8 +77,15 @@ public class ConfigMetadata
      */
     private static final String CONTENT_CATALOG = "iap.content";
 
-    /** The request parameter naming a language outright, overriding whatever the browser announced. */
-    private static final String LOCALE = "locale";
+    /**
+     * Where the i18n bundle's filter leaves the language a request asked for, whether it was named in the URL
+     * or remembered from when it was.
+     *
+     * <p>Spelled out rather than imported, for the same reason as the catalog name above: that bundle depends
+     * on this one, so this one cannot depend back on it. Only the name is duplicated — how a request's
+     * language is worked out lives there, once.</p>
+     */
+    private static final String REQUEST_LOCALE = "io.uhndata.iap.i18n.requestLocale";
 
     @SlingObject
     private ResourceResolver resourceResolver;
@@ -109,10 +116,10 @@ public class ConfigMetadata
      * <p>Adapted from a plain resource — from a background job, say — there is no reader and therefore no
      * language, so the configuration is returned exactly as stored.</p>
      *
-     * <p>A named language wins over the browser's own. This page is where somebody who has landed in the
-     * wrong language has to be able to say so, and they cannot: changing a browser's language preference to
-     * read one page is not something to ask of a visitor, and the reader who most needs the escape is the one
-     * least able to follow instructions written in a language they do not read.</p>
+     * <p>A language the request asked for wins over the one the browser merely announced. Somebody who has
+     * landed on a page in a language they do not read has to be able to say so, and changing a browser's
+     * language preference to read one page is not something to ask of a visitor — the reader who most needs
+     * the escape is the one least able to follow instructions written in a language they cannot read.</p>
      *
      * @return the content catalog in the reader's language, or {@code null} to leave everything as stored
      */
@@ -121,9 +128,8 @@ public class ConfigMetadata
         if (this.bundles == null || this.request == null) {
             return null;
         }
-        final String named = this.request.getParameter(LOCALE);
-        final Locale locale = named == null || named.isBlank()
-            ? this.request.getLocale() : Locale.forLanguageTag(named);
+        final Object asked = this.request.getAttribute(REQUEST_LOCALE);
+        final Locale locale = asked instanceof Locale named ? named : this.request.getLocale();
         return locale == null ? null : this.bundles.getResourceBundle(CONTENT_CATALOG, locale);
     }
 
