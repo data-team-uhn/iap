@@ -87,13 +87,16 @@ public class AcknowledgeServlet extends SlingJakartaAllMethodsServlet
         final LoggedError error =
             target.isResourceType(LoggedError.RESOURCE_TYPE) ? target.adaptTo(LoggedError.class) : null;
         if (error == null) {
-            reply(response, HttpServletResponse.SC_NOT_FOUND, "No recorded error at " + target.getPath());
+            reply(response, HttpServletResponse.SC_NOT_FOUND, "This is not a recorded error");
             return;
         }
         final String resolution = request.getParameter("resolution");
         if (!isTriageTag(resolution)) {
+            // What was rejected goes to the log rather than into the answer: the caller already knows what it sent,
+            // and an error response is not the place to hand a value from the request back to a browser
+            LOGGER.debug("Refusing to acknowledge {} with the unknown resolution {}", target.getPath(), resolution);
             reply(response, HttpServletResponse.SC_BAD_REQUEST,
-                "resolution must name one of the " + LoggedError.TRIAGE_CATEGORY + " tags, not " + resolution);
+                "resolution must name one of the " + LoggedError.TRIAGE_CATEGORY + " tags");
             return;
         }
         try {

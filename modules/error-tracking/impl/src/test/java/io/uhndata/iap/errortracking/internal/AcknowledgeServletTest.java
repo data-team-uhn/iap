@@ -48,6 +48,7 @@ import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -122,6 +123,21 @@ class AcknowledgeServletTest
 
         assertEquals(HttpServletResponse.SC_BAD_REQUEST, response.getStatus());
         assertTrue(response.getOutputAsString().contains("error-triage"));
+    }
+
+    @Test
+    void answersWithoutRepeatingAnythingTheRequestCarried() throws IOException
+    {
+        // Nothing the caller sent comes back: it tells the caller nothing it does not already know, and an
+        // endpoint that repeats a request value is an endpoint for putting text of someone else's choosing
+        // in front of a browser
+        final MockSlingJakartaHttpServletResponse rejected =
+            post(error("abc", 1), Map.of("resolution", "<script>alert(1)</script>"));
+        final MockSlingJakartaHttpServletResponse missing =
+            post(this.context.resourceResolver().getResource("/LoggedErrors"), Map.of("resolution", "known-issue"));
+
+        assertFalse(rejected.getOutputAsString().contains("script"));
+        assertFalse(missing.getOutputAsString().contains("/LoggedErrors"));
     }
 
     @Test
