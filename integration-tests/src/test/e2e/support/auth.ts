@@ -16,8 +16,19 @@
  * limitations under the License.
  */
 
+import { expect, type Page } from '@playwright/test';
+
+import { LoginPage } from '../pages/login.page';
+
+/** Somebody these suites can act as. */
+export interface Credentials {
+  readonly username: string;
+
+  readonly password: string;
+}
+
 /** The administrator a freshly launched instance always has, which is how these suites sign in. */
-export const ADMIN = { username: 'admin', password: 'admin' } as const;
+export const ADMIN: Credentials = { username: 'admin', password: 'admin' } as const;
 
 /**
  * Request headers that authenticate as the administrator.
@@ -29,3 +40,17 @@ export const ADMIN = { username: 'admin', password: 'admin' } as const;
 export const adminAuth = {
   Authorization: `Basic ${Buffer.from(`${ADMIN.username}:${ADMIN.password}`).toString('base64')}`,
 } as const;
+
+/**
+ * Signs the browser in, so that whatever the test is really about starts from an authenticated session.
+ *
+ * The browser counterpart of {@link adminAuth}: for tests that drive the interface rather than call the
+ * repository, and that only pass through the sign-in page on their way somewhere else.
+ */
+export async function signInAs(page: Page, user: Credentials): Promise<void> {
+  const login = new LoginPage(page);
+  await login.open();
+  await login.signInAs(user.username, user.password);
+  // The sign-in form going away is what says the session exists; navigating before that races it.
+  await expect(login.signIn).toHaveCount(0);
+}

@@ -16,25 +16,17 @@
  * limitations under the License.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { LoginPage } from '../../pages/login.page';
-import { ADMIN } from '../../support/auth';
+import { ADMIN, signInAs } from '../../support/auth';
 
 /**
  * The workflow editor, as an administrative tool. This only tests that the workflows widget is
  * present and working in the admin console, not the actual functionality of the workflow editor.
  */
 test.describe('the workflow editor as an administrative tool', () => {
-  const signIn = async (page: Page): Promise<void> => {
-    const login = new LoginPage(page);
-    await login.open();
-    await login.signInAs(ADMIN.username, ADMIN.password);
-    await expect(login.signIn).toHaveCount(0);
-  };
-
   test('is offered on the administration console', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
 
     await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
@@ -42,7 +34,7 @@ test.describe('the workflow editor as an administrative tool', () => {
   });
 
   test('is listed after the category manager, as its declared order asks', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
     await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
 
@@ -52,7 +44,7 @@ test.describe('the workflow editor as an administrative tool', () => {
   });
 
   test('says so on the console when no workflows are defined', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
 
     // The bare platform ships the /Workflows tree but no definitions, so this is the empty state.
@@ -61,7 +53,7 @@ test.describe('the workflow editor as an administrative tool', () => {
   });
 
   test('opens the BPMN editor at its own address', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
     await page.getByRole('link', { name: 'Manage workflows' }).click();
 
