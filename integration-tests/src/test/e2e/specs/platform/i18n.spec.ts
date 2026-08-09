@@ -89,6 +89,16 @@ test.describe('reading the platform in another language', () => {
     await expect(page.getByText(/accompagne les études de recherche/)).toBeVisible();
   });
 
+  test('says which language the page is in, before a script could', async ({ page }) => {
+    // The half of this nobody can see, and therefore the half that regresses unnoticed. A screen reader
+    // chooses its voice and its pronunciation rules from this attribute while the page is being parsed, so
+    // it has to be right in what the server sent — a script correcting it afterwards has already lost the
+    // announcement. Asserted against the served HTML rather than the live DOM for that reason.
+    const served = await (await page.request.get('/login?locale=fr', { maxRedirects: 0 })).text();
+
+    expect(served).toMatch(/<html[^>]*\blang="fr"/);
+  });
+
   test('lets a French reader find their way back', async ({ page }) => {
     // The language being read stays a link rather than becoming plain text, so the way back is in the
     // same place as the way out
@@ -109,9 +119,9 @@ test.describe('reading the platform in another language', () => {
  * left on screen is a string that never went through a catalog at all, not one whose translation somebody
  * forgot to write.
  *
- * It covers the strings the platform itself owns. Shipped configuration — the intro text, the sign-in
- * heading — is translated by a different mechanism that has no pseudo-locale yet, so this says nothing
- * about it.
+ * It covers both halves of the page: the strings the platform owns, fetched by the browser, and the shipped
+ * configuration the server renders into the page before any script runs. Those travel by different
+ * mechanisms and used to be checked by only one of them.
  */
 test.describe('the pseudo-locale check', () => {
   test('has no hardcoded strings left in the credentials form', async ({ page }) => {
@@ -135,6 +145,31 @@ test.describe('the pseudo-locale check', () => {
 
     const submit = page.locator('form button[type="submit"]');
     await expect(submit).toHaveText(/^\[/);
+  });
+
+  test('has no untranslatable text left in what the server renders', async ({ page }) => {
+    // The half the check was blind to for a while. The intro paragraph is shipped configuration written
+    // into a <meta> tag by the server, not a message the browser fetches, so it reached the screen without
+    // passing the door the disfigurement was applied at — and came out plain English, which is exactly what
+    // this check reports as a fault everywhere else.
+    const login = new LoginPage(page);
+    await login.open('en-XA');
+
+    const intro = await login.configured('introText');
+    expect(intro, 'the server rendered no intro text at all').not.toBeNull();
+    expect(intro, `"${intro}" never went through a message catalog`).toMatch(/^\[/);
+    expect(intro).not.toContain('guides research studies');
+  });
+
+  test('leaves configuration that nobody reads as prose exactly as stored', async ({ page }) => {
+    // Everything under the configuration tree arrives by the same route, and most of it is not prose: a
+    // version number, and the list of languages the switcher parses. Being in the content catalog is what
+    // marks a property as text somebody reads. Disfiguring this one would strand a reader in a
+    // pseudo-locale with no link back out of it, which is a worse failure than the one being tested for.
+    const login = new LoginPage(page);
+    await login.open('en-XA');
+
+    expect(await login.configured('languages')).toBe('en fr');
   });
 
   test('makes every message longer than it was', async ({ page }) => {

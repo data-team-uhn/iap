@@ -21,8 +21,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.MissingResourceException;
-import java.util.ResourceBundle;
 
 import javax.annotation.PostConstruct;
 
@@ -31,12 +29,13 @@ import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ValueMap;
-import org.apache.sling.i18n.ResourceBundleProvider;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.OSGiService;
 import org.apache.sling.models.annotations.injectorspecific.SlingObject;
 import org.jetbrains.annotations.NotNull;
+
+import io.uhndata.iap.i18n.api.Messages;
 
 /**
  * A Sling Model that gathers all the metadata to be exposed as {@code <meta>} tags in the HTML source.
@@ -68,22 +67,12 @@ public class ConfigMetadata
     public static final String CONF_ROOT = "/libs/iap/conf";
 
     /**
-     * The catalog holding translations of shipped content, keyed by the path of the property each one
-     * translates.
-     *
-     * <p>Spelled out rather than imported from the i18n module, which cannot be depended on from here: this
-     * bundle starts at the same order, and the feature analyser requires a package's exporter to start no
-     * later than its importer. One duplicated string is the smaller price.</p>
-     */
-    private static final String CONTENT_CATALOG = "iap.content";
-
-    /**
      * Where the i18n bundle's filter leaves the language a request asked for, whether it was named in the URL
      * or remembered from when it was.
      *
-     * <p>Spelled out rather than imported, for the same reason as the catalog name above: that bundle depends
-     * on this one, so this one cannot depend back on it. Only the name is duplicated — how a request's
-     * language is worked out lives there, once.</p>
+     * <p>Spelled out rather than imported: the name of a request attribute is not part of any interface, and
+     * publishing one is how a filter talks to code it knows nothing about. How a request's language is
+     * actually worked out lives in that bundle, once, and is asked for through {@link Messages} below.</p>
      */
     private static final String REQUEST_LOCALE = "io.uhndata.iap.i18n.locale";
 
@@ -99,7 +88,7 @@ public class ConfigMetadata
 
     /** Absent until the i18n bundle is up, which is later than this one. */
     @OSGiService
-    private ResourceBundleProvider bundles;
+    private Messages messages;
 
     private Map<String, String> properties;
 
@@ -109,7 +98,7 @@ public class ConfigMetadata
         this.properties = new LinkedHashMap<>();
         final Resource root = this.resourceResolver.getResource(CONF_ROOT);
         if (root != null) {
-            collect(root, this.properties, translations());
+            collect(root, this.properties, readerLocale());
         }
     }
 
@@ -147,7 +136,7 @@ public class ConfigMetadata
     }
 
     /**
-     * The translations to apply, if there are any to apply and anybody to apply them for.
+     * The language to render this configuration in, where there is a reader to render it for.
      *
      * <p>Adapted from a plain resource — from a background job, say — there is no reader and therefore no
      * language, so the configuration is returned exactly as stored.</p>
@@ -157,19 +146,18 @@ public class ConfigMetadata
      * language preference to read one page is not something to ask of a visitor — the reader who most needs
      * the escape is the one least able to follow instructions written in a language they cannot read.</p>
      *
-     * @return the content catalog in the reader's language, or {@code null} to leave everything as stored
+     * @return the reader's language, or {@code null} to leave everything as stored
      */
-    private ResourceBundle translations()
+    private Locale readerLocale()
     {
-        if (this.bundles == null || this.request == null) {
+        if (this.messages == null || this.request == null) {
             return null;
         }
         final Object asked = this.request.getAttribute(REQUEST_LOCALE);
-        final Locale locale = asked instanceof Locale named ? named : this.request.getLocale();
-        return locale == null ? null : this.bundles.getResourceBundle(CONTENT_CATALOG, locale);
+        return asked instanceof Locale named ? named : this.request.getLocale();
     }
 
-    private void collect(final Resource resource, final Map<String, String> out, final ResourceBundle translations)
+    private void collect(final Resource resource, final Map<String, String> out, final Locale locale)
     {
         final ValueMap values = resource.getValueMap();
         for (Map.Entry<String, Object> entry : values.entrySet()) {
@@ -179,11 +167,11 @@ public class ConfigMetadata
             }
             final String value = values.get(name, String.class);
             if (StringUtils.isNotBlank(value)) {
-                out.put(name, translate(resource, name, value, translations));
+                out.put(name, translate(resource, name, value, locale));
             }
         }
         for (Resource child : resource.getChildren()) {
-            collect(child, out, translations);
+            collect(child, out, locale);
         }
     }
 
@@ -191,31 +179,22 @@ public class ConfigMetadata
      * One property in the reader's language, where a translation for it exists.
      *
      * <p>Keyed by the property's own path, so a translation is added without touching the content it
-     * translates and the shipped English goes on being its own fallback.</p>
+     * translates and the shipped text goes on being its own fallback. Configuration nobody has catalogued
+     * comes back exactly as stored — which is most of it, since this tree holds a version number and a list
+     * of language codes alongside the two paragraphs anybody reads.</p>
      *
      * @param resource the config node the property belongs to
      * @param name the property name
      * @param value the value as stored
-     * @param translations the catalog, or {@code null} when there is nothing to apply
+     * @param locale the reader's language, or {@code null} where there is no reader
      * @return the translated value, or the stored one
      */
-    private String translate(final Resource resource, final String name, final String value,
-        final ResourceBundle translations)
+    private String translate(final Resource resource, final String name, final String value, final Locale locale)
     {
-        if (translations == null) {
+        if (locale == null) {
             return value;
         }
-        final String key = resource.getPath() + "/" + name;
-        try {
-            final String translated = translations.getString(key);
-            // Sling's own bundles answer a miss with the key itself rather than throwing, so the exception
-            // below is not enough on its own: without this check every untranslated property would be
-            // replaced by its own path. Found by rendering the page in English and reading it back.
-            return translated == null || translated.equals(key) ? value : translated;
-        } catch (final MissingResourceException e) {
-            // A bundle that does throw, which the specification allows and some implementations do
-            return value;
-        }
+        return this.messages.translate(Messages.CONTENT, resource.getPath() + "/" + name, locale, value);
     }
 
     /**

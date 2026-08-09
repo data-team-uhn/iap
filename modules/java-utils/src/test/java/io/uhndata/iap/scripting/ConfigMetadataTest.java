@@ -17,15 +17,10 @@
  */
 package io.uhndata.iap.scripting;
 
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.ListResourceBundle;
 import java.util.Locale;
 import java.util.Map;
-import java.util.ResourceBundle;
 
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.i18n.ResourceBundleProvider;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
@@ -34,6 +29,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 import org.osgi.framework.Constants;
+
+import io.uhndata.iap.i18n.api.Messages;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -74,18 +71,6 @@ class ConfigMetadataTest
         offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
 
         // Additive: a version number has no translation and should not acquire one
-        assertEquals("1.0.0", forA(Locale.FRENCH).getProperties().get("version"));
-    }
-
-    @Test
-    void leavesConfigurationAsShippedWhenTheCatalogueEchoesMissingKeys()
-    {
-        // Sling's own bundles answer a miss with the key itself rather than throwing. Without allowing for
-        // that, every untranslated property comes out as its own repository path — which is exactly what the
-        // sign-in page showed in English before this was handled.
-        this.context.create().resource("/libs/iap/conf/Version", Map.of("version", "1.0.0"));
-        offerEchoing(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
-
         assertEquals("1.0.0", forA(Locale.FRENCH).getProperties().get("version"));
     }
 
@@ -133,7 +118,7 @@ class ConfigMetadataTest
         // Somebody who has landed on a sign-in page in a language they do not read has to be able to say so,
         // and changing a browser preference to read one page is not something to ask of a visitor.
         this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
-        offerEchoing(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
 
         assertEquals("Bienvenue", forANamed(Locale.ENGLISH, "fr").getProperties().get("introText"));
     }
@@ -142,7 +127,7 @@ class ConfigMetadataTest
     void fallsBackToTheBrowserWhenTheRequestAsksForNothing()
     {
         this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
-        offerEchoing(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
 
         assertEquals("Bienvenue", forANamed(Locale.FRENCH, "").getProperties().get("introText"));
     }
@@ -187,66 +172,28 @@ class ConfigMetadataTest
         return request.adaptTo(ConfigMetadata.class);
     }
 
-    /** A catalog that behaves the way Sling's do: a missing key comes back as itself. */
-    private void offerEchoing(final Locale locale, final Map<String, String> entries)
-    {
-        register(locale, new ResourceBundle()
-        {
-            @Override
-            protected Object handleGetObject(final String key)
-            {
-                return entries.getOrDefault(key, key);
-            }
-
-            @Override
-            public Enumeration<String> getKeys()
-            {
-                return Collections.enumeration(entries.keySet());
-            }
-        });
-    }
-
+    /**
+     * A set of translations for one language, as the message service would answer them.
+     *
+     * <p>A stand-in rather than the real service, which lives in a bundle this one cannot depend on — it
+     * depends on this one. What a missing translation does is that service's contract and is tested against
+     * it; what matters here is only that this model asks for the right key in the right language and renders
+     * whatever comes back.</p>
+     *
+     * @param locale the language the translations are in
+     * @param entries the translations, by the path of the property each one translates
+     */
     private void offer(final Locale locale, final Map<String, String> entries)
     {
-        final ResourceBundleProvider bundles = Mockito.mock(ResourceBundleProvider.class);
-        Mockito.when(bundles.getResourceBundle(Mockito.eq("iap.content"), Mockito.eq(locale)))
-            .thenReturn(new ListResourceBundle()
-            {
-                @Override
-                protected Object[][] getContents()
-                {
-                    return entries.entrySet().stream()
-                        .map(entry -> new Object[] { entry.getKey(), entry.getValue() })
-                        .toArray(Object[][]::new);
-                }
+        final Messages messages = Mockito.mock(Messages.class);
+        Mockito.when(messages.translate(Mockito.eq(Messages.CONTENT), Mockito.anyString(), Mockito.any(),
+            Mockito.anyString())).thenAnswer(call -> {
+                final String key = call.getArgument(1);
+                return locale.equals(call.getArgument(2)) ? entries.getOrDefault(key, call.getArgument(3))
+                    : call.getArgument(3);
             });
-        // sling-mock registers a provider of its own, whose bundles answer any miss with the key itself.
-        // Outranking it is what makes this test see the catalog it set up rather than that one.
-        register(locale, bundleOf(entries));
-    }
-
-    private void register(final Locale locale, final ResourceBundle bundle)
-    {
-        final ResourceBundleProvider bundles = Mockito.mock(ResourceBundleProvider.class);
-        Mockito.when(bundles.getResourceBundle(Mockito.eq("iap.content"), Mockito.eq(locale))).thenReturn(bundle);
-        // sling-mock registers a provider of its own, whose bundles answer any miss with the key itself.
-        // Outranking it is what makes this test see the catalog it set up rather than that one.
-        this.context.registerService(ResourceBundleProvider.class, bundles,
+        this.context.registerService(Messages.class, messages,
             Map.of(Constants.SERVICE_RANKING, Integer.valueOf(1000)));
-    }
-
-    private static ResourceBundle bundleOf(final Map<String, String> entries)
-    {
-        return new ListResourceBundle()
-        {
-            @Override
-            protected Object[][] getContents()
-            {
-                return entries.entrySet().stream()
-                    .map(entry -> new Object[] { entry.getKey(), entry.getValue() })
-                    .toArray(Object[][]::new);
-            }
-        };
     }
 
     @Test

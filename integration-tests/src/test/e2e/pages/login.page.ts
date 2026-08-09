@@ -73,6 +73,20 @@ export class LoginPage {
   }
 
   /**
+   * A piece of shipped configuration as the server rendered it into the page.
+   *
+   * Read from the `<meta>` tag rather than from the paragraph it ends up in, because the tag is the thing
+   * under test: it is written by the server before any script runs, and reading it here says nothing about
+   * how the page later chooses to lay it out.
+   *
+   * @param name the configuration property
+   * @return its value, or null where the server rendered no such tag
+   */
+  async configured(name: string): Promise<string | null> {
+    return this.page.locator(`meta[name="${name}"]`).getAttribute('content');
+  }
+
+  /**
    * Makes the local credentials form usable, whichever way the deployment has arranged its sign-in
    * methods.
    *
