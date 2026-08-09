@@ -31,5 +31,11 @@
     "sling:key": "iap.login.page.aboutPlatform.label",
     "sling:message": "About the platform",
     "iap:description": "Accessible name for the side of the sign-in page that introduces the product. Read aloud, never seen."
+  },
+  "submitLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.submit.label",
+    "sling:message": "Sign in",
+    "iap:description": "The button that submits the sign-in form. A verb, not a noun — 'Sign in', never 'Signin'."
   }
 }

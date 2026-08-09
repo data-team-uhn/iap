@@ -20,6 +20,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import LoginForm from "@iap/login/LoginForm";
 
+import { withMessages } from "./messages.fixture";
+
 const fillAndSubmit = () => {
   fireEvent.change(screen.getByLabelText(/Username/), { target: { value: "admin" } });
   fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "secret" } });
@@ -32,7 +34,7 @@ describe("LoginForm", () => {
   });
 
   it("keeps the submit button disabled until both fields are filled", () => {
-    render(<LoginForm onSuccess={vi.fn()} />);
+    render(withMessages(<LoginForm onSuccess={vi.fn()} />));
 
     const button = screen.getByRole("button", { name: "Sign in" });
     expect(button).toBeDisabled();
@@ -45,7 +47,7 @@ describe("LoginForm", () => {
   it("posts the credentials to j_security_check and reports success", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
     const onSuccess = vi.fn();
-    render(<LoginForm onSuccess={onSuccess} />);
+    render(withMessages(<LoginForm onSuccess={onSuccess} />));
 
     fillAndSubmit();
 
@@ -62,7 +64,7 @@ describe("LoginForm", () => {
   it("shows an error and does not report success on rejected credentials", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
     const onSuccess = vi.fn();
-    render(<LoginForm onSuccess={onSuccess} />);
+    render(withMessages(<LoginForm onSuccess={onSuccess} />));
 
     fillAndSubmit();
 

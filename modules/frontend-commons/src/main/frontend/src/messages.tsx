@@ -65,6 +65,16 @@ export const forgetMessages = function(): void {
   requests.clear();
 };
 
+// Puts a catalog in place without fetching it. Only for tests: a component test cares what the interface
+// says, not how the catalog reached the browser, and seeding it means MessagesProvider has something to
+// render on its first pass rather than every test having to wait out a request.
+//
+// @param messages the messages to make available
+// @param catalog which catalog they belong to
+export const seedMessages = function(messages: Catalog, catalog: string = INTERFACE_CATALOG): void {
+  catalogs.set(catalog, messages);
+};
+
 const MessagesContext = createContext<Catalog>({});
 
 interface MessagesProviderProps {

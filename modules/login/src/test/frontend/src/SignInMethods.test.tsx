@@ -21,6 +21,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import SignInMethods from "@iap/login/SignInMethods";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
+import { withMessages } from "./messages.fixture";
+
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(),
 }));
@@ -40,7 +42,7 @@ describe("SignInMethods", () => {
 
   it("renders the registered method", async () => {
     mockedLoadExtensions.mockResolvedValue([ method("External") ]);
-    render(<SignInMethods />);
+    render(withMessages(<SignInMethods />));
 
     expect(await screen.findByText("External content")).toBeInTheDocument();
   });
@@ -50,7 +52,7 @@ describe("SignInMethods", () => {
       method("External"),
       method("Local", { "iap:collapsedLabel": "Use a local account instead" }),
     ]);
-    render(<SignInMethods />);
+    render(withMessages(<SignInMethods />));
 
     expect(await screen.findByText("External content")).toBeInTheDocument();
     expect(screen.queryByText("Local content")).not.toBeInTheDocument();
@@ -65,7 +67,7 @@ describe("SignInMethods", () => {
   it("falls back to the credentials form when no method is registered", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     mockedLoadExtensions.mockResolvedValue([]);
-    render(<SignInMethods />);
+    render(withMessages(<SignInMethods />));
 
     expect(await screen.findByLabelText(/Username/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
@@ -78,7 +80,7 @@ describe("SignInMethods", () => {
       { "iap:extensionRender": () => <div>Anonymous form</div> },
     ]);
 
-    render(<SignInMethods />);
+    render(withMessages(<SignInMethods />));
 
     // No iap:collapsedLabel anywhere: the second falls back to its name, the third to the default
     expect(await screen.findByRole("button", { name: "Named" })).toBeInTheDocument();
@@ -91,7 +93,7 @@ describe("SignInMethods", () => {
     const failure = new Error("network error");
     mockedLoadExtensions.mockRejectedValue(failure);
 
-    render(<SignInMethods />);
+    render(withMessages(<SignInMethods />));
 
     expect(await screen.findByLabelText(/Username/)).toBeInTheDocument();
     expect(errorSpy).toHaveBeenCalledWith("Something went wrong loading the sign-in methods", failure);

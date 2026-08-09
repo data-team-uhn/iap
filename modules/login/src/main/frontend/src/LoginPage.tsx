@@ -22,6 +22,7 @@ import { type Theme } from "@mui/material/styles";
 import FooterContent, { FooterCredits } from "@iap/frontend-commons/components/FooterContent";
 import FormattedText from "@iap/frontend-commons/components/FormattedText";
 import Logo from "@iap/frontend-commons/components/Logo";
+import { useMessage } from "@iap/frontend-commons/messages";
 
 import ParticipatingInstitutions from "./ParticipatingInstitutions";
 import PreLoginExtensions from "./PreLoginExtensions";
@@ -60,6 +61,7 @@ const seamBorder = (theme: Theme) => `1px solid ${theme.vars?.palette.divider ??
 // extension point (see SignInMethods): the credentials form by default, an identity-provider
 // redirect once a deployment registers one — nothing else on the page moves.
 export default function LoginPage() {
+  const message = useMessage();
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
   const tagline = meta("tagline");
   const introText = meta("introText");
@@ -86,7 +88,7 @@ export default function LoginPage() {
       >
         <Box
           component="section"
-          aria-label="About the platform"
+          aria-label={message("iap.login.page.aboutPlatform.label")}
           sx={theme => ({
             gridArea: "brand",
             position: "relative",

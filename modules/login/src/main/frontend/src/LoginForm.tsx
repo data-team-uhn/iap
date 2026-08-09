@@ -20,6 +20,8 @@ import { useState, type SyntheticEvent } from 'react';
 
 import { Alert, Button, Stack, TextField } from '@mui/material';
 
+import { useMessage } from '@iap/frontend-commons/messages';
+
 // Sling's form authentication endpoint. With `j_validate`, it answers 200/403 instead of
 // redirecting, leaving navigation after a successful login to the caller.
 const LOGIN_URL = "/j_security_check";
@@ -37,6 +39,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   const [password, setPassword] = useState("");
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const message = useMessage();
 
   const submit = (event: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     event.preventDefault();
@@ -65,9 +68,9 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
 
   return (
     <Stack component="form" onSubmit={submit} spacing={2}>
-      {failed && <Alert severity="error">Invalid username or password</Alert>}
+      {failed && <Alert severity="error">{message("iap.login.credentialsForm.error.invalidCredentials")}</Alert>}
       <TextField
-        label="Username"
+        label={message("iap.login.credentialsForm.username.label")}
         name="j_username"
         autoComplete="username"
         required
@@ -75,7 +78,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         onChange={(event) => setUsername(event.target.value)}
       />
       <TextField
-        label="Password"
+        label={message("iap.login.credentialsForm.password.label")}
         name="j_password"
         type="password"
         autoComplete="current-password"
@@ -84,7 +87,7 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
         onChange={(event) => setPassword(event.target.value)}
       />
       <Button type="submit" variant="contained" color="primary" disabled={busy || !username || !password}>
-        Sign in
+        {message("iap.login.credentialsForm.submit.label")}
       </Button>
     </Stack>
   );

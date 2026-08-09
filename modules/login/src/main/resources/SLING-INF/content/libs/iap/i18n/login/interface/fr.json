@@ -26,5 +26,10 @@
     "jcr:primaryType": "iap:MessageEntry",
     "sling:key": "iap.login.page.aboutPlatform.label",
     "sling:message": "À propos de la plateforme"
+  },
+  "submitLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.submit.label",
+    "sling:message": "Se connecter"
   }
 }

@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 
 import { Box, Divider, Link, Typography } from "@mui/material";
 
+import { useMessage } from "@iap/frontend-commons/messages";
 import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
@@ -31,9 +32,12 @@ import CredentialsForm from "./CredentialsForm";
 // the extension's name — so it is not read as part of the primary method above it.
 function CollapsedMethod({ extension }: { extension: Extension }) {
   const [ open, setOpen ] = useState(false);
+  const message = useMessage();
+  // The extension names itself where it can; this is the wording for one that does not, so it is the
+  // only part of the label that is ours to translate.
   const label = (extension["iap:collapsedLabel"] as string | undefined)
     ?? (extension["iap:extensionName"] as string | undefined)
-    ?? "More sign-in options";
+    ?? message("iap.login.signInMethods.moreOptions.label");
   const title = extension["iap:extensionName"] as string | undefined;
 
   if (!open) {
