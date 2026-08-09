@@ -122,8 +122,8 @@
     </dependency>
     <dependency>
       <!-- JSON-P implementation, needed at runtime by the ErrorMetadata tests -->
-      <groupId>org.glassfish</groupId>
-      <artifactId>jakarta.json</artifactId>
+      <groupId>org.eclipse.parsson</groupId>
+      <artifactId>parsson</artifactId>
     </dependency>
     <!-- Needed only so Mockito can resolve javax.servlet types referenced by the Sling request API when mocking -->
     <dependency>
