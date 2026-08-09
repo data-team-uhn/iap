@@ -86,6 +86,18 @@ export class LoginPage {
   }
 
   /**
+   * The "Built by DATA" credit in the footer.
+   *
+   * Located by where it points rather than by what it says, since what it says is the thing under test —
+   * and it is worth naming separately from the rest of the footer because it is the one piece of footer
+   * text the *browser* fetches from a catalog. The link labels beside it are translated by the server, so
+   * a check that accepts any translated text in the footer is satisfied by those alone.
+   */
+  footerCredit(): Locator {
+    return this.page.locator('footer a[href="https://uhndata.io"]');
+  }
+
+  /**
    * A piece of shipped configuration as the server rendered it into the page.
    *
    * Read from the `<meta>` tag rather than from the paragraph it ends up in, because the tag is the thing

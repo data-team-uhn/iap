@@ -185,6 +185,41 @@ test.describe('the pseudo-locale check', () => {
     expect(intro).not.toContain('guides research studies');
   });
 
+  test('has no hardcoded strings left in the page shell after signing in', async ({ page }) => {
+    // Everything above this checks the sign-in page, because that is the only page a visitor can reach.
+    // That left the whole signed-in application unchecked, and it is where this found its first real
+    // fault: the shell mounted no message provider at all, so every string it asked for was answered
+    // with the dotted key naming it — on a page nothing in this suite had ever looked at.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('admin', 'admin');
+    await expect(page).not.toHaveURL(/\/login/);
+
+    await page.goto('/?locale=en-XA');
+    await expect(login.footerCredit()).toBeVisible();
+
+    // The credit, specifically, and not merely "something in the footer is bracketed". The link labels
+    // beside it are translated by the server, so they are disfigured whatever the browser does — an
+    // assertion over the whole footer is satisfied by those alone, and passes with a shell that has no
+    // catalog at all. Written the loose way first, and the negative control caught it.
+    const credit = await login.footerCredit().innerText();
+    expect(credit, `"${credit}" never went through a message catalog`).toMatch(/^\[/);
+  });
+
+  test('never shows a message key where the words should be', async ({ page }) => {
+    // What a missing catalog actually looks like on screen, and the shape of the fault reported here:
+    // not a blank, not English, but "iap.footer.credit.builtBy" sitting in the page. Worth asserting
+    // separately from the bracket check above, because a shell with no provider at all still renders —
+    // it just renders identifiers, and only somebody reading the page would notice.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('admin', 'admin');
+    await expect(page).not.toHaveURL(/\/login/);
+    await expect(page.locator('footer')).toBeVisible();
+
+    await expect(page.getByText(/^iap\.[a-z]/i)).toHaveCount(0);
+  });
+
   test('leaves configuration that nobody reads as prose exactly as stored', async ({ page }) => {
     // Everything under the configuration tree arrives by the same route, and most of it is not prose: a
     // version number, and the list of languages the switcher parses. Being in the content catalog is what
