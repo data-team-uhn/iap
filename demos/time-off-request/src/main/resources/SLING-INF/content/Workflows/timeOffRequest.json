@@ -1,0 +1,12 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Time off request",
+  "active": true,
+  "systemWorkflow": false,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built."
+  }
+}

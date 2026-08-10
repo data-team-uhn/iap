@@ -35,6 +35,7 @@
 
       platform   core_tar   the bare platform, with no content beyond what the modules ship
       test-data  test_tar   the platform plus the sample content, so every feature is exercisable
+      demo       demo_tar   the platform plus the demo projects, a polished working process
 
     A suite can be turned off with its skip property, e.g. `-Dit.platform.skip=true`, which is how a CI
     matrix runs one instance per job instead of all of them at once.
@@ -47,6 +48,7 @@
   <properties>
     <it.platform.skip>false</it.platform.skip>
     <it.testdata.skip>false</it.testdata.skip>
+    <it.demo.skip>false</it.demo.skip>
     <!-- Only Chromium by default: the other engines multiply the download and the CI system packages
          they need, for very little extra signal on an internal application. -->
     <playwright.browsers>chromium</playwright.browsers>
@@ -87,6 +89,7 @@
               <portNames>
                 <portName>platform.http.port</portName>
                 <portName>testdata.http.port</portName>
+                <portName>demo.http.port</portName>
               </portNames>
             </configuration>
           </execution>
@@ -118,6 +121,7 @@
                   <includes>
                     <include>platform/**</include>
                     <include>test-data/**</include>
+                    <include>demo/**</include>
                   </includes>
                 </fileset>
               </filesets>
@@ -171,6 +175,26 @@
                 </vmOptions>
                 <frameworkProperties>
                   <org.osgi.service.http.port>${testdata.http.port}</org.osgi.service.http.port>
+                </frameworkProperties>
+              </launcherArguments>
+              <startTimeoutSeconds>300</startTimeoutSeconds>
+            </launch>
+            <launch>
+              <id>demo</id>
+              <skip>${it.demo.skip}</skip>
+              <feature>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>iap-packaging-slingfeature</artifactId>
+                <version>${project.version}</version>
+                <classifier>demo_tar</classifier>
+                <type>slingosgifeature</type>
+              </feature>
+              <launcherArguments>
+                <vmOptions>
+                  <vmOption>-Djdk.xml.entityExpansionLimit=0</vmOption>
+                </vmOptions>
+                <frameworkProperties>
+                  <org.osgi.service.http.port>${demo.http.port}</org.osgi.service.http.port>
                 </frameworkProperties>
               </launcherArguments>
               <startTimeoutSeconds>300</startTimeoutSeconds>
@@ -262,6 +286,8 @@
                 <IAP_TESTDATA_URL>http://localhost:${testdata.http.port}</IAP_TESTDATA_URL>
                 <IAP_PLATFORM_SKIP>${it.platform.skip}</IAP_PLATFORM_SKIP>
                 <IAP_TESTDATA_SKIP>${it.testdata.skip}</IAP_TESTDATA_SKIP>
+                <IAP_DEMO_URL>http://localhost:${demo.http.port}</IAP_DEMO_URL>
+                <IAP_DEMO_SKIP>${it.demo.skip}</IAP_DEMO_SKIP>
               </environmentVariables>
             </configuration>
           </execution>

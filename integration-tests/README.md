@@ -19,12 +19,13 @@ Each suite gets **its own instance, launched from its own aggregated feature**, 
 |-------------|------------|----------------------------------------------------------------|
 | `platform`  | `core_tar` | The bare platform, with no content beyond what the modules ship |
 | `test-data` | `test_tar` | The platform plus the sample content, so every feature is exercisable |
+| `demo`      | `demo_tar` | The platform plus the demo projects — a polished, working process |
 
 The instances are started by the [Sling feature launcher Maven plugin][launcher] — the same launcher
 `start.py` uses, pointed at the same published artifacts, so what the tests drive is the real runtime
 rather than a lookalike assembled for testing.
 
-`test_tar` exists because the launcher plugin can only be pointed at **one** feature, and these tests need
+`test_tar` and `demo_tar` exist because the launcher plugin can only be pointed at **one** feature, and these tests need
 the platform *and* the sample content. Rather than wait for multi-feature support, the two are combined
 into a single aggregate in `packaging/slingfeature`. That turns out to be the better answer anyway: what a
 test run exercised is one versioned coordinate, and `analyse-features` validates the combination at build

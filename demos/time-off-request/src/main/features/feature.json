@@ -1,0 +1,37 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+{
+  "bundles": [
+    {
+      "id": "${project.groupId}:${project.artifactId}:${project.version}",
+      // After schemas (27) and submissions (28), whose trees this content is loaded into
+      "start-order": "30"
+    }
+  ],
+  "configurations": {
+    "org.apache.sling.jcr.repoinit.RepositoryInitializer~demo-time-off-request": {
+      "service.ranking:Integer": 400,
+      "scripts": [
+        // The two people the demo is about. Passwords match the names because this is a demo: it is
+        // reached through --demo or the demo integration-test suite, never a real deployment.
+        "create group time-off-requesters \n create group time-off-approvers",
+        "create user demo-requester with password demo-requester \n create user demo-approver with password demo-approver",
+        "add demo-requester to group time-off-requesters \n add demo-approver to group time-off-approvers"
+      ]
+    }
+  }
+}
