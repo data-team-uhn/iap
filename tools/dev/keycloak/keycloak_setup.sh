@@ -170,7 +170,7 @@ if [[ "$CREATE_TEST_USER" == "1" ]]; then
         echo -e "${BLUE}test user '${TEST_USER}' already exists${DEFAULT}"
     else
         kc create users -r "$REALM" -s "username=${TEST_USER}" -s enabled=true \
-            -s "email=${TEST_USER}@example.org" -s emailVerified=true >/dev/null
+            -s "email=${TEST_USER}@example.org" -s "firstName=test" -s "lastName=test" -s emailVerified=true >/dev/null
         kc set-password -r "$REALM" --username "$TEST_USER" --new-password "$TEST_PASSWORD" >/dev/null
         kc add-roles -r "$REALM" --uusername "$TEST_USER" --rolename "$TEST_USER_ROLE" >/dev/null
         echo -e "${GREEN}created test user '${TEST_USER}' (password '${TEST_PASSWORD}', role '${TEST_USER_ROLE}')${DEFAULT}"
