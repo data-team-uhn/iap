@@ -153,10 +153,10 @@ class TestHeadingPattern:
         assert mm.HEADING.match("## ") is None
 
     def test_a_hash_line_of_only_whitespace_stays_linear(self):
-        # CWE-1333. Without the (?=\S) lookahead, \s+ and (.*\S) compete for the same
-        # whitespace and the engine retries once per space: a 16k-space line took 1.4s, and
-        # the cost is quadratic. _match_heading takes raw document lines, and the document
-        # comes from the caller, so this is reachable from a crafted upload.
+        # CWE-1333. When the tail was written as (.*\S)\s*$ those two repetitions competed
+        # for the same whitespace and the engine retried once per space: a 16k-space line
+        # took 1.4s, and the cost is quadratic. _match_heading takes raw document lines, and
+        # the document comes from the caller, so this is reachable from a crafted upload.
         for size in (200_000, 800_000):
             line = "# " + " " * size
             start = time.perf_counter()
@@ -169,6 +169,12 @@ class TestHeadingPattern:
         start = time.perf_counter()
         assert mm.HEADING.match(line) is not None
         assert time.perf_counter() - start < 1.0
+
+    def test_the_heading_text_group_may_carry_trailing_whitespace(self):
+        # The pattern no longer trims the tail itself -- that is what removed the ambiguity.
+        # _match_heading strips it, and every other caller uses HEADING as a predicate.
+        assert mm.HEADING.match("## Study Design   ").group(2) == "Study Design   "
+        assert mm.HEADING.match("## Study Design").group(2) == "Study Design"
 
     def test_matches_the_looser_predicate_it_replaced(self):
         # toc_and_appendix_detection used r"^#{1,6}\s+\S" as a separate "is a heading line"

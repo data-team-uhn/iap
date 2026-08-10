@@ -65,13 +65,16 @@ RULE_LINE = re.compile(r"^-{3,}$")
 # An ATX heading line; group 1 = the '#' run, group 2 = the heading text. The ``(?!#)``
 # guard rejects a 7+ '#' run, which is not a heading in Markdown.
 #
-# ``(?=\S)`` is load-bearing, not decoration. Without it ``\s+`` and ``(.*\S)`` both compete
-# for the same whitespace, so a line of nothing but '#' and spaces makes the engine retry
-# ``(.*\S)`` once per space — quadratic. Most callers pass a stripped line and never hit it,
-# but _match_heading / _heading_level take raw document lines, and a document is caller
-# input: one crafted line of 8k spaces already costs about a second of a warm worker.
-# The lookahead pins ``\s+`` to the whole whitespace run and makes the match linear.
-HEADING = re.compile(r"^(#{1,6})(?!#)\s+(?=\S)(.*\S)\s*$")
+# Group 2 keeps any trailing whitespace; the one caller that reads it,
+# :func:`chunker._match_heading`, already strips. That is deliberate. Writing the tail as
+# ``(.*\S)\s*$`` puts two repetitions next to each other competing for the same spaces, which
+# is quadratic on a line of nothing but '#' and whitespace — one crafted 8k-space line cost
+# about a second of a warm worker, and _match_heading takes raw document lines. Pinning it
+# with a ``(?=\S)`` lookahead fixed the running time but left the ambiguity in place for any
+# reader (and for CodeQL) to trip over again. Requiring ``\S`` up front and dropping the
+# trailing ``\s*`` removes it outright: nothing follows ``.*``, so there is nothing to
+# backtrack against.
+HEADING = re.compile(r"^(#{1,6})(?!#)\s+(\S.*)$")
 
 # Maximum words per accepted heading/TOC entry, and maximum characters per word within it.
 # A line breaching either is parsing garbage rather than a real heading.
