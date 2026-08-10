@@ -226,7 +226,7 @@ class CascadeResolver
             this.plan.getLinksToRemove().put(path, linkNode);
             return;
         }
-        switch (this.resolvePolicy(linkNode, path)) {
+        switch (this.resolvePolicy(path)) {
             case RECURSIVE_DELETE -> this.handleRecursiveLink(linkNode, path, queue);
             case IGNORE -> this.handleIgnoredLink(linkNode, path);
             // REMOVE_LINK, the default policy
@@ -234,7 +234,11 @@ class CascadeResolver
         }
     }
 
-    private LinkDefinition.OnDelete resolvePolicy(final Node linkNode, final String path)
+    /**
+     * The {@code onDelete} policy of a link, resolved through the service resolver rather than from the link node
+     * itself: the policy lives on the link's definition, which only the {@link Link} model can follow.
+     */
+    private LinkDefinition.OnDelete resolvePolicy(final String path)
     {
         final Resource linkResource = this.plan.getServiceResolver().getResource(path);
         final Link link = linkResource == null ? null : Link.toLink(linkResource);
