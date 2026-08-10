@@ -31,12 +31,12 @@ import org.apache.sling.api.resource.NonExistingResource;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Encoders;
@@ -65,7 +65,7 @@ import static org.mockito.Mockito.when;
  * @version $Id$
  * @since 0.1.0
  */
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class IapJwtTokenManagerImplTest
 {
     /**
@@ -116,11 +116,7 @@ public class IapJwtTokenManagerImplTest
 
     private IapJwtTokenManagerImpl manager;
 
-    private KeyPair peerPair;
-
-    private String peerFingerprint;
-
-    @Before
+    @BeforeEach
     public void setUp() throws Exception
     {
         // Generate a RS256 keypair and expose it exactly as the component reads it from
@@ -140,17 +136,6 @@ public class IapJwtTokenManagerImplTest
         when(this.keyProperty.getString()).thenReturn(Encoders.BASE64.encode(keyPair.getPrivate().getEncoded()));
         when(this.verifyProperty.getString()).thenReturn(Encoders.BASE64.encode(keyPair.getPublic().getEncoded()));
 
-        this.peerPair = Jwts.SIG.RS256.keyPair().build();
-        this.peerFingerprint = IapJwtTokenManagerImpl.getFingerprint(this.peerPair.getPublic());
-        when(this.resolver.resolve(PEER_KEY_PATH_PREFIX + this.peerFingerprint)).thenReturn(this.peerResource);
-        when(this.peerResource.adaptTo(Node.class)).thenReturn(this.peerNode);
-        when(this.peerNode.hasProperty("verify")).thenReturn(true);
-        when(this.peerNode.getProperty("verify")).thenReturn(this.peerVerifyProperty);
-        when(this.peerNode.getProperty("iss")).thenReturn(this.peerIssuerProperty);
-        when(this.peerVerifyProperty.getString()).thenReturn(
-            Encoders.BASE64.encode(this.peerPair.getPublic().getEncoded()));
-        when(this.peerIssuerProperty.getString()).thenReturn(PEER_ID);
-
         // Activate the component via its @Activate constructor.
         this.manager = new IapJwtTokenManagerImpl(this.resolverFactory);
     }
@@ -164,26 +149,26 @@ public class IapJwtTokenManagerImplTest
 
         // A JWT is three base64url segments separated by dots (the same check the auth
         // handler applies).
-        Assert.assertTrue("Issued token is not a well-formed JWT",
-                token.matches("^[\\w-_]+\\.[\\w-_]+\\.[\\w-_]+$"));
+        Assertions.assertTrue(token.matches("^[\\w-_]+\\.[\\w-_]+\\.[\\w-_]+$"),
+                "Issued token is not a well-formed JWT");
 
         final IapJwtTokenImpl parsed = this.manager.parse(token);
-        Assert.assertNotNull("A freshly issued token must parse back", parsed);
-        Assert.assertEquals("guest-patient", parsed.getUserId());
-        Assert.assertEquals("/Subjects/v1", parsed.getPublicAttributes().get(SESSION_SUBJECT));
+        Assertions.assertNotNull(parsed, "A freshly issued token must parse back");
+        Assertions.assertEquals("guest-patient", parsed.getUserId());
+        Assertions.assertEquals("/Subjects/v1", parsed.getPublicAttributes().get(SESSION_SUBJECT));
     }
 
     @Test
     public void parseRejectsNull()
     {
-        Assert.assertNull(this.manager.parse(null));
+        Assertions.assertNull(this.manager.parse(null));
     }
 
     @Test
     public void parseRejectsMalformedToken()
     {
-        Assert.assertNull(this.manager.parse("garbage"));
-        Assert.assertNull(this.manager.parse("this.is.not-a-real-jwt"));
+        Assertions.assertNull(this.manager.parse("garbage"));
+        Assertions.assertNull(this.manager.parse("this.is.not-a-real-jwt"));
     }
 
     @Test
@@ -193,7 +178,7 @@ public class IapJwtTokenManagerImplTest
         past.add(Calendar.HOUR_OF_DAY, -1);
         final String expired = this.manager.create("guest-patient", past, Map.of(SESSION_SUBJECT, "/Subjects/v1"))
                 .getToken();
-        Assert.assertNull("An expired token must not parse", this.manager.parse(expired));
+        Assertions.assertNull(this.manager.parse(expired), "An expired token must not parse");
     }
 
     @Test
@@ -207,7 +192,7 @@ public class IapJwtTokenManagerImplTest
                 .header().keyId("attacker").and()
                 .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate())
                 .compact();
-        Assert.assertNull("A token signed with a different key must not parse", this.manager.parse(foreign));
+        Assertions.assertNull(this.manager.parse(foreign), "A token signed with a different key must not parse");
     }
 
     @Test
@@ -219,7 +204,7 @@ public class IapJwtTokenManagerImplTest
                 .expiration(new Date(System.currentTimeMillis() + 3_600_000L))
                 .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate())
                 .compact();
-        Assert.assertNull("A token without a key ID must not parse", this.manager.parse(foreign));
+        Assertions.assertNull(this.manager.parse(foreign), "A token without a key ID must not parse");
     }
 
     @Test
@@ -232,7 +217,7 @@ public class IapJwtTokenManagerImplTest
                 .header().keyId("../attacker").and()
                 .signWith(Jwts.SIG.RS256.keyPair().build().getPrivate())
                 .compact();
-        Assert.assertNull("A token with a non-sanitized key ID must not parse", this.manager.parse(foreign));
+        Assertions.assertNull(this.manager.parse(foreign), "A token with a non-sanitized key ID must not parse");
     }
 
     @Test
@@ -247,15 +232,26 @@ public class IapJwtTokenManagerImplTest
 
         // A JWT is three base64url segments separated by dots (the same check the auth
         // handler applies).
-        Assert.assertTrue("Issued token is not a well-formed JWT",
-                token.matches("^[\\w-_]+\\.[\\w-_]+\\.[\\w-_]+$"));
-        Assert.assertNull("A token signed with an audience that does not include us must not parse",
-                this.manager.parse(token));
+        Assertions.assertTrue(token.matches("^[\\w-_]+\\.[\\w-_]+\\.[\\w-_]+$"),
+                "Issued token is not a well-formed JWT");
+        Assertions.assertNull(this.manager.parse(token),
+                "A token signed with an audience that does not include us must not parse");
     }
 
     @Test
-    public void createForeignKeyThenAccept()
+    public void createForeignKeyThenAccept() throws Exception
     {
+        final KeyPair peerPair = Jwts.SIG.RS256.keyPair().build();
+        final String peerFingerprint = IapJwtTokenManagerImpl.getFingerprint(peerPair.getPublic());
+        when(this.resolver.resolve(PEER_KEY_PATH_PREFIX + peerFingerprint)).thenReturn(this.peerResource);
+        when(this.peerResource.adaptTo(Node.class)).thenReturn(this.peerNode);
+        when(this.peerNode.hasProperty("verify")).thenReturn(true);
+        when(this.peerNode.getProperty("verify")).thenReturn(this.peerVerifyProperty);
+        when(this.peerNode.getProperty("iss")).thenReturn(this.peerIssuerProperty);
+        when(this.peerVerifyProperty.getString()).thenReturn(
+            Encoders.BASE64.encode(peerPair.getPublic().getEncoded()));
+        when(this.peerIssuerProperty.getString()).thenReturn(PEER_ID);
+
         // Test using a second set of keys that we've accepted
         String selfID = IapJwtTokenManagerImpl.SELF_ID.replaceAll("\\P{Alnum}", "");
 
@@ -263,10 +259,10 @@ public class IapJwtTokenManagerImplTest
             .issuer("localhost8081")
             .audience().add(selfID).and()
             .expiration(oneHourFromNow().getTime())
-            .header().keyId(this.peerFingerprint).and()
-            .signWith(this.peerPair.getPrivate())
+            .header().keyId(peerFingerprint).and()
+            .signWith(peerPair.getPrivate())
             .compact();
-        Assert.assertNotNull("A foreign, trusted issued token must parse back", this.manager.parse(foreign));
+        Assertions.assertNotNull(this.manager.parse(foreign), "A foreign, trusted issued token must parse back");
     }
 
     private static Calendar oneHourFromNow()
