@@ -128,7 +128,8 @@ public class DeletionServiceImpl implements DeletionService
         try (ResourceResolver serviceResolver = this.getServiceResolver()) {
             final Node entry = this.requireEntry(archiveEntry, serviceResolver);
             final List<Veto> found = new ArrayList<>();
-            CascadeResolver.sweepVetoes(entry, this.currentVetoes(), DeletionMode.PURGE, found);
+            CascadeResolver.sweepVetoes(entry, this.currentVetoes(), DeletionMode.PURGE,
+                this.getUserSession(archiveEntry), found);
             final DeletionImpact impact = new DeletionImpact(List.of(entry.getPath()), List.of(), found,
                 List.of(), 0, "");
             if (!found.isEmpty()) {

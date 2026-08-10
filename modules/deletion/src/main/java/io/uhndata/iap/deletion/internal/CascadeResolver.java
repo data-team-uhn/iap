@@ -122,7 +122,7 @@ class CascadeResolver
 
     private void checkVetoes(final Node node) throws RepositoryException
     {
-        checkVetoes(node, this.vetoes, this.plan.getMode(), this.plan.getVetoes());
+        checkVetoes(node, this.vetoes, this.plan.getMode(), this.plan.getUserSession(), this.plan.getVetoes());
     }
 
     /**
@@ -131,15 +131,16 @@ class CascadeResolver
      * @param node the node a deletion would remove
      * @param vetoes the registered guards
      * @param mode the kind of deletion examined
+     * @param requester the session of the user who asked for the deletion
      * @param results where objections are collected
      * @throws RepositoryException if the node cannot be read
      */
     static void checkVetoes(final Node node, final List<DeletionVeto> vetoes, final DeletionMode mode,
-        final List<Veto> results) throws RepositoryException
+        final Session requester, final List<Veto> results) throws RepositoryException
     {
         final String path = node.getPath();
         vetoes.stream()
-            .map(veto -> applyVeto(veto, node, path, mode))
+            .map(veto -> applyVeto(veto, node, path, mode, requester))
             .filter(Objects::nonNull)
             .forEach(results::add);
     }
@@ -150,24 +151,25 @@ class CascadeResolver
      * @param root the top of the subtree
      * @param vetoes the registered guards
      * @param mode the kind of deletion examined
+     * @param requester the session of the user who asked for the deletion
      * @param results where objections are collected
      * @throws RepositoryException if the subtree cannot be read
      */
     static void sweepVetoes(final Node root, final List<DeletionVeto> vetoes, final DeletionMode mode,
-        final List<Veto> results) throws RepositoryException
+        final Session requester, final List<Veto> results) throws RepositoryException
     {
-        checkVetoes(root, vetoes, mode, results);
+        checkVetoes(root, vetoes, mode, requester, results);
         final NodeIterator children = root.getNodes();
         while (children.hasNext()) {
-            sweepVetoes(children.nextNode(), vetoes, mode, results);
+            sweepVetoes(children.nextNode(), vetoes, mode, requester, results);
         }
     }
 
     private static Veto applyVeto(final DeletionVeto veto, final Node node, final String path,
-        final DeletionMode mode)
+        final DeletionMode mode, final Session requester)
     {
         try {
-            final String reason = veto.veto(node, mode);
+            final String reason = veto.veto(node, mode, requester);
             return reason == null ? null : new Veto(veto.getName(), path, reason);
         } catch (final RepositoryException | RuntimeException e) {
             // Fail closed: a guard that cannot decide keeps the data in place

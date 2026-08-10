@@ -40,8 +40,16 @@ is reported with its path and reason.
 The mixin check is one instance of the pluggable **`DeletionVeto`** SPI
 (`io.uhndata.iap.deletion.spi`): any bundle may register a veto service that gets asked about
 every impacted node, with the kind of deletion under consideration (`ARCHIVE`, `PERMANENT`,
-`PURGE`). A veto that fails is counted as a veto — when a guard cannot decide, the data stays. A
-typical future use is protecting workflow versions that have ever been activated.
+`PURGE`) and **the requesting user's session**. A veto that fails is counted as a veto — when a
+guard cannot decide, the data stays. A typical future use is protecting workflow versions that have
+ever been activated.
+
+The requester's session is what lets a guard answer "*who* may do this", as opposed to "*what* may
+be done": identity through `getUserID()`, group membership through
+`JackrabbitSession.getUserManager()`, e.g. a policy that permanently deleting anything is reserved
+to a named group. Note the two sessions in play — the node is read through the privileged
+`iap-deletion` session and may well be invisible to the requester, whose own rights are checked
+separately, node by node, before any guard is consulted. Guards must not write through either.
 
 ## The archive
 

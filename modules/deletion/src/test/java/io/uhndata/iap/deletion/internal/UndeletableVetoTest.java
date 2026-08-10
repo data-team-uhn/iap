@@ -18,6 +18,7 @@
 package io.uhndata.iap.deletion.internal;
 
 import javax.jcr.Node;
+import javax.jcr.Session;
 
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +40,9 @@ class UndeletableVetoTest
 {
     private final UndeletableVeto veto = new UndeletableVeto();
 
+    // This guard looks only at the node, so the requester it is handed never matters
+    private final Session requester = mock(Session.class);
+
     @Test
     void hasAStableName()
     {
@@ -50,9 +54,9 @@ class UndeletableVetoTest
     {
         final Node node = mock(Node.class);
         when(node.isNodeType(DeletionService.UNDELETABLE_MIXIN)).thenReturn(true);
-        assertNotNull(this.veto.veto(node, DeletionMode.ARCHIVE));
-        assertNotNull(this.veto.veto(node, DeletionMode.PERMANENT));
-        assertNotNull(this.veto.veto(node, DeletionMode.PURGE));
+        assertNotNull(this.veto.veto(node, DeletionMode.ARCHIVE, this.requester));
+        assertNotNull(this.veto.veto(node, DeletionMode.PERMANENT, this.requester));
+        assertNotNull(this.veto.veto(node, DeletionMode.PURGE, this.requester));
     }
 
     @Test
@@ -60,6 +64,6 @@ class UndeletableVetoTest
     {
         final Node node = mock(Node.class);
         when(node.isNodeType(DeletionService.UNDELETABLE_MIXIN)).thenReturn(false);
-        assertNull(this.veto.veto(node, DeletionMode.ARCHIVE));
+        assertNull(this.veto.veto(node, DeletionMode.ARCHIVE, this.requester));
     }
 }

@@ -19,6 +19,7 @@ package io.uhndata.iap.deletion.spi;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,11 +46,23 @@ public interface DeletionVeto
     /**
      * Decide whether a resource may be deleted.
      *
-     * @param node a node that the examined deletion would remove from its current location
+     * <p>
+     * The node is read through the deletion service's own privileged session, so it is visible here whether or
+     * not the requester can see it; {@code requester} answers questions about <em>who</em> is deleting, not about
+     * what they can read. A guard that means "only these people may do this" belongs here rather than in access
+     * control precisely because the two sessions differ: the requesting user is authorized separately, node by
+     * node, before any guard is asked.
+     * </p>
+     *
+     * @param node a node that the examined deletion would remove from its current location, in a privileged
+     *            session
      * @param mode the kind of deletion being examined
+     * @param requester the session of the user who asked for the deletion, for identity and group membership
+     *            (through {@code JackrabbitSession.getUserManager()}); never written to
      * @return a human-readable reason why the deletion must not happen, or {@code null} to allow it
      * @throws RepositoryException if the decision cannot be made; treated as a veto
      */
     @Nullable
-    String veto(@NotNull Node node, @NotNull DeletionMode mode) throws RepositoryException;
+    String veto(@NotNull Node node, @NotNull DeletionMode mode, @NotNull Session requester)
+        throws RepositoryException;
 }

@@ -485,7 +485,7 @@ class DeletionServiceImplTest
         this.target(VICTIM);
         final DeletionVeto broken = mock(DeletionVeto.class);
         when(broken.getName()).thenReturn("broken");
-        when(broken.veto(any(), any())).thenThrow(new RepositoryException("cannot decide"));
+        when(broken.veto(any(), any(), any())).thenThrow(new RepositoryException("cannot decide"));
         inject(this.service, "vetoes", List.of(broken));
         final DeletionResult result = this.delete(VICTIM_PATH, false, false);
         assertEquals(DeletionResult.Status.VETOED, result.getStatus());

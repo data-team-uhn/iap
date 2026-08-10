@@ -19,6 +19,7 @@ package io.uhndata.iap.deletion.internal;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
 import org.osgi.service.component.annotations.Component;
 
@@ -43,7 +44,8 @@ public class UndeletableVeto implements DeletionVeto
     }
 
     @Override
-    public String veto(final Node node, final DeletionMode mode) throws RepositoryException
+    public String veto(final Node node, final DeletionMode mode, final Session requester)
+        throws RepositoryException
     {
         if (node.isNodeType(DeletionService.UNDELETABLE_MIXIN)) {
             return "This resource is protected from deletion";
