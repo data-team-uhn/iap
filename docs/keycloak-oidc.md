@@ -15,7 +15,7 @@ Everything is configuration; there is no new Java or Maven module. The pieces:
 | --- | --- |
 | Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module) **and** the `/oidc-login` trigger node (repoinit) | [core/oidc.json](../packaging/slingfeature/src/main/features/core/oidc.json) |
 | `ExternalPrincipalConfiguration` added to the security provider's required services | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json) |
-| "Institutional account" sign-in button (targets `/oidc-login`, renders the existing `RedirectSignIn`) | [Keycloak.json](../modules/login/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
+| "Institutional account" sign-in button (targets `/oidc-login`, renders the existing `RedirectSignIn`) — **disabled by default**, see [Enabling the sign-in button](#enabling-the-institutional-sign-in-button) | [Keycloak.json](../modules/login/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
 
 ## Sign-in flow
 
@@ -54,6 +54,28 @@ login; that landing path redirects on to the app.
 > [core/sling-configuration.json](../packaging/slingfeature/src/main/features/core/sling-configuration.json)
 > is left over from an earlier design and is no longer load-bearing (the callback is handled by the
 > OIDC handler's `extractCredentials`, not by the auth requirement). It is harmless and can be removed.
+
+## Enabling the institutional sign-in button
+
+The "Institutional account" method ships **disabled** (`iap:defaultDisabled: true` in `Keycloak.json`),
+so a deployment that hasn't configured Keycloak — including the bare-platform smoke tests — shows only
+the local credentials form. Keycloak's plumbing (`core/oidc.json`) is part of the default `core_tar`
+build, so the button's visibility can't be driven by which features are present; it's a deliberate
+per-deployment switch, flipped once Keycloak is actually wired up.
+
+Enable it with a Sling POST, **after IAP is running and Keycloak is configured** (it can't be done
+during `keycloak_setup.sh`, which runs before IAP exists):
+
+```bash
+curl -u admin:admin \
+  -F 'iap:defaultDisabled@TypeHint=Boolean' -F 'iap:defaultDisabled=false' \
+  http://localhost:8080/Extensions/SignInMethod/Keycloak
+```
+
+The POST is idempotent, so a deployment can fold it into a provisioning step. **Re-apply it whenever
+the login module's content is reloaded** — a fresh repository, a redeploy of the login bundle, or a
+`mvn clean install` — because `overwriteProperties` resets the node to disabled. To hide the button
+again, POST the same property as `true`.
 
 ## Runtime environment variables
 
@@ -105,16 +127,21 @@ separate so Keycloak runs detached while IAP runs in the foreground) plus an env
   `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` so IAP can reach it in-network (see the front/back-channel
   split under [Caveats](#caveats) below).
 - `docker-compose.iap.yml` — IAP on the same network.
-- `.env.example` — the environment both files read; copy it to `.env` (gitignored — it holds the secret).
+- `.env.example` — the environment both files read; `keycloak_setup.sh --write-env` fills in a `.env`
+  from it (client id, secret, front-channel URL). The real `.env` is gitignored — it holds the secret.
 
 ```bash
 docker network create iap                              # once
 cd tools/dev/keycloak
 docker compose -f docker-compose.keycloak.yml up -d    # 1. Keycloak
-./keycloak_setup.sh                                    # 2. realm/client/roles; prints the client secret
-cp .env.example .env                                   # 3. then set KEYCLOAK_CLIENT_SECRET from step 2
-docker compose -f docker-compose.iap.yml up            # 4. IAP (foreground; Ctrl+C to stop, `down` to remove)
+./keycloak_setup.sh --write-env                        # 2. realm/client/roles; writes .env (secret + URLs)
+docker compose -f docker-compose.iap.yml up            # 3. IAP (foreground; Ctrl+C to stop, `down` to remove)
 ```
+
+`--write-env` creates `.env` from `.env.example` if absent and updates the client id, secret, and
+`FRONTEND_KEYCLOAK_REALM_URL` in place — so there's no copy-the-secret-by-hand step. It leaves
+`BACKEND_KEYCLOAK_REALM_URL` alone (the in-network URL it can't infer), which the template already
+sets to `http://keycloak:8080/realms/iap`.
 
 The two realm URLs in `.env` encode the front/back-channel split: `BACKEND_KEYCLOAK_REALM_URL` is
 IAP's in-network view (`http://keycloak:8080/...`, Keycloak's **container** port) while
@@ -173,8 +200,9 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 2. Set the five env vars and start IAP (`mvn clean install` then `./start.sh`).
 3. In Keycloak's token inspector (or decode the ID token), confirm the `groups` claim is a flat
    list containing the role **before** wiring anything else — this is the most common failure point.
-4. Visit `/` unauthenticated → you get the branded `/login` page. Click "Continue with institutional
-   credentials" → Keycloak → sign in → you land back on the app.
+4. Enable the institutional sign-in button (see [Enabling the institutional sign-in button](#enabling-the-institutional-sign-in-button)),
+   then visit `/` unauthenticated → you get the branded `/login` page. Click "Continue with
+   institutional credentials" → Keycloak → sign in → you land back on the app.
 5. Confirm the session is app-wide: open `/system/sling/info.sessionInfo.json` — `userID` should be
    the synced Keycloak user, not `anonymous`. A `sling.oidcauth` cookie at path `/` should be present.
 6. Confirm provisioning: the user authorizable appears under `/home/users/oidc` with a

@@ -25,6 +25,9 @@
 # set KC_CADM to a local kcadm.sh to run against a non-Docker Keycloak instead.
 # Re-runnable: existing realm/client/roles/mapper are left in place.
 #
+# Pass --write-env to also write KEYCLOAK_CLIENT_ID/SECRET and the front-channel realm URL into
+# the compose .env (created from .env.example if missing); see docs/keycloak-oidc.md.
+#
 # Configuration (all overridable via environment):
 #   KC_CONTAINER      Keycloak container name/id for `docker exec` (default: keycloak)
 #   KC_CADM           Path to a local kcadm.sh; if set, used instead of docker exec
@@ -32,6 +35,7 @@
 #   KEYCLOAK_ADMIN / KEYCLOAK_ADMIN_PASSWORD   master-realm admin creds (default: admin/admin)
 #   KEYCLOAK_REALM        realm to create/use (default: iap)
 #   KEYCLOAK_CLIENT_ID    client id to create/use (default: iap-sling)
+#   ENV_FILE              path to the .env written by --write-env (default: <script dir>/.env)
 #   IAP_PUBLIC_URL        public base URL of IAP, for the redirect URI (default: http://localhost:8080)
 #   KEYCLOAK_ROLES        space-separated realm roles to create (default: "reader writer admin")
 #   GROUPS_CLAIM          token claim name for the roles mapper (default: groups)
@@ -48,10 +52,16 @@ handle_error() {
 }
 trap handle_error ERR
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-    sed -n '19,39p' "$0" | sed 's/^# \{0,1\}//'
-    exit 0
-fi
+WRITE_ENV=false
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help)
+            sed -n '/^# Configures an ALREADY-RUNNING/,/^$/p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0 ;;
+        --write-env) WRITE_ENV=true ;;
+        *) echo "Unknown argument: $arg (try --help)" >&2; exit 1 ;;
+    esac
+done
 
 # ---- configuration -------------------------------------------------------------
 KC_CONTAINER="${KC_CONTAINER:-keycloak}"
@@ -68,6 +78,9 @@ TEST_USER="${TEST_USER:-test}"
 TEST_PASSWORD="${TEST_PASSWORD:-test}"
 TEST_USER_ROLE="${TEST_USER_ROLE:-writer}"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
+
 REDIRECT_URI="${IAP_PUBLIC_URL%/}/system/sling/oauth/callback"
 
 # ---- kcadm wrapper -------------------------------------------------------------
@@ -80,6 +93,19 @@ kc() {
     else
         docker exec -i "$KC_CONTAINER" /opt/keycloak/bin/kcadm.sh "$@"
     fi
+}
+
+# Replace the KEY=... line in a file (or append it if absent). The value is passed via awk -v so
+# secret characters need no shell/sed escaping; comment and unrelated lines are preserved verbatim.
+write_env_var() {
+    local file="$1" key="$2" value="$3" tmp
+    tmp="$(mktemp)"
+    awk -v k="$key" -v v="$value" '
+        BEGIN { FS = OFS = "=" }
+        $1 == k { print k "=" v; found = 1; next }
+        { print }
+        END { if (!found) print k "=" v }
+    ' "$file" > "$tmp" && mv "$tmp" "$file"
 }
 
 echo -e "${YELLOW}IAP KEYCLOAK SETUP${DEFAULT}"
@@ -191,3 +217,21 @@ echo    "  export IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword # replace with any a
 echo -e "${DEFAULT}"
 echo    "(KEYCLOAK_BASE_URL must be the realm URL that IAP can reach; adjust the host if"
 echo    " IAP and Keycloak are on different networks.)"
+
+# ---- optionally sync the compose .env ------------------------------------------
+if [[ "$WRITE_ENV" == true ]]; then
+    if [[ ! -f "$ENV_FILE" ]]; then
+        if [[ -f "$SCRIPT_DIR/.env.example" ]]; then
+            cp "$SCRIPT_DIR/.env.example" "$ENV_FILE"
+            echo -e "${BLUE}created ${ENV_FILE} from .env.example${DEFAULT}"
+        else
+            : > "$ENV_FILE"
+        fi
+    fi
+    write_env_var "$ENV_FILE" "KEYCLOAK_CLIENT_ID" "$CLIENT_ID"
+    write_env_var "$ENV_FILE" "KEYCLOAK_CLIENT_SECRET" "$SECRET"
+    write_env_var "$ENV_FILE" "FRONTEND_KEYCLOAK_REALM_URL" "${KC_PUBLIC_URL%/}/realms/${REALM}"
+    echo -e "${GREEN}wrote client id/secret + FRONTEND_KEYCLOAK_REALM_URL to ${ENV_FILE}${DEFAULT}"
+    echo    "(BACKEND_KEYCLOAK_REALM_URL is left untouched -- it is the in-network URL, e.g."
+    echo    " http://keycloak:8080/realms/${REALM}, which this script cannot infer.)"
+fi
