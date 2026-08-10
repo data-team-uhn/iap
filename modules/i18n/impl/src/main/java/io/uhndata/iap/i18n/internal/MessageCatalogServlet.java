@@ -131,7 +131,15 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
 
     /**
      * The language to answer in: what this request asked for — named in the URL, or remembered in a cookie
-     * from when it was — and failing that, what the browser announced.
+     * from when it was — and failing that, what the browser announced, narrowed to a language this
+     * deployment actually offers.
+     *
+     * <p>Narrowed, and that is the whole of it. Asking for a language nobody has translated into is answered
+     * in the default, and this used to report the response as being in the language that was asked for while
+     * the words in it were English. A page cannot be in two languages at once, and the one it claims is the
+     * one machines act on: a speech synthesiser reads those English words aloud with a German accent, and a
+     * hyphenator breaks them where German breaks. Reporting what was actually served costs a caller nothing
+     * — it can still see what it asked for, because it asked.</p>
      *
      * <p>Read from the request in hand rather than from the ambient one. A servlet holding a request has no
      * business reaching through a thread-local to ask about it, and doing so would be wrong on any thread
@@ -140,13 +148,14 @@ public class MessageCatalogServlet extends SlingJakartaSafeMethodsServlet
      * <p>Naming a language is the only way to reach a pseudo-locale. Sling resolves {@code Accept-Language}
      * against the languages it can find in the repository and falls back to the default when it recognises
      * none, so a browser merely announcing {@code en-XA} is answered in ordinary English — the fallback doing
-     * its job, since nothing is stored under that name. A caller that wants the check has to ask for it.</p>
+     * its job, since nothing is stored under that name. A caller that wants the check has to ask for it, and
+     * narrowing lets those two through untouched so that asking still works.</p>
      *
      * @param request the current request
-     * @return a locale, never {@code null}
+     * @return a locale this deployment offers, never {@code null}
      */
     private Locale localeOf(final SlingJakartaHttpServletRequest request)
     {
-        return this.locales.getRequestLocale(request).orElseGet(request::getLocale);
+        return this.locales.getReaderLocale(request);
     }
 }

@@ -403,6 +403,40 @@ test.describe('the message catalog', () => {
     expect(Object.values(body.messages)).toContain('Se connecter');
   });
 
+  test('says which language it actually answered in, not which one was asked for', async ({ request }) => {
+    // German is offered by nobody here, so the messages come back in English. Reporting them as German
+    // would be a lie a machine acts on rather than a cosmetic one: this answer and <html lang> are read
+    // by a speech synthesiser choosing an accent and by a hyphenator choosing where to break words.
+    const response = await request.get('/libs/iap/messages.json?locale=de', { maxRedirects: 0 });
+
+    const body = await response.json() as { locale: string; messages: Record<string, string> };
+    expect(body.locale).toBe('en');
+    expect(Object.values(body.messages)).toContain('Sign in');
+  });
+
+  test('agrees with the page about which language that is', async ({ page }) => {
+    // The two answers are computed by different code — the servlet from the request in hand, the page
+    // from the filter — and they used to disagree for exactly this input: the catalog said "de" while
+    // <html lang> said "en", on one page.
+    const served = await (await page.request.get('/login?locale=de', { maxRedirects: 0 })).text();
+    const catalog = await (await page.request.get('/libs/iap/messages.json?locale=de', { maxRedirects: 0 }))
+      .json() as { locale: string };
+
+    expect(served).toMatch(new RegExp(`<html[^>]*\\blang="${catalog.locale}"`));
+    expect(catalog.locale).toBe('en');
+  });
+
+  test('does not claim a page of English reads right to left', async ({ request }) => {
+    // Arabic is not offered, so this is answered in English — and the direction has to be the direction
+    // of the words actually sent. Taken from the language that was asked for, it said rtl, and a caller
+    // acting on it would have turned a page of English around.
+    const response = await request.get('/libs/iap/messages.json?locale=ar', { maxRedirects: 0 });
+
+    const body = await response.json() as { locale: string; direction: string };
+    expect(body.direction).toBe('ltr');
+    expect(body.locale).toBe('en');
+  });
+
   test('serves every key in a pseudo-locale', async ({ request }) => {
     // Derived rather than authored, so it cannot be partial — and a key it did miss would fall back to
     // English and read as a hardcoded string that is not there

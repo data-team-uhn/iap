@@ -73,6 +73,14 @@ public class LocalesImpl implements Locales
 
     @Override
     @NotNull
+    public Locale getReaderLocale(@NotNull final HttpServletRequest request)
+    {
+        final RequestLocales asked = RequestLocales.from(request);
+        return narrow(asked.chosen().orElseGet(asked::announced));
+    }
+
+    @Override
+    @NotNull
     public Locale getLocaleFor(@NotNull final Authorizable user)
     {
         throw new UnsupportedOperationException(

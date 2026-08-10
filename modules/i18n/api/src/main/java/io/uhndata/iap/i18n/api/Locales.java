@@ -64,6 +64,26 @@ public interface Locales
     Locale getReaderLocale();
 
     /**
+     * The language to render in for the person who made a given request.
+     *
+     * <p>Preferred over {@link #getReaderLocale()} wherever a request is in hand, for the reason given on
+     * {@link #getRequestLocale(HttpServletRequest)}: code holding a request has no business reaching through
+     * ambient state to ask about it.</p>
+     *
+     * <p>Narrowed, and that is the difference from {@link #getRequestLocale(HttpServletRequest)}, which
+     * reports what was asked for however unavailable it is. Anything answering a client has to report this
+     * one: a request for a language the deployment does not offer is served in the default, and a response
+     * that labelled those words with the language nobody could supply would be a lie a machine acts on —
+     * a speech synthesiser reads English aloud with a German accent, and a hyphenator breaks the words in
+     * the wrong places.</p>
+     *
+     * @param request the request to answer
+     * @return a language this deployment actually offers, never {@code null}
+     */
+    @NotNull
+    Locale getReaderLocale(@NotNull HttpServletRequest request);
+
+    /**
      * The language to render in for a named person.
      *
      * <p>Deliberately ignores the current request, even where the person named happens to be the one who

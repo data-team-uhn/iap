@@ -140,12 +140,17 @@ class MessageCatalogServletTest
     @Test
     void leavesAnOrdinaryLocaleAlone() throws Exception
     {
-        // en-CA is a real locale that happens to look like the pseudo ones. Only XA and XB are reserved.
-        offer(Messages.INTERFACE, Locale.CANADA, Map.of("iap.a", "Username"));
+        // en-CA is a real locale that happens to look like the pseudo ones. Only XA and XB are reserved, so
+        // this is answered in ordinary words rather than disfigured ones.
+        //
+        // Answered in `en` because that is what this deployment offers — a Canadian reader gets the English
+        // it has rather than nothing at all, and the response says `en` because that is what it is.
+        offer(Messages.INTERFACE, Locale.ENGLISH, Map.of("iap.a", "Username"));
 
         final String body = get(Map.of(), Locale.CANADA).getOutputAsString();
 
         assertTrue(body.contains("\"Username\""), body);
+        assertTrue(body.contains("\"locale\":\"en\""), body);
     }
 
     @Test
@@ -194,6 +199,46 @@ class MessageCatalogServletTest
 
         assertTrue(body.contains("\"locale\":\"fr\""), body);
         assertTrue(body.contains("Bonjour"), body);
+    }
+
+    @Test
+    void answersInTheLanguageItActuallyServed() throws Exception
+    {
+        // German is not on offer, so the messages come back in the deployment's default. Saying so is the
+        // point: a response labelled "de" carrying English words is a lie a machine acts on, and the page
+        // renders <html lang> from the same answer.
+        offer(Messages.INTERFACE, Locale.ENGLISH, Map.of("iap.a", "Username"));
+
+        final String body = get(Map.of("locale", "de"), Locale.ENGLISH).getOutputAsString();
+
+        assertTrue(body.contains("\"locale\":\"en\""), body);
+        assertTrue(body.contains("\"Username\""), body);
+    }
+
+    @Test
+    void doesNotTurnThePageAroundForALanguageItCannotServe() throws Exception
+    {
+        // The sharper half of the same fault. Arabic reads right to left, so an unnarrowed answer reported
+        // rtl — and the caller would have turned a page of English around on the strength of it.
+        offer(Messages.INTERFACE, Locale.ENGLISH, Map.of("iap.a", "Username"));
+
+        final String body = get(Map.of("locale", "ar"), Locale.ENGLISH).getOutputAsString();
+
+        assertTrue(body.contains("\"direction\":\"ltr\""), body);
+        assertTrue(body.contains("\"locale\":\"en\""), body);
+    }
+
+    @Test
+    void stillReachesAPseudoLocaleThatIsOfferedByNobody() throws Exception
+    {
+        // Narrowing must not resolve the build's own check away: nothing is stored under en-XA by design,
+        // so a rule that answered only in languages on offer would quietly disable the gate.
+        offer(Messages.INTERFACE, Locale.ENGLISH, Map.of("iap.a", "Username"));
+
+        final String body = get(Map.of("locale", "en-XA"), Locale.ENGLISH).getOutputAsString();
+
+        assertTrue(body.contains("\"locale\":\"en-XA\""), body);
+        assertFalse(body.contains("\"Username\""), body);
     }
 
     @Test

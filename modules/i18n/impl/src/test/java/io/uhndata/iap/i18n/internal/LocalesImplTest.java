@@ -143,6 +143,26 @@ class LocalesImplTest
     }
 
     @Test
+    void answersForAGivenRequestWithoutReachingForTheAmbientOne()
+    {
+        // Deliberately with nothing on the thread: code holding a request must be able to answer from it
+        // alone, and would otherwise be reading whichever request happened to touch this thread last.
+        RequestLocaleHolder.clear();
+
+        assertEquals(Locale.FRENCH, this.locales.getReaderLocale(request("fr", null)));
+    }
+
+    @Test
+    void narrowsAGivenRequestTheSameWayAsTheAmbientOne()
+    {
+        // The reason this exists at all: what a caller reports back has to be a language the deployment can
+        // actually supply, not the one that was asked for
+        assertEquals(Locale.ENGLISH, this.locales.getReaderLocale(request("de", null)));
+        assertEquals(Locale.FRENCH, this.locales.getReaderLocale(request("fr-CA", null)));
+        assertEquals(Locale.forLanguageTag("en-XA"), this.locales.getReaderLocale(request("en-XA", null)));
+    }
+
+    @Test
     void stillAnswersSomebodyWhereADeploymentOffersNothing()
     {
         // English is what this platform's own strings are written in, so it is what an unconfigured
