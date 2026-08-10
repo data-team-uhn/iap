@@ -44,13 +44,7 @@
         <configuration>
           <instructions>
             <Include-Resource>{maven-resources}</Include-Resource>
-            <!-- Directories, mapped onto the trees the platform's own modules create, so that each file
-                 inside becomes one child node.
-                 Naming a single file here instead does read its descriptor correctly, but `path` is then
-                 not honoured as the parent: the node lands at the repository root, named after the file.
-                 Measured both ways against a live instance. -->
-            <!-- Workflows first: the schema version points at its workflow version with a
-                 `jcr:reference:` property, which can only resolve once the target node exists. -->
+            <!-- Workflows first: the schema version points at its workflow version with a `jcr:reference:` property, which can only resolve once the target node exists. -->
             <Sling-Initial-Content>
               SLING-INF/content/Workflows;path:=/Workflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
               SLING-INF/content/Schemas;path:=/Schemas;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
