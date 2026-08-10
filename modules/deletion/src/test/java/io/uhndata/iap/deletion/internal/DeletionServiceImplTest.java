@@ -220,6 +220,24 @@ class DeletionServiceImplTest
     }
 
     @Test
+    void archiveEntriesAreFiledUnderAPrefixTree() throws Exception
+    {
+        this.target(VICTIM);
+        final String entryPath = this.delete(VICTIM_PATH, false, false).getArchiveEntryPath();
+        final Node entry = this.session.getNode(entryPath);
+        assertEquals(DeletionService.ARCHIVE_PATH + "/" + entry.getName().substring(0, 2) + "/"
+            + entry.getName().substring(2, 4) + "/" + entry.getName().substring(4, 6) + "/" + entry.getName(),
+            entryPath);
+        // The buckets are archive nodes themselves, and hold nothing but the entry
+        Node bucket = entry.getParent();
+        while (!DeletionService.ARCHIVE_PATH.equals(bucket.getPath())) {
+            assertTrue(bucket.isNodeType(DeletionService.ARCHIVE_NODETYPE));
+            assertEquals(1, bucket.getNodes().getSize());
+            bucket = bucket.getParent();
+        }
+    }
+
+    @Test
     void permanentDeletionLeavesNoTrace() throws Exception
     {
         this.target(VICTIM);
@@ -507,13 +525,17 @@ class DeletionServiceImplTest
     void protectedPathsAreRejected() throws Exception
     {
         this.target(VICTIM);
-        assertEquals(DeletionResult.Status.ARCHIVED, this.delete(VICTIM_PATH, false, false).getStatus());
+        final DeletionResult archival = this.delete(VICTIM_PATH, false, false);
+        assertEquals(DeletionResult.Status.ARCHIVED, archival.getStatus());
         assertThrows(IllegalArgumentException.class,
             () -> this.service.delete(this.resource(DeletionService.ARCHIVE_PATH), DeletionOptions.archive()));
-        final Resource archived = this.resource(
-            this.session.getNode(DeletionService.ARCHIVE_PATH).getNodes().nextNode().getPath());
+        final Resource archived = this.resource(archival.getArchiveEntryPath());
         assertThrows(IllegalArgumentException.class,
             () -> this.service.delete(archived, DeletionOptions.archive()));
+        // Including the prefix tree the entry is filed under
+        final Resource bucket = this.resource(archived.getParent().getPath());
+        assertThrows(IllegalArgumentException.class,
+            () -> this.service.delete(bucket, DeletionOptions.archive()));
         assertThrows(IllegalArgumentException.class,
             () -> this.service.delete(this.resource("/"), DeletionOptions.archive()));
     }

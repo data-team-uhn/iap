@@ -43,6 +43,7 @@ import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.RestoreConflict;
 import io.uhndata.iap.deletion.api.RestoreResult;
 import io.uhndata.iap.links.models.Link;
+import io.uhndata.iap.utils.PrefixTree;
 
 /**
  * The execution phase of deletions: performs the actual moves and removals through the privileged service session,
@@ -104,13 +105,16 @@ final class ArchiveOperations
      *
      * @param plan a resolved plan whose execution was authorized
      * @param userId the user requesting the deletion, recorded on the entry
-     * @return the path of the created archive entry
+     * @return the path of the created archive entry, inside the {@link PrefixTree prefix tree} under the archive
      * @throws RepositoryException if the changes cannot be applied
      */
     String archive(final DeletionPlan plan, final String userId) throws RepositoryException
     {
-        final Node archiveRoot = this.serviceSession.getNode(DeletionService.ARCHIVE_PATH);
-        final Node entry = archiveRoot.addNode(UUID.randomUUID().toString(), DeletionService.ENTRY_NODETYPE);
+        // Opening the buckets saves them, so it has to happen before this deletion has anything else pending
+        final String entryName = UUID.randomUUID().toString();
+        final Node bucket = PrefixTree.bucketFor(this.serviceSession.getNode(DeletionService.ARCHIVE_PATH),
+            entryName, DeletionService.ARCHIVE_NODETYPE);
+        final Node entry = bucket.addNode(entryName, DeletionService.ENTRY_NODETYPE);
         entry.setProperty(DeletionService.DELETED_BY_PROPERTY, userId);
         entry.setProperty(DeletionService.REQUESTED_PATH_PROPERTY, plan.getRequestedPath());
         // Links go first: removing a completed backlink pair navigates by path, so it must happen while

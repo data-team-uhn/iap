@@ -51,6 +51,13 @@ Unless a permanent deletion is requested, the impacted subtrees are *moved* into
 performed by the `iap-deletion` service user, so `jcr:createdBy` cannot) and which resource was
 targeted (`requestedPath`).
 
+Entries are not direct children of `/Archive`. Each one is named with a UUID and filed by
+`PrefixTree` (`io.uhndata.iap.utils`, in `iap-java-utils`) under buckets named after the first
+characters of that UUID — `/Archive/3f/a9/1c/3fa91c48-…` — which keeps a parent from holding every
+deletion ever performed. The buckets are `iap:Archive` nodes themselves; see the utility's javadoc
+for the layout and its contract. Nothing should assume the depth: use the entry path returned by
+the service, or look entries up by node type.
+
 A move preserves node identifiers, so all references between archived resources — and references
 *into* the archive from resources archived earlier — remain intact. That is exactly what makes
 restoring possible. Hiding archived content is therefore the job of access control, not of broken
@@ -114,8 +121,8 @@ failures (repository errors, missing service user).
 | `DELETE /path/to/resource?recursive=true` | Also delete the referencing resources |
 | `DELETE /path/to/resource?permanent=true` | Skip the archive, remove for good |
 | `DELETE /path/to/resource?dryRun=true` | Only report what would happen, change nothing |
-| `POST /Archive/<entry>.restore.json` | Restore an archive entry |
-| `DELETE /Archive/<entry>` | Purge an archive entry |
+| `POST /Archive/<xx>/<yy>/<zz>/<entry>.restore.json` | Restore an archive entry |
+| `DELETE /Archive/<xx>/<yy>/<zz>/<entry>` | Purge an archive entry |
 
 The deletion endpoint is bound to the `iap/Content` resource type, i.e. every content resource;
 the archive endpoints are bound to `iap/ArchiveEntry`, and are implicitly restricted to users who
@@ -123,7 +130,7 @@ can see the archive — everyone else gets a plain 404 from resource resolution.
 JSON carrying `status.code`, a machine-readable `status` word, and `status.message` when there is
 something to explain:
 
-- **200** — `{"status": "archived", "archiveEntry": "/Archive/<uuid>", "items": [...],
+- **200** — `{"status": "archived", "archiveEntry": "/Archive/<xx>/<yy>/<zz>/<uuid>", "items": [...],
   "removedLinks": [...]}`, or `"deleted"`, `"dryRun"` (with the full impact and an `executable`
   flag), `"restored"` (with the restored paths).
 - **409** — `"referenced"` (with `referrers` grouped by type, an `inaccessibleReferrers` count,
