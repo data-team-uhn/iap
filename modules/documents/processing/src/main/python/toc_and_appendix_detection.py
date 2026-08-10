@@ -141,9 +141,14 @@ _TOC_LABEL_BARE = re.compile(r"^table\s+of\s+contents$", re.IGNORECASE)
 # separator, then an arabic or Roman page number. E.g. "Protocol Summary\t3",
 # "1.0 General Information\t3", "Summary  -  2", "Schema.......4",
 # "ABBREVIATIONS AND DEFINITIONS OF TERMS - V".
+#
+# Match this against an already-stripped line: :func:`is_toc_entry_line` and
+# :func:`is_page_numbered_entry` do that for you. A leading ``\s*`` here used to compete
+# with the ``.+?`` title for the same run of spaces, so an indented line cost cubic time —
+# 400 spaces then one word took most of a second, and the document is caller input.
 TOC_ENTRY_PATTERN = re.compile(
     r"""
-    ^\s*
+    ^
     (?!\|)                              # Do not allow a Markdown table row
     (?:[-*+]\s+)?                       # Optional bullet marker
     (?:\*{1,3})?                        # Optional Markdown emphasis
@@ -175,9 +180,10 @@ TOC_ENTRY_PATTERN = re.compile(
 
 # A numbered/lettered outline entry with no page reference at all, e.g.
 # "1.0 **Study Team, Disclosures, and Patient Partners**", "2.0 **Introduction**".
+# Also expects an already-stripped line, for the reason on TOC_ENTRY_PATTERN above.
 TOC_OUTLINE_ENTRY_PATTERN = re.compile(
     r"""
-    ^\s*
+    ^
     (?!\|)
     (?:[-*+]\s+)?
     \*{0,3}
@@ -212,10 +218,15 @@ def is_toc_entry_line(line: str) -> bool:
 
     An over-long line that is nonetheless structurally an entry is rejected here but still
     recognised by :func:`is_page_numbered_entry`, so it does not end the surrounding block.
+
+    Leading and trailing whitespace is removed first; the entry patterns no longer absorb it
+    themselves (see :data:`TOC_ENTRY_PATTERN`).
     """
     if not within_word_limits(line):
         return False
-    return TOC_ENTRY_PATTERN.match(line) is not None or TOC_OUTLINE_ENTRY_PATTERN.match(line) is not None
+    stripped = line.strip()
+    return (TOC_ENTRY_PATTERN.match(stripped) is not None
+            or TOC_OUTLINE_ENTRY_PATTERN.match(stripped) is not None)
 
 
 def is_page_numbered_entry(line: str) -> bool:
@@ -233,7 +244,7 @@ def is_page_numbered_entry(line: str) -> bool:
     @param line: the raw line
     @return: ``True`` when the line is shaped like a page-numbered TOC entry
     """
-    return TOC_ENTRY_PATTERN.match(line) is not None
+    return TOC_ENTRY_PATTERN.match(line.strip()) is not None
 
 
 def _is_toc_header_line(stripped: str) -> bool:
