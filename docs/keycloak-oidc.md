@@ -95,6 +95,33 @@ options. The manual steps are documented here as the reference the script implem
 
    > If you prefer a different claim name, change `groupsClaimName` in `core/oidc.json` to match.
 
+## Running locally with Docker Compose
+
+[`tools/dev/keycloak/`](../tools/dev/keycloak/) has a Dockerised dev stack — two Compose files (kept
+separate so Keycloak runs detached while IAP runs in the foreground) plus an env template:
+
+- `docker-compose.keycloak.yml` — Keycloak on the shared `iap` network, published to the host at
+  `127.0.0.1:8084`, with `KC_HOSTNAME` pinned so the issuer/front-channel URL is stable and
+  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` so IAP can reach it in-network (see the front/back-channel
+  split under [Caveats](#caveats) below).
+- `docker-compose.iap.yml` — IAP on the same network.
+- `.env.example` — the environment both files read; copy it to `.env` (gitignored — it holds the secret).
+
+```bash
+docker network create iap                              # once
+cd tools/dev/keycloak
+docker compose -f docker-compose.keycloak.yml up -d    # 1. Keycloak
+./keycloak_setup.sh                                    # 2. realm/client/roles; prints the client secret
+cp .env.example .env                                   # 3. then set KEYCLOAK_CLIENT_SECRET from step 2
+docker compose -f docker-compose.iap.yml up            # 4. IAP (foreground; Ctrl+C to stop, `down` to remove)
+```
+
+The two realm URLs in `.env` encode the front/back-channel split: `BACKEND_KEYCLOAK_REALM_URL` is
+IAP's in-network view (`http://keycloak:8080/...`, Keycloak's **container** port) while
+`FRONTEND_KEYCLOAK_REALM_URL` is the browser's view and the issuer (`http://localhost:8084/...`,
+the **host-published** port). Getting the back-channel port wrong (using `8084`) is a common trip-up
+— that port only exists on the host, not inside the Docker network.
+
 ## How the names line up
 
 Three independent names are wired across the configs; the defaults use `keycloak` for all three:

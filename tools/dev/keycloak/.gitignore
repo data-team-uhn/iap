@@ -1,0 +1,3 @@
+# The real .env holds the Keycloak client secret -- keep it out of git.
+# The committed template is .env.example (this pattern does not match it).
+.env
