@@ -86,14 +86,54 @@ def catalog_files(root_dir, kind='interface'):
     return found
 
 
+# One `<source>;path:=<target>` entry of a bundle's Sling-Initial-Content header
+MOUNT = re.compile(r'(SLING-INF/content/[^;,\s]*)\s*;\s*path:=\s*([^;,\s]+)')
+
+
+def mounts(root_dir):
+    """Where each module's shipped content is installed, longest source first.
+
+    Read from the poms rather than assumed, because the two are allowed to differ: test-data keeps a file
+    at `SLING-INF/content/ParticipatingInstitutions.json` and installs it at
+    `/libs/iap/ParticipatingInstitutions`. Assuming the file tree mirrored the repository put that node's
+    path out by two segments, and the check called a translation of it dead -- correctly, by its own
+    reasoning, and wrongly about the world.
+    """
+    found = []
+    for root, dirs, files in os.walk(root_dir):
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in NOT_SOURCES]
+        if 'pom.xml' not in files:
+            continue
+        with open(path.join(root, 'pom.xml'), 'rt', encoding='utf-8') as handle:
+            for source, target in MOUNT.findall(handle.read()):
+                found.append((path.join(root, 'src', 'main', 'resources', source.replace('/', os.sep)),
+                              '/' + target.strip('/')))
+    # Longest source first, so a mapping for a subdirectory wins over one for the tree containing it
+    return sorted(found, key=lambda mount: -len(mount[0]))
+
+
+def repository_path(file, installed):
+    """Where a content file's node lives in the repository."""
+    for source, target in installed:
+        if file == source:
+            # A single file mounted under a name of its own
+            return target
+        if file.startswith(source.rstrip(os.sep) + os.sep):
+            return (target + '/' + file[len(source.rstrip(os.sep)) + 1:-len('.json')].replace(os.sep, '/'))
+    # No mapping says otherwise, so the file tree is the repository tree
+    return file[file.index(CONTENT_DIR) + len(CONTENT_DIR):-len('.json')].replace(os.sep, '/')
+
+
 def shipped_properties(root_dir):
     """Every property of every node the project ships, by its path in the repository.
 
     Sling initial content is laid out as the repository is: a file at
     `SLING-INF/content/libs/iap/conf/LoginPage.json` becomes the node `/libs/iap/conf/LoginPage`, and a
-    nested object inside it becomes a child of that node. Rebuilding the paths is what lets a content
-    catalog -- which is keyed by them -- be checked against something rather than taken on trust.
+    nested object inside it becomes a child of that node -- unless its bundle says otherwise, which
+    `mounts` above reads. Rebuilding the paths is what lets a content catalog -- which is keyed by them --
+    be checked against something rather than taken on trust.
     """
+    installed = mounts(root_dir)
     properties = {}
     for root, dirs, files in os.walk(root_dir):
         dirs[:] = [d for d in dirs if not d.startswith('.') and d not in NOT_SOURCES]
@@ -103,10 +143,10 @@ def shipped_properties(root_dir):
             if not name.endswith('.json'):
                 continue
             file = path.join(root, name)
-            base = file[file.index(CONTENT_DIR) + len(CONTENT_DIR):-len('.json')]
+            base = repository_path(file, installed)
             try:
                 with open(file, 'rt', encoding='utf-8') as handle:
-                    collect_properties(json.load(handle), base.replace(os.sep, '/'), properties)
+                    collect_properties(json.load(handle), base, properties)
             except ValueError:
                 # Not every .json under a content tree is a node definition; one that will not parse is
                 # something else's business, and failing here would only report it in the wrong words

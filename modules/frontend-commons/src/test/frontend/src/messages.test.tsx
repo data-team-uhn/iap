@@ -19,7 +19,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 
 import {
-  MessagesProvider, currentLocale, forgetMessages, loadMessages, useMessage,
+  MessagesProvider, currentLocale, forgetMessages, loadMessages, localized, readerLanguage, useMessage,
 } from "@iap/frontend-commons/messages";
 
 // Shows one message, so a test can read what the hook returned off the screen
@@ -165,5 +165,48 @@ describe("messages", () => {
     await loadMessages("iap.content");
 
     expect(fetchMock).toHaveBeenCalledWith("/libs/iap/messages.json?catalog=iap.content");
+  });
+
+  describe("localized", () => {
+    afterEach(() => {
+      document.documentElement.removeAttribute("lang");
+    });
+
+    it("asks for repository content in the language the page is in", () => {
+      document.documentElement.lang = "fr";
+
+      expect(localized("/libs/iap/ParticipatingInstitutions.1.json"))
+        .toBe("/libs/iap/ParticipatingInstitutions.1.localize:fr.json");
+      expect(readerLanguage()).toBe("fr");
+    });
+
+    it("leaves the URL alone where the page names no language", () => {
+      // A page the server rendered without a language has nothing to ask for, and a selector naming the
+      // empty string would be a resource nobody serves
+      expect(localized("/libs/iap/ParticipatingInstitutions.1.json"))
+        .toBe("/libs/iap/ParticipatingInstitutions.1.json");
+    });
+
+    it("leaves a URL with no extension alone", () => {
+      // Selectors sit between the path and the extension. With no extension the selector would be read
+      // as part of the resource's own name, which is a different resource — usually a missing one.
+      document.documentElement.lang = "fr";
+
+      expect(localized("/libs/iap/ParticipatingInstitutions")).toBe("/libs/iap/ParticipatingInstitutions");
+    });
+
+    it("keeps a query string where it was", () => {
+      document.documentElement.lang = "fr";
+
+      expect(localized("/Things.1.json?limit=10")).toBe("/Things.1.localize:fr.json?limit=10");
+    });
+
+    it("asks for a pseudo-locale like any other language", () => {
+      // Which is what puts serialized content inside the build's pseudo-locale check rather than
+      // outside it
+      document.documentElement.lang = "en-XA";
+
+      expect(localized("/Things.json")).toBe("/Things.localize:en-XA.json");
+    });
   });
 });

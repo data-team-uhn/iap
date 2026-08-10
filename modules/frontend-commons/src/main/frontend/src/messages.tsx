@@ -49,6 +49,47 @@ export const currentLocale = function(): string | null {
   return new URLSearchParams(window.location.search).get("locale");
 };
 
+// The language this page was rendered in, as the server put it on <html lang>.
+//
+// Not the same question as currentLocale() above, which reports what the URL asked for. This reports what
+// was actually served: a request for a language the deployment does not offer is answered in the default,
+// and it is that answer the page is written in.
+export const readerLanguage = function(): string {
+  return document.documentElement.lang;
+};
+
+// A repository URL asking for its content in the reader's language.
+//
+// Repository content is translated by the serializer, which is driven by the resource and its selectors
+// and never sees a request — so the language has to be in the URL. That is deliberate rather than
+// awkward: the URL stays a truthful cache key, and one address cannot come back in two languages
+// depending on who asked.
+//
+// Reader-facing fetches only. Content fetched to be *edited* must arrive as written, or an author would
+// be shown a translation and save it over the source — which is why this is something a caller opts into
+// by name rather than something every fetch does.
+//
+// Nothing calls this yet, and that is a statement about the content rather than about the helper: every
+// repository node a reader's page fetches today is a bare nt:unstructured with no resource type, so
+// Sling's own default renderer serves it and our serializer — the only thing that would honour this
+// selector — never runs. On such a node the selector does not merely fail to translate, it fails to
+// resolve. Giving those nodes a type is what unblocks this.
+//
+// @param url a repository URL, with the extension it is to be served with
+// @return the same URL with a language selector, or unchanged where the page names no language
+export const localized = function(url: string): string {
+  const language = readerLanguage();
+  const path = url.split(/[?#]/)[0];
+  const extension = path.lastIndexOf(".");
+  // Without an extension there is nowhere for a selector to go: selectors sit between the path and the
+  // extension, so a bare path would be served by whatever handles it and the selector read as part of
+  // the resource's own name.
+  if (!language || extension < 0) {
+    return url;
+  }
+  return path.slice(0, extension) + ".localize:" + language + path.slice(extension) + url.slice(path.length);
+};
+
 // Fetches a catalog, reusing the one already loaded or the request already in flight.
 //
 // A catalog that cannot be fetched resolves to an empty one rather than rejecting: a deployment that has

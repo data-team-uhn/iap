@@ -198,6 +198,11 @@ export default function BpmnEditor() {
     // versions under them. The depth selector both turns child serialization on and stops the
     // traversal there, so a version's own children -- the diagram file, and the parsed flow nodes
     // once those exist -- are left as bare paths instead of being dragged into every listing.
+    //
+    // Deliberately not localized, unlike the reader-facing fetches that pass their URL through
+    // `localized()`. This picker is how an author chooses which definition to open and overwrite, and
+    // it has to show the titles as they are stored: shown a translated one, they would have no way to
+    // tell which definition they were about to edit, or that they were looking at a translation at all.
     fetchUtil(`${WORKFLOWS_PATH}.2.json`)
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
