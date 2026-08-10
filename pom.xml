@@ -60,6 +60,8 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <iap.version>${project.version}</iap.version>
     <slf4j.version>2.0.18</slf4j.version>
+    <!-- The JUnit artifacts must move together; a mismatched api/engine pair fails at test runtime -->
+    <junit.version>6.1.2</junit.version>
     <jackrabbit.version>2.22.4</jackrabbit.version>
     <oak.version>2.4.0</oak.version>
     <sling.saml.version>0.2.6.cards.2</sling.saml.version>
@@ -319,13 +321,13 @@
       <dependency>
         <groupId>org.junit.jupiter</groupId>
         <artifactId>junit-jupiter-api</artifactId>
-        <version>5.14.4</version>
+        <version>${junit.version}</version>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.junit.jupiter</groupId>
         <artifactId>junit-jupiter-engine</artifactId>
-        <version>6.1.2</version>
+        <version>${junit.version}</version>
         <scope>test</scope>
       </dependency>
       <!-- A JSON-P implementation for tests; at runtime one is provided by the platform -->
