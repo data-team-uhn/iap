@@ -35,6 +35,7 @@
     <module>autodoc</module>
     <module>conditions</module>
     <module>data-model</module>
+    <module>deletion</module>
     <module>favicon</module>
     <module>frontend-commons</module>
     <module>healthcheck</module>

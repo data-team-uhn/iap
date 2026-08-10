@@ -257,6 +257,28 @@
         <artifactId>oak-security-spi</artifactId>
         <version>${oak.version}</version>
       </dependency>
+      <!-- Not used directly, but sling-mock-oak pulls these at an older version, and mixing Oak versions breaks
+           the in-memory test repository with NoSuchMethodErrors; keep every Oak artifact aligned -->
+      <dependency>
+        <groupId>org.apache.jackrabbit</groupId>
+        <artifactId>oak-jcr</artifactId>
+        <version>${oak.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.jackrabbit</groupId>
+        <artifactId>oak-commons</artifactId>
+        <version>${oak.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.jackrabbit</groupId>
+        <artifactId>oak-query-spi</artifactId>
+        <version>${oak.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.jackrabbit</groupId>
+        <artifactId>oak-shaded-guava</artifactId>
+        <version>${oak.version}</version>
+      </dependency>
       <!-- Sling -->
       <dependency>
         <groupId>org.apache.sling</groupId>
@@ -356,6 +378,14 @@
         <groupId>org.apache.sling</groupId>
         <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
         <version>4.0.6</version>
+        <scope>test</scope>
+      </dependency>
+      <!-- A real Oak repository for the mocks (ResourceResolverType.JCR_OAK), for tests exercising real repository
+           semantics: back-references, referential integrity, moves, versioning, permission checks -->
+      <dependency>
+        <groupId>org.apache.sling</groupId>
+        <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
+        <version>4.1.0-1.86.0</version>
         <scope>test</scope>
       </dependency>
       <!-- JSR-250, needed at test runtime by the Sling Models implementation used by the mocks (@PostConstruct) -->
