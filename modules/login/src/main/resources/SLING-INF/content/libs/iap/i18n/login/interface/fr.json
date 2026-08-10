@@ -31,5 +31,25 @@
     "jcr:primaryType": "iap:MessageEntry",
     "sling:key": "iap.login.credentialsForm.submit.label",
     "sling:message": "Se connecter"
+  },
+  "participatingInstitutions": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.participatingInstitutions.heading",
+    "sling:message": "Établissements participants"
+  },
+  "signInPanelLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.signInPanel.label",
+    "sling:message": "Se connecter"
+  },
+  "signInPanelHeading": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.signInPanel.heading",
+    "sling:message": "Continuer avec vos identifiants institutionnels"
+  },
+  "redirectSignInAction": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.redirectSignIn.action",
+    "sling:message": "Continuer vers la connexion"
   }
 }

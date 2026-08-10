@@ -33,6 +33,10 @@ export const SIGN_IN_MESSAGES: Record<string, string> = {
   "iap.login.credentialsForm.error.invalidCredentials": "Invalid username or password",
   "iap.login.signInMethods.moreOptions.label": "More sign-in options",
   "iap.login.page.aboutPlatform.label": "About the platform",
+  "iap.login.participatingInstitutions.heading": "Participating institutions",
+  "iap.login.signInPanel.label": "Sign in",
+  "iap.login.signInPanel.heading": "Continue with institutional credentials",
+  "iap.login.redirectSignIn.action": "Continue to sign-in",
   // The shared footer renders on this page as well, so its wording has to be here for the page to render
   // as a reader sees it
   "iap.footer.landmark.label": "Footer",

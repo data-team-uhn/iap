@@ -66,8 +66,11 @@ export default function LoginPage() {
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
   const tagline = meta("tagline");
   const introText = meta("introText");
-  const signInLabel = meta("signInLabel") ?? "Sign in";
-  const signInHeading = meta("signInHeading") ?? "Continue with institutional credentials";
+  // A deployment may write these itself, and what it writes is translated as content; where it has not,
+  // the platform's own wording stands in -- from the catalog, so that the default is translated too. An
+  // English literal here would be the one part of the page a French reader could not get out of.
+  const signInLabel = meta("signInLabel") ?? message("iap.login.signInPanel.label");
+  const signInHeading = meta("signInHeading") ?? message("iap.login.signInPanel.heading");
   // Which languages this deployment offers, configured rather than compiled in: a deployment that adds a
   // translation should not need a new build to let anyone reach it.
   const languages = meta("languages")?.split(/\s+/).filter(Boolean) ?? [];

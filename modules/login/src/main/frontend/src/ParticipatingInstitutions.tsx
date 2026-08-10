@@ -21,6 +21,8 @@ import { useEffect, useState } from "react";
 import { Box, Divider, Link, Typography } from "@mui/material";
 import { useColorScheme } from "@mui/material/styles";
 
+import { useMessage } from "@iap/frontend-commons/messages";
+
 // The registry of institutions participating in this deployment, one child node per
 // institution. It lives directly under /libs/iap (anonymous-readable) rather than under
 // /libs/iap/conf, because ConfigMetadata flattens every property below conf into one shared
@@ -44,10 +46,18 @@ interface Institution {
 export default function ParticipatingInstitutions() {
   const { mode, systemMode } = useColorScheme();
   const resolvedMode = (mode === "system" ? systemMode : mode) ?? "light";
-  const [ label, setLabel ] = useState("Participating institutions");
+  const message = useMessage();
+  // The registry may name the strip itself; where it does not, the platform's own wording stands in —
+  // from the catalog, so that the default is translated even though nothing has been configured.
+  const [ configuredLabel, setConfiguredLabel ] = useState("");
+  const label = configuredLabel || message("iap.login.participatingInstitutions.heading");
   const [ institutions, setInstitutions ] = useState<Institution[]>([]);
 
   useEffect(() => {
+    // Not localized, though the heading here is content a deployment writes and ought to be. This node
+    // is a bare nt:unstructured with no resource type, so Sling's own default renderer serves it and our
+    // serializer -- and with it the localize processor -- never runs. A language selector on this URL
+    // does not resolve at all. See the note on localized() in frontend-commons.
     fetch(INSTITUTIONS_URL)
       // A missing registry is the expected state of single-institution deployments
       .then(response => response.ok
@@ -55,7 +65,7 @@ export default function ParticipatingInstitutions() {
         : Promise.reject(new Error(String(response.status))))
       .then(json => {
         if (typeof json.label === "string" && json.label) {
-          setLabel(json.label);
+          setConfiguredLabel(json.label);
         }
         setInstitutions(Object.values(json).filter(value => typeof value === "object" && value !== null));
       })
