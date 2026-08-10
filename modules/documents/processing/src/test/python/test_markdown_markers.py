@@ -26,6 +26,7 @@ re-parsed rather than half-read: a marker that matches in one consumer and not a
 the original bug produced page numbers that disagreed across the pipeline."""
 
 import re
+import time
 
 import bookmarks
 import chunker
@@ -150,6 +151,24 @@ class TestHeadingPattern:
 
     def test_rejects_empty_heading(self):
         assert mm.HEADING.match("## ") is None
+
+    def test_a_hash_line_of_only_whitespace_stays_linear(self):
+        # CWE-1333. Without the (?=\S) lookahead, \s+ and (.*\S) compete for the same
+        # whitespace and the engine retries once per space: a 16k-space line took 1.4s, and
+        # the cost is quadratic. _match_heading takes raw document lines, and the document
+        # comes from the caller, so this is reachable from a crafted upload.
+        for size in (200_000, 800_000):
+            line = "# " + " " * size
+            start = time.perf_counter()
+            assert mm.HEADING.match(line) is None
+            elapsed = time.perf_counter() - start
+            assert elapsed < 1.0, f"{size} spaces took {elapsed:.2f}s"
+
+    def test_long_real_headings_stay_linear_too(self):
+        line = "## " + "Study Design " * 20_000
+        start = time.perf_counter()
+        assert mm.HEADING.match(line) is not None
+        assert time.perf_counter() - start < 1.0
 
     def test_matches_the_looser_predicate_it_replaced(self):
         # toc_and_appendix_detection used r"^#{1,6}\s+\S" as a separate "is a heading line"

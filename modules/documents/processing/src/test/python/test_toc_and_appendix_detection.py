@@ -22,6 +22,8 @@ The outline is derived by derive_outline, which writes nothing and returns
 ``(document, updates, records, line_index)`` — so what these tests used to write to
 outline.json and read back is simply the second return value."""
 
+import time
+
 import toc_and_appendix_detection as tad
 from bookmarks import build_line_index, build_lines_catalog
 
@@ -68,6 +70,36 @@ class TestIsTocEntryLine:
 
     def test_empty_rejected(self):
         assert tad.is_toc_entry_line("") is False
+
+
+class TestEntryPatternsStayLinear:
+    """CWE-1333. A leading ``\\s*`` in the entry patterns competed with the ``.+?`` title for
+    the same spaces, so an indented line cost cubic time: 400 spaces then one word took most
+    of a second, and a 2 KB one would have taken about two minutes. The document is caller
+    input, so a crafted upload could tie up a worker for hours."""
+
+    def test_a_deeply_indented_line_is_cheap(self):
+        for size in (4_000, 40_000):
+            line = " " * size + "Introduction"
+            start = time.perf_counter()
+            tad.is_toc_entry_line(line)
+            elapsed = time.perf_counter() - start
+            assert elapsed < 0.5, f"{size} spaces took {elapsed:.2f}s"
+
+    def test_the_unguarded_predicate_is_cheap_too(self):
+        # is_page_numbered_entry deliberately skips the word limit, so it has no other guard.
+        for size in (4_000, 40_000):
+            line = " " * size + "Introduction"
+            start = time.perf_counter()
+            tad.is_page_numbered_entry(line)
+            elapsed = time.perf_counter() - start
+            assert elapsed < 0.5, f"{size} spaces took {elapsed:.2f}s"
+
+    def test_indented_entries_are_still_recognised(self):
+        assert tad.is_toc_entry_line("    Introduction - 3") is True
+        assert tad.is_toc_entry_line("\t1.0 Background\t9") is True
+        assert tad.is_page_numbered_entry("   Methods  12") is True
+        assert tad.is_toc_entry_line("   Not an entry at all") is False
 
 
 class TestTocLabelLine:

@@ -64,7 +64,14 @@ RULE_LINE = re.compile(r"^-{3,}$")
 
 # An ATX heading line; group 1 = the '#' run, group 2 = the heading text. The ``(?!#)``
 # guard rejects a 7+ '#' run, which is not a heading in Markdown.
-HEADING = re.compile(r"^(#{1,6})(?!#)\s+(.*\S)\s*$")
+#
+# ``(?=\S)`` is load-bearing, not decoration. Without it ``\s+`` and ``(.*\S)`` both compete
+# for the same whitespace, so a line of nothing but '#' and spaces makes the engine retry
+# ``(.*\S)`` once per space — quadratic. Most callers pass a stripped line and never hit it,
+# but _match_heading / _heading_level take raw document lines, and a document is caller
+# input: one crafted line of 8k spaces already costs about a second of a warm worker.
+# The lookahead pins ``\s+`` to the whole whitespace run and makes the match linear.
+HEADING = re.compile(r"^(#{1,6})(?!#)\s+(?=\S)(.*\S)\s*$")
 
 # Maximum words per accepted heading/TOC entry, and maximum characters per word within it.
 # A line breaching either is parsing garbage rather than a real heading.
