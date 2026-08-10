@@ -79,12 +79,18 @@
         // --- The Keycloak connection ----------------------------------------------------------
         // baseUrl points at the realm root; the client derives the authorization/token/userinfo
         // and JWKS endpoints from the realm's OIDC discovery document.
-        "org.apache.sling.auth.oauth_client.impl.OidcConnectionImpl~keycloak":{
-            "name":"keycloak",
-            "baseUrl":"$[env:KEYCLOAK_BASE_URL]",
-            "clientId":"$[env:KEYCLOAK_CLIENT_ID]",
-            "clientSecret":"$[env:KEYCLOAK_CLIENT_SECRET]",
-            "scopes":["openid","profile","email"]
+        "org.apache.sling.auth.oauth_client.impl.OidcConnectionImpl~keycloak": {
+            "name": "keycloak",
+            // frontend for the user:
+            "authorizationEndpoint": "$[env:FRONTEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/auth",
+            "issuer":                "$[env:FRONTEND_KEYCLOAK_REALM_URL]",
+            // backend for IAP<->Keycloak:
+            "tokenEndpoint": "$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/token",
+            "jwkSetURL":     "$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/certs",
+            "userInfoUrl":   "$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/userinfo",
+            "clientId": "$[env:KEYCLOAK_CLIENT_ID]",
+            "clientSecret": "$[env:KEYCLOAK_CLIENT_SECRET]",
+            "scopes": ["openid","profile","email"]
         },
 
         // --- Claim -> user/group mapping ------------------------------------------------------

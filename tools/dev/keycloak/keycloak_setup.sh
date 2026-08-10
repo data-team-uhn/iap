@@ -82,7 +82,7 @@ kc() {
     fi
 }
 
-echo -e "🚧🚧🚧 ${YELLOW}IAP KEYCLOAK SETUP${DEFAULT} 🚧🚧🚧"
+echo -e "${YELLOW}IAP KEYCLOAK SETUP${DEFAULT}"
 echo    "   realm=${REALM}  client=${CLIENT_ID}  redirect=${REDIRECT_URI}"
 
 # ---- wait for Keycloak, then authenticate --------------------------------------
@@ -183,10 +183,11 @@ SECRET="$(kc get "clients/${CID}/client-secret" -r "$REALM" --fields value --for
 echo -e "\n${GREEN}KEYCLOAK SETUP DONE${DEFAULT}"
 echo    "Set these in IAP's runtime environment (see docs/keycloak-oidc.md):"
 echo -e "${YELLOW}"
-echo    "  export KEYCLOAK_BASE_URL=${KC_PUBLIC_URL%/}/realms/${REALM}"
+echo    "  export FRONTEND_KEYCLOAK_REALM_URL=${KC_PUBLIC_URL%/}/realms/${REALM}"
+echo    "  export BACKEND_KEYCLOAK_REALM_URL=${KC_PUBLIC_URL%/}/realms/${REALM} # or http://keycloak:8080/realms/${REALM} if iap is being run from Docker"
 echo    "  export KEYCLOAK_CLIENT_ID=${CLIENT_ID}"
 echo    "  export KEYCLOAK_CLIENT_SECRET=${SECRET}"
-echo    "  export IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword #to be replaced with an actual password"
+echo    "  export IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword # replace with any actual password"
 echo -e "${DEFAULT}"
 echo    "(KEYCLOAK_BASE_URL must be the realm URL that IAP can reach; adjust the host if"
 echo    " IAP and Keycloak are on different networks.)"
