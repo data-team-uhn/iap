@@ -119,8 +119,7 @@
   // - IGNORE -> keep the link as a broken reference; only valid for weak links
   // - REMOVE_LINK -> only remove the link between resources (default)
   // - RECURSIVE_DELETE -> also delete the linking resource, and any others it may impact
-  // Not enforced yet; enforcement arrives with the workflow engine's deletion
-  // handling.
+  // Enforced by the deletion service; see docs/deletion.md.
   - onDelete (STRING) = "REMOVE_LINK" mandatory autocreated
 
   // For external definitions, an optional regular expression that recorded
