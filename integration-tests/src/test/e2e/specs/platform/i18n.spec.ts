@@ -113,6 +113,24 @@ test.describe('reading the platform in another language', () => {
     await expect(login.footerLink("Conditions d'utilisation")).toHaveAttribute('href', '/terms-of-use');
   });
 
+  test('reads the signed-in shell in the reader\'s language', async ({ page }) => {
+    // The chrome a person actually spends their time in, rather than the page they pass through once.
+    //
+    // Signed in first and asked for French afterwards, rather than the other way round: signInAs finds
+    // the form by its English labels, so it cannot drive a page that is already in another language.
+    // That the choice survives signing in is what the sign-in page's own "remembers the language" test
+    // is for, and this one has no business re-testing it.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('admin', 'admin');
+    await expect(page).not.toHaveURL(/\/login/);
+    await page.goto('/?locale=fr');
+
+    await expect(page.getByRole('button', { name: 'Votre compte' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Notifications' })).toBeVisible();
+    await expect(page.getByText(/Bienvenue sur la plateforme/)).toBeVisible();
+  });
+
   test('says which language the page is in, before a script could', async ({ page }) => {
     // The half of this nobody can see, and therefore the half that regresses unnoticed. A screen reader
     // chooses its voice and its pronunciation rules from this attribute while the page is being parsed, so

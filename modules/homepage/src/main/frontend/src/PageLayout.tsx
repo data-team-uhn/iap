@@ -42,6 +42,7 @@ import {
   type Theme
 } from "@mui/material/styles";
 
+import { useMessage } from "@iap/frontend-commons/messages";
 import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
@@ -311,6 +312,7 @@ function FrameBar({ extensions, edge, barRef }: FrameBarProps) {
 // screen edge pulls the same content over the page as a temporary drawer. A rail with no
 // extensions renders nothing, giving its width back to the main content (and no pull tab).
 function SideRail({ extensions, edge }: RegionProps) {
+  const message = useMessage();
   const [ open, setOpen ] = useState(false);
   const theme = useTheme();
   const { width, collapseWidth } = railConfig(theme, edge);
@@ -344,8 +346,8 @@ function SideRail({ extensions, edge }: RegionProps) {
       { /* Deliberately just "side panel", not the code-facing start/end vocabulary: the tab's own
            position already tells the user which side it is. */ }
       <PullTab
-        label="Open the side panel"
-        hintTitle="The side panel is available here"
+        label={message("iap.shell.sidePanel.open")}
+        hintTitle={message("iap.shell.sidePanel.hint")}
         hint={hint}
         placement={edge === "start" ? "right" : "left"}
         onClick={() => setOpen(true)}

@@ -16,9 +16,11 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import Notifications from "@iap/homepage/Notifications";
+
+import { renderWithMessages as render } from "./messages.fixture";
 
 describe("Notifications", () => {
   it("reveals the (currently empty) notifications dropdown when the bell is clicked", async () => {

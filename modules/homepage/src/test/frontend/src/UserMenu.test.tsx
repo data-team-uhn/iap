@@ -16,9 +16,11 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import UserMenu from "@iap/homepage/UserMenu";
+
+import { renderWithMessages as render } from "./messages.fixture";
 
 // Answers the two Sling endpoints the menu consults: the session info (who is logged in) and
 // the user's properties (their full name).
@@ -55,12 +57,25 @@ describe("UserMenu", () => {
 
     render(<UserMenu />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Account: jdoe" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Your account" }));
 
     expect(await screen.findByText("jdoe")).toBeInTheDocument();
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
     const signOut = screen.getByText("Sign out").closest("a");
     expect(signOut).toHaveAttribute("href", "/system/sling/logout");
+  });
+
+  it("still says whose account it is, without putting the name in the button's own label", async () => {
+    // The label is a translated phrase and the account holder's name is not translatable, and there is no
+    // message formatter in the browser to combine the two without a translator having to accept English
+    // word order. So the name moved to the tooltip, which a screen reader reads as the button's
+    // description — this is the test that keeps it reachable rather than merely intended.
+    stubUserEndpoints("jdoe", { displayName: "Jane Doe" });
+
+    render(<UserMenu />);
+    fireEvent.mouseOver(await screen.findByRole("button", { name: "Your account" }));
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("jdoe");
   });
 
   it("renders nothing while the user is unknown", () => {
@@ -75,7 +90,7 @@ describe("UserMenu", () => {
   it("closes its menu again", async () => {
     stubUserEndpoints("jdoe", { displayName: "Jane Doe" });
     render(<UserMenu />);
-    fireEvent.click(await screen.findByRole("button", { name: "Account: jdoe" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Your account" }));
     const entry = await screen.findByText("Sign out");
 
     fireEvent.keyDown(entry, { key: "Escape", code: "Escape" });
@@ -127,7 +142,7 @@ describe("UserMenu", () => {
 
     // The initials still come from the user name, and the menu offers no full name
     expect(await screen.findByText("J")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Account: jdoe" }));
+    fireEvent.click(screen.getByRole("button", { name: "Your account" }));
     expect(await screen.findByText("jdoe")).toBeInTheDocument();
   });
 });

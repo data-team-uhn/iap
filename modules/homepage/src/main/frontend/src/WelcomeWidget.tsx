@@ -18,11 +18,15 @@
 
 import { Typography } from "@mui/material";
 
+import { useMessage } from "@iap/frontend-commons/messages";
+
 // The dashboard widget greeting the user, registered on the `iap/dashboard/widget` extension point.
 // The surrounding titled frame is provided by the dashboard, so this only renders content.
 function WelcomeWidget() {
+  const message = useMessage();
+
   return (
-    <Typography>Welcome to the Institutional Authorization Platform.</Typography>
+    <Typography>{message("iap.shell.welcome.text")}</Typography>
   );
 }
 

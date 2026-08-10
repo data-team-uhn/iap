@@ -17,10 +17,12 @@
  */
 
 import { ThemeProvider } from "@mui/material/styles";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import DarkModeToggle from "@iap/homepage/DarkModeToggle";
+
+import { renderWithMessages as render } from "./messages.fixture";
 
 // jsdom has no matchMedia, which MUI's color scheme system consults for the system preference;
 // stub it out as "no preference" so the toggle can run outside a real browser.

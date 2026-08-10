@@ -1,0 +1,50 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "fr",
+  "sling:basename": "iap.interface",
+  "switchToDarkMode": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.colourScheme.switchToDark",
+    "sling:message": "Passer au mode sombre"
+  },
+  "switchToLightMode": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.colourScheme.switchToLight",
+    "sling:message": "Passer au mode clair"
+  },
+  "notifications": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.notifications.label",
+    "sling:message": "Notifications"
+  },
+  "noNotifications": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.notifications.empty",
+    "sling:message": "Vous n'avez aucune nouvelle notification"
+  },
+  "account": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.userMenu.account.label",
+    "sling:message": "Votre compte"
+  },
+  "signOut": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.userMenu.signOut",
+    "sling:message": "Se déconnecter"
+  },
+  "openSidePanel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.sidePanel.open",
+    "sling:message": "Ouvrir le panneau latéral"
+  },
+  "sidePanelHint": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.sidePanel.hint",
+    "sling:message": "Le panneau latéral est accessible ici"
+  },
+  "welcome": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.welcome.text",
+    "sling:message": "Bienvenue sur la plateforme d'autorisation institutionnelle."
+  }
+}

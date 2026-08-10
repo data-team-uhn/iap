@@ -32,6 +32,7 @@ import {
   Typography,
 } from "@mui/material";
 
+import { useMessage } from "@iap/frontend-commons/messages";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
 // Sling's user management endpoint, serving a user's properties
@@ -60,6 +61,7 @@ const initialsOf = (name: string): string => {
 // identifies the account (user name and, when the profile provides one, full name) and offers to
 // sign out. Registered on the `iap/appBar/entry` extension point, end section.
 function UserMenu() {
+  const message = useMessage();
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
   const [ userName, setUserName ] = useState("");
   const [ fullName, setFullName ] = useState("");
@@ -90,7 +92,7 @@ function UserMenu() {
     <>
       <Tooltip title={userName}>
         <IconButton
-          aria-label={`Account: ${userName}`}
+          aria-label={message("iap.shell.userMenu.account.label")}
           onClick={event => setAnchor(event.currentTarget)}
           size="small"
         >
@@ -109,7 +111,7 @@ function UserMenu() {
         <Divider sx={{ mb: 1 }} />
         <MenuItem component="a" href={LOGOUT_URL}>
           <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Sign out</ListItemText>
+          <ListItemText>{message("iap.shell.userMenu.signOut")}</ListItemText>
         </MenuItem>
       </Menu>
     </>
