@@ -234,6 +234,24 @@ class TestEntryToRecord:
     def test_malformed_roman_is_not_a_page(self):
         assert tad._entry_to_record("Section iiii")["page"] is None
 
+    def test_a_very_long_entry_stays_cheap(self):
+        # CWE-1333. Every _ENTRY_PAGE separator starts with a whitespace run, so searching the
+        # whole string retried from each position: 4k characters cost 0.7s. _confirm_table_toc
+        # passes flattened table rows, which have no length limit.
+        for size in (40_000, 400_000):
+            entry = " " * size + "Intro"
+            start = time.perf_counter()
+            tad._entry_to_record(entry)
+            elapsed = time.perf_counter() - start
+            assert elapsed < 0.5, f"{size} chars took {elapsed:.2f}s"
+
+    def test_the_page_is_still_found_past_a_long_separator(self):
+        # The window bounds where the search starts, not what counts as the end of the entry.
+        assert tad._entry_to_record("Intro" + " " * 300 + "7") == {
+            "title": "Intro", "level": None, "page": 7,
+        }
+        assert tad._entry_to_record("Intro" + "." * 300 + "7")["page"] == 7
+
 
 class TestTableTocConfirmation:
     """A table under a "Contents" label is only flattened when it really is a TOC."""

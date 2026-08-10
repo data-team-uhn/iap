@@ -629,6 +629,8 @@ def _detect_toc(md: str) -> tuple[str, dict]:
 # page (arabic or roman). The separator is a dash, dot-leaders, or whitespace (a tab collapses
 # to one space); which one it is decides how much the roman alternative can be trusted, see
 # :func:`_page_number`.
+#
+# Searched over the tail only, see :data:`_ENTRY_PAGE_TAIL`.
 _ENTRY_PAGE = re.compile(
     r"""
     (?P<sep>
@@ -645,6 +647,21 @@ _ENTRY_PAGE = re.compile(
 
 # A dash or dot-leader separator is a strong TOC signal; a bare space is not.
 _STRONG_SEPARATOR = re.compile(r"[-–—.…·]")
+
+# How much of the end of an entry :data:`_ENTRY_PAGE` is searched over. Every separator
+# alternative starts with a whitespace run, so scanning the whole string made ``search`` retry
+# from each position in turn -- quadratic, and 4k characters already cost 0.7s.
+# :func:`_confirm_table_toc` hands this flattened table rows, which have no length limit at
+# all. A page number lives at the end of the entry by definition, so the tail is the only part
+# worth looking at.
+#
+# The page number itself is never affected: a separator run longer than the window simply gets
+# matched from inside the run rather than from its head. The title can differ in one case --
+# a dot-leader run longer than the window stays on the title, where whitespace is stripped off
+# either way. No caller sees it: cleaned TOC entries reach here with dot runs already
+# collapsed to " - " by :func:`_block_cleanup`, and the one caller that passes raw text,
+# :func:`_confirm_table_toc`, reads only ``page``.
+_ENTRY_PAGE_TAIL = 200
 
 # A well-formed roman numeral, so "Appendix D" is not read as page 500. The lookahead keeps
 # the empty string out, which every group being optional would otherwise allow.
@@ -684,7 +701,7 @@ def _entry_to_record(entry: str) -> dict:
     The title only loses its tail when that tail really is a page number; otherwise the whole
     entry is the title.
     """
-    match = _ENTRY_PAGE.search(entry)
+    match = _ENTRY_PAGE.search(entry, max(0, len(entry) - _ENTRY_PAGE_TAIL))
     page = None
     if match:
         page = _page_number(
