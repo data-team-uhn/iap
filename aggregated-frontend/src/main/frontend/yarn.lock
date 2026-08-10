@@ -1236,17 +1236,17 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@mui/core-downloads-tracker@^9.2.0":
+"@mui/core-downloads-tracker@^9.3.0":
   version "9.3.1"
   resolved "https://registry.yarnpkg.com/@mui/core-downloads-tracker/-/core-downloads-tracker-9.3.1.tgz#e3a77e9518de53dfaddd111bf53c739d52c7e3c2"
   integrity sha512-IAyAFNQbT7hysJ9HXphiOmWJF7G1OglzHanqCgvQgH9LA2ydxtmaTBDbcBqw6euZesyShiwvpvbnYO1GY1AyXQ==
 
-"@mui/icons-material@9.2.0":
-  version "9.2.0"
-  resolved "https://registry.yarnpkg.com/@mui/icons-material/-/icons-material-9.2.0.tgz#1fe4bd0c4c88393ff643e1c12914a269cc301b17"
-  integrity sha512-VgBd3z7Qc3vd/thcNSMC03nHRh/U4DzMUd+1dRyJTbm/hGo7+N6N4GDuJZDNHa6LZhhwG6Cu1X3DNvrVv8sNag==
+"@mui/icons-material@9.3.0":
+  version "9.3.0"
+  resolved "https://registry.yarnpkg.com/@mui/icons-material/-/icons-material-9.3.0.tgz#7acfa301b2a6920d26ce1a3fca88d6a5aa9595ce"
+  integrity sha512-6kk+cbt7fyehTRIrt3LyeoD4C36lX0biR1NMnwy0Wz7Sj6lwOh6ghY5BZzd1UncyOZGCmTZROBQxSPawcKES7A==
   dependencies:
-    "@babel/runtime" "^7.29.2"
+    "@babel/runtime" "^7.29.7"
 
 "@mui/lab@9.0.0-beta.6":
   version "9.0.0-beta.6"
@@ -1260,22 +1260,22 @@
     clsx "^2.1.1"
     prop-types "^15.8.1"
 
-"@mui/material@9.2.0":
-  version "9.2.0"
-  resolved "https://registry.yarnpkg.com/@mui/material/-/material-9.2.0.tgz#a77a9c7a5f0c61f8f1cf3dca197a64693d3071cf"
-  integrity sha512-+YTRSgGKGrrRo2XJZXs7JRA6qHoHWvNtxyqxnrRJTBmIuLOUpxxh7m4G9lF4tWberxGFY+EqkkRPgJCl+fSMJg==
+"@mui/material@9.3.0":
+  version "9.3.0"
+  resolved "https://registry.yarnpkg.com/@mui/material/-/material-9.3.0.tgz#4eea76f38ade658c9be46b902d52fbfbc2245c86"
+  integrity sha512-H9WJkuaT7YthTOnz8ecygQoKZNVqvgZsTv/oJl6ttalfg6F1MkEi4fx/4j8f5+ju4U9mPX+lALLEZGVT9Jb3Gg==
   dependencies:
-    "@babel/runtime" "^7.29.2"
-    "@mui/core-downloads-tracker" "^9.2.0"
-    "@mui/system" "^9.2.0"
-    "@mui/types" "^9.1.1"
-    "@mui/utils" "^9.2.0"
+    "@babel/runtime" "^7.29.7"
+    "@mui/core-downloads-tracker" "^9.3.0"
+    "@mui/system" "^9.3.0"
+    "@mui/types" "^9.3.0"
+    "@mui/utils" "^9.3.0"
     "@popperjs/core" "^2.11.8"
     "@types/react-transition-group" "^4.4.12"
     clsx "^2.1.1"
     csstype "^3.2.3"
     prop-types "^15.8.1"
-    react-is "^19.2.6"
+    react-is "^19.2.8"
     react-transition-group "^4.4.5"
 
 "@mui/private-theming@^9.3.0":
@@ -1299,7 +1299,7 @@
     csstype "^3.2.3"
     prop-types "^15.8.1"
 
-"@mui/system@^9.2.0":
+"@mui/system@^9.2.0", "@mui/system@^9.3.0":
   version "9.3.0"
   resolved "https://registry.yarnpkg.com/@mui/system/-/system-9.3.0.tgz#8c58bc45827eb5723e0091a0b643ca60e324da23"
   integrity sha512-0l4LqHJxZj65xSrioniGsxm7VNoGXonPo203oZjhBUvIDPeBqRTb7Mqc45Qxs6sO6WGR7WE/9cJ6lb4lkvHkjg==
@@ -5236,7 +5236,7 @@ react-dom@^19.2.8:
   dependencies:
     scheduler "^0.27.0"
 
-react-is@^16.13.1, react-is@^16.7.0, react-is@^17.0.1, react-is@^19.2.0, react-is@^19.2.6, react-is@^19.2.8:
+react-is@^16.13.1, react-is@^16.7.0, react-is@^17.0.1, react-is@^19.2.0, react-is@^19.2.8:
   version "19.2.8"
   resolved "https://registry.yarnpkg.com/react-is/-/react-is-19.2.8.tgz#09826f9fbc187bc668e3e5c62edc001f804d5018"
   integrity sha512-s5un28nYxKJw5gvUHyW5PCC28CvBqLu9r3cWgzHT4Vo/5fqqkFcdRYsGcKf50WMPpjjFZS5d76fn3YCo2njKwQ==
