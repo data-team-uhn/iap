@@ -34,7 +34,7 @@ import io.uhndata.iap.tags.models.Taggable;
  * @version $Id$
  * @since 0.1.0
  */
-final class Tagging
+public final class Tagging
 {
     private Tagging()
     {
@@ -48,7 +48,7 @@ final class Tagging
      *
      * @param context the mock context whose resources become taggable
      */
-    static void enable(final SlingContext context)
+    public static void enable(final SlingContext context)
     {
         context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
             final Set<String> own = Set.of(resource.getValueMap().get("tags", new String[0]));
