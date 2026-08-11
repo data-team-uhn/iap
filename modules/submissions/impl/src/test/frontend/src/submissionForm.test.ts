@@ -61,14 +61,14 @@ describe("fetchForm", () => {
 });
 
 describe("saveAnswer", () => {
-  it("posts the answer to the submission itself", async () => {
+  it("posts the answer to the submission as its save event", async () => {
     const fetchMock = vi.fn(() => response({}));
 
     await saveAnswer(fetchMock, PATH, "details/startDate", [ "2026-10-06" ]);
 
     const [ url, options ] = fetchMock.mock.calls[0] as unknown as
       [ string, { method: string; body: URLSearchParams } ];
-    expect(url).toBe(PATH);
+    expect(url).toBe(`${PATH}.save.json`);
     expect(options.method).toBe("POST");
     expect(options.body.getAll("details/startDate")).toEqual([ "2026-10-06" ]);
   });
