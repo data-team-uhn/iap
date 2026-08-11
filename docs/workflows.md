@@ -915,7 +915,7 @@ POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [
                                                                         ▼
 POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
                                                         │
-                                                        ▼  hostTag: the submission is now "approved"
+                                                        ▼  hostTag: the submission is now tagged "approved"
 ```
 
 **A user task is an activity with no handler.** The engine parks the token there and

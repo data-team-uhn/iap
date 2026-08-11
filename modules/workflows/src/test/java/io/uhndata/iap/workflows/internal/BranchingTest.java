@@ -35,6 +35,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.tags.internal.TagOperations;
+import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -104,7 +106,8 @@ class BranchingTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
-        WorkflowFixture.enableTagging(this.context);
+        this.context.addModelsForClasses(Taggable.class);
+        this.context.registerService(TagOperations.class, EngineFixture.lifecycleTags());
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
         this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},
             "createdBy", EngineFixture.REQUESTER));
