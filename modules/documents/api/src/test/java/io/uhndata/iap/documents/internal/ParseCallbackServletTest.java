@@ -76,7 +76,7 @@ class ParseCallbackServletTest
     void setUp() throws Exception
     {
         this.servlet = servletWithEnvironment(null);
-        this.servlet.activate(Map.of("callbackToken", TOKEN));
+        this.servlet.activate(Map.of(ParseJob.TOKEN_PROPERTY, TOKEN));
     }
 
     @Test
@@ -165,7 +165,7 @@ class ParseCallbackServletTest
     void theConfiguredTokenOverridesTheEnvironment() throws Exception
     {
         final ParseCallbackServlet configured = servletWithEnvironment("environment-token");
-        configured.activate(Map.of("callbackToken", TOKEN));
+        configured.activate(Map.of(ParseJob.TOKEN_PROPERTY, TOKEN));
         jobNode();
 
         assertEquals(401, call(configured, "Bearer environment-token", SUCCESS_BODY).getStatus());
@@ -291,7 +291,7 @@ class ParseCallbackServletTest
         // deterministic whether or not the variable is set on the machine running the tests
         final ParseCallbackServlet real = new ParseCallbackServlet();
         inject(real, new TestResolverFactory(this.context.resourceResolver()));
-        real.activate(Map.of("callbackToken", TOKEN));
+        real.activate(Map.of(ParseJob.TOKEN_PROPERTY, TOKEN));
         jobNode();
 
         assertEquals(200, call(real, GOOD_AUTHORIZATION, SUCCESS_BODY).getStatus());

@@ -81,9 +81,6 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseCallbackServlet.class);
 
-    /** The configuration property overriding the environment-provided token. */
-    private static final String TOKEN_PROPERTY = "callbackToken";
-
     @Reference
     private transient ResourceResolverFactory resolverFactory;
 
@@ -91,8 +88,8 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     private transient byte[] expectedAuthorization;
 
     /**
-     * Read the shared callback token: the {@code callbackToken} OSGi property when set, the
-     * {@code IAP_DOCLING_CALLBACK_JWT} environment variable otherwise.
+     * Read the shared callback token: the {@link ParseJob#TOKEN_PROPERTY} OSGi property when set, the
+     * {@link ParseJob#TOKEN_VARIABLE} environment variable otherwise.
      *
      * @param configuration the component configuration
      */
@@ -100,14 +97,11 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     @Modified
     protected void activate(final Map<String, Object> configuration)
     {
-        final String configured = String.valueOf(configuration.getOrDefault(TOKEN_PROPERTY, "")).trim();
-        final String environment = environment(ParseJob.TOKEN_VARIABLE);
-        final String token = !configured.isEmpty() ? configured
-            : environment == null ? "" : environment.trim();
+        final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
         if (token.isEmpty()) {
             this.expectedAuthorization = null;
             LOGGER.warn("No callback token is configured ({} or the {} environment variable);"
-                + " parse callbacks will be refused", TOKEN_PROPERTY, ParseJob.TOKEN_VARIABLE);
+                + " parse callbacks will be refused", ParseJob.TOKEN_PROPERTY, ParseJob.TOKEN_VARIABLE);
         } else {
             this.expectedAuthorization = ("Bearer " + token).getBytes(StandardCharsets.UTF_8);
         }
@@ -133,7 +127,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             writeError(response, HttpServletResponse.SC_BAD_REQUEST, "The request body is not a JSON object");
             return;
         }
-        final String jobId = outcome.getString("job_id", null);
+        final String jobId = outcome.getString(ParseJob.JSON_JOB_ID, null);
         if (jobId == null || !isJobId(jobId)) {
             writeError(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
             return;
@@ -184,7 +178,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
             resolver.commit();
             writeJson(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
-                .add("job_id", jobId)
+                .add(ParseJob.JSON_JOB_ID, jobId)
                 .add(ParseJob.PN_STATUS, status)
                 .build());
         } catch (final LoginException e) {
