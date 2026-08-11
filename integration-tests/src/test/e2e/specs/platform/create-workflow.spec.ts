@@ -35,7 +35,7 @@ test.describe('creating a workflow through the bootstrap system workflow', () =>
     });
 
     expect(response.status()).toBe(302);
-    const location = response.headers()['location'];
+    const location = response.headers().location;
     expect(location).toBe('/Workflows/leaveRequestApproval');
 
     const created = await request.get(`${location}.json`, { headers: asAdmin });
@@ -59,8 +59,8 @@ test.describe('creating a workflow through the bootstrap system workflow', () =>
 
     expect(first.status()).toBe(302);
     expect(second.status()).toBe(302);
-    expect(first.headers()['location']).toBe('/Workflows/duplicated');
-    expect(second.headers()['location']).toBe('/Workflows/duplicated2');
+    expect(first.headers().location).toBe('/Workflows/duplicated');
+    expect(second.headers().location).toBe('/Workflows/duplicated2');
   });
 
   test('a POST without a title is refused as bad request', async ({ request }) => {

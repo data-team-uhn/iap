@@ -118,31 +118,31 @@ public class TimeOffBudgetHandler implements ServiceTaskHandler
     private static Map<String, Long> parseBudgets(final String[] entries)
     {
         return Arrays.stream(entries)
-            .map(entry -> entry.split("=", 2))
-            .filter(TimeOffBudgetHandler::isUsable)
-            .collect(Collectors.toMap(parts -> parts[0].trim(), parts -> Long.parseLong(parts[1].trim()),
-                (first, second) -> second));
+            .map(TimeOffBudgetHandler::parseBudget)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (first, second) -> second));
     }
 
     /**
-     * Whether one configured entry names a person and a number of days.
+     * Reads one configured entry, which names a person and a number of days.
      *
-     * @param parts an entry already split on its first {@code =}
-     * @return {@code true} if the entry can be used
+     * @param entry a configured {@code username=days} entry
+     * @return the person and the days they have left, or {@code null} if the entry says neither
      */
-    private static boolean isUsable(final String[] parts)
+    private static Map.Entry<String, Long> parseBudget(final String entry)
     {
+        final String[] parts = entry.split("=", 2);
         if (parts.length != 2) {
-            LOGGER.warn("Ignoring time off budget entry [{}]: it is not of the form username=days",
-                String.join("", parts));
-            return false;
+            LOGGER.warn("Ignoring time off budget entry [{}]: it is not of the form username=days", entry);
+            return null;
         }
+        // Parsed here rather than validated first and parsed again later, so that the one place the number can be
+        // rejected is also the one place it is read
         try {
-            Long.parseLong(parts[1].trim());
-            return true;
+            return Map.entry(parts[0].trim(), Long.valueOf(parts[1].trim()));
         } catch (final NumberFormatException e) {
             LOGGER.warn("Ignoring time off budget for [{}]: [{}] is not a number of days", parts[0], parts[1]);
-            return false;
+            return null;
         }
     }
 }
