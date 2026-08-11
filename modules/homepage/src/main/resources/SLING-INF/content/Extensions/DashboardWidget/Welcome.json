@@ -3,5 +3,6 @@
   "iap:extensionPointId": "iap/dashboard/widget",
   "iap:extensionName": "Welcome",
   "iap:extensionRenderURL": "asset:iap-homepage.WelcomeWidget.js",
-  "iap:defaultOrder": 0
+  "iap:defaultOrder": 0,
+  "iap:personas": ["submitter", "reviewer"]
 }

@@ -113,4 +113,24 @@ const loadRemoteComponents = async function(extension: Extension): Promise<Exten
   return extension;
 };
 
-export { getExtensions, loadExtensions };
+// Whether an extension should be shown to someone acting as the given persona.
+//
+// An extension that declares no `iap:personas` belongs to all of them. That default is the opposite
+// of `iap:visibleBeforeLogin`, which is opt-IN, and the asymmetry is deliberate: an extension leaking
+// onto a pre-authentication page is a disclosure, whereas an extension that forgot to name its
+// personas merely stays where it already was. Opt-out here also means adding personas to the platform
+// changes nothing about what any existing extension displays.
+//
+// This is a presentation filter and nothing more — see personas.ts. It must be decided by the persona
+// ALONE: never consult what the current user is permitted to do, or an administrator would start
+// seeing controls in a persona designed without them.
+const visibleInPersona = function(extension: Extension, persona: string): boolean {
+  const personas = extension["iap:personas"];
+  if (personas === undefined || personas === null) {
+    return true;
+  }
+  // A repository multi-value property arrives as an array, but a single value may arrive bare.
+  return (Array.isArray(personas) ? personas : [ personas ]).includes(persona);
+};
+
+export { getExtensions, loadExtensions, visibleInPersona };
