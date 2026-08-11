@@ -6,12 +6,24 @@
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
-    "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element, hand-written only because the BPMN parser does not exist yet - once it does, it generates exactly this. Two places where the two forms differ deliberately: the gateway's conditionExpression here is the interim literal outcome the engine matches on, where the diagram carries the real expression a conditions module will compile; and hostStatus on the end events, which says what finishing that way means to the submission, is the kind of plain attribute the parser will be able to carry across.",
+    "description": "Someone asks for time off; a service task looks up what they have left, and their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element, hand-written only because the BPMN parser does not exist yet - once it does, it generates exactly this. Three places where the two forms differ deliberately: the gateway's conditionExpression here is the interim literal outcome the engine matches on, where the diagram carries the real expression a conditions module will compile; hostStatus on the end events, which says what finishing that way means to the submission, is the kind of plain attribute the parser will be able to carry across; and the service task's handler names the code that performs it, where BPMN would carry an implementation attribute.",
     "requestSubmitted": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requestSubmitted",
       "label": "Request submitted",
       "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toBudget": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toBudget",
+        "targetRef": "checkBudget"
+      }
+    },
+    "checkBudget": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "checkBudget",
+      "label": "Check the time off budget",
+      "handler": "checkTimeOffBudget",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toApproval": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toApproval",

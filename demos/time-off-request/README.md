@@ -15,8 +15,9 @@ mvn clean install
 
 | Path                        | What                                                                     |
 |-----------------------------|--------------------------------------------------------------------------|
-| `/Schemas/timeOffRequest`   | What a requester fills in — currently one required date question         |
-| `/Workflows/timeOffRequest` | The process, as BPMN: submitted → approve → approved or refused          |
+| `/Schemas/timeOffRequest`   | What a requester fills in — duration, dates, absence type, and a doctor's note when the absence is sick leave |
+| `/Workflows/timeOffRequest` | The process, as BPMN: submitted → budget looked up → approve → approved or refused |
+| `TimeOffBudgetHandler`      | The demo's own Java, plugged into the engine's service-task extension point |
 | `demo-requester`            | Asks for the day off. Member of `time-off-requesters`                    |
 | `demo-approver`             | Decides. Member of `time-off-approvers`, which the schema routes approval to |
 
@@ -32,9 +33,11 @@ The whole process, end to end, and `specs/demo/` walks through exactly this:
    performer, so the engine vets the schema version, creates the submission in its `draft` state and writes
    it on their behalf. The same user POSTing to `/Workflows` is refused with a 403, because that definition
    names `iap-administrators` instead — the two answers differ only in what the workflows say.
-2. **The request goes under its workflow immediately**, because the schema version names one. A
-   `wf:WorkflowInstance` appears inside the submission with a token parked on `approveRequest`, and the
-   task waiting for the approver appears beside it.
+2. **The request goes under its workflow immediately**, because the schema version names one. On its way
+   the walk passes a service task that looks up how many days the requester has left and records them on
+   the request — the demo's own code, reached through the engine's handler extension point, since nothing
+   about counting time off belongs in the platform. It then parks: a `wf:WorkflowInstance` appears inside
+   the submission with a token on `approveRequest`, and the task waiting for the approver beside it.
 3. **Reading follows from the same declarations**: starting the instance granted read to the requester and
    to `time-off-approvers`. A request `demo-requester` neither raised nor approves stays invisible to them.
 4. **`demo-approver` decides** — `POST` to the task with `outcome=approved` or `rejected`. The gateway
@@ -72,15 +75,33 @@ Conventions worth keeping if you add to this:
 
 ## Where it is going
 
-The feature list this grows into, each item chosen because it forces a platform capability into existence:
+The feature list this grows into, each item chosen because it forces a platform capability into existence.
+Done so far: the questions and their display conditions, the conditional doctor's note, and the budget
+lookup as the first project-supplied handler. What is left:
 
-- More questions, with display conditions — half day or full day, start and end dates, absence type.
-- An approver looked up automatically rather than named by hand.
-- A doctor's note required only when the absence is sick leave, and validated by AI.
-- Requests over 30 days needing a second approval; a check against an external time-off budget service.
-- Unapproved requests flagged after two days; email on creation, approval and staleness.
-- Raising a request by email as well as through the UI.
+- An approver looked up automatically rather than named by hand. **Needs a decision first**: `performers`
+  is a property of the definition's flow node, shared by every instance of it, so "this requester's
+  supervisor" cannot be expressed today — it needs either instance variables feeding performer resolution
+  or a resolver extension point.
+- Validating the doctor's note against the reason given for the absence. Waiting on the language-model
+  module being built separately; `sch:DocumentRequirement.aiCheckPrompt` is where the instruction will go,
+  and is deliberately left unset until something reads it.
+- Requests over 30 days needing a second approval. **Blocked**: a gateway currently routes by matching a
+  sequence flow's `conditionExpression` against the instance's `outcome` variable, so it cannot branch on
+  the answers. `wf:SequenceFlow` carries a raw string where it should carry a `cond:condition`, which the
+  conditions module can now support.
+- Unapproved requests flagged after two days; email on creation, approval and staleness. **Blocked**:
+  nothing delivers timers, so a parked catching event has no way to wake.
+- Raising a request by email as well as through the UI. The engine's entry point is already
+  channel-agnostic; what is missing is something that turns an arriving mail into an event.
+
+Two things the demo is still waiting on from the platform rather than from itself: the BPMN parser, since
+the flow nodes here are hand-written to mirror the diagram and both have to be edited together; and
+answer options on `sch:Question`, which has `dataType` but no way to declare that "absence type" is one of
+three values — so the questions that ought to be choices are text, and their display conditions compare
+against strings the schema cannot constrain.
 
 The budget-check service is meant to stay specific to this demo. It exists to prove that a project can
 bring its own Java code, and each item above should identify an extension point the core needs to expose
-rather than becoming a core feature itself.
+rather than becoming a core feature itself. Its answers are canned for the same reason: a demo that
+required a human resources system to run would prove nothing about the platform.

@@ -54,8 +54,8 @@ test.describe('the time off request demo', () => {
     expect(version.active).toBe(true);
   });
 
-  test('asks which day is being taken off, and requires an answer', async ({ request }) => {
-    const response = await request.get('/Schemas/timeOffRequest/v1/details/day.json', { headers: asAdmin });
+  test('asks when the time off starts, and requires an answer', async ({ request }) => {
+    const response = await request.get('/Schemas/timeOffRequest/v1/details/startDate.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
     const question = (await response.json()) as {
@@ -63,9 +63,55 @@ test.describe('the time off request demo', () => {
       dataType?: string;
       required?: boolean;
     };
-    expect(question.text).toBe('Which day are you taking off?');
+    expect(question.text).toBe('Which day does your time off start?');
     expect(question.dataType).toBe('date');
     expect(question.required).toBe(true);
+  });
+
+  test('asks for a return date only when the absence covers several days', async ({ request }) => {
+    // A display condition, stored rather than coded: the question carries a cond:condition child naming another
+    // question by its path under the version. Worth an integration test because the condition is a subtree of
+    // typed nodes — the mixin that allows it, the mandatory operand child, the autocreated `literal` source —
+    // and a mock repository enforces none of that.
+    const response = await request.get('/Schemas/timeOffRequest/v1/details/endDate.2.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const question = (await response.json()) as {
+      'cond:condition'?: {
+        comparator?: string;
+        operandA?: { source?: string; value?: string[] };
+        operandB?: { source?: string; value?: string[] };
+      };
+    };
+    const condition = question['cond:condition'];
+    expect(condition?.comparator).toBe('equals');
+    expect(condition?.operandA?.source).toBe('answer');
+    expect(condition?.operandA?.value).toEqual([ 'details/duration' ]);
+    // The comparison side takes the default source, which the node type autocreates rather than the content
+    // having to say it
+    expect(condition?.operandB?.source).toBe('literal');
+    expect(condition?.operandB?.value).toEqual([ 'multiple days' ]);
+  });
+
+  test('requires a doctor\'s note only for sick leave', async ({ request }) => {
+    // The same mechanism one level up: a whole requirement, not just a question, that applies conditionally.
+    const response = await request.get('/Schemas/timeOffRequest/v1/doctorsNote.2.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const requirement = (await response.json()) as {
+      'jcr:primaryType'?: string;
+      acceptedFileTypes?: string[];
+      aiCheckPrompt?: string;
+      'cond:condition'?: { comparator?: string; operandA?: { value?: string[] }; operandB?: { value?: string[] } };
+    };
+    expect(requirement['jcr:primaryType']).toBe('sch:DocumentRequirement');
+    expect(requirement.acceptedFileTypes).toContain('application/pdf');
+    expect(requirement['cond:condition']?.operandA?.value).toEqual([ 'details/absenceType' ]);
+    expect(requirement['cond:condition']?.operandB?.value).toEqual([ 'sick' ]);
+    // Deliberately absent: the note is collected but nothing reads it yet. Checking it against the reason for
+    // the absence is the job of the language-model module being built separately, and a prompt sitting here
+    // would suggest something already acts on it.
+    expect(requirement.aiCheckPrompt).toBeUndefined();
   });
 
   test('routes approval to the approvers group', async ({ request }) => {
@@ -130,6 +176,7 @@ test.describe('the time off request demo', () => {
     // resolve, so a diagram edited into a shape the demo no longer describes should fail here.
     const bpmn = await response.text();
     expect(bpmn).toContain('<bpmn:startEvent id="requestSubmitted"');
+    expect(bpmn).toContain('<bpmn:serviceTask id="checkBudget"');
     expect(bpmn).toContain('<bpmn:userTask id="approveRequest"');
     expect(bpmn).toContain('<bpmn:exclusiveGateway id="decision"');
     expect(bpmn).toContain('<bpmn:endEvent id="requestApproved"');
@@ -274,6 +321,26 @@ test.describe('the time off request demo', () => {
       expect(instance.approveRequest.status).toBe('created');
       expect(instance.approveRequest.label).toBe('Approve the request');
       expect(instance.approveRequest.taskDefinitionId).toBe('approveRequest');
+    });
+
+    test('has already looked up the requester\'s remaining days by the time anyone decides', async ({ request }) => {
+      // The service task the walk passed through on its way to the approver. This is the demo's own Java, plugged
+      // into the engine through the handler extension point — the platform knows nothing about counting time off,
+      // and this is what a project supplying that knowledge looks like.
+      //
+      // Its answer is canned rather than fetched from a human resources system, which is the only thing standing
+      // in for the real one: the activity, the dispatch and the record left behind are exactly as they would be.
+      const response = await request.get('/Submissions/aLongWeekend.json', { headers: asApprover });
+
+      expect(response.ok()).toBeTruthy();
+      const submission = (await response.json()) as {
+        budgetRemainingDays?: number;
+        budgetCheckedFor?: string;
+      };
+      expect(submission.budgetRemainingDays).toBe(12);
+      // Whose budget it is, recorded beside the number: the approver reading this is not the requester, and
+      // nothing else on the request would say so.
+      expect(submission.budgetCheckedFor).toBe('demo-requester');
     });
 
     test('refuses a decision from someone the task does not name', async ({ request }) => {
