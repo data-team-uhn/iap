@@ -29,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityHomepage;
+import io.uhndata.iap.utils.PrefixTree;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -74,6 +75,26 @@ class SubmissionsHomepageTest
         assertEquals(2, submissions.size());
         assertEquals("first", submissions.get(0).getName());
         assertEquals("second", submissions.get(1).getName());
+    }
+
+    @Test
+    void listsSubmissionsFiledInThePrefixTree()
+    {
+        // Where submissions actually live: spread over buckets named after the first characters of their names,
+        // so they are descendants of the homepage rather than children of it
+        final Resource resource = this.context.create().resource("/Submissions",
+            "sling:resourceType", SubmissionsHomepage.RESOURCE_TYPE);
+        final String name = "0a1b2c3d-0000-0000-0000-000000000000";
+        this.context.create().resource(PrefixTree.pathFor("/Submissions", name),
+            "sling:resourceType", Submission.RESOURCE_TYPE);
+        // A bucket holding nothing must not be mistaken for a submission, and must not stop the walk either
+        this.context.create().resource("/Submissions/ff/ff/ff", "jcr:primaryType", "sling:Folder");
+        final SubmissionsHomepage homepage = resource.adaptTo(SubmissionsHomepage.class);
+
+        final List<Submission> submissions = homepage.getSubmissions();
+
+        assertEquals(1, submissions.size());
+        assertEquals(name, submissions.get(0).getName());
     }
 
     @Test
