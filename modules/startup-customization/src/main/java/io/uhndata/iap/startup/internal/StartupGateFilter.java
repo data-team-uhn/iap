@@ -109,8 +109,14 @@ import org.slf4j.LoggerFactory;
 })
 public final class StartupGateFilter implements Filter
 {
-    /** How long the system must be continuously ready before the gate retires. */
-    static final long SETTLE_NANOS = TimeUnit.SECONDS.toNanos(5);
+    /**
+     * How long the system must be continuously ready before the gate retires. Deliberately longer than the window in
+     * which the JCR installer re-delivers configurations and bundles finish activating, because retiring is final: a
+     * gate that stepped aside inside that window would be gone by the time the next activation invalidates the
+     * scripting classloader. Retiring late costs nothing a visitor can see, since what they wait for is the gate
+     * opening, not the gate retiring; retiring early costs them a raw 500.
+     */
+    static final long SETTLE_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     /** How often readiness is evaluated, in milliseconds, for as long as the gate is up. */
     static final long POLL_INTERVAL_MS = 500;
