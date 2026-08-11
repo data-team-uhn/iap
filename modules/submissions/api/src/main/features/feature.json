@@ -38,7 +38,10 @@
         // decide. Restricting the grant to the homepage's own node type leaves the sub:Submission nodes below it
         // unreadable — who may see one is the workflow's business, and until it grants that, not even their
         // author can read them back.
-        "set ACL on /Submissions \n allow jcr:read for everyone restriction(rep:ntNames,sub:SubmissionsHomepage) \n end"
+        // The homepage node so that a POST to it can be routed at all, and the prefix tree's buckets so that a
+        // submitter can reach what they filed. Both hold no data of their own; the submissions inside are granted
+        // one at a time, to the people their workflow involves.
+        "set ACL on /Submissions \n allow jcr:read for everyone restriction(rep:ntNames,sub:SubmissionsHomepage,sling:Folder) \n end"
       ]
     }
   }

@@ -30,6 +30,18 @@ const asApprover = {
   Authorization: `Basic ${Buffer.from('demo-approver:demo-approver').toString('base64')}`,
 };
 
+// Where a submission ends up: named by a UUID, and filed in a prefix tree whose three buckets are that name's own
+// first three pairs of characters. The back-reference is the point of asserting it as a pattern rather than just
+// checking for "some path under /Submissions" — it is what proves the buckets are derived from the name, which is
+// the whole reason a UUID is used, and it would still hold if the tree's depth or segment length changed.
+const FILED_PATH = '/Submissions/([0-9a-f]{2})/([0-9a-f]{2})/([0-9a-f]{2})/\\1\\2\\3[0-9a-f-]+';
+
+// The path on its own, as a redirect reports it
+const FILED = new RegExp(`^${FILED_PATH}$`);
+
+// The same, at the end of the absolute URL a browser ends up on
+const FILED_URL = new RegExp(`${FILED_PATH}$`);
+
 /**
  * The time off request demo.
  *
@@ -199,7 +211,7 @@ test.describe('the time off request demo', () => {
 
     expect(response.status()).toBe(302);
     const location = response.headers().location;
-    expect(location).toBe('/Submissions/aVerySunnyFriday');
+    expect(location).toMatch(FILED);
 
     const created = await request.get(`${location}.json`, { headers: asAdmin });
     expect(created.ok()).toBeTruthy();
@@ -237,6 +249,11 @@ test.describe('the time off request demo', () => {
   // though the suite is otherwise parallel. Left parallel they race each other for the same task, and the engine
   // rightly refuses the loser.
   test.describe.serial('raising and deciding a request', () => {
+    // The request the story is about. Its path cannot be written down here: a submission is named by a UUID, so
+    // the only way to know where it went is to keep what the engine's redirect said — which is also how any
+    // client learns it.
+    let raised = '';
+
     test('lets an ordinary user raise a request they hold no rights to create', async ({ request }) => {
       // The whole authorization model in one request. demo-requester has no write access anywhere — the only ACL
       // they benefit from makes /Submissions itself visible so that a POST can be routed. What lets this succeed is
@@ -252,10 +269,11 @@ test.describe('the time off request demo', () => {
       });
 
       expect(response.status()).toBe(302);
-      expect(response.headers().location).toBe('/Submissions/aLongWeekend');
+      raised = response.headers().location;
+      expect(raised).toMatch(FILED);
 
       // The engine wrote it, so jcr:createdBy names the service user; the human is remembered separately
-      const created = await request.get('/Submissions/aLongWeekend.json', {
+      const created = await request.get(`${raised}.json`, {
         headers: asAdmin,
       });
       const submission = (await created.json()) as {
@@ -288,14 +306,23 @@ test.describe('the time off request demo', () => {
       // Reads cannot go through the engine — no workflow can run per row of a query — so the workflow *declares*
       // and the engine materializes: starting the instance granted read to the requester and to the performers of
       // its user task. Nobody wrote an ACL by hand, and nobody else can see it.
+      // The negative control, and the reason this test means anything: a request the requester neither raised nor
+      // approves stays invisible to them, so what they can see was granted rather than merely universal. Raised
+      // here rather than borrowed from another test, so that the 404 below cannot be a 404 for the duller reason
+      // that nothing is there at all.
+      const somebodyElses = (await request.post('/Submissions', {
+        headers: asAdmin,
+        form: { title: 'Not the requester\'s business', schemaVersion: '/Schemas/timeOffRequest/v1' },
+        maxRedirects: 0,
+      })).headers().location;
+      expect(somebodyElses).toMatch(FILED);
+      // ...and it is genuinely readable by somebody, which is what makes the requester's 404 about them
+      expect((await request.get(`${somebodyElses}.json`, { headers: asAdmin })).status()).toBe(200);
+
       const [byRequester, byApprover, someoneElses] = await Promise.all([
-        request.get('/Submissions/aLongWeekend.json', { headers: asRequester }),
-        request.get('/Submissions/aLongWeekend.json', { headers: asApprover }),
-        // The negative control, and the reason this test means anything: a request the requester neither raised
-        // nor approves stays invisible to them, so what they can see was granted rather than merely universal
-        request.get('/Submissions/aVerySunnyFriday.json', {
-          headers: asRequester,
-        }),
+        request.get(`${raised}.json`, { headers: asRequester }),
+        request.get(`${raised}.json`, { headers: asApprover }),
+        request.get(`${somebodyElses}.json`, { headers: asRequester }),
       ]);
 
       expect(byRequester.status()).toBe(200);
@@ -308,7 +335,7 @@ test.describe('the time off request demo', () => {
       // inside the submission, which is what makes it findable, securable and disposable along with it
       // `deep` is what asks the serializer for child nodes; without it a resource is its own properties and the
       // references they embed, which is the right default for a tree that now holds running workflows
-      const response = await request.get('/Submissions/aLongWeekend.deep.-dereference.infinity.json', {
+      const response = await request.get(`${raised}.deep.-dereference.infinity.json`, {
         headers: asApprover,
       });
       expect(response.ok()).toBeTruthy();
@@ -339,7 +366,7 @@ test.describe('the time off request demo', () => {
       //
       // Its answer is canned rather than fetched from a human resources system, which is the only thing standing
       // in for the real one: the activity, the dispatch and the record left behind are exactly as they would be.
-      const response = await request.get('/Submissions/aLongWeekend.json', { headers: asApprover });
+      const response = await request.get(`${raised}.json`, { headers: asApprover });
 
       expect(response.ok()).toBeTruthy();
       const submission = (await response.json()) as {
@@ -356,7 +383,7 @@ test.describe('the time off request demo', () => {
       // The requester can see the task — they can see their own submission — but seeing it and being allowed to
       // decide it are different questions, and the second is answered by the activity's performers
       const response = await request.post(
-        '/Submissions/aLongWeekend/wf:instances/timeOffRequest/approveRequest',
+        `${raised}/wf:instances/timeOffRequest/approveRequest`,
         {
           headers: asRequester,
           form: { outcome: 'approved' },
@@ -369,12 +396,12 @@ test.describe('the time off request demo', () => {
 
     test('carries the request through to approval when the approver decides', async ({ request }) => {
       const decision = await request.post(
-        '/Submissions/aLongWeekend/wf:instances/timeOffRequest/approveRequest',
+        `${raised}/wf:instances/timeOffRequest/approveRequest`,
         { headers: asApprover, form: { outcome: 'approved' }, maxRedirects: 0 },
       );
       expect(decision.status()).toBe(200);
 
-      const response = await request.get('/Submissions/aLongWeekend.deep.-dereference.infinity.json', {
+      const response = await request.get(`${raised}.deep.-dereference.infinity.json`, {
         headers: asApprover,
       });
       const submission = (await response.json()) as {
@@ -406,7 +433,7 @@ test.describe('the time off request demo', () => {
 
     test('has nothing left to decide once the task is done', async ({ request }) => {
       const response = await request.post(
-        '/Submissions/aLongWeekend/wf:instances/timeOffRequest/approveRequest',
+        `${raised}/wf:instances/timeOffRequest/approveRequest`,
         {
           headers: asApprover,
           form: { outcome: 'rejected' },
@@ -470,8 +497,9 @@ test.describe('the time off request demo', () => {
     await dialog.getByLabel(/Title/).fill('A Tuesday in October');
     await dialog.getByRole('button', { name: 'Create' }).click();
 
-    // The engine answers with a redirect to what it created, and the name is derived from the title
-    await expect(page).toHaveURL(/\/Submissions\/aTuesdayInOctober$/);
+    // The engine answers with a redirect to what it created, which the browser follows to the submission's own
+    // page — at a UUID path in the prefix tree, so what is asserted is the shape rather than a name
+    await expect(page).toHaveURL(FILED_URL);
     await expect(page.getByText('A Tuesday in October')).toBeVisible();
   });
 
