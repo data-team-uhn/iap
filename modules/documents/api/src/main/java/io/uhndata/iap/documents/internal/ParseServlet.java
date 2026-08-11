@@ -76,9 +76,12 @@ import org.slf4j.LoggerFactory;
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
-@SlingServletPaths(value = "/system/documents/parse")
+@SlingServletPaths(value = ParseServlet.PATH)
 public class ParseServlet extends SlingJakartaAllMethodsServlet
 {
+    /** The path this endpoint is served at. */
+    static final String PATH = "/system/documents/parse";
+
     private static final long serialVersionUID = 2946115948960530740L;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseServlet.class);
@@ -137,7 +140,9 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
                 return;
             }
 
-            response.setHeader("Location", request.getRequestURI() + "?" + JOB_ID_KEY + "=" + jobId);
+            // Built from the constant servlet path, never from the request, so nothing
+            // attacker-controlled can steer where this points (CodeQL: unvalidated-url-redirection)
+            response.setHeader("Location", PATH + "?" + JOB_ID_KEY + "=" + jobId);
             writeJson(response, HttpServletResponse.SC_ACCEPTED, Json.createObjectBuilder()
                 .add(JOB_ID_KEY, jobId)
                 .add(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED)
