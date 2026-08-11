@@ -30,7 +30,6 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -277,20 +276,18 @@ final class InstanceRunner
      * @param instance the running instance
      * @param token the token that arrived
      * @param end the end event reached
+     * @throws WorkflowException when the end event names a tag the host cannot carry
      * @throws PersistenceException when the instance cannot be written
      */
     private void finish(final Resource instance, final Resource token, final EndEvent end)
-        throws PersistenceException
+        throws WorkflowException, PersistenceException
     {
         this.resolver.delete(token);
         final ModifiableValueMap properties = modifiable(instance);
         properties.put(STATUS_PROPERTY, COMPLETED_STATUS);
         properties.put(END_TIME_PROPERTY, Calendar.getInstance());
-        final String hostTag = end.getHostTag();
-        if (hostTag != null) {
-            // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
-            Objects.requireNonNull(host(instance).adaptTo(Taggable.class),
-                "A workflow's host is taggable").tag(hostTag, true);
+        if (end.getHostTag() != null) {
+            HostLifecycle.record(host(instance), end);
         }
     }
 
