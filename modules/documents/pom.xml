@@ -31,6 +31,7 @@
   <description>Document handling: pre-processing, parsing, chunking, extraction.</description>
 
   <modules>
+    <module>api</module>
     <module>processing</module>
   </modules>
 </project>

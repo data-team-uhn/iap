@@ -90,6 +90,16 @@ one is running is refused with `503 {"error": "daemon busy: …"}` rather than q
 conversion takes minutes, and holding the socket open for one that has not started only
 invites client timeouts. Callers retry.
 
+Adding `&job_id=<id>&callback=<url>` (both or neither) switches to the asynchronous variant:
+the daemon answers `{"job_id", "status": "queued"}` immediately, converts in the background,
+and POSTs the summary (minus `logs`, plus `job_id`; on failure `{"job_id", "ok": false,
+"error"}`) to the callback URL. The delivery carries the shared JWT from the
+`IAP_DOCLING_CALLBACK_JWT` environment variable as a bearer token, retrying a few times if
+the caller is briefly away (`parse_callbacks.py`); without that variable the daemon refuses
+asynchronous requests. This is how the Java side calls the daemon — its callback endpoint,
+which reads the same variable, is `/system/documents/parseCallback` in
+`modules/documents/api`.
+
 ---
 
 ## Components
@@ -97,6 +107,7 @@ invites client timeouts. Callers retry.
 | Module | Role |
 |---|---|
 | `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `GET /health`, `POST /shutdown` |
+| `parse_callbacks.py` | Authenticated, retried delivery of async parse outcomes to the caller's callback URL |
 | `parse_document.py` | Shared orchestrator: LibreOffice prep → Docling → `chunk_file` |
 | `libreoffice_convert.py` | DOC→DOCX+PDF, DOCX→PDF; saves beside source immediately |
 | `docling_parser.py` | CLI entry via `parse_document` |

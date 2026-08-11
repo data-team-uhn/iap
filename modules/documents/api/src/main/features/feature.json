@@ -1,0 +1,41 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+{
+  "bundles":[
+    {
+      "id":"${project.groupId}:${project.artifactId}:${project.version}",
+      "start-order":"25"
+    }
+  ],
+  "configurations":{
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapdocuments":{
+      "user.mapping":[
+        "io.uhndata.iap.documents-api:parse-jobs=[iap-documents]"
+      ]
+    },
+    // Where the Docling daemon listens, and where it should POST parse outcomes back to;
+    // see modules/documents/processing/docker-compose.yml. The callback is authenticated
+    // with the shared JWT both sides read from the IAP_DOCLING_CALLBACK_JWT environment
+    // variable (overridable here with a "callbackToken" property on the
+    // ...internal.ParseCallbackServlet configuration).
+    "io.uhndata.iap.documents.internal.ParseJobConsumer":{
+      "daemonUrl":"http://localhost:18765",
+      "callbackUrl":"http://host.docker.internal:8080/system/documents/parseCallback"
+    }
+  },
+  "repoinit:TEXT|true": "@file"
+}
