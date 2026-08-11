@@ -347,7 +347,7 @@ POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [
                                                                         ▼
 POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
                                                         │
-                                                        ▼  hostStatus: the submission is now "approved"
+                                                        ▼  hostTag: the submission is now tagged "approved"
 ```
 
 **Starting is a service task, not a special case.** `startWorkflow` is built into the engine — putting an
@@ -364,9 +364,12 @@ carries the instance on. Who may complete it is the same `performers` mechanism 
 step later — of the task's *defining activity* rather than of a start event. Seeing a task and being allowed
 to decide it are different questions, and this is where the second is answered.
 
-**Reaching an end event can mean something to the host.** `hostStatus` on the end event is written to the
-host's `status`, which is how a process says what finishing *this particular way* means to the thing being
-processed, without a service task whose only job is to write it down.
+**Reaching an end event can mean something to the host.** `hostTag` on the end event is placed on the host as
+a tag, which is how a process says what finishing *this particular way* means to the thing being processed,
+without a service task whose only job is to write it down. Placing it retires whatever other tag the host
+carries in the same category: the categories are what make a set of tags a lifecycle rather than a pile of
+markers, so a submission that has just been approved stops being in review. Tags outside those categories are
+left alone, since a host is free to carry markers that have nothing to do with this process.
 
 **Read access is materialized when the instance starts.** Acting is authorized by the definitions, but
 reading cannot be — a query returns rows, and no engine can run a workflow per row — so the workflow declares

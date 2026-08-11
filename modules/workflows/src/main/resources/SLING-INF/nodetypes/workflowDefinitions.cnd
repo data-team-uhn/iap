@@ -227,12 +227,16 @@
   // kind of end event.
   - terminate (BOOLEAN) = false
 
-  // The status to write on the host resource when an instance ends here, e.g.
+  // The tag to place on the host resource when an instance ends here, e.g.
   // "approved". What finishing this way means to the thing being processed
   // belongs with the end event that says so, rather than needing a service task
   // whose only job is to record it. Also the kind of thing a BPMN parser can
   // carry across, being a plain attribute on the element.
-  - hostStatus (STRING)
+  //
+  // Placing it removes whatever other tag the host carries in the same
+  // category, because a lifecycle is a state and not an accumulation: a
+  // submission that finished as "approved" must stop being "in-review".
+  - hostTag (STRING)
 
 //-----------------------------------------------------------------------------
 // Abstract base for the catch and throw events occurring mid-process. Abstract

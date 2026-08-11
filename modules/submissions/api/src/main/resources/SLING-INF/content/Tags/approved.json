@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "Approved",
+  "description": "The reviewers accepted this record; it is now authoritative.",
+  "category": ["lifecycle", "review"],
+  "system": true,
+  "color": "#2e7d32",
+  "order": 60
+}

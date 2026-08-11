@@ -61,9 +61,10 @@
   // The sch:SchemaVersion this submission answers
   - schemaVersion (REFERENCE) mandatory
 
-  // Current lifecycle state, managed by the attached user workflow,
-  // e.g. draft, submitted, in-review, approved, rejected
-  - status (STRING) = "draft" mandatory autocreated
+  // The lifecycle state (draft, submitted, in-review, approved, rejected) is not a dedicated
+  // property: it is a `lifecycle`-category tag in the inherited `tags` property, defined under
+  // /Tags and managed by the attached user workflow. Whoever creates a submission is expected
+  // to tag it `draft`.
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -148,8 +149,10 @@
   // The sch:Requirement (typically a sch:ApprovalRequirement) this review addresses
   - requirement (REFERENCE)
 
-  // Current state of this review, e.g. in-progress, changes-requested, approved, rejected
-  - status (STRING) = "in-progress" mandatory autocreated
+  // The review's state (in-progress, changes-requested, approved, rejected) is not a dedicated
+  // property: it is a `review`-category tag in the inherited `tags` property, defined under
+  // /Tags. Whoever opens a review is expected to tag it `in-progress`; a review whose tags name
+  // no final decision (approved/rejected) counts as still open.
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

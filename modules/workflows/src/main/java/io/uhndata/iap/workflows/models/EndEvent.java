@@ -42,19 +42,22 @@ public class EndEvent extends Event
     private boolean terminate;
 
     @ValueMapValue
-    private String hostStatus;
+    private String hostTag;
 
     /**
-     * The status to record on the host resource when an instance ends here, e.g. {@code approved} on the end event
-     * an approval leads to. This is how a process says what finishing this particular way <em>means</em> to the
-     * thing being processed, without needing a service task whose only job is to write it down.
+     * The tag to place on the host resource when an instance ends here, e.g. {@code approved} on the end event an
+     * approval leads to. This is how a process says what finishing this particular way <em>means</em> to the thing
+     * being processed, without needing a service task whose only job is to write it down.
      *
-     * @return a status to write on the host, or {@code null} if reaching this event says nothing about it
+     * <p>Placing it retires whatever other tag the host carries in the same category, since the lifecycle is a
+     * state rather than a growing list of everything that ever happened.</p>
+     *
+     * @return a tag to place on the host, or {@code null} if reaching this event says nothing about it
      */
     @Nullable
-    public String getHostStatus()
+    public String getHostTag()
     {
-        return this.hostStatus;
+        return this.hostTag;
     }
 
     /**

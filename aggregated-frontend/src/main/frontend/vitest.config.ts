@@ -49,6 +49,13 @@ export default defineConfig({
     // individual tests as timeouts rather than as an honestly slower run. Half the cores is enough
     // to keep the suite parallel without the whole machine thrashing.
     maxWorkers: "50%",
+    server: {
+      deps: {
+        // MUI X packages import their own stylesheets from their ESM builds; inlining them lets
+        // Vite transform those imports (Node itself cannot load .css modules)
+        inline: [/@mui\/x-data-grid/],
+      },
+    },
     coverage: {
       provider: "v8",
       include: ["src/**/*.{js,jsx,ts,tsx}"],

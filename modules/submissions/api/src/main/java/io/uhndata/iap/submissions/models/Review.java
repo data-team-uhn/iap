@@ -50,7 +50,7 @@ public class Review extends EntityPart
     private String requirement;
 
     @ValueMapValue
-    private String status;
+    private List<String> tags;
 
     /**
      * The principal name of the reviewer.
@@ -76,15 +76,16 @@ public class Review extends EntityPart
     }
 
     /**
-     * The current state of this review, e.g. {@code in-progress}, {@code changes-requested}, {@code approved},
-     * {@code rejected}.
+     * The tags explicitly placed on this review. Its state is one of them: a {@code review}-category tag like
+     * {@code in-progress}, {@code changes-requested}, {@code approved} or {@code rejected}, defined under
+     * {@code /Tags}.
      *
-     * @return a status name
+     * @return the tag names, an empty list if there are none
      */
     @NotNull
-    public String getStatus()
+    public List<String> getTags()
     {
-        return this.status;
+        return this.tags == null ? List.of() : this.tags;
     }
 
     /**
@@ -112,12 +113,12 @@ public class Review extends EntityPart
     }
 
     /**
-     * Whether this review has been approved, i.e. its state is {@code approved}.
+     * Whether this review has been approved, i.e. it carries the {@code approved} tag.
      *
      * @return {@code true} if approved
      */
     public boolean isApproved()
     {
-        return "approved".equals(this.status);
+        return this.getTags().contains("approved");
     }
 }

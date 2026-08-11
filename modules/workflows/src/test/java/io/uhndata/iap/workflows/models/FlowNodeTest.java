@@ -211,10 +211,10 @@ class FlowNodeTest
         final Resource plain = this.context.create().resource(VERSION_PATH + "/end_p", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_p"));
         final Resource meaningful = this.context.create().resource(VERSION_PATH + "/end_m", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_m", "hostStatus", "approved"));
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_m", "hostTag", "approved"));
 
-        assertNull(((EndEvent) plain.adaptTo(FlowNode.class)).getHostStatus());
-        assertEquals("approved", ((EndEvent) meaningful.adaptTo(FlowNode.class)).getHostStatus());
+        assertNull(((EndEvent) plain.adaptTo(FlowNode.class)).getHostTag());
+        assertEquals("approved", ((EndEvent) meaningful.adaptTo(FlowNode.class)).getHostTag());
     }
 
     @Test

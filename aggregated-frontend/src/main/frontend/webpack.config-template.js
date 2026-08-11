@@ -160,6 +160,12 @@ ENTRY_CONTENT
     },
     optimization: {
       usedExports: true,
+      // Recompute [contenthash] from each asset's final bytes. Without this (it is on only in
+      // production mode by default), an entry whose own modules are unchanged keeps its old
+      // filename even when the chunk hashes it references change — and since hashed assets are
+      // served as immutable (IAP-86), browsers then keep loading the cached old entry, which
+      // points at the previous build's chunks: redeployed code never reaches the user.
+      realContentHash: true,
       minimize: isProduction,
       minimizer: [
         new MinimizerPlugin({
