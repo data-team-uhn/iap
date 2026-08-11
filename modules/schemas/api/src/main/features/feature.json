@@ -25,7 +25,12 @@
     "org.apache.sling.jcr.repoinit.RepositoryInitializer~schemas": {
       "service.ranking:Integer": 300,
       "scripts": [
-        "create path (sch:SchemasHomepage) /Schemas"
+        "create path (sch:SchemasHomepage) /Schemas",
+        // Schemas are readable by everyone, the way the other definition trees are: a person cannot choose what
+        // to submit against without seeing what is on offer, and cannot read a submission they are involved in
+        // without the schema version that says how its answers are grouped. What may be *done* with a schema
+        // still goes through the workflow engine; this only opens reading.
+        "set ACL on /Schemas \n allow jcr:read for everyone \n end"
       ]
     }
   }

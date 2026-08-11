@@ -453,6 +453,28 @@ test.describe('the time off request demo', () => {
     });
   });
 
+  test('lets a requester raise a request from the dashboard, choosing what to submit against', async ({ page }) => {
+    // The demo as a person actually meets it, which is the only thing that proves the pieces fit: the dashboard
+    // offers the action, the dialog reads what is open for submissions out of the repository, and the engine
+    // raises the request the choice names and redirects to it. Each half is asserted elsewhere over HTTP — that
+    // the schema is active, that a POST to /Submissions creates one — and neither says whether a submitter can
+    // get from one to the other.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    // Offered by title and version, read from /Schemas rather than hardcoded in the dialog
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('A Tuesday in October');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+
+    // The engine answers with a redirect to what it created, and the name is derived from the title
+    await expect(page).toHaveURL(/\/Submissions\/aTuesdayInOctober$/);
+    await expect(page.getByText('A Tuesday in October')).toBeVisible();
+  });
+
   test('creates the two people the demo is about', async ({ page }) => {
     // Proves the accounts exist and their passwords work, which is what the walkthrough depends on
     const login = new LoginPage(page);
