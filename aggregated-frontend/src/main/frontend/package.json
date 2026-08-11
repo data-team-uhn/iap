@@ -24,8 +24,8 @@
     ]
   },
   "scripts": {
-    "lint": "yarn aggregate:tests && eslint 'src/**/*.{ts,tsx}'",
-    "lint:fix": "yarn aggregate:tests && eslint 'src/**/*.{ts,tsx}' --fix",
+    "lint": "yarn aggregate:tests && eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "yarn aggregate:tests && eslint \"src/**/*.{ts,tsx}\" --fix",
     "aggregate": "python3 webpack_script.py ../../..",
     "aggregate:tests": "python3 webpack_script.py ../../.. --with-tests",
     "typecheck": "yarn aggregate && tsc -p ../../../../tsconfig.json --noEmit",
