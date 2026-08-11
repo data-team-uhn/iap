@@ -85,6 +85,8 @@ class ParseServletTest
         final JsonObject json = parse(response);
         final String jobId = json.getString("job_id");
         assertEquals(ParseJob.STATUS_QUEUED, json.getString("status"));
+        // Points at the poll endpoint, built from the constant servlet path, never from the request
+        assertEquals(ParseServlet.PATH + "?job_id=" + jobId, response.getHeader("Location"));
 
         final ValueMap job = jobProperties(jobId);
         assertEquals(ParseJob.STATUS_QUEUED, job.get(ParseJob.PN_STATUS, String.class));
