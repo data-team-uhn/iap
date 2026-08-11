@@ -26,6 +26,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.sling.api.resource.LoginException;
@@ -64,8 +65,14 @@ class ParseJobConsumerTest
 
     private static final String DOCUMENT = "/shared-docs/proposal.pdf";
 
+    private static final String TOKEN = "test-callback-token";
+
     /** What the daemon answers when it accepts an asynchronous parse. */
     private static final String ACCEPTED_BODY = "{\"job_id\": \"" + JOB_ID + "\", \"status\": \"queued\"}";
+
+    /** What an older daemon answers when it ignores job_id/callback and runs synchronously. */
+    private static final String SYNC_SUCCESS_BODY = "{\"ok\": true,"
+        + " \"markdown_path\": \"/shared-docs/proposal.md\", \"chunked\": false, \"chunks_dir\": null}";
 
     private final SlingContext context = new SlingContext();
 
@@ -83,20 +90,11 @@ class ParseJobConsumerTest
     @BeforeEach
     void setUp() throws Exception
     {
-        this.consumer = new ParseJobConsumer()
-        {
-            @Override
-            protected HttpResponse<String> send(final HttpRequest request) throws IOException
-            {
-                ParseJobConsumerTest.this.sentRequest = request;
-                if (ParseJobConsumerTest.this.sendFailure != null) {
-                    throw ParseJobConsumerTest.this.sendFailure;
-                }
-                return ParseJobConsumerTest.this.daemonResponse;
-            }
-        };
+        this.sentRequest = null;
+        this.sendFailure = null;
+        this.consumer = consumerWithEnvironment(null);
         inject(this.consumer, new TestResolverFactory(this.context.resourceResolver()));
-        this.consumer.activate(Map.of());
+        activate(this.consumer);
         Mockito.when(this.job.getProperty(ParseJob.PN_JOB_ID, String.class)).thenReturn(JOB_ID);
     }
 
@@ -129,6 +127,64 @@ class ParseJobConsumerTest
 
         assertEquals(ParseJob.STATUS_ACTIVE, jobProperties().get(ParseJob.PN_STATUS, String.class));
         assertTrue(this.sentRequest.uri().toString().contains("&chunk=false&"));
+    }
+
+    @Test
+    void synchronousSuccessBodyFailsTheJob()
+    {
+        jobNode(Boolean.TRUE);
+        daemonAnswers(200, SYNC_SUCCESS_BODY);
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        final ValueMap properties = jobProperties();
+        assertEquals(ParseJob.STATUS_FAILED, properties.get(ParseJob.PN_STATUS, String.class));
+        assertTrue(properties.get(ParseJob.PN_ERROR, String.class)
+            .contains("did not accept the asynchronous parse"));
+        assertNotNull(properties.get(ParseJob.PN_FINISHED, Calendar.class));
+    }
+
+    @Test
+    void acceptBodyForAnotherJobIsRefused()
+    {
+        jobNode(Boolean.TRUE);
+        daemonAnswers(202, "{\"job_id\": \"00000000-0000-0000-0000-000000000000\", \"status\": \"queued\"}");
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(ParseJob.STATUS_FAILED, jobProperties().get(ParseJob.PN_STATUS, String.class));
+        assertNotNull(this.sentRequest);
+    }
+
+    @Test
+    void missingCallbackTokenFailsWithoutCallingTheDaemon() throws Exception
+    {
+        final ParseJobConsumer unconfigured = consumerWithEnvironment(null);
+        inject(unconfigured, new TestResolverFactory(this.context.resourceResolver()));
+        unconfigured.activate(Map.of());
+        jobNode(Boolean.TRUE);
+
+        assertEquals(JobResult.CANCEL, unconfigured.process(this.job));
+
+        assertEquals(ParseJob.STATUS_FAILED, jobProperties().get(ParseJob.PN_STATUS, String.class));
+        assertEquals("Callback authentication is not configured",
+            jobProperties().get(ParseJob.PN_ERROR, String.class));
+        assertNull(this.sentRequest);
+    }
+
+    @Test
+    void theTokenCanComeFromTheEnvironment() throws Exception
+    {
+        final ParseJobConsumer fromEnvironment = consumerWithEnvironment("  " + TOKEN + "  ");
+        inject(fromEnvironment, new TestResolverFactory(this.context.resourceResolver()));
+        fromEnvironment.activate(Map.of());
+        jobNode(Boolean.TRUE);
+        daemonAnswers(202, ACCEPTED_BODY);
+
+        assertEquals(JobResult.OK, fromEnvironment.process(this.job));
+
+        assertEquals(ParseJob.STATUS_ACTIVE, jobProperties().get(ParseJob.PN_STATUS, String.class));
+        assertNotNull(this.sentRequest);
     }
 
     @Test
@@ -209,7 +265,7 @@ class ParseJobConsumerTest
             }
         };
         inject(interrupted, new TestResolverFactory(this.context.resourceResolver()));
-        interrupted.activate(Map.of());
+        activate(interrupted);
 
         assertEquals(JobResult.CANCEL, interrupted.process(this.job));
 
@@ -297,7 +353,7 @@ class ParseJobConsumerTest
     @Test
     void honoursTheConfiguredUrlsAndTimeout()
     {
-        this.consumer.activate(Map.of("daemonUrl", "http://docling:9999/",
+        activate(this.consumer, Map.of("daemonUrl", "http://docling:9999/",
             "callbackUrl", "http://iap:8080/system/documents/parseCallback/", "responseTimeout", "5"));
         jobNode(Boolean.TRUE);
         daemonAnswers(202, ACCEPTED_BODY);
@@ -313,7 +369,7 @@ class ParseJobConsumerTest
     @Test
     void nonsenseConfigurationFallsBackToTheDefaults()
     {
-        this.consumer.activate(Map.of("daemonUrl", "", "callbackUrl", " ", "responseTimeout", "soon"));
+        activate(this.consumer, Map.of("daemonUrl", "", "callbackUrl", " ", "responseTimeout", "soon"));
         jobNode(Boolean.TRUE);
         daemonAnswers(202, ACCEPTED_BODY);
 
@@ -327,7 +383,7 @@ class ParseJobConsumerTest
     @Test
     void nonPositiveTimeoutFallsBackToTheDefault()
     {
-        this.consumer.activate(Map.of("responseTimeout", "-5"));
+        activate(this.consumer, Map.of("responseTimeout", "-5"));
         jobNode(Boolean.TRUE);
         daemonAnswers(202, ACCEPTED_BODY);
 
@@ -353,7 +409,7 @@ class ParseJobConsumerTest
             // No overridden send(): this consumer speaks to the local stand-in over an actual socket
             final ParseJobConsumer real = new ParseJobConsumer();
             inject(real, new TestResolverFactory(this.context.resourceResolver()));
-            real.activate(Map.of("daemonUrl", "http://127.0.0.1:" + daemon.getAddress().getPort()));
+            activate(real, Map.of("daemonUrl", "http://127.0.0.1:" + daemon.getAddress().getPort()));
             jobNode(Boolean.TRUE);
 
             assertEquals(JobResult.OK, real.process(this.job));
@@ -362,6 +418,46 @@ class ParseJobConsumerTest
         } finally {
             daemon.stop(0);
         }
+    }
+
+    /**
+     * Build a consumer whose {@code send} is stubbed and whose environment lookup answers with the given value.
+     *
+     * @param environmentToken what {@code IAP_DOCLING_CALLBACK_JWT} should appear to hold, {@code null} for unset
+     * @return a consumer ready for {@link #inject} and {@link #activate}
+     */
+    private ParseJobConsumer consumerWithEnvironment(final String environmentToken)
+    {
+        return new ParseJobConsumer()
+        {
+            @Override
+            protected HttpResponse<String> send(final HttpRequest request) throws IOException
+            {
+                ParseJobConsumerTest.this.sentRequest = request;
+                if (ParseJobConsumerTest.this.sendFailure != null) {
+                    throw ParseJobConsumerTest.this.sendFailure;
+                }
+                return ParseJobConsumerTest.this.daemonResponse;
+            }
+
+            @Override
+            protected String environment(final String name)
+            {
+                return ParseJob.TOKEN_VARIABLE.equals(name) ? environmentToken : null;
+            }
+        };
+    }
+
+    private void activate(final ParseJobConsumer target)
+    {
+        activate(target, Map.of());
+    }
+
+    private void activate(final ParseJobConsumer target, final Map<String, Object> overrides)
+    {
+        final Map<String, Object> configuration = new HashMap<>(overrides);
+        configuration.putIfAbsent(ParseJob.TOKEN_PROPERTY, TOKEN);
+        target.activate(configuration);
     }
 
     private void inject(final ParseJobConsumer target, final ResourceResolverFactory factory) throws Exception

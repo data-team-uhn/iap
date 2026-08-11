@@ -31,7 +31,8 @@
     // see modules/documents/processing/docker-compose.yml. The callback is authenticated
     // with the shared JWT both sides read from the IAP_DOCLING_CALLBACK_JWT environment
     // variable (overridable here with a "callbackToken" property on the
-    // ...internal.ParseCallbackServlet configuration).
+    // ...internal.ParseCallbackServlet or ...internal.ParseJobConsumer configuration).
+    // Without it the consumer refuses to dispatch, since callbacks could not be accepted.
     "io.uhndata.iap.documents.internal.ParseJobConsumer":{
       "daemonUrl":"http://localhost:18765",
       "callbackUrl":"http://host.docker.internal:8080/system/documents/parseCallback"
