@@ -17,8 +17,10 @@
 {
   "bundles":[
     {
+      // Sample content can only be loaded once the modules owning its node types and its parent
+      // nodes have started, so this must come last: after iap-categories (28), the latest of them.
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
-      "start-order":"25"
+      "start-order":"29"
     }
   ]
 }

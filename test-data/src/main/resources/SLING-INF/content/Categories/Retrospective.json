@@ -1,0 +1,15 @@
+{
+  "jcr:primaryType": "cat:Category",
+  "label": "Retrospective studies",
+  "description": "Studies relying exclusively on data or biological specimens that already exist at the time the study starts, collected for clinical care or for previous research. No new data or specimens are collected from participants, and there is no interaction with participants.",
+  "RetrospectiveData": {
+    "jcr:primaryType": "cat:Category",
+    "label": "Retrospective Data Studies",
+    "description": "Studies analyzing previously collected data only, such as chart reviews, registry analyses, or secondary use of existing research datasets. No biological specimens are used, no new data is collected, and there is no participant contact."
+  },
+  "RetrospectiveBiospecimen": {
+    "jcr:primaryType": "cat:Category",
+    "label": "Retrospective Biospecimen Studies",
+    "description": "Studies analyzing previously collected biological specimens, such as banked blood or tissue samples, possibly together with associated existing data. No new specimens are collected and there is no participant contact."
+  }
+}

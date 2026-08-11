@@ -21,46 +21,47 @@ import { expect, test } from '@playwright/test';
 import { adminAuth } from '../../support/auth';
 
 /**
- * The submission categories a deployment starts with, and the three endpoints that read them.
+ * The submission categories a bare deployment starts with — none — and the three endpoints that read
+ * them, all of which have to answer on an empty tree. The sample taxonomy, and everything that can only
+ * be asserted against actual categories, lives in the test-data suite.
  */
 test.describe('submission categories', () => {
-  test('installs the seed taxonomy under /Categories', async ({ request }) => {
+  test('starts with an empty tree', async ({ request }) => {
     const response = await request.get('/Categories.deep.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
-    // Spelled out rather than typed loosely: what the test reads is exactly what it declares, and a
-    // subcategory is serialized as a child object named after its node.
-    const tree = (await response.json()) as {
-      'jcr:primaryType'?: string;
-      Retrospective?: { label?: string };
-      Prospective?: { label?: string; Observational?: { SurveysEducation?: { label?: string } } };
-    };
+    const tree = (await response.json()) as Record<string, unknown>;
     expect(tree['jcr:primaryType']).toBe('cat:CategoriesHomepage');
-    expect(tree.Retrospective?.label).toBe('Retrospective studies');
-    expect(tree.Prospective?.label).toBe('Prospective studies');
-    // The seed is a hierarchy, not a flat list: this one sits three levels down, so it also pins that
-    // `deep` really does descend the whole subtree rather than stopping at the first generation.
-    expect(tree.Prospective?.Observational?.SurveysEducation?.label).toBe('Surveys Education');
+    // A taxonomy is a deployment's own content: the module contributes the node types and the
+    // administration UI, and nothing else. Anything the platform did ship here would be a category
+    // every deployment has to notice and delete.
+    const categories = Object.values(tree)
+      .filter((value): value is Record<string, unknown> => typeof value === 'object' && value !== null)
+      .filter(child => child['jcr:primaryType'] === 'cat:Category');
+    expect(categories).toHaveLength(0);
   });
 
   test('paginates without tripping over its irregular plural', async ({ request }) => {
     // Regression test. The pagination endpoint every entity homepage carries derives the child node type
     // from the homepage's resource type by stripping "sHomepage", which turns cat/CategoriesHomepage
-    // into `cat:Categorie`, so the query is rejected. The CND pins `childNodeType` explicitly to prevent it.
+    // into `cat:Categorie`, so the query is rejected. The CND pins `childNodeType` explicitly to prevent
+    // it. Oak rejects the unknown node type while parsing the query, before matching anything, so an
+    // empty tree exercises this just as well as a populated one — the failure was a 500, not a bad
+    // result set.
     const response = await request.get('/Categories.paginate.json', { headers: adminAuth });
     expect(response.status()).toBe(200);
 
-    const page = (await response.json()) as { totalrows: number; rows: { label?: string }[] };
-    expect(page.totalrows).toBeGreaterThan(0);
-    const labels = page.rows.map(row => row.label);
-    expect(labels).toContain('Retrospective studies');
-    expect(labels).toContain('Prospective studies');
+    const page = (await response.json()) as { totalrows: number; rows: unknown[] };
+    expect(page.totalrows).toBe(0);
+    expect(page.rows).toHaveLength(0);
   });
 
   test('publishes a catalogue of itself', async ({ request }) => {
     const response = await request.get('/Categories.doc.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
+    // The heading and introduction come from the iap:Documented mixin on /Categories, so the catalogue
+    // describes itself even while there is nothing in it to list.
     const catalogue = (await response.json()) as unknown;
     expect(JSON.stringify(catalogue)).toContain('Submission categories');
   });

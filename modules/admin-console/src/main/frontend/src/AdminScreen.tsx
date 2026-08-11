@@ -34,12 +34,12 @@ interface AdminScreenProps {
 
 // The shared chrome wrapping every page of the administration console: the page heading and an
 // optional main action, above the tool's content. Deliberately borderless and breadcrumb-free:
-// the page sits directly on the background, and wayfinding is left to the shell (e.g. a future
-// breadcrumb extension on the pageTop extension point).
+// the page sits directly on the background, and wayfinding is left to the shell (the breadcrumb
+// extension on the pageTop extension point).
 function AdminScreen({ title, action, children }: AdminScreenProps) {
   // On a nested page (deeper than one level) the shell's breadcrumb trail renders right above
   // the content; the working panel pulls itself up over the main region's top gutter (published
-  // by the shell as --iap-content-gutter) plus its own 2px border, so the crimson border lands
+  // by the shell as --iap-content-gutter) plus its own 2px border, so the red border lands
   // exactly on the trail's divider line, visually attaching the trail to the zone. Top-level
   // pages (like the console's landing page) have no trail and keep a normal top margin instead.
   const { pathname } = useLocation();
@@ -50,8 +50,8 @@ function AdminScreen({ title, action, children }: AdminScreenProps) {
     ? { marginTop: "calc(-1 * var(--iap-content-gutter) - 2px)" }
     : { mt: 2 };
 
-  // The administrative working panel carries the whole "more responsibility here" signal: a
-  // crimson border hugging a muted primary tint, on an otherwise plain page. Keeping both on the
+  // The admin widget container carries the whole "more responsibility here" signal: a
+  // red border hugging a muted primary tint, on an otherwise plain page. Keeping both on the
   // panel (rather than on the page shell) means the frame visibly belongs to the content it
   // encloses and naturally scrolls with it, and the tint gives the tool's surfaces (category
   // cards, widgets) something to stand out against.

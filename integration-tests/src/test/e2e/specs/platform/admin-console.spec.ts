@@ -57,18 +57,20 @@ test.describe('the administration console', () => {
     await signIn(page);
     await page.goto('/admin');
 
-    // Top-level categories start collapsed, so only these two labels are on screen.
-    await expect(page.getByText('Retrospective studies')).toBeVisible();
-    await expect(page.getByText('Prospective studies')).toBeVisible();
+    // A bare deployment ships no categories, so what the widget has to show is its empty state rather
+    // than a tree. Asserting it here is what proves the summary really did load and found nothing,
+    // instead of silently rendering an empty list — and that the platform ships no taxonomy of its own.
+    // The populated summary is exercised by the test-data suite.
+    await expect(page.getByText('No categories are defined yet.')).toBeVisible();
   });
 
-  test('opens the category manager on the seed tree', async ({ page }) => {
+  test('opens the category manager, ready to create the first category', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin');
     await page.getByRole('link', { name: 'Manage categories' }).click();
 
     await expect(page).toHaveURL(/\/admin\/categories$/);
     await expect(page.getByRole('button', { name: 'New category' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Edit Retrospective studies' })).toBeVisible();
+    await expect(page.getByText(/No categories are defined yet/)).toBeVisible();
   });
 });

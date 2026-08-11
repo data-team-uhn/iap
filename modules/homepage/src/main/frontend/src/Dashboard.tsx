@@ -18,10 +18,10 @@
 
 import WidgetDashboard from "@iap/frontend-commons/components/WidgetDashboard";
 
-// The dashboard view, registered on the `iap/coreUI/view` extension point: widgets contributed by
-// other modules through the `iap/dashboard/widget` extension point. The layout itself (the
-// responsive grid, the titled widget frames, and the per-widget tuning properties) is the shared
-// WidgetDashboard from frontend-commons; this view only binds it to the dashboard's point.
+// The landing page, at `/`: a grid of widgets, each contributed by whichever module owns the
+// information it shows, so what greets a user is a matter of what a deployment installs and
+// enables rather than of code. The grid itself — the responsive columns, the titled widget frames
+// and their tuning properties — is the shared WidgetDashboard from frontend-commons.
 function Dashboard() {
   return <WidgetDashboard point="DashboardWidget" />;
 }

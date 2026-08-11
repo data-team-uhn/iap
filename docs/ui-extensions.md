@@ -78,6 +78,9 @@ serves the shell); a *virtual* page (like `/admin`) needs a shell-hosting node c
 owning module's repoinit: `create path (iap:Homepage) /admin`. The node also carries the page's
 access control — denying it to `everyone` turns a non-admin deep link into an honest 404.
 
+Requiring a node per virtual page is an interim mechanism: the upcoming virtual resource resolver
+serves a view's URL without one, and this whole note goes away with it.
+
 ### The application bar
 
 The app bar is itself a `frameTop` extension, composed of entries on its own point:
@@ -87,8 +90,8 @@ The app bar is itself a `frameTop` extension, composed of entries on its own poi
 | `iap/appBar/entry` | `AppBarEntry` | Controls in the app bar row. `iap:appBarSection` places an entry in the `start`, `middle` (centered), or `end` section; `iap:defaultOrder` orders within the section. |
 
 Current entries: Branding (start), and the dark mode toggle, notifications bell, persona switcher,
-administration console button (admins only, see [the admin console](#the-admin-console)), and user
-menu (end). The middle section is reserved for e.g. a future search bar. A high-visibility element
+administration console button (admins only, see [Administration](administration.md)), and user menu
+(end). The middle section is reserved for e.g. a future search bar. A high-visibility element
 like a maintenance banner should register directly on `frameTop` with `iap:defaultOrder` below
 the app bar's (20) to appear above it; the `iap-commons.NoticeBanner` asset renders such a
 data-only banner extension (markdown message in `iap:data`, optional `iap:severity`).
@@ -150,43 +153,9 @@ doesn't appear in their trail either.
 The layout itself — the responsive grid, the titled widget frames, and the tuning properties
 above — is the shared `WidgetDashboard` component (`@iap/frontend-commons/components/WidgetDashboard`),
 parameterized by extension point. The homepage dashboard binds it to `iap/dashboard/widget`; the
-[admin console](#the-admin-console) binds the same layout to its own point, so widgets behave
-identically on both.
-
-### The admin console
-
-The administration console (the `admin-console` module) is a landing page at `/admin` presenting
-the available administrative tools, reached through a worded "Administration" button in the app
-bar (words rather than an icon — a gear or similar glyph reads as personal settings). Each tool is a
-**widget** on the landing page — the same layout and frame as the homepage dashboard — showing a
-live summary of its area (e.g. the category tool lists the current top-level categories) and
-leading into the tool's own page:
-
-| Point id | Node name | Purpose |
-| --- | --- | --- |
-| `iap/adminDashboard/entry` | `AdminDashboard` | Administrative tool widgets. `iap:extensionName` and `iap:subtitle` title the widget frame, `iap:extensionRenderURL` names the summary component, and `iap:targetURL` is the tool's page — typically exposed as a header action next to the title via `iap:actionLabel`; prefer a label naming the destination (`"Manage categories"`) over a generic "Configure", since the label is what tells users a whole tool sits behind the widget's summary. All the [dashboard frame properties](#the-dashboard) apply. |
-
-A tool registers **two** extension nodes — the `iap/adminDashboard/entry` widget, and an
-`iap/coreUI/view` extension routing its page (conventionally under `/admin/<tool>`) — plus a
-shell-hosting node backing its URL for refreshes and deep links (see the note under
-[the routed views](#the-routed-views)): `create path (iap:Homepage) /admin/<tool>` in the tool's
-repoinit. Wrap the page's content in
-the shared `AdminScreen` chrome (`@iap/admin-console/AdminScreen`), which provides the page
-heading and an optional main action slot, and marks the administrative area as a danger zone:
-a panel bordered and tinted with the theme's `admin` palette, hugging the tool content. The
-chrome adds no wayfinding of its own — that is left to the shell (the
-[breadcrumb trail](#the-breadcrumb-trail) on `pageTop`). The first tool is the category manager (`/admin/categories`, from the `categories`
-module).
-
-**Access control convention:** admin-only extension nodes — the tiles, their `Views` routing
-nodes, and the console's own app-bar entry — all live under `/Extensions/Admin/<PointName>/`,
-a folder denied to `everyone` by repoinit (in the `admin-console` module). Extensions are
-queried by point id with the requesting user's session regardless of where they live, so for
-non-administrators the Administration button, the `/admin` route, and every tool simply don't
-exist. The
-`/admin` shell node itself is denied too, so deep-linking it as a non-admin yields a plain 404.
-Restricting the extension nodes is the UI half; the tool's *data* must be protected by its own
-ACLs, like any repository content.
+administration console binds the same layout to its own point, `iap/adminDashboard/entry`, so
+widgets behave identically on both — see [Administration](administration.md) for that point and
+for what a tool has to register.
 
 ## Personas
 

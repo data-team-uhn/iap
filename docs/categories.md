@@ -7,8 +7,8 @@ carries the schema version that governs what they will be asked for, and through
 their submission follows.
 
 The tree lives under **`/Categories`** and is maintained by administrators, not by code: the
-`categories` module (`modules/categories`) contributes the node types, a starter taxonomy, and the
-administration UI for reshaping it.
+`categories` module (`modules/categories`) contributes the node types and the administration UI for
+reshaping it, and nothing else — the taxonomy itself is a deployment's own.
 
 ## The data model
 
@@ -28,21 +28,23 @@ A category with no subcategories is a **leaf**, and leaves are what submissions 
 under — an inner node is a grouping, not a choice. Only leaves are therefore expected to carry a
 `schemaVersion`; node types cannot express "this property only applies when there are no children
 of this type", so that rule is upheld by the administration UI rather than by the repository. A
-leaf without one falls back to the default behavior for submissions. Note that a category may hold
-children that are *not* categories without ceasing to be a leaf.
+leaf without one falls back to the default behavior for submissions. Note that a leaf category may
+hold other types of nodes.
 
 `cat:Category` extends `iap:Entity`: categories are top-level data, comparable to schemas and
 workflows, rather than platform vocabulary like tag or link definitions. So each one is
 referenceable (which is how a submission will point at it), versionable, tracks its last
 modification, can be [tagged](tags.md) and [linked](links.md), and accepts any further properties
 and children a deployment adds. `cat:CategoriesHomepage` extends `iap:EntityHomepage` and names
-`cat:Category` as its `childNodeType`, since the entity type listed by a homepage is otherwise
-derived from the homepage's own name — a convention that an irregular plural like this one breaks.
+`cat:Category` as its `childNodeType`.
 
-The module ships a starter taxonomy of study types as initial content, loaded into the
-`/Categories` node that its repoinit creates. It is ordinary content: a deployment is expected to
-edit, extend, or replace it, and nothing in the platform depends on those particular categories.
-The whole tree is world-readable, because submitters have to browse it to choose.
+The module creates `/Categories` empty and ships no categories of its own: a taxonomy is a
+deployment's own content, and nothing in the platform depends on any particular category. A sample
+taxonomy of study types is loaded by the `test-data` module, for development and testing. The whole
+tree is readable by every signed-in user, because submitters have to browse it to choose — the
+module's repoinit grants `everyone` `jcr:read` on it. Not anonymously, though: `sling.auth.requirements`
+requires authentication everywhere outside `/libs`, `/apps` and the login page, whatever a node's own
+ACLs say.
 
 ## Reading the tree
 
@@ -78,18 +80,17 @@ own. Each entry carries its label, description, `path` and `id`, the last two be
 names the category it picked: node names are only unique among siblings.
 
 The primary consumer is AI-assisted categorization, which builds its prompt from the served
-descriptions — which is why the catalogue's own heading and introduction are kept terse, and why
-they live in the `title` and `description` properties of the [`iap:Documented`](autodoc.md) mixin
-on `/Categories` rather than in code: a deployment can reword them, or say something specific to
-its own taxonomy, without touching the module.
+descriptions. The catalogue's own heading and introduction come from the `title` and `description`
+properties of the [`iap:Documented`](autodoc.md) mixin on `/Categories`, so a deployment can reword
+them without touching code.
 
 ## Managing the tree
 
 Administrators reshape the tree from the **category manager**, a view at `/admin/categories`
-registered on the administration console (see [UI extensions](ui-extensions.md#the-admin-console)),
-together with a console widget summarizing the current tree. The manager creates categories under
-any parent, renames and re-describes them, binds or unbinds a schema version, moves a subtree to a
-different parent, reorders siblings, retires and unretires, and deletes.
+registered on the [administration console](administration.md), together with a console widget
+summarizing the current tree. The manager creates categories under any parent, renames and
+re-describes them, binds or unbinds a schema version, moves a subtree to a different parent,
+reorders siblings, retires and unretires, and deletes.
 
 Retiring is the counterpart to deleting: a category that submissions already reference must not
 disappear, but it can be closed to new ones. The UI offers retirement when a deletion is refused

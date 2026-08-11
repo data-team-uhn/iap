@@ -45,7 +45,6 @@
             <Sling-Initial-Content>
               SLING-INF/content/libs/cat/;path:=/libs/cat/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/Categories;path:=/,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
