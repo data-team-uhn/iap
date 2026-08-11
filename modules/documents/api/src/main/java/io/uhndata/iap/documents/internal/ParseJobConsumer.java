@@ -32,6 +32,7 @@ import java.util.function.Consumer;
 
 import jakarta.json.Json;
 import jakarta.json.JsonException;
+import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 
 import org.apache.sling.api.resource.LoginException;
@@ -62,6 +63,15 @@ import org.slf4j.LoggerFactory;
  * ({@link JobResult#CANCEL}): re-submitting through the endpoint is the retry. A dispatch the daemon accepted but
  * never calls back about (a daemon crash mid-parse) currently leaves the job {@code active}; sweeping such stragglers
  * is left for the real integration.
+ * </p>
+ *
+ * <p>
+ * Dispatch is refused when no callback token is configured ({@link ParseJob#TOKEN_PROPERTY} or
+ * {@link ParseJob#TOKEN_VARIABLE}): without it {@link ParseCallbackServlet} cannot accept the daemon's delivery, so
+ * starting the parse would only leave the job hung as {@code active}. The daemon answer must itself be an async
+ * accept ({@code {"job_id", "status": "queued"}}); a synchronous success body (as from an older daemon that ignores
+ * {@code job_id}/{@code callback}) is recorded as a failure instead of leaving the job waiting for a callback that
+ * will never come.
  * </p>
  *
  * <p>
@@ -105,6 +115,9 @@ public class ParseJobConsumer implements JobConsumer
 
     private Duration responseTimeout;
 
+    /** Whether a callback token is configured so the daemon's delivery can be accepted. */
+    private boolean callbackConfigured;
+
     /**
      * Read the configuration, applying the defaults.
      *
@@ -126,6 +139,13 @@ public class ParseJobConsumer implements JobConsumer
             }
         }
         this.responseTimeout = Duration.ofSeconds(seconds > 0 ? seconds : DEFAULT_RESPONSE_TIMEOUT);
+        final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
+        this.callbackConfigured = !token.isEmpty();
+        if (!this.callbackConfigured) {
+            LOGGER.warn("No callback token is configured ({} or the {} environment variable);"
+                + " parse jobs will be refused until one is set",
+                ParseJob.TOKEN_PROPERTY, ParseJob.TOKEN_VARIABLE);
+        }
     }
 
     @Override
@@ -159,6 +179,10 @@ public class ParseJobConsumer implements JobConsumer
             fail(jobId, "The job records no document path");
             return JobResult.CANCEL;
         }
+        if (!this.callbackConfigured) {
+            fail(jobId, "Callback authentication is not configured");
+            return JobResult.CANCEL;
+        }
         return dispatch(jobId, path, chunk);
     }
 
@@ -174,11 +198,16 @@ public class ParseJobConsumer implements JobConsumer
     {
         try {
             final HttpResponse<String> response = send(buildRequest(jobId, path, chunk));
-            if (response.statusCode() == 200 || response.statusCode() == 202) {
+            final int status = response.statusCode();
+            if ((status == 200 || status == 202) && isAsyncAccept(jobId, response.body())) {
                 LOGGER.debug("Parse job {} accepted by the daemon", jobId);
                 return JobResult.OK;
             }
-            fail(jobId, "The daemon answered HTTP " + response.statusCode() + ": " + errorMessage(response.body()));
+            if (status == 200 || status == 202) {
+                fail(jobId, "The daemon did not accept the asynchronous parse: " + errorMessage(response.body()));
+            } else {
+                fail(jobId, "The daemon answered HTTP " + status + ": " + errorMessage(response.body()));
+            }
         } catch (final IOException | IllegalArgumentException e) {
             fail(jobId, "Calling the daemon failed: " + e.getMessage());
         } catch (final InterruptedException e) {
@@ -219,6 +248,40 @@ public class ParseJobConsumer implements JobConsumer
     protected HttpResponse<String> send(final HttpRequest request) throws IOException, InterruptedException
     {
         return this.client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    /**
+     * Read an environment variable. Overridable so that tests can supply one without controlling the real
+     * environment.
+     *
+     * @param name the variable to read
+     * @return the value, or {@code null} when not set
+     */
+    protected String environment(final String name)
+    {
+        return System.getenv(name);
+    }
+
+    /**
+     * Whether a daemon answer is the asynchronous accept this consumer expects, rather than a synchronous parse
+     * result or some other 2xx body.
+     *
+     * @param jobId the job that was dispatched
+     * @param body the response body
+     * @return {@code true} only for {@code {"job_id": <same>, "status": "queued"}}
+     */
+    private static boolean isAsyncAccept(final String jobId, final String body)
+    {
+        if (body == null || body.isBlank()) {
+            return false;
+        }
+        try (JsonReader reader = Json.createReader(new StringReader(body))) {
+            final JsonObject json = reader.readObject();
+            return ParseJob.STATUS_QUEUED.equals(json.getString(ParseJob.PN_STATUS, null))
+                && jobId.equals(json.getString(ParseJob.JSON_JOB_ID, null));
+        } catch (final JsonException | ClassCastException e) {
+            return false;
+        }
     }
 
     /**
