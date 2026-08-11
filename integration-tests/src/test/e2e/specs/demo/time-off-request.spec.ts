@@ -198,7 +198,7 @@ test.describe('the time off request demo', () => {
     });
 
     expect(response.status()).toBe(302);
-    const location = response.headers()['location'];
+    const location = response.headers().location;
     expect(location).toBe('/Submissions/aVerySunnyFriday');
 
     const created = await request.get(`${location}.json`, { headers: asAdmin });
@@ -251,7 +251,7 @@ test.describe('the time off request demo', () => {
       });
 
       expect(response.status()).toBe(302);
-      expect(response.headers()['location']).toBe('/Submissions/aLongWeekend');
+      expect(response.headers().location).toBe('/Submissions/aLongWeekend');
 
       // The engine wrote it, so jcr:createdBy names the service user; the human is remembered separately
       const created = await request.get('/Submissions/aLongWeekend.json', {
@@ -311,16 +311,24 @@ test.describe('the time off request demo', () => {
         headers: asApprover,
       });
       expect(response.ok()).toBeTruthy();
-      const submission = (await response.json()) as Record<string, any>;
+      const submission = (await response.json()) as {
+        'wf:instances'?: {
+          timeOffRequest?: {
+            status?: string;
+            token?: { currentNodeId?: string };
+            approveRequest?: { status?: string; label?: string; taskDefinitionId?: string };
+          };
+        };
+      };
 
       const instance = submission['wf:instances']?.timeOffRequest;
       expect(instance).toBeTruthy();
-      expect(instance.status).toBe('active');
+      expect(instance?.status).toBe('active');
       // Parked on the user task, with a token recording exactly where
-      expect(instance.token.currentNodeId).toBe('approveRequest');
-      expect(instance.approveRequest.status).toBe('created');
-      expect(instance.approveRequest.label).toBe('Approve the request');
-      expect(instance.approveRequest.taskDefinitionId).toBe('approveRequest');
+      expect(instance?.token?.currentNodeId).toBe('approveRequest');
+      expect(instance?.approveRequest?.status).toBe('created');
+      expect(instance?.approveRequest?.label).toBe('Approve the request');
+      expect(instance?.approveRequest?.taskDefinitionId).toBe('approveRequest');
     });
 
     test('has already looked up the requester\'s remaining days by the time anyone decides', async ({ request }) => {
@@ -368,18 +376,30 @@ test.describe('the time off request demo', () => {
       const response = await request.get('/Submissions/aLongWeekend.deep.-dereference.infinity.json', {
         headers: asApprover,
       });
-      const submission = (await response.json()) as Record<string, any>;
+      const submission = (await response.json()) as {
+        status?: string;
+        'wf:instances'?: {
+          timeOffRequest?: {
+            status?: string;
+            endTime?: string;
+            token?: unknown;
+            approveRequest?: { status?: string; outcome?: string; assignee?: string };
+          };
+        };
+      };
 
       // The end event the gateway routed to said what finishing that way means to the submission
       expect(submission.status).toBe('approved');
-      const instance = submission['wf:instances'].timeOffRequest;
-      expect(instance.status).toBe('completed');
-      expect(instance.endTime).toBeTruthy();
+      const instance = submission['wf:instances']?.timeOffRequest;
+      // Asserted before the token check below, which a missing instance would otherwise satisfy vacuously
+      expect(instance).toBeTruthy();
+      expect(instance?.status).toBe('completed');
+      expect(instance?.endTime).toBeTruthy();
       // The task records who decided and what they decided; the token is spent and gone
-      expect(instance.approveRequest.status).toBe('completed');
-      expect(instance.approveRequest.outcome).toBe('approved');
-      expect(instance.approveRequest.assignee).toBe('demo-approver');
-      expect(instance.token).toBeUndefined();
+      expect(instance?.approveRequest?.status).toBe('completed');
+      expect(instance?.approveRequest?.outcome).toBe('approved');
+      expect(instance?.approveRequest?.assignee).toBe('demo-approver');
+      expect(instance?.token).toBeUndefined();
     });
 
     test('has nothing left to decide once the task is done', async ({ request }) => {
