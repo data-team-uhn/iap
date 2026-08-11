@@ -528,8 +528,10 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // registered with the type because what may be *done* with an entity depends on why it is being
   // listed: the same submission offers deleting it in the submitter's own list and not in a
   // reviewer's queue.
-  const columns = useMemo(
-    () => extraColumns.length === 0 ? config?.columns ?? [] : [ ...config?.columns ?? [], ...extraColumns ],
+  // Tolerates a type that was never registered, because a hook cannot be called after the early
+  // return that reports one; the columns are simply empty, and that return is what the user sees
+  const columns: EntityGridColumn[] = useMemo(
+    () => [ ...(config?.columns ?? []), ...extraColumns ],
     [ config?.columns, extraColumns ]);
   const navigate = useNavigate();
   const theme = useTheme();
@@ -559,6 +561,14 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // depend on their content instead of their identity
   const filterKey = JSON.stringify([filters, childFilter, columnFilters]);
 
+  // Which property the server is asked to sort by: a column may name one other than its own field.
+  // Derived out here for the same reason as filterKey — the fetch effect then depends on the answer
+  // rather than on the identity of the column list it was worked out from.
+  const sortProperty = useMemo(() => {
+    const sorted = sortModel[0] && columns.find(column => column.field === sortModel[0].field);
+    return sorted ? sorted.sortProperty ?? sorted.field : undefined;
+  }, [ columns, sortModel ]);
+
   useEffect(() => {
     if (!config) {
       return;
@@ -568,12 +578,11 @@ function EntityDataGrid(props: EntityDataGridProps) {
     // from a request key instead proved racy against the grid's own debounced model updates
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    const sortColumn = sortModel[0] && columns.find(column => column.field === sortModel[0].field);
     fetchEntityPage(fetchUtil, {
       homepage: config.homepage,
       offset: paginationModel.page * paginationModel.pageSize,
       limit: paginationModel.pageSize,
-      sortBy: sortColumn ? sortColumn.sortProperty ?? sortColumn.field : undefined,
+      sortBy: sortProperty,
       descending: sortModel[0]?.sort === "desc",
       filters: [...filters ?? [], ...columnFilters],
       childFilter,
@@ -600,7 +609,8 @@ function EntityDataGrid(props: EntityDataGridProps) {
     return () => {
       cancelled = true;
     };
-  }, [config, fetchUtil, paginationModel, sortModel, filterKey, fullText, retryCount, refreshToken]);
+  }, [config, fetchUtil, paginationModel, sortModel, sortProperty, filterKey, fullText, retryCount,
+    refreshToken]);
 
   const changeColumnVisibility = (model: GridColumnVisibilityModel) => {
     setColumnVisibilityModel(model);
