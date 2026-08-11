@@ -271,17 +271,18 @@ final class InstanceRunner
      * @param instance the running instance
      * @param token the token that arrived
      * @param end the end event reached
+     * @throws WorkflowException when the end event names a tag the host cannot carry
      * @throws PersistenceException when the instance cannot be written
      */
     private void finish(final Resource instance, final Resource token, final EndEvent end)
-        throws PersistenceException
+        throws WorkflowException, PersistenceException
     {
         this.resolver.delete(token);
         final ModifiableValueMap properties = modifiable(instance);
         properties.put(STATUS, COMPLETED);
         properties.put(END_TIME, Calendar.getInstance());
         if (end.getHostTag() != null) {
-            modifiable(host(instance)).put(STATUS, end.getHostTag());
+            HostLifecycle.record(host(instance), end);
         }
     }
 

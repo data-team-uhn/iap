@@ -21,8 +21,10 @@ import type { PropertyFilter } from "@iap/frontend-commons/entityGrid/pagination
 
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
-// Only the submissions created by the current user; `@me` is resolved server-side.
-const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "jcr:createdBy", value: "@me" }];
+// Only the submissions created by the current user; `@me` is resolved server-side. Deliberately
+// `createdBy` and not `jcr:createdBy`: submissions are written by the workflow engine's own service
+// user, so the JCR property names the engine, and the person it acted for is recorded separately.
+const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "createdBy", value: "@me" }];
 
 // The dashboard widget listing the current user's own submissions, newest activity first,
 // registered on the `iap/dashboard/widget` extension point. The surrounding titled frame is
