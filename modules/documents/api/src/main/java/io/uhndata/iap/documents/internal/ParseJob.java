@@ -40,8 +40,14 @@ final class ParseJob
     /** The environment variable carrying the shared callback JWT, same name on both sides. */
     static final String TOKEN_VARIABLE = "IAP_DOCLING_CALLBACK_JWT";
 
+    /** The OSGi property overriding {@link #TOKEN_VARIABLE} on the Java side. */
+    static final String TOKEN_PROPERTY = "callbackToken";
+
     /** The name of the subservice performing all repository access to the job nodes. */
     static final String SUBSERVICE = "parse-jobs";
+
+    /** The JSON key the daemon uses for the job identifier in accept and callback bodies. */
+    static final String JSON_JOB_ID = "job_id";
 
     /** The name of the property holding the job identifier, a random UUID. */
     static final String PN_JOB_ID = "jobId";
