@@ -96,7 +96,10 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
           dashboard's own header would have put it */}
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-          <Typography variant="h6">{text(extension, "iap:extensionName")}</Typography>
+          {/* Only when there is one: an empty heading is markup a screen reader still announces */}
+          { text(extension, "iap:extensionName") && (
+            <Typography variant="h6">{text(extension, "iap:extensionName")}</Typography>
+          ) }
           { text(extension, "iap:subtitle") && (
             <Typography variant="body2" color="text.secondary">{text(extension, "iap:subtitle")}</Typography>
           ) }
