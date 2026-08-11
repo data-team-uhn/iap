@@ -19,9 +19,15 @@ package io.uhndata.iap.workflows.internal;
 
 import java.security.Principal;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -35,6 +41,7 @@ import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -45,6 +52,8 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.tags.internal.TagOperations;
+import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -84,8 +93,71 @@ final class EngineFixture
     /** Every principal granted read since the last fixture was built, for the access tests to assert on. */
     static final List<String> GRANTED = new ArrayList<>();
 
+    /** The category the lifecycle states share, and therefore retire each other through. */
+    static final String LIFECYCLE = "lifecycle";
+
+    /** The lifecycle states these tests move a host through. */
+    static final List<String> STATES = List.of("draft", "submitted", "in-review", "approved", "rejected");
+
     private EngineFixture()
     {
+    }
+
+    /**
+     * A stand-in for the tag vocabulary, knowing only the lifecycle states these tests use.
+     *
+     * <p>The mock repository holds no {@code iap:TagDefinition} nodes, so the service the {@code Taggable} model
+     * reads the vocabulary through is what has to be supplied. It keeps the tags in the node's own {@code tags}
+     * property, which is where the real one puts them, so the assertions read the same place production writes.</p>
+     *
+     * @return a tag service covering the {@link #LIFECYCLE} category
+     */
+    static TagOperations lifecycleTags()
+    {
+        final List<TagDefinition> definitions = STATES.stream()
+            .map(EngineFixture::state)
+            .collect(Collectors.toList());
+        final TagOperations operations = Mockito.mock(TagOperations.class);
+        Mockito.when(operations.getApplicableDefinitions(Mockito.any())).thenReturn(definitions);
+        Mockito.when(operations.getTags(Mockito.any())).thenAnswer(call -> tagsOf(call.getArgument(0)));
+        try {
+            Mockito.doAnswer(call -> {
+                final Resource resource = call.getArgument(0);
+                final Collection<String> names = call.getArgument(1);
+                Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class))
+                    .put("tags", names.toArray(String[]::new));
+                return null;
+            }).when(operations).setTags(Mockito.any(), Mockito.any(), Mockito.anyBoolean());
+        } catch (final PersistenceException e) {
+            throw new IllegalStateException("Stubbing does not touch the repository", e);
+        }
+        return operations;
+    }
+
+    /**
+     * The tags a node carries, read the way the tag service stores them.
+     *
+     * @param resource the node to read
+     * @return its tag names, empty if it carries none
+     */
+    static Set<String> tagsOf(final Resource resource)
+    {
+        return new LinkedHashSet<>(Arrays.asList(resource.getValueMap().get("tags", new String[0])));
+    }
+
+    /**
+     * One lifecycle state's definition. Built into a local before the vocabulary is stubbed with it, since Mockito
+     * rejects a mock built inside an unfinished {@code when}.
+     *
+     * @param name the state's tag name
+     * @return its definition
+     */
+    private static TagDefinition state(final String name)
+    {
+        final TagDefinition definition = Mockito.mock(TagDefinition.class);
+        Mockito.when(definition.getName()).thenReturn(name);
+        Mockito.when(definition.getCategories()).thenReturn(List.of(LIFECYCLE));
+        return definition;
     }
 
     /**
