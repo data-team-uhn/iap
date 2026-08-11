@@ -20,6 +20,8 @@ package io.uhndata.iap.workflows.internal;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import javax.jcr.Node;
 
@@ -35,6 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.tags.internal.TagOperations;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -102,8 +105,9 @@ class UserWorkflowTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
+        this.context.registerService(TagOperations.class, EngineFixture.lifecycleTags());
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
-        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "status", "draft"));
+        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"}));
         this.context.create().resource(HOST + "/wf:instances", TYPE, "wf/WorkflowInstances");
     }
 
@@ -269,6 +273,18 @@ class UserWorkflowTest
         return resource == null ? Map.of() : resource.getValueMap();
     }
 
+    /**
+     * The lifecycle the host is in, which an end event is what changes.
+     *
+     * @return the tags the host carries
+     */
+    private Set<String> hostTags()
+    {
+        this.context.resourceResolver().refresh();
+        return EngineFixture.tagsOf(
+            Objects.requireNonNull(this.context.resourceResolver().getResource(HOST), "The host always exists"));
+    }
+
     @Test
     void startsAnInstanceInsideTheResourceItDrives() throws Exception
     {
@@ -317,7 +333,7 @@ class UserWorkflowTest
         assertNotNull(instance.get("endTime"));
         // The token is spent, and the end event said what finishing that way means to the host
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
-        assertEquals("approved", read(HOST).get("status"));
+        assertEquals(Set.of("approved"), hostTags());
     }
 
     @Test
@@ -329,7 +345,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(
             TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "rejected")));
 
-        assertEquals("rejected", read(HOST).get("status"));
+        assertEquals(Set.of("rejected"), hostTags());
     }
 
     @Test
@@ -342,7 +358,7 @@ class UserWorkflowTest
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
         // Refused before anything moved
         assertEquals("created", read(TASK).get("status"));
-        assertEquals("draft", read(HOST).get("status"));
+        assertEquals(Set.of("draft"), hostTags());
     }
 
     @Test
@@ -377,7 +393,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER),
             new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of()));
 
-        assertEquals("rejected", read(HOST).get("status"));
+        assertEquals(Set.of("rejected"), hostTags());
         assertNull(read(TASK).get("outcome"));
     }
 
@@ -440,7 +456,7 @@ class UserWorkflowTest
 
         assertEquals("approved",
             read(HOST + "/wf:instances/timeOffRequest/outcome").get("stringValue"));
-        assertEquals("approved", read(HOST).get("status"));
+        assertEquals(Set.of("approved"), hostTags());
     }
 
     @Test
@@ -561,7 +577,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
         assertEquals(HOST, handler.target);
-        assertEquals("approved", read(HOST).get("status"));
+        assertEquals(Set.of("approved"), hostTags());
     }
 
     @Test

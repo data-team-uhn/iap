@@ -87,6 +87,12 @@
       <artifactId>iap-data-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- An end event records what finishing meant by tagging the host, so the engine speaks the tag vocabulary -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- The /WorkflowTypes vocabulary documents itself through this -->
     <dependency>
       <groupId>${project.groupId}</groupId>
