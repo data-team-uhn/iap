@@ -206,13 +206,14 @@ test.describe('the time off request demo', () => {
     const submission = (await created.json()) as {
       'jcr:primaryType'?: string;
       title?: string;
-      status?: string;
+      tags?: string[];
       schemaVersion?: { '@path'?: string };
     };
     expect(submission['jcr:primaryType']).toBe('sub:Submission');
     expect(submission.title).toBe('A very sunny Friday');
-    // Autocreated by the node type, which only a real repository does — the unit tests cannot see this
-    expect(submission.status).toBe('draft');
+    // The lifecycle is a tag rather than a property, so nothing autocreates it: the handler that raises the
+    // submission is what puts it in the starting state
+    expect(submission.tags).toEqual([ 'draft' ]);
     // The stored identifier became a real REFERENCE: the serializer can only embed what actually resolves
     expect(submission.schemaVersion?.['@path']).toBe('/Schemas/timeOffRequest/v1');
   });
@@ -377,7 +378,7 @@ test.describe('the time off request demo', () => {
         headers: asApprover,
       });
       const submission = (await response.json()) as {
-        status?: string;
+        tags?: string[];
         'wf:instances'?: {
           timeOffRequest?: {
             status?: string;
@@ -388,8 +389,9 @@ test.describe('the time off request demo', () => {
         };
       };
 
-      // The end event the gateway routed to said what finishing that way means to the submission
-      expect(submission.status).toBe('approved');
+      // The end event the gateway routed to said what finishing that way means to the submission. Only the one
+      // tag: placing a lifecycle state retires the state it replaces, so the draft it started in is gone
+      expect(submission.tags).toEqual([ 'approved' ]);
       const instance = submission['wf:instances']?.timeOffRequest;
       // Asserted before the token check below, which a missing instance would otherwise satisfy vacuously
       expect(instance).toBeTruthy();
@@ -437,7 +439,7 @@ test.describe('the time off request demo', () => {
       const response = await request.get('/Submissions/aDayIWillNotGet.json', {
         headers: asApprover,
       });
-      expect(((await response.json()) as { status?: string }).status).toBe('rejected');
+      expect(((await response.json()) as { tags?: string[] }).tags).toEqual([ 'rejected' ]);
     });
 
     test('keeps the system workflows out of sight', async ({ request }) => {

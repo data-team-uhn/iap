@@ -40,7 +40,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * The service task that raises a new submission: what the bootstrap workflow on {@code /Submissions} performs.
  * The event's {@code title} names the submission, and its {@code schemaVersion} — the <em>path</em> of a
  * {@code sch:SchemaVersion} — says what is being submitted against; the created submission holds a real
- * reference to it, and starts in the {@code draft} status the node type declares.
+ * reference to it, and starts out tagged {@code draft}.
  *
  * <p>This lives in the submissions module, not the workflows one, on purpose: what it takes to create a
  * submission — an <em>active</em> schema version — is submissions business, plugged into the engine through the
@@ -61,6 +61,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The payload entry pointing at the schema version being submitted against. */
     private static final String SCHEMA_VERSION = "schemaVersion";
 
+    /** The lifecycle a submission begins in, which nothing else would put it in. */
+    private static final String DRAFT = "draft";
+
     @Override
     public String getName()
     {
@@ -75,9 +78,12 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
             throw new InvalidPayloadException("A title is required");
         }
         final Resource version = resolveSchemaVersion(context);
+        // The lifecycle state is a tag rather than a property, so nothing autocreates the starting one and the
+        // handler that raises the submission is what puts it there. Written directly because this module ships the
+        // definition it names, so there is no vocabulary to check it against that could disagree.
         final Resource created = context.getResourceResolver().create(context.getTarget(),
             freeName(context.getTarget(), (String) title),
-            Map.of("jcr:primaryType", "sub:Submission", TITLE, title));
+            Map.of("jcr:primaryType", "sub:Submission", TITLE, title, "tags", new String[] {DRAFT}));
         reference(created, version);
         context.setVariable(WorkflowResult.CREATED_PATH, created.getPath());
     }
