@@ -19,6 +19,7 @@ package io.uhndata.iap.submissions.internal;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -31,7 +32,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
-import io.uhndata.iap.utils.NodeNameUtils;
+import io.uhndata.iap.utils.PrefixTree;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
@@ -65,6 +66,13 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The {@code REFERENCE} property holding the schema version. */
     private static final String SCHEMA_VERSION_PROPERTY = "schemaVersion";
 
+    /**
+     * The type of the prefix tree's buckets. A plain folder: they hold no data of their own, and being a type the
+     * homepage's own read grant names means a submitter can reach what they filed without the buckets having to be
+     * granted one by one.
+     */
+    private static final String BUCKET_TYPE = "sling:Folder";
+
     @Override
     public String getName()
     {
@@ -79,12 +87,41 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
             throw new InvalidPayloadException("A title is required");
         }
         final Resource schemaVersion = resolveSchemaVersion(context);
-        final Resource submission = context.getResourceResolver().create(context.getTarget(),
-            freeName(context.getTarget(), (String) title),
-            Map.of("jcr:primaryType", "sub:Submission", TITLE_PROPERTY, title));
+        // A UUID rather than anything derived from the title: it is what makes the prefix tree spread evenly, and
+        // it means a submission's identity never depends on what it was called, so renaming one stays a rename
+        final String name = UUID.randomUUID().toString();
+        final Resource submission = context.getResourceResolver().create(bucketFor(context, name),
+            name, Map.of("jcr:primaryType", "sub:Submission", TITLE_PROPERTY, title));
         setSchemaVersion(submission, schemaVersion);
         draft(submission);
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, submission.getPath());
+    }
+
+    /**
+     * Where a submission goes: a bucket in the {@link PrefixTree prefix tree} under {@code /Submissions}, rather
+     * than the homepage itself.
+     *
+     * <p>Nothing bounds how many submissions an institution files, and a parent with a million children is slow to
+     * write and slower to browse. Spreading them costs nothing to read, because they are found by query. The
+     * listing endpoint scopes on {@code isdescendantnode}, so where in the tree a submission sits never has to be
+     * known, and the name is a UUID so the spread is even.</p>
+     *
+     * @param context the executing task's context, whose target is the homepage
+     * @param name the name the submission will be created under
+     * @return the resource to create the submission in
+     * @throws PersistenceException when the buckets cannot be opened
+     */
+    private Resource bucketFor(final WorkflowTaskContext context, final String name) throws PersistenceException
+    {
+        final Node homepage = Objects.requireNonNull(context.getTarget().adaptTo(Node.class),
+            "The submissions homepage is always backed by a JCR node");
+        try {
+            final Node bucket = PrefixTree.bucketFor(homepage, name, BUCKET_TYPE);
+            return Objects.requireNonNull(context.getResourceResolver().getResource(bucket.getPath()),
+                "A bucket that was just opened is readable by the session that opened it");
+        } catch (final RepositoryException e) {
+            throw new PersistenceException("Could not open the bucket for the new submission", e);
+        }
     }
 
     /**
@@ -155,24 +192,5 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
                 "The schema version at " + path + " is not accepting new submissions");
         }
         return resource;
-    }
-
-    /**
-     * Derives a free node name from the title, translating naming problems into payload refusals.
-     *
-     * @param parent the submissions homepage the submission will be created under
-     * @param title the human-given title
-     * @return a free, camel-cased name
-     * @throws InvalidPayloadException when the title yields no usable name
-     */
-    private String freeName(final Resource parent, final String title) throws InvalidPayloadException
-    {
-        final String base = NodeNameUtils.camelCase(title);
-        if (base.isEmpty()) {
-            throw new InvalidPayloadException("The title must contain at least one letter or digit");
-        }
-        // Always answers. Past a hundred siblings the suffix turns random rather than giving up: refusing
-        // to record a submission that was raised is the worse outcome
-        return NodeNameUtils.findFreeName(parent, base);
     }
 }
