@@ -18,8 +18,9 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.stream.IntStream;
+import java.util.UUID;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -38,14 +39,15 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.utils.PrefixTree;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
-import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -63,6 +65,8 @@ class CreateSubmissionHandlerTest
     private static final String TYPE = "sling:resourceType";
 
     private static final String VERSION_PATH = "/Schemas/timeOffRequest/v1";
+
+    private static final String DRAFT = "draft";
 
     // JCR-backed rather than the plain mock: the handler sets a real REFERENCE through the JCR API
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
@@ -97,11 +101,12 @@ class CreateSubmissionHandlerTest
 
         this.handler.execute(taskContext);
 
-        assertEquals("/Submissions/myDayOff", taskContext.getVariable(WorkflowResult.CREATED_PATH));
-        final Resource created = this.context.resourceResolver().getResource("/Submissions/myDayOff");
+        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH);
+        final Resource created = this.context.resourceResolver().getResource(path);
         assertNotNull(created);
         assertEquals("sub:Submission", created.getValueMap().get("jcr:primaryType"));
         assertEquals("My day off", created.getValueMap().get("title"));
+        assertEquals(List.of(DRAFT), List.of(created.getValueMap().get("tags", new String[0])));
         // A real REFERENCE, holding the version node's own identifier
         final javax.jcr.Node versionNode =
             this.context.resourceResolver().getResource(VERSION_PATH).adaptTo(javax.jcr.Node.class);
@@ -110,26 +115,60 @@ class CreateSubmissionHandlerTest
     }
 
     @Test
-    void dodgesNameCollisions() throws WorkflowException, PersistenceException
+    void namesTheSubmissionByUuidAndFilesItInThePrefixTree() throws Exception
     {
-        this.context.create().resource("/Submissions/myDayOff", TYPE, "sub/Submission");
         final WorkflowTaskContext taskContext = context(Map.of(
             "title", "My day off", "schemaVersion", VERSION_PATH));
 
         this.handler.execute(taskContext);
 
-        assertEquals("/Submissions/myDayOff2", taskContext.getVariable(WorkflowResult.CREATED_PATH));
+        // The name is a UUID, and the path is the one the prefix tree computes for it — asserted through
+        // PrefixTree rather than by spelling the layout out here, since the layout is its business
+        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH);
+        final String name = path.substring(path.lastIndexOf('/') + 1);
+        assertEquals(UUID.fromString(name).toString(), name);
+        assertEquals(PrefixTree.pathFor("/Submissions", name), path);
+        // The buckets are folders, which is what lets the homepage's own read grant name their type
+        assertEquals("sling:Folder",
+            this.context.resourceResolver().getResource(path).getParent().getValueMap().get("jcr:primaryType"));
     }
 
     @Test
-    void givesUpWhenEveryNameVariantIsTaken()
+    void raisesTwoSubmissionsWithTheSameTitleWithoutComplaint() throws Exception
     {
-        IntStream.rangeClosed(1, 100).forEach(attempt -> this.context.create().resource(
-            "/Submissions/" + (attempt == 1 ? "busy" : "busy" + attempt), TYPE, "sub/Submission"));
+        // What replaced the old name-collision handling: a title is a label, not an identity, so two requests
+        // for the same thing are two requests rather than a naming problem to report to the submitter
+        final WorkflowTaskContext first = context(Map.of("title", "Busy", "schemaVersion", VERSION_PATH));
+        final WorkflowTaskContext second = context(Map.of("title", "Busy", "schemaVersion", VERSION_PATH));
 
-        final InvalidPayloadException rejection = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(Map.of("title", "Busy", "schemaVersion", VERSION_PATH))));
-        assertTrue(rejection.getMessage().contains("pick a different title"));
+        this.handler.execute(first);
+        this.handler.execute(second);
+
+        assertNotEquals(first.getVariable(WorkflowResult.CREATED_PATH),
+            second.getVariable(WorkflowResult.CREATED_PATH));
+    }
+
+    @Test
+    void translatesAFailedBucketIntoAPersistenceFailure()
+    {
+        // The homepage's own JCR node fails on any use, so the prefix tree's buckets cannot be opened. Like the
+        // reference failure below, that has to reach the engine as a persistence problem it knows how to translate
+        // rather than as a raw repository error escaping a handler.
+        final javax.jcr.Node explosive = Mockito.mock(javax.jcr.Node.class, invocation -> {
+            throw new javax.jcr.RepositoryException("boom");
+        });
+        this.target = new ResourceWrapper(this.target)
+        {
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return type == javax.jcr.Node.class ? type.cast(explosive) : super.adaptTo(type);
+            }
+        };
+
+        final PersistenceException failure = assertThrows(PersistenceException.class,
+            () -> this.handler.execute(context(Map.of("title", "My day off", "schemaVersion", VERSION_PATH))));
+        assertTrue(failure.getMessage().contains("Could not open the bucket"));
     }
 
     @Test
@@ -176,10 +215,15 @@ class CreateSubmissionHandlerTest
     }
 
     @Test
-    void requiresAUsableTitle()
+    void acceptsATitleThatCouldNotBeANodeName() throws Exception
     {
-        assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(Map.of("title", "???", "schemaVersion", VERSION_PATH))));
+        // Nothing is derived from the title any more, so it no longer has to yield a usable name. That is not
+        // just a relaxed rule: a title in a script with no Latin letters used to be refused outright.
+        final WorkflowTaskContext taskContext = context(Map.of("title", "???", "schemaVersion", VERSION_PATH));
+
+        this.handler.execute(taskContext);
+
+        assertNotNull(taskContext.getVariable(WorkflowResult.CREATED_PATH));
     }
 
     @Test
