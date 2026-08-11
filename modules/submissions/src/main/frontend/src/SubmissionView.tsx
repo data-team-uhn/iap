@@ -24,7 +24,11 @@ import { Link as RouterLink, useLocation } from "react-router";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import TagChip from "@iap/tags/TagChip";
 
+import SubmissionEditor from "./SubmissionEditor";
 import { schemaLabel } from "./submissionGrid";
+
+// The extension that asks for the editor rather than the read-only page
+const EDIT = ".edit";
 
 // A serialized JCR node: its properties, plus its children as nested objects.
 type JsonNode = Record<string, unknown>;
@@ -187,8 +191,13 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
 // documents and the reviews. Editing is deliberately out of scope for now.
 function SubmissionView() {
   const location = useLocation();
-  // The page URL is the submission's repository path (a trailing .html is tolerated)
-  const path = location.pathname.replace(/\.html$/, "");
+  // The page URL is the submission's repository path (a trailing .html is tolerated). A trailing
+  // `.edit` asks for the editor: which view of a submission is shown is addressed the way every
+  // other view here is, by extension rather than by a query parameter, and the server serves the
+  // same shell for it.
+  const address = location.pathname.replace(/\.html$/, "");
+  const editing = address.endsWith(EDIT);
+  const path = editing ? address.slice(0, -EDIT.length) : address;
   const [submission, setSubmission] = useState<JsonNode>();
   const [error, setError] = useState<string>();
   // Loading is derived, not toggled inside the fetch effect: the view is loading until the
@@ -197,6 +206,9 @@ function SubmissionView() {
   const loading = loadedPath !== path;
 
   useEffect(() => {
+    if (editing) {
+      return undefined;
+    }
     let cancelled = false;
     fetch(`${path}.deep.json`)
       .then(response => {
@@ -226,6 +238,9 @@ function SubmissionView() {
     };
   }, [path]);
 
+  if (editing) {
+    return <SubmissionEditor path={path} />;
+  }
   if (loading) {
     return <LoadingOverlay open />;
   }
