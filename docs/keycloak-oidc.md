@@ -15,7 +15,7 @@ Everything is configuration; there is no new Java or Maven module. The pieces:
 | --- | --- |
 | Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module) **and** the `/oidc-login` trigger node (repoinit) | [core/oidc.json](../packaging/slingfeature/src/main/features/core/oidc.json) |
 | `ExternalPrincipalConfiguration` added to the security provider's required services | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json) |
-| "Institutional account" sign-in button (targets `/oidc-login`, renders the existing `RedirectSignIn`) — **disabled by default**, see [Enabling the sign-in button](#enabling-the-institutional-sign-in-button) | [Keycloak.json](../modules/login/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
+| "Institutional account" sign-in button (targets `/oidc-login`, renders login's generic `RedirectSignIn`) — **disabled by default**, see [Enabling the sign-in button](#enabling-the-institutional-sign-in-button) | [Keycloak.json](../modules/keycloak/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
 
 ## Sign-in flow
 

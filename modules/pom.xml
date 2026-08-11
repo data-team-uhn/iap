@@ -41,6 +41,7 @@
     <module>homepage</module>
     <module>http-requests</module>
     <module>java-utils</module>
+    <module>keycloak</module>
     <module>login</module>
     <module>metrics</module>
     <module>schemas</module>

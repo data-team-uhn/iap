@@ -42,7 +42,7 @@ export function redirectSignInTarget(extension: Extension): string | null {
 
 // A sign-in method that hands authentication to an external identity provider: a single
 // action navigating to the endpoint that starts the authentication round trip. The identity
-// provider integration (e.g. a future keycloak module) only has to register an extension
+// provider integration (e.g. the keycloak module) only has to register an extension
 // node — this component is the whole frontend. The extension provides:
 // - `iap:targetURL`: the endpoint to navigate to (required; nothing renders without it);
 // - `iap:actionLabel` (optional): the button text, defaulting to "Continue to sign-in";
