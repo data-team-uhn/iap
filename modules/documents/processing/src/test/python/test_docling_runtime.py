@@ -34,6 +34,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from http import HTTPStatus
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlencode
 
@@ -43,6 +44,7 @@ pytest.importorskip("docling", reason="docling not installed; conversion plumbin
 
 import docling_daemon as daemon  # noqa: E402 -- must follow the importorskip guard
 import docling_pdf_parser as pdf_parser  # noqa: E402
+import parse_callbacks  # noqa: E402
 from docling_pdf_parser import _abandon_batches  # noqa: E402
 
 
@@ -750,3 +752,59 @@ class TestParseFailureStatuses:
         broken = self._run(monkeypatch, tmp_path, self._broken_pool)
         shutdown = self._run(monkeypatch, tmp_path, self._shutdown)
         assert broken.header_value("status") != shutdown.header_value("status")
+
+
+class TestAsyncParseAcceptance:
+    """The callback-delivered /parse variant: validation, token gating, and the 202 answer."""
+
+    def test_job_id_without_callback_is_rejected(self):
+        with pytest.raises(daemon.ParseRequestError, match="sent together"):
+            daemon.DoclingDaemonHandler._accept_async_parse(
+                _FakeHandler(b""), "86a4c102", "", Path("doc.pdf"), True, {})
+
+    def test_callback_without_job_id_is_rejected(self):
+        with pytest.raises(daemon.ParseRequestError, match="sent together"):
+            daemon.DoclingDaemonHandler._accept_async_parse(
+                _FakeHandler(b""), "", "http://caller/cb", Path("doc.pdf"), True, {})
+
+    def test_non_http_callback_is_rejected(self):
+        with pytest.raises(daemon.ParseRequestError, match="http"):
+            daemon.DoclingDaemonHandler._accept_async_parse(
+                _FakeHandler(b""), "86a4c102", "ftp://caller/cb", Path("doc.pdf"), True, {})
+
+    def test_overlong_job_id_is_rejected(self):
+        with pytest.raises(daemon.ParseRequestError, match="long"):
+            daemon.DoclingDaemonHandler._accept_async_parse(
+                _FakeHandler(b""), "x" * 201, "http://caller/cb", Path("doc.pdf"), True, {})
+
+    def test_missing_token_refuses_asynchronous_parsing(self, monkeypatch):
+        monkeypatch.delenv(parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
+
+        status, body = daemon.DoclingDaemonHandler._accept_async_parse(
+            _FakeHandler(b""), "86a4c102", "http://caller/cb", Path("doc.pdf"), True, {})
+
+        assert status == HTTPStatus.SERVICE_UNAVAILABLE
+        assert parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE in body["error"]
+
+    def test_accepted_parse_answers_queued_and_runs_in_background(self, monkeypatch):
+        monkeypatch.setenv(parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE, "the-jwt")
+        calls = []
+        started = threading.Event()
+
+        def record(job_id, callback_url, token, input_path, *, chunk, max_tokens,
+                   min_structure_tokens):
+            calls.append((job_id, callback_url, token, input_path, chunk, max_tokens,
+                          min_structure_tokens))
+            started.set()
+
+        monkeypatch.setattr(daemon, "_parse_and_call_back", record)
+        handler = _FakeHandler(b"")
+
+        reply = daemon.DoclingDaemonHandler._accept_async_parse(
+            handler, "86a4c102", "http://caller/cb", Path("doc.pdf"), False,
+            {"max_tokens": 500})
+
+        assert reply == (HTTPStatus.ACCEPTED, {"job_id": "86a4c102", "status": "queued"})
+        assert started.wait(5), "the background parse never started"
+        assert calls == [("86a4c102", "http://caller/cb", "the-jwt", Path("doc.pdf"), False,
+                          500, daemon.DEFAULT_MIN_STRUCTURE_TOKENS)]

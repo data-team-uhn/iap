@@ -26,6 +26,11 @@ Endpoints:
     POST /parse    -> ?path=/shared-docs/.../file.pdf[&chunk=true][&max_tokens=]
                       [&min_structure_tokens=]
                      -> {"ok", "markdown_path", "chunked", "chunks_dir", "logs", "filename"}
+                     With ``&job_id=&callback=`` the daemon instead answers
+                     {"job_id", "status": "queued"} immediately, converts in the background,
+                     and POSTs the summary (minus "logs", plus "job_id"; on failure
+                     {"job_id", "ok": false, "error"}) to the callback URL, authenticated
+                     with the ``IAP_DOCLING_CALLBACK_JWT`` bearer token.
     POST /shutdown -> graceful stop; served only with ``--enable-shutdown``
 
 The daemon and the main app share ``/shared-docs`` (env ``IAP_SHARED_DOCS``).
@@ -34,6 +39,11 @@ The daemon and the main app share ``/shared-docs`` (env ``IAP_SHARED_DOCS``).
 header (no legitimate caller here is a web page, and a page on the operator's machine can
 reach loopback) and, when ``IAP_DOCLING_TOKEN`` is set, require it as a bearer token.
 ``GET /health`` stays open so probes need no credential.
+
+Beyond that, keeping the port private to the app is the security boundary: a caller of
+``/parse`` chooses where the callback (which carries the shared token) is sent. Background
+parses are lost on shutdown: their callbacks are never sent, and the caller's job stays
+unfinished.
 """
 
 from __future__ import annotations
@@ -64,6 +74,7 @@ from daemon_http import (
     parse_token_options,
     refuse_unauthorized,
 )
+import parse_callbacks
 
 from chunker import DEFAULT_MAX_TOKENS, DEFAULT_MIN_STRUCTURE_TOKENS
 from docling_batch_sizing import add_workers_argument, calc_workers
@@ -155,6 +166,11 @@ def _get_health_status() -> str:
     return "ok"
 
 
+def _stderr(message: str) -> None:
+    """Log a line to the container log."""
+    print(message, file=sys.stderr, flush=True)
+
+
 def _run_parse(
     input_path: Path,
     *,
@@ -177,7 +193,7 @@ def _run_parse(
             # Echo progress to stderr as well: on failure the HTTP reply carries only the
             # summary message, so the container log is the only place the per-batch
             # diagnostics (e.g. "FAILED pages 4-6: ...") survive.
-            log=lambda message: print(message, file=sys.stderr, flush=True),
+            log=_stderr,
         )
     except BrokenProcessPool as exc:
         _STATE.pdf_executor_broken = True
@@ -199,6 +215,32 @@ class DrainingHTTPServer(ThreadingHTTPServer):
     """
 
     daemon_threads = False
+
+
+def _parse_and_call_back(
+    job_id: str,
+    callback_url: str,
+    token: str,
+    input_path: Path,
+    *,
+    chunk: bool,
+    max_tokens: int,
+    min_structure_tokens: int,
+) -> None:
+    """Run one background parse and POST its outcome to the caller's callback endpoint."""
+    try:
+        summary = _run_parse(
+            input_path,
+            chunk=chunk,
+            max_tokens=max_tokens,
+            min_structure_tokens=min_structure_tokens,
+        )
+        payload = parse_callbacks.success_payload(job_id, summary)
+    except Exception as exc:
+        # The callback carries only the summary message; the traceback goes to the log
+        traceback.print_exc(file=sys.stderr)
+        payload = parse_callbacks.failure_payload(job_id, str(exc))
+    parse_callbacks.deliver(callback_url, payload, token=token, log=_stderr)
 
 
 class DoclingDaemonHandler(BaseHTTPRequestHandler):
@@ -287,7 +329,8 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         """Parse a document already on the shared volume.
 
         Query: ``?path=/shared-docs/.../file.pdf&chunk=true&max_tokens=2000``
-        ``&min_structure_tokens=20000``.
+        ``&min_structure_tokens=20000``, plus ``&job_id=&callback=`` for the
+        asynchronous, callback-delivered variant.
         """
         if self._refuse_unauthorized("/parse"):
             return
@@ -311,8 +354,16 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                 input_path = resolve_parse_path(query.get("path", [""])[0] or "")
                 chunk = parse_chunk_flag(query)
                 options = parse_token_options(query)
+                job_id = (query.get("job_id", [""])[0] or "").strip()
+                callback_url = (query.get("callback", [""])[0] or "").strip()
 
-                if not _STATE.parse_slots.acquire(blocking=False):
+                if job_id or callback_url:
+                    # Answers immediately and converts on a background thread, so it takes no
+                    # parse slot here; the slot below guards the caller-blocking path only
+                    reply = self._accept_async_parse(
+                        job_id, callback_url, input_path, chunk, options
+                    )
+                elif not _STATE.parse_slots.acquire(blocking=False):
                     # Refused rather than queued: a conversion takes minutes, and holding the
                     # socket open for one that has not started yet only invites client timeouts
                     reply = (
@@ -362,6 +413,58 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             else:
                 reply = (HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
         send_json_response(self, *reply)
+
+    def _accept_async_parse(
+        self,
+        job_id: str,
+        callback_url: str,
+        input_path: Path,
+        chunk: bool,
+        options: dict[str, Any],
+    ) -> tuple[HTTPStatus, dict[str, Any]]:
+        """Queue a background parse and answer immediately; the outcome goes to the callback.
+
+        Returns the reply rather than sending it, so ``_handle_parse`` still writes exactly
+        once. Sending from here meant a caller that had already gone away raised inside the
+        try, was answered a second time by the handler, and logged a second traceback.
+
+        @param job_id: the caller's identifier for this parse, echoed back in the callback
+        @param callback_url: where the outcome is POSTed
+        @param input_path: the already-validated document path
+        @param chunk: whether the document should also be chunked
+        @param options: validated ``max_tokens`` / ``min_structure_tokens`` overrides
+        @return: the status and body ``_handle_parse`` should send
+        @raise ParseRequestError: when the job_id/callback pair is incomplete or malformed
+        """
+        if not job_id or not callback_url:
+            raise ParseRequestError("job_id and callback must be sent together")
+        if len(job_id) > 200:
+            raise ParseRequestError("job_id is unreasonably long")
+        if not callback_url.startswith(("http://", "https://")):
+            raise ParseRequestError("callback must be an http(s) URL")
+        token = parse_callbacks.callback_token()
+        if token is None:
+            return (
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {
+                    "error": f"{parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE} is not configured,"
+                    " asynchronous parsing is unavailable"
+                },
+            )
+        threading.Thread(
+            target=_parse_and_call_back,
+            args=(job_id, callback_url, token, input_path),
+            kwargs={
+                "chunk": chunk,
+                "max_tokens": options.get("max_tokens", DEFAULT_MAX_TOKENS),
+                "min_structure_tokens": options.get(
+                    "min_structure_tokens", DEFAULT_MIN_STRUCTURE_TOKENS
+                ),
+            },
+            name=f"parse-{job_id}",
+            daemon=True,
+        ).start()
+        return (HTTPStatus.ACCEPTED, {"job_id": job_id, "status": "queued"})
 
 
 def _request_shutdown() -> None:
