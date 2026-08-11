@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -81,7 +82,7 @@ class StartupGateFilterTest
      * an accidental edit to the constant fail a test, instead of quietly weakening the gate along with its tests.
      */
     private static final List<String> REQUIRED =
-        List.of(LOGIN_CHECK, FRAMEWORK_CHECK, BUNDLES_CHECK, CONTENT_CHECK, AUTH_CHECK, SERVICES_CHECK);
+        List.of(LOGIN_CHECK, FRAMEWORK_CHECK, BUNDLES_CHECK, AUTH_CHECK, SERVICES_CHECK);
 
     /** Stands in for the timings and stack traces real checks report, which must not reach the log on every poll. */
     private static final String RESULT_MESSAGE = "diagnostics that must not be part of the description";
@@ -240,6 +241,29 @@ class StartupGateFilterTest
             assertFalse(letsRequestsThrough(), absent);
         }
         assertStillGated();
+    }
+
+    @Test
+    void opensWithoutATaggedCheckThatIsNotOneOfTheRequiredOnes()
+    {
+        // The tag decides which checks the gate consults, the required list decides which of them have to be there.
+        // Bundle Content Loaded is tagged but never registers, and requiring it would hang the gate forever.
+        everythingPasses();
+
+        assertNull(this.filter.findProblem());
+    }
+
+    @Test
+    void staysClosedWhenATaggedCheckThatIsNotRequiredFails() throws Exception
+    {
+        // The other half of that split: a check does not have to be on the required list to hold the gate shut once
+        // it is actually there, so a check added to the tag starts gating on its own.
+        checksReport(Stream.concat(REQUIRED.stream(), Stream.of(CONTENT_CHECK)).toList(), CONTENT_CHECK);
+
+        this.filter.poll(0);
+
+        assertTrue(this.filter.findProblem().contains(CONTENT_CHECK));
+        assertFalse(letsRequestsThrough());
     }
 
     @Test
