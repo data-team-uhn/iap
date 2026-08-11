@@ -75,8 +75,11 @@ function text(node: JsonNode, key: string): string | undefined {
 /**
  * The schemas a submission may be raised against: those marked active, each paired with its active
  * version. Both halves have to be active: a retired version of a live schema is no more open than a
- * live version of a retired one. That is the rule the server enforces when the submission is
- * actually raised, checked here only so that unusable choices are not offered.
+ * live version of a retired one.
+ *
+ * The server already leaves retired ones out, so this normally has nothing to do. It is checked
+ * again because that filtering is a serialization default and can be switched off per request:
+ * reading the flag we were given beats assuming which processors ran.
  *
  * @param tree a `/Schemas` listing, serialized to the depth `SCHEMAS_URL` asks for
  * @returns what may be picked, in the order the schemas were served
