@@ -55,8 +55,17 @@ import io.uhndata.iap.tags.spi.TagProcessor.Scope;
  * far worse outcome than carrying a stale tag, and the editor runs on every commit, including those that have
  * nothing to do with tags. The phase whose processor failed keeps the values it last computed successfully — storing
  * a union that is knowingly missing a contributor would replace good values with worse ones — and the node is
- * flagged with {@link TagManager#COMPUTATION_FAILED_PROPERTY} so that the tags can be recomputed later, and so that
+ * marked with {@link TagManager#COMPUTATION_STATE_PROPERTY} so that the tags can be recomputed later, and so that
  * code which must not act on stale tags can tell.
+ * </p>
+ *
+ * <p>
+ * That flag is also how a node gets repaired. Any node carrying it is recomputed in full — every phase, over its
+ * whole subtree — by the next commit that reaches it, and the flag is cleared once the values are trustworthy again.
+ * The incremental paths above all derive what to redo from the commit's diff, which is exactly what a stale node
+ * cannot offer: its values went wrong in an earlier commit, or without any commit at all, when a tag definition
+ * changed underneath it. Marking a node and letting it heal is therefore the whole of the repair protocol, and
+ * anything that knows a node's tags are suspect — a failing processor here, a repair elsewhere — uses the same one.
  * </p>
  *
  * <p>
@@ -136,7 +145,15 @@ public class TagPropagationEditor extends DefaultEditor
             // An editor only exists for a node the commit changed, so reaching here means this entity's content did
             this.entity.entityContentChanged = true;
         }
+        // A node marked stale is recomputed in full instead of incrementally. The incremental path derives what to
+        // redo from this commit's diff, and staleness is precisely the case where the diff does not say: the values
+        // went wrong in an earlier commit, or without any commit at all, when a tag definition changed under them.
+        final boolean stale = isStale(before) || isStale(after);
         clearFailureFlag(this.node);
+        if (stale) {
+            this.ownTagsChanged = recompute(this.node, parentState(), this.path, scopeRoot());
+            return;
+        }
         if (this.added) {
             // First computation for a new node; its children, also new, are each visited by the ongoing traversal
             runPhase(Phase.TOP_DOWN, this.node, parentState(), this.path, scopeRoot());
@@ -323,10 +340,24 @@ public class TagPropagationEditor extends DefaultEditor
         return true;
     }
 
+    /**
+     * Checks whether a node is marked as having stale derived tags, either because a processor failed on it or
+     * because a repair asked for one. The two are the same condition — the stored values may be wrong and only a
+     * full recomputation can say — so this asks only whether the property is there, never what it says. The value
+     * records who asked and why, for whoever has to diagnose it later.
+     *
+     * @param state the node state to check, before or after this commit
+     * @return {@code true} if the node carries the marker
+     */
+    private static boolean isStale(final NodeState state)
+    {
+        return state.hasProperty(TagManager.COMPUTATION_STATE_PROPERTY);
+    }
+
     private void setFailureFlag(final NodeBuilder target)
     {
         if (this.config.getNodeTypes().canStoreTags(target.getNodeState())) {
-            target.setProperty(TagManager.COMPUTATION_FAILED_PROPERTY, true);
+            target.setProperty(TagManager.COMPUTATION_STATE_PROPERTY, TagManager.STATE_FAILED);
         }
     }
 
@@ -338,8 +369,8 @@ public class TagPropagationEditor extends DefaultEditor
      */
     private void clearFailureFlag(final NodeBuilder target)
     {
-        if (target.hasProperty(TagManager.COMPUTATION_FAILED_PROPERTY)) {
-            target.removeProperty(TagManager.COMPUTATION_FAILED_PROPERTY);
+        if (target.hasProperty(TagManager.COMPUTATION_STATE_PROPERTY)) {
+            target.removeProperty(TagManager.COMPUTATION_STATE_PROPERTY);
         }
     }
 

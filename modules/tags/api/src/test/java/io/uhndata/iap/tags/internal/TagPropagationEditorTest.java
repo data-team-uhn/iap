@@ -418,7 +418,7 @@ class TagPropagationEditorTest
         // A union missing one of its contributors would be worse than a stale one, so nothing was written
         assertEquals(Set.of(INCOMPLETE), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
         assertTrue(descend(result.builder(), DATA, ENTITY, PART, ANSWER)
-            .getBoolean(TagManager.COMPUTATION_FAILED_PROPERTY));
+            .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
         // Only the phase that failed was skipped; the phases that worked still did their job
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY, PART));
     }
@@ -432,7 +432,7 @@ class TagPropagationEditorTest
         descend(failing, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
         final NodeState flagged = broken.processCommit(before, failing.getNodeState(), CommitInfo.EMPTY);
         assertTrue(descend(flagged.builder(), DATA, ENTITY, PART, ANSWER)
-            .getBoolean(TagManager.COMPUTATION_FAILED_PROPERTY));
+            .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
 
         final EditorHook working = hookWith(new StatusProcessor());
         final NodeBuilder after = flagged.builder();
@@ -441,7 +441,56 @@ class TagPropagationEditorTest
 
         assertEquals(Set.of("submitted"), read(result, COMPUTED, DATA, ENTITY, PART, ANSWER));
         assertFalse(descend(result.builder(), DATA, ENTITY, PART, ANSWER)
-            .getBoolean(TagManager.COMPUTATION_FAILED_PROPERTY));
+            .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
+    }
+
+    /**
+     * The repair protocol: a node marked stale is recomputed in full. What makes this worth pinning is the phase it
+     * fixes — {@code inheritedTags} is computed on the way down, so an ordinary commit touching only this node never
+     * recomputes it, and a wrong value would survive forever. See the negative control below.
+     */
+    @Test
+    void aStaleNodeIsFullyRecomputedByTheNextCommitReachingIt() throws Exception
+    {
+        final NodeState before = base().getNodeState();
+        final NodeBuilder corrupt = before.builder();
+        descend(corrupt, DATA, ENTITY).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
+        // Values that no processor would produce, as a definition change or an earlier failure would have left them
+        descend(corrupt, DATA, ENTITY, PART).setProperty(INHERITED, List.of("retired"), Type.STRINGS);
+        descend(corrupt, DATA, ENTITY, PART)
+            .setProperty(TagManager.COMPUTATION_STATE_PROPERTY, TagManager.STATE_RECOMPUTING);
+        final NodeState stale = corrupt.getNodeState();
+
+        // What a repair does: touch the marked node, nothing more
+        final NodeBuilder after = stale.builder();
+        descend(after, DATA, ENTITY, PART).setProperty("touched", true);
+        final NodeState result = process(stale, after);
+
+        assertEquals(Set.of(SENSITIVE), read(result, INHERITED, DATA, ENTITY, PART));
+        assertFalse(descend(result.builder(), DATA, ENTITY, PART)
+            .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
+        // The whole subtree is recomputed, not just the marked node
+        assertEquals(Set.of(SENSITIVE), read(result, INHERITED, DATA, ENTITY, PART, ANSWER));
+    }
+
+    /**
+     * Negative control for the test above: without the marker the same commit leaves the wrong value in place, which
+     * is precisely why repair needs a marker rather than just touching nodes.
+     */
+    @Test
+    void withoutTheMarkerATouchDoesNotFixInheritedTags() throws Exception
+    {
+        final NodeState before = base().getNodeState();
+        final NodeBuilder corrupt = before.builder();
+        descend(corrupt, DATA, ENTITY).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
+        descend(corrupt, DATA, ENTITY, PART).setProperty(INHERITED, List.of("retired"), Type.STRINGS);
+        final NodeState stale = corrupt.getNodeState();
+
+        final NodeBuilder after = stale.builder();
+        descend(after, DATA, ENTITY, PART).setProperty("touched", true);
+        final NodeState result = process(stale, after);
+
+        assertEquals(Set.of("retired"), read(result, INHERITED, DATA, ENTITY, PART));
     }
 
     @Test
