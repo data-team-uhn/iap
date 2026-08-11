@@ -506,6 +506,58 @@ test.describe('the time off request demo', () => {
     await expect(page.getByText('A Tuesday in October')).toBeVisible();
   });
 
+  test('asks what the answers make relevant, with nothing to press to save', async ({ page }) => {
+    // The demo's whole point, exercised the way it is met: the questions on screen depend on the answers
+    // already given, and *the server* decides which ones apply. Nothing in the browser evaluates a
+    // condition — an answer is saved as soon as it is finished, the form is read again, and what comes
+    // back is drawn. Asserted here rather than only in unit tests because every piece of that loop is
+    // real: the save is a workflow event the engine authorizes, the condition is a subtree of typed
+    // nodes, and the projection that filters on it is a servlet.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('A week in November');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+
+    // In through the listing's own Edit action, which is how a submitter reaches the editor. The
+    // address is the submission's path with `.edit` on the end — a view of a resource, asked for by
+    // extension like every other, and served by a script of its own rather than by a query parameter.
+    await page.getByRole('link', { name: /Back to the dashboard/ }).click();
+    await page.getByRole('row', { name: /A week in November/ }).getByLabel('Edit').click();
+    await expect(page).toHaveURL(/\.edit$/);
+
+    const duration = page.getByLabel(/half day, a full day, or several days/);
+    await expect(duration).toBeVisible();
+    // Not yet asked, because nothing yet makes it relevant. It is absent from what the server sent, not
+    // hidden by the browser — which is the difference the whole design turns on.
+    await expect(page.getByLabel(/Which day are you back/)).toHaveCount(0);
+
+    // Leaving the field is what finishes the answer, and finishing it is what saves it
+    await duration.fill('multiple days');
+    await duration.blur();
+
+    await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
+
+    // The same mechanism one level up: a whole requirement, appearing because of an answer given to a
+    // question in another one
+    await expect(page.getByText('Doctor\'s note')).toHaveCount(0);
+    const absence = page.getByLabel(/What kind of absence/);
+    await absence.fill('sick');
+    await absence.blur();
+    await expect(page.getByText('Doctor\'s note')).toBeVisible();
+
+    // Stored rather than remembered: a reload asks the server again, and the answers are the ones the
+    // engine wrote — as a user with no write access anywhere, through a workflow that authorized them
+    await page.reload();
+    await expect(page.getByLabel(/half day, a full day, or several days/)).toHaveValue('multiple days');
+    await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
+  });
+
   test('creates the two people the demo is about', async ({ page }) => {
     // Proves the accounts exist and their passwords work, which is what the walkthrough depends on
     const login = new LoginPage(page);

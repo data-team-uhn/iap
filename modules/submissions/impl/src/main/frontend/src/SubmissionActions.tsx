@@ -52,16 +52,13 @@ function SubmissionActions({ path, title, onDeleted }: SubmissionActionsProps) {
           <VisibilityIcon fontSize="small" />
         </IconButton>
       </Tooltip>
-      {/* Editing is the next thing to be built. Offered but disabled, so that the row shows the
-          whole set of actions a submission has rather than growing one later — and disabled rather
-          than hidden because "not yet" is a different answer from "not for you", which is what a
-          missing control would say. */}
-      <Tooltip title="Editing a submission is not available yet">
-        <span>
-          <IconButton size="small" aria-label="Edit" disabled>
-            <EditIcon fontSize="small" />
-          </IconButton>
-        </span>
+      {/* The same page, asked for by extension. Whether it can actually be edited is the server's
+          answer, given by the form it serves; offering the action to somebody who may not edit costs
+          them a page rather than a refused save. */}
+      <Tooltip title="Edit">
+        <IconButton size="small" aria-label="Edit" onClick={() => void navigate(`${path}.edit`)}>
+          <EditIcon fontSize="small" />
+        </IconButton>
       </Tooltip>
       <DeleteItem
         path={path}
