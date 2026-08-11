@@ -29,6 +29,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.request.RequestParameter;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
@@ -65,15 +66,22 @@ import io.uhndata.iap.workflows.models.WorkflowsHomepage;
  */
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(
-    // The homepages under workflow control, plus the user tasks of running instances. Literals where the owning
-    // module must not be depended on: submissions depends on workflows, so workflows can only name its resource
-    // type, not import it.
-    resourceTypes = { WorkflowsHomepage.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE, "sub/SubmissionsHomepage" },
+    // The homepages under workflow control, the entities that are themselves editable through a workflow, and the
+    // user tasks of running instances. Literals where the owning module must not be depended on: submissions
+    // depends on workflows, so workflows can only name its resource types, not import them.
+    resourceTypes = { WorkflowsHomepage.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE, "sub/SubmissionsHomepage",
+        "sub/Submission" },
     methods = { HttpConstants.METHOD_POST })
 public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
 {
     /** The domain event a POST to a homepage translates to. */
     public static final String CREATE_EVENT = "create";
+
+    /** The domain event a POST to an entity that is editable through a workflow translates to. */
+    public static final String SAVE_EVENT = "save";
+
+    /** Named rather than imported, for the same reason as in the resource types above. */
+    private static final String SUBMISSION_RESOURCE_TYPE = "sub/Submission";
 
     private static final long serialVersionUID = -6273669283473534077L;
 
@@ -120,8 +128,15 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
      */
     private String eventName(final SlingJakartaHttpServletRequest request)
     {
-        return request.getResource().isResourceType(TaskInstance.RESOURCE_TYPE)
-            ? TaskCompletion.COMPLETE_EVENT : CREATE_EVENT;
+        final Resource target = request.getResource();
+        if (target.isResourceType(TaskInstance.RESOURCE_TYPE)) {
+            return TaskCompletion.COMPLETE_EVENT;
+        }
+        // Posting to an entity rather than to the homepage that holds them means changing that one, not making
+        // another. Which is as far as the distinction needs to go for now: the other things one might do to a
+        // submission — send it for review, withdraw it — are steps of its own workflow, so they arrive as user
+        // tasks and are already told apart above.
+        return target.isResourceType(SUBMISSION_RESOURCE_TYPE) ? SAVE_EVENT : CREATE_EVENT;
     }
 
     /**
