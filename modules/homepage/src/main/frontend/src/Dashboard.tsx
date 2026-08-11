@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 
 import { Box } from "@mui/material";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import { loadExtensions } from "@iap/ui-extension/extensionManager";
+import { loadExtensions, visibleInPersona } from "@iap/ui-extension/extensionManager";
+import { usePersona } from "@iap/ui-extension/personas";
 
 import Widget from "./Widget";
 
@@ -55,15 +56,23 @@ async function getDashboardWidgets(): Promise<WidgetExtension[]> {
 //   - `iap:widgetHideHeader` — skip the title/subtitle header (the widget provides its own).
 // Registered as a view on the `iap/coreUI/view` extension point.
 function Dashboard() {
-  const [ widgets, setWidgets ] = useState<WidgetExtension[]>([]);
+  const [ allWidgets, setAllWidgets ] = useState<WidgetExtension[]>([]);
   const [ loading, setLoading ] = useState(true);
+  const persona = usePersona();
 
   useEffect(() => {
     getDashboardWidgets()
-      .then(extensions => setWidgets(extensions))
+      .then(extensions => setAllWidgets(extensions))
       .catch((err: unknown) => console.error("Something went wrong loading the dashboard", err))
       .finally(() => setLoading(false));
   }, []);
+
+  // Only the widgets belonging to the persona currently being worn. Filtered here rather than at
+  // load time so that switching persona re-lays out the dashboard without fetching anything again.
+  const widgets = useMemo(
+    () => allWidgets.filter(widget => visibleInPersona(widget, persona)),
+    [ allWidgets, persona ]
+  );
 
   // Collapse the grid to the number of widgets when there are only one or two, so a lone widget
   // fills the row and two widgets sit side by side rather than leaving empty columns. Three or more

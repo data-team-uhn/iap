@@ -102,6 +102,17 @@
   // that extensions assuming a session (e.g. the app bar) never leak onto pre-auth pages.
   - iap:visibleBeforeLogin (BOOLEAN)
 
+  // The personas this extension belongs to, e.g. "reviewer". A user acts as one persona at a time
+  // and only sees the extensions belonging to it, so that each persona's UI is designed around what
+  // that role does rather than around the rights the individual happens to hold.
+  //
+  // Absent means every persona, unlike iap:visibleBeforeLogin above: an extension that never
+  // considered personas keeps displaying exactly where it did before.
+  //
+  // This selects what is DISPLAYED and is never an access control; permissions are enforced by the
+  // repository, independently of which persona is active.
+  - iap:personas (STRING) multiple
+
   // And any other properties
   - * (undefined) multiple
   - * (undefined)
