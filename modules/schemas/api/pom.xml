@@ -61,6 +61,20 @@
       <artifactId>iap-conditions</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Retired schemas are left out of the tree's JSON by a processor on this SPI -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-serialization-json</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.json</groupId>
+      <artifactId>jakarta.json-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-model-content-api</artifactId>
@@ -101,6 +115,7 @@
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.service.component.annotations</artifactId>
     </dependency>
+    <!-- Compile scope, not test: the serialization processor reads nodes through the JCR API -->
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
