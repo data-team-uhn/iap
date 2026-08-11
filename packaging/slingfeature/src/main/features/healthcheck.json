@@ -52,10 +52,18 @@
             ],
             "useCriticalForInactive": true
         },
-        // Tagged systemalive so the StartupGateFilter keeps serving the
-        // "starting up" stub until all Sling-Initial-Content is actually in the repository:
-        // reaching the target start level only means the bundles started, while the pages
-        // (scripts, webpack assets, config) they carry are still being loaded asynchronously.
+        // Meant to keep the StartupGateFilter serving the "starting up" stub until all
+        // Sling-Initial-Content is actually in the repository: reaching the target start level
+        // only means the bundles started, while the pages (scripts, webpack assets, config) they
+        // carry are still being loaded asynchronously.
+        // CAVEAT: this check only sometimes works. On some cold starts its component never leaves
+        // "unsatisfied (reference)" and so never registers at all, for the whole life of the
+        // process, even though the console then reports every one of its references as satisfied;
+        // on others it registers normally. It is therefore deliberately NOT in
+        // StartupGateFilter.REQUIRED_CHECKS, since requiring it would hold the gate shut forever
+        // on the runs where it does not turn up. It keeps the systemalive tag, so it still gates
+        // whenever it is there. What covers this ground unconditionally is the Login Page Ready
+        // check, which renders a real page rather than inspecting bundles.
         // hc.name is pinned here for the same reason as above.
         "org.apache.sling.jcr.contentloader.hc.BundleContentLoadedCheck":{
             "hc.name":"Bundle Content Loaded",

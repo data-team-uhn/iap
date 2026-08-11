@@ -59,12 +59,12 @@ import org.slf4j.LoggerFactory;
  * Naming the checks, rather than trusting the {@code systemalive} tag to bring them all in, is what makes the gate
  * fail closed. The executor builds its results from the checks registered at that instant, so a check that is not
  * registered contributes no result at all rather than a failing one, and "every result passes" is trivially true of a
- * set that is empty or partial. That is not a rare race: five of the six checks are set up through OSGi
- * configuration, none of them declares a {@code modified} method, and so every configuration delivery -- including a
- * redelivery of the identical configuration, which is what the JCR installer does on the way up -- deactivates and
- * reactivates them. An earlier version of this class pinned only the login page check, which is the one check
- * declared in code with no configuration behind it, and therefore the one check that can never vanish; the five that
- * do vanish were the ones left unpinned, and the gate opened on a single passing check.
+ * set that is empty or partial. That is not a rare race: the configured checks are absent for the whole early part of
+ * startup, until their configurations have been delivered, and absent again on every redelivery, since none of them
+ * declares a {@code modified} method and so SCR has to deactivate and reactivate them even for an identical one --
+ * which is exactly what the JCR installer does on the way up. An earlier version of this class pinned one check and
+ * required the rest only to pass if they happened to be there, which says nothing at all about a set that is merely
+ * incomplete, and the gate could open on a single passing check.
  * </p>
  *
  * <p>
@@ -129,15 +129,24 @@ public final class StartupGateFilter implements Filter
      * knowing what to expect can tell a partial set apart from a passing one. The names are duplicated here rather
      * than referenced because the checks live in bundles that start much later, and a compile-time dependency just
      * for a constant would force this early-starting bundle to wait for the whole Sling stack.
+     *
+     * <p>
+     * This is not the same list as the {@code systemalive} tag, and deliberately so. The tag decides which checks the
+     * gate consults, so a check added to it starts gating on its own; this list decides which of them must be there
+     * before an all-clear can be believed. A check that cannot be relied on to register belongs in the former and not
+     * in the latter, since requiring it would hold the gate shut forever on the runs where it does not turn up. That
+     * is the case today for the content loader's {@code Bundle Content Loaded}: it is configured and tagged, but its
+     * component is only sometimes satisfied, and on the runs where it is not it never registers at all. Left out of
+     * this list it still gates whenever it is there, and costs nothing when it is not.
+     * </p>
      */
     private static final Set<String> REQUIRED_CHECKS = Set.of(
         // io.uhndata.iap.healthcheck.internal.LoginPageReadyCheck, in the healthcheck module
         "Login Page Ready Check",
-        // The five below are configured in packaging/slingfeature/src/main/features/healthcheck.json, which sets
+        // The four below are configured in packaging/slingfeature/src/main/features/healthcheck.json, which sets
         // hc.name explicitly for each of them so that an upstream default cannot change these names under us
         "OSGi Framework Ready Check",
         "Bundles Started",
-        "Bundle Content Loaded",
         "Authentication Handler Ready Check",
         "Services Ready Check");
 
