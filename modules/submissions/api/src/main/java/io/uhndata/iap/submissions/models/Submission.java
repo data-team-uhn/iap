@@ -62,6 +62,9 @@ public class Submission extends Entity
     /** The {@code lifecycle} tag a submission carries once the reviewers have accepted it. */
     public static final String APPROVED_TAG = "approved";
 
+    /** The {@code lifecycle} tag a submission carries while it is still being filled in. */
+    public static final String DRAFT_TAG = "draft";
+
     @OSGiService
     private ConditionEvaluator conditionEvaluator;
 
@@ -154,6 +157,19 @@ public class Submission extends Entity
     {
         final Taggable tags = this.as(Taggable.class);
         return tags != null && tags.hasOwnTag(APPROVED_TAG);
+    }
+
+    /**
+     * Whether this submission is still being filled in, i.e. it carries the {@code draft} lifecycle tag. What a
+     * submitter may still change about their own request is decided by this, so it is asked of the submission
+     * rather than of whoever is looking at it.
+     *
+     * @return {@code true} while it is a draft, {@code false} also when the tags service is unavailable
+     */
+    public boolean isDraft()
+    {
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && tags.hasOwnTag(DRAFT_TAG);
     }
 
     /**

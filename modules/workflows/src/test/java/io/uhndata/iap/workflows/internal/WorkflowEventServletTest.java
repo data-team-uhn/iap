@@ -152,6 +152,26 @@ class WorkflowEventServletTest
     }
 
     @Test
+    void translatesAPostToAnEntityIntoASaveEvent() throws WorkflowException, IOException
+    {
+        // Aimed at one submission rather than at the homepage holding them: that means changing this one, not
+        // making another, which is the difference between filling a request in and raising it
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource submission = this.context.create().resource(
+            "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000", WorkflowFixture.TYPE, "sub/Submission");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("details/startDate", "2026-10-06"));
+        request.setResource(submission);
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals(WorkflowEventServlet.SAVE_EVENT, sent.getValue().getName());
+        assertEquals("2026-10-06", sent.getValue().get("details/startDate"));
+    }
+
+    @Test
     void mapsNoApplicableWorkflowToConflict() throws WorkflowException, IOException
     {
         assertEquals(409, statusFor(new NoApplicableWorkflowException("nothing waiting")));
