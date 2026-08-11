@@ -297,6 +297,38 @@ class SubmissionTest
     }
 
     @Test
+    void reportsDraftWhileTaggedDraft()
+    {
+        Tagging.enable(this.context);
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "draft" });
+
+        assertTrue(resource.adaptTo(Submission.class).isDraft());
+    }
+
+    @Test
+    void reportsNotDraftOnceItHasBeenSubmitted()
+    {
+        // Placing a lifecycle tag retires the one it replaces, so a submitted request no longer carries draft
+        Tagging.enable(this.context);
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "submitted" });
+
+        assertFalse(resource.adaptTo(Submission.class).isDraft());
+    }
+
+    @Test
+    void reportsNotDraftWithoutTheTagsService()
+    {
+        // Nothing registers the Taggable view here: an unreadable state is not a draft, the same way it is not
+        // an approval
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "draft" });
+
+        assertFalse(resource.adaptTo(Submission.class).isDraft());
+    }
+
+    @Test
     void reportsNotApprovedForOtherTags()
     {
         Tagging.enable(this.context);
