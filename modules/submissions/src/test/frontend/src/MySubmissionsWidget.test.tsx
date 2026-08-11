@@ -24,6 +24,70 @@ import MySubmissionsWidget from "@iap/submissions/MySubmissionsWidget";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
+// The extension the dashboard hands the widget, which is where its title and subtitle come from
+const EXTENSION = {
+  "iap:extensionName": "My Submissions",
+  "iap:subtitle": "The submissions you created",
+};
+
+const SUBMISSION_PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
+
+const ROW = {
+  "@path": SUBMISSION_PATH,
+  "@name": "0a1b2c3d-0000-0000-0000-000000000000",
+  "title": "Test my drug",
+  "tags": ["in-review"],
+  "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "@name": "1.0", "version": "1.0" },
+  "jcr:created": "2026-07-01T10:00:00.000-04:00",
+  "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
+};
+
+const SCHEMAS = {
+  timeOffRequest: {
+    "@path": "/Schemas/timeOffRequest",
+    "@name": "timeOffRequest",
+    "title": "Time off request",
+    "active": true,
+    "v1": { "@path": "/Schemas/timeOffRequest/v1", "@name": "v1", "version": "1.0", "active": true },
+  },
+};
+
+function page(rows: unknown[]) {
+  return { rows, offset: 0, limit: 5, returnedrows: rows.length, totalrows: rows.length, totalIsApproximate: false };
+}
+
+function json(body: unknown) {
+  return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response);
+}
+
+// A fetch covering everything the widget and the controls inside it ask for: the listing, the
+// schemas on offer, the POST that raises a submission, and the two DELETEs (the dry run that the
+// confirmation is built from, then the deletion itself).
+function widgetFetch(options: { rows?: unknown[]; redirected?: boolean } = {}) {
+  const { rows = [], redirected = true } = options;
+  return vi.fn((input: string | URL, init?: { method?: string }) => {
+    const url = String(input);
+    if (init?.method === "DELETE") {
+      return json(url.includes("dryRun=true")
+        ? { "status.code": 200, "status": "dryRun", "executable": true, "items": [ SUBMISSION_PATH ] }
+        : { "status.code": 200, "status": "archived", "archiveEntry": "/Archive/ab/cd/ef/entry" });
+    }
+    if (url === "/Submissions" && init?.method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        redirected,
+        url: redirected ? `http://localhost${SUBMISSION_PATH}` : "http://localhost/Submissions",
+        json: () => Promise.resolve({}),
+      } as unknown as Response);
+    }
+    if (url.startsWith("/Schemas")) {
+      return json(SCHEMAS);
+    }
+    return tagAwareFetch(page(rows))(url);
+  });
+}
+
 describe("MySubmissionsWidget", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -31,33 +95,17 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("lists the current user's submissions with the schema and status columns", async () => {
-    const page = {
-      rows: [{
-        "@path": "/Submissions/s1",
-        "@name": "s1",
-        "title": "Test my drug",
-        "tags": ["in-review"],
-        "schemaVersion": { "@path": "/Schemas/ClinicalTrial/1.0", "@name": "1.0", "version": "1.0" },
-        "jcr:created": "2026-07-01T10:00:00.000-04:00",
-        "jcr:lastModified": "2026-07-02T10:00:00.000-04:00",
-      }],
-      offset: 0,
-      limit: 5,
-      returnedrows: 1,
-      totalrows: 1,
-      totalIsApproximate: false,
-    };
-    const fetchMock = vi.fn(tagAwareFetch(page));
+    const fetchMock = widgetFetch({ rows: [ ROW ] });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<MySubmissionsWidget />, { wrapper: MemoryRouter });
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
     expect(screen.getByText("ClinicalTrial 1.0")).toBeInTheDocument();
     // The lifecycle tag, displayed per its /Tags definition
     expect(await screen.findByText("In review")).toBeInTheDocument();
 
-    const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
+    const url = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
     expect(url.pathname).toBe("/Submissions.paginate.json");
     // `createdBy` and not `jcr:createdBy`: the workflow engine writes submissions as its own
     // service user, so the JCR property names the engine on every row and this widget would list
@@ -69,56 +117,49 @@ describe("MySubmissionsWidget", () => {
     expect(url.searchParams.get("descending")).toBe("true");
   });
 
-  // A fetch covering everything the widget and its dialog ask for: the listing, the schemas on
-  // offer, and the POST that raises the submission. `redirected` is what says whether the engine
-  // created something to open.
-  function widgetFetch(redirected: boolean) {
-    const schemas = {
-      timeOffRequest: {
-        "@path": "/Schemas/timeOffRequest",
-        "@name": "timeOffRequest",
-        "title": "Time off request",
-        "active": true,
-        "v1": { "@path": "/Schemas/timeOffRequest/v1", "@name": "v1", "version": "1.0", "active": true },
-      },
-    };
-    const listing = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
-    return vi.fn((url: string, options?: { method?: string }) => {
-      if (url === "/Submissions" && options?.method === "POST") {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          redirected,
-          url: redirected ? "http://localhost/Submissions/aLongWeekend" : "http://localhost/Submissions",
-          json: () => Promise.resolve({}),
-        } as unknown as Response);
-      }
-      if (url.startsWith("/Schemas")) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(schemas) } as unknown as Response);
-      }
-      return tagAwareFetch(listing)(url);
-    });
-  }
+  it("draws its own header, so the action sits on the title's line", async () => {
+    // The dashboard is told to skip its own header for this widget; the title and subtitle still
+    // come from the extension, so they are declared in exactly one place
+    vi.stubGlobal("fetch", widgetFetch());
 
-  async function raiseOne() {
-    await userEvent.click(screen.getByRole("button", { name: /New submission/ }));
-    // Scoped to the dialog: the grid behind it has a "Title" column, whose own menu button would
-    // otherwise match too
-    const dialog = within(await screen.findByRole("dialog"));
-    await userEvent.click(dialog.getByRole("radio"));
-    await userEvent.type(dialog.getByLabelText(/Title/), "A long weekend");
-    await userEvent.click(dialog.getByRole("button", { name: "Create" }));
-  }
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByRole("heading", { name: "My Submissions" })).toBeInTheDocument();
+    expect(screen.getByText("The submissions you created")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /New submission/ })).toBeInTheDocument();
+  });
+
+  it("offers the actions on each row, and re-reads the listing once one is deleted", async () => {
+    const fetchMock = widgetFetch({ rows: [ ROW ] });
+    vi.stubGlobal("fetch", fetchMock);
+    const listings = () =>
+      fetchMock.mock.calls.filter(([ url ]) => String(url).includes(".paginate.json")).length;
+
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
+    await screen.findByText("Test my drug");
+
+    expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+
+    const before = listings();
+    await userEvent.click(screen.getByRole("button", { name: /^Delete/ }));
+    // Scoped to the confirmation, whose own button is also called Delete
+    const confirmation = within(await screen.findByRole("dialog"));
+    await userEvent.click(confirmation.getByRole("button", { name: "Delete" }));
+
+    // The row is gone from the server, and the grid has no way of knowing that unless it is told
+    await waitFor(() => expect(listings()).toBeGreaterThan(before));
+  });
 
   it("offers raising a new submission, and opens the one that was raised", async () => {
-    const fetchMock = widgetFetch(true);
+    const fetchMock = widgetFetch();
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<MySubmissionsWidget />, { wrapper: MemoryRouter });
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
 
     // The dialog is only mounted once it is asked for, so nothing reads the schemas on the way to
     // showing a dashboard that may never open it
-    expect(fetchMock.mock.calls.some(([ url ]) => url.startsWith("/Schemas"))).toBe(false);
+    expect(fetchMock.mock.calls.some(([ url ]) => String(url).startsWith("/Schemas"))).toBe(false);
 
     await raiseOne();
 
@@ -130,12 +171,31 @@ describe("MySubmissionsWidget", () => {
   it("stays on the dashboard when the engine created nothing to open", async () => {
     // A plain 200 rather than a redirect means the delivery was accepted without raising anything,
     // so there is nowhere to send the submitter and the dashboard is where they stay
-    vi.stubGlobal("fetch", widgetFetch(false));
+    vi.stubGlobal("fetch", widgetFetch({ redirected: false }));
 
-    render(<MySubmissionsWidget />, { wrapper: MemoryRouter });
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
     await raiseOne();
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: /New submission/ })).toBeInTheDocument();
   });
+
+  it("renders without a title when the dashboard passes no extension", async () => {
+    vi.stubGlobal("fetch", widgetFetch());
+
+    render(<MySubmissionsWidget />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByRole("button", { name: /New submission/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  });
 });
+
+async function raiseOne() {
+  await userEvent.click(screen.getByRole("button", { name: /New submission/ }));
+  // Scoped to the dialog: the grid behind it has a "Title" column, whose own menu button would
+  // otherwise match too
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.click(dialog.getByRole("radio"));
+  await userEvent.type(dialog.getByLabelText(/Title/), "A long weekend");
+  await userEvent.click(dialog.getByRole("button", { name: "Create" }));
+}
