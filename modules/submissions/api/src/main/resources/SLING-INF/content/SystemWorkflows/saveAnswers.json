@@ -1,0 +1,43 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Save a submission's answers",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "What happens when a submitter saves their answers: each answered question is written onto the submission, and nothing else changes. This is how filling in a submission stays a workflow rather than a write - the editor posts to the submission itself, and what a save is allowed to do is decided here. The start event admits everyone because the rule that actually matters cannot be written as a performer: it is the *person who raised this particular submission*, which the handler checks against what the engine recorded when it created it. A deployment that lets a coordinator fill requests in on someone's behalf changes that check, not this definition.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Answers submitted",
+      "messageName": "save",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toSave": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSave",
+        "targetRef": "save"
+      }
+    },
+    "save": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "save",
+      "label": "Record the answers",
+      "handler": "saveAnswers",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Answers saved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
