@@ -92,7 +92,19 @@ interface EntityDataGridProps {
   noResultsMessage?: string;
   // Render all rows at once instead of virtualizing; needed in test environments with no layout
   disableVirtualization?: boolean;
+  // Columns this grid adds to the entity type's own, e.g. the actions offered on each row. Kept
+  // out of the type's registered presentation because what may be done with an entity depends on
+  // why it is being listed, not on what it is.
+  extraColumns?: EntityGridColumn[];
+  // Change this to make the grid read the current page again, for when something outside it
+  // changed what the listing should say — a row deleted from an actions column, say. Any new value
+  // will do; the grid only watches for it changing.
+  refreshToken?: number;
 }
+
+// A stable default, so that a grid adding no columns of its own does not get a fresh array — and
+// therefore a fresh column list — on every render
+const NO_EXTRA_COLUMNS: EntityGridColumn[] = [];
 
 // The grid hands its sorting state to the toolbar through slotProps, so the sort menu — the
 // list mode's replacement for clickable column headers — lives with the other toolbar controls.
@@ -508,8 +520,17 @@ function EntityDataGrid(props: EntityDataGridProps) {
     emptyMessage = "Nothing to show",
     noResultsMessage = "No results found",
     disableVirtualization = false,
+    extraColumns = NO_EXTRA_COLUMNS,
+    refreshToken = 0,
   } = props;
   const config = getEntityTypeConfig(entityType);
+  // The type's own presentation plus whatever this particular grid adds. Per-grid rather than
+  // registered with the type because what may be *done* with an entity depends on why it is being
+  // listed: the same submission offers deleting it in the submitter's own list and not in a
+  // reviewer's queue.
+  const columns = useMemo(
+    () => extraColumns.length === 0 ? config?.columns ?? [] : [ ...config?.columns ?? [], ...extraColumns ],
+    [ config?.columns, extraColumns ]);
   const navigate = useNavigate();
   const theme = useTheme();
   // On narrow (typically touch) screens the grid switches to the Pro list mode: one card per
@@ -547,7 +568,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     // from a request key instead proved racy against the grid's own debounced model updates
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    const sortColumn = sortModel[0] && config.columns.find(column => column.field === sortModel[0].field);
+    const sortColumn = sortModel[0] && columns.find(column => column.field === sortModel[0].field);
     fetchEntityPage(fetchUtil, {
       homepage: config.homepage,
       offset: paginationModel.page * paginationModel.pageSize,
@@ -579,7 +600,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     return () => {
       cancelled = true;
     };
-  }, [config, fetchUtil, paginationModel, sortModel, filterKey, fullText, retryCount]);
+  }, [config, fetchUtil, paginationModel, sortModel, filterKey, fullText, retryCount, refreshToken]);
 
   const changeColumnVisibility = (model: GridColumnVisibilityModel) => {
     setColumnVisibilityModel(model);
@@ -591,7 +612,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   };
 
   const gridColumns = useMemo(
-    () => withCompactDates(withServerFilterOperators(config?.columns ?? [])), [config?.columns]);
+    () => withCompactDates(withServerFilterOperators(columns)), [columns]);
 
   if (!config) {
     return <Alert severity="error">Unknown entity type: {entityType}</Alert>;
@@ -608,7 +629,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
       .filter(term => term !== "")
       .map(term => term.endsWith("*") ? term : `${term}*`);
     setFullText(terms.join(" "));
-    setColumnFilters(toPropertyFilters(model, config.columns));
+    setColumnFilters(toPropertyFilters(model, columns));
     setPaginationModel(current => current.page === 0 ? current : { ...current, page: 0 });
   };
 
@@ -624,7 +645,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // list mode: the generic card derives from the visible columns, and a type's own renderer
   // receives the visible fields to apply the selection to its composition.
   // A column absent from the model is visible; the model's index type hides the undefined
-  const visibleColumns = config.columns
+  const visibleColumns = columns
     .filter(column => (columnVisibilityModel[column.field] as boolean | undefined) !== false);
   const visibleFields = new Set(visibleColumns.map(column => column.field));
   const listColumn: GridListViewColDef<EntityRow> = {
@@ -774,7 +795,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
           },
           toolbar: {
             showSortMenu: compactList,
-            sortableColumns: config.columns
+            sortableColumns: columns
               .filter(column => column.sortable !== false)
               .map(column => ({ field: column.field, headerName: column.headerName })),
             sortModel,
