@@ -16,16 +16,18 @@
  * limitations under the License.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import AddIcon from "@mui/icons-material/Add";
-import { Box, Button, Stack } from "@mui/material";
+import { Box, Button, Stack, Typography } from "@mui/material";
 import { useNavigate } from "react-router";
 
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { PropertyFilter } from "@iap/frontend-commons/entityGrid/pagination";
+import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 
 import NewSubmissionDialog from "./NewSubmissionDialog";
+import SubmissionActions from "./SubmissionActions";
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
 // Only the submissions created by the current user; `@me` is resolved server-side. Deliberately
@@ -33,16 +35,50 @@ import { SUBMISSION_TYPE } from "./submissionGrid";
 // user, so the JCR property names the engine, and the person it acted for is recorded separately.
 const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "createdBy", value: "@me" }];
 
+// One dashboard widget extension, as the dashboard hands it to the widget it renders.
+type WidgetExtension = Record<string, unknown>;
+
+function text(extension: WidgetExtension | undefined, key: string): string | undefined {
+  const value = extension?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+interface MySubmissionsWidgetProps {
+  extension?: WidgetExtension;
+}
+
 // The dashboard widget listing the current user's own submissions, newest activity first,
-// registered on the `iap/dashboard/widget` extension point. The surrounding titled frame is
-// provided by the dashboard, so this adds only the action for raising a new one.
+// registered on the `iap/dashboard/widget` extension point.
 //
-// The action sits above the grid rather than in its toolbar: that toolbar is the grid's own
-// vocabulary — search, columns, filters, all about what is being *looked at* — while creating
-// something is about the collection, and it belongs where nothing has to be found first.
-function MySubmissionsWidget() {
+// It draws its own header — the extension asks the dashboard for `iap:widgetHideHeader` — so that
+// the action for raising a submission sits on the title's line, where it reads as something the
+// widget offers, rather than floating in a band of its own above the table. Title and subtitle
+// still come from the extension, so they are declared in exactly one place.
+function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
   const [ dialogOpen, setDialogOpen ] = useState(false);
+  // Bumped when a row is deleted, which is a change to what the listing should say that the grid
+  // has no way of noticing on its own
+  const [ refreshToken, setRefreshToken ] = useState(0);
   const navigate = useNavigate();
+
+  const columns: EntityGridColumn[] = useMemo(() => [ {
+    field: "__actions__",
+    headerName: "Actions",
+    width: 130,
+    // Not a property of the entity, so there is nothing for the server to sort or filter on
+    sortable: false,
+    filterable: false,
+    // The narrow-screen card is a tap target that opens the submission; a row of controls inside
+    // one would compete with it
+    cardSlot: "omit",
+    renderCell: params => (
+      <SubmissionActions
+        path={params.row["@path"] as string | undefined}
+        title={params.row.title as string | undefined}
+        onDeleted={() => setRefreshToken(current => current + 1)}
+      />
+    ),
+  } ], []);
 
   // The grid reads the server on mount, so opening what was just created shows it, and coming
   // back lists it: no refresh of our own, and nothing stale left on screen either way. A
@@ -56,7 +92,15 @@ function MySubmissionsWidget() {
 
   return (
     <Stack spacing={1}>
-      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+      {/* The title and the action share a line, with the subtitle under the title where the
+          dashboard's own header would have put it */}
+      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h6">{text(extension, "iap:extensionName")}</Typography>
+          { text(extension, "iap:subtitle") && (
+            <Typography variant="body2" color="text.secondary">{text(extension, "iap:subtitle")}</Typography>
+          ) }
+        </Box>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
           New submission
         </Button>
@@ -64,6 +108,8 @@ function MySubmissionsWidget() {
       <EntityDataGrid
         entityType={SUBMISSION_TYPE}
         filters={MY_SUBMISSIONS}
+        extraColumns={columns}
+        refreshToken={refreshToken}
         emptyMessage="No submissions"
         noResultsMessage="No matching submissions"
       />
