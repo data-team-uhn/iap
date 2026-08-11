@@ -25,9 +25,14 @@
                   targetNamespace="https://iap.uhndata.io/demos/timeOffRequest">
   <bpmn:process id="timeOffRequest" name="Time off request" isExecutable="true">
     <bpmn:startEvent id="requestSubmitted" name="Request submitted">
-      <bpmn:outgoing>toApproval</bpmn:outgoing>
+      <bpmn:outgoing>toBudget</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="toApproval" sourceRef="requestSubmitted" targetRef="approveRequest" />
+    <bpmn:sequenceFlow id="toBudget" sourceRef="requestSubmitted" targetRef="checkBudget" />
+    <bpmn:serviceTask id="checkBudget" name="Check the time off budget">
+      <bpmn:incoming>toBudget</bpmn:incoming>
+      <bpmn:outgoing>toApproval</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toApproval" sourceRef="checkBudget" targetRef="approveRequest" />
     <bpmn:userTask id="approveRequest" name="Approve the request">
       <bpmn:incoming>toApproval</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
@@ -57,44 +62,51 @@
           <dc:Bounds x="139" y="223" width="79" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
+      <bpmndi:BPMNShape id="checkBudgetShape" bpmnElement="checkBudget">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
+        <dc:Bounds x="400" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
-        <dc:Bounds x="405" y="173" width="50" height="50" />
+        <dc:Bounds x="555" y="173" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="404" y="143" width="53" height="14" />
+          <dc:Bounds x="554" y="143" width="53" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestApprovedShape" bpmnElement="requestApproved">
-        <dc:Bounds x="522" y="100" width="36" height="36" />
+        <dc:Bounds x="672" y="100" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="500" y="143" width="81" height="14" />
+          <dc:Bounds x="650" y="143" width="81" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestRejectedShape" bpmnElement="requestRejected">
-        <dc:Bounds x="522" y="260" width="36" height="36" />
+        <dc:Bounds x="672" y="260" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="502" y="303" width="77" height="14" />
+          <dc:Bounds x="652" y="303" width="77" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
+      <bpmndi:BPMNEdge id="toBudgetEdge" bpmnElement="toBudget">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+      <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
         <di:waypoint x="350" y="198" />
-        <di:waypoint x="405" y="198" />
+        <di:waypoint x="400" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="555" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
-        <di:waypoint x="430" y="173" />
-        <di:waypoint x="430" y="118" />
-        <di:waypoint x="522" y="118" />
+        <di:waypoint x="580" y="173" />
+        <di:waypoint x="580" y="118" />
+        <di:waypoint x="672" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
-        <di:waypoint x="430" y="223" />
-        <di:waypoint x="430" y="278" />
-        <di:waypoint x="522" y="278" />
+        <di:waypoint x="580" y="223" />
+        <di:waypoint x="580" y="278" />
+        <di:waypoint x="672" y="278" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

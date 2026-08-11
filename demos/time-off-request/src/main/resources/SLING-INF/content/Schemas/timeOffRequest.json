@@ -7,16 +7,68 @@
     "version": "1.0",
     "active": true,
     "jcr:reference:workflow": "/Workflows/timeOffRequest/v1",
-    "description": "One day off, asked for and approved. The starting point the rest of the demo grows from.",
+    "description": "Time off, asked for and approved. Questions that appear only when they are relevant, a doctor's note required only for sick leave, and a budget looked up while the request is being raised — each one here because it forces a platform capability to exist rather than because a time off form needs it.",
     "details": {
       "jcr:primaryType": "sch:FormRequirement",
       "label": "Request details",
-      "description": "When you would like to be away.",
-      "day": {
+      "description": "When you would like to be away, and why.",
+      "duration": {
         "jcr:primaryType": "sch:Question",
-        "text": "Which day are you taking off?",
+        "text": "Is this a half day, a full day, or several days?",
+        "description": "Answer with 'half day', 'full day' or 'multiple days'.",
+        "dataType": "text",
+        "required": true
+      },
+      "startDate": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which day does your time off start?",
         "dataType": "date",
         "required": true
+      },
+      "endDate": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which day are you back?",
+        "dataType": "date",
+        "required": true,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [ "details/duration" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "multiple days" ]
+          }
+        }
+      },
+      "absenceType": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What kind of absence is this?",
+        "description": "Answer with 'personal', 'vacation' or 'sick'.",
+        "dataType": "text",
+        "required": true
+      }
+    },
+    "doctorsNote": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Doctor's note",
+      "description": "A note from your doctor covering the days you were unwell.",
+      "acceptedFileTypes": [ "application/pdf", "image/jpeg", "image/png" ],
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [ "details/absenceType" ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [ "sick" ]
+        }
       }
     },
     "approval": {
