@@ -447,7 +447,7 @@ test.describe('the time off request demo', () => {
     test('routes a refusal down the other arc of the gateway', async ({ request }) => {
       // The same definition, the other outcome: proving the gateway actually chooses rather than always taking the
       // first arc. `rejected` matches no condition, so the arc marked as the default carries it.
-      const raised = await request.post('/Submissions', {
+      const refused = await request.post('/Submissions', {
         headers: asRequester,
         form: {
           title: 'A day I will not get',
@@ -455,15 +455,18 @@ test.describe('the time off request demo', () => {
         },
         maxRedirects: 0,
       });
-      expect(raised.status()).toBe(302);
+      expect(refused.status()).toBe(302);
+      // Its own request, so its own path: nothing about a submission's name can be predicted from its title
+      const path = refused.headers().location;
+      expect(path).toMatch(FILED);
 
       const decision = await request.post(
-        '/Submissions/aDayIWillNotGet/wf:instances/timeOffRequest/approveRequest',
+        `${path}/wf:instances/timeOffRequest/approveRequest`,
         { headers: asApprover, form: { outcome: 'rejected' }, maxRedirects: 0 },
       );
       expect(decision.status()).toBe(200);
 
-      const response = await request.get('/Submissions/aDayIWillNotGet.json', {
+      const response = await request.get(`${path}.json`, {
         headers: asApprover,
       });
       expect(((await response.json()) as { tags?: string[] }).tags).toEqual([ 'rejected' ]);
