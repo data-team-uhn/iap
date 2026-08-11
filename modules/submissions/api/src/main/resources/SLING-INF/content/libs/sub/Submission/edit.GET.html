@@ -1,0 +1,31 @@
+<!--/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */-->
+<!--/* Filling a submission in is a view of it, so it is addressed the way every other view in this
+     application is - by extension, /Submissions/name.edit - rather than by a query parameter. The
+     app served is the same shell as the read-only page beside this; which of the two it shows is
+     decided by the client router from the same extension. Serving it from here rather than from
+     JavaScript alone is what lets the server have an opinion about the mode later.
+
+     Rendered by re-dispatching this same resource as .html rather than by including the shell
+     script directly: a script included by path is resolved against the *current* request, and the
+     `edit` extension has no script under iap/Homepage. The extra selector only makes the inner
+     request differ from this one, so Sling does not see it as the same request repeating; nothing
+     reads it, and the resolver falls back past it to the shell. `edit` is not a known extension
+     either, so the content type has to be stated rather than guessed from it. */-->
+<sly data-sly-use.contentType="io.uhndata.iap.scripting.ContentTypeSetter">${contentType.html}</sly>
+<sly data-sly-resource="${'.html' @selectors='forceInclude'}"/>
