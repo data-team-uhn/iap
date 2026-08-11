@@ -236,7 +236,8 @@ test.describe('stories: a schema from its first draft to a second version', () =
     await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(TITLE);
     await dialog.getByRole('button', { name: 'Create' }).click();
 
-    await expect(page).toHaveURL(/\/Submissions\/[^/.]+$/);
+    // Named by a UUID, and filed under its first three byte pairs
+    await expect(page).toHaveURL(/\/Submissions\/([0-9a-f]{2})\/([0-9a-f]{2})\/([0-9a-f]{2})\/\1\2\3[0-9a-f-]+$/);
     submission = new URL(page.url()).pathname;
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
 

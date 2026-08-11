@@ -19,6 +19,10 @@ package io.uhndata.iap.submissions.internal.handlers;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -28,7 +32,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
-import io.uhndata.iap.utils.NodeNameUtils;
+import io.uhndata.iap.utils.PrefixTree;
 import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -70,6 +74,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The lifecycle tag of a closed schema, which its versions inherit. */
     private static final String RETIRED_TAG = "retired";
 
+    /** The node type of the prefix tree's buckets, which hold no data of their own. */
+    private static final String BUCKET_TYPE = "sling:Folder";
+
     @Override
     public String getName()
     {
@@ -81,8 +88,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     {
         final String title = Payloads.requireText(context.getEvent(), TITLE_PARAMETER, "A title is required");
         final Resource schemaVersion = resolveSchemaVersion(context);
-        final Resource submission = context.getResourceResolver().create(context.getTarget(),
-            freeName(context.getTarget(), title),
+        // A UUID spreads the prefix tree evenly, and leaves the title a label rather than an identity
+        final String name = UUID.randomUUID().toString();
+        final Resource submission = context.getResourceResolver().create(openBucketFor(context, name), name,
             Map.of("jcr:primaryType", "sub:Submission", TITLE_PROPERTY, title));
         ReferenceUtils.setReference(submission, SCHEMA_VERSION_PROPERTY, schemaVersion);
         draft(submission);
@@ -139,21 +147,24 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     }
 
     /**
-     * Derives a free node name from the title, translating naming problems into payload refusals.
+     * Opens the bucket of the {@link PrefixTree prefix tree} a submission of this name is filed in, creating it when
+     * needed. Submissions are found by query, so where one sits never has to be known.
      *
-     * @param parent the submissions homepage the submission will be created under
-     * @param title the human-given title
-     * @return a free, camel-cased name
-     * @throws InvalidPayloadException when the title yields no usable name
+     * @param context the executing task's context, whose target is the homepage
+     * @param name the name the submission will be created under
+     * @return the resource to create the submission in
+     * @throws PersistenceException when the buckets cannot be opened
      */
-    private String freeName(final Resource parent, final String title) throws InvalidPayloadException
+    private Resource openBucketFor(final WorkflowTaskContext context, final String name) throws PersistenceException
     {
-        final String base = NodeNameUtils.camelCase(title);
-        if (base.isEmpty()) {
-            throw new InvalidPayloadException("The title must contain at least one letter or digit");
+        final Node homepage = Objects.requireNonNull(context.getTarget().adaptTo(Node.class),
+            "The submissions homepage is always backed by a JCR node");
+        try {
+            final Node bucket = PrefixTree.bucketFor(homepage, name, BUCKET_TYPE);
+            return Objects.requireNonNull(context.getResourceResolver().getResource(bucket.getPath()),
+                "A bucket that was just opened is readable by the session that opened it");
+        } catch (final RepositoryException e) {
+            throw new PersistenceException("Could not open the bucket for the new submission", e);
         }
-        // Always answers. Past a hundred siblings the suffix turns random rather than giving up: refusing
-        // to record a submission that was raised is the worse outcome
-        return NodeNameUtils.findFreeName(parent, base);
     }
 }
