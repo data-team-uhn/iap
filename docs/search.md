@@ -38,7 +38,7 @@ GET /search.json?quick=diab&allowedResourceTypes=sub:Submission
 | --- | --- | --- |
 | `offset` | `0` | How many matches to skip |
 | `limit` | `10` | How many matches to return, capped at `1000`; `0` counts without returning any |
-| `resourceSelectors` | none | Extra selectors used when serializing each match, e.g. `deep` or `2` for children, `dereference` |
+| `resourceSelectors` | none | Extra selectors used when serializing each match, e.g. `deep` or `2` for children, `dereference`; only meaningful with `query`, and only without `rawResults` |
 | `req` | none | An opaque token echoed back, so a client can discard an out-of-order response |
 | `rawResults` | `false` | Return the columns the query selected instead of serializing the matched nodes; only meaningful with `query` |
 | `doNotEscapeQuery` | `false` | Treat the `fulltext` input as a full-text expression, operators and all |
@@ -63,9 +63,20 @@ stops ten pages past the requested one, and `totalIsApproximate` then says the r
 A match that cannot be serialized is left out of `rows` but still counted, so `returnedrows` may be
 smaller than the page.
 
+No request reads more than **10 000 matches**, however large a page it asks for and however far into
+the results it starts. `limit=0` counts up to that ceiling, which is what makes it useful for asking
+"how many are there?"; a page starting near it comes back short, and one starting past it comes back
+empty. The `limit` is capped on its own, but the `offset` is a request parameter too, and without a
+ceiling a single request asking for a far enough page would walk the entire repository.
+
 The same node reached several times — which a query with a join does routinely — is returned once.
+For a query with more than one selector, the node returned is the one on the **first** selector.
 Raw results are not deduplicated: there, the rows are what the client asked for, and two identical
 ones may well be intended.
+
+If reading the results fails part-way through, the response is still a complete JSON document: the
+rows gathered so far, the usual summary, and an `error` alongside `"partial": true`. By then the
+beginning of the response may already have gone out, so it is too late for an error status.
 
 ### Raw results
 
@@ -82,14 +93,25 @@ GET /search.json?rawResults=true&query=SELECT%20s.category%20FROM%20%5Bsub%3ASub
 { "rows": [ { "s": "/Submissions/s1", "s.category": "renal" } ], … }
 ```
 
+A column holding a binary is reported as `null`. Reading a binary means reading all of it, and a
+statement is free to select the data of every file in the repository, so the response says the
+column is there and leaves its contents to be fetched from the node itself.
+
 ## Full-text search
 
 `fulltext=…` becomes `select n.* from [nt:base] as n where contains(n.*, '…')`. By default the
 input is escaped so that it is found verbatim, operators and all. `doNotEscapeQuery=true` leaves
 the full-text operators alone, so a user can write `heart -failure` or `diabet*` and mean it.
 
-Quotes are escaped either way: they delimit the string in the statement, so leaving them to the
-client would let it write the rest of the query.
+Quotes are escaped either way — both the double quote that opens a phrase and the apostrophe that
+does the same, which the statement's own escaping would otherwise hand straight to the full-text
+parser — since they delimit the string in the statement, and leaving them to the client would let
+it write the rest of the query.
+
+One thing the default does not yet escape is whitespace and the `OR` keyword, so a search for
+`cats OR dogs` is still read as two alternatives rather than as that text. Making it literal means
+quoting each term, which changes what multi-word searches match, so it is left for when there is a
+caller whose expectations can be checked against.
 
 ## Quick search
 
@@ -166,14 +188,23 @@ traversal, which is exactly the case this exists to report. The statement the pl
 not quite the one the client sent, so the client's own statement is parsed first — that way a
 syntax error is reported against what was actually sent.
 
+The statement is put on a single line and cut down to 500 characters before it is logged. In
+`fulltext` mode it is built around the text the user typed, and a line break in that text would
+otherwise let a client write log entries of its own choosing. Nothing here can fail a request:
+obtaining a plan is diagnostics, and a request the repository would have served is served.
+
 ## Errors
 
 | Status | When |
 | --- | --- |
-| `400` | The statement cannot be parsed, with the repository's message |
+| `400` | The statement cannot be parsed, or the repository cannot make sense of it — a malformed full-text expression, say — with the repository's message |
 | `500` | The query could not be executed |
 
 Both are a JSON object with a single `error` property.
+
+These are for a request that failed before any result was written. A failure part-way through the
+results cannot use them, because the response has already started; it is reported in the summary
+instead, as described under [Shaping the response](#shaping-the-response).
 
 ## Future work
 
@@ -181,5 +212,13 @@ Both are a JSON object with a single `error` property.
 - Nothing in the frontend calls `/search.json` yet.
 - A `lucene` mode, running a native Lucene query, was deliberately left out: it needs Lucene index
   definitions that IAP does not have yet.
-- The cost of a query is unbounded. If arbitrary JCR-SQL2 turns out not to be needed by the
-  frontend, restricting the `query` mode to administrators would close that off entirely.
+- How many results a request reads is now bounded, but the cost of the *query itself* is not: a
+  statement with no index still makes the repository walk the content to find the first ten
+  thousand matches. Oak's own `queryLimitReads`, `queryLimitInMemory` and `failTraversal` settings
+  are not configured anywhere in `packaging/`, and would bound it at the source.
+- If arbitrary JCR-SQL2 turns out not to be needed by the frontend, restricting the `query` mode to
+  administrators would close that off entirely.
+- `resourceSelectors` is only honoured when whole nodes are serialized. Passing it through to the
+  engines, as a field on `SearchParameters`, would let `quick` results respect it too.
+- Making the default `fulltext` mode literal for whitespace and `OR`, as noted under
+  [Full-text search](#full-text-search).
