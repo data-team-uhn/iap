@@ -11,10 +11,10 @@ provisioned into Oak by Oak's own `DefaultSyncHandler` — no custom identity-pr
 
 Everything is configuration; there is no new Java or Maven module. The pieces:
 
-| Concern | Where |
-| --- | --- |
-| Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module) **and** the `/oidc-login` trigger node (repoinit) | [core/oidc.json](../packaging/slingfeature/src/main/features/core/oidc.json) |
-| `ExternalPrincipalConfiguration` added to the security provider's required services | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json) |
+| Concern                                                                                                                                                                                                           | Where                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module) **and** the `/oidc-login` trigger node (repoinit)                                                         | [core/oidc.json](../packaging/slingfeature/src/main/features/core/oidc.json)                                    |
+| `ExternalPrincipalConfiguration` added to the security provider's required services                                                                                                                               | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json)                              |
 | "Institutional account" sign-in button (targets `/oidc-login`, renders login's generic `RedirectSignIn`) — **disabled by default**, see [Enabling the sign-in button](#enabling-the-institutional-sign-in-button) | [Keycloak.json](../modules/keycloak/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
 
 ## Sign-in flow
@@ -30,7 +30,7 @@ The OIDC handler is therefore registered at **both `/` and `/oidc-login`**, with
 
 - **Unauthenticated `/anything`** → the form handler outranks the OIDC handler at `/`, so it wins
   `requestCredentials` and shows `/login`. The gate is preserved.
-- **The button → `/oidc-login`** → the OIDC handler's `/oidc-login` holder is *more specific* than
+- **The button → `/oidc-login`** → the OIDC handler's `/oidc-login` holder is _more specific_ than
   the form handler's `/`, so it wins `requestCredentials` regardless of ranking and starts the
   Keycloak round trip.
 - **After login** → the OIDC handler covers `/`, so its `extractCredentials` validates the
@@ -77,13 +77,13 @@ again, POST the same property as `true`.
 Resolved by the configadmin interpolation plugin (declared in `boot.json`). Set them wherever the
 Sling process runs (Docker/K8s env, systemd unit, etc.):
 
-| Variable | Example | Notes |
-| --- | --- | --- |
-| `KEYCLOAK_BASE_URL` | `https://keycloak.example.org/realms/iap` | Realm root; endpoints are read from its OIDC discovery document. |
-| `KEYCLOAK_CLIENT_ID` | `iap-sling` | The confidential client below. |
-| `KEYCLOAK_CLIENT_SECRET` | (secret) | The client's secret; never commit it. Must match the client's Credentials in Keycloak exactly. |
-| `IAP_PUBLIC_URL` | `https://iap.example.org` | Public base URL of IAP; used to build the callback URI. |
-| `IAP_OAUTH_ENCRYPTION_PASSWORD` | (secret) | Key for encrypting any OAuth token stored in the user's JCR home. Any non-empty value in dev; if unset, the crypto service fails to activate and the OIDC handler won't come up. |
+| Variable                        | Example                                   | Notes                                                                                                                                                                            |
+| ------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `KEYCLOAK_BASE_URL`             | `https://keycloak.example.org/realms/iap` | Realm root; endpoints are read from its OIDC discovery document.                                                                                                                 |
+| `KEYCLOAK_CLIENT_ID`            | `iap-sling`                               | The confidential client below.                                                                                                                                                   |
+| `KEYCLOAK_CLIENT_SECRET`        | (secret)                                  | The client's secret; never commit it. Must match the client's Credentials in Keycloak exactly.                                                                                   |
+| `IAP_PUBLIC_URL`                | `https://iap.example.org`                 | Public base URL of IAP; used to build the callback URI.                                                                                                                          |
+| `IAP_OAUTH_ENCRYPTION_PASSWORD` | (secret)                                  | Key for encrypting any OAuth token stored in the user's JCR home. Any non-empty value in dev; if unset, the crypto service fails to activate and the OIDC handler won't come up. |
 
 ## Keycloak realm setup
 
@@ -101,7 +101,7 @@ options. The manual steps are documented here as the reference the script implem
      `callbackUri` in `core/oidc.json` exactly.
 3. **Roles**: define realm roles that map to your access tiers (e.g. `reader`, `writer`, `admin`)
    and assign them to users/groups.
-4. **The groups claim (required)**: Keycloak does *not* emit a flat `groups` claim by default — it
+4. **The groups claim (required)**: Keycloak does _not_ emit a flat `groups` claim by default — it
    puts realm roles under `realm_access.roles`. The OAuth client's UserInfo processor reads a flat
    list from the claim named by `groupsClaimName` (`groups`). Add a client (or client-scope)
    protocol mapper that projects realm roles into a top-level `groups` claim:
@@ -178,7 +178,7 @@ end
 before anyone has logged in carrying it. **Decide `idpNameInPrincipals` once** — flipping it later
 changes every principal name and invalidates existing ACLs.
 
-> Note: principal-*based* authorization is scoped to `/home/users/system/sling` (service users)
+> Note: principal-_based_ authorization is scoped to `/home/users/system/sling` (service users)
 > here, so it does **not** apply to human Keycloak users — use resource-based ACLs as above.
 
 ## Local login fallback
