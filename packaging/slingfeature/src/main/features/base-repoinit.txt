@@ -74,7 +74,8 @@ end
 create path (sling:Folder) /etc/map
 create path (sling:Folder) /etc/map/http
 
-# Allow everyone to see all users
-set ACL on /home/users
-    allow jcr:read for everyone
-end
+# User homes are deliberately NOT readable by everyone. What is recorded about a person is governed per field by the
+# catalogue under /ProfileFields, and the profile API applies those rules; a blanket read grant here would hand every
+# signed-in user every field of everybody, whatever the catalogue said. Reading somebody else's profile therefore goes
+# through /system/iap/profile, which reads with the platform's own credentials and withholds what the requester may
+# not see. A person still reads their own home directly, through the grant Oak gives them over it at creation.
