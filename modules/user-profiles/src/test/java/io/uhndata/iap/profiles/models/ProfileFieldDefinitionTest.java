@@ -176,8 +176,10 @@ class ProfileFieldDefinitionTest
     {
         final ProfileFieldDefinition field = definition("mystery", Map.of("kind", "whatever"));
 
-        assertNull(field.getKind());
-        assertNull(field.getStorage());
+        // The getters still answer, with the node type's default, so nothing has to cope with a half-read definition
+        assertEquals(Kind.PROFILE, field.getKind());
+        assertEquals("profile/mystery", field.getStorage());
+        // What makes it fail closed is this, and the profile API refuses the field on the strength of it
         assertFalse(field.isUsable());
         assertEquals(1, field.getConfigurationProblems().size());
         assertTrue(field.getConfigurationProblems().get(0).contains("`kind` is `whatever`"));
@@ -191,7 +193,7 @@ class ProfileFieldDefinitionTest
         // whole point of parsing the vocabulary rather than trusting it
         final ProfileFieldDefinition field = definition("photo", Map.of("dataType", "file"));
 
-        assertNull(field.getDataType());
+        assertEquals(DataType.TEXT, field.getDataType());
         assertFalse(field.isUsable());
         assertTrue(field.getConfigurationProblems().get(0).contains("text, long, double, boolean, date"));
     }
@@ -202,8 +204,8 @@ class ProfileFieldDefinitionTest
         final ProfileFieldDefinition field = definition("secret", Map.of(
             "writableBy", "everyone", "readableBy", "nobody"));
 
-        assertNull(field.getWritableBy());
-        assertNull(field.getReadableBy());
+        assertEquals(Writability.OWNER, field.getWritableBy());
+        assertEquals(Readability.SELF, field.getReadableBy());
         assertEquals(2, field.getConfigurationProblems().size());
         assertTrue(field.getConfigurationProblems().get(0).contains("owner, admin, nobody"));
         assertTrue(field.getConfigurationProblems().get(1).contains("authenticated, self, admin"));
@@ -275,9 +277,9 @@ class ProfileFieldDefinitionTest
             "kind", "nonsense", "dataType", "nonsense", "writableBy", "nonsense", "readableBy", "nonsense"));
 
         final List<String> details = field.getDocumentationDetails();
-        assertTrue(details.get(0).contains("**Type**: misconfigured"));
-        assertFalse(details.stream().anyMatch(detail -> detail.contains("May be changed by")));
-        assertFalse(details.stream().anyMatch(detail -> detail.contains("May be read by")));
+        // Every vocabulary reads as its default, and each is separately reported as misconfigured, so the catalogue
+        // says both what the field will behave as and that nobody should rely on it
+        assertTrue(details.get(0).contains("**Type**: text"));
         assertEquals(4, details.stream().filter(detail -> detail.contains("Misconfigured")).count());
     }
 
@@ -311,12 +313,13 @@ class ProfileFieldDefinitionTest
         final JsonObject json = definition("broken", Map.of("kind", "nonsense", "dataType", "nonsense",
             "writableBy", "nonsense", "readableBy", "nonsense")).documentationJsonBuilder().build().asJsonObject();
 
-        assertEquals("", json.getString("dataType"));
-        assertEquals("", json.getString("writableBy"));
-        assertEquals("", json.getString("readableBy"));
+        assertEquals("text", json.getString("dataType"));
+        assertEquals("owner", json.getString("writableBy"));
+        assertEquals("self", json.getString("readableBy"));
         assertFalse(json.getBoolean("usable"));
+        // Storage is always derivable, so it is always said; these three are only there when stated
+        assertEquals("profile/broken", json.getString("storage"));
         assertFalse(json.containsKey("idpClaim"));
-        assertFalse(json.containsKey("storage"));
         assertFalse(json.containsKey("allowedValues"));
         assertFalse(json.containsKey("order"));
     }
