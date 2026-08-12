@@ -52,8 +52,8 @@ public class LinkDefinition extends Content implements DocumentedItem
     public static final String RESOURCE_TYPE = "iap/LinkDefinition";
 
     /**
-     * What to do with the linking resource when the linked resource is deleted. Declared in the data model, but
-     * not enforced yet; enforcement arrives with the workflow engine's deletion handling.
+     * What to do with the linking resource when the linked resource is deleted. Enforced by the deletion
+     * service, which consults this policy for every link pointing at a resource being deleted.
      *
      * @since 0.1.0
      */

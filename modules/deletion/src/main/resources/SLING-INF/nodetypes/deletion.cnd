@@ -1,0 +1,103 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<rep = 'internal'>
+<iap = 'https://iap.uhndata.io/'>
+
+//-----------------------------------------------------------------------------
+//
+// Deletion: the node types supporting safe resource deletion. Deleted
+// resources are not removed outright: by default they are moved, together
+// with everything their deletion drags along, into the archive at /Archive,
+// where they wait to be either restored or purged. Since a move preserves
+// identifiers, all the references between archived resources remain intact,
+// which is what makes restoring them possible; keeping archived content
+// invisible to regular users is the job of access control, not of broken
+// references.
+//
+// The archive types deliberately do NOT extend iap:Content: archive entries
+// are bookkeeping, not content, so they must not acquire tags, links, or the
+// iap/Content resource supertype (which would hand them to the content
+// deletion endpoint itself).
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Marks a resource that must never be deleted: neither archived nor
+// permanently removed, and not purged if it somehow ends up in the archive.
+// Deleting it again becomes possible only by removing this mixin first.
+[iap:Undeletable]
+  mixin
+
+//-----------------------------------------------------------------------------
+// The archive root, at /Archive, and the buckets of the prefix tree under it.
+// Not granted to anyone by default: regular users cannot see it (and their
+// queries cannot return archived content), administrators bypass access
+// control, and the deletion service user manages its contents.
+[iap:Archive] > sling:Folder, rep:AccessControllable
+  - sling:resourceType (STRING) = "iap/Archive" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // One entry per deletion operation, never a direct child of /Archive: the
+  // entries are spread over a PrefixTree of buckets, which are iap:Archive
+  // nodes themselves, so that no single parent ends up holding every deletion
+  // ever performed. See docs/deletion.md.
+  + * (iap:ArchiveEntry) = iap:ArchiveEntry
+  + * (iap:Archive) = iap:Archive
+
+//-----------------------------------------------------------------------------
+// One deletion operation: records who requested it, when (jcr:created), and
+// which resource was targeted, and holds one iap:ArchivedItem wrapper for
+// each subtree the operation moved into the archive.
+[iap:ArchiveEntry] > sling:Folder, mix:created
+  - sling:resourceType (STRING) = "iap/ArchiveEntry" mandatory autocreated protected
+
+  // The user who requested the deletion. jcr:createdBy cannot record this,
+  // since the moves are performed by the deletion service user.
+  - deletedBy (STRING) mandatory
+
+  // The path whose deletion was requested; the other archived items were
+  // dragged along by references, links, or containment.
+  - requestedPath (STRING) mandatory
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The archived subtrees
+  + * (iap:ArchivedItem) = iap:ArchivedItem
+
+//-----------------------------------------------------------------------------
+// A wrapper around one archived subtree, recording where it came from so it
+// can be restored. The wrapper stays untouched by the move itself, so
+// archiving doesn't need to modify - or check out - the resources it
+// archives, and restoring leaves no residue on them.
+[iap:ArchivedItem] > sling:Folder
+  - sling:resourceType (STRING) = "iap/ArchivedItem" mandatory autocreated protected
+
+  // The absolute path the wrapped subtree was moved from
+  - originalPath (STRING) mandatory
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The archived subtree, exactly one child in practice
+  + * (nt:base)

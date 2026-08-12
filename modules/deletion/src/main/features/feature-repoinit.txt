@@ -1,0 +1,30 @@
+# Copyright 2026 DATA @ UHN. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Where deleted resources are kept until restored or purged. Deliberately not
+# granted to anyone: regular users must not see deleted content, and queries
+# must not return it; administrators bypass access control.
+create path (iap:Archive) /Archive
+
+# The service user performing the impact analysis and all the changes: it
+# scans references regardless of who can see them, writes the archive, and
+# moves content in and out of it, anywhere in the tree. Security is enforced
+# beforehand against the requesting user's own session.
+create service user iap-deletion
+
+set ACL for iap-deletion
+    allow   jcr:all     on /
+end
