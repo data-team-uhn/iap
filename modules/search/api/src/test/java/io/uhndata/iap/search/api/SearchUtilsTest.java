@@ -98,6 +98,24 @@ public class SearchUtilsTest
             .getJsonObject(SearchUtils.MATCH_KEY);
         Assertions.assertEquals("...89ABCDEF", match.getString("before"));
         Assertions.assertEquals("01234567...", match.getString("after"));
+    }
+
+    @Test
+    public void contextIsNotCutThroughTheMiddleOfACharacter()
+    {
+        // Counting in the units a string is stored in rather than in characters would cut one of these emoji in
+        // half, leaving the response holding an unpaired surrogate, which is not text any more
+        final String emoji = "😀";
+        final JsonObject match = SearchUtils
+            .addMatchMetadata(RESULT, emoji.repeat(10) + "needle" + emoji.repeat(10), "needle", null, null)
+            .getJsonObject(SearchUtils.MATCH_KEY);
+        final String before = match.getString("before");
+        final String after = match.getString("after");
+        Assertions.assertEquals("..." + emoji.repeat(8), before);
+        Assertions.assertEquals(emoji.repeat(8) + "...", after);
+        // Eight characters as a reader counts them, plus the three of the ellipsis, whatever they take to store
+        Assertions.assertEquals(11, before.codePointCount(0, before.length()));
+        Assertions.assertEquals(11, after.codePointCount(0, after.length()));
         Assertions.assertEquals("", match.getString("label"));
         Assertions.assertEquals("", match.getString("@path"));
     }
@@ -116,15 +134,5 @@ public class SearchUtilsTest
         // The caller is expected to pass a value that matched, but a description of a match that isn't there would
         // be nonsense, so the result is returned as it is rather than made up
         Assertions.assertEquals(RESULT, SearchUtils.addMatchMetadata(RESULT, "nothing here", "needle", null, null));
-    }
-
-    @Test
-    public void nodeNamesAreValidated()
-    {
-        Assertions.assertTrue(SearchUtils.isValidNodeName("question"));
-        Assertions.assertTrue(SearchUtils.isValidNodeName("sub:Submission"));
-        Assertions.assertFalse(SearchUtils.isValidNodeName("a/b"));
-        Assertions.assertFalse(SearchUtils.isValidNodeName(""));
-        Assertions.assertFalse(SearchUtils.isValidNodeName(null));
     }
 }

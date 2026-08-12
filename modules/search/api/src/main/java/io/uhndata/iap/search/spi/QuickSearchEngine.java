@@ -81,9 +81,15 @@ public interface QuickSearchEngine
      * The matches found by an engine, serialized one at a time so that the ones that don't make it into the response
      * are never serialized at all.
      *
+     * <p>
+     * The caller stops as soon as it has enough results, which for any search with more matches than fit on a page is
+     * what normally happens, so an implementation is told when it may let go of whatever it opened rather than being
+     * left to guess from a last {@link #next()} that never comes.
+     * </p>
+     *
      * @since 0.1.0
      */
-    interface Results extends Iterator<JsonObject>
+    interface Results extends Iterator<JsonObject>, AutoCloseable
     {
         /**
          * Discards the next match without serializing it. This is what the caller uses for the results it has to
@@ -93,6 +99,21 @@ public interface QuickSearchEngine
         default void skip()
         {
             next();
+        }
+
+        /**
+         * Releases whatever was held for this search: a resource resolver or a session the engine opened to run it,
+         * typically. Called exactly once, whether the results were read to the end or not.
+         *
+         * <p>
+         * Narrowed from {@link AutoCloseable#close()} so that it throws nothing: releasing what a search held is not
+         * something a caller can do anything about, and the response is usually already on its way out by then.
+         * </p>
+         */
+        @Override
+        default void close()
+        {
+            // Nothing to release by default
         }
 
         /**
