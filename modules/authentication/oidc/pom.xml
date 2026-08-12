@@ -21,16 +21,15 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-modules</artifactId>
+    <artifactId>iap-authentication</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-authentication</artifactId>
+  <artifactId>iap-oidc</artifactId>
   <packaging>pom</packaging>
-  <name>IAP - Authentication</name>
+  <name>IAP - OIDC authentication</name>
 
   <modules>
-    <module>token</module>
-    <module>oidc</module>
+    <module>support</module>
   </modules>
 </project>

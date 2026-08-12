@@ -21,16 +21,30 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-modules</artifactId>
+    <artifactId>iap-oidc</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-authentication</artifactId>
-  <packaging>pom</packaging>
-  <name>IAP - Authentication</name>
+  <artifactId>iap-oidc-support</artifactId>
+  <packaging>bundle</packaging>
+  <name>IAP - Keycloak / OIDC authentication</name>
+  <description>Delegates authentication to an external Keycloak instance (an OIDC provider) via the Apache
+    Sling OAuth client. That bundle ships an Oak ExternalIdentityProvider (OidcIdentityProvider),
+    so a user who signs in through Keycloak is provisioned into Oak by Oak's own DefaultSyncHandler
+    and their Keycloak realm roles become Oak group principals that content ACLs can reference.</description>
 
-  <modules>
-    <module>token</module>
-    <module>oidc</module>
-  </modules>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Include-Resource>{maven-resources}</Include-Resource>
+          </instructions>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
