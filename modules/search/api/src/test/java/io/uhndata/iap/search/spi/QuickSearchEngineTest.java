@@ -56,6 +56,18 @@ public class QuickSearchEngineTest
         Assertions.assertThrows(NoSuchElementException.class, empty::next);
         // Skipping nothing is not an error
         Assertions.assertDoesNotThrow(empty::skip);
+        Assertions.assertDoesNotThrow(empty::close);
+    }
+
+    @Test
+    public void anEngineWithNothingToReleaseNeedNotSaySo()
+    {
+        // The caller closes every result set, including the ones from engines that never opened anything, so the
+        // default has to be a no-op rather than something an implementation is obliged to write
+        final QuickSearchEngine.Results results = new StubEngine(List.of()).quickSearch(null, null);
+        Assertions.assertDoesNotThrow(results::close);
+        // Closing changes nothing for an engine that holds nothing
+        Assertions.assertTrue(results.hasNext());
     }
 
     @Test
