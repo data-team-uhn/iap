@@ -90,6 +90,11 @@
     <!-- Frontend lint (ESLint) over the sources *and* the tests; see the yarn-lint execution.
          Treated as a quality check: on by default, off in quick builds. -->
     <lint.skip>false</lint.skip>
+    <!-- Reads every bundle's initial content with the content loader's own reader; see build-checks.
+         A verification rather than a test, so it runs in `verify` even when tests are skipped. Off in
+         quick builds, since nothing that skips the licence check and the compiler's own opinions wants
+         to wait for this one either. -->
+    <contentcheck.skip>false</contentcheck.skip>
   </properties>
 
   <dependencyManagement>
@@ -2161,6 +2166,7 @@
         <dependencyCheck.skip>true</dependencyCheck.skip>
         <typecheck.skip>true</typecheck.skip>
         <lint.skip>true</lint.skip>
+        <contentcheck.skip>true</contentcheck.skip>
         <webpackArguments>--mode=development --env quick=true</webpackArguments>
       </properties>
     </profile>
@@ -2379,6 +2385,8 @@
   </profiles>
 
   <modules>
+    <!-- First: these check the whole tree, and a failure here should not wait for everything to compile -->
+    <module>build-checks</module>
     <module>modules</module>
     <module>aggregated-frontend</module>
     <module>test-data</module>
