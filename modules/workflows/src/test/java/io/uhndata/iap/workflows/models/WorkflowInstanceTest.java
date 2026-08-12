@@ -157,4 +157,22 @@ class WorkflowInstanceTest
         assertEquals(3L, instance.getVariable("requestedDays").getValue());
         assertNull(instance.getVariable("noSuchVariable"));
     }
+
+    @Test
+    void doesNotMistakeATokenOrATaskForAVariable()
+    {
+        // Tokens, variables and tasks are all residual children named by the engine, so a name says nothing about
+        // what will be found under it; without a type check these would adapt to a Variable with no value at all
+        final Resource resource = this.context.create().resource(PATH, Map.of(
+            TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active"));
+        this.context.create().resource(PATH + "/t1", Map.of(
+            TYPE, WorkflowToken.RESOURCE_TYPE, "currentNodeId", "task_1"));
+        this.context.create().resource(PATH + "/task_1_1", Map.of(
+            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "task_1", "label", "Approve",
+            "status", "created"));
+        final WorkflowInstance instance = resource.adaptTo(WorkflowInstance.class);
+
+        assertNull(instance.getVariable("t1"));
+        assertNull(instance.getVariable("task_1_1"));
+    }
 }

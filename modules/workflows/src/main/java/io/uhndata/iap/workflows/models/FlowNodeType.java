@@ -18,7 +18,6 @@
 package io.uhndata.iap.workflows.models;
 
 import java.io.StringReader;
-import java.util.Arrays;
 import java.util.List;
 
 import jakarta.json.Json;
@@ -133,8 +132,12 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     }
 
     /**
-     * The fixed properties to set on a node stored from a matching element, e.g. {@code catching} for the
-     * intermediate events, whose two flavours share a node type and differ only by this.
+     * The fixed properties to set on a node stored from a matching element, e.g. {@code terminate} for a terminate
+     * end event, which shares {@code wf:EndEvent} with the ordinary ones and differs only by this.
+     *
+     * <p>Only for what genuinely varies between entries sharing a node type. Anything the node type already
+     * determines — {@code catching}, say — is autocreated by the node type itself and protected against being
+     * written, so naming it here would be a second, weaker source of truth for a value that cannot vary.</p>
      *
      * @return a JSON object of property names and values, or {@code null} if this entry sets no fixed properties or
      *         the stored value is not valid JSON
@@ -184,7 +187,7 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
      * the {@link #getDefaultCategory() group implied by the kind of entry} when none is declared, so that a new
      * entry always lands somewhere sensible.
      *
-     * @return the group names, never empty
+     * @return a copy of the group names, never empty
      */
     @Override
     @NotNull
@@ -192,7 +195,8 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     {
         return this.category == null || this.category.length == 0
             ? List.of(this.getDefaultCategory())
-            : Arrays.asList(this.category);
+            // A copy: Arrays.asList would be a live view of the model's own array, writable through by any caller
+            : List.of(this.category);
     }
 
     /**

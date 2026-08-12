@@ -396,6 +396,43 @@ class ContentTest
     }
 
     @Test
+    void adaptsNamedChildOfTheExpectedType()
+    {
+        final Resource parent = this.context.create().resource("/content/typedChild",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        this.context.create().resource("/content/typedChild/single", SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Content content = parent.adaptTo(Content.class);
+
+        final Content child = content.getChild("single", Content.RESOURCE_TYPE, Content.class);
+
+        assertNotNull(child);
+        assertEquals("single", child.getName());
+    }
+
+    @Test
+    void returnsNullWhenTheNamedChildIsOfAnotherType()
+    {
+        // Without the type check the child would still be adapted, since a resource matching no registered model
+        // is handed to whichever implementation comes first rather than rejected
+        final Resource parent = this.context.create().resource("/content/mixedChildren",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        this.context.create().resource("/content/mixedChildren/other", SLING_RESOURCE_TYPE, "sling:Folder");
+        final Content content = parent.adaptTo(Content.class);
+
+        assertNull(content.getChild("other", Content.RESOURCE_TYPE, Content.class));
+    }
+
+    @Test
+    void returnsNullForMissingNamedChildOfTheExpectedType()
+    {
+        final Resource parent = this.context.create().resource("/content/noTypedChild",
+            SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
+        final Content content = parent.adaptTo(Content.class);
+
+        assertNull(content.getChild("missing", Content.RESOURCE_TYPE, Content.class));
+    }
+
+    @Test
     void adaptsParentOfTheExpectedType()
     {
         this.context.create().resource("/content/owner", SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);

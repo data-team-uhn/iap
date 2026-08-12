@@ -66,8 +66,7 @@
     "category": ["Intermediate Events"],
     "priority": 0,
     "xmlElement": "bpmn:intermediateCatchEvent",
-    "jcrNodeType": "wf:IntermediateCatchingEvent",
-    "jcrProperties": "{\"catching\": true}"
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
   },
   "MessageIntermediateCatchEvent": {
     "jcr:primaryType": "wf:CatchingEventType",
@@ -77,8 +76,7 @@
     "priority": 10,
     "xmlElement": "bpmn:intermediateCatchEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
-    "jcrNodeType": "wf:IntermediateCatchingEvent",
-    "jcrProperties": "{\"catching\": true}"
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
   },
   "IntermediateThrowEvent": {
     "jcr:primaryType": "wf:ThrowingEventType",
@@ -87,8 +85,7 @@
     "category": ["Intermediate Events"],
     "priority": 0,
     "xmlElement": "bpmn:intermediateThrowEvent",
-    "jcrNodeType": "wf:IntermediateThrowingEvent",
-    "jcrProperties": "{\"catching\": false}"
+    "jcrNodeType": "wf:IntermediateThrowingEvent"
   },
   "MessageIntermediateThrowEvent": {
     "jcr:primaryType": "wf:ThrowingEventType",
@@ -98,8 +95,7 @@
     "priority": 10,
     "xmlElement": "bpmn:intermediateThrowEvent",
     "xmlChildElement": "bpmn:messageEventDefinition",
-    "jcrNodeType": "wf:IntermediateThrowingEvent",
-    "jcrProperties": "{\"catching\": false}"
+    "jcrNodeType": "wf:IntermediateThrowingEvent"
   },
   "TimerIntermediateCatchEvent": {
     "jcr:primaryType": "wf:CatchingEventType",
@@ -109,8 +105,7 @@
     "priority": 10,
     "xmlElement": "bpmn:intermediateCatchEvent",
     "xmlChildElement": "bpmn:timerEventDefinition",
-    "jcrNodeType": "wf:IntermediateCatchingEvent",
-    "jcrProperties": "{\"catching\": true}"
+    "jcrNodeType": "wf:IntermediateCatchingEvent"
   },
   "TimerBoundaryEvent": {
     "jcr:primaryType": "wf:CatchingEventType",

@@ -49,6 +49,14 @@ class WorkflowTypesHomepageTest
 {
     private static final String PATH = "/WorkflowTypes";
 
+    /** The heading the {@code wf:WorkflowTypesHomepage} node type autocreates. */
+    private static final String TITLE = "Workflow node types";
+
+    /** The introduction the {@code wf:WorkflowTypesHomepage} node type autocreates. */
+    private static final String INTRO = "Everything a workflow can be built out of. Each entry says which BPMN "
+        + "element it stands for, and how that element is stored once the workflow is parsed. Adding an entry here "
+        + "is what makes a new kind of node available, both to the parser and in the editor's toolbars.";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
@@ -82,6 +90,19 @@ class WorkflowTypesHomepageTest
     }
 
     @Test
+    void doesNotMistakeAnUnrelatedChildForAVocabularyEntry()
+    {
+        // The node type accepts arbitrary children for extensibility, and an access control policy can appear here
+        // too; without a type check either would adapt to a FlowNodeType whose label is null
+        final Resource resource = this.createVocabulary();
+        this.context.create().resource(PATH + "/notes", Map.of(TYPE, "nt:unstructured"));
+        final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
+
+        assertNull(homepage.getFlowNodeType("notes"));
+        assertEquals(3, homepage.getFlowNodeTypes().size());
+    }
+
+    @Test
     void listsNothingWhenTheVocabularyIsEmpty()
     {
         final Resource resource = this.context.create().resource(PATH, TYPE,
@@ -96,9 +117,25 @@ class WorkflowTypesHomepageTest
         final Resource resource = this.createVocabulary();
         final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
 
-        assertEquals("Workflow node types", homepage.getDocumentationTitle());
-        assertNotNull(homepage.getDocumentationIntro());
+        assertEquals(TITLE, homepage.getDocumentationTitle());
+        assertEquals(INTRO, homepage.getDocumentationIntro());
         assertEquals(3, homepage.getDocumentedItems().size());
+    }
+
+    @Test
+    void headingsCanBeReworded()
+    {
+        // A deployment can reword the heading by editing the autocreated properties, and nothing in the model
+        // second-guesses what it stored
+        final Resource resource = this.context.create().resource(PATH, Map.of(
+            TYPE, WorkflowTypesHomepage.RESOURCE_TYPE,
+            "title", "Building blocks",
+            "description", "The pieces a process can be drawn from."));
+
+        final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
+
+        assertEquals("Building blocks", homepage.getDocumentationTitle());
+        assertEquals("The pieces a process can be drawn from.", homepage.getDocumentationIntro());
     }
 
     @Test
@@ -132,8 +169,12 @@ class WorkflowTypesHomepageTest
 
     private Resource createVocabulary()
     {
-        final Resource resource = this.context.create().resource(PATH, TYPE,
-            WorkflowTypesHomepage.RESOURCE_TYPE);
+        // The heading properties are autocreated from the defaults declared by the wf:WorkflowTypesHomepage node
+        // type, which the mock repository does not apply, so the test sets the very values the CND declares
+        final Resource resource = this.context.create().resource(PATH, Map.of(
+            TYPE, WorkflowTypesHomepage.RESOURCE_TYPE,
+            "title", TITLE,
+            "description", INTRO));
         this.context.create().resource(PATH + "/UserTask", Map.of(
             TYPE, ActivityType.RESOURCE_TYPE, "label", "User Task", "priority", 0L,
             "xmlElement", "bpmn:userTask", "jcrNodeType", "wf:Activity"));

@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,7 +36,9 @@ import io.uhndata.iap.entities.models.EntityHomepage;
  * {@code /WorkflowTypes} tree: the vocabulary of everything a workflow graph may be built out of.
  *
  * <p>It documents itself, so the catalogue is served at {@code /WorkflowTypes.doc.json} and
- * {@code /WorkflowTypes.doc.md}. The JSON form is not just prose: it is what the visual BPMN editor reads to build
+ * {@code /WorkflowTypes.doc.md}. Its heading comes from the {@code title} and {@code description} properties,
+ * autocreated from the defaults declared by the {@code wf:WorkflowTypesHomepage} node type and editable by a
+ * deployment wanting to reword it. The JSON form is not just prose: it is what the visual BPMN editor reads to build
  * its toolbars, grouped by the {@link FlowNodeType#getDocumentationCategories() categories} declared here, which
  * is why the shape of that output is a contract and not an implementation detail.</p>
  *
@@ -48,6 +51,12 @@ public class WorkflowTypesHomepage extends EntityHomepage implements AutoDocumen
 {
     /** The {@code sling:resourceType} of a {@code wf:WorkflowTypesHomepage} node. */
     public static final String RESOURCE_TYPE = "wf/WorkflowTypesHomepage";
+
+    @ValueMapValue
+    private String title;
+
+    @ValueMapValue
+    private String description;
 
     /**
      * The whole vocabulary, each entry adapted to the model of its own specific kind, ordered by label so that the
@@ -72,23 +81,21 @@ public class WorkflowTypesHomepage extends EntityHomepage implements AutoDocumen
     @Nullable
     public FlowNodeType getFlowNodeType(@NotNull final String name)
     {
-        return this.getChild(name, FlowNodeType.class);
+        return this.getChild(name, FlowNodeType.RESOURCE_TYPE, FlowNodeType.class);
     }
 
     @Override
     @NotNull
     public String getDocumentationTitle()
     {
-        return "Workflow node types";
+        return this.title;
     }
 
     @Override
     @Nullable
     public String getDocumentationIntro()
     {
-        return "Everything a workflow can be built out of. Each entry says which BPMN element it stands for, and "
-            + "how that element is stored once the workflow is parsed. Adding an entry here is what makes a new "
-            + "kind of node available, both to the parser and in the editor's toolbars.";
+        return this.description;
     }
 
     @Override

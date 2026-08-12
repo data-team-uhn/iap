@@ -92,8 +92,14 @@ that a given XML element means a given kind of node:
 
 Parsing a document matches each element against every entry and keeps the highest-`priority` match, which
 is what stops a start event carrying a message definition from being read as a plain one. `jcrProperties`
-carries the fixed properties to set on the stored node — it is how the two flavours of intermediate event
-share a node type and still differ.
+carries the fixed properties to set on the stored node — it is how a terminate end event and an ordinary
+one share `wf:EndEvent` and still differ.
+
+It is only for what genuinely varies between entries sharing a node type. Whether an event is **catching**
+or throwing, by contrast, follows from its node type and never varies within one, so `catching` is
+autocreated by the node type and protected against being written, rather than named here. A property a
+node type already determines has no business being restated by the vocabulary: the two could then
+disagree, and the stored node would be the one that lies.
 
 **Adding a kind of node is normally a vocabulary entry, not a node type.** A user task and a service task
 are both plain `wf:Activity` nodes; what tells them apart is which entry they point at. Only distinctions

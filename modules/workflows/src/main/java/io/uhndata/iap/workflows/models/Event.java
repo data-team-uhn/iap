@@ -42,6 +42,11 @@ public abstract class Event extends FlowNode
     /**
      * Whether this event waits for something to happen, rather than announcing that something has.
      *
+     * <p>Which one an event is follows from its node type and never varies within one, so each concrete node type
+     * autocreates the value it fixes and protects it against being written. That is what makes reading it here
+     * safe: were the property merely declared with a default, it would never be written at all, and every start
+     * and boundary event would quietly report as throwing.</p>
+     *
      * @return {@code true} if a token reaching this event rests here until the event is triggered
      */
     public boolean isCatching()

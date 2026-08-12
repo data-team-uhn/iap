@@ -152,8 +152,15 @@
   // Hardcode the supertype to the parent wf/Event type.
   - sling:resourceSuperType (STRING) = "wf/Event" mandatory autocreated protected
 
-  // true = catching event, false = throwing event
-  - catching (BOOLEAN) = true
+  // true = catching event, false = throwing event. Which one an event is follows
+  // from its node type and never varies within one, so each concrete subtype below
+  // autocreates the value it fixes, and this declaration only says that every event
+  // carries the property. Protected here as well as there: a single non-protected
+  // definition anywhere in the hierarchy would be enough to let the value be
+  // overwritten, leaving a start event claiming to be throwing.
+  // No default: a default only takes effect when the property is autocreated, so
+  // declaring one here would be the appearance of a guarantee rather than one.
+  - catching (BOOLEAN) protected
 
 //-----------------------------------------------------------------------------
 // Entry point of a workflow process.
@@ -163,7 +170,7 @@
   - sling:resourceType (STRING) = "wf/StartEvent" mandatory autocreated protected
 
   // Start events are always catching
-  - catching (BOOLEAN) = true
+  - catching (BOOLEAN) = true mandatory autocreated protected
 
 //-----------------------------------------------------------------------------
 // Exit point of a workflow process.
@@ -171,7 +178,7 @@
   - sling:resourceType (STRING) = "wf/EndEvent" mandatory autocreated protected
 
   // End events are always throwing
-  - catching (BOOLEAN) = false
+  - catching (BOOLEAN) = false mandatory autocreated protected
 
   // When true, reaching this event ends the whole instance at once, discarding
   // every other token, rather than just consuming the token that arrived. The
@@ -200,7 +207,8 @@
 [wf:IntermediateCatchingEvent] > wf:IntermediateEvent
   - sling:resourceType (STRING) = "wf/IntermediateCatchingEvent" mandatory autocreated protected
 
-  - catching (BOOLEAN) = true
+  // Catching is what this node type is, boundary event or not
+  - catching (BOOLEAN) = true mandatory autocreated protected
 
   // Whether firing cancels the activity being watched, or merely starts a
   // parallel branch and lets the work carry on. "Escalate after five days but
@@ -219,7 +227,8 @@
 [wf:IntermediateThrowingEvent] > wf:IntermediateEvent
   - sling:resourceType (STRING) = "wf/IntermediateThrowingEvent" mandatory autocreated protected
 
-  - catching (BOOLEAN) = false
+  // Throwing is what this node type is
+  - catching (BOOLEAN) = false mandatory autocreated protected
 
 
 //-----------------------------------------------------------------------------

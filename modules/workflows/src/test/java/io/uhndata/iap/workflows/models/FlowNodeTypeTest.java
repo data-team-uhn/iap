@@ -99,14 +99,14 @@ class FlowNodeTypeTest
     @Test
     void parsesTheFixedPropertiesAsJson()
     {
-        final FlowNodeType type = this.createType("IntermediateCatchEvent", CatchingEventType.RESOURCE_TYPE, Map.of(
-            "label", "Intermediate Catch Event", "priority", 0L, "xmlElement", "bpmn:intermediateCatchEvent",
-            "jcrNodeType", "wf:IntermediateCatchingEvent", "jcrProperties", "{\"catching\": true}"));
+        final FlowNodeType type = this.createType("TerminateEndEvent", ThrowingEventType.RESOURCE_TYPE, Map.of(
+            "label", "Terminate End Event", "priority", 20L, "xmlElement", "bpmn:endEvent",
+            "jcrNodeType", "wf:EndEvent", "jcrProperties", "{\"terminate\": true}"));
 
         final JsonObject fixed = type.getJcrProperties();
 
         assertNotNull(fixed);
-        assertTrue(fixed.getBoolean("catching"));
+        assertTrue(fixed.getBoolean("terminate"));
     }
 
     @Test
@@ -115,7 +115,7 @@ class FlowNodeTypeTest
         // One badly authored vocabulary entry must not take the whole catalogue down with it
         final FlowNodeType type = this.createType("Broken", ActivityType.RESOURCE_TYPE, Map.of(
             "label", "Broken", "priority", 0L, "xmlElement", "bpmn:task", "jcrNodeType", "wf:Activity",
-            "jcrProperties", "{catching: true}"));
+            "jcrProperties", "{terminate: true}"));
 
         assertNull(type.getJcrProperties());
     }

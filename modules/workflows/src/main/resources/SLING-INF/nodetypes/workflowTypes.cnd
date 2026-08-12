@@ -39,6 +39,13 @@
   // that would derive wf:WorkflowType from the resource type.
   - childNodeType (STRING) = "wf:FlowNodeType" mandatory autocreated protected
 
+  // The heading of the served documentation, overriding the empty defaults of
+  // the iap:Documented mixin. Autocreated rather than hardcoded in the model
+  // serving the catalogue, but still editable, so that a deployment can reword
+  // the heading without touching code.
+  - title (STRING) = "Workflow node types" autocreated
+  - description (STRING) = "Everything a workflow can be built out of. Each entry says which BPMN element it stands for, and how that element is stored once the workflow is parsed. Adding an entry here is what makes a new kind of node available, both to the parser and in the editor's toolbars." autocreated
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple

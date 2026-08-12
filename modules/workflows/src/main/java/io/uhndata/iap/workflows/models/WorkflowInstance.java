@@ -132,7 +132,9 @@ public class WorkflowInstance extends Entity
     }
 
     /**
-     * Looks a variable of this instance up by name.
+     * Looks a variable of this instance up by name. Tokens and task instances are stored alongside the variables
+     * and are named by the engine just as freely, so the name alone does not say that what it finds is a variable;
+     * anything else by that name reports as no variable at all.
      *
      * @param name the variable name
      * @return the matching variable, or {@code null} if this instance has no variable by that name
@@ -140,7 +142,7 @@ public class WorkflowInstance extends Entity
     @Nullable
     public Variable getVariable(@NotNull final String name)
     {
-        return this.getChild(name, Variable.class);
+        return this.getChild(name, Variable.RESOURCE_TYPE, Variable.class);
     }
 
     /**
