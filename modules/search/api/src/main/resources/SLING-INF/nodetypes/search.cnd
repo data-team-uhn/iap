@@ -28,9 +28,15 @@
 // that the endpoint is a normal repository path, subject to normal access
 // control, rather than a path reserved by a servlet registration.
 //
+// Deliberately NOT an iap:Content: the endpoint is plumbing, not content, so
+// it must not acquire tags, links, or the iap/Content resource supertype,
+// which would hand /search itself to the content deletion endpoint and let a
+// DELETE archive the search endpoint. The archive types avoid the same trap,
+// for the same reason; see deletion.cnd.
+//
 //-----------------------------------------------------------------------------
 
-[iap:Search] > iap:Content
+[iap:Search] > sling:Folder
   // Properties:
 
   // Hardcode the resource type, this is what the search servlet is registered on.
