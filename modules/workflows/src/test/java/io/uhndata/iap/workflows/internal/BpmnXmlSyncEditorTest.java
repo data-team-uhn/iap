@@ -582,4 +582,74 @@ class BpmnXmlSyncEditorTest
         assertFalse(version.hasProperty(HASH_PROPERTY));
         assertFalse(version.getChildNode("start1").exists());
     }
+
+    /**
+     * Exercises {@code isFlowNodeOrSequenceFlow}'s two ways of settling the question without ever consulting
+     * {@code rep:supertypes}: a child with no {@code jcr:primaryType} at all (not a flow node), and children whose
+     * {@code jcr:primaryType} is exactly {@code wf:FlowNode}/{@code wf:SequenceFlow} themselves, not a subtype
+     * (are).
+     */
+    @Test
+    void reparsingHandlesChildrenWithNoPrimaryTypeOrAnExactFlowNodeOrSequenceFlowType() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+
+        final NodeBuilder after = synced.builder();
+        version(after).child("noPrimaryTypeAtAll");
+        version(after).child("bareFlowNode").setProperty(PRIMARY_TYPE, "wf:FlowNode", Type.NAME);
+        version(after).child("bareSequenceFlow").setProperty(PRIMARY_TYPE, "wf:SequenceFlow", Type.NAME);
+        setBpmnXml(after, REPARSED_XML);
+
+        final NodeState result = process(synced, after);
+        final NodeState version = version(result);
+
+        assertTrue(version.getChildNode("noPrimaryTypeAtAll").exists());
+        assertFalse(version.getChildNode("bareFlowNode").exists());
+        assertFalse(version.getChildNode("bareSequenceFlow").exists());
+        assertTrue(version.getChildNode("onlyStart").exists());
+    }
+
+    /**
+     * Exercises {@code directSupertype}'s two null-returning paths: a {@code jcrNodeType} not registered under
+     * {@code /jcr:system/jcr:nodeTypes} at all (no {@code jcr:supertypes} property to read), and one registered
+     * with an empty {@code jcr:supertypes} (property present, but its value iterator has nothing to return).
+     */
+    @Test
+    void directSupertypeHandlesMissingAndEmptySupertypesProperty() throws Exception
+    {
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        flowNodeType(types, "NoSupertypeGateway", UUID.randomUUID().toString(), "bpmn:exclusiveGateway", null,
+            "wf:NoSupertypeType", 0);
+        flowNodeType(types, "EmptySupertypeGateway", UUID.randomUUID().toString(), "bpmn:parallelGateway", null,
+            "wf:EmptySupertypeType", 0);
+        // wf:NoSupertypeType is intentionally left unregistered under jcr:nodeTypes altogether.
+        root.child("jcr:system").child("jcr:nodeTypes").child("wf:EmptySupertypeType")
+            .setProperty("jcr:supertypes", List.of(), Type.NAMES);
+
+        final String xml =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"defs1\">\n"
+            + "  <bpmn:process id=\"process1\">\n"
+            + "    <bpmn:exclusiveGateway id=\"gwNoSuper\"/>\n"
+            + "    <bpmn:parallelGateway id=\"gwEmptySuper\"/>\n"
+            + "  </bpmn:process>\n"
+            + "</bpmn:definitions>\n";
+
+        final NodeState before = root.getNodeState();
+        final NodeBuilder after = before.builder();
+        setBpmnXml(after, xml);
+
+        final NodeState result = process(before, after);
+        final NodeState version = version(result);
+
+        final NodeState gwNoSuper = version.getChildNode("gwNoSuper");
+        assertTrue(gwNoSuper.exists());
+        assertEquals("wf/NoSupertypeType", gwNoSuper.getProperty("sling:resourceType").getValue(Type.STRING));
+        assertFalse(gwNoSuper.hasProperty("sling:resourceSuperType"));
+
+        final NodeState gwEmptySuper = version.getChildNode("gwEmptySuper");
+        assertTrue(gwEmptySuper.exists());
+        assertFalse(gwEmptySuper.hasProperty("sling:resourceSuperType"));
+    }
 }
