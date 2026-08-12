@@ -222,13 +222,16 @@ final class QueryBuilder
     }
 
     /**
-     * Escapes a literal value before it is interpolated into a query string.
+     * Escapes a literal value before it is interpolated into a query string. A single quote is escaped by doubling
+     * it, which is the only escape a JCR-SQL2 string literal has; a backslash is an ordinary character there, so
+     * putting one in front of a quote does not escape it, it just ends the literal one character later and leaves
+     * the rest of the value where the parser expects an operator.
      *
      * @param value the value to escape, may be {@code null}
-     * @return the value with quotes and backslashes escaped, or an empty string if the value was {@code null}
+     * @return the value with its quotes doubled, or an empty string if the value was {@code null}
      */
     private static String escape(final String value)
     {
-        return value == null ? "" : value.replaceAll("['\\\\]", "\\\\$0");
+        return value == null ? "" : value.replace("'", "''");
     }
 }
