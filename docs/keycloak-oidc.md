@@ -50,11 +50,6 @@ The OIDC handler is therefore registered at **both `/` and `/oidc-login`**, with
 in `core/oidc.json`. It exists because the OAuth client returns the user to the path that triggered
 login; that landing path redirects on to the app.
 
-> The `-/system/sling/oauth` exemption in
-> [core/sling-configuration.json](../packaging/slingfeature/src/main/features/core/sling-configuration.json)
-> is left over from an earlier design and is no longer load-bearing (the callback is handled by the
-> OIDC handler's `extractCredentials`, not by the auth requirement). It is harmless and can be removed.
-
 ## Enabling the institutional sign-in button
 
 The "Institutional account" method ships **disabled** (`iap:defaultDisabled: true` in `Keycloak.json`),

@@ -1,0 +1,8 @@
+create path (nt:unstructured) /oidc-login
+set properties on /oidc-login
+  set sling:resourceType to "sling:redirect"
+  set sling:target to "/"
+end
+set ACL for everyone
+    allow jcr:read on /oidc-login
+end

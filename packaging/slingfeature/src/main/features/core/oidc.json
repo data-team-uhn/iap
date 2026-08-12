@@ -31,8 +31,8 @@
 //     (ExternalLoginModuleFactory.sync.handlerName == DefaultSyncHandler.handler.name).
 //
 // Bundle versions and the dependency set are taken verbatim from the module's published
-// main.slingosgifeature (org.apache.sling.auth.oauth-client 0.1.6), EXCEPT oak-auth-external,
-// which IAP already ships at 1.92.0 from oak/oak_base.json -- do not add an older copy here.
+// main.slingosgifeature (org.apache.sling.auth.oauth-client 0.1.6), EXCEPT oak-auth-external:
+// the published feature pins an older 1.70.0, but IAP already ships a newer one via oak/oak_base.json.
 //
 // Runtime environment variables (resolved by the configadmin interpolation plugin declared in
 // boot.json): KEYCLOAK_BASE_URL, KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET, IAP_PUBLIC_URL,
@@ -58,7 +58,7 @@
         // exist even when token storage is disabled. The password is read from an environment
         // variable (its NAME is given here, not its value).
         "org.apache.sling.commons.crypto.jasypt.internal.JasyptRandomIvGeneratorRegistrar~iapoauth":{
-            "algorithm":"SHA1PRNG"
+            "algorithm":"DRBG"
         },
         "org.apache.sling.commons.crypto.internal.EnvironmentVariablePasswordProvider~iapoauth":{
             "name":"IAP_OAUTH_ENCRYPTION_PASSWORD"
@@ -168,5 +168,5 @@
     // hitting it starts the Keycloak round trip without disturbing the /login gate. The oauth
     // client returns the user to this same path afterwards, where this sling:redirect bounces the
     // now-authenticated session on to the app.
-    "repoinit:TEXT|true": "create path (nt:unstructured) /oidc-login\nset properties on /oidc-login\n  set sling:resourceType to \"sling:redirect\"\n  set sling:target to \"/\"\nend\nset ACL for everyone\n    allow jcr:read on /oidc-login\nend\n"
+    "repoinit:TEXT|true": "@file"
 }
