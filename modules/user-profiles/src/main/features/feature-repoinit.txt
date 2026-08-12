@@ -22,3 +22,24 @@ create path (iap:ProfileFieldsHomepage) /ProfileFields
 set ACL for everyone
     allow   jcr:read    on /ProfileFields
 end
+
+# Profiles are read and written with the platform's own credentials, not the caller's, for two independent reasons:
+# user homes are not readable by everyone, so reaching anybody else's account needs rights the requester does not
+# have; and a synchronized account is protected against every session but a system one, so this is the only thing
+# that can write inside one. The per-field rules are applied in code, by the profile service, against the catalogue.
+#
+# Restricted to the two subtrees the profile fields live in rather than granted the whole of /home/users: this may
+# maintain what a person's profile says and nothing else -- not their password, not their group membership, not the
+# tokens an identity provider integration keeps under the same home.
+create service user iap-userprofile
+
+set ACL for iap-userprofile
+    allow   jcr:read    on /home/users
+    allow   rep:write   on /home/users restriction(rep:glob,*/profile*)
+    allow   rep:write   on /home/users restriction(rep:glob,*/preferences*)
+end
+
+# The principals allowed to read and change anybody's profile. A local group, because the roles an identity provider
+# asserts describe an institution and not this platform; the profile service compares principal names, so a role
+# arriving from an identity provider works here too if a deployment configures one.
+create group iap-user-administrators

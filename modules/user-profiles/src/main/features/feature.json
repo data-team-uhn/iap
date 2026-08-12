@@ -21,5 +21,12 @@
       "start-order":"24"
     }
   ],
+  "configurations":{
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapuserprofiles":{
+      "user.mapping":[
+        "io.uhndata.iap.user-profiles:userprofile=[iap-userprofile]"
+      ]
+    }
+  },
   "repoinit:TEXT|true": "@file"
 }
