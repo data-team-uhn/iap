@@ -253,24 +253,35 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * Writes the successful response: the requested page of serialized entities, followed by a summary of the
      * pagination status.
      *
+     * <p>
+     * The query has already been executed by the time this is called, but the result set it returned is lazy, so
+     * reading the rows can still fail once part of the response has gone out. That is reported in the summary rather
+     * than as an error response, which by then could only be appended to a body that already holds one.
+     * </p>
+     *
      * @param request the current request
      * @param response the HTTP response
      * @param rows the query results to paginate over
      * @throws IOException if writing the response fails
-     * @throws RepositoryException if reading the query results fails
      */
     private void writeResponse(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response, final RowIterator rows)
-        throws IOException, RepositoryException
+        throws IOException
     {
         // The writer doesn't need to be explicitly closed, closing the generator closes it too
         try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
             json.writeStartObject();
             json.writeStartArray("rows");
             final PaginatedJsonResponse page = PaginatedJsonResponse.forRequest(json, request);
-            writeRows(page, rows, request);
+            String error = null;
+            try {
+                writeRows(page, rows, request);
+            } catch (final RepositoryException e) {
+                LOGGER.warn("Failed to read the results of a pagination query: {}", e.getMessage(), e);
+                error = "Failed to read all the results";
+            }
             json.writeEnd();
-            page.writeSummary(request.getParameter("req"));
+            page.writeSummary(request.getParameter("req"), error);
             json.writeEnd().flush();
         }
     }
