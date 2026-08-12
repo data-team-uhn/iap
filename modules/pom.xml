@@ -58,6 +58,7 @@
     <module>submissions</module>
     <module>tags</module>
     <module>ui-extension</module>
+    <module>user-profiles</module>
     <module>workflows</module>
   </modules>
 </project>
