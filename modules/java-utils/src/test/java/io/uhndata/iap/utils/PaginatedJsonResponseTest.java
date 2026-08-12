@@ -204,8 +204,87 @@ public class PaginatedJsonResponseTest
         while (!page.isFull()) {
             page.offer(null, () -> row("/x"));
         }
+        final int serializedBefore = this.serialized.size();
         Assertions.assertFalse(page.offer(A, () -> row(A)));
         Assertions.assertFalse(page.offer(A, () -> row(A)), "A duplicate must not revive a full page");
+        // Neither of them was read either: a full page stops before it looks at what it was offered
+        Assertions.assertEquals(serializedBefore, this.serialized.size());
+    }
+
+    @Test
+    public void zeroLimitCountsPastASinglePage()
+    {
+        // The count-only mode is there to answer "how many are there?", which it cannot do if it stops at a default
+        // page's worth
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 0));
+        offerAll(page, 500);
+        final JsonObject result = finish(page, null);
+        Assertions.assertEquals(0, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals(500, result.getInt(TOTAL));
+        Assertions.assertFalse(result.getBoolean(APPROXIMATE));
+    }
+
+    @Test
+    public void aHugeOffsetDoesNotUnboundTheCounting()
+    {
+        // The limit is capped, but the offset comes from the client too, and the counting used to scale with it: one
+        // request asking for a far enough page would read every match in the repository
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 100000000, 10));
+        Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT + 1, page.getRemainingCapacity());
+        int offered = 0;
+        while (!page.isFull()) {
+            page.offer("/r" + offered++, () -> row("/x"));
+        }
+        Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT + 1, offered);
+        final JsonObject result = finish(page, null);
+        // Nothing was on the requested page, and the total says it is not the real one
+        Assertions.assertEquals(0, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals(100000000, result.getInt("offset"));
+        Assertions.assertTrue(result.getBoolean(APPROXIMATE));
+    }
+
+    @Test
+    public void anExtremeOffsetDoesNotOverflow()
+    {
+        // The arithmetic used to wrap for an offset this large, leaving a negative lookahead that reported every
+        // total as 0 and handed callers a remaining capacity of 0 while the page still said it wanted more
+        final PaginatedJsonResponse page =
+            startPage(PaginatedJsonResponse.forPage(this.json, Long.MAX_VALUE, 10));
+        Assertions.assertTrue(page.getRemainingCapacity() > 0);
+        offerAll(page, 5);
+        final JsonObject result = finish(page, null);
+        Assertions.assertEquals(5, result.getInt(TOTAL));
+        Assertions.assertFalse(result.getBoolean(APPROXIMATE));
+    }
+
+    @Test
+    public void aPageThatCouldNotBeReadInFullSaysSo()
+    {
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 10));
+        offerAll(page, 2);
+        this.json.writeEnd();
+        page.writeSummary("17", "Failed to read all the results");
+        this.json.writeEnd().flush();
+        this.json.close();
+        final JsonObject result = parse();
+        // The rows read before the failure are still there, and still a document the client can parse
+        Assertions.assertEquals(2, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals("17", result.getString("req"));
+        Assertions.assertEquals("Failed to read all the results", result.getString("error"));
+        Assertions.assertTrue(result.getBoolean("partial"));
+    }
+
+    @Test
+    public void aCommittedResponseIsLeftAloneRatherThanAppendedTo()
+    {
+        // Once the beginning of a response has gone out, its status is on the wire and a second JSON object would
+        // only leave the client with something it cannot parse
+        final SlingJakartaHttpServletResponse response = Mockito.mock(SlingJakartaHttpServletResponse.class);
+        Mockito.when(response.isCommitted()).thenReturn(true);
+        Assertions.assertDoesNotThrow(() -> PaginatedJsonResponse.writeError(response,
+            SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Too late"));
+        Mockito.verify(response, Mockito.never()).setStatus(Mockito.anyInt());
+        Assertions.assertEquals("", this.output.toString());
     }
 
     @Test

@@ -61,6 +61,13 @@ import org.jetbrains.annotations.Nullable;
  * </p>
  *
  * <p>
+ * No request reads more than {@value #MAX_COUNT} results, however large a page it asks for or however far into the
+ * results it starts. A page starting near that ceiling therefore comes back short, and one starting past it comes
+ * back empty: paging that deep is not something a client does, while an {@code offset} large enough to walk the whole
+ * repository is something anyone can send.
+ * </p>
+ *
+ * <p>
  * A typical caller looks like:
  * </p>
  *
@@ -69,8 +76,12 @@ import org.jetbrains.annotations.Nullable;
  *     json.writeStartObject();
  *     json.writeStartArray("rows");
  *     final PaginatedJsonResponse page = PaginatedJsonResponse.forRequest(json, request);
- *     while (results.hasNext() &amp;&amp; page.offer(key, () -&gt; serialize(results.next()))) {
- *         // Everything happens in offer()
+ *     boolean more = true;
+ *     while (results.hasNext() &amp;&amp; more) {
+ *         // Read the result here, not inside the serializer: the serializer only runs for the results that end up
+ *         // in the response, so advancing the iterator from it would leave the loop spinning on every other one
+ *         final Result result = results.next();
+ *         more = page.offer(result.getKey(), () -&gt; serialize(result));
  *     }
  *     json.writeEnd();
  *     page.writeSummary(request.getParameter("req"));
@@ -97,10 +108,13 @@ public final class PaginatedJsonResponse
     public static final long LOOKAHEAD_PAGES = 100;
 
     /**
-     * The most results one counting batch may span, whatever the requested page size: {@value}. Without this bound, a
+     * The number of results a single request will ever read, whatever it asks for: {@value}. The {@code limit} is
+     * capped by {@link #MAX_LIMIT}, but the {@code offset} also comes from the client, and without a ceiling here it
+     * would scale the reads without bound — one request asking for a far enough page would walk the whole repository
+     * and hold on to a key per match while doing it. It also bounds a single counting batch: without it, a
      * maximum-limit request could demand counting a hundred thousand results in one go.
      */
-    public static final long MAX_LOOKAHEAD_ROWS = 10_000;
+    public static final long MAX_COUNT = 10_000;
 
     private final JsonGenerator json;
 
@@ -129,9 +143,16 @@ public final class PaginatedJsonResponse
         this.offset = offset;
         this.limit = limit;
         // Count until the end of the batch of pages containing the requested page, plus one more result to know
-        // whether the reported total is exact. A limit of 0 asks for a count only, but still needs a page size.
-        final long batchSize = Math.min(LOOKAHEAD_PAGES * Math.max(limit, 1), MAX_LOOKAHEAD_ROWS);
-        this.lookahead = ((offset + Math.max(limit, 1) + batchSize - 1) / batchSize) * batchSize + 1;
+        // whether the reported total is exact. A limit of 0 asks for a count only, so it counts as far as a request
+        // ever may; anything else would make the count-only mode stop after a single default page.
+        final long batch = limit > 0 ? limit : MAX_LIMIT;
+        final long pageSize = LOOKAHEAD_PAGES * batch;
+        // The offset is bounded here rather than where it is read, so that the summary still echoes back what the
+        // client actually asked for. Bounding it at both ends is also what keeps the sum below in range: with both
+        // terms known to be small and positive, the arithmetic cannot wrap into a negative lookahead, whichever way
+        // this instance was built.
+        final long wanted = Math.max(0, Math.min(offset, MAX_COUNT)) + batch;
+        this.lookahead = Math.min(MAX_COUNT, ((wanted + pageSize - 1) / pageSize) * pageSize) + 1;
     }
 
     /**
@@ -183,8 +204,15 @@ public final class PaginatedJsonResponse
     }
 
     /**
-     * Writes an error response as a small JSON object. Anything already written to the response is left as it is, so
-     * this must be called before the results start being written.
+     * Writes an error response as a small JSON object, replacing the whole response body. This is for a request that
+     * failed before any result was written; once results are being written it is too late, and the failure belongs in
+     * the summary instead, via {@link #writeSummary(String, String)}.
+     *
+     * <p>
+     * A response that has already been committed cannot be turned into an error: its status is on the wire and its
+     * body has been partly sent, so appending a second JSON object to it would only produce something the client
+     * cannot parse. Such a call is ignored.
+     * </p>
      *
      * @param response the HTTP response
      * @param status the HTTP status code to send
@@ -194,6 +222,10 @@ public final class PaginatedJsonResponse
     public static void writeError(@NotNull final SlingJakartaHttpServletResponse response, final int status,
         @Nullable final String message) throws IOException
     {
+        if (response.isCommitted()) {
+            return;
+        }
+        response.resetBuffer();
         response.setStatus(status);
         try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
             json.writeStartObject();
@@ -304,6 +336,27 @@ public final class PaginatedJsonResponse
      */
     public void writeSummary(@Nullable final String requestId)
     {
+        writeSummary(requestId, null);
+    }
+
+    /**
+     * Writes the summary of a page whose results could not all be read. The response stays a well-formed document —
+     * the rows gathered before the failure, then the usual summary — with an {@code error} describing what went wrong
+     * and {@code partial} set, so that a client can tell an incomplete page from a short one.
+     *
+     * <p>
+     * This is what a failure part-way through the results looks like, because by then the beginning of the response
+     * may already be on the wire: the status is no longer changeable and {@link #writeError} would only append a
+     * second JSON object to a body that already holds one. A failure before any result is written is still an
+     * ordinary error response.
+     * </p>
+     *
+     * @param requestId the opaque {@code req} request parameter, echoed back so that the client can match the
+     *            response to its request, or discard an out-of-order one; not written when {@code null}
+     * @param error a description of the failure, or {@code null} for a page that was read in full
+     */
+    public void writeSummary(@Nullable final String requestId, @Nullable final String error)
+    {
         if (requestId != null) {
             this.json.write("req", requestId);
         }
@@ -313,5 +366,9 @@ public final class PaginatedJsonResponse
         // The one result read past the lookahead proves there are more, but isn't itself part of the total
         this.json.write("totalrows", this.more ? this.counted - 1 : this.counted);
         this.json.write("totalIsApproximate", this.more);
+        if (error != null) {
+            this.json.write("error", error);
+            this.json.write("partial", true);
+        }
     }
 }
