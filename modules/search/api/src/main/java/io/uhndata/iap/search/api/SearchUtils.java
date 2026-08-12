@@ -24,8 +24,6 @@ import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 
 import org.apache.commons.lang3.Strings;
-import org.apache.jackrabbit.spi.commons.conversion.IllegalNameException;
-import org.apache.jackrabbit.spi.commons.conversion.NameParser;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -174,35 +172,35 @@ public final class SearchUtils
         builder.add(PATH_KEY, path == null ? "" : path);
 
         final String before = matchedValue.substring(0, matchIndex);
-        builder.add(BEFORE_KEY, before.length() > MAX_CONTEXT
-            ? ELLIPSIS + before.substring(before.length() - MAX_CONTEXT) : before);
+        builder.add(BEFORE_KEY, trimmed(before, false));
 
         // The query is matched case-insensitively, so the text as stored may differ from the text as typed
         builder.add(TEXT_KEY, matchedValue.substring(matchIndex, matchIndex + query.length()));
 
         final String after = matchedValue.substring(matchIndex + query.length());
-        builder.add(AFTER_KEY,
-            after.length() > MAX_CONTEXT ? after.substring(0, MAX_CONTEXT) + ELLIPSIS : after);
+        builder.add(AFTER_KEY, trimmed(after, true));
 
         return builder.build();
     }
 
     /**
-     * Checks whether the given string is a valid node name, before using it to build a query.
+     * Cuts a piece of context down to {@value #MAX_CONTEXT} characters, marking with {@value #ELLIPSIS} that there
+     * was more. The count is in characters as a reader sees them, not in the units a string is stored in: cutting an
+     * emoji or any other character outside the basic plane in half would leave the response holding an unpaired
+     * surrogate, which is not text any more.
      *
-     * @param name the node name to check
-     * @return {@code true} if the given name is a valid node name
+     * @param context the text to cut down
+     * @param fromStart {@code true} to keep the beginning of the text, {@code false} to keep the end
+     * @return the trimmed context
      */
-    public static boolean isValidNodeName(@Nullable final String name)
+    private static String trimmed(final String context, final boolean fromStart)
     {
-        if (name == null) {
-            return false;
+        if (context.codePointCount(0, context.length()) <= MAX_CONTEXT) {
+            return context;
         }
-        try {
-            NameParser.checkFormat(name);
-            return true;
-        } catch (final IllegalNameException e) {
-            return false;
+        if (fromStart) {
+            return context.substring(0, context.offsetByCodePoints(0, MAX_CONTEXT)) + ELLIPSIS;
         }
+        return ELLIPSIS + context.substring(context.offsetByCodePoints(context.length(), -MAX_CONTEXT));
     }
 }
