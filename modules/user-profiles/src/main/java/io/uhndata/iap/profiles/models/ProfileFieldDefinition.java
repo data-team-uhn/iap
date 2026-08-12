@@ -46,11 +46,11 @@ import io.uhndata.iap.content.models.Content;
  * itself is not held here, but as a property under the account's home node at {@link #getStorage()}.
  *
  * <p>
- * The vocabularies are parsed rather than trusted, and they fail closed. A value outside the accepted set is a broken
- * definition rather than a synonym for the default, so the getter returns {@code null} and
- * {@link #getConfigurationProblems()} explains what is wrong; the profile API reports such a field as read-only rather
- * than guessing at an intent nobody expressed. An absent value, on the other hand, simply takes the default declared
- * by the node type, which is where those defaults belong.
+ * The vocabularies are parsed rather than trusted, and they fail closed. An absent value takes the default declared by
+ * the node type, which is where those defaults belong. A value outside the accepted set is a broken definition rather
+ * than a synonym for the default: the getters still answer, so that nothing has to cope with a half-read definition,
+ * but {@link #isUsable()} turns false and {@link #getConfigurationProblems()} explains what is wrong, and the profile
+ * API refuses such a field rather than guessing at an intent nobody expressed.
  * </p>
  *
  * @version $Id$
@@ -195,7 +195,7 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
      * @param fallback what an absent value means, which is the default declared by the node type
      * @return the parsed constant, or {@code null} if a value was stated and is not one of them
      */
-    @Nullable
+    @NotNull
     private static <E extends Enum<E>> E parse(@NotNull final Class<E> type, @Nullable final String value,
         @NotNull final E fallback)
     {
@@ -205,7 +205,30 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
         try {
             return Enum.valueOf(type, value.trim().toUpperCase(Locale.ROOT));
         } catch (final IllegalArgumentException ex) {
-            return null;
+            return fallback;
+        }
+    }
+
+    /**
+     * Whether one of the vocabularies was stated as something that is not in it. Kept apart from {@link #parse} so
+     * that the getters can always answer, and the decision to refuse a field is taken once, by {@link #isUsable()}.
+     *
+     * @param <E> the vocabulary
+     * @param type the vocabulary's class
+     * @param value the stored value
+     * @return {@code true} if a value was stated and is not one of them
+     */
+    private static <E extends Enum<E>> boolean unrecognized(@NotNull final Class<E> type,
+        @Nullable final String value)
+    {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        try {
+            Enum.valueOf(type, value.trim().toUpperCase(Locale.ROOT));
+            return false;
+        } catch (final IllegalArgumentException ex) {
+            return true;
         }
     }
 
@@ -263,9 +286,9 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
     /**
      * Whether this field describes the person or says how they want the application to behave.
      *
-     * @return the kind, or {@code null} if the stated one is not recognized
+     * @return the kind, the node type's default when nothing usable is stated
      */
-    @Nullable
+    @NotNull
     public Kind getKind()
     {
         return parse(Kind.class, this.kind, Kind.PROFILE);
@@ -275,27 +298,23 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
      * Where the value lives, as a path relative to the account's home node, e.g. {@code profile/email}. Derived from
      * the field's {@link #getKind() kind} and name unless stated explicitly.
      *
-     * @return the relative path, or {@code null} if it cannot be derived because the kind is not recognized
+     * @return the relative path
      */
-    @Nullable
+    @NotNull
     public String getStorage()
     {
         if (this.storage != null && !this.storage.isBlank()) {
             return this.storage.trim();
         }
-        final Kind fieldKind = getKind();
-        if (fieldKind == null) {
-            return null;
-        }
-        return (fieldKind == Kind.PREFERENCE ? PREFERENCES_PREFIX : PROFILE_PREFIX) + getName();
+        return (getKind() == Kind.PREFERENCE ? PREFERENCES_PREFIX : PROFILE_PREFIX) + getName();
     }
 
     /**
      * The expected type of the value.
      *
-     * @return the data type, or {@code null} if the stated one is not recognized
+     * @return the data type, the node type's default when nothing usable is stated
      */
-    @Nullable
+    @NotNull
     public DataType getDataType()
     {
         return parse(DataType.class, this.dataType, DataType.TEXT);
@@ -347,9 +366,9 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
      * Who may change this field. A statement about the field: a field its owner may change is still read-only for them
      * when their account comes from an identity provider that supplies it.
      *
-     * @return the write rule, or {@code null} if the stated one is not recognized
+     * @return the write rule, the node type's default when nothing usable is stated
      */
-    @Nullable
+    @NotNull
     public Writability getWritableBy()
     {
         return parse(Writability.class, this.writableBy, Writability.OWNER);
@@ -358,9 +377,9 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
     /**
      * Who may read this field's value.
      *
-     * @return the read rule, or {@code null} if the stated one is not recognized
+     * @return the read rule, the node type's default when nothing usable is stated
      */
-    @Nullable
+    @NotNull
     public Readability getReadableBy()
     {
         return parse(Readability.class, this.readableBy, Readability.SELF);
@@ -423,17 +442,17 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
     public List<String> getConfigurationProblems()
     {
         final List<String> problems = new ArrayList<>();
-        if (getKind() == null) {
+        if (unrecognized(Kind.class, this.kind)) {
             problems.add("`kind` is `" + this.kind + "`, which is not one of: " + accepted(Kind.class));
         }
-        if (getDataType() == null) {
+        if (unrecognized(DataType.class, this.dataType)) {
             problems.add("`dataType` is `" + this.dataType + "`, which is not one of: " + accepted(DataType.class));
         }
-        if (getWritableBy() == null) {
+        if (unrecognized(Writability.class, this.writableBy)) {
             problems.add("`writableBy` is `" + this.writableBy + "`, which is not one of: "
                 + accepted(Writability.class));
         }
-        if (getReadableBy() == null) {
+        if (unrecognized(Readability.class, this.readableBy)) {
             problems.add("`readableBy` is `" + this.readableBy + "`, which is not one of: "
                 + accepted(Readability.class));
         }
@@ -491,8 +510,7 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
     @NotNull
     private String typeDetail()
     {
-        final DataType type = getDataType();
-        return "**Type**: " + (type == null ? "misconfigured" : label(type))
+        return "**Type**: " + label(getDataType())
             + (isMultiple() ? ", more than one value allowed" : "") + (isRequired() ? ", required" : "");
     }
 
@@ -504,14 +522,8 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
      */
     private void addRuleDetails(@NotNull final List<String> details)
     {
-        final Writability write = getWritableBy();
-        if (write != null) {
-            details.add("**May be changed by**: " + label(write));
-        }
-        final Readability read = getReadableBy();
-        if (read != null) {
-            details.add("**May be read by**: " + label(read));
-        }
+        details.add("**May be changed by**: " + label(getWritableBy()));
+        details.add("**May be read by**: " + label(getReadableBy()));
     }
 
     /**
@@ -577,15 +589,14 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * Writes one of the vocabularies the way it is written in content, or nothing at all when the stored value is not
-     * one of them, since repeating it back would suggest it means something.
+     * Writes one of the vocabularies the way it is written in content.
      *
-     * @param value the parsed constant, or {@code null} when the stored value was not recognized
-     * @return the lowercase name, or an empty string
+     * @param value the parsed constant
+     * @return the lowercase name
      */
     @NotNull
-    private static String label(@Nullable final Enum<?> value)
+    private static String label(@NotNull final Enum<?> value)
     {
-        return value == null ? "" : value.name().toLowerCase(Locale.ROOT);
+        return value.name().toLowerCase(Locale.ROOT);
     }
 }
