@@ -1,4 +1,3 @@
 {
-  "jcr:primaryType": "sling:Folder",
-  "sling:resourceSuperType": "iap/Content"
+  "jcr:primaryType": "sling:Folder"
 }
