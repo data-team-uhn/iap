@@ -17,12 +17,15 @@
  */
 package io.uhndata.iap.errortracking.internal;
 
+import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.stream.StreamSupport;
 
@@ -145,6 +148,19 @@ class ErrorLoggerImplTest
     }
 
     @Test
+    void recordsAComponentWhoseNameIsLongerThanALabelMayBe()
+    {
+        // Several classes in this build are already past sixty characters, and the component is the most useful
+        // field of the record: a label-length limit here would drop it for exactly the classes that say the most
+        final String longest = "io.uhndata.iap.slacknotifications.internal.SlackNotificationConfiguration";
+        assertTrue(longest.length() > 64, "the case this is about no longer exists");
+
+        this.logger.logError(new IllegalStateException(BOOM), ErrorContext.of(longest, "publish"));
+
+        assertEquals(longest, onlyError().get("component", String.class));
+    }
+
+    @Test
     void recordsSomethingFoundWrongThatNothingWasThrownFor()
     {
         this.logger.logProblem("unknown comparator",
@@ -221,6 +237,63 @@ class ErrorLoggerImplTest
     }
 
     @Test
+    void aProblemPhraseThatQuotesSomethingIsStillRecorded()
+    {
+        // Dropping this would be a silent failure in the one component that exists to prevent them. So the stable
+        // head of the phrase names the fault, and the phrase itself is kept the way a throwable's message is
+        this.logger.logProblem("unknown comparator: 'sameDay'", ErrorContext.of("some.Thing", "evaluate"));
+
+        final ValueMap recorded = onlyError();
+        assertEquals("err:LoggedProblem", recorded.get("jcr:primaryType", String.class));
+        assertEquals("unknown comparator", recorded.get("problem", String.class));
+        assertEquals(List.of("unknown comparator: 'sameDay'"), List.of(recorded.get("messages", new String[0])));
+    }
+
+    @Test
+    void aProblemPhraseThatQuotesSomethingIsNotAllowedToDecideIdentity()
+    {
+        // One record naming the fault, with the phrases as a bounded sample — never one record per quoted value, in
+        // a store that never deletes anything
+        this.logger.logProblem("unknown comparator: 'sameDay'", ErrorContext.of("some.Thing", "evaluate"));
+        passTheWriteWindow();
+        this.logger.logProblem("unknown comparator: 'sameWeek'", ErrorContext.of("some.Thing", "evaluate"));
+
+        assertEquals(1, errors().size());
+        assertEquals(2L, onlyError().get("occurrences", 0L));
+        assertEquals(List.of("unknown comparator: 'sameWeek'", "unknown comparator: 'sameDay'"),
+            List.of(onlyError().get("messages", new String[0])));
+    }
+
+    @Test
+    void aProblemPhraseWithNothingStableInItIsRecordedAllTheSame()
+    {
+        this.logger.logProblem("/Conditions/broken", ErrorContext.of("some.Thing", "evaluate"));
+
+        final ValueMap recorded = onlyError();
+        assertEquals("unspecified problem", recorded.get("problem", String.class));
+        assertEquals(List.of("/Conditions/broken"), List.of(recorded.get("messages", new String[0])));
+    }
+
+    @Test
+    void aPhraseWhoseHeadSaysNothingIsRecordedUnderTheSameName()
+    {
+        // "-42 " passes for label characters without being anything a reader could act on
+        this.logger.logProblem("-42 /Conditions/broken", ErrorContext.of("some.Thing", "evaluate"));
+
+        assertEquals("unspecified problem", onlyError().get("problem", String.class));
+    }
+
+    @Test
+    void aPhraseTooLongToNameAFaultByIsCutRatherThanDropped()
+    {
+        this.logger.logProblem("a".repeat(100), ErrorContext.of("some.Thing", "evaluate"));
+
+        final ValueMap recorded = onlyError();
+        assertEquals("a".repeat(64), recorded.get("problem", String.class));
+        assertEquals(List.of("a".repeat(100)), List.of(recorded.get("messages", new String[0])));
+    }
+
+    @Test
     void aLabelThatLooksLikeContentIsNotAllowedToDecideIdentity()
     {
         // A path passed as an operation would otherwise mint a record per path, in a store that never deletes
@@ -265,6 +338,117 @@ class ErrorLoggerImplTest
         // Two faults, and at most one commit each — never one commit per occurrence, which is what recording from
         // inside a loop used to cost
         assertTrue(counting.commits <= 2, "committed " + counting.commits + " times");
+    }
+
+    @Test
+    void queuesOneWritePerBurstRatherThanOnePerOccurrence() throws ReflectiveOperationException
+    {
+        // The tally is bounded, the executor's queue is not: one task per occurrence lets a failing loop pile up
+        // hundreds of thousands of no-op tasks behind the single write they are all waiting for
+        final List<Runnable> pending = new ArrayList<>();
+        final ErrorLoggerImpl deferred = build(this.context.resourceResolver());
+        TestResolvers.set(deferred, "writer", (Executor) pending::add);
+        final Throwable error = new IllegalStateException(BOOM);
+
+        for (int i = 0; i < 50; i++) {
+            deferred.logError(error);
+        }
+
+        assertEquals(1, pending.size());
+
+        pending.forEach(Runnable::run);
+        assertEquals(50L, onlyError().get("occurrences", 0L));
+    }
+
+    @Test
+    void printsTheStackTraceOnceRatherThanPerOccurrence() throws ReflectiveOperationException
+    {
+        // Printing a cause chain builds up to 64 KB of string, and only the occurrence that starts a tally keeps one
+        final AtomicInteger printed = new AtomicInteger();
+        final Throwable counting = new IllegalStateException(BOOM)
+        {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void printStackTrace(final PrintWriter writer)
+            {
+                printed.incrementAndGet();
+                super.printStackTrace(writer);
+            }
+        };
+        final ErrorLoggerImpl deferred = build(this.context.resourceResolver());
+        TestResolvers.set(deferred, "writer", (Executor) runnable -> {
+            // Written by hand below, so that the whole burst is one tally
+        });
+
+        for (int i = 0; i < 5; i++) {
+            deferred.logError(counting);
+        }
+
+        assertEquals(1, printed.get());
+
+        deferred.flush();
+        assertEquals(5L, onlyError().get("occurrences", 0L));
+        assertTrue(onlyError().get("stackTrace", "").contains("ErrorLoggerImplTest"));
+    }
+
+    @Test
+    void writesTheTailOfABurstWithoutWaitingForAnotherFailure() throws Exception
+    {
+        // due() deliberately holds back a fault written within the window, so the last occurrences of a burst are
+        // due only once it is over — and nothing arrives then to notice. Without a clock of its own the writer would
+        // leave one occurrence and a stale date in the repository for as long as the instance kept running
+        final CountDownLatch written = new CountDownLatch(2);
+        final ErrorLoggerImpl running = new ErrorLoggerImpl();
+        TestResolvers.inject(running, new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public void commit() throws PersistenceException
+            {
+                super.commit();
+                written.countDown();
+            }
+
+            @Override
+            public void close()
+            {
+                // The test context owns this resolver
+            }
+        });
+        TestResolvers.set(running, "clock", (LongSupplier) () -> this.now);
+        TestResolvers.set(running, "writeInterval", 20L);
+        running.activate();
+        try {
+            final Throwable error = new IllegalStateException(BOOM);
+            running.logError(error);
+            running.logError(error);
+            // Nothing else fails from here on: only the writer's own clock can notice that the second occurrence is
+            // now due
+            passTheWriteWindow();
+
+            assertTrue(written.await(5, TimeUnit.SECONDS), "the tail of the burst was never written");
+        } finally {
+            running.deactivate();
+        }
+        assertEquals(2L, onlyError().get("occurrences", 0L));
+    }
+
+    @Test
+    void stoppingWritesOutEvenWhatWasNotDueYet() throws ReflectiveOperationException
+    {
+        // The window bounds how often a fault is written while the instance runs; on the way out there is no loop
+        // left to bound, and holding anything back would simply lose it
+        final ErrorLoggerImpl running = new ErrorLoggerImpl();
+        TestResolvers.inject(running, this.context.resourceResolver());
+        running.activate();
+        final Throwable error = new IllegalStateException(BOOM);
+        running.logError(error);
+        running.logError(error);
+        running.logError(error);
+
+        running.deactivate();
+
+        assertEquals(3L, onlyError().get("occurrences", 0L));
     }
 
     @Test
@@ -394,6 +578,44 @@ class ErrorLoggerImplTest
     }
 
     @Test
+    void aWriteThatFailsOutrightLeavesTheWriterRunning() throws ReflectiveOperationException
+    {
+        // Not a failed commit — those are handled — but the writing itself raising something. On a scheduled task
+        // that escapes once, the tail of every later burst would go unwritten
+        final ErrorLoggerImpl brokenOnce = build(this.context.resourceResolver());
+        final AtomicInteger ticks = new AtomicInteger();
+        TestResolvers.set(brokenOnce, "clock", (LongSupplier) () -> {
+            // The second reading is the one the writing takes; the first is the tally's
+            if (ticks.incrementAndGet() == 2) {
+                throw new IllegalStateException("no clock");
+            }
+            return this.now;
+        });
+
+        assertDoesNotThrow(() -> brokenOnce.logError(new IllegalStateException(BOOM)));
+        assertTrue(errors().isEmpty());
+
+        // The next recording is written as if nothing had happened, and takes the tally that could not be written
+        // out with it: what the writer could not do it did not lose
+        brokenOnce.logError(new IllegalStateException("after"));
+        assertEquals(2, errors().size());
+    }
+
+    @Test
+    void stoppingSurvivesAWriteThatFailsOutright() throws ReflectiveOperationException
+    {
+        final ErrorLoggerImpl running = new ErrorLoggerImpl();
+        TestResolvers.inject(running, this.context.resourceResolver());
+        running.activate();
+        TestResolvers.set(running, "clock", (LongSupplier) () -> {
+            throw new IllegalStateException("no clock");
+        });
+        running.logError(new IllegalStateException(BOOM));
+
+        assertDoesNotThrow(running::deactivate);
+    }
+
+    @Test
     void survivesAMissingContainer() throws PersistenceException
     {
         this.context.resourceResolver().delete(
@@ -433,7 +655,7 @@ class ErrorLoggerImplTest
         }
 
         // Being unable to keep up must not be one more silent failure
-        assertTrue(unreachable.getDropped() > 0);
+        assertTrue(unreachable.getDroppedCount() > 0);
     }
 
     // ---------------------------------------------------------------- guards and lifecycle

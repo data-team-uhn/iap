@@ -17,10 +17,10 @@
  */
 package io.uhndata.iap.errortracking.internal;
 
-import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -39,6 +39,7 @@ import io.uhndata.iap.errortracking.models.LoggedErrorsHomepage;
 import io.uhndata.iap.errortracking.models.LoggedFailure;
 import io.uhndata.iap.status.spi.StatusReport;
 import io.uhndata.iap.status.spi.StatusReporter;
+import io.uhndata.iap.utils.DateUtils;
 
 /**
  * Reports the errors recorded under {@value ErrorLoggerService#LOGGED_ERRORS_PATH}, so that a system administrator
@@ -87,6 +88,10 @@ public class LoggedErrorsStatusReporter implements StatusReporter
     @Reference
     private ResourceResolverFactory resolverFactory;
 
+    /** The recording service, asked how much it could not keep up with. */
+    @Reference
+    private ErrorLoggerService recorder;
+
     @Override
     public String getName()
     {
@@ -119,7 +124,7 @@ public class LoggedErrorsStatusReporter implements StatusReporter
                     ErrorLoggerService.LOGGED_ERRORS_PATH + " does not exist, so no error can be recorded there. "
                         + "The repository was most likely not initialized properly.");
             }
-            return describe(errors, unprivileged);
+            return describe(errors, dropped(), unprivileged);
         } catch (final Exception e) {
             LOGGER.warn("Failed to report the recorded errors: {}", e.getMessage(), e);
             // The message of a repository failure routinely quotes a path, so it goes the same way as everything
@@ -130,23 +135,40 @@ public class LoggedErrorsStatusReporter implements StatusReporter
     }
 
     /**
+     * How many recordings the service could not keep up with. Zero rather than a failure when the service is not
+     * there: this report has more important things to say in that case, and it is the one that says them.
+     *
+     * @return a count, zero in every healthy instance
+     */
+    private long dropped()
+    {
+        return this.recorder == null ? 0 : this.recorder.getDroppedCount();
+    }
+
+    /**
      * Describes what has been recorded.
      *
      * @param errors the container holding the recorded errors
+     * @param dropped how many recordings could not be kept up with
      * @param unprivileged whether the report is going somewhere anybody can read
      * @return the report
      */
-    private static StatusReport describe(final LoggedErrorsHomepage errors, final boolean unprivileged)
+    private static StatusReport describe(final LoggedErrorsHomepage errors, final long dropped,
+        final boolean unprivileged)
     {
         final List<LoggedError> unacknowledged = errors.getUnacknowledgedErrors();
         final List<LoggedError> acknowledged = errors.getAcknowledgedErrors();
-        LOGGER.debug("Found {} recorded errors, {} of them unacknowledged",
-            unacknowledged.size() + acknowledged.size(), unacknowledged.size());
+        LOGGER.debug("Found {} recorded errors, {} of them unacknowledged, {} not kept up with",
+            unacknowledged.size() + acknowledged.size(), unacknowledged.size(), dropped);
 
         if (unacknowledged.isEmpty() && acknowledged.isEmpty()) {
-            return new StatusReport("No errors are logged", StatusReport.Status.DEBUG, "");
+            // Nothing recorded and yet something dropped means faults arrived faster than they could be written,
+            // which is a worse thing to be silent about than any single one of them
+            return dropped == 0 ? new StatusReport("No errors are logged", StatusReport.Status.DEBUG, "")
+                : new StatusReport("*WARNING*: " + plural(dropped, "error") + " could not be recorded",
+                    StatusReport.Status.WARNING, overflow(dropped));
         }
-        if (unacknowledged.isEmpty()) {
+        if (unacknowledged.isEmpty() && dropped == 0) {
             // Something did break, so SUCCESS would be a lie, but somebody has taken responsibility for all of it.
             // INFO is visible to a person asking and invisible to a monitor watching for anything worse, which is
             // exactly the difference acknowledging an error is meant to make
@@ -155,30 +177,84 @@ public class LoggedErrorsStatusReporter implements StatusReporter
                     : "All " + acknowledged.size() + " logged errors have been acknowledged",
                 StatusReport.Status.INFO, unprivileged ? "" : body(List.of(), acknowledged));
         }
-        return new StatusReport(summarize(unacknowledged, acknowledged), StatusReport.Status.ERROR,
-            unprivileged ? summaryTable(unacknowledged) + "\n" + HIDDEN : body(unacknowledged, acknowledged));
+        // Nothing acknowledges what was never recorded, so anything dropped keeps the report red
+        return new StatusReport(summarize(unacknowledged, acknowledged, dropped), StatusReport.Status.ERROR,
+            overflow(dropped) + (unprivileged ? summaryTable(unacknowledged) + "\n" + HIDDEN
+                : body(unacknowledged, acknowledged)));
     }
 
     /**
-     * The headline: how much needs attention, and how much has already been dealt with.
+     * The headline: how much needs attention, how much has already been dealt with, and how much never made it into
+     * the repository at all.
      *
      * @param unacknowledged the errors nobody has dealt with
      * @param acknowledged the errors somebody has
+     * @param dropped how many recordings could not be kept up with
      * @return one line
      */
-    private static String summarize(final List<LoggedError> unacknowledged, final List<LoggedError> acknowledged)
+    private static String summarize(final List<LoggedError> unacknowledged, final List<LoggedError> acknowledged,
+        final long dropped)
     {
-        final long occurrences = unacknowledged.stream().mapToLong(LoggedError::getOccurrences).sum();
         final StringBuilder headline = new StringBuilder();
-        headline.append(unacknowledged.size() == 1 ? "There is 1 error logged"
-            : "There are " + unacknowledged.size() + " errors logged");
-        if (occurrences != unacknowledged.size()) {
-            headline.append(", ").append(occurrences).append(" occurrences in total");
+        if (unacknowledged.isEmpty()) {
+            // Only reachable with something dropped: nothing that was recorded needs attention, and the report is
+            // still not a clean one
+            headline.append("Nothing logged needs attention, and ").append(dropped)
+                .append(" could not be recorded at all");
+        } else {
+            describeUnacknowledged(headline, unacknowledged, dropped);
         }
         if (!acknowledged.isEmpty()) {
             headline.append(", and ").append(acknowledged.size()).append(" already acknowledged");
         }
         return headline.toString();
+    }
+
+    /**
+     * The part of the headline about what needs attention.
+     *
+     * @param headline the headline under construction
+     * @param unacknowledged the errors nobody has dealt with, never empty
+     * @param dropped how many recordings could not be kept up with
+     */
+    private static void describeUnacknowledged(final StringBuilder headline,
+        final List<LoggedError> unacknowledged, final long dropped)
+    {
+        final long occurrences = unacknowledged.stream().mapToLong(LoggedError::getOccurrences).sum();
+        headline.append(unacknowledged.size() == 1 ? "There is 1 error logged"
+            : "There are " + unacknowledged.size() + " errors logged");
+        if (occurrences != unacknowledged.size()) {
+            headline.append(", ").append(occurrences).append(" occurrences in total");
+        }
+        if (dropped > 0) {
+            headline.append(", and ").append(dropped).append(" that could not be recorded at all");
+        }
+    }
+
+    /**
+     * Says what could not be kept up with, so that being unable to record a fault is not itself a silent failure.
+     * Names only counts, so it is safe to show to anyone.
+     *
+     * @param dropped how many recordings could not be kept up with
+     * @return one Markdown paragraph, empty when nothing was dropped
+     */
+    private static String overflow(final long dropped)
+    {
+        return dropped == 0 ? ""
+            : "**" + plural(dropped, "error") + " could not be recorded**: more distinct faults were waiting to be "
+                + "written than this instance keeps in hand. What they were is in the log file only.\n\n";
+    }
+
+    /**
+     * Counts something in words a reader does not trip over.
+     *
+     * @param count how many there are
+     * @param noun what they are, in the singular
+     * @return the count and the noun, pluralized when it has to be
+     */
+    private static String plural(final long count, final String noun)
+    {
+        return count + " " + noun + (count == 1 ? "" : "s");
     }
 
     /**
@@ -244,10 +320,11 @@ public class LoggedErrorsStatusReporter implements StatusReporter
             .append(moment(error.getLastOccurrence())).append(".\n");
         appendSubjects(text, error);
         if (error instanceof LoggedFailure thrown) {
-            appendMessages(text, thrown);
+            appendMessages(text, error);
             text.append("\n```\n").append(thrown.getStackTrace()).append("\n```\n");
         } else {
             text.append("\nWhat is wrong: ").append(code(error.getSummary())).append("\n");
+            appendMessages(text, error);
         }
         if (error.getLastContext() != null) {
             text.append("\nContext of the last occurrence:\n\n```\n").append(error.getLastContext()).append("\n```\n");
@@ -277,13 +354,14 @@ public class LoggedErrorsStatusReporter implements StatusReporter
     }
 
     /**
-     * Lists the distinct messages one error was seen with, which are several precisely because the message does not
-     * take part in deciding what counts as the same error.
+     * Lists the distinct messages one error was seen with, which are several precisely because what varies between
+     * occurrences does not take part in deciding what counts as the same error. For a problem those are the phrases
+     * the caller reported, which is where a phrase too variable to name the fault by ends up.
      *
      * @param text the report under construction
      * @param error the error being described
      */
-    private static void appendMessages(final StringBuilder text, final LoggedFailure error)
+    private static void appendMessages(final StringBuilder text, final LoggedError error)
     {
         final List<String> messages = error.getMessages();
         if (!messages.isEmpty()) {
@@ -327,13 +405,17 @@ public class LoggedErrorsStatusReporter implements StatusReporter
     }
 
     /**
-     * Renders a date the way the rest of the platform does.
+     * Renders a date the way the rest of the platform does — milliseconds included, and a zero offset written as
+     * {@code +00:00} rather than {@code Z}, which is why this goes through {@link DateUtils} rather than through one
+     * of the formatters the JDK offers.
      *
      * @param moment the date to render
-     * @return an ISO instant
+     * @return the date in the platform's format
      */
     private static String moment(final Calendar moment)
     {
-        return DateTimeFormatter.ISO_INSTANT.format(moment.toInstant());
+        // The fallback is for the formatter's documented refusal to render some dates at all; a cell reading "—" is
+        // the same thing the table says about anything else it does not know
+        return Objects.requireNonNullElse(DateUtils.toString(moment), "—");
     }
 }

@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.errortracking.models;
 
-import java.util.List;
-
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -26,8 +24,8 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A recorded error that something was thrown for: the class of the throwable, a sample of the messages it was seen
- * with, and the stack trace of one occurrence.
+ * A recorded error that something was thrown for: the class of the throwable and the stack trace of one occurrence,
+ * on top of the {@link #getMessages() messages} and samples every recorded error carries.
  *
  * <p>
  * Named a failure rather than an exception because it is a record of one, not one itself — a distinction both the
@@ -47,10 +45,6 @@ public class LoggedFailure extends LoggedError
     /** The class of what was thrown. */
     @ValueMapValue
     private String type;
-
-    /** A sample of the messages this fault was seen with. */
-    @ValueMapValue
-    private String[] messages;
 
     /** The stack trace of one occurrence. */
     @ValueMapValue
@@ -73,19 +67,6 @@ public class LoggedFailure extends LoggedError
     public String getSummary()
     {
         return this.getThrowableType();
-    }
-
-    /**
-     * A sample of the distinct messages this fault was seen with, most recent first. Several, because the message is
-     * not part of what identifies a fault: the same broken code reporting two different paths is one fault seen
-     * twice, not two faults.
-     *
-     * @return the sampled messages, possibly empty, never {@code null}
-     */
-    @NotNull
-    public List<String> getMessages()
-    {
-        return this.messages == null ? List.of() : List.of(this.messages);
     }
 
     /**

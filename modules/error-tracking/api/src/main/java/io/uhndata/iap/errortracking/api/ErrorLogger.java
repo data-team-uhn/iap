@@ -81,7 +81,7 @@ public final class ErrorLogger
      * Records something the instance found wrong but did not throw over. Does nothing when the error tracking
      * service is not available.
      *
-     * @param problem what is wrong, a short phrase chosen in code; ignored when {@code null} or blank
+     * @param problem what is wrong, a short phrase chosen in code; ignored only when {@code null} or blank
      * @param context which code noticed, what it was doing, and what it was looking at
      */
     public static void logProblem(@Nullable final String problem, @Nullable final ErrorContext context)

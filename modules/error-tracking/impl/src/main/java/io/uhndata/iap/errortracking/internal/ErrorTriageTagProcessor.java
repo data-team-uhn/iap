@@ -17,7 +17,11 @@
  */
 package io.uhndata.iap.errortracking.internal;
 
+import java.util.Comparator;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
@@ -41,9 +45,10 @@ import io.uhndata.iap.tags.spi.TagProcessor;
  * </p>
  *
  * <p>
- * Deliberately incapable of failing: it reads two numbers and a string, and it is the one processor guaranteed to run
- * over the nodes error recording itself writes. A processor that threw here would be recorded as an error, and
- * recording it would run it again.
+ * Deliberately incapable of failing: it reads three numbers and a string, and it is the one processor guaranteed to
+ * run over the nodes error recording itself writes. A processor that threw here would be recorded as an error, and
+ * recording it would run it again. That rules out the immutable collection factories for anything whose contents are
+ * read from the repository, since they throw on a duplicate.
  * </p>
  *
  * @version $Id$
@@ -52,14 +57,17 @@ import io.uhndata.iap.tags.spi.TagProcessor;
 @Component
 public class ErrorTriageTagProcessor implements TagProcessor
 {
-    /** The tag marking an error somebody has dealt with. */
-    static final String ACKNOWLEDGED = "acknowledged";
-
     /** The node type of a recorded decision. */
     private static final String ACKNOWLEDGEMENT_TYPE = "err:Acknowledgement";
 
     /** The property naming a node's type. */
     private static final String PRIMARY_TYPE = "jcr:primaryType";
+
+    /** The property holding how much had happened when a decision was taken. */
+    private static final String DECIDED_AT = "acknowledgedOccurrences";
+
+    /** The property holding when a decision was taken, autocreated by the repository. */
+    private static final String CREATED = "jcr:created";
 
     /** The node types this processor has anything to say about. */
     private static final Set<String> RECORDED_ERRORS = Set.of("err:LoggedFailure", "err:LoggedProblem");
@@ -88,35 +96,37 @@ public class ErrorTriageTagProcessor implements TagProcessor
             return Set.of();
         }
         final NodeState latest = latestDecision(error);
-        if (latest == null || number(error, "occurrences", 1) > number(latest, "acknowledgedOccurrences", 0)) {
+        if (latest == null || number(error, "occurrences", 1) > number(latest, DECIDED_AT, 0)) {
             return Set.of(LoggedError.UNACKNOWLEDGED);
         }
         final String resolution = string(latest, "resolution");
-        return resolution == null ? Set.of(ACKNOWLEDGED) : Set.of(ACKNOWLEDGED, resolution);
+        // A union rather than a two-element Set.of: `acknowledged` is itself one of the shipped triage tags, and a
+        // decision resolved that way would otherwise throw on the duplicate. The tag editor swallows what a
+        // processor throws, so the error would keep the markers it already had — silently staying unacknowledged
+        // however often somebody acknowledged it
+        return resolution == null ? Set.of(LoggedError.ACKNOWLEDGED)
+            : Stream.of(LoggedError.ACKNOWLEDGED, resolution).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
-     * The most recent decision taken about a recorded error: the one taken at the highest occurrence count, since
-     * that is what a decision is measured against and two decisions can share a timestamp.
+     * The most recent decision taken about a recorded error: the one taken at the highest occurrence count, and among
+     * those the one taken last. Deliberately the same rule as
+     * {@link io.uhndata.iap.errortracking.models.Acknowledgement#MOST_RECENT_FIRST}, which is what the report reads —
+     * two rules disagreeing would have the markers name one decision while the report named another. The count comes
+     * first because it is what a decision is measured against, and because two decisions taken in the same second
+     * still order by it.
      *
      * @param error the node recording the error
      * @return the decision, or {@code null} when nobody has taken one
      */
     private static NodeState latestDecision(final NodeState error)
     {
-        NodeState latest = null;
-        long highest = -1;
-        for (final ChildNodeEntry child : error.getChildNodeEntries()) {
-            final NodeState decision = child.getNodeState();
-            if (ACKNOWLEDGEMENT_TYPE.equals(string(decision, PRIMARY_TYPE))) {
-                final long at = number(decision, "acknowledgedOccurrences", 0);
-                if (at > highest) {
-                    highest = at;
-                    latest = decision;
-                }
-            }
-        }
-        return latest;
+        return StreamSupport.stream(error.getChildNodeEntries().spliterator(), false)
+            .map(ChildNodeEntry::getNodeState)
+            .filter(decision -> ACKNOWLEDGEMENT_TYPE.equals(string(decision, PRIMARY_TYPE)))
+            .max(Comparator.comparingLong((NodeState decision) -> number(decision, DECIDED_AT, 0))
+                .thenComparingLong(decision -> number(decision, CREATED, Long.MIN_VALUE)))
+            .orElse(null);
     }
 
     /**

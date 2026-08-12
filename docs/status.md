@@ -42,6 +42,7 @@ Built-in reporters:
   out of unprivileged reports.
 - **Logged errors** (`iap-error-tracking-impl`, tags `problems`, `errors`) — the
   [errors recorded](error-tracking.md) by an instance that nobody was there to see: an `ERROR`
-  while any of them still needs attention, an `INFO` once they have all been acknowledged. What
+  while any of them still needs attention, an `INFO` once they have all been acknowledged, and a
+  `WARNING` when nothing is recorded but faults arrived faster than they could be written. What
   broke and how often is reported to anyone; the stack traces, messages and paths only to a reader
   who is logged in.

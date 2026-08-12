@@ -71,6 +71,12 @@
       <artifactId>iap-status</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The platform's date format, which the report renders dates in -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- The Content model the recorded errors are read through -->
     <dependency>
       <groupId>${project.groupId}</groupId>

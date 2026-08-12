@@ -67,11 +67,21 @@ public interface ErrorLoggerService
      * as a condition naming a comparator that does not exist. There is no stack trace worth keeping for these: where
      * the problem was noticed is the context's component and operation, and what it was noticed on is its subject.
      *
-     * @param problem what is wrong, a short phrase chosen in code such as {@code unknown comparator}; must not be
-     *            derived from content, since it takes part in deciding whether two problems are the same one.
-     *            Ignored when {@code null} or blank
+     * @param problem what is wrong, a short phrase chosen in code such as {@code unknown comparator}; should not be
+     *            derived from content, since it takes part in deciding whether two problems are the same one. A
+     *            phrase that quotes something is recorded all the same, under its stable leading part, with the whole
+     *            phrase kept the way a throwable's message is. Ignored only when {@code null} or blank
      * @param context which code noticed, what it was doing, and what it was looking at; {@code null} is the same as
      *            {@link ErrorContext#EMPTY}
      */
     void logProblem(@Nullable String problem, @Nullable ErrorContext context);
+
+    /**
+     * How many recordings had to be dropped because too many distinct faults were waiting to be written at once. Part
+     * of the service rather than an internal counter because being unable to keep up must not be one more silent
+     * failure: what reports the recorded errors reports this alongside them.
+     *
+     * @return a count, zero in every healthy instance
+     */
+    long getDroppedCount();
 }

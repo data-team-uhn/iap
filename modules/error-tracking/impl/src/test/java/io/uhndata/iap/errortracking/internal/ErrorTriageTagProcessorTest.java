@@ -19,6 +19,7 @@ package io.uhndata.iap.errortracking.internal;
 
 import java.util.Set;
 
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -40,6 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ErrorTriageTagProcessorTest
 {
+    /** When a decision was taken, autocreated by the repository and used to order decisions taken at the same count. */
+    private static final String CREATED = "jcr:created";
+
     private final ErrorTriageTagProcessor processor = new ErrorTriageTagProcessor();
 
     @Test
@@ -68,14 +72,14 @@ class ErrorTriageTagProcessorTest
     @Test
     void anErrorSomebodyHasDecidedAboutDoesNot()
     {
-        assertEquals(Set.of(ErrorTriageTagProcessor.ACKNOWLEDGED, "known-issue"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "known-issue"),
             this.processor.computeTags(context(node("err:LoggedFailure", 3, "known-issue", 3))));
     }
 
     @Test
     void aProblemIsTriagedTheSameWay()
     {
-        assertEquals(Set.of(ErrorTriageTagProcessor.ACKNOWLEDGED, "wont-fix"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "wont-fix"),
             this.processor.computeTags(context(node("err:LoggedProblem", 1, "wont-fix", 1))));
     }
 
@@ -89,13 +93,62 @@ class ErrorTriageTagProcessorTest
     }
 
     @Test
+    void aPlainAcknowledgementIsATriageTagLikeAnyOther()
+    {
+        // `acknowledged` is one of the shipped triage tags and the acknowledge servlet accepts it, so the markers of
+        // such a decision are one tag rather than two — a two-element immutable set would throw on the duplicate,
+        // the tag editor would swallow that, and the error would stay unacknowledged however often it was
+        // acknowledged
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED),
+            this.processor.computeTags(context(node("err:LoggedFailure", 3, LoggedError.ACKNOWLEDGED, 3))));
+    }
+
+    @Test
     void theNewestDecisionIsTheOneThatCounts()
     {
         final NodeBuilder error = builder("err:LoggedFailure", 7);
         decide(error, "first", "known-issue", 3);
         decide(error, "second", "wont-fix", 7);
 
-        assertEquals(Set.of(ErrorTriageTagProcessor.ACKNOWLEDGED, "wont-fix"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "wont-fix"),
+            this.processor.computeTags(context(error.getNodeState())));
+    }
+
+    @Test
+    void twoDecisionsTakenAtTheSameCountAreOrderedByWhenTheyWereTaken()
+    {
+        // Deciding again before the error recurs is ordinary — changing one's mind — and both decisions then carry
+        // the same count. The markers have to name the same decision the report names, and the report sorts these by
+        // jcr:created
+        final NodeBuilder error = builder("err:LoggedFailure", 4);
+        decide(error, "decision1", "known-issue", 4).setProperty(CREATED, "2026-08-10T12:00:00.000+00:00", Type.DATE);
+        decide(error, "decision2", "wont-fix", 4).setProperty(CREATED, "2026-08-11T12:00:00.000+00:00", Type.DATE);
+
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "wont-fix"),
+            this.processor.computeTags(context(error.getNodeState())));
+    }
+
+    @Test
+    void theLaterDecisionWinsWhicheverOrderTheChildrenAreIn()
+    {
+        // The same pair the other way round: nothing about the answer may depend on the order the repository happens
+        // to hand the children over in
+        final NodeBuilder error = builder("err:LoggedFailure", 4);
+        decide(error, "decision1", "known-issue", 4).setProperty(CREATED, "2026-08-11T12:00:00.000+00:00", Type.DATE);
+        decide(error, "decision2", "wont-fix", 4).setProperty(CREATED, "2026-08-10T12:00:00.000+00:00", Type.DATE);
+
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "known-issue"),
+            this.processor.computeTags(context(error.getNodeState())));
+    }
+
+    @Test
+    void aDecisionThatDoesNotSayWhenLosesToOneThatDoes()
+    {
+        final NodeBuilder error = builder("err:LoggedFailure", 4);
+        decide(error, "decision1", "known-issue", 4);
+        decide(error, "decision2", "wont-fix", 4).setProperty(CREATED, "2026-08-10T12:00:00.000+00:00", Type.DATE);
+
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "wont-fix"),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -106,7 +159,7 @@ class ErrorTriageTagProcessorTest
         error.child("decision1").setProperty("jcr:primaryType", "err:Acknowledgement")
             .setProperty("acknowledgedOccurrences", 1L);
 
-        assertEquals(Set.of(ErrorTriageTagProcessor.ACKNOWLEDGED),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -131,7 +184,7 @@ class ErrorTriageTagProcessorTest
         error.setProperty("jcr:primaryType", "err:LoggedFailure");
         decide(error, "decision1", "known-issue", 1);
 
-        assertEquals(Set.of(ErrorTriageTagProcessor.ACKNOWLEDGED, "known-issue"),
+        assertEquals(Set.of(LoggedError.ACKNOWLEDGED, "known-issue"),
             this.processor.computeTags(context(error.getNodeState())));
     }
 
@@ -199,11 +252,12 @@ class ErrorTriageTagProcessorTest
      * @param name the name of the decision node
      * @param resolution what was decided
      * @param decidedAt how often the error had happened by then
+     * @return the decision, so that a test can say when it was taken
      */
-    private static void decide(final NodeBuilder error, final String name, final String resolution,
+    private static NodeBuilder decide(final NodeBuilder error, final String name, final String resolution,
         final long decidedAt)
     {
-        error.child(name).setProperty("jcr:primaryType", "err:Acknowledgement")
+        return error.child(name).setProperty("jcr:primaryType", "err:Acknowledgement")
             .setProperty("resolution", resolution)
             .setProperty("acknowledgedOccurrences", decidedAt);
     }

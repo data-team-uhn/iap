@@ -172,6 +172,19 @@ class LoggedErrorsTest
     }
 
     @Test
+    void aProblemKeepsThePhrasesItWasReportedWith()
+    {
+        // Where a phrase too variable to name the fault by ends up, the same place a throwable's message does
+        this.context.create().resource("/LoggedErrors/quoted", Map.of(
+            "sling:resourceType", LoggedProblem.RESOURCE_TYPE,
+            "sling:resourceSuperType", LoggedError.RESOURCE_TYPE,
+            "problem", "unknown comparator",
+            "messages", new String[] {"unknown comparator: 'sameDay'"}));
+
+        assertEquals(List.of("unknown comparator: 'sameDay'"), this.home.getError("quoted").getMessages());
+    }
+
+    @Test
     void anErrorCountsAsOneOccurrenceEvenWhenTheCountIsNonsense()
     {
         this.context.create().resource("/LoggedErrors/odd", Map.of(
@@ -224,6 +237,19 @@ class LoggedErrorsTest
         assertEquals(List.of("acknowledged", "known-issue"), this.home.getError("abc").getTriageMarkers());
         assertEquals(0, this.home.getUnacknowledgedErrors().size());
         assertEquals(1, this.home.getAcknowledgedErrors().size());
+    }
+
+    @Test
+    void aMarkerPutThereBySomethingElseDoesNotCountAsHavingDealtWithIt()
+    {
+        // The computed property is the union of what every processor of that phase contributed, not only the triage
+        // one. Reading "anything other than unacknowledged" as dealt with would silence the whole report the first
+        // time some other processor tagged an error for reasons of its own
+        markers(thrown("abc", 1, 1000), "large", "from-import");
+
+        assertFalse(this.home.getError("abc").isAcknowledged());
+        assertEquals(1, this.home.getUnacknowledgedErrors().size());
+        assertEquals(0, this.home.getAcknowledgedErrors().size());
     }
 
     @Test

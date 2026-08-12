@@ -21,13 +21,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -48,8 +50,9 @@ import io.uhndata.iap.errortracking.api.ErrorLoggerService;
  *
  * <p>
  * Recording does no repository work on the calling thread. The failure is fingerprinted, folded into an in-memory
- * tally and left there; a single background thread writes the accumulated tallies out shortly afterwards. That is a
- * requirement rather than an optimization, for three reasons, in descending order of severity:
+ * tally and left there; a single background thread writes the accumulated tallies out shortly afterwards, prompted
+ * both by the recording and by a timer of its own. That is a requirement rather than an optimization, for three
+ * reasons, in descending order of severity:
  * </p>
  *
  * <ul>
@@ -93,11 +96,28 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     private static final Logger LOGGER = LoggerFactory.getLogger(ErrorLoggerImpl.class);
 
     /**
-     * What a component, an operation or a problem may look like to take part in a fingerprint. Anything else is a
-     * caller accidentally passing something data-derived, which would mint a record per distinct value; the value is
-     * still recorded as a detail, it just does not get to decide identity.
+     * The characters something may be made of to take part in a fingerprint. Anything else is a caller accidentally
+     * passing something data-derived, which would mint a record per distinct value; the value is still recorded, it
+     * just does not get to decide identity.
      */
-    private static final Pattern STABLE_LABEL = Pattern.compile("[A-Za-z0-9_.$ -]{1,64}");
+    private static final String STABLE_CHARACTERS = "[A-Za-z0-9_.$ -]";
+
+    /** How long a label chosen in code plausibly is. */
+    private static final int MAX_LABEL_LENGTH = 64;
+
+    /** What an operation may look like: a short label, such as {@code computeTags}. */
+    private static final Pattern STABLE_LABEL = Pattern.compile(STABLE_CHARACTERS + "{1," + MAX_LABEL_LENGTH + "}");
+
+    /**
+     * What a component may look like. The same characters, but as long as a fully-qualified class name needs to be
+     * rather than as long as a label: several classes in this build are already past sixty characters, and a
+     * length limit there would drop the single most useful field of the record for exactly the classes whose names
+     * say the most.
+     */
+    private static final Pattern STABLE_COMPONENT = Pattern.compile(STABLE_CHARACTERS + "{1,255}");
+
+    /** What names a problem whose phrase has no stable part at all. */
+    private static final String UNSTABLE_PROBLEM = "unspecified problem";
 
     /** The node type recording a fault something was thrown for. */
     private static final String EXCEPTION_TYPE = "err:LoggedFailure";
@@ -134,17 +154,27 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     /** When the writer may try again, after having given up. Volatile for the same reason, and 64 bits wide. */
     private volatile long pausedUntil;
 
+    /**
+     * Whether a write is already queued. One task per burst rather than one per occurrence: the tally is bounded, but
+     * the executor's queue is not, and a fault in a tight loop would otherwise pile up hundreds of thousands of
+     * no-op tasks behind the one write they are all waiting for.
+     */
+    private final AtomicBoolean queued = new AtomicBoolean();
+
     /** Where the writing happens. Replaced in tests by one that runs on the calling thread. */
     private Executor writer;
 
     /** The executor to shut down on deactivation, {@code null} when the writer was supplied from outside. */
-    private ExecutorService ownWriter;
+    private ScheduledExecutorService ownWriter;
 
     /** The clock. Replaced in tests, so that windows can be tested without waiting for them. */
     private LongSupplier clock = System::currentTimeMillis;
 
     /** How long stopping waits for the last tallies. A field so that a test need not actually wait that long. */
     private long shutdownWait = SHUTDOWN_WAIT_MS;
+
+    /** How often the same fault is written, and how often the writer looks for work. A field for the same reason. */
+    private long writeInterval = WRITE_INTERVAL_MS;
 
     /** Turns tallies into repository nodes. */
     private RecordWriter records;
@@ -153,12 +183,18 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     protected void activate()
     {
         // A single thread, so that every write is serialized and no two of them can race for the same node
-        this.ownWriter = Executors.newSingleThreadExecutor(runnable -> {
+        this.ownWriter = Executors.newSingleThreadScheduledExecutor(runnable -> {
             final Thread thread = new Thread(runnable, "iap-error-tracking");
             thread.setDaemon(true);
             return thread;
         });
         this.writer = this.ownWriter;
+        // A recording queues a write, but a fault written within the last window is deliberately held back, so the
+        // last occurrences of a burst are due only once it is over — and nothing arrives to notice that. Without a
+        // clock of its own, an instance that fails three times in a minute and then behaves would leave one
+        // occurrence and a stale date in the repository for as long as it kept running
+        this.ownWriter.scheduleWithFixedDelay(this::write, this.writeInterval, this.writeInterval,
+            TimeUnit.MILLISECONDS);
         this.records = new RecordWriter(this.resolverFactory);
         ErrorLogger.setService(this);
     }
@@ -169,7 +205,7 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         // Stop taking new tallies before writing out the ones in hand, so that the last flush is the last word
         ErrorLogger.unsetService(this);
         if (this.ownWriter != null) {
-            this.ownWriter.execute(this::flush);
+            this.ownWriter.execute(this::drain);
             this.ownWriter.shutdown();
             try {
                 if (!this.ownWriter.awaitTermination(this.shutdownWait, TimeUnit.MILLISECONDS)) {
@@ -196,12 +232,15 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         }
         final ErrorContext described = context == null ? ErrorContext.EMPTY : context;
         submit(error, () -> {
-            final String stated = label(described.getComponent());
-            final String component = stated != null ? stated : label(Fingerprint.inferComponent(error));
+            final String stated = component(described.getComponent());
+            final String component = stated != null ? stated : component(Fingerprint.inferComponent(error));
             final String operation = label(described.getOperation());
-            final String trace = Fingerprint.print(error);
             tally(Fingerprint.of(error, component, operation),
-                () -> new PendingError(EXCEPTION_TYPE, component, operation, error.getClass().getName(), null, trace),
+                // Printed inside the supplier, so that only the first occurrence of a fault pays for it: printing a
+                // deep cause chain builds up to 64 KB of string, and a fault in a tight loop reaches here per
+                // occurrence
+                () -> new PendingError(EXCEPTION_TYPE, component, operation, error.getClass().getName(), null,
+                    Fingerprint.print(error)),
                 error.getMessage(), described);
         });
     }
@@ -209,17 +248,22 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     @Override
     public void logProblem(final String problem, final ErrorContext context)
     {
-        final String what = label(problem);
-        if (what == null) {
+        if (problem == null || problem.isBlank()) {
             return;
         }
         final ErrorContext described = context == null ? ErrorContext.EMPTY : context;
-        submit(what, () -> {
-            final String component = label(described.getComponent());
+        final String phrase = problem.strip();
+        // What decides identity still has to be stable, but a phrase that is not must be recorded all the same: the
+        // caller is reporting something wrong, and dropping it here would make the component whose whole purpose is
+        // to catch silent failures the one committing them. So the stable head names the fault and the phrase itself
+        // is kept as a message, exactly the way a throwable's message is left out of the identity but not the record
+        final String named = stableHead(phrase);
+        submit(phrase, () -> {
+            final String component = component(described.getComponent());
             final String operation = label(described.getOperation());
-            tally(Fingerprint.ofProblem(what, component, operation),
-                () -> new PendingError(PROBLEM_TYPE, component, operation, null, what, null),
-                null, described);
+            tally(Fingerprint.ofProblem(named, component, operation),
+                () -> new PendingError(PROBLEM_TYPE, component, operation, null, named, null),
+                named.equals(phrase) ? null : phrase, described);
         });
     }
 
@@ -238,7 +282,9 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         }
         try {
             tallying.run();
-            this.writer.execute(this::flush);
+            if (this.queued.compareAndSet(false, true)) {
+                this.writer.execute(this::write);
+            }
         } catch (final Throwable e) {
             // The caller is already handling a failure; recording it must not raise a second one. Throwable rather
             // than Exception because printing a deeply nested cause chain can run the stack out
@@ -275,16 +321,57 @@ public class ErrorLoggerImpl implements ErrorLoggerService
     }
 
     /**
+     * Writes out what is due, both when a recording asked for it and when the clock did, and keeps whatever that
+     * raises off the writer thread — a scheduled task that throws is never run again, which would leave the tail of
+     * every later burst unwritten.
+     */
+    private void write()
+    {
+        // Cleared before the writing rather than after, so that an occurrence tallied while a write is in progress
+        // queues another one instead of being left to wait for the next tick
+        this.queued.set(false);
+        try {
+            flush();
+        } catch (final Throwable e) {
+            LOGGER.error("Could not write the recorded errors: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Writes out every tally there is, whether or not its window has passed. For the way out only: the window keeps a
+     * fault failing in a loop from being written continuously, and on the way out there is no loop left to bound.
+     */
+    private void drain()
+    {
+        this.queued.set(false);
+        try {
+            flush(true);
+        } catch (final Throwable e) {
+            LOGGER.error("Could not write the last recorded errors: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * Writes out every tally that is due, in one commit. Runs on the writer thread only, so it is the single writer
      * the design relies on.
      */
     void flush()
     {
+        flush(false);
+    }
+
+    /**
+     * Writes out a batch of tallies, in one commit.
+     *
+     * @param everything whether to write the tallies whose window has not passed yet as well
+     */
+    private void flush(final boolean everything)
+    {
         final long now = this.clock.getAsLong();
         if (now < this.pausedUntil) {
             return;
         }
-        final Map<String, PendingError> batch = due(now);
+        final Map<String, PendingError> batch = due(now, everything);
         if (batch.isEmpty()) {
             return;
         }
@@ -307,14 +394,15 @@ public class ErrorLoggerImpl implements ErrorLoggerService
      * continuously.
      *
      * @param now the current moment
+     * @param everything whether to take the tallies whose window has not passed yet as well
      * @return the tallies to write, by fingerprint
      */
-    private Map<String, PendingError> due(final long now)
+    private Map<String, PendingError> due(final long now, final boolean everything)
     {
         final Map<String, PendingError> batch = new HashMap<>();
         for (final String fingerprint : this.pending.keySet()) {
             final Long written = this.lastWritten.get(fingerprint);
-            if (written == null || now - written >= WRITE_INTERVAL_MS) {
+            if (everything || written == null || now - written >= this.writeInterval) {
                 final PendingError tally = this.pending.remove(fingerprint);
                 if (tally != null) {
                     batch.put(fingerprint, tally);
@@ -364,13 +452,8 @@ public class ErrorLoggerImpl implements ErrorLoggerService
         }
     }
 
-    /**
-     * How many tallies were dropped because too many distinct faults were waiting to be written at once. Read by the
-     * status report, so that being unable to keep up is not itself a silent failure.
-     *
-     * @return a count, zero in every healthy instance
-     */
-    long getDropped()
+    @Override
+    public long getDroppedCount()
     {
         return this.dropped.get();
     }
@@ -385,10 +468,53 @@ public class ErrorLoggerImpl implements ErrorLoggerService
      */
     private static String label(final String value)
     {
+        return stable(value, STABLE_LABEL);
+    }
+
+    /**
+     * Accepts a caller-supplied or guessed component only when it looks like a class name.
+     *
+     * @param value the class name to check, may be {@code null}
+     * @return the class name, or {@code null} when there was none or it cannot be trusted to be stable
+     */
+    private static String component(final String value)
+    {
+        return stable(value, STABLE_COMPONENT);
+    }
+
+    /**
+     * Accepts a value only when it is made of nothing but what may decide identity.
+     *
+     * @param value the value to check, may be {@code null}
+     * @param shape what a value of this kind may look like
+     * @return the stripped value, or {@code null} when there was none or it cannot be trusted to be stable
+     */
+    private static String stable(final String value, final Pattern shape)
+    {
         if (value == null || value.isBlank()) {
             return null;
         }
         final String trimmed = value.strip();
-        return STABLE_LABEL.matcher(trimmed).matches() ? trimmed : null;
+        return shape.matcher(trimmed).matches() ? trimmed : null;
+    }
+
+    /**
+     * The part of a reported phrase that may name a fault: its leading run of label characters. A caller reporting
+     * {@code unknown comparator: 'sameDay'} is describing one fault rather than one per comparator, and stopping at
+     * the first character a label may not contain is what turns such a phrase into the constant the fingerprint
+     * needs. The phrase itself is kept as a message either way, so nothing the caller said is lost.
+     *
+     * @param phrase what the caller reported, stripped and not blank
+     * @return a phrase stable enough to name the fault by
+     */
+    private static String stableHead(final String phrase)
+    {
+        // lookingAt rather than matches: the same shape a whole label has to have, but only asked of the beginning
+        final Matcher head = STABLE_LABEL.matcher(phrase);
+        if (!head.lookingAt()) {
+            return UNSTABLE_PROBLEM;
+        }
+        final String named = head.group().strip();
+        return named.chars().anyMatch(Character::isLetter) ? named : UNSTABLE_PROBLEM;
     }
 }

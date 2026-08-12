@@ -32,12 +32,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityHomepage;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.errortracking.models.Acknowledgement;
 import io.uhndata.iap.errortracking.models.LoggedError;
 import io.uhndata.iap.errortracking.models.LoggedErrorsHomepage;
 import io.uhndata.iap.errortracking.models.LoggedFailure;
 import io.uhndata.iap.errortracking.models.LoggedProblem;
 import io.uhndata.iap.status.spi.StatusReport;
+import io.uhndata.iap.utils.DateUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -160,7 +163,25 @@ class LoggedErrorsStatusReporterTest
         final String body = this.reporter.report(false).getText();
 
         assertTrue(body.contains("**1 occurrence**, first seen "));
-        assertTrue(body.contains("last seen 1970-01-01T00:00:01Z"));
+        // In the platform's own format, milliseconds included and a zero offset written out rather than shortened
+        // to Z, so that a date in a report reads the same as the same date in a serialized resource
+        assertTrue(body.contains("last seen " + DateUtils.toString(at(1000))), body);
+        assertTrue(DateUtils.toString(at(1000)).matches(".*\\.\\d{3}[+-]\\d{2}:\\d{2}"));
+    }
+
+    @Test
+    void saysSomethingRatherThanTheWordNullAboutAnAbsurdDate()
+    {
+        // A date no plausible occurrence carries, from a record written by something with a broken clock
+        final Calendar absurd = Calendar.getInstance();
+        absurd.set(Calendar.YEAR, 999999999);
+        this.context.create().resource("/LoggedErrors/undatable", Map.of(
+            "sling:resourceType", LoggedFailure.RESOURCE_TYPE,
+            "sling:resourceSuperType", LoggedError.RESOURCE_TYPE,
+            "occurrences", 1L,
+            "lastOccurrence", absurd));
+
+        assertFalse(this.reporter.report(false).getText().contains("null"));
     }
 
     @Test
@@ -311,6 +332,79 @@ class LoggedErrorsStatusReporterTest
         assertFalse(body.contains("_null_"));
     }
 
+    // ---------------------------------------------------------------- what could not be recorded at all
+
+    @Test
+    void saysWhenFaultsArrivedFasterThanTheyCouldBeRecorded() throws ReflectiveOperationException
+    {
+        // Nothing in the repository and yet something lost: the overflow is the only trace left, so a report that
+        // stayed quiet about it would be exactly the silent failure this module exists to prevent
+        droppedSoFar(7);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals(StatusReport.Status.WARNING, report.getStatus());
+        assertEquals("*WARNING*: 7 errors could not be recorded", report.getName());
+        assertTrue(report.getText().contains("**7 errors could not be recorded**"));
+    }
+
+    @Test
+    void countsTheOneThatCouldNotBeRecordedInTheSingular() throws ReflectiveOperationException
+    {
+        droppedSoFar(1);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals("*WARNING*: 1 error could not be recorded", report.getName());
+        assertTrue(report.getText().contains("**1 error could not be recorded**"));
+    }
+
+    @Test
+    void countsWhatCouldNotBeRecordedAlongsideWhatWas() throws ReflectiveOperationException
+    {
+        thrown("first", 1, 1000, null);
+        droppedSoFar(3);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals("There is 1 error logged, and 3 that could not be recorded at all", report.getName());
+        assertTrue(report.getText().contains("**3 errors could not be recorded**"));
+    }
+
+    @Test
+    void nothingAcknowledgesWhatWasNeverRecorded() throws ReflectiveOperationException
+    {
+        // Acknowledging every error there is cannot silence an overflow: nobody ever saw what was dropped
+        thrown("handled", 1, 1000, "known-issue");
+        droppedSoFar(2);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals(StatusReport.Status.ERROR, report.getStatus());
+        assertEquals("Nothing logged needs attention, and 2 could not be recorded at all, and 1 already acknowledged",
+            report.getName());
+    }
+
+    @Test
+    void saysHowMuchWasLostEvenToAReaderWhoIsNotLoggedIn() throws ReflectiveOperationException
+    {
+        // A count of what was dropped says nothing about what the instance was working on
+        thrown("first", 1, 1000, null);
+        droppedSoFar(4);
+
+        assertTrue(this.reporter.report(true).getText().contains("**4 errors could not be recorded**"));
+    }
+
+    @Test
+    void reportsWhatIsRecordedWithNoRecorderToAskAtAll()
+    {
+        // The reference is left unset here, standing in for the window between the report starting and the recorder
+        // being injected: the errors already in the repository are still worth reporting
+        thrown("first", 1, 1000, null);
+
+        assertEquals("There is 1 error logged", this.reporter.report(false).getName());
+    }
+
     @Test
     void reportsItsOwnFailureToRead() throws ReflectiveOperationException
     {
@@ -338,6 +432,42 @@ class LoggedErrorsStatusReporterTest
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /**
+     * Gives the reporter a recording service that has had to drop that many faults.
+     *
+     * @param dropped how many recordings could not be kept up with
+     * @throws ReflectiveOperationException if the component's shape has changed
+     */
+    private void droppedSoFar(final long dropped) throws ReflectiveOperationException
+    {
+        TestResolvers.set(this.reporter, "recorder", new ErrorLoggerService()
+        {
+            @Override
+            public void logError(final Throwable error)
+            {
+                // Nothing is recorded through this one
+            }
+
+            @Override
+            public void logError(final Throwable error, final ErrorContext context)
+            {
+                // Nothing is recorded through this one
+            }
+
+            @Override
+            public void logProblem(final String problem, final ErrorContext context)
+            {
+                // Nothing is recorded through this one
+            }
+
+            @Override
+            public long getDroppedCount()
+            {
+                return dropped;
+            }
+        });
+    }
 
     /**
      * Records an error something was thrown for.

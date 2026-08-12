@@ -53,7 +53,9 @@ already failing.
 `component` and `operation` take part in deciding whether two failures are **the same fault**, so
 they must be constants chosen in code. A value that does not look like one — a path, an identifier,
 a rendered value — is still recorded, but is quietly left out of the fault's identity rather than
-being allowed to mint a record per distinct value.
+being allowed to mint a record per distinct value. `component` is held to the same rule but not to
+the same length: it is a fully-qualified class name, and several of this build's own are longer than
+any label would be.
 
 ### Something wrong that nothing was thrown for
 
@@ -67,7 +69,10 @@ ErrorLogger.logProblem("unknown comparator",
 ```
 
 Like `operation`, the problem is a **constant phrase** chosen in code; whatever varies goes in the
-subject.
+subject. A phrase that turns out not to be constant is not dropped, though — that would be a silent
+failure in the one module whose job is to prevent them. `unknown comparator: 'sameDay'` is recorded
+as `unknown comparator`, its stable head, with the phrase itself kept in `messages` exactly the way
+a throwable's message is: outside the identity, inside the record.
 
 ## What is stored
 
@@ -86,8 +91,8 @@ as JSON, list through the pagination servlet, and carry tags like anything else.
 | `subjects` | String[] | A bounded sample of the paths it happened to, most recent first |
 | `actors` | String[] | A bounded sample of the users it happened on behalf of |
 | `lastContext` | String | Everything else said about the most recent occurrence |
+| `messages` | String[] | A bounded sample of the messages it was seen with — a throwable's, or a problem's reported phrases |
 | `type` | String | *(failures)* The class name of what was thrown |
-| `messages` | String[] | *(failures)* A bounded sample of the messages it was seen with |
 | `stackTrace` | String | *(failures)* The stack trace of one occurrence |
 | `problem` | String | *(problems)* What is wrong |
 
@@ -129,7 +134,10 @@ tags could not be computed carries `tagComputationFailed`.
 ### Recording does not touch the repository
 
 `logError` fingerprints the failure, folds it into an in-memory tally and returns. A single
-background thread writes the accumulated tallies out shortly afterwards, one commit per batch.
+background thread writes the accumulated tallies out shortly afterwards, one commit per batch. It is
+prompted both by the recording and by a timer of its own — one queued write per burst rather than
+one per occurrence, and a tick that catches the tail of a burst nothing arrives to notice the end
+of.
 
 This is a requirement rather than an optimization. The callers most worth having are commit hooks,
 and a commit hook runs *inside* a commit: Oak's segment store guards commits with a single
@@ -206,6 +214,11 @@ The `LoggedErrorsStatusReporter` contributes a report tagged `problems` and `err
 | nothing recorded | `DEBUG` | `No errors are logged` |
 | something needs attention | `ERROR` | `There are N errors logged, M occurrences in total` |
 | everything acknowledged | `INFO` | `All N logged errors have been acknowledged` |
+| nothing recorded, but faults were dropped | `WARNING` | `*WARNING*: N errors could not be recorded` |
+
+Anything the tally could not keep up with is counted in every one of those, headline included, and
+keeps the report red however much has been acknowledged: nobody ever saw what was dropped, so
+nothing can have acknowledged it. The count names no content, so it is shown to any reader.
 
 `INFO` for the acknowledged case, deliberately: `SUCCESS` would be a lie, since something did
 break and the record is still there, while `WARNING` would still trip any monitor thresholding

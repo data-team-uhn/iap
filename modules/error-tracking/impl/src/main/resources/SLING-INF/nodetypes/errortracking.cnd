@@ -123,6 +123,14 @@
   // When this fault was last recorded; jcr:created is when it was first seen
   - lastOccurrence (DATE) mandatory
 
+  // A bounded sample of the distinct messages this fault was seen with, most
+  // recent first. Multi-valued because whatever varies between occurrences is
+  // outside the fingerprint: "Cannot read /Submissions/1234" and "Cannot read
+  // /Submissions/5678" are one fault seen twice, not two faults. For a thrown
+  // failure these are the throwable's messages; for a problem, the phrases the
+  // caller reported that were too variable to name the fault by.
+  - messages (STRING) multiple
+
   // A bounded sample of the paths this fault happened to, most recent first,
   // and only a sample: there is deliberately no count of how many distinct
   // paths were hit, because keeping one would mean either keeping them all or
@@ -162,12 +170,6 @@
   // "java.lang.IllegalStateException". Part of the fingerprint.
   - type (STRING) mandatory
 
-  // A bounded sample of the distinct messages this fault was seen with, most
-  // recent first. Multi-valued because the message is outside the fingerprint:
-  // "Cannot read /Submissions/1234" and "Cannot read /Submissions/5678" are
-  // one fault seen twice, not two faults.
-  - messages (STRING) multiple
-
   // The full stack trace of one occurrence, causes included, as it would be
   // printed to a log file, truncated if enormous. An exemplar rather than the
   // identity: every occurrence shares these frames by construction, but may
@@ -186,7 +188,10 @@
 
   // What is wrong: a short phrase chosen in code, such as "unknown
   // comparator". Part of the fingerprint, so the same rule as `operation` — a
-  // constant, with whatever varies left to `subjects`.
+  // constant, with whatever varies left to `subjects`. A caller who reports a
+  // phrase that quotes something is recorded under its stable head, and the
+  // phrase itself is kept in `messages`: dropping the recording would make the
+  // module that exists to catch silent failures commit one.
   - problem (STRING) mandatory
 
 //-----------------------------------------------------------------------------

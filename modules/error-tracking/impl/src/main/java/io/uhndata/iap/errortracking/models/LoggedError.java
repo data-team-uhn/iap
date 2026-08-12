@@ -60,6 +60,12 @@ public abstract class LoggedError extends Content
     /** The tag marking an error nobody has dealt with yet, or one that has happened again since somebody did. */
     public static final String UNACKNOWLEDGED = "unacknowledged";
 
+    /**
+     * The tag marking an error somebody has dealt with. Always present on an acknowledged error, alongside the tag
+     * naming what was decided — which may be this same one, since a plain {@code acknowledged} is a decision too.
+     */
+    public static final String ACKNOWLEDGED = "acknowledged";
+
     /** Which code was running. */
     @ValueMapValue
     private String component;
@@ -75,6 +81,10 @@ public abstract class LoggedError extends Content
     /** When it was last recorded. */
     @ValueMapValue
     private Calendar lastOccurrence;
+
+    /** A sample of the messages it was seen with. */
+    @ValueMapValue
+    private String[] messages;
 
     /** A sample of the paths it happened to. */
     @ValueMapValue
@@ -159,6 +169,20 @@ public abstract class LoggedError extends Content
     }
 
     /**
+     * A sample of the distinct messages this fault was seen with, most recent first. Several, because what varies
+     * between occurrences is deliberately outside the fault's identity: the same broken code reporting two different
+     * paths is one fault seen twice, not two faults. For a thrown failure these are the throwable's messages; for a
+     * problem, the phrases the caller reported that were too variable to name the fault by.
+     *
+     * @return the sampled messages, possibly empty, never {@code null}
+     */
+    @NotNull
+    public List<String> getMessages()
+    {
+        return this.messages == null ? List.of() : List.of(this.messages);
+    }
+
+    /**
      * A sample of the paths this fault happened to, most recent first. Only ever a sample, and deliberately without
      * a count of what it left out: content that has to be found and repaired must carry its own marker, the way a
      * node whose tags could not be computed does.
@@ -228,10 +252,12 @@ public abstract class LoggedError extends Content
     {
         // Read from the property the computing phase owns rather than from the effective tags: these markers are
         // always derived from the decisions below, never placed by hand, so this is both the precise question and
-        // one property read. An error whose markers have not been computed yet reads as needing attention, which is
-        // by far the better way round to be wrong
-        final List<String> markers = triageMarkers();
-        return !markers.isEmpty() && !markers.contains(UNACKNOWLEDGED);
+        // one property read. Tested for positively, because that property is the union of what every processor of
+        // that phase contributed, not only the triage one: asking whether anything other than `unacknowledged` is
+        // there would read as acknowledged the moment some unrelated processor tagged an error for its own reasons.
+        // An error whose markers have not been computed yet reads as needing attention, which is by far the better
+        // way round to be wrong
+        return triageMarkers().contains(ACKNOWLEDGED);
     }
 
     /**

@@ -65,6 +65,12 @@ class ErrorLoggerTest
             this.problems.add(problem);
             this.contexts.add(context);
         }
+
+        @Override
+        public long getDroppedCount()
+        {
+            return 0;
+        }
     }
 
     private final RecordingService service = new RecordingService();
