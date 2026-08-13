@@ -30,7 +30,7 @@ vi.mock("@iap/ui-extension/personas", async (importOriginal) => {
 
 // The active persona is held on `window`; reset it so tests don't inherit each other's choice.
 afterEach(() => {
-  delete (window as unknown as Record<string, unknown>)[STORE_KEY];
+  Reflect.deleteProperty(window, STORE_KEY);
 });
 
 describe("PersonaSwitcher", () => {
@@ -63,6 +63,18 @@ describe("PersonaSwitcher", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(await screen.findByRole("menuitemradio", { name: "Submitter", checked: true })).toBeInTheDocument();
     expect(await screen.findByRole("menuitemradio", { name: "Reviewer", checked: false })).toBeInTheDocument();
+  });
+
+  // The menu is labelled by the button that opens it, which is what tells assistive technology the two
+  // are one control rather than an unnamed list floating beside a button. It reaches the menu through a
+  // slot, so it is the kind of wiring a component-library upgrade drops silently.
+  it("labels the menu with the button that opens it", async () => {
+    render(<PersonaSwitcher />);
+
+    const trigger = await screen.findByRole("button", { name: /Acting as Submitter/ });
+    fireEvent.click(trigger);
+
+    expect(await screen.findByRole("menu")).toHaveAttribute("aria-labelledby", trigger.id);
   });
 
   it("puts on the chosen hat, and says so", async () => {

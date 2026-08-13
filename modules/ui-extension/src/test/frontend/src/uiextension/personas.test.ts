@@ -30,7 +30,7 @@ import {
 // return it to the default so each test starts from the same place. Through the exported key, so
 // that renaming it cannot leave these tests quietly deleting a property nobody reads.
 afterEach(() => {
-  delete (window as unknown as Record<string, unknown>)[STORE_KEY];
+  Reflect.deleteProperty(window, STORE_KEY);
 });
 
 describe("the persona catalogue", () => {

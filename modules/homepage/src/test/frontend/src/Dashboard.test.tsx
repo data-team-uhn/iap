@@ -33,7 +33,7 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 // The active persona is held on `window`; reset it so tests don't inherit each other's choice.
 afterEach(() => {
-  delete (window as unknown as Record<string, unknown>)[STORE_KEY];
+  Reflect.deleteProperty(window, STORE_KEY);
 });
 
 // Builds a widget extension as returned by loadExtensions: the parsed iap:Extension

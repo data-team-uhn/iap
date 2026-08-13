@@ -86,7 +86,7 @@ function PersonaSwitcher() {
         anchorEl={anchor}
         open={open}
         onClose={() => setAnchor(null)}
-        MenuListProps={{ "aria-labelledby": TRIGGER_ID }}
+        slotProps={{ list: { "aria-labelledby": TRIGGER_ID } }}
       >
         {
           personas.map(persona => (
