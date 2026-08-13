@@ -98,6 +98,13 @@ reported. Links removed by the original deletion are **not** recreated.
 Purging an entry removes it and everything in it, permanently. The guards are consulted again
 (with the `PURGE` mode), so protected content blocks the purge.
 
+#### Retention period
+
+`Archive retention` (`ArchiveRetentionConfiguration`) sets a **minimum age**, in calendar days, that
+an entry must reach before it may be purged. It defaults to `0`, which imposes no floor: an entry
+may be purged the moment it is created. Raising it only ever prevents destruction — nothing purges
+anything automatically, so this is a floor under purging rather than a schedule for it.
+
 ## The Java API
 
 The `iap-deletion` bundle exposes **`DeletionService`** (`io.uhndata.iap.deletion.api`, an OSGi
