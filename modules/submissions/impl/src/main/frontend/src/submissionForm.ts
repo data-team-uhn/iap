@@ -29,6 +29,13 @@ export const FORM_REQUIREMENT = "sch/FormRequirement";
 export const SECTION = "sch/Section";
 export const QUESTION = "sch/Question";
 
+// One of the answers a question offers. The value is what an answer stores and what a condition
+// compares against; the label is only what the submitter reads.
+export interface FormAnswerOption {
+  value: string;
+  label: string;
+}
+
 export interface FormQuestion {
   name: string;
   type: string;
@@ -41,6 +48,9 @@ export interface FormQuestion {
   dataType: string;
   required: boolean;
   multiple: boolean;
+  // The answers this question offers, empty when it is answered freely. Always present, so that
+  // "answered freely" is something the form states rather than something a reader infers.
+  options: FormAnswerOption[];
   value: string[];
 }
 
