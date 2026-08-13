@@ -157,6 +157,31 @@ class ParseJobConsumerTest
     }
 
     @Test
+    void emptyAcceptBodyFailsTheJob()
+    {
+        jobNode(Boolean.TRUE);
+        daemonAnswers(202, "");
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(ParseJob.STATUS_FAILED, jobProperties().get(ParseJob.PN_STATUS, String.class));
+        assertEquals("The daemon did not accept the asynchronous parse: (empty response)",
+            jobProperties().get(ParseJob.PN_ERROR, String.class));
+    }
+
+    @Test
+    void nonJsonAcceptBodyFailsTheJob()
+    {
+        jobNode(Boolean.TRUE);
+        daemonAnswers(200, "queued, thanks");
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(ParseJob.STATUS_FAILED, jobProperties().get(ParseJob.PN_STATUS, String.class));
+        assertTrue(jobProperties().get(ParseJob.PN_ERROR, String.class).contains("queued, thanks"));
+    }
+
+    @Test
     void missingCallbackTokenFailsWithoutCallingTheDaemon() throws Exception
     {
         final ParseJobConsumer unconfigured = consumerWithEnvironment(null);
