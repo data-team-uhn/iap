@@ -51,6 +51,7 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormRequirement;
@@ -98,6 +99,8 @@ class SubmissionFormServletTest
 
     private static final String START_DATE = "details/startDate";
 
+    private static final String DURATION = "details/duration";
+
     private static final String END_DATE = "details/endDate";
 
     /** The schema parts these tests hide, by name; everything else applies. */
@@ -113,7 +116,7 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, Answer.class, Submission.class);
+            Section.class, Question.class, AnswerOption.class, Answer.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -137,6 +140,12 @@ class SubmissionFormServletTest
         this.context.create().resource(VERSION_PATH + "/" + END_DATE, Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM,
             "text", "Which day are you back?", "dataType", "date"));
+        this.context.create().resource(VERSION_PATH + "/" + DURATION, Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "How long?", "dataType", "text"));
+        this.context.create().resource(VERSION_PATH + "/" + DURATION + "/half", Map.of(
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "half-day", "label", "Half day"));
+        this.context.create().resource(VERSION_PATH + "/" + DURATION + "/several", Map.of(
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "multiple-days"));
         this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
 
@@ -163,6 +172,17 @@ class SubmissionFormServletTest
         assertEquals("date", startDate.getString("dataType"));
         assertTrue(startDate.getBoolean("required"));
         assertFalse(startDate.getBoolean("multiple"));
+        // Stated even when there is nothing to offer, so that "answered freely" is something the form says
+        assertTrue(startDate.getJsonArray("options").isEmpty());
+
+        // A question offering answers carries them, in the order the schema declares them, with the
+        // label falling back to the value so an option may declare only the one string
+        final JsonArray offered = item(details, "duration").getJsonArray("options");
+        assertEquals(2, offered.size());
+        assertEquals("half-day", offered.getJsonObject(0).getString("value"));
+        assertEquals("Half day", offered.getJsonObject(0).getString("label"));
+        assertEquals("multiple-days", offered.getJsonObject(1).getString("value"));
+        assertEquals("multiple-days", offered.getJsonObject(1).getString("label"));
         assertEquals("2026-10-06", startDate.getJsonArray("value").getString(0));
         // Unanswered, and saying so as an empty list rather than by omission
         assertTrue(item(details, "endDate").getJsonArray("value").isEmpty());
@@ -184,7 +204,7 @@ class SubmissionFormServletTest
 
         final JsonArray items = requirement(form(REQUESTER), DETAILS).getJsonArray("items");
 
-        assertEquals(Set.of("startDate"), names(items));
+        assertEquals(Set.of("startDate", "duration"), names(items));
     }
 
     @Test
