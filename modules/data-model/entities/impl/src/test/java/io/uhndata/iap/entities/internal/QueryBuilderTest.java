@@ -67,7 +67,7 @@ public class QueryBuilderTest
             .withFilters(List.of(new Filter("title", "ILIKE", "%CARdiac's%")))
             .build();
         Assertions.assertEquals(
-            BASE_QUERY + " and (LOWER(n.[title]) LIKE '%cardiac\\'s%') order by n.[jcr:created] ASC", query);
+            BASE_QUERY + " and (LOWER(n.[title]) LIKE '%cardiac''s%') order by n.[jcr:created] ASC", query);
     }
 
     @Test
@@ -228,12 +228,26 @@ public class QueryBuilderTest
             .withFilters(List.of(new Filter("title", "=", "It's a \\ test"), new Filter("status", "=", null)))
             .withFullText("some'text")
             .build();
+        // A quote is escaped by doubling it, which is the only escape a JCR-SQL2 string literal has. A backslash is
+        // an ordinary character in one and is left alone: putting one in front of a quote does not escape it, it
+        // closes the literal one character later and leaves the rest of the value where an operator should be.
         Assertions.assertEquals(
-            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Sub\\'missions')"
-                + " and (n.[title] = 'It\\'s a \\\\ test')"
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Sub''missions')"
+                + " and (n.[title] = 'It''s a \\ test')"
                 + " and (n.[status] = '')"
-                + " and contains(n.*, 'some\\'text')"
+                + " and contains(n.*, 'some''text')"
                 + " order by n.[jcr:created] ASC", query);
+    }
+
+    @Test
+    public void anApostropheInAValueDoesNotBreakTheQuery()
+    {
+        // The bug this guards against turned an ordinary surname into a query the parser rejected, so the endpoint
+        // answered a valid request with a 500
+        final String query = new QueryBuilder(SUBMISSION, SCOPE)
+            .withFilters(List.of(new Filter("owner", "=", "O'Brien")))
+            .build();
+        Assertions.assertEquals(BASE_QUERY + " and (n.[owner] = 'O''Brien') order by n.[jcr:created] ASC", query);
     }
 
     @Test

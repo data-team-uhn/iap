@@ -21,15 +21,21 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-data-model-entities</artifactId>
+    <artifactId>iap-search</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-data-model-entities-impl</artifactId>
+  <artifactId>iap-search-impl</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Data model - Base Entity and EntityHomepage nodetypes - Implementation</name>
+  <name>IAP - Search - Implementation</name>
+  <description>The servlet serving the /search endpoint.</description>
 
   <dependencies>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-search-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>
@@ -64,6 +70,10 @@
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
