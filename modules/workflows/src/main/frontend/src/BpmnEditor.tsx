@@ -48,6 +48,8 @@ import {
 } from "@mui/material";
 import Modeler from 'bpmn-js/lib/Modeler';
 
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+
 import PropertiesPanel from "./PropertiesPanel";
 
 type JcrNode = {
@@ -68,25 +70,6 @@ interface SnackbarState {
   open: boolean;
   message: string;
   severity: SnackbarSeverity;
-}
-
-function fetchUtil(url: string, fetchArgs?: RequestInit): Promise<Response> {
-  return new Promise(function(resolve, reject) {
-    function fetchFunc() {
-      fetch(url, fetchArgs)
-        .then((response) => {
-          if (response.status == 401 || response.status == 500) {
-            console.log("Error fetching: " + response.status);
-          } else if (response.ok && response.url.startsWith(window.location.origin + "/login")) {
-            console.log("Requested relogin");
-          } else {
-            resolve(response);
-          }
-        })
-        .catch((err: unknown) => { reject(err instanceof Error ? err : new Error(String(err))); });
-    }
-    fetchFunc();
-  });
 }
 
 const WORKFLOWS_PATH = "/Workflows";
@@ -166,6 +149,10 @@ const EXAMPLE_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 </bpmn:definitions>`
 
 export default function BpmnEditor() {
+  // Survives the session expiring mid-edit: the request is re-sent after the user signs back in,
+  // so a long editing session does not silently lose a save.
+  const fetchUtil = useAuthenticatedFetch();
+
   const bpmnContainerRef = useRef<HTMLDivElement>(null);
   const [modeler, setModeler] = useState<Modeler | null>(null);
 
@@ -223,7 +210,7 @@ export default function BpmnEditor() {
       })
       .catch(() => showMessage("Failed to load workflow definitions", "error"))
       .finally(() => setLoadingDefs(false));
-  }, [showMessage]);
+  }, [fetchUtil, showMessage]);
 
   const loadDefinition = useCallback(async (def: WorkflowVersionSummary) => {
     let xml: string;
@@ -250,7 +237,7 @@ export default function BpmnEditor() {
         showMessage(`Loaded "${def.title}" v${def.version}`);
       })
       .catch((err: unknown) => showMessage(`Failed to import XML: ${errorText(err)}`, "error"));
-  }, [modeler, showMessage]);
+  }, [fetchUtil, modeler, showMessage]);
 
   const save = useCallback(async () => {
     if (!currentPath || !modeler) return;
@@ -269,7 +256,7 @@ export default function BpmnEditor() {
     } finally {
       setSaving(false);
     }
-  }, [currentPath, currentTitle, modeler, showMessage]);
+  }, [currentPath, currentTitle, fetchUtil, modeler, showMessage]);
 
   const resetNewDialog = useCallback(() => {
     setNewTitle("");
@@ -353,6 +340,7 @@ export default function BpmnEditor() {
     newVersion,
     newActive,
     newXml,
+    fetchUtil,
     modeler,
     showMessage,
     resetNewDialog
