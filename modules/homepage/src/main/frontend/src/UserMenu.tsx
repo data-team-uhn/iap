@@ -32,8 +32,8 @@ import {
   Typography,
 } from "@mui/material";
 
-// Sling's session endpoint, reporting who the current session is authenticated as
-const SESSION_INFO_URL = "/system/sling/info.sessionInfo.json";
+import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
+
 // Sling's user management endpoint, serving a user's properties
 const userInfoUrl = (userId: string) => `/system/userManager/user/${encodeURIComponent(userId)}.json`;
 // Sling's logout endpoint; navigating to it ends the session

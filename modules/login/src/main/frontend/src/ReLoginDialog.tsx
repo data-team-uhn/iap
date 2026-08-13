@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, Typography } from "@mui/material";
 
@@ -28,6 +28,13 @@ import LoginForm from "./LoginForm";
 // session. Only dismissable by giving up: the requests that ran into the expired session are
 // waiting on this, and abandoning it fails them, which is better than a dialog with no way out
 // when the user cannot produce the credentials it is asking for.
+//
+// The absence of `onClose` is what enforces that, and it is deliberate rather than an oversight:
+// MUI swallows Escape and reports a backdrop click by calling `onClose(event, reason)`, so a dialog
+// that does not supply one cannot be dismissed by either. Adding an `onClose` that merely closes
+// would strand every request waiting on `settle`, so if this ever needs one it has to answer them.
+// (There is no `disableEscapeKeyDown` to reach for here -- MUI dropped that prop in v9 in favour of
+// the `reason` argument.)
 export function ReLoginDialog(
   { open, onSignedIn, onAbandoned }: { open: boolean; onSignedIn: () => void; onAbandoned: () => void },
 ) {
@@ -47,6 +54,16 @@ export function ReLoginDialog(
   );
 }
 
+type Waiting = RefObject<((recovered: boolean) => void)[]>;
+
+// Hands every queued request the same answer. The queue is taken before any of them is released,
+// since a retry that expires again will queue itself afresh.
+const release = (waiting: Waiting, recovered: boolean) => {
+  const pending = waiting.current;
+  waiting.current = [];
+  pending.forEach(resolve => { resolve(recovered); });
+};
+
 // Recovers an expired session by asking for credentials, and releases the requests that were waiting
 // on it. Mount it around any part of the application that talks to the repository.
 //
@@ -60,7 +77,7 @@ export function ReLoginProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   // Held in a ref rather than in state: several requests can fail in the same tick, and each has
   // to be remembered even though only the last render's state would be visible to them.
-  const waiting = useRef<((recovered: boolean) => void)[]>([]);
+  const waiting: Waiting = useRef<((recovered: boolean) => void)[]>([]);
 
   const requestReLogin = useCallback(() => new Promise<boolean>(resolve => {
     waiting.current.push(resolve);
@@ -69,11 +86,11 @@ export function ReLoginProvider({ children }: { children: ReactNode }) {
 
   const settle = useCallback((recovered: boolean) => {
     setOpen(false);
-    // Taken before releasing any of them, since a retry that expires again will queue itself afresh
-    const pending = waiting.current;
-    waiting.current = [];
-    pending.forEach(resolve => { resolve(recovered); });
+    release(waiting, recovered);
   }, []);
+
+  // Nothing can sign in once this is gone, so anything still waiting has to fail rather than hang
+  useEffect(() => () => { release(waiting, false); }, []);
 
   return (
     <ReLoginContext value={requestReLogin}>
@@ -82,5 +99,3 @@ export function ReLoginProvider({ children }: { children: ReactNode }) {
     </ReLoginContext>
   );
 }
-
-export default ReLoginDialog;

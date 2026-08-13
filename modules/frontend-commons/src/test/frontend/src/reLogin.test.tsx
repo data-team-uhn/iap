@@ -267,6 +267,7 @@ describe("useAuthenticatedFetch", () => {
       screen.getByRole("button").click();
 
       await waitFor(() => { expect(requestReLogin).toHaveBeenCalled(); });
+      await waitFor(() => { expect(onResult).toHaveBeenCalledWith("resolved:recovered"); });
     });
   });
 });

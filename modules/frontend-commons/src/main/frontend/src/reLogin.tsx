@@ -34,7 +34,8 @@ export type RequestReLogin = () => Promise<boolean>;
 // mounted, in which case an expired session is reported as an error rather than recovered from.
 export const ReLoginContext = createContext<RequestReLogin | null>(null);
 
-const SESSION_INFO_URL = "/system/sling/info.sessionInfo.json";
+// Sling's session endpoint, reporting who the current session is authenticated as
+export const SESSION_INFO_URL = "/system/sling/info.sessionInfo.json";
 
 // Sling answers an unauthenticated request either with a 401, or -- when the authentication handler
 // prefers to redirect -- with a 200 whose body is the login page, recognisable only from the URL the
@@ -47,7 +48,9 @@ function isLoginRedirect(response: Response): boolean {
 // ambiguous on their own; see the 500 note below.
 async function stillAuthenticated(): Promise<boolean> {
   try {
-    const response = await fetch(SESSION_INFO_URL);
+    // Never from the cache: a stale answer naming the user this page started as would report a
+    // session that has since expired as live, which is the one mistake this probe must not make.
+    const response = await fetch(SESSION_INFO_URL, { cache: "no-store" });
     if (!response.ok || isLoginRedirect(response)) {
       return false;
     }
@@ -75,28 +78,27 @@ async function stillAuthenticated(): Promise<boolean> {
 export function useAuthenticatedFetch(): (url: string, init?: RequestInit) => Promise<Response> {
   const requestReLogin = useContext(ReLoginContext);
 
-  return useCallback((url: string, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
-    const attempt = () => {
-      fetch(url, init)
-        .then(async response => {
-          const expired = response.status === 401 || isLoginRedirect(response);
-          // Ambiguous on its own, so it costs one extra request to tell the two apart
-          if (!expired && !(response.status === 500 && !await stillAuthenticated())) {
-            resolve(response);
-            return;
-          }
-          if (!requestReLogin) {
-            reject(new Error(`Not authenticated, and no sign-in is available: ${url}`));
-            return;
-          }
-          if (await requestReLogin()) {
-            attempt();
-          } else {
-            reject(new Error(`Not authenticated, and signing in was abandoned: ${url}`));
-          }
-        })
-        .catch((err: unknown) => { reject(err instanceof Error ? err : new Error(String(err))); });
-    };
-    attempt();
-  }), [requestReLogin]);
+  return useCallback(async (url: string, init?: RequestInit) => {
+    try {
+      // Each pass is one attempt at the request; an expired session sends it round again once the
+      // user is back, and every other outcome leaves the loop.
+      for (;;) {
+        const response = await fetch(url, init);
+        const expired = response.status === 401 || isLoginRedirect(response);
+        // Ambiguous on its own, so it costs one extra request to tell the two apart
+        if (!expired && !(response.status === 500 && !await stillAuthenticated())) {
+          return response;
+        }
+        if (!requestReLogin) {
+          throw new Error(`Not authenticated, and no sign-in is available: ${url}`);
+        }
+        if (!await requestReLogin()) {
+          throw new Error(`Not authenticated, and signing in was abandoned: ${url}`);
+        }
+      }
+    } catch (err: unknown) {
+      // Whatever `fetch` (or the sign-in) failed with, callers get an Error to report
+      throw err instanceof Error ? err : new Error(String(err));
+    }
+  }, [requestReLogin]);
 }

@@ -51,6 +51,10 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           throw new Error(response.statusText);
         }
         setFailed(false);
+        // Not left busy for the caller to navigate away from: the re-login dialog keeps this form
+        // mounted, and can ask for credentials again as soon as the re-sent request runs into the
+        // session once more, which a form still disabled from the last submit could not answer.
+        setBusy(false);
         onSuccess();
       })
       .catch(() => {

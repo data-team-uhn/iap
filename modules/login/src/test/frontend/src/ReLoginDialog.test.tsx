@@ -226,4 +226,39 @@ describe("ReLoginProvider", () => {
     await signIn(user, { then: [ok("recovered again")] });
     await waitFor(() => { expect(onResult).toHaveBeenLastCalledWith("A:recovered again"); });
   });
+
+  // The dialog is asked for again before the closing one has finished its exit transition, so the
+  // second prompt is the same form the first sign-in was submitted on: it has to be usable, or the
+  // only way out of the loop is Cancel, which is exactly the lost work this dialog exists to save.
+  it("offers a form that can be submitted again when the re-sent request expires too", async () => {
+    const user = userEvent.setup();
+    const onResult = vi.fn();
+    fetchMock.mockResolvedValueOnce(expired());
+    renderWithProvider(["A"], onResult);
+    await user.click(screen.getByRole("button", { name: "A" }));
+    await screen.findByRole("heading", { name: "Your session has expired" });
+
+    await signIn(user, { then: [expired()] });
+
+    await screen.findByRole("heading", { name: "Your session has expired" });
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+
+    // And signing in again really does get the request through
+    await signIn(user, { then: [ok("recovered at last")] });
+    await waitFor(() => { expect(onResult).toHaveBeenCalledWith("A:recovered at last"); });
+  });
+
+  it("fails the waiting requests when it goes away, rather than taking them with it", async () => {
+    const onResult = vi.fn();
+    fetchMock.mockResolvedValueOnce(expired());
+    const { unmount } = renderWithProvider(["A"], onResult);
+    fireEvent.click(screen.getByRole("button", { name: "A" }));
+    await screen.findByRole("heading", { name: "Your session has expired" });
+
+    unmount();
+
+    await waitFor(() => {
+      expect(onResult).toHaveBeenCalledWith("A:rejected:Not authenticated, and signing in was abandoned: /data.json");
+    });
+  });
 });
