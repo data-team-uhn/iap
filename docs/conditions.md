@@ -99,6 +99,13 @@ property references it) is looked up **nearest-scope-first**: the context's own
 subtree, then widening one ancestor at a time up to the enclosing entity. A condition
 evaluated inside a repeated block therefore sees that block's own answer.
 
+Where a question offers a fixed set of answers (`sch:AnswerOption` children), what is
+compared is the chosen option's **`value`**, never the label the submitter read. That
+is what makes such a condition dependable: the label may be reworded or translated
+freely, and a value from outside the offered set is refused when the answer is saved,
+so the comparison cannot quietly stop matching because somebody typed the phrase
+differently.
+
 ### Aggregators
 
 An operand's `aggregate` folds its values into one before comparison — the
