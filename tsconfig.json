@@ -24,18 +24,23 @@
       "@iap/frontend-commons/*": ["./modules/frontend-commons/src/main/frontend/src/*"],
       "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],
       "@iap/login/*": ["./modules/login/src/main/frontend/src/*"],
-      "@iap/submissions/*": ["./modules/submissions/src/main/frontend/src/*"],
+      "@iap/submissions/*": ["./modules/submissions/impl/src/main/frontend/src/*"],
       // The test tree is a fallback so that other modules' tests can import the tag
       // definition fixtures; in the aggregated tree both land in the same directory
-      "@iap/tags/*": ["./modules/tags/src/main/frontend/src/*", "./modules/tags/src/test/frontend/src/*"],
+      "@iap/tags/*": ["./modules/tags/api/src/main/frontend/src/*", "./modules/tags/api/src/test/frontend/src/*"],
       "@iap/test-data/*": ["./test-data/src/main/frontend/src/*"],
       "@iap/ui-extension/*": ["./modules/ui-extension/src/main/frontend/src/*"],
       "@iap/workflows/*": ["./modules/workflows/src/main/frontend/src/*"]
     }
   },
+  // Depth-independent on purpose: a module's frontend may sit directly under modules/<module>/ or
+  // one level further down, in whichever submodule ships it (modules/submissions/impl/). A glob
+  // fixed at one level stops matching the moment a module is split, and nothing fails when it does
+  // — the files simply stop being typechecked, silently, which is the one thing this gate exists to
+  // prevent (babel strips types without checking them).
   "include": [
-    "modules/*/src/main/frontend/src/**/*",
-    "modules/*/src/test/frontend/src/**/*",
+    "modules/**/src/main/frontend/src/**/*",
+    "modules/**/src/test/frontend/src/**/*",
     "test-data/src/main/frontend/src/**/*",
     "test-data/src/test/frontend/src/**/*"
   ],
