@@ -132,6 +132,17 @@ class UserProfileServiceImplTest
     /** The component's configuration, as OSGi would hand it over. */
     private static UserProfilesConfig config()
     {
+        return config(new String[] { ADMIN_GROUP });
+    }
+
+    /**
+     * The component's configuration naming the given administrator principals.
+     *
+     * @param principals what the configuration says, exactly as somebody typed it
+     * @return a configuration
+     */
+    private static UserProfilesConfig config(final String[] principals)
+    {
         return new UserProfilesConfig()
         {
             @Override
@@ -143,7 +154,7 @@ class UserProfileServiceImplTest
             @Override
             public String[] administratorPrincipals()
             {
-                return new String[] { ADMIN_GROUP };
+                return principals;
             }
         };
     }
@@ -209,6 +220,15 @@ class UserProfileServiceImplTest
     {
         assertTrue(this.service.read("nobody", me()).isEmpty());
         assertTrue(this.service.update("nobody", me(), Map.of()).isEmpty());
+    }
+
+    @Test
+    void hasNothingToSayAboutAnAccountWithNoNameAtAll()
+    {
+        // The user management answers an empty id by throwing an unchecked exception, which would be served as a
+        // failure where "there is no such person" is the honest answer
+        assertTrue(this.service.read("", me()).isEmpty());
+        assertTrue(this.service.update("  ", me(), Map.of()).isEmpty());
     }
 
     @Test
@@ -394,6 +414,26 @@ class UserProfileServiceImplTest
         // A local group and a dynamic identity provider role, in one list and indistinguishable, which is the point
         assertEquals(Set.of(ME, "iap-reviewers", "reviewer"),
             this.service.read(ME, me()).orElseThrow().getPrincipalNames());
+        // And an administrator, who may see everything about the account anyway
+        assertEquals(Set.of(ME, "iap-reviewers", "reviewer"),
+            this.service.read(ME, administrator()).orElseThrow().getPrincipalNames());
+    }
+
+    @Test
+    void tellsAStrangerNothingAboutWhatTheAccountMayDo() throws RepositoryException
+    {
+        final Group local = mock(Group.class);
+        final Principal localPrincipal = mock(Principal.class);
+        when(localPrincipal.getName()).thenReturn("iap-reviewers");
+        when(local.getPrincipal()).thenReturn(localPrincipal);
+        when(this.account.memberOf()).thenAnswer(call -> List.of(local).iterator());
+
+        // Which groups and identity provider roles somebody holds is exactly what reading their home node used to
+        // give away, and no field rule in the catalogue governs it
+        final ProfileProjection seen = this.service.read(ME, new Requester(SOMEBODY_ELSE)).orElseThrow();
+
+        assertEquals(Set.of(), seen.getPrincipalNames());
+        assertFalse(seen.asJson().contains("iap-reviewers"));
     }
 
     @Test
@@ -540,6 +580,18 @@ class UserProfileServiceImplTest
         field("verified", Map.of("writableBy", "admin"));
 
         assertFalse(this.service.update(ME, administrator(), Map.of("verified", new String[] { "true" }))
+            .orElseThrow().isRefused());
+    }
+
+    @Test
+    void survivesAConfigurationSomebodyTypedByHand()
+    {
+        // The same principal twice, a stray blank line, a missing value: none of them is a reason to refuse to
+        // activate, which would take the whole profile API down over a typo
+        this.service.activate(config(new String[] { ADMIN_GROUP, ADMIN_GROUP, "  ", null }));
+        field(EMAIL, Map.of());
+
+        assertFalse(this.service.update(ME, administrator(), Map.of(EMAIL, new String[] { "x@example.org" }))
             .orElseThrow().isRefused());
     }
 

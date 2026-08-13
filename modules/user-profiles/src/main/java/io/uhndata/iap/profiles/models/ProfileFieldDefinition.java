@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -138,6 +139,15 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
 
     private static final String PREFERENCES_PREFIX = "preferences/";
 
+    private static final String NOT_ONE_OF = "`, which is not one of: ";
+
+    /**
+     * Everything wrong with this definition, worked out once. Every field of every profile is asked whether it is
+     * usable several times over while one request is served, and the answer involves parsing four vocabularies and
+     * compiling a regular expression, none of which can change while this view of the repository lasts.
+     */
+    private List<String> problems;
+
     @ValueMapValue
     private String name;
 
@@ -187,48 +197,60 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
     private boolean system;
 
     /**
+     * Reads one of the definition's vocabularies, answering nothing both for a value that was not stated and for one
+     * that is not a word we know. The two are told apart by the caller, which is what lets a getter always answer
+     * while {@link #isUsable()} still refuses a definition nobody can act on.
+     *
+     * @param <E> the vocabulary
+     * @param type the vocabulary's class
+     * @param value the stored value, matched without regard to case
+     * @return the parsed constant, or empty when nothing usable is stated
+     */
+    @NotNull
+    private static <E extends Enum<E>> Optional<E> lookup(@NotNull final Class<E> type,
+        @Nullable final String value)
+    {
+        if (value == null || value.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Enum.valueOf(type, value.trim().toUpperCase(Locale.ROOT)));
+        } catch (final IllegalArgumentException ex) {
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Parses one of the definition's vocabularies, distinguishing "not stated" from "not a word we know".
      *
      * @param <E> the vocabulary
      * @param type the vocabulary's class
      * @param value the stored value, matched without regard to case
      * @param fallback what an absent value means, which is the default declared by the node type
-     * @return the parsed constant, or {@code null} if a value was stated and is not one of them
+     * @return the parsed constant, or the fallback if a value was stated and is not one of them
      */
     @NotNull
     private static <E extends Enum<E>> E parse(@NotNull final Class<E> type, @Nullable final String value,
         @NotNull final E fallback)
     {
-        if (value == null || value.isBlank()) {
-            return fallback;
-        }
-        try {
-            return Enum.valueOf(type, value.trim().toUpperCase(Locale.ROOT));
-        } catch (final IllegalArgumentException ex) {
-            return fallback;
-        }
+        return lookup(type, value).orElse(fallback);
     }
 
     /**
-     * Whether one of the vocabularies was stated as something that is not in it. Kept apart from {@link #parse} so
-     * that the getters can always answer, and the decision to refuse a field is taken once, by {@link #isUsable()}.
+     * Reports one of the vocabularies if it was stated as something that is not in it. Kept apart from {@link #parse}
+     * so that the getters can always answer, and the decision to refuse a field is taken once, by {@link #isUsable()}.
      *
      * @param <E> the vocabulary
      * @param type the vocabulary's class
      * @param value the stored value
-     * @return {@code true} if a value was stated and is not one of them
+     * @param property the property the value came from, quoted as it is written in content
+     * @param found the problems being collected
      */
-    private static <E extends Enum<E>> boolean unrecognized(@NotNull final Class<E> type,
-        @Nullable final String value)
+    private static <E extends Enum<E>> void checkVocabulary(@NotNull final Class<E> type,
+        @Nullable final String value, @NotNull final String property, @NotNull final List<String> found)
     {
-        if (value == null || value.isBlank()) {
-            return false;
-        }
-        try {
-            Enum.valueOf(type, value.trim().toUpperCase(Locale.ROOT));
-            return false;
-        } catch (final IllegalArgumentException ex) {
-            return true;
+        if (value != null && !value.isBlank() && lookup(type, value).isEmpty()) {
+            found.add(property + " is `" + value + NOT_ONE_OF + accepted(type));
         }
     }
 
@@ -441,29 +463,63 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
     @NotNull
     public List<String> getConfigurationProblems()
     {
-        final List<String> problems = new ArrayList<>();
-        if (unrecognized(Kind.class, this.kind)) {
-            problems.add("`kind` is `" + this.kind + "`, which is not one of: " + accepted(Kind.class));
+        if (this.problems == null) {
+            this.problems = List.copyOf(findConfigurationProblems());
         }
-        if (unrecognized(DataType.class, this.dataType)) {
-            problems.add("`dataType` is `" + this.dataType + "`, which is not one of: " + accepted(DataType.class));
-        }
-        if (unrecognized(Writability.class, this.writableBy)) {
-            problems.add("`writableBy` is `" + this.writableBy + "`, which is not one of: "
-                + accepted(Writability.class));
-        }
-        if (unrecognized(Readability.class, this.readableBy)) {
-            problems.add("`readableBy` is `" + this.readableBy + "`, which is not one of: "
-                + accepted(Readability.class));
-        }
+        return this.problems;
+    }
+
+    /**
+     * Works out everything wrong with this definition.
+     *
+     * @return the problems, an empty list when the definition is sound
+     */
+    @NotNull
+    private List<String> findConfigurationProblems()
+    {
+        final List<String> found = new ArrayList<>();
+        checkVocabulary(Kind.class, this.kind, "`kind`", found);
+        checkVocabulary(DataType.class, this.dataType, "`dataType`", found);
+        checkVocabulary(Writability.class, this.writableBy, "`writableBy`", found);
+        checkVocabulary(Readability.class, this.readableBy, "`readableBy`", found);
         if (this.pattern != null && !this.pattern.isBlank()) {
             try {
                 Pattern.compile(this.pattern);
             } catch (final PatternSyntaxException ex) {
-                problems.add("`pattern` is not a valid regular expression: " + ex.getDescription());
+                found.add("`pattern` is not a valid regular expression: " + ex.getDescription());
             }
         }
-        return problems;
+        // Where the value goes is as much a part of a sound definition as the vocabularies are, and it fails closed
+        // the same way: a path that steps outside the account would otherwise pass every rule the catalogue has and
+        // then be refused at commit time, which the API can only report as though the account were not there.
+        // Checked as the path that will actually be read and written rather than as the property alone: with `storage`
+        // unstated the path is derived from the field name, and a name can step out of the account just as well
+        final String where = getStorage();
+        if (!insideTheAccount(where)) {
+            found.add("`storage` resolves to `" + where
+                + "`, which is not a path inside the account: it has to be relative, and may not step out of it");
+        }
+        return found;
+    }
+
+    /**
+     * Whether a storage path stays inside the account it is read against: a relative path of ordinary names, with
+     * nothing that walks up out of the home node.
+     *
+     * @param path the storage path, already trimmed
+     * @return {@code true} if the path names something inside the account
+     */
+    private static boolean insideTheAccount(@NotNull final String path)
+    {
+        if (path.startsWith("/") || path.endsWith("/")) {
+            return false;
+        }
+        for (final String segment : path.split("/")) {
+            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -573,10 +629,14 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
         if (claim != null) {
             json.add("idpClaim", claim);
         }
-        final String where = getStorage();
-        if (where != null) {
-            json.add("storage", where);
+        // Said so that a form can check what somebody typed where they typed it, rather than only learning that it
+        // was not in the expected format once the whole request has been refused
+        final String expected = getPattern();
+        if (expected != null && !expected.isBlank()) {
+            json.add("pattern", expected);
         }
+        // Storage is always derivable, so unlike the rest of these it is always said
+        json.add("storage", getStorage());
         if (!getAllowedValues().isEmpty()) {
             final JsonArrayBuilder values = Json.createArrayBuilder();
             getAllowedValues().forEach(values::add);

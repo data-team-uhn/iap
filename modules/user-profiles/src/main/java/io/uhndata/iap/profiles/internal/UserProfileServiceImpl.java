@@ -18,11 +18,13 @@
 package io.uhndata.iap.profiles.internal;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.ValueFactory;
@@ -103,7 +105,12 @@ public class UserProfileServiceImpl implements UserProfileService
     @Activate
     void activate(final UserProfilesConfig config)
     {
-        this.administratorPrincipals = Set.of(config.administratorPrincipals());
+        // Collected rather than Set.of'd: the same principal named twice, or an empty line, is a plausible thing for
+        // somebody to type into the configuration, and Set.of would answer it by refusing to activate the component,
+        // which takes the whole profile API down over a typo
+        this.administratorPrincipals = Arrays.stream(config.administratorPrincipals())
+            .filter(principal -> principal != null && !principal.isBlank())
+            .collect(Collectors.toUnmodifiableSet());
         if (this.accounts == null) {
             this.accounts = new Accounts(this.resolverFactory);
         }

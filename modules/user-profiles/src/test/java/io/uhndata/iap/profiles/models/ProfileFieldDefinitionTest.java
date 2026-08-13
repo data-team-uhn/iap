@@ -227,6 +227,39 @@ class ProfileFieldDefinitionTest
     }
 
     @Test
+    void reportsAStorageThatStepsOutsideTheAccount()
+    {
+        // Fails closed like the vocabularies do: such a field would pass every rule the catalogue has and then be
+        // refused at commit time, which the API can only report as though the account were not there
+        for (final String outside : List.of("/home/users/asmith/profile/email", "profile/", "profile//email",
+            "../asmith/profile/email", "./profile/email")) {
+            final ProfileFieldDefinition field = definition("field" + outside.hashCode(),
+                Map.of("storage", outside));
+
+            assertFalse(field.isUsable(), outside);
+            assertTrue(field.getConfigurationProblems().get(0).contains("not a path inside the account"), outside);
+        }
+    }
+
+    @Test
+    void reportsADerivedStoragePathThatStepsOutsideTheAccount()
+    {
+        // With `storage` unstated the path is derived from the field name, so checking the property alone would leave
+        // the same step out of the account available to anybody authoring a name
+        final ProfileFieldDefinition field = definition("sneaky", Map.of("name", "../asmith/profile/email"));
+
+        assertEquals("profile/../asmith/profile/email", field.getStorage());
+        assertFalse(field.isUsable());
+        assertTrue(field.getConfigurationProblems().get(0).contains("not a path inside the account"));
+    }
+
+    @Test
+    void acceptsAStorageInsideTheAccount()
+    {
+        assertTrue(definition("nested", Map.of("storage", "profile/contact/email")).isUsable());
+    }
+
+    @Test
     void exposesAClosedSetOfValues()
     {
         assertEquals(List.of("en", "fr"),
@@ -289,10 +322,12 @@ class ProfileFieldDefinitionTest
         final ProfileFieldDefinition field = definition("email", Map.of(
             "label", "Email address",
             "idpClaim", "email",
+            "pattern", ".+@.+",
             "allowedValues", new String[] { "work" },
             "order", 20L));
 
         final JsonObject json = field.documentationJsonBuilder().build().asJsonObject();
+        assertEquals(".+@.+", json.getString("pattern"));
         assertEquals("text", json.getString("dataType"));
         assertFalse(json.getBoolean("required"));
         assertFalse(json.getBoolean("multiple"));
@@ -317,9 +352,10 @@ class ProfileFieldDefinitionTest
         assertEquals("owner", json.getString("writableBy"));
         assertEquals("self", json.getString("readableBy"));
         assertFalse(json.getBoolean("usable"));
-        // Storage is always derivable, so it is always said; these three are only there when stated
+        // Storage is always derivable, so it is always said; these four are only there when stated
         assertEquals("profile/broken", json.getString("storage"));
         assertFalse(json.containsKey("idpClaim"));
+        assertFalse(json.containsKey("pattern"));
         assertFalse(json.containsKey("allowedValues"));
         assertFalse(json.containsKey("order"));
     }

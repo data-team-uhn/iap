@@ -31,12 +31,18 @@ end
 # Restricted to the two subtrees the profile fields live in rather than granted the whole of /home/users: this may
 # maintain what a person's profile says and nothing else -- not their password, not their group membership, not the
 # tokens an identity provider integration keeps under the same home.
+#
+# The third grant is for a field a definition points somewhere else entirely: `rep:fullname` is the one the node type
+# gives as an example and the one the identity provider synchronisation is configured to write, and it sits directly
+# on the home node rather than under either subtree. Without it such a field passes every rule the catalogue has and
+# then fails at commit, which the API can only report as though the account were not there.
 create service user iap-userprofile
 
 set ACL for iap-userprofile
     allow   jcr:read    on /home/users
     allow   rep:write   on /home/users restriction(rep:glob,*/profile*)
     allow   rep:write   on /home/users restriction(rep:glob,*/preferences*)
+    allow   rep:write   on /home/users restriction(rep:glob,*/rep:fullname)
 end
 
 # The principals allowed to read and change anybody's profile. A local group, because the roles an identity provider
