@@ -17,5 +17,14 @@
 {
     "prototype":{
         "id": "${project.groupId}:iap-submissions-api:slingosgifeature:${project.version}"
-    }
+    },
+    // The implementation bundle carries no feature of its own — it declares no configuration and no
+    // content, only the handlers and the endpoint the API's own content refers to — so it is listed
+    // here beside the API it implements, the way the entities api/impl pair is in iap-base.json.
+    "bundles":[
+        {
+            "id":"${project.groupId}:iap-submissions-impl:${project.version}",
+            "start-order":"28"
+        }
+    ]
 }
