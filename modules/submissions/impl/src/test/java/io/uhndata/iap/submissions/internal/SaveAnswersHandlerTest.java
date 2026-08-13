@@ -41,6 +41,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
@@ -77,6 +78,8 @@ class SaveAnswersHandlerTest
 
     private static final String START_DATE = "details/startDate";
 
+    private static final String DURATION = "details/duration";
+
     private static final String VALUE = "value";
 
     // JCR-backed rather than the plain mock: the handler writes a real REFERENCE through the JCR API
@@ -90,7 +93,7 @@ class SaveAnswersHandlerTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
-            SchemaVersion.class, Question.class, Answer.class, Submission.class, Activity.class);
+            SchemaVersion.class, Question.class, AnswerOption.class, Answer.class, Submission.class, Activity.class);
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
         this.context.create().resource(VERSION_PATH, Map.of(
@@ -179,6 +182,65 @@ class SaveAnswersHandlerTest
             () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
 
         assertTrue(refusal.getMessage().contains("can no longer be changed"));
+    }
+
+    // A question offering a fixed set of answers is answered with one of them and nothing else. The
+    // browser only offers those, so a value from outside one did not come from the form — and an
+    // option's value is what conditions compare against, so storing a stray one would make the
+    // request go on to ask questions nobody chose.
+    @Test
+    void refusesAnAnswerAQuestionDoesNotOffer()
+    {
+        this.offerDurations();
+
+        final InvalidPayloadException refusal = assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(context(Map.of(DURATION, "a fortnight"))));
+
+        assertTrue(refusal.getMessage().contains("\"a fortnight\" is not one of the answers"));
+    }
+
+    @Test
+    void recordsAnAnswerAQuestionOffers() throws Exception
+    {
+        this.offerDurations();
+
+        this.handler.execute(context(Map.of(DURATION, "multiple-days")));
+
+        stampAnswers();
+        assertEquals(List.of("multiple-days"),
+            List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
+    // Clearing an answer is not answering with something unoffered
+    @Test
+    void acceptsAnEmptyAnswerToAQuestionOfferingOptions() throws Exception
+    {
+        this.offerDurations();
+
+        this.handler.execute(context(Map.of(DURATION, "")));
+
+        stampAnswers();
+        assertEquals(List.of(""), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
+    @Test
+    void leavesAQuestionOfferingNothingAnsweredFreely() throws Exception
+    {
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+
+        stampAnswers();
+        assertEquals(List.of("2026-10-06"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
+    /** Gives the duration question the three answers the demo offers. */
+    private void offerDurations()
+    {
+        this.context.create().resource(VERSION_PATH + "/" + DURATION, Map.of(
+            TYPE, Question.RESOURCE_TYPE, "text", "How long?", "dataType", "text"));
+        this.context.create().resource(VERSION_PATH + "/" + DURATION + "/half", Map.of(
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "half-day", "label", "Half day"));
+        this.context.create().resource(VERSION_PATH + "/" + DURATION + "/several", Map.of(
+            TYPE, AnswerOption.RESOURCE_TYPE, "value", "multiple-days", "label", "Several days"));
     }
 
     @Test

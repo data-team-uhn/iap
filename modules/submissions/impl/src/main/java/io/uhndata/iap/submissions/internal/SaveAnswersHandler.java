@@ -17,9 +17,12 @@
  */
 package io.uhndata.iap.submissions.internal;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -29,6 +32,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
@@ -87,7 +91,10 @@ public class SaveAnswersHandler implements ServiceTaskHandler
         checkMayEdit(submission, context.getActor());
         final Resource version = versionOf(submission, target);
         for (final Map.Entry<String, Object> entry : context.getEvent().getPayload().entrySet()) {
-            record(submission, target, question(version, entry.getKey()), values(entry.getValue()));
+            final Resource question = question(version, entry.getKey());
+            final String[] values = values(entry.getValue());
+            checkOffered(question, values);
+            record(submission, target, question, values);
         }
     }
 
@@ -145,6 +152,37 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             throw new InvalidPayloadException("There is no question " + path + " to answer in this request");
         }
         return question;
+    }
+
+    /**
+     * Refuses a value a question offering a fixed set of answers does not offer.
+     *
+     * <p>Checked here, unlike the {@code dataType}, because the difference is what the submitter can see: the form
+     * states the answers this question offers, so refusing one it does not is a refusal they can act on, whereas a
+     * type mismatch would be a refusal for a reason the form never showed them. It matters beyond tidiness — an
+     * option's value is what conditions compare against, so a value from outside the set would make a request
+     * ask questions nobody chose.</p>
+     *
+     * @param question the question being answered
+     * @param values the submitted values; empty ones clear the answer and are always allowed
+     * @throws InvalidPayloadException when a value is not one of the offered options
+     */
+    private void checkOffered(final Resource question, final String[] values) throws InvalidPayloadException
+    {
+        // Adapting cannot fail here: the caller has already established that this resource is a question
+        final List<AnswerOption> options = Objects.requireNonNull(question.adaptTo(Question.class),
+            "A question that does not read as one").getOptions();
+        if (options.isEmpty()) {
+            // Answered freely, in whatever the data type accepts
+            return;
+        }
+        final Set<String> offered = options.stream().map(AnswerOption::getValue).collect(Collectors.toSet());
+        for (final String value : values) {
+            if (!value.isEmpty() && !offered.contains(value)) {
+                throw new InvalidPayloadException(
+                    "\"" + value + "\" is not one of the answers this question offers");
+            }
+        }
     }
 
     /**

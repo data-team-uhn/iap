@@ -207,6 +207,12 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     {
         final JsonArrayBuilder value = Json.createArrayBuilder();
         answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
+        // Emitted even when empty, so that "answered freely" is something the form states rather than something a
+        // reader infers from a missing field
+        final JsonArrayBuilder options = Json.createArrayBuilder();
+        question.getOptions().forEach(option -> options.add(Json.createObjectBuilder()
+            .add("value", option.getValue())
+            .add("label", option.getLabel())));
         return Json.createObjectBuilder()
             .add(NAME, question.getName())
             .add(TYPE, question.getType())
@@ -216,6 +222,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add("dataType", Objects.toString(question.getDataType(), "text"))
             .add("required", question.isRequired())
             .add("multiple", question.isMultiple())
+            .add("options", options)
             .add("value", value);
     }
 
