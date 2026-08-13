@@ -95,10 +95,14 @@
 
   // Where the value lives, as a path relative to the account's home node, e.g.
   // `profile/email` or `rep:fullname`. Defaults to `profile/<name>` or
-  // `preferences/<name>` according to `kind`. For a field declaring an
-  // `idpClaim` this must be the target the identity provider synchronisation
-  // writes to, and nothing in the repository can check that the two agree, so a
-  // health check compares them against the live configuration at runtime.
+  // `preferences/<name>` according to `kind`. Has to name something inside the
+  // account: a path that steps out of the home node is a broken definition, and
+  // reported as one -- checked against the path that is actually read and
+  // written, so a name deriving such a path is caught the same way.
+  // For a field declaring an `idpClaim` this must be the target
+  // the identity provider synchronisation writes to, and nothing in the
+  // repository can check that the two agree -- a health check comparing them
+  // against the live configuration is not built yet.
   - storage (STRING)
 
   // The expected type of the value: text, long, double, boolean or date.

@@ -18,10 +18,12 @@
 package io.uhndata.iap.profiles.internal;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -50,7 +52,11 @@ import io.uhndata.iap.utils.UserIds;
 /**
  * Serves and accepts changes to profiles at {@code /system/iap/profile}, with the account named by the suffix and the
  * requester's own when there is none: {@code GET /system/iap/profile.json} is "mine",
- * {@code GET /system/iap/profile/jdoe.json} is somebody else's.
+ * {@code GET /system/iap/profile.json/jdoe} is somebody else's. The account goes after the extension, not before it:
+ * Sling stops reading selectors and extension at the first slash, so everything in
+ * {@code /system/iap/profile/jdoe.json} past the servlet's own path is the suffix, and the account would be looked up
+ * as {@code jdoe.json}. Left as the raw suffix rather than stripped of a trailing extension, since an authorizable id
+ * containing a dot is perfectly ordinary.
  *
  * <p>
  * Bound to a path rather than to the {@code sling/user} resource type, which would otherwise be the natural choice.
@@ -71,6 +77,9 @@ public class UserProfileServlet extends SlingJakartaAllMethodsServlet
     private static final Logger LOGGER = LoggerFactory.getLogger(UserProfileServlet.class);
 
     private static final String JSON_CONTENT_TYPE = "application/json;charset=UTF-8";
+
+    /** The parameter a browser form sends to say how it encoded the rest of them. */
+    private static final String CHARSET_PARAMETER = "_charset_";
 
     @Reference
     private transient UserProfileService profiles;
@@ -110,12 +119,40 @@ public class UserProfileServlet extends SlingJakartaAllMethodsServlet
     {
         final Requester requester = requester(request);
         final Optional<UpdateOutcome> outcome =
-            this.profiles.update(target(request, requester), requester, request.getParameterMap());
+            this.profiles.update(target(request, requester), requester, asked(request));
         if (outcome.isEmpty()) {
             response.sendError(SlingJakartaHttpServletResponse.SC_NOT_FOUND);
             return;
         }
         write(response, status(outcome.get()), outcome.get().toJson().toString());
+    }
+
+    /**
+     * The fields a request asks to change: every posted parameter except the ones that are Sling's rather than
+     * anybody's. A request naming a field this instance does not record is refused whole, deliberately, so the
+     * {@code _charset_} a browser form sends and the {@code :}-prefixed parameters the Sling POST servlet reserves
+     * would otherwise turn every save made from a form into a refusal.
+     *
+     * @param request the request being served
+     * @return the new values, keyed by field name
+     */
+    @NotNull
+    private static Map<String, String[]> asked(@NotNull final SlingJakartaHttpServletRequest request)
+    {
+        return request.getParameterMap().entrySet().stream()
+            .filter(parameter -> !reserved(parameter.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    /**
+     * Whether a parameter name is one of the request's own rather than a field name.
+     *
+     * @param name the parameter name
+     * @return {@code true} for a parameter the profile API should not read as a field
+     */
+    private static boolean reserved(@NotNull final String name)
+    {
+        return name.startsWith(":") || CHARSET_PARAMETER.equals(name);
     }
 
     /**
@@ -215,6 +252,9 @@ public class UserProfileServlet extends SlingJakartaAllMethodsServlet
     {
         response.setStatus(status);
         response.setContentType(JSON_CONTENT_TYPE);
+        // What this answers with depends on who asked, while the URL a person's own profile is read from does not
+        // mention them at all, so nothing along the way may keep a copy to hand to somebody else
+        response.setHeader("Cache-Control", "no-store");
         response.getWriter().write(body);
     }
 }
