@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
@@ -27,14 +27,14 @@ const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
 function duration(value: string[] = []) {
   return {
     name: "duration", type: QUESTION, path: "details/duration", text: "Is this several days?",
-    dataType: "text", required: true, multiple: false, value,
+    dataType: "text", required: true, multiple: false, options: [], value,
   };
 }
 
 function endDate() {
   return {
     name: "endDate", type: QUESTION, path: "details/endDate", text: "Which day are you back?",
-    dataType: "date", required: true, multiple: false, value: [] as string[],
+    dataType: "date", required: true, multiple: false, options: [], value: [] as string[],
   };
 }
 
@@ -159,6 +159,40 @@ describe("SubmissionEditor", () => {
     expect(await screen.findByText("Dates")).toBeInTheDocument();
     expect(screen.getByText("When you are away")).toBeInTheDocument();
     expect(screen.getByLabelText(/Which day are you back/)).toBeInTheDocument();
+  });
+
+  it("falls back on the name when a requirement or a section is unlabelled", async () => {
+    // The projection always carries a label and empties it rather than omitting it
+    // (`Objects.toString(getLabel(), "")`), so this is what an unlabelled block actually arrives as —
+    // and it still has to be identifiable rather than headed by nothing
+    vi.stubGlobal("fetch", serving(form({
+      requirements: [ {
+        name: "details", type: FORM_REQUIREMENT, label: "",
+        items: [ { name: "when", type: SECTION, label: "", items: [ endDate() ] } ],
+      } ],
+    })));
+
+    render(<SubmissionEditor path={PATH} />);
+
+    expect(await screen.findByText("details")).toBeInTheDocument();
+    expect(screen.getByText("when")).toBeInTheDocument();
+  });
+
+  it("reports a save that failed without an Error to explain it", async () => {
+    // A rejection is not necessarily an Error — a thrown string reaches the same handler — and the
+    // field still has to say what happened rather than "undefined"
+    const fetchMock = vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
+      ? Promise.reject("the request went nowhere")
+      : json(form()));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.type(await screen.findByLabelText(/several days/), "half day");
+    await userEvent.tab();
+
+    const failure = await screen.findByLabelText("Not saved");
+    fireEvent.mouseOver(failure);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("the request went nowhere");
   });
 
   it("says so when the request asks nothing", async () => {
