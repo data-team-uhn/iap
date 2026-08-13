@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { useAuthenticatedFetch, type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { parseCategoryTree, type CategoryNode, type JcrNode } from "./categoryModel";
@@ -70,11 +71,17 @@ const reporting = async <T>(exchange: () => Promise<T>): Promise<T> => {
 
 // All writes go through the standard Sling POST servlet on the affected node itself:
 // https://sling.apache.org/documentation/bundles/manipulating-content-the-slingpostservlet-servlets-post.html
-const post = (path: string, params: Record<string, string>): Promise<Response> => {
+// The fetch arrives as an argument because useCategoryTree is the only thing here that can ask the
+// hook for one.
+const post = (
+  authenticatedFetch: AuthenticatedFetch,
+  path: string,
+  params: Record<string, string>
+): Promise<Response> => {
   const body = new URLSearchParams(params);
   // Ask for a JSON (non-redirect) response, so the interesting headers survive
   body.append(":http-equiv-accept", "application/json");
-  return reporting(() => fetch(path, { method: "POST", body }).then(checkOk));
+  return reporting(() => authenticatedFetch(path, { method: "POST", body }).then(checkOk));
 };
 
 const fieldParams = (fields: CategoryFields): Record<string, string> => {
@@ -101,12 +108,13 @@ export function useCategoryTree() {
   const [ tree, setTree ] = useState<CategoryNode[]>([]);
   const [ loading, setLoading ] = useState(true);
   const [ loadError, setLoadError ] = useState<string>();
+  const authenticatedFetch = useAuthenticatedFetch();
 
   // Default serialization selectors: `deep` recurses into the tree, and the default-enabled
   // `dereference` inlines each bound schema version so it can be displayed without extra requests
   const reload = useCallback((): Promise<void> =>
     reporting(async () => {
-      const response = checkOk(await fetch(`${CATEGORIES_ROOT}.deep.json`));
+      const response = checkOk(await authenticatedFetch(`${CATEGORIES_ROOT}.deep.json`));
       return parseCategoryTree(await response.json() as JcrNode);
     })
       .then(nodes => {
@@ -116,7 +124,7 @@ export function useCategoryTree() {
       .catch((error: unknown) => {
         setLoadError(messageOf(error));
       })
-      .finally(() => setLoading(false)), []);
+      .finally(() => setLoading(false)), [authenticatedFetch]);
 
   useEffect(() => {
     void reload();
@@ -126,7 +134,7 @@ export function useCategoryTree() {
   // derived by the server from the label via :nameHint; the typed fields are then set with a
   // follow-up update, which keeps the type hints in one place.
   const create = useCallback(async (parentPath: string, fields: CategoryFields): Promise<string> => {
-    const response = await post(`${parentPath}/`, {
+    const response = await post(authenticatedFetch, `${parentPath}/`, {
       "jcr:primaryType": "cat:Category",
       ":nameHint": fields.label,
       ...fieldParams(fields),
@@ -135,39 +143,39 @@ export function useCategoryTree() {
     const newPath = decodeURIComponent(location.replace(/\.json$/, ""));
     await reload();
     return newPath || parentPath;
-  }, [reload]);
+  }, [authenticatedFetch, reload]);
 
   // Updates the fields of an existing category.
   const update = useCallback(async (path: string, fields: CategoryFields): Promise<void> => {
-    await post(path, fieldParams(fields));
+    await post(authenticatedFetch, path, fieldParams(fields));
     await reload();
-  }, [reload]);
+  }, [authenticatedFetch, reload]);
 
   // Moves a category (and its subtree) under a new parent, keeping its name.
   const move = useCallback(async (path: string, newParentPath: string): Promise<void> => {
-    await post(path, { ":operation": "move", ":dest": `${newParentPath}/` });
+    await post(authenticatedFetch, path, { ":operation": "move", ":dest": `${newParentPath}/` });
     await reload();
-  }, [reload]);
+  }, [authenticatedFetch, reload]);
 
   // Reorders a category among its siblings. `order` uses the Sling :order syntax: "first",
   // "last", "before <siblingName>", or "after <siblingName>".
   const reorder = useCallback(async (path: string, order: string): Promise<void> => {
-    await post(path, { ":order": order });
+    await post(authenticatedFetch, path, { ":order": order });
     await reload();
-  }, [reload]);
+  }, [authenticatedFetch, reload]);
 
   // Retires or unretires a category.
   const setRetired = useCallback(async (path: string, retired: boolean): Promise<void> => {
-    await post(path, { retired: String(retired), "retired@TypeHint": "Boolean" });
+    await post(authenticatedFetch, path, { retired: String(retired), "retired@TypeHint": "Boolean" });
     await reload();
-  }, [reload]);
+  }, [authenticatedFetch, reload]);
 
   // Deletes a category. Rejects with a CategoryReferencedError when the category has submissions,
   // which the UI turns into a "retire instead?" offer.
   const remove = useCallback(async (path: string): Promise<void> => {
-    await post(path, { ":operation": "delete" });
+    await post(authenticatedFetch, path, { ":operation": "delete" });
     await reload();
-  }, [reload]);
+  }, [authenticatedFetch, reload]);
 
   return { tree, loading, loadError, reload, create, update, move, reorder, setRetired, remove };
 }

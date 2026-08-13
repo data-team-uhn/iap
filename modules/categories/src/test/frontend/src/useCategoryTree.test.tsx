@@ -16,9 +16,12 @@
  * limitations under the License.
  */
 
+import type { ReactNode } from "react";
+
 import { act, renderHook, waitFor } from "@testing-library/react";
 
 import { CategoryReferencedError, useCategoryTree } from "@iap/categories/useCategoryTree";
+import { ReLoginContext, SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
 // Every request the stubbed fetch has served, for asserting on the wire protocol.
 interface RecordedRequest {
@@ -33,6 +36,9 @@ let requests: RecordedRequest[] = [];
 // given status), recording all requests.
 // `location` is what the POST responses report as their Location header; null stands for a server
 // that reports none.
+// Every answer carries the `url` it came back from: the requests go through useAuthenticatedFetch,
+// which reads it to tell an ordinary response from the login page Sling redirects to when the
+// session has expired.
 const stubFetch = (
   treeJson: Record<string, unknown>,
   postStatus = 200,
@@ -47,7 +53,7 @@ const stubFetch = (
     });
     if (method === "GET") {
       return Promise.resolve({
-        ok: true, status: 200, statusText: "OK",
+        ok: true, status: 200, statusText: "OK", url,
         json: () => Promise.resolve(treeJson),
       } as unknown as Response);
     }
@@ -55,6 +61,7 @@ const stubFetch = (
       ok: postStatus < 400,
       status: postStatus,
       statusText: postStatus === 200 ? "OK" : "Error",
+      url,
       headers: { get: (name: string) => name === "Location" ? location : null },
     } as unknown as Response);
   }));
@@ -96,9 +103,11 @@ describe("useCategoryTree", () => {
   // UI a sentence about the cause rather than the protocol, and never one about "the change" when
   // all it did was read
   it("reports a load failure in the user's terms", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-      ok: false, status: 500, statusText: "Server Error",
-    } as unknown as Response)));
+    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
+      // The session is still there, which is what makes this 500 the server's own problem rather
+      // than a lapsed session to sign back in for
+      ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
+      : { ok: false, status: 500, statusText: "Server Error", url }) as unknown as Response)));
     const result = await loadedHook();
 
     expect(result.current.loadError).toContain("The server ran into a problem");
@@ -107,8 +116,8 @@ describe("useCategoryTree", () => {
   });
 
   it("reports a tree that arrived unreadable", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-      ok: true, status: 200, statusText: "OK",
+    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
+      ok: true, status: 200, statusText: "OK", url,
       json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON at position 0")),
     } as unknown as Response)));
     const result = await loadedHook();
@@ -241,5 +250,54 @@ describe("useCategoryTree", () => {
     await expect(result.current.remove("/Categories/Retrospective"))
       .rejects.toBeInstanceOf(CategoryReferencedError);
     expect(lastPost()?.params.get(":operation")).toBe("delete");
+  });
+
+  // Why these requests go through useAuthenticatedFetch: Sling answers a *write* with an expired
+  // session with a 500, so a session that lapsed while the manager was open would otherwise be
+  // described as "the server ran into a problem" and the change lost. The recovery itself is
+  // reLogin.test.tsx's business; what matters here is that a category write takes part in it.
+  it("recovers a write from a session that expired under it", async () => {
+    let posts = 0;
+    vi.stubGlobal("fetch", vi.fn((url: string, options?: RequestInit) => {
+      const method = options?.method ?? "GET";
+      requests.push({
+        url,
+        method,
+        params: new URLSearchParams(options?.body as URLSearchParams | undefined),
+      });
+      if (url === SESSION_INFO_URL) {
+        // The session really is gone, which is what tells this 500 apart from a server failure
+        return Promise.resolve({
+          ok: true, status: 200, url,
+          json: () => Promise.resolve({ userID: "anonymous" }),
+        } as unknown as Response);
+      }
+      if (method === "GET") {
+        return Promise.resolve({
+          ok: true, status: 200, url, json: () => Promise.resolve(treeJson),
+        } as unknown as Response);
+      }
+      // The first write is the one that ran into the expired session; the re-sent one succeeds
+      posts += 1;
+      return Promise.resolve(posts === 1
+        ? { ok: false, status: 500, url } as unknown as Response
+        : {
+          ok: true, status: 200, url,
+          headers: { get: () => "/Categories/Retrospective" },
+        } as unknown as Response);
+    }));
+    const signIn = vi.fn(() => Promise.resolve(true));
+    const { result } = renderHook(() => useCategoryTree(), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        <ReLoginContext value={signIn}>{children}</ReLoginContext>,
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(() => result.current.setRetired("/Categories/Retrospective", true));
+
+    expect(signIn).toHaveBeenCalled();
+    // Re-sent rather than reported: two POSTs for the one change the user asked for
+    expect(requests.filter(request => request.method === "POST")).toHaveLength(2);
+    expect(result.current.loadError).toBeUndefined();
   });
 });

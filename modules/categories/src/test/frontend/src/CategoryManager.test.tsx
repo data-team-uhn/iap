@@ -20,6 +20,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router";
 
 import CategoryManager from "@iap/categories/CategoryManager";
+import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
 // A tree with a branch (whose deletion must be blocked), a bound leaf, and a retired category.
 const treeJson = {
@@ -50,20 +51,37 @@ const treeJson = {
 
 // A server that answers everything, except the writes `refusing` picks out by their payload - which
 // is how a test singles out one step of a save that takes more than one.
+//
+// The manager's requests go through useAuthenticatedFetch, which shows up here in two ways: every
+// answer carries the `url` it came back from, since that is how the login page Sling redirects an
+// expired session to is recognised; and the session endpoint answers that the session is live, so
+// that a 500 a test asks for is taken as the server's own problem rather than a lapsed session.
 const stubFetch = (refusing: (body: string) => boolean = () => false) =>
   vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+    if (url === SESSION_INFO_URL) {
+      return Promise.resolve({
+        ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }),
+      } as unknown as Response);
+    }
     const body = init?.body;
     if (body instanceof URLSearchParams && refusing(body.toString())) {
-      return Promise.resolve({ ok: false, status: 403, statusText: "Forbidden" } as unknown as Response);
+      return Promise.resolve({ ok: false, status: 403, statusText: "Forbidden", url } as unknown as Response);
     }
     return Promise.resolve({
-      ok: true, status: 200, statusText: "OK",
+      ok: true, status: 200, statusText: "OK", url,
       json: () => Promise.resolve(url.startsWith("/Schemas")
         ? { "jcr:primaryType": "sch:SchemasHomepage" }
         : treeJson),
       headers: { get: () => null },
     } as unknown as Response);
   }));
+
+// A server that answers everything with the same failure, while reporting the session as live: what
+// makes the failure the server's own rather than a lapsed session to be recovered from.
+const stubFailingFetch = (status: number, statusText: string) =>
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
+    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
+    : { ok: false, status, statusText, url }) as unknown as Response)));
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -443,9 +461,7 @@ describe("CategoryManager", () => {
     // A load failure is reported in place rather than in a modal, because the modal would be a
     // dead end: there is nothing to acknowledge, only something to try again.
     it("reports a tree that could not be loaded, in place", async () => {
-      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-        ok: false, status: 500, statusText: "Server Error",
-      } as unknown as Response)));
+      stubFailingFetch(500, "Server Error");
 
       renderManager();
 
@@ -456,9 +472,7 @@ describe("CategoryManager", () => {
     });
 
     it("reloads the tree when the load failure's Retry is used", async () => {
-      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-        ok: false, status: 500, statusText: "Server Error",
-      } as unknown as Response)));
+      stubFailingFetch(500, "Server Error");
       renderManager();
       await screen.findByRole("alert");
 
@@ -471,8 +485,8 @@ describe("CategoryManager", () => {
     });
 
     it("invites the first category when there are none", async () => {
-      vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-        ok: true, status: 200, statusText: "OK",
+      vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
+        ok: true, status: 200, statusText: "OK", url,
         json: () => Promise.resolve({ "jcr:primaryType": "cat:CategoriesHomepage" }),
         headers: { get: () => null },
       } as unknown as Response)));

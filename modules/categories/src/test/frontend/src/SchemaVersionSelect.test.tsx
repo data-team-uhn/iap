@@ -19,6 +19,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 import SchemaVersionSelect from "@iap/categories/SchemaVersionSelect";
+import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
 // The /Schemas serialization: two schemas, one titled and one falling back to its node name, plus
 // the entries the picker has to skip -- a non-schema node, and a version with no identifier to
@@ -41,10 +42,13 @@ const schemasJson = {
   "empty": { "jcr:primaryType": "sch:Schema" },
 };
 
+// The answer carries the `url` it came back from because the request goes through
+// useAuthenticatedFetch, which reads it to recognise the login page an expired session lands on.
 const stubSchemas = (body: unknown = schemasJson) =>
-  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true,
     status: 200,
+    url,
     json: () => Promise.resolve(body),
   } as unknown as Response)));
 
@@ -80,7 +84,11 @@ describe("SchemaVersionSelect", () => {
 
     renderSelect();
 
-    await waitFor(() => { expect(fetch).toHaveBeenCalledWith("/Schemas.deep.-dereference.json"); });
+    // Asserted on the URL alone: the request goes through useAuthenticatedFetch, which passes an
+    // init argument of its own along
+    await waitFor(() => {
+      expect(vi.mocked(fetch).mock.calls[0][0]).toBe("/Schemas.deep.-dereference.json");
+    });
   });
 
   it("groups the versions under their schema, and marks the inactive ones", async () => {
@@ -149,7 +157,11 @@ describe("SchemaVersionSelect", () => {
 
   it("says so when the schemas cannot be loaded", async () => {
     vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: false, status: 500 } as Response)));
+    // The session endpoint answers that the session is live, which is what makes this 500 the
+    // server's own problem rather than a lapsed session to sign back in for
+    vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
+      ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
+      : { ok: false, status: 500, url }) as unknown as Response)));
 
     renderSelect();
 

@@ -50,10 +50,13 @@ const tree = parseCategoryTree({
   },
 });
 
-// Answers the schema listing that the schema version picker fetches.
+// Answers the schema listing that the schema version picker fetches. The answer carries the `url` it
+// came back from, which is what useAuthenticatedFetch reads to tell it apart from the login page an
+// expired session is redirected to.
 const stubSchemasEndpoint = () =>
-  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
     ok: true,
+    url,
     json: () => Promise.resolve({
       "jcr:primaryType": "sch:SchemasHomepage",
       "basic": {

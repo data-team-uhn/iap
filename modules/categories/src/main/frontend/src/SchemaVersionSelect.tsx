@@ -20,6 +20,8 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { ListSubheader, MenuItem, TextField } from "@mui/material";
 
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+
 import type { JcrNode } from "./categoryModel";
 
 // One selectable schema version.
@@ -75,11 +77,12 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
   const [ groups, setGroups ] = useState<SchemaGroup[]>([]);
   const [ loading, setLoading ] = useState(true);
   const [ error, setError ] = useState(false);
+  const authenticatedFetch = useAuthenticatedFetch();
 
   useEffect(() => {
     // The -dereference selector stops each version's workflow reference from inlining the whole
     // referenced workflow into the response
-    fetch("/Schemas.deep.-dereference.json")
+    authenticatedFetch("/Schemas.deep.-dereference.json")
       .then(response => response.ok
         ? response.json() as Promise<JcrNode>
         : Promise.reject(new Error(`Failed to load schemas: ${response.status}`)))
@@ -89,7 +92,7 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
         setError(true);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [authenticatedFetch]);
 
   // A Select requires its options as a flat list, so subheaders and items are collected together
   const items: ReactNode[] = [

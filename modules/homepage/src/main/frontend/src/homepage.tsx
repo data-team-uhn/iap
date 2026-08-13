@@ -25,6 +25,7 @@ import { createBrowserRouter, Route, RouterProvider, Routes } from "react-router
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { getRoutes } from "@iap/frontend-commons/routes";
+import { ReLoginProvider } from "@iap/login/ReLoginDialog";
 
 import PageLayout from "./PageLayout";
 
@@ -82,7 +83,9 @@ if (container) {
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={appTheme} defaultMode="system">
           <CssBaseline enableColorScheme />
-          <RouterProvider router={router} />
+          <ReLoginProvider>
+            <RouterProvider router={router} />
+          </ReLoginProvider>
         </ThemeProvider>
       </StyledEngineProvider>
     </StrictMode>
