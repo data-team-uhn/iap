@@ -122,6 +122,7 @@ public class RequestLocaleFilter implements Filter
         // so there is one implementation of the rules rather than two that drift apart
         cookie.setHttpOnly(true);
         cookie.setAttribute("SameSite", "Lax");
+        cookie.setSecure(request.isSecure());
         http.addCookie(cookie);
     }
 }
