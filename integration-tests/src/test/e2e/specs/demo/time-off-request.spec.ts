@@ -102,7 +102,9 @@ test.describe('the time off request demo', () => {
     // The comparison side takes the default source, which the node type autocreates rather than the content
     // having to say it
     expect(condition?.operandB?.source).toBe('literal');
-    expect(condition?.operandB?.value).toEqual([ 'multiple days' ]);
+    // An option's value, not a phrase somebody has to type: what the condition compares against is
+    // what picking "Several days" stores
+    expect(condition?.operandB?.value).toEqual([ 'multiple-days' ]);
   });
 
   test('requires a doctor\'s note only for sick leave', async ({ request }) => {
@@ -531,30 +533,27 @@ test.describe('the time off request demo', () => {
     await page.getByRole('row', { name: /A week in November/ }).getByLabel('Edit').click();
     await expect(page).toHaveURL(/\.edit$/);
 
-    const duration = page.getByLabel(/half day, a full day, or several days/);
-    await expect(duration).toBeVisible();
+    // The question offers its answers, so it is picked from rather than typed into
+    await expect(page.getByRole('radiogroup', { name: /half day, a full day, or several days/ })).toBeVisible();
     // Not yet asked, because nothing yet makes it relevant. It is absent from what the server sent, not
     // hidden by the browser — which is the difference the whole design turns on.
     await expect(page.getByLabel(/Which day are you back/)).toHaveCount(0);
 
-    // Leaving the field is what finishes the answer, and finishing it is what saves it
-    await duration.fill('multiple days');
-    await duration.blur();
+    // Picking finishes the answer as it happens: there is no field to leave
+    await page.getByRole('radio', { name: 'Several days' }).check();
 
     await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
 
     // The same mechanism one level up: a whole requirement, appearing because of an answer given to a
     // question in another one
     await expect(page.getByText('Doctor\'s note')).toHaveCount(0);
-    const absence = page.getByLabel(/What kind of absence/);
-    await absence.fill('sick');
-    await absence.blur();
+    await page.getByRole('radio', { name: 'Sick leave' }).check();
     await expect(page.getByText('Doctor\'s note')).toBeVisible();
 
     // Stored rather than remembered: a reload asks the server again, and the answers are the ones the
     // engine wrote — as a user with no write access anywhere, through a workflow that authorized them
     await page.reload();
-    await expect(page.getByLabel(/half day, a full day, or several days/)).toHaveValue('multiple days');
+    await expect(page.getByRole('radio', { name: 'Several days' })).toBeChecked();
     await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
   });
 
