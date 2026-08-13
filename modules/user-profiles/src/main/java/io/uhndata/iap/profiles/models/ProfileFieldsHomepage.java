@@ -57,6 +57,13 @@ public class ProfileFieldsHomepage extends Content implements AutoDocumentable
     private String description;
 
     /**
+     * The catalogue, read once. A model is a view of the repository as one resolver sees it at one moment, and the
+     * profile API asks it for one definition after another while serving a single request; reading, adapting and
+     * sorting every child again for each of those would be work done over and over for the same answer.
+     */
+    private List<ProfileFieldDefinition> definitions;
+
+    /**
      * All the field definitions held in this homepage, in display order.
      *
      * @return the field definitions, an empty list if there are none
@@ -64,18 +71,13 @@ public class ProfileFieldsHomepage extends Content implements AutoDocumentable
     @NotNull
     public List<ProfileFieldDefinition> getDefinitions()
     {
-        final List<ProfileFieldDefinition> result = new ArrayList<>();
-        for (final Resource child : this.resource.getChildren()) {
-            if (!child.isResourceType(ProfileFieldDefinition.RESOURCE_TYPE)) {
-                continue;
-            }
-            final ProfileFieldDefinition definition = child.adaptTo(ProfileFieldDefinition.class);
-            if (definition != null) {
-                result.add(definition);
-            }
+        if (this.definitions == null) {
+            final List<ProfileFieldDefinition> read =
+                new ArrayList<>(getChildren(ProfileFieldDefinition.RESOURCE_TYPE, ProfileFieldDefinition.class));
+            read.sort(ProfileFieldDefinition.DISPLAY_ORDER);
+            this.definitions = List.copyOf(read);
         }
-        result.sort(ProfileFieldDefinition.DISPLAY_ORDER);
-        return result;
+        return this.definitions;
     }
 
     /**

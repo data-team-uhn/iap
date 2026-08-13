@@ -139,6 +139,9 @@ public final class UpdateOutcome
         this.refused.forEach(reasons::add);
         return Json.createObjectBuilder()
             .add("status", isRefused() ? "error" : "success")
+            // Said explicitly, because the one refusal that is about the person rather than about a field is keyed by
+            // no field name at all, and a form putting each reason against its own control would drop it silently
+            .add("forbidden", this.forbidden)
             .add("changed", written)
             .add("refused", reasons)
             .build();

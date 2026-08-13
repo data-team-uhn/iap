@@ -23,7 +23,7 @@ through their initial content.
 | `label` | String | Display name, defaults to the field name |
 | `description` | String | Explanation shown alongside the field |
 | `kind` | String | `profile` (a fact about the person) or `preference` (how they want the application to behave); also decides the default storage location |
-| `storage` | String | Where the value lives, relative to the account's home node, e.g. `profile/email` or `rep:fullname`; defaults to `profile/<name>` or `preferences/<name>` |
+| `storage` | String | Where the value lives, as a path inside the account's home node, e.g. `profile/email` or `rep:fullname`; defaults to `profile/<name>` or `preferences/<name>` |
 | `dataType` | String | `text`, `long`, `double`, `boolean` or `date` |
 | `pattern` | String | Optional regular expression a value must match in full |
 | `allowedValues` | String[] | Optional closed set, offered as a choice in the UI |
@@ -43,11 +43,18 @@ authoritative description of a given deployment's fields, and no code is needed 
 
 `kind`, `dataType`, `writableBy` and `readableBy` are parsed, not trusted. An **absent** value takes
 the default declared by the node type. A value **outside** the accepted set is a broken definition
-rather than a synonym for the default: the getter returns `null`, `getConfigurationProblems()` says
-what is wrong in terms the person who authored the node can act on, and the profile API reports the
-field as read-only. A definition asking for something the platform cannot store is a mistake worth
-surfacing, not a reason to guess. An invalid `pattern` is reported the same way, because a regular
-expression that does not compile would otherwise fail at the moment somebody tries to save.
+rather than a synonym for the default: the getter still answers, with that same default, so that
+nothing has to cope with a half-read definition, but `isUsable()` turns false,
+`getConfigurationProblems()` says what is wrong in terms the person who authored the node can act
+on, and the profile API withholds the field entirely — neither readable nor writable — rather than
+serve a value under rules nobody stated. A definition asking for something the platform cannot store
+is a mistake worth surfacing, not a reason to guess. An invalid `pattern` is reported the same way,
+because a regular expression that does not compile would otherwise fail at the moment somebody tries
+to save, and so is a storage path that is not inside the account — absolute, or stepping out with
+`..` — which would otherwise pass every rule here and then be refused when the change is committed.
+That last one is checked against the path the field is actually read and written at, not against the
+`storage` property alone: with `storage` unstated the path is derived from the field name, so a name
+could otherwise step out of the account just as well.
 
 ## Imported from the identity provider
 
@@ -67,10 +74,11 @@ Two consequences worth knowing:
   each re-sync, and **removes** the property when the provider stops supplying the claim. A local
   edit to an imported field would therefore last until the next sync at most, which is why the API
   refuses it outright.
-- The mapping is read from the live configuration rather than duplicated here: it is published as an
-  OSGi service property on the `SyncHandler` registration. A health check compares each definition's
-  `idpClaim` and `storage` against it and warns on drift, since nothing in the repository can check
-  that content and OSGi configuration agree.
+- The mapping lives in OSGi configuration (`user.propertyMapping` on the `SyncHandler`) rather than
+  being duplicated here, and nothing in the repository can check that content and configuration
+  agree: a definition whose `storage` is not the path the synchronisation writes to is served as
+  though it were imported while the value never arrives. Comparing the two — a health check reading
+  the live `SyncHandler` configuration and warning on drift — is not built yet; see below.
 
 ## Permissions
 
@@ -101,6 +109,9 @@ their own home through Oak's self-grant, so the self-service page needs nothing 
 
 ## Not yet built
 
+- **The drift health check.** Nothing yet compares each definition's `idpClaim` and `storage` against
+  the live `user.propertyMapping` of the identity provider synchronisation, so a definition pointing
+  at a path the provider does not write to is only found by noticing that the value never appears.
 - **History.** `iap:Entity` is versionable but a user home is not; a `profile` node can take
   `mix:versionable` itself, or a person can become a domain entity keyed by authorizable ID. The API
   is a projection rather than a serialization, so neither choice changes it.
