@@ -2136,6 +2136,9 @@
               <!-- Models extending Entity inherit from Content without referencing it directly in main code,
                    but it is still needed on the main compile classpath to resolve the class hierarchy -->
               <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-content-api</ignoredNonTestScopedDependency>
+              <!-- The same one level up: code handling a Submission inherits Entity's members without naming
+                   Entity, so javac needs it even though only the tests reference it in bytecode -->
+              <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-entities-api</ignoredNonTestScopedDependency>
             </ignoredNonTestScopedDependencies>
           </configuration>
         </plugin>
