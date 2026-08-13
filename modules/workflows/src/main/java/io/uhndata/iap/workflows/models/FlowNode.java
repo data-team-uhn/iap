@@ -130,14 +130,16 @@ public abstract class FlowNode extends EntityPart
      * version. That is the right trade for graphs this size — a workflow has tens of nodes, not thousands — and it
      * keeps one representation of each arc rather than two that can disagree.</p>
      *
-     * @return a list of incoming sequence flows, empty if nothing leads here or this node is stored outside a
-     *         workflow version
+     * @return a list of incoming sequence flows, empty if nothing leads here, this node is stored outside a
+     *         workflow version, or it has no identifier for an arc to name it by
      */
     @NotNull
     public List<SequenceFlow> getIncomingFlows()
     {
+        // elementId is mandatory in the node type, but a node that got past that is named by no arc at all, which is
+        // an empty answer rather than something to fail the whole walk over
         final WorkflowVersion version = this.getWorkflowVersion();
-        if (version == null) {
+        if (version == null || this.elementId == null) {
             return List.of();
         }
         return version.getAllFlowNodes().stream()

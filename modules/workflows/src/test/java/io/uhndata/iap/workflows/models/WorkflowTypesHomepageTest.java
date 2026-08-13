@@ -173,6 +173,20 @@ class WorkflowTypesHomepageTest
     }
 
     @Test
+    void fallsBackOnTheNodeNameWhenTheHeadingIsMissing()
+    {
+        // title is autocreated by the node type, but a node of another type carrying this resource type gets past
+        // that, and a deployment can delete rather than reword it; either way the catalogue the editor's toolbars
+        // are built from must still be served rather than failing on a null heading
+        final Resource resource = this.context.create().resource(PATH, TYPE,
+            WorkflowTypesHomepage.RESOURCE_TYPE);
+        final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
+
+        assertEquals("WorkflowTypes", homepage.getDocumentationTitle());
+        assertEquals("WorkflowTypes", homepage.toDocumentationJson().getString("title"));
+    }
+
+    @Test
     void servesTheCatalogueGroupedByToolbarCategory()
     {
         final Resource resource = this.createVocabulary();

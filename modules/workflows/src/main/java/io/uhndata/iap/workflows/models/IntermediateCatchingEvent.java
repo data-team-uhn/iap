@@ -41,8 +41,9 @@ public class IntermediateCatchingEvent extends IntermediateEvent
     /** The {@code sling:resourceType} of a {@code wf:IntermediateCatchingEvent} node. */
     public static final String RESOURCE_TYPE = "wf/IntermediateCatchingEvent";
 
-    // The CND declares the default as true but does not autocreate the property, so an event that never had it
-    // written would read as false here without this annotation -- the exact inversion of the BPMN cancelActivity
+    // The node type autocreates this as true, so it is normally present. The annotation is what covers the node
+    // that got past that -- one of another type carrying this resource type, or one written before the property was
+    // autocreated -- which would otherwise read as false here: the exact inversion of the BPMN cancelActivity
     // default, and a silent one.
     @ValueMapValue
     @Default(booleanValues = true)

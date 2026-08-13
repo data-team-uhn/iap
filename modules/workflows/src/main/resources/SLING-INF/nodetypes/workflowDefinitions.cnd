@@ -217,10 +217,15 @@
   // Parsed from the BPMN cancelActivity attribute, whose default is likewise true,
   // so the default here must stay true as well: read as false, an attached event
   // would silently stop cancelling the work it is meant to abort.
+  // Autocreated, not merely defaulted: a default only takes effect when the
+  // property is autocreated, so without this the property would simply be absent,
+  // and everything reading the node outside the Sling Model -- the .json rendering
+  // the editor loads, a query, the engine's own ValueMap -- would read it as false.
+  // Not protected, so that the parser can still record cancelActivity="false".
   // Only meaningful on an event nested inside an activity; ignored on a
   // free-standing one, the same way terminate is ignored on an end event that no
   // second token can reach.
-  - interrupting (BOOLEAN) = true
+  - interrupting (BOOLEAN) = true autocreated
 
 //-----------------------------------------------------------------------------
 // A throwing event occurring mid-process.

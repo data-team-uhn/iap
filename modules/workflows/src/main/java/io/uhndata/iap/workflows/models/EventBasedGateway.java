@@ -70,7 +70,11 @@ public class EventBasedGateway extends Gateway
     {
         return this.getOutgoingFlows().stream()
             .map(SequenceFlow::getTarget)
+            // Both checks are needed: arriving as an Event says only which model was built, and a node of a resource
+            // type no model claims is built as whichever implementation sorts first without being one, so the node's
+            // own type has the last word
             .filter(Event.class::isInstance)
+            .filter(node -> node.isOfType(Event.RESOURCE_TYPE))
             .map(Event.class::cast)
             .filter(Event::isCatching)
             .toList();

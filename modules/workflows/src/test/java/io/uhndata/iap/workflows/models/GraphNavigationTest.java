@@ -108,6 +108,19 @@ class GraphNavigationTest
     }
 
     @Test
+    void findsNoIncomingArcsForANodeWithNoIdentifier()
+    {
+        // elementId is mandatory in the node type, but a node that got past that is named by no arc at all; the
+        // walk must report nothing rather than fall over on every arc it compares against
+        final WorkflowVersion version = this.createJoinGraph();
+        final Resource nameless = this.context.create().resource(VERSION_PATH + "/nameless", Map.of(
+            TYPE, Activity.RESOURCE_TYPE));
+
+        assertTrue(nameless.adaptTo(FlowNode.class).getIncomingFlows().isEmpty());
+        assertEquals(6, version.getAllFlowNodes().size());
+    }
+
+    @Test
     void findsNoIncomingArcsForANodeStoredOutsideAVersion()
     {
         final Resource orphan = this.context.create().resource("/elsewhere/task_9", Map.of(

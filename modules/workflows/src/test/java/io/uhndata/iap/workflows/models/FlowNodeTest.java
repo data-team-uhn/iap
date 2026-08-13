@@ -192,6 +192,7 @@ class FlowNodeTest
         assertEquals(ExclusiveGateway.class, this.adaptNode("n6", ExclusiveGateway.RESOURCE_TYPE));
         assertEquals(ParallelGateway.class, this.adaptNode("n7", ParallelGateway.RESOURCE_TYPE));
         assertEquals(InclusiveGateway.class, this.adaptNode("n8", InclusiveGateway.RESOURCE_TYPE));
+        assertEquals(EventBasedGateway.class, this.adaptNode("n9", EventBasedGateway.RESOURCE_TYPE));
     }
 
     @Test

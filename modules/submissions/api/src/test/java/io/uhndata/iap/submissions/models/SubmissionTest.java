@@ -70,6 +70,8 @@ class SubmissionTest
 {
     private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
 
+    private static final String SUBMISSION_PATH = "/Submissions/submission";
+
     private static final String SCHEMA_VERSION_ID = "schema-version-uuid";
 
     private static final String QUESTION_1_ID = "q1-uuid";
@@ -146,7 +148,7 @@ class SubmissionTest
     @Test
     void adaptsResourceToModel()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(Submission.class));
     }
@@ -163,7 +165,7 @@ class SubmissionTest
         Mockito.when(session.getNodeByIdentifier("2b7de6a1-3c4d-4e5f-8a9b-fedcba098765")).thenReturn(targetNode);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
 
-        final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE,
             "title", "Effects of caffeine on code quality",
             "schemaVersion", "2b7de6a1-3c4d-4e5f-8a9b-fedcba098765",
@@ -177,14 +179,14 @@ class SubmissionTest
     @Test
     void inheritsEntityAndContentProperties()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE,
             "jcr:uuid", "9c8b7a65-4d3e-2f10-b1a2-0123456789ab",
             "jcr:created", this.created,
             "jcr:createdBy", "bob"));
         final Submission submission = resource.adaptTo(Submission.class);
 
-        assertEquals("/Submissions/submission", submission.getPath());
+        assertEquals(SUBMISSION_PATH, submission.getPath());
         assertEquals("submission", submission.getName());
         assertEquals("sub/Submission", submission.getType());
         assertEquals("9c8b7a65-4d3e-2f10-b1a2-0123456789ab", submission.getIdentifier());
@@ -197,7 +199,7 @@ class SubmissionTest
     {
         // A submission node can also be wrapped by the parent models, letting callers work with it
         // through the base models when they only need the generic properties.
-        final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE,
             "jcr:uuid", "9c8b7a65-4d3e-2f10-b1a2-0123456789ab"));
 
@@ -231,7 +233,7 @@ class SubmissionTest
     @Test
     void listsAnswersDocumentsAndReviews()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/a1", SLING_RESOURCE_TYPE, "sub/Answer");
         this.context.create().resource("/Submissions/submission/d1", SLING_RESOURCE_TYPE, "sub/Document");
@@ -262,7 +264,7 @@ class SubmissionTest
     void reportsApprovedWhenTaggedApproved()
     {
         Tagging.enable(this.context);
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Submission submission = resource.adaptTo(Submission.class);
 
@@ -274,7 +276,7 @@ class SubmissionTest
     {
         // The lifecycle tag shares the multivalued property with unrelated markers
         Tagging.enable(this.context);
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags",
             new String[] { "sensitive", "approved", "external" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -287,7 +289,7 @@ class SubmissionTest
     {
         // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like:
         // the lifecycle state cannot be read, and an unreadable state is not an approval
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Submission submission = resource.adaptTo(Submission.class);
 
@@ -298,7 +300,7 @@ class SubmissionTest
     void reportsNotApprovedForOtherTags()
     {
         Tagging.enable(this.context);
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "tags", new String[] { "in-review" });
         final Submission submission = resource.adaptTo(Submission.class);
 
@@ -308,7 +310,7 @@ class SubmissionTest
     @Test
     void aggregatesUnresolvedCommentsAcrossReviews()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/r1", SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/r1/c1", Map.of(
@@ -333,7 +335,7 @@ class SubmissionTest
         // Whether the approval requirement is met is read from a tag on the review itself
         Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
         this.context.create().resource("/Submissions/submission/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
@@ -359,7 +361,7 @@ class SubmissionTest
         // Whether the approval requirement is met is read from a tag on the review itself
         Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
         // The nested section's question is answered; the direct question (q2) has an empty value, which
         // doesn't count as answered.
@@ -387,7 +389,7 @@ class SubmissionTest
         // Whether the approval requirement is met is read from a tag on the review itself
         Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
         this.context.create().resource("/Submissions/submission/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
@@ -414,7 +416,7 @@ class SubmissionTest
         // Whether the approval requirement is met is read from a tag on the review itself
         Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
         this.context.create().resource("/Submissions/submission/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
@@ -439,7 +441,7 @@ class SubmissionTest
     @Test
     void failsToComputeMissingRequirementsWhenSchemaVersionIsUnresolvable()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         final Submission submission = resource.adaptTo(Submission.class);
 
@@ -470,7 +472,7 @@ class SubmissionTest
 
     private Submission createBareSubmission()
     {
-        return this.context.create().resource("/Submissions/submission", Map.of(
+        return this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID))
             .adaptTo(Submission.class);
     }
@@ -552,7 +554,7 @@ class SubmissionTest
     {
         // The instances live in the container the wf:WorkflowAttachable mixin autocreates, inside the submission
         // they drive, rather than being pointed at from it
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/wf:instances",
             SLING_RESOURCE_TYPE, WorkflowInstances.RESOURCE_TYPE);
@@ -571,7 +573,7 @@ class SubmissionTest
     @Test
     void listsNoWorkflowsWhenTheContainerIsEmpty()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/wf:instances",
             SLING_RESOURCE_TYPE, WorkflowInstances.RESOURCE_TYPE);
@@ -583,8 +585,23 @@ class SubmissionTest
     void listsNoWorkflowsWhenTheContainerIsMissing()
     {
         // The container is autocreated in the real repository, but the model must not fall over without it
-        final Resource resource = this.context.create().resource("/Submissions/submission",
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
+
+        assertTrue(resource.adaptTo(Submission.class).getWorkflowInstances().isEmpty());
+    }
+
+    @Test
+    void doesNotMistakeAnUnrelatedChildForTheWorkflowContainer()
+    {
+        // The node type accepts arbitrary children for extensibility, so the name alone does not say that what it
+        // finds is the container; without a type check the unrelated node would still adapt to the model
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH,
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/wf:instances",
+            SLING_RESOURCE_TYPE, "nt:unstructured");
+        this.context.create().resource("/Submissions/submission/wf:instances/review", Map.of(
+            SLING_RESOURCE_TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "in-review"));
 
         assertTrue(resource.adaptTo(Submission.class).getWorkflowInstances().isEmpty());
     }

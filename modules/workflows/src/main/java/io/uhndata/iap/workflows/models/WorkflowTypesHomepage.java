@@ -102,11 +102,18 @@ public class WorkflowTypesHomepage extends EntityHomepage implements AutoDocumen
         return !FlowNodeType.RESOURCE_TYPE.equals(type.getType());
     }
 
+    /**
+     * The heading of the served catalogue. Autocreated by the node type, so the fallback is only reached by a node
+     * of another type carrying this one's resource type, or by a deployment that deleted rather than reworded the
+     * property — neither of which may take the catalogue down, since serving it is what the editor's toolbars need.
+     *
+     * @return the configured title, or the node name if none is set
+     */
     @Override
     @NotNull
     public String getDocumentationTitle()
     {
-        return this.title;
+        return this.title == null ? this.getName() : this.title;
     }
 
     @Override

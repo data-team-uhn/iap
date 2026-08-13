@@ -98,7 +98,9 @@ final class WorkflowFixture
     }
 
     /**
-     * Makes a JCR reference to the given path resolvable, the way a real repository would.
+     * Makes a JCR reference to the given path resolvable, the way a real repository would. Additive: a second call
+     * teaches the session already in place about another identifier rather than replacing it, so a test needing two
+     * resolvable references does not silently lose the first.
      *
      * @param context the Sling context to set up
      * @param identifier the identifier a reference property holds
@@ -110,9 +112,12 @@ final class WorkflowFixture
     {
         final Node target = Mockito.mock(Node.class);
         Mockito.when(target.getPath()).thenReturn(path);
-        final Session session = Mockito.mock(Session.class);
+        Session session = context.resourceResolver().adaptTo(Session.class);
+        if (session == null) {
+            session = Mockito.mock(Session.class);
+            context.registerAdapter(ResourceResolver.class, Session.class, session);
+        }
         Mockito.when(session.getNodeByIdentifier(identifier)).thenReturn(target);
-        context.registerAdapter(ResourceResolver.class, Session.class, session);
     }
 
     private static void registerType(final SlingContext context, final String name, final String superType)

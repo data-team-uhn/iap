@@ -234,21 +234,22 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     {
         final JsonObjectBuilder json = DocumentedItem.super.documentationJsonBuilder()
             .add("priority", this.getPriority());
-        if (this.getXmlElement() != null) {
-            json.add("xmlElement", this.getXmlElement());
+        if (this.xmlElement != null) {
+            json.add("xmlElement", this.xmlElement);
         }
-        if (this.getJcrNodeType() != null) {
-            json.add("jcrNodeType", this.getJcrNodeType());
+        if (this.jcrNodeType != null) {
+            json.add("jcrNodeType", this.jcrNodeType);
         }
-        if (this.getXmlChildElement() != null) {
-            json.add("xmlChildElement", this.getXmlChildElement());
+        if (this.xmlChildElement != null) {
+            json.add("xmlChildElement", this.xmlChildElement);
         }
         final JsonObject fixedProperties = this.getJcrProperties();
         if (fixedProperties != null) {
             json.add("jcrProperties", fixedProperties);
         }
-        if (!this.getProperties().isEmpty()) {
-            json.add("properties", Json.createArrayBuilder(this.getProperties()));
+        final List<String> copiedProperties = this.getProperties();
+        if (!copiedProperties.isEmpty()) {
+            json.add("properties", Json.createArrayBuilder(copiedProperties));
         }
         return json;
     }

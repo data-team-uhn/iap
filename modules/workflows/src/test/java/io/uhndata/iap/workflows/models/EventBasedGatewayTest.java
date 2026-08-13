@@ -107,6 +107,23 @@ class EventBasedGatewayTest
     }
 
     @Test
+    void ignoresArcsLeadingToANodeOfATypeNoModelClaims()
+    {
+        // A node of a resource type no model claims is built as whichever implementation sorts first, without
+        // being one, so arriving as an Event is not the same as being one and the node's own type has to decide.
+        // Which implementation sorts first is nothing this code should depend on, which is why the check is
+        // explicit rather than left to the ordering
+        this.context.create().resource("/libs/wf/Custom", Map.of(
+            WorkflowFixture.SUPER_TYPE, FlowNode.RESOURCE_TYPE));
+        final Resource resource = this.createGateway();
+        this.arc("to_custom", "custom_1");
+        this.context.create().resource(VERSION_PATH + "/custom_1", Map.of(
+            TYPE, "wf/Custom", "elementId", "custom_1", "catching", true));
+
+        assertTrue(((EventBasedGateway) resource.adaptTo(FlowNode.class)).getAwaitedEvents().isEmpty());
+    }
+
+    @Test
     void reportsAMarkedDefaultFlowThoughItCannotActOnOne()
     {
         // getDefaultFlow is inherited and still reports whatever the data says, but a default is meaningless on

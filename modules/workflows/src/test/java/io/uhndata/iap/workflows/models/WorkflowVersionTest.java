@@ -202,7 +202,9 @@ class WorkflowVersionTest
         assertEquals(4, version.getFlowNodes().size());
         assertEquals(5, version.getAllFlowNodes().size());
         assertNull(version.getFlowNode("abstract_1"));
+        assertNull(version.getFlowNode("abstract_2"));
         assertNull(version.getFlowNode("abstract_3"));
+        assertNull(version.getFlowNode("abstract_4"));
     }
 
     /**

@@ -137,7 +137,10 @@ public class Submission extends Entity
     @NotNull
     public List<WorkflowInstance> getWorkflowInstances()
     {
-        final WorkflowInstances container = this.getChild(WorkflowInstances.NODE_NAME, WorkflowInstances.class);
+        // Type-checked: the node type accepts arbitrary children too, so the name alone does not say that what it
+        // finds is the container, and an unrelated node by that name would still adapt to the model
+        final WorkflowInstances container = this.getChild(WorkflowInstances.NODE_NAME,
+            WorkflowInstances.RESOURCE_TYPE, WorkflowInstances.class);
         return container == null ? List.of() : container.getInstances();
     }
 
