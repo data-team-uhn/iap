@@ -156,6 +156,17 @@ public class ParseJobConsumer implements JobConsumer
             LOGGER.warn("Dropping a parse job without a job identifier");
             return JobResult.CANCEL;
         }
+        return claim(jobId);
+    }
+
+    /**
+     * Walk the job node from {@code queued} to {@code active}, then hand the parse to the daemon.
+     *
+     * @param jobId the identifier of the job being processed
+     * @return {@link JobResult#OK} when the daemon accepted the parse, {@link JobResult#CANCEL} otherwise
+     */
+    private JobResult claim(final String jobId)
+    {
         final String path;
         final boolean chunk;
         try (ResourceResolver resolver = openServiceResolver()) {
