@@ -20,7 +20,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 
 import Dashboard from "@iap/homepage/Dashboard";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
-import { setActivePersona } from "@iap/ui-extension/personas";
+import { STORE_KEY, setActivePersona } from "@iap/ui-extension/personas";
 
 // Only the loading half is mocked; visibleInPersona is pure, and the dashboard's persona filtering
 // is only worth testing against the real predicate.
@@ -33,7 +33,7 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 // The active persona is held on `window`; reset it so tests don't inherit each other's choice.
 afterEach(() => {
-  delete (window as unknown as Record<string, unknown>).__iapPersona;
+  delete (window as unknown as Record<string, unknown>)[STORE_KEY];
 });
 
 // Builds a widget extension as returned by loadExtensions: the parsed iap:Extension
@@ -137,7 +137,7 @@ describe("Dashboard", () => {
 
     it("hides a widget that belongs to another persona", async () => {
       mockedLoadExtensions.mockResolvedValue([
-        { ...widget("Everyone", 0) },
+        widget("Everyone", 0),
         { ...widget("Reviews", 1), "iap:personas": [ "reviewer" ] },
       ]);
 

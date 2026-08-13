@@ -35,6 +35,11 @@ import {
   usePersona,
 } from "@iap/ui-extension/personas";
 
+// The button and the menu it opens reference each other by id, so that assistive technology can tell
+// they are one control. Constants rather than useId(): there is exactly one persona switcher per page.
+const TRIGGER_ID = "persona-switcher-button";
+const MENU_ID = "persona-switcher-menu";
+
 // The persona the user is currently acting as, and a menu to change it: "put on the reviewer hat".
 //
 // The active persona is shown as a label rather than hidden behind an icon, because the rest of the
@@ -48,6 +53,7 @@ function PersonaSwitcher() {
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
   const active = usePersona();
   const personas = availablePersonas();
+  const open = Boolean(anchor);
 
   const choose = (persona: string) => {
     setActivePersona(persona);
@@ -62,21 +68,35 @@ function PersonaSwitcher() {
   return (
     <>
       <Button
+        id={TRIGGER_ID}
         color="inherit"
         size="small"
         aria-label={`Acting as ${personaLabel(active)}. Change persona`}
         aria-haspopup="menu"
+        aria-controls={open ? MENU_ID : undefined}
+        aria-expanded={open}
         onClick={event => setAnchor(event.currentTarget)}
         endIcon={<ExpandMoreIcon />}
         sx={{ textTransform: "none" }}
       >
         {personaLabel(active)}
       </Button>
-      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
+      <Menu
+        id={MENU_ID}
+        anchorEl={anchor}
+        open={open}
+        onClose={() => setAnchor(null)}
+        MenuListProps={{ "aria-labelledby": TRIGGER_ID }}
+      >
         {
           personas.map(persona => (
             <MenuItem
               key={persona}
+              // A menu that picks exactly one of a set is a radio group, not a list of commands: the
+              // check mark is decorative, so `menuitemradio` + aria-checked is the only thing that
+              // tells a screen reader which hat is currently on. `selected` remains for the styling.
+              role="menuitemradio"
+              aria-checked={persona === active}
               selected={persona === active}
               onClick={() => choose(persona)}
             >

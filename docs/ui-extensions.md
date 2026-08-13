@@ -29,6 +29,7 @@ Properties understood by every point:
 | `iap:extensionRenderURL` | String | The component to render, as `asset:<entry>.js`; append `?lazy` to defer loading it until first rendered |
 | `iap:defaultOrder` | Long | Display order within the point (lower first, default 0) |
 | `iap:defaultDisabled` | Boolean | When true the extension is skipped, without deleting it |
+| `iap:personas` | String[] | The [personas](#personas) this extension belongs to; absent means all of them. **Only the dashboard filters on it today** — the other points render every extension whatever it names |
 
 ## Extension point catalogue
 
@@ -78,12 +79,12 @@ The app bar is itself a `frameTop` extension, composed of entries on its own poi
 | --- | --- | --- |
 | `iap/appBar/entry` | `AppBarEntry` | Controls in the app bar row. `iap:appBarSection` places an entry in the `start`, `middle` (centered), or `end` section; `iap:defaultOrder` orders within the section. |
 
-Current entries: Branding (start), and the dark mode toggle, notifications bell, and user menu
-(end). The middle section is reserved for e.g. a future search bar. A high-visibility element
-like a maintenance banner should register directly on `frameTop` with `iap:defaultOrder` below
-the app bar's (20) to appear above it; the `iap-commons.NoticeBanner` asset renders such a
-data-only banner extension (markdown message in `iap:data`, optional `iap:severity`).
-Add `iap:visibleBeforeLogin: true` to such a banner to
+Current entries: Branding (start), and the dark mode toggle, notifications bell, persona switcher,
+and user menu (end). The middle section is reserved for e.g. a future search bar. A
+high-visibility element like a maintenance banner should register directly on `frameTop` with
+`iap:defaultOrder` below the app bar's (20) to appear above it; the `iap-commons.NoticeBanner`
+asset renders such a data-only banner extension (markdown message in `iap:data`, optional
+`iap:severity`). Add `iap:visibleBeforeLogin: true` to such a banner to
 also show it on the login page, which renders the `frameTop` extensions carrying this opt-in
 flag (and nothing else from the frame) above its content — so a notice posted once reaches
 users both before and after they sign in. The flag is an interim mechanism: once the upcoming
@@ -126,7 +127,24 @@ credentials form to make it the primary method, and disable the credentials form
 
 | Point id | Node name | Purpose |
 | --- | --- | --- |
-| `iap/dashboard/widget` | `DashboardWidget` | Widgets tiled on the homepage dashboard in a responsive grid. Each widget is framed with a title (`iap:extensionName`) and optional subtitle (`iap:subtitle`); optional properties tune the frame: `iap:widgetWidth` (`normal`/`wide`/`full`), `iap:widgetEmphasis`, `iap:widgetBorderless`, `iap:widgetHideHeader`. |
+| `iap/dashboard/widget` | `DashboardWidget` | Widgets tiled on the homepage dashboard in a responsive grid. Each widget is framed with a title (`iap:extensionName`) and optional subtitle (`iap:subtitle`); optional properties tune the frame: `iap:widgetWidth` (`normal`/`wide`/`full`), `iap:widgetEmphasis`, `iap:widgetBorderless`, `iap:widgetHideHeader`. `iap:personas` restricts a widget to some [personas](#personas). |
+
+## Personas
+
+A user acts as one **persona** at a time — submitter, reviewer, administrator — chosen through the
+app bar's persona switcher, and the UI is designed around what that persona does rather than around
+the rights the individual happens to hold. `iap:personas` names the personas an extension belongs
+to; naming none means all of them, so an extension that never considered personas keeps displaying
+exactly where it did before, and adding a persona to the platform changes nothing about existing
+extensions. Prefer naming nothing over naming every persona but one, or the extension silently
+disappears from the next persona added.
+
+A persona is **presentation only and never an access control**: the repository authorizes every
+request independently of it, and a control hidden from a persona must never be the only thing
+preventing the action behind it. The catalogue, the active-persona store, and the filter predicate
+live in `ui-extension/src/main/frontend/src/personas.ts` and `extensionManager.tsx`
+(`visibleInPersona`); `availablePersonas()` is the seam where the choice will be constrained by the
+user's roles once IAP has any.
 
 ## Adding an extension
 

@@ -55,7 +55,13 @@ const PERSONA_LABELS: Record<Persona, string> = {
 const availablePersonas = (): Persona[] => [ ...PERSONAS ];
 
 // The label to display for a persona, falling back to the raw value for one we don't know.
-const personaLabel = (persona: Persona): string => PERSONA_LABELS[persona] ?? persona;
+//
+// `Object.hasOwn` rather than a plain lookup: persona names come from outside this module (repository
+// `iap:personas` values, and role names once the seam above is implemented), and a plain lookup would
+// answer for inherited members too — `personaLabel("constructor")` would hand back a function where
+// the signature promises a string.
+const personaLabel = (persona: Persona): string =>
+  Object.hasOwn(PERSONA_LABELS, persona) ? PERSONA_LABELS[persona] : persona;
 
 // --- The store -------------------------------------------------------------------------------
 //
@@ -76,6 +82,10 @@ interface PersonaStore {
 }
 
 // The property name under which the store hides on `window`, and the event that announces a change.
+//
+// STORE_KEY is exported because a global property name is observable contract, not an implementation
+// detail: anything that has to reach the store without going through this module (a test resetting it
+// between cases, say) must name the same key, and naming it twice is how the two drift apart.
 const STORE_KEY = "__iapPersona";
 const CHANGE_EVENT = "iap:personachange";
 
@@ -118,6 +128,7 @@ const usePersona = (): Persona => useSyncExternalStore(subscribeToPersona, getAc
 
 export {
   PERSONAS,
+  STORE_KEY,
   availablePersonas,
   getActivePersona,
   personaLabel,

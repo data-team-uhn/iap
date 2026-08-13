@@ -18,6 +18,7 @@
 
 import {
   PERSONAS,
+  STORE_KEY,
   availablePersonas,
   getActivePersona,
   personaLabel,
@@ -26,9 +27,10 @@ import {
 } from "@iap/ui-extension/personas";
 
 // The store lives on `window` (deliberately - see personas.ts), so it survives between tests;
-// return it to the default so each test starts from the same place.
+// return it to the default so each test starts from the same place. Through the exported key, so
+// that renaming it cannot leave these tests quietly deleting a property nobody reads.
 afterEach(() => {
-  delete (window as unknown as Record<string, unknown>).__iapPersona;
+  delete (window as unknown as Record<string, unknown>)[STORE_KEY];
 });
 
 describe("the persona catalogue", () => {
@@ -77,7 +79,7 @@ describe("the active persona", () => {
   });
 
   it("falls back to the default if the stored persona is no longer available", () => {
-    (window as unknown as Record<string, { active: string }>).__iapPersona = { active: "retired-role" };
+    (window as unknown as Record<string, { active: string }>)[STORE_KEY] = { active: "retired-role" };
 
     expect(getActivePersona()).toBe(availablePersonas()[0]);
   });
