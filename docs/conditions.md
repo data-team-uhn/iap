@@ -107,6 +107,11 @@ Each operand declares where its values come from through its `source` property:
   one ancestor at a time, to the whole enclosing entity. When the same question is answered in
   several repeated blocks, a condition evaluated inside one block therefore sees that block's own
   answer.
+  When the question offers a fixed set of answers (`sch:AnswerOption` children), what is compared is
+  the chosen option's **`value`**, never the label the submitter read. That is what makes such a
+  condition dependable: the label may be reworded or translated freely, and a value from outside the
+  offered set is refused when the answer is saved, so the comparison cannot quietly stop matching
+  because somebody typed the phrase differently.
 - **`tags`** — the effective tags of the enclosing entity (its own `tags` plus the materialized
   `aggregatedTags` and `inheritedTags`), typically tested with the `includes`/`excludes` family
   against literal tag names. The operand's `value` is ignored.

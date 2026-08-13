@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -49,7 +50,7 @@ class QuestionTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Question.class, AnswerOption.class);
     }
 
     @Test
@@ -92,5 +93,54 @@ class QuestionTest
         assertNull(question.getDataType());
         assertFalse(question.isRequired());
         assertFalse(question.isMultiple());
+    }
+
+    // A question offering nothing is answered freely; the empty list is what says so
+    @Test
+    void offersNoOptionsByDefault()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/free",
+            "sling:resourceType", Question.RESOURCE_TYPE);
+
+        assertTrue(resource.adaptTo(Question.class).getOptions().isEmpty());
+    }
+
+    @Test
+    void offersItsOptionsInTheOrderTheyAreDeclared()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/duration",
+            "sling:resourceType", Question.RESOURCE_TYPE);
+        this.option(resource, "half", "half-day", "Half day");
+        this.option(resource, "full", "full-day", "Full day");
+        this.option(resource, "several", "multiple-days", "Several days");
+
+        final List<AnswerOption> options = resource.adaptTo(Question.class).getOptions();
+
+        assertEquals(List.of("half-day", "full-day", "multiple-days"),
+            options.stream().map(AnswerOption::getValue).toList());
+        assertEquals(List.of("Half day", "Full day", "Several days"),
+            options.stream().map(AnswerOption::getLabel).toList());
+    }
+
+    // Children that are not options are not answers to offer
+    @Test
+    void ignoresChildrenThatAreNotOptions()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/mixed",
+            "sling:resourceType", Question.RESOURCE_TYPE);
+        this.context.create().resource(resource.getPath() + "/cond:condition",
+            "sling:resourceType", "cond/SingleCondition");
+        this.option(resource, "only", "yes", "Yes");
+
+        assertEquals(List.of("yes"), resource.adaptTo(Question.class).getOptions().stream()
+            .map(AnswerOption::getValue).toList());
+    }
+
+    private void option(final Resource question, final String name, final String value, final String label)
+    {
+        this.context.create().resource(question.getPath() + "/" + name, Map.of(
+            "sling:resourceType", AnswerOption.RESOURCE_TYPE,
+            "value", value,
+            "label", label));
     }
 }

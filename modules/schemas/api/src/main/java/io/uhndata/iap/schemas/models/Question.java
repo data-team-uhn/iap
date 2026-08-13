@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -103,5 +105,22 @@ public class Question extends FormItem
     public boolean isMultiple()
     {
         return this.multiple;
+    }
+
+    /**
+     * The answers this question offers, in the order they are declared.
+     *
+     * <p>
+     * A question offering none is answered freely, in whatever its {@link #getDataType() data type} accepts; one
+     * offering options is answered only with their values. That is the difference that lets a condition compare
+     * against an agreed value rather than against whatever a submitter typed.
+     * </p>
+     *
+     * @return the offered options, an empty list if the question is answered freely
+     */
+    @NotNull
+    public List<AnswerOption> getOptions()
+    {
+        return this.getChildren(AnswerOption.RESOURCE_TYPE, AnswerOption.class);
     }
 }
