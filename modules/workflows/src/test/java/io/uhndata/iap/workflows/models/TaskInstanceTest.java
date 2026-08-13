@@ -184,6 +184,32 @@ class TaskInstanceTest
         assertNull(resource.adaptTo(TaskInstance.class).getDefinition());
     }
 
+    @Test
+    void hasNoDefinitionWhenTheNamedNodeIsOfAnAbstractType()
+        throws RepositoryException
+    {
+        // wf:FlowNode is the resource type of no model, so such a node is built as whichever implementation sorts
+        // first — an Activity — without being one. Arriving as an Activity is not the same as being one
+        this.createDefinition("task_1", FlowNode.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(TASK_PATH, Map.of(
+            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "task_1", "label", "Approve",
+            "status", "created"));
+
+        assertNull(resource.adaptTo(TaskInstance.class).getDefinition());
+    }
+
+    @Test
+    void hasNoDefinitionWhenItNamesNoNodeAtAll()
+        throws RepositoryException
+    {
+        // taskDefinitionId is mandatory in the node type; a task that got past that names no activity
+        this.createDefinition("task_1", Activity.RESOURCE_TYPE);
+        final Resource resource = this.context.create().resource(TASK_PATH, Map.of(
+            TYPE, TaskInstance.RESOURCE_TYPE, "label", "Approve", "status", "created"));
+
+        assertNull(resource.adaptTo(TaskInstance.class).getDefinition());
+    }
+
     private void createDefinition(final String elementId, final String nodeResourceType)
         throws RepositoryException
     {

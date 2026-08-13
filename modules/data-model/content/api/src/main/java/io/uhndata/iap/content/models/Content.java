@@ -263,9 +263,11 @@ public class Content
      * resource type. Used to implement the "owner" accessors of the parts that are stored inside something else,
      * e.g. {@code SequenceFlow.getSource()}.
      *
-     * <p>The resource type check is not a nicety: with several models registered for one adapter type, a resource
-     * matching none of them is not rejected but handed to whichever implementation happens to come first, so
-     * adapting an unrelated parent would quietly yield a model wrapping the wrong node rather than {@code null}.</p>
+     * <p>The resource type check is not a nicety: adaptation is not a type filter at all. A model registered for
+     * one resource type will happily adapt a resource of an unrelated one — with a single implementation it is
+     * returned outright, and with several, a resource matching none of them is handed to whichever happens to
+     * come first rather than rejected. Either way, adapting an unrelated parent would quietly yield a model
+     * wrapping the wrong node rather than {@code null}.</p>
      *
      * @param resourceType the resource type (or one of its subtypes) the parent must have
      * @param type the model class the parent is adapted to

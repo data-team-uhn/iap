@@ -62,12 +62,16 @@ public class WorkflowTypesHomepage extends EntityHomepage implements AutoDocumen
      * The whole vocabulary, each entry adapted to the model of its own specific kind, ordered by label so that the
      * editor's toolbars and the documentation read the same way every time.
      *
+     * <p>Entries of no {@link #isConcrete kind at all} are left out, the same way {@link FlowNode#isConcrete}
+     * leaves out the abstract flow nodes.</p>
+     *
      * @return a list of flow node types, empty if the vocabulary has not been installed
      */
     @NotNull
     public List<FlowNodeType> getFlowNodeTypes()
     {
         return this.getChildren(FlowNodeType.RESOURCE_TYPE, FlowNodeType.class).stream()
+            .filter(WorkflowTypesHomepage::isConcrete)
             .sorted(Comparator.comparing(FlowNodeType::getDocumentationLabel))
             .toList();
     }
@@ -81,7 +85,21 @@ public class WorkflowTypesHomepage extends EntityHomepage implements AutoDocumen
     @Nullable
     public FlowNodeType getFlowNodeType(@NotNull final String name)
     {
-        return this.getChild(name, FlowNodeType.RESOURCE_TYPE, FlowNodeType.class);
+        final FlowNodeType type = this.getChild(name, FlowNodeType.RESOURCE_TYPE, FlowNodeType.class);
+        return type != null && isConcrete(type) ? type : null;
+    }
+
+    /**
+     * Whether a vocabulary entry is of one of the kinds a model stands for. {@code wf:FlowNodeType} is abstract and
+     * the resource type of no model, so an entry carrying it as its own type is of no kind at all: it matches
+     * nothing by resource type and would be handed to whichever implementation sorts first rather than rejected.
+     *
+     * @param type the entry to check
+     * @return {@code true} if the entry's own resource type is a concrete one
+     */
+    private static boolean isConcrete(@NotNull final FlowNodeType type)
+    {
+        return !FlowNodeType.RESOURCE_TYPE.equals(type.getType());
     }
 
     @Override

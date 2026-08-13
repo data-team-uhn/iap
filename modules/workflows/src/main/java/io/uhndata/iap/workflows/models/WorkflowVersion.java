@@ -124,12 +124,17 @@ public class WorkflowVersion extends Entity
      * The flow nodes making up this version's graph, each adapted to the model of its own specific type. Only the
      * top-level nodes are listed; the boundary events attached to an {@link Activity} are reached through it.
      *
+     * <p>A child carrying one of the abstract resource types is left out rather than guessed at — see
+     * {@link FlowNode#isConcrete}.</p>
+     *
      * @return a list of flow nodes, empty if this version has not been parsed
      */
     @NotNull
     public List<FlowNode> getFlowNodes()
     {
-        return this.getChildren(FlowNode.RESOURCE_TYPE, FlowNode.class);
+        return this.getChildren(FlowNode.RESOURCE_TYPE, FlowNode.class).stream()
+            .filter(FlowNode::isConcrete)
+            .toList();
     }
 
     /**
@@ -161,11 +166,13 @@ public class WorkflowVersion extends Entity
      * a {@link SequenceFlow} names its target this way, and a {@link WorkflowToken} names where it rests. Boundary
      * events are found too, even though they hang off their activity rather than off the version.
      *
-     * @param elementId the BPMN element identifier to look for
-     * @return the matching flow node, or {@code null} if this version has no node with that identifier
+     * @param elementId the BPMN element identifier to look for, which the callers read from properties that are
+     *            mandatory but may be missing on a malformed node, so it may be {@code null}
+     * @return the matching flow node, or {@code null} if this version has no node with that identifier, or none
+     *         was asked for
      */
     @Nullable
-    public FlowNode getFlowNode(@NotNull final String elementId)
+    public FlowNode getFlowNode(@Nullable final String elementId)
     {
         return findFlowNode(this.getFlowNodes(), elementId);
     }
@@ -175,12 +182,16 @@ public class WorkflowVersion extends Entity
      * each candidate. Lazily evaluated, so the search stops at the first match instead of walking the whole graph.
      *
      * @param nodes the nodes to search through
-     * @param elementId the BPMN element identifier to look for
+     * @param elementId the BPMN element identifier to look for, or {@code null}, which matches nothing — an arc
+     *            without a target names no node, and that is an absent node rather than an error
      * @return the matching flow node, or {@code null} if none of these nodes, nor anything nested in them, matches
      */
     @Nullable
-    private static FlowNode findFlowNode(@NotNull final List<FlowNode> nodes, @NotNull final String elementId)
+    private static FlowNode findFlowNode(@NotNull final List<FlowNode> nodes, @Nullable final String elementId)
     {
+        if (elementId == null) {
+            return null;
+        }
         return nodes.stream()
             .map(node -> elementId.equals(node.getElementId()) ? node : findFlowNode(node.getNestedNodes(), elementId))
             .filter(Objects::nonNull)

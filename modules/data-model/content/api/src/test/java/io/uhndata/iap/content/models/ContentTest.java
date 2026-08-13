@@ -412,8 +412,8 @@ class ContentTest
     @Test
     void returnsNullWhenTheNamedChildIsOfAnotherType()
     {
-        // Without the type check the child would still be adapted, since a resource matching no registered model
-        // is handed to whichever implementation comes first rather than rejected
+        // Without the type check the child would still be adapted: adaptation does not check the resource type, and
+        // the model registered here is returned for any resource at all
         final Resource parent = this.context.create().resource("/content/mixedChildren",
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);
         this.context.create().resource("/content/mixedChildren/other", SLING_RESOURCE_TYPE, "sling:Folder");
@@ -449,8 +449,8 @@ class ContentTest
     @Test
     void returnsNullWhenTheParentIsOfAnotherType()
     {
-        // Without the type check the parent would still be adapted, since a resource matching no registered model
-        // is handed to whichever implementation comes first rather than rejected
+        // Without the type check the parent would still be adapted: adaptation does not check the resource type, and
+        // the model registered here is returned for any resource at all
         this.context.create().resource("/content/folder", SLING_RESOURCE_TYPE, "sling:Folder");
         final Resource resource = this.context.create().resource("/content/folder/part",
             SLING_RESOURCE_TYPE, Content.RESOURCE_TYPE);

@@ -204,7 +204,10 @@ public class TaskInstance extends Entity
         return Optional.ofNullable(this.getWorkflowInstance())
             .map(WorkflowInstance::getWorkflowVersion)
             .map(version -> version.getFlowNode(this.taskDefinitionId))
+            // Both checks are needed: arriving as an Activity says only which model was built, and a node of an
+            // unclaimed resource type is built as one without being one, so the node's own type has the last word
             .filter(Activity.class::isInstance)
+            .filter(node -> node.isOfType(Activity.RESOURCE_TYPE))
             .map(Activity.class::cast)
             .orElse(null);
     }

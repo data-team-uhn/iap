@@ -103,6 +103,40 @@ class WorkflowTypesHomepageTest
     }
 
     @Test
+    void servesTheCatalogueDespiteAMalformedEntry()
+    {
+        // An entry stored as a plain node carrying a vocabulary resource type gets past the mandatory properties of
+        // the real node type. It must not take the catalogue with it: the editor's toolbars are built from this
+        final Resource resource = this.createVocabulary();
+        this.context.create().resource(PATH + "/Malformed", Map.of(TYPE, ActivityType.RESOURCE_TYPE));
+        final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
+
+        final List<FlowNodeType> types = homepage.getFlowNodeTypes();
+
+        assertEquals(4, types.size());
+        // Ordered by label, and the malformed entry sorts under the node name it falls back on
+        assertEquals("Malformed", types.get(1).getDocumentationLabel());
+        // It lands in the group its kind implies, alongside the user task, rather than in none
+        assertEquals(2, homepage.toDocumentationJson().getJsonObject("items")
+            .getJsonArray("Activities").size());
+    }
+
+    @Test
+    void ignoresAnEntryOfTheAbstractVocabularyType()
+    {
+        // wf:FlowNodeType is abstract, so an entry carrying it as its own type is of no kind at all; it matches no
+        // model, and would otherwise arrive as whichever implementation sorts first
+        final Resource resource = this.createVocabulary();
+        this.context.create().resource(PATH + "/Abstract", Map.of(
+            TYPE, FlowNodeType.RESOURCE_TYPE, "label", "Abstract", "priority", 0L));
+        final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
+
+        assertEquals(3, homepage.getFlowNodeTypes().size());
+        // The lookup by name has to agree with the listing, or an entry would be reachable one way but not the other
+        assertNull(homepage.getFlowNodeType("Abstract"));
+    }
+
+    @Test
     void listsNothingWhenTheVocabularyIsEmpty()
     {
         final Resource resource = this.context.create().resource(PATH, TYPE,

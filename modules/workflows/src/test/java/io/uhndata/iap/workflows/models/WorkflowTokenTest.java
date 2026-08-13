@@ -119,6 +119,19 @@ class WorkflowTokenTest
     }
 
     @Test
+    void hasNoCurrentNodeWhenItNamesNoNodeAtAll()
+        throws RepositoryException
+    {
+        // currentNodeId is mandatory in the node type; a token that got past that rests nowhere, which the lookup
+        // must report as no node rather than throw over
+        this.createDefinition();
+        final Resource resource = this.context.create().resource(INSTANCE_PATH + "/t1", Map.of(
+            TYPE, WorkflowToken.RESOURCE_TYPE));
+
+        assertNull(resource.adaptTo(WorkflowToken.class).getCurrentNode());
+    }
+
+    @Test
     void hasNoCurrentNodeWhenTheVersionCannotBeResolved()
     {
         this.context.create().resource(INSTANCE_PATH, TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active");

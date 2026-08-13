@@ -174,6 +174,37 @@ class WorkflowVersionTest
         assertNull(version.getFlowNode("no_such_node"));
     }
 
+    @Test
+    void returnsNullWhenNoElementIdIsAskedFor()
+    {
+        // The callers read the identifier from properties that are mandatory but can be missing on a malformed
+        // node, so a null must find nothing rather than fail the search
+        final WorkflowVersion version = this.createGraph();
+
+        assertNull(version.getFlowNode(null));
+    }
+
+    @Test
+    void leavesOutNodesOfTheAbstractTypes()
+    {
+        // Each abstract base has a /libs/wf entry, since the supertype chains are followed through them, but is the
+        // resource type of no model: such a node matches none and would arrive as whichever sorts first, an Activity
+        final WorkflowVersion version = this.createGraph();
+        this.context.create().resource(VERSION_PATH + "/abstract_1", Map.of(
+            TYPE, FlowNode.RESOURCE_TYPE, "elementId", "abstract_1"));
+        this.context.create().resource(VERSION_PATH + "/abstract_2", Map.of(
+            TYPE, Event.RESOURCE_TYPE, "elementId", "abstract_2"));
+        this.context.create().resource(VERSION_PATH + "/abstract_3", Map.of(
+            TYPE, Gateway.RESOURCE_TYPE, "elementId", "abstract_3"));
+        this.context.create().resource(VERSION_PATH + "/abstract_4", Map.of(
+            TYPE, IntermediateEvent.RESOURCE_TYPE, "elementId", "abstract_4"));
+
+        assertEquals(4, version.getFlowNodes().size());
+        assertEquals(5, version.getAllFlowNodes().size());
+        assertNull(version.getFlowNode("abstract_1"));
+        assertNull(version.getFlowNode("abstract_3"));
+    }
+
     /**
      * Builds a small but representative graph: a start event, an activity carrying a boundary event, a gateway and
      * an end event.

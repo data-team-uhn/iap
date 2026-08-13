@@ -112,6 +112,32 @@ class SequenceFlowTest
     }
 
     @Test
+    void hasNoTargetWhenItNamesNoNodeAtAll()
+    {
+        // targetRef is mandatory in the node type, but an arc that got past that names nowhere to go, which is an
+        // absent target rather than something to fail the whole lookup over
+        final Resource resource = this.context.create().resource(VERSION_PATH + "/start_1/flow_1", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_1"));
+
+        assertNull(resource.adaptTo(SequenceFlow.class).getTarget());
+    }
+
+    @Test
+    void hasNoSourceWhenItsParentIsOfAnAbstractType()
+    {
+        // wf:FlowNode is abstract, so a node carrying it is of no kind; it matches no model and would otherwise be
+        // handed back as whichever implementation sorts first
+        this.context.create().resource(VERSION_PATH + "/abstract_1", Map.of(
+            TYPE, FlowNode.RESOURCE_TYPE, "elementId", "abstract_1"));
+        final Resource resource = this.context.create().resource(VERSION_PATH + "/abstract_1/flow_1", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_1", "targetRef", "task_1"));
+        final SequenceFlow flow = resource.adaptTo(SequenceFlow.class);
+
+        assertNull(flow.getSource());
+        assertNull(flow.getTarget());
+    }
+
+    @Test
     void hasNoSourceOrTargetWhenStoredOutsideAGraph()
     {
         final Resource orphan = this.context.create().resource("/loose/flow_1", Map.of(

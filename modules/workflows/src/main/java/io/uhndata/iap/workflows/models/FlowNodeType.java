@@ -97,11 +97,12 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
     }
 
     /**
-     * The BPMN XML element this entry recognizes, e.g. {@code bpmn:startEvent}.
+     * The BPMN XML element this entry recognizes, e.g. {@code bpmn:startEvent}. Mandatory in the node type, so this
+     * is only {@code null} for an entry stored as a node of another type carrying this one's resource type.
      *
-     * @return a namespaced XML element name
+     * @return a namespaced XML element name, or {@code null} if the entry does not say what it recognizes
      */
-    @NotNull
+    @Nullable
     public String getXmlElement()
     {
         return this.xmlElement;
@@ -121,11 +122,12 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
 
     /**
      * The node type a matching XML element is stored as, e.g. {@code wf:StartEvent}. Several entries may share one,
-     * since what tells them apart afterwards is the reference back to this entry.
+     * since what tells them apart afterwards is the reference back to this entry. Mandatory in the node type, so
+     * this is only {@code null} for an entry stored as a node of another type carrying this one's resource type.
      *
-     * @return a JCR node type name
+     * @return a JCR node type name, or {@code null} if the entry does not say what it is stored as
      */
-    @NotNull
+    @Nullable
     public String getJcrNodeType()
     {
         return this.jcrNodeType;
@@ -168,11 +170,18 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
         return this.properties == null ? List.of() : List.of(this.properties);
     }
 
+    /**
+     * The human-readable name of this entry, e.g. "Message Start Event". Mandatory in the node type, so the
+     * fallback is only reached by an entry stored as a node of another type carrying this one's resource type —
+     * which must still be listed under a name rather than taking the catalogue down with it.
+     *
+     * @return the configured label, or the node name if none is set
+     */
     @Override
     @NotNull
     public String getDocumentationLabel()
     {
-        return this.label;
+        return this.label == null ? this.getName() : this.label;
     }
 
     @Override
@@ -214,15 +223,23 @@ public abstract class FlowNodeType extends Entity implements DocumentedItem
      * map it back onto BPMN: the {@code priority}, the {@code xmlElement} and {@code xmlChildElement} it stands
      * for, and the {@code jcrNodeType} it is stored as, plus the {@code jcrProperties} and {@code properties} when
      * the entry declares any.</p>
+     *
+     * <p>Every one of them is added only once there is something to add, the mandatory ones included: an entry
+     * missing them is malformed, and the catalogue serving the rest of the vocabulary without it is a better
+     * answer than no catalogue at all.</p>
      */
     @Override
     @NotNull
     public JsonObjectBuilder documentationJsonBuilder()
     {
         final JsonObjectBuilder json = DocumentedItem.super.documentationJsonBuilder()
-            .add("priority", this.getPriority())
-            .add("xmlElement", this.getXmlElement())
-            .add("jcrNodeType", this.getJcrNodeType());
+            .add("priority", this.getPriority());
+        if (this.getXmlElement() != null) {
+            json.add("xmlElement", this.getXmlElement());
+        }
+        if (this.getJcrNodeType() != null) {
+            json.add("jcrNodeType", this.getJcrNodeType());
+        }
         if (this.getXmlChildElement() != null) {
             json.add("xmlChildElement", this.getXmlChildElement());
         }

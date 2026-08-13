@@ -118,14 +118,16 @@ public class SequenceFlow extends EntityPart
     }
 
     /**
-     * The node this arc leaves, which is simply its parent.
+     * The node this arc leaves, which is simply its parent. A parent carrying one of the abstract resource types
+     * counts as no source rather than as a guessed-at one — see {@link FlowNode#isConcrete}.
      *
      * @return the source flow node, or {@code null} if this arc is stored outside one
      */
     @Nullable
     public FlowNode getSource()
     {
-        return this.getParent(FlowNode.RESOURCE_TYPE, FlowNode.class);
+        final FlowNode source = this.getParent(FlowNode.RESOURCE_TYPE, FlowNode.class);
+        return source != null && FlowNode.isConcrete(source) ? source : null;
     }
 
     /**

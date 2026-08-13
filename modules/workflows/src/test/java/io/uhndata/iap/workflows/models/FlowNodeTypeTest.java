@@ -193,6 +193,32 @@ class FlowNodeTypeTest
     }
 
     @Test
+    void fallsBackOnTheNodeNameWhenAnEntryHasNoLabel()
+    {
+        // label is mandatory in the node type, but an entry stored as another node type carrying this resource type
+        // gets past that; it must still be listable, since the label is what the catalogue is ordered by
+        final FlowNodeType type = this.createType("UnlabelledEntry", ActivityType.RESOURCE_TYPE, Map.of());
+
+        assertEquals("UnlabelledEntry", type.getDocumentationLabel());
+        assertEquals("UnlabelledEntry", type.toDocumentationJson().getString("label"));
+    }
+
+    @Test
+    void serializesAnEntryMissingTheFieldsItMustHave()
+    {
+        // Serving the rest of the vocabulary without a malformed entry's parser fields beats serving no catalogue
+        final FlowNodeType type = this.createType("Malformed", ActivityType.RESOURCE_TYPE, Map.of());
+
+        final JsonObject json = type.toDocumentationJson();
+
+        assertNull(type.getXmlElement());
+        assertNull(type.getJcrNodeType());
+        assertFalse(json.containsKey("xmlElement"));
+        assertFalse(json.containsKey("jcrNodeType"));
+        assertEquals("Malformed", json.getString("name"));
+    }
+
+    @Test
     void adaptsEveryConcreteEntryKindToItsOwnModel()
     {
         assertEquals(CatchingEventType.class,
