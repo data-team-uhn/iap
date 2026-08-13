@@ -18,6 +18,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import WorkflowsWidget from "@iap/workflows/WorkflowsWidget";
 
 const listing = {
@@ -37,11 +38,20 @@ const listing = {
   },
 };
 
+// The listing goes through useAuthenticatedFetch, so the answer carries the `url` it came back from:
+// that is how the login page an expired session is redirected to is recognised.
 const stubFetch = (body: unknown) =>
-  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-    ok: true, status: 200, statusText: "OK",
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve({
+    ok: true, status: 200, statusText: "OK", url,
     json: () => Promise.resolve(body),
   } as unknown as Response)));
+
+// A server that answers everything with the same failure, while reporting the session as live: what
+// makes the failure the server's own rather than a lapsed session to be recovered from.
+const stubFailingFetch = (status: number, statusText: string) =>
+  vi.stubGlobal("fetch", vi.fn((url: string) => Promise.resolve((url === SESSION_INFO_URL
+    ? { ok: true, status: 200, url, json: () => Promise.resolve({ userID: "admin" }) }
+    : { ok: false, status, statusText, url }) as unknown as Response)));
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -56,9 +66,7 @@ describe("WorkflowsWidget", () => {
   });
 
   it("reports a loading failure without crashing the console, and says why", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-      ok: false, status: 500, statusText: "Server Error",
-    } as unknown as Response)));
+    stubFailingFetch(500, "Server Error");
     render(<WorkflowsWidget />);
 
     const report = await screen.findByRole("alert");
@@ -69,9 +77,7 @@ describe("WorkflowsWidget", () => {
   });
 
   it("reloads the listing when the load failure's Retry is used", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
-      ok: false, status: 500, statusText: "Server Error",
-    } as unknown as Response)));
+    stubFailingFetch(500, "Server Error");
     render(<WorkflowsWidget />);
     await screen.findByRole("alert");
 

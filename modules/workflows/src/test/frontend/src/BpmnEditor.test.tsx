@@ -21,6 +21,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { ReLoginContext, type RequestReLogin } from "@iap/frontend-commons/reLogin";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
 
 // bpmn-js drives an SVG canvas that jsdom cannot lay out, and the editor only ever talks to it
@@ -105,9 +106,13 @@ const uploadedBpmn = async (body: FormData) => {
   return part instanceof File ? await part.text() : part;
 };
 
-const renderEditor = () => render(
+// Rendered with nothing to sign in with unless a test says otherwise, which is the arrangement most
+// of these need: `signIn` stands in for the provider the application mounts above the router.
+const renderEditor = (signIn: RequestReLogin | null = null) => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
-    <BpmnEditor />
+    <ReLoginContext value={signIn}>
+      <BpmnEditor />
+    </ReLoginContext>
   </ThemeProvider>
 );
 
@@ -732,6 +737,31 @@ describe("BpmnEditor", () => {
       expect(notice).toHaveTextContent('"Approval (v1.0)" could not be saved');
       expect(notice).toHaveTextContent(/Not authenticated/);
       expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+    });
+
+    // With a sign-in to offer - as there is in the application, from the provider mounted above the
+    // router - the save is re-sent instead of reported. This is the case the whole mechanism exists
+    // for: editing a diagram easily outlasts a session, and the editor holds the only copy of it.
+    it("re-sends a save once the user has signed back in", async () => {
+      const user = userEvent.setup();
+      const signIn = vi.fn<RequestReLogin>().mockResolvedValue(true);
+      renderEditor(signIn);
+      const dialog = await openLoadDialog(user);
+      await waitFor(() => { expect(within(dialog).getByText("Approval")).toBeInTheDocument(); });
+      fetchMock.mockResolvedValueOnce(fileResponse(WORKFLOW_XML));
+      await user.click(within(dialog).getByText("Approval"));
+      await screen.findByText('Loaded "Approval" v1.0');
+      await waitForDialogToClose();
+
+      fetchMock
+        .mockResolvedValueOnce({ ok: false, status: 401, url: "", headers: new Headers() })
+        .mockResolvedValueOnce(postResponse());
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(await screen.findByText('Saved "Approval (v1.0)"')).toBeInTheDocument();
+      expect(signIn).toHaveBeenCalled();
+      // The diagram was posted again, rather than the user being left to press Save a second time
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     });
   });
 });

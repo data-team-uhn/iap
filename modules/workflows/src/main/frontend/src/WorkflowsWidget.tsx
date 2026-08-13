@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CircularProgress, List, ListItem, ListItemText, Typography } from "@mui/material";
 
 import LoadError from "@iap/frontend-commons/components/LoadError";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { WORKFLOWS_ROOT, parseWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
@@ -32,8 +33,10 @@ function WorkflowsWidget() {
   const [ versions, setVersions ] = useState<WorkflowVersionSummary[]>();
   const [ loadError, setLoadError ] = useState<string>();
 
+  const authenticatedFetch = useAuthenticatedFetch();
+
   const load = useCallback((): Promise<void> =>
-    fetch(`${WORKFLOWS_ROOT}.2.json`)
+    authenticatedFetch(`${WORKFLOWS_ROOT}.2.json`)
       .then(response => {
         if (!response.ok) {
           throw new RequestError(response.status);
@@ -46,7 +49,7 @@ function WorkflowsWidget() {
       })
       .catch((error: unknown) => {
         setLoadError(describeRequestFailure(error));
-      }), []);
+      }), [authenticatedFetch]);
 
   useEffect(() => {
     void load();
