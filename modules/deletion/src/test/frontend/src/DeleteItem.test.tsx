@@ -24,6 +24,7 @@ import userEvent from "@testing-library/user-event";
 
 import DeleteItem from "@iap/deletion/DeleteItem";
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { ReLoginContext } from "@iap/frontend-commons/reLogin";
 
 const PATH = "/content/victim";
 
@@ -85,7 +86,7 @@ describe("DeleteItem", () => {
     await openDialog(user);
 
     // The preview is a dry run, so nothing has been deleted merely by opening the dialog
-    const url = fetchMock.mock.calls[0][0] as URL;
+    const url = new URL(fetchMock.mock.calls[0][0] as string);
     expect(url.searchParams.get("dryRun")).toBe("true");
     expect(screen.getByText(/You are about to delete submission "My submission"/)).toBeInTheDocument();
     expect(screen.getByText(/moved to the archive/)).toBeInTheDocument();
@@ -113,7 +114,7 @@ describe("DeleteItem", () => {
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(expect.objectContaining({ status: "archived" })));
-    const url = fetchMock.mock.calls[1][0] as URL;
+    const url = new URL(fetchMock.mock.calls[1][0] as string);
     expect(url.searchParams.has("dryRun")).toBe(false);
     expect(url.searchParams.has("recursive")).toBe(false);
   });
@@ -132,7 +133,7 @@ describe("DeleteItem", () => {
 
     // Taking the referring resources along is exactly what the recursive option is for
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect((fetchMock.mock.calls[1][0] as URL).searchParams.get("recursive")).toBe("true");
+    expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("recursive")).toBe("true");
   });
 
   it("states a veto and offers no way to override it", async () => {
@@ -213,6 +214,34 @@ describe("DeleteItem", () => {
     await user.click(screen.getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+  });
+
+  // The reason these requests go through useAuthenticatedFetch: a deletion is the request you least
+  // want to lose to a session that expired while the confirmation dialog was open. The recovery
+  // itself is covered in reLogin.test.tsx; what matters here is that the deletion takes part in it.
+  it("recovers a deletion from a session that expired while it was being confirmed", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(dryRun())
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(jsonResponse(200, archived));
+    const signIn = vi.fn().mockResolvedValue(true);
+    const onDeleted = vi.fn();
+    render(
+      <ThemeProvider theme={appTheme} defaultMode="light">
+        <ReLoginContext.Provider value={signIn}>
+          <DeleteItem path={PATH} type="submission" onDeleted={onDeleted} />
+        </ReLoginContext.Provider>
+      </ThemeProvider>
+    );
+
+    await openDialog(user);
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(expect.objectContaining({ status: "archived" })));
+    expect(signIn).toHaveBeenCalled();
+    // The DELETE was re-sent, not merely retried by the user: three calls for two intended requests
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("reports a deletion that could not be sent", async () => {

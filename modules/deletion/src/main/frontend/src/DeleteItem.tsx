@@ -35,6 +35,7 @@ import {
 
 import ErrorDialog from "@iap/frontend-commons/components/ErrorDialog";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { requestDeletion, type DeletionResponse } from "./deletionApi";
 
@@ -91,6 +92,8 @@ const DeleteItem = (props: DeleteItemProps) => {
     onClose
   } = props;
 
+  const authenticatedFetch = useAuthenticatedFetch();
+
   const [ open, setOpen ] = useState(false);
   const [ impact, setImpact ] = useState<DeletionResponse | null>(null);
   const [ busy, setBusy ] = useState(false);
@@ -130,7 +133,7 @@ const DeleteItem = (props: DeleteItemProps) => {
     setOpen(true);
     setImpact(null);
     setBusy(true);
-    requestDeletion(path, { permanent, dryRun: true })
+    requestDeletion(authenticatedFetch, path, { permanent, dryRun: true })
       .then(outcome => setImpact(outcome))
       .catch((err: unknown) => {
         console.error("Could not determine what deleting %s would do", path, err);
@@ -143,7 +146,7 @@ const DeleteItem = (props: DeleteItemProps) => {
 
   const confirm = (recursive: boolean) => {
     setBusy(true);
-    requestDeletion(path, { permanent, recursive })
+    requestDeletion(authenticatedFetch, path, { permanent, recursive })
       .then(outcome => {
         switch (outcome.status) {
           // "missing" counts as done: the caller wanted it absent, and it is
