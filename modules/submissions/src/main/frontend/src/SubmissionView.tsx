@@ -18,8 +18,20 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 
-import { Alert, Box, Divider, Link, Paper, Stack, Typography } from "@mui/material";
-import { Link as RouterLink, useLocation } from "react-router";
+import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import {
+  Alert,
+  Box,
+  Divider,
+  Link,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography
+} from "@mui/material";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import TagChip from "@iap/tags/TagChip";
@@ -191,6 +203,7 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
 // documents and the reviews. Editing is deliberately out of scope for now.
 function SubmissionView() {
   const location = useLocation();
+  const navigate = useNavigate();
   // The page URL is the submission's repository path (a trailing .html is tolerated). A trailing
   // `.edit` asks for the editor: which view of a submission is shown is addressed the way every
   // other view here is, by extension rather than by a query parameter, and the server serves the
@@ -205,6 +218,8 @@ function SubmissionView() {
   const [loadedPath, setLoadedPath] = useState<string>();
   const loading = loadedPath !== path;
 
+  // Reading depends on the mode as well as the path, and not only so that leaving the editor fetches
+  // at all: the editor saves as it goes, so whatever it changed is what coming back here should show.
   useEffect(() => {
     if (editing) {
       return undefined;
@@ -236,16 +251,65 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, editing]);
+
+  // Reading and filling in are two modes of the same page, so the way between them belongs to the
+  // page rather than to either mode — and it is rendered whatever the page is doing, because the
+  // states with nothing to show are exactly the ones somebody needs a way out of. Before this, the
+  // editor was reachable only from a listing and, once open, offered no way back at all.
+  const header = (
+    <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+      <Link component={RouterLink} to="/">← Back to the dashboard</Link>
+      <ToggleButtonGroup
+        exclusive
+        value={editing ? "edit" : "view"}
+        // An exclusive group reports null when the selected button is clicked again. That is a
+        // deselection, and there is no third mode to land in, so it leaves the page as it is.
+        onChange={(_event, next: string | null) => {
+          if (next) {
+            void navigate(next === "edit" ? `${path}${EDIT}` : path);
+          }
+        }}
+        aria-label="How to show this submission"
+      >
+        <ToggleButton value="view">
+          <VisibilityIcon fontSize="small" sx={{ mr: 0.5 }} />
+          View
+        </ToggleButton>
+        {/* Offered to whoever is looking. Whether it can actually be edited is the server's answer,
+            given by the form it serves, and the editor says so plainly when it may not be — the same
+            rule the listing's Edit action follows. */}
+        <ToggleButton value="edit">
+          <EditIcon fontSize="small" sx={{ mr: 0.5 }} />
+          Edit
+        </ToggleButton>
+      </ToggleButtonGroup>
+    </Stack>
+  );
 
   if (editing) {
-    return <SubmissionEditor path={path} />;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <SubmissionEditor path={path} />
+      </Stack>
+    );
   }
   if (loading) {
-    return <LoadingOverlay open />;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <LoadingOverlay open />
+      </Stack>
+    );
   }
   if (error || !submission) {
-    return <Alert severity="error">{error ?? "This submission cannot be displayed"}</Alert>;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <Alert severity="error">{error ?? "This submission cannot be displayed"}</Alert>
+      </Stack>
+    );
   }
 
   const schemaVersion = isNode(submission.schemaVersion) ? submission.schemaVersion : undefined;
@@ -261,9 +325,9 @@ function SubmissionView() {
 
   return (
     <Stack spacing={2}>
+      {header}
       <Box>
-        <Link component={RouterLink} to="/">← Back to the dashboard</Link>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "center", mt: 1 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>
           <TagChip tags={submission.tags} category="lifecycle" />
         </Stack>
