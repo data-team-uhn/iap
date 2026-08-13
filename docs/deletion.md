@@ -45,11 +45,32 @@ guard cannot decide, the data stays. A typical future use is protecting workflow
 ever been activated.
 
 The requester's session is what lets a guard answer "*who* may do this", as opposed to "*what* may
-be done": identity through `getUserID()`, group membership through
-`JackrabbitSession.getUserManager()`, e.g. a policy that permanently deleting anything is reserved
-to a named group. Note the two sessions in play — the node is read through the privileged
-`iap-deletion` session and may well be invisible to the requester, whose own rights are checked
-separately, node by node, before any guard is consulted. Guards must not write through either.
+be done": identity through `getUserID()`, and what the session acts as through
+`JackrabbitSession.getBoundPrincipals()`. Note the two sessions in play — the node is read through
+the privileged `iap-deletion` session and may well be invisible to the requester, whose own rights
+are checked separately, node by node, before any guard is consulted. Guards must not write through
+either.
+
+> Prefer bound principals to a `UserManager` membership lookup when a guard asks what a user
+> belongs to. With `user.dynamicMembership` enabled — which is how this platform is configured —
+> an identity provider's roles reach the repository as principals with **no local group node**
+> behind them, so `getAuthorizable(id).memberOf()` reports that a Keycloak role's members belong
+> to nothing at all. Bound principals cover local groups and provider-supplied roles alike.
+
+### Permanent deletion
+
+`Permanent deletion policy` (`PermanentDeletionConfiguration`) can refuse permanent deletions —
+the one kind that leaves nothing in the archive to restore — while leaving archiving untouched: a
+user refused here can still delete the resource in the ordinary, recoverable way. It is off by
+default, leaving the decision to access control alone.
+
+`allowedPrincipals` lists user ids and principal names exempt from the ban, group and
+identity-provider principals included. It is an **exemption, never a grant**: a veto can only
+refuse, so an exempt user still needs exactly the access rights any deletion requires, and with
+the ban off the list means nothing. An empty list with the ban on refuses everybody.
+
+Because guards are asked about every impacted node, a refused deletion reports one objection per
+node rather than one for the operation; they carry the same reason and differ only in path.
 
 ## The archive
 
