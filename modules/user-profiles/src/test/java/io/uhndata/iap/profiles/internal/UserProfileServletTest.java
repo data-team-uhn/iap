@@ -20,6 +20,7 @@ package io.uhndata.iap.profiles.internal;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -265,6 +266,26 @@ class UserProfileServletTest
 
         verify(this.response).setStatus(SlingJakartaHttpServletResponse.SC_OK);
         assertTrue(this.body.toString().contains("\"status\":\"success\""));
+    }
+
+    @Test
+    void leavesOutTheParametersThatAreTheRequestsOwn() throws Exception
+    {
+        final Map<String, String[]> posted = new HashMap<>();
+        posted.put("email", new String[] { "jdoe@example.org" });
+        posted.put("_charset_", new String[] { "UTF-8" });
+        posted.put(":operation", new String[] { "import" });
+        when(this.request.getParameterMap()).thenReturn(posted);
+        when(this.profiles.update(any(), any(), any()))
+            .thenReturn(Optional.of(new UpdateOutcome(List.of("email"), Map.of())));
+
+        this.servlet.doPost(this.request, this.response);
+
+        // Everything named here is refused whole when one field is unknown, so a form's own parameters would
+        // otherwise turn every save into a refusal
+        final ArgumentCaptor<Map<String, String[]>> asked = ArgumentCaptor.captor();
+        verify(this.profiles).update(any(), any(), asked.capture());
+        assertEquals(Set.of("email"), asked.getValue().keySet());
     }
 
     @Test

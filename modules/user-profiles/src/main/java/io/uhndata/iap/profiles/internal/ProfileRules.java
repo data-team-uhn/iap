@@ -78,15 +78,17 @@ final class ProfileRules
             fields.add(field);
             serialized.add(describe(definition, field));
         }
-        final Set<String> principals = AccountFacts.principalNames(account);
+        // What a persona chooser will read: whether somebody may act as a reviewer is a question about the principals
+        // they hold, and this is the one place that already has to know them. Withheld from anybody else, because
+        // which groups and identity provider roles a person holds is exactly the kind of thing reading their home
+        // node used to give away, and no field rule in the catalogue governs it
+        final Set<String> principals = self || admin ? AccountFacts.principalNames(account) : Set.of();
         final JsonArrayBuilder held = Json.createArrayBuilder();
         principals.forEach(held::add);
         final String json = Json.createObjectBuilder()
             .add("account", account.getID())
             .add("external", idp != null)
             .add("idp", idp == null ? "" : idp)
-            // What a persona chooser will read: whether somebody may act as a reviewer is a question about the
-            // principals they hold, and this is the one place that already has to know them
             .add("principals", held)
             .add("fields", serialized)
             .build().toString();
@@ -107,8 +109,8 @@ final class ProfileRules
     private static JsonObjectBuilder describe(@NotNull final ProfileFieldDefinition definition,
         @NotNull final ProfileField field)
     {
+        // The name is already there, put in by the base documentation serialization
         final JsonObjectBuilder json = definition.documentationJsonBuilder()
-            .add("name", field.getName())
             .add("readable", field.isReadable())
             .add("editable", field.isEditable())
             .add("provenance", field.getProvenance().name().toLowerCase(Locale.ROOT));

@@ -81,6 +81,12 @@ class Accounts
     Authorizable find(@NotNull final ResourceResolver resolver, @NotNull final String accountId)
         throws RepositoryException
     {
+        // Answered here rather than left to the user management, which reports an empty id by throwing an
+        // IllegalArgumentException -- an unchecked one, which would escape the service and be served as a 500 where
+        // "there is no such person" is the honest answer
+        if (accountId.isBlank()) {
+            return null;
+        }
         final UserManager users = userManager(resolver);
         final Authorizable found = users == null ? null : users.getAuthorizable(accountId);
         // A group has no profile, and answering for one would invite a caller to treat the two as interchangeable
