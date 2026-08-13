@@ -27,14 +27,14 @@ const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
 function duration(value: string[] = []) {
   return {
     name: "duration", type: QUESTION, path: "details/duration", text: "Is this several days?",
-    dataType: "text", required: true, multiple: false, value,
+    dataType: "text", required: true, multiple: false, options: [], value,
   };
 }
 
 function endDate() {
   return {
     name: "endDate", type: QUESTION, path: "details/endDate", text: "Which day are you back?",
-    dataType: "date", required: true, multiple: false, value: [] as string[],
+    dataType: "date", required: true, multiple: false, options: [], value: [] as string[],
   };
 }
 

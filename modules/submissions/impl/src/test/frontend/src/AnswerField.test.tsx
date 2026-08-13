@@ -31,6 +31,7 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
     dataType: "date",
     required: false,
     multiple: false,
+    options: [],
     value: [],
     ...overrides,
   };
@@ -80,9 +81,38 @@ describe("AnswerField", () => {
     rerender(<AnswerField question={question({ dataType: "long" })} state="idle" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "number");
 
-    // Anything the schema declares that this does not know about is still answerable as text
-    rerender(<AnswerField question={question({ dataType: "invented" })} state="idle" onAnswered={vi.fn()} />);
+    rerender(<AnswerField question={question({ dataType: "text" })} state="idle" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "text");
+  });
+
+  // Deliberately not a text box: typing into an input never meant for this question stores a value
+  // the schema does not accept, and nothing notices until a condition somewhere stops matching
+  it("says so when a question asks for something it has no way to answer", () => {
+    render(<AnswerField question={question({ dataType: "invented" })} state="idle" onAnswered={vi.fn()} />);
+
+    expect(screen.getByText(/asks for invented, which cannot be answered here/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Which day/)).not.toBeInTheDocument();
+  });
+
+  // Offering answers says more about a question than its data type does, so the choice component
+  // outbids the one that would otherwise have typed it in
+  it("offers the answers a question declares instead of a box to type in", async () => {
+    const answered = vi.fn();
+    render(<AnswerField
+      question={question({
+        dataType: "text",
+        options: [ { value: "half-day", label: "Half day" }, { value: "multiple-days", label: "Several days" } ],
+      })}
+      state="idle"
+      onAnswered={answered}
+    />);
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: /Which day/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("radio", { name: "Several days" }));
+
+    // The option's value, not the label the submitter read
+    expect(answered).toHaveBeenCalledWith([ "multiple-days" ]);
   });
 
   it("takes several values one per line, dropping the blank ones", async () => {
@@ -131,6 +161,20 @@ describe("AnswerField", () => {
     rerender(
       <AnswerField question={question({ dataType: "text", value: [ "full day" ] })} state="saved" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveValue("full day");
+  });
+
+  it("tells a regrouped multi-value answer from the same text stored as one value", () => {
+    // The values are compared as one joined string, so the separator has to be a character an answer
+    // cannot contain. Joining on a space would make [ "Monday", "Tuesday" ] and [ "Monday Tuesday" ]
+    // equal, and a re-read that regrouped them would leave the field showing the grouping it replaced.
+    const many = { dataType: "text", multiple: true };
+    const { rerender } = render(
+      <AnswerField question={question({ ...many, value: [ "Monday", "Tuesday" ] })} state="saved" onAnswered={vi.fn()} />);
+    expect(screen.getByLabelText(/Which day/)).toHaveValue("Monday\nTuesday");
+
+    rerender(
+      <AnswerField question={question({ ...many, value: [ "Monday Tuesday" ] })} state="saved" onAnswered={vi.fn()} />);
+    expect(screen.getByLabelText(/Which day/)).toHaveValue("Monday Tuesday");
   });
 
   it("cannot be answered when the request may no longer be changed", () => {
