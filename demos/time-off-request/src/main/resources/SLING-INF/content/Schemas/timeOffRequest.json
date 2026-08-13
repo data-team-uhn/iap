@@ -15,9 +15,23 @@
       "duration": {
         "jcr:primaryType": "sch:Question",
         "text": "Is this a half day, a full day, or several days?",
-        "description": "Answer with 'half day', 'full day' or 'multiple days'.",
         "dataType": "text",
-        "required": true
+        "required": true,
+        "halfDay": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "half-day",
+          "label": "Half day"
+        },
+        "fullDay": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "full-day",
+          "label": "Full day"
+        },
+        "multipleDays": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "multiple-days",
+          "label": "Several days"
+        }
       },
       "startDate": {
         "jcr:primaryType": "sch:Question",
@@ -40,16 +54,30 @@
           },
           "operandB": {
             "jcr:primaryType": "cond:ConditionOperand",
-            "value": [ "multiple days" ]
+            "value": [ "multiple-days" ]
           }
         }
       },
       "absenceType": {
         "jcr:primaryType": "sch:Question",
         "text": "What kind of absence is this?",
-        "description": "Answer with 'personal', 'vacation' or 'sick'.",
         "dataType": "text",
-        "required": true
+        "required": true,
+        "personal": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "personal",
+          "label": "Personal"
+        },
+        "vacation": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "vacation",
+          "label": "Vacation"
+        },
+        "sick": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "sick",
+          "label": "Sick leave"
+        }
       }
     },
     "doctorsNote": {
