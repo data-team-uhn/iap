@@ -26,20 +26,110 @@
   </parent>
 
   <artifactId>iap-submissions-impl</artifactId>
-  <!--
-    Today this module owns the submissions UI and nothing else: the frontend is collected into the
-    aggregated bundle by webpack_script.py rather than packaged here, so this builds no artifact
-    worth deploying and is deliberately absent from the feature model.
-
-    It exists as a module anyway because the UI has to live somewhere real. Its previous home,
-    modules/submissions/, is a `pom` aggregator: Maven builds no sources there at all, so those
-    files were reachable only by the aggregation script walking directories, outside the reactor
-    that checks and packages everything else.
-
-    The handlers and endpoints serving that UI are being written on the workflow engine branch and
-    land here, alongside it, which is also why `impl` rather than folding the UI into `api`.
-  -->
-  <packaging>jar</packaging>
+  <packaging>bundle</packaging>
   <name>IAP - Submissions - Implementation</name>
-  <description>The submissions UI, and in time the handlers and endpoints serving it.</description>
+  <description>The submissions UI, and the handlers and endpoints serving it.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-submissions-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-schemas-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Test-only: the handlers read a submission's lifecycle state through the model, and the tests stand in
+         for the tags service the model delegates to -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- The form projection leaves out whatever does not currently apply, which the schema's
+         conditions decide -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-conditions</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-content-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- A Submission is an Entity, so reading one back through the model needs the hierarchy on the
+         compile classpath even where this code never names Entity itself -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-entities-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- The handlers are service tasks the workflow engine calls, and a submission is raised and
+         filled in by a workflow rather than by writing to it -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-workflows</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Submissions are filed under a prefix tree, so that no single parent holds every one -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.servlets.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.json</groupId>
+      <artifactId>jakarta.json-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>javax.jcr</groupId>
+      <artifactId>jcr</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.parsson</groupId>
+      <artifactId>parsson</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.framework</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 </project>

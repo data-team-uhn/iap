@@ -96,10 +96,7 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>
       <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.osgi</groupId>
-      <artifactId>org.osgi.service.component.annotations</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
@@ -118,10 +115,6 @@
     <dependency>
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.servlets.annotations</artifactId>
     </dependency>
     <!-- A JSON-P implementation: the API alone cannot build a JsonObject -->
     <dependency>
@@ -152,6 +145,7 @@
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>
