@@ -30,15 +30,16 @@ import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.models.EndEvent;
+import io.uhndata.iap.workflows.models.FlowNode;
 
 /**
- * Records on the resource a workflow drives what finishing meant, by placing the end event's tag on it.
+ * Records on the resource a workflow drives what reaching a node meant, by placing that node's tag on it.
  *
  * <p>Where {@link HostAccess} materializes a workflow's declarations as read access, this materializes them as
- * state: a process that ends one way rather than another is usually the only thing that knows what that means to
- * the thing being processed, and saying so on the end event keeps it beside the arc that leads there instead of in
- * a service task whose only job is to write it down.</p>
+ * state: a process arriving somewhere is usually the only thing that knows what that means to the thing being
+ * processed, and saying so on the node keeps it beside the arc that leads there instead of in a service task whose
+ * only job is to write it down. Most often that node is an end event — a decision <em>is</em> a way of finishing —
+ * but a user task carries a state too, the one its host is in for as long as the task waits.</p>
  *
  * <p>The state is a tag rather than a property, so it is defined once under {@code /Tags} — with its label, colour
  * and ordering — and read by anything that displays content's state, instead of every reader having to know a
@@ -61,20 +62,20 @@ final class HostLifecycle
     }
 
     /**
-     * Places an end event's tag on the resource the finishing instance was driving.
+     * Places a flow node's tag on the resource the instance is driving.
      *
      * <p>The tag is placed with the platform's own authority: most lifecycle states are declared as system tags
      * precisely so that nothing but the workflow managing them can claim one. The change is made in memory only,
      * since the engine owns the single commit that the whole delivery either lands or reverts as.</p>
      *
-     * @param host the resource the instance was driving
-     * @param end the end event the instance reached, which must name a tag
+     * @param host the resource the instance is driving
+     * @param node the flow node the instance reached, which must name a tag
      * @throws WorkflowException when the host cannot carry tags at all, or not this one
      * @throws PersistenceException when the host cannot be written
      */
-    static void record(final Resource host, final EndEvent end) throws WorkflowException, PersistenceException
+    static void record(final Resource host, final FlowNode node) throws WorkflowException, PersistenceException
     {
-        final String tagName = end.getHostTag();
+        final String tagName = node.getHostTag();
         // Every resource adapts to Taggable — the mixin decides what may be tagged, not the model — so this is an
         // assertion rather than a case: a null here would mean the tags module is not in the running system at all
         final Taggable taggable = Objects.requireNonNull(host.adaptTo(Taggable.class),
@@ -83,7 +84,7 @@ final class HostLifecycle
         final Set<String> retired = Set.copyOf(vocabulary.stream()
             .filter(definition -> definition.getName().equals(tagName))
             .findFirst()
-            .orElseThrow(() -> new WorkflowDefinitionException("The end event " + end.getElementId()
+            .orElseThrow(() -> new WorkflowDefinitionException("The flow node " + node.getElementId()
                 + " places the tag " + tagName + " on " + host.getPath()
                 + ", which is not a tag that may go there"))
             .getCategories());
