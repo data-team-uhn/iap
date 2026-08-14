@@ -22,8 +22,10 @@ for instance, lists the current top-level categories) leading into the tool's ow
 ## Contributing a tool
 
 A tool registers **two** [extension](ui-extensions.md) nodes: the `iap/adminDashboard/entry` widget,
-and an `iap/coreUI/view` extension routing its page, conventionally under `/admin/<tool>`. As for
-any routed view, that URL has to be backed by a resource so a refresh or a deep link resolves — see
+and an `iap/coreUI/view` extension routing its page, conventionally under `/admin/<tool>`. It needs
+nothing in the repository behind that URL: the console serves every path below `/admin` from itself
+through `AdminViewResourceProvider`, so a refresh or a deep link resolves without a node per tool,
+and the tool's pages may nest as deeply as they like — see
 [the note on routed views](ui-extensions.md#the-routed-views).
 
 Wrap the page's content in the shared `AdminScreen` chrome (`@iap/admin-console/AdminScreen`), which

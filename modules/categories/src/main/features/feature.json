@@ -26,9 +26,6 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (cat:CategoriesHomepage) /Categories",
-        // The page behind the category manager view; /admin itself belongs to the admin console.
-        // TODO: Remove this when the virtual /admin/** resources are merged
-        "create path (iap:Homepage) /admin/categories",
         // Submitters have to browse the tree to pick the category they file under, and the
         // descriptions are written for them, so the whole tree is world-readable.
         // TODO: Update when the workflow engine becomes responsible for listing categories
