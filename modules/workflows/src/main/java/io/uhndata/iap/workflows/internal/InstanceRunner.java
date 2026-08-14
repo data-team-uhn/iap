@@ -173,8 +173,15 @@ final class InstanceRunner
         FlowNode node = from;
         for (int step = 0; step < MAX_STEPS; step++) {
             modifiable(token).put(CURRENT_NODE_ID, node.getElementId());
+            if (node.getHostTag() != null) {
+                // On arrival, and for every kind of node: what a host's state is depends on where its process has
+                // got to, so the state changes as the token does. A node the walk only passes through therefore
+                // leaves a state that lasts an instant, which is exactly right — the lasting ones are on the nodes
+                // execution stops at, and those are the ones anybody ever sees.
+                HostLifecycle.record(hostOf(instance), node);
+            }
             if (node instanceof EndEvent) {
-                finish(instance, token, (EndEvent) node);
+                finish(instance, token);
                 return;
             }
             if (node instanceof Activity && ((Activity) node).getHandler() == null) {
@@ -265,25 +272,19 @@ final class InstanceRunner
     }
 
     /**
-     * Ends the instance: the token is spent, and if the end event says what finishing this way means, the host is
-     * told.
+     * Ends the instance: the token is spent and the instance is closed. What finishing this way meant to the host
+     * has already been recorded by the walk that arrived here, the same way it is for any other node.
      *
      * @param instance the running instance
      * @param token the token that arrived
-     * @param end the end event reached
-     * @throws WorkflowException when the end event names a tag the host cannot carry
      * @throws PersistenceException when the instance cannot be written
      */
-    private void finish(final Resource instance, final Resource token, final EndEvent end)
-        throws WorkflowException, PersistenceException
+    private void finish(final Resource instance, final Resource token) throws PersistenceException
     {
         this.resolver.delete(token);
         final ModifiableValueMap properties = modifiable(instance);
         properties.put(STATUS, COMPLETED);
         properties.put(END_TIME, Calendar.getInstance());
-        if (end.getHostTag() != null) {
-            HostLifecycle.record(host(instance), end);
-        }
     }
 
     /**
@@ -301,6 +302,9 @@ final class InstanceRunner
             TYPE, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
+            // Copied so the task states its own terms: whoever has to do it can read it without being able to read
+            // the definition, and what it offers cannot change under them while it waits
+            "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
             STATUS, "created",
             START_TIME, Calendar.getInstance()));
     }
@@ -396,7 +400,7 @@ final class InstanceRunner
      * @param instance the running instance
      * @return the host resource
      */
-    private Resource host(final Resource instance)
+    static Resource hostOf(final Resource instance)
     {
         return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
             "An instance always lives in a container").getParent(), "A container always lives in its host");
