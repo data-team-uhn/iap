@@ -152,6 +152,15 @@
   // nothing to decide about — it is done, or it is not.
   - offeredOutcomes (STRING) multiple
 
+  // The principals who may complete this task, as its defining activity named
+  // them when the task was raised, with "@creator" answered against the host so
+  // that every entry stands on its own. Recorded so that "what is waiting for
+  // me" is a question about tasks, answerable without reading the definitions —
+  // which the person owing the decision cannot necessarily do. It decides
+  // nothing: the definition remains the authority every completion is checked
+  // against, exactly as offeredOutcomes describes rather than enforces.
+  - performers (STRING) multiple
+
   // Optional associated iap form
   - form (REFERENCE)
 

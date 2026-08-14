@@ -74,6 +74,9 @@ public class TaskInstance extends Entity
     private String[] offeredOutcomes;
 
     @ValueMapValue
+    private String[] performers;
+
+    @ValueMapValue
     private String form;
 
     /**
@@ -183,6 +186,23 @@ public class TaskInstance extends Entity
     public List<String> getOfferedOutcomes()
     {
         return this.offeredOutcomes == null ? List.of() : List.of(this.offeredOutcomes);
+    }
+
+    /**
+     * The principals who may complete this task, as its {@link FlowNode#getPerformers() defining activity} named them
+     * when the task was raised, with {@code @creator} already answered against the host it drives.
+     *
+     * <p>Recorded on the task so that "what is waiting for me" can be asked of tasks alone: whoever owes the decision
+     * can rarely read the workflow it came from, and a listing cannot run the engine per row to find out. It is a
+     * description and not a permission — every completion is still checked against the definition — so finding a task
+     * here is not what makes it lawful to complete.</p>
+     *
+     * @return the principals the task admits, empty when it names none, which admits nobody
+     */
+    @NotNull
+    public List<String> getPerformers()
+    {
+        return this.performers == null ? List.of() : List.of(this.performers);
     }
 
     /**
