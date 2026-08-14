@@ -159,6 +159,10 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
                 writeError(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
                 return;
             }
+            // An outcome replaces whatever the node said before, so the properties belonging to the other outcome
+            // are removed as well. A job can already carry an error when it gets here — a dispatch that timed out
+            // while the daemon went on to parse anyway, for one — and leaving it in place would report a completed
+            // job that still says what went wrong.
             final String status;
             if (outcome.getBoolean("ok", false)) {
                 status = ParseJob.STATUS_COMPLETED;
@@ -169,10 +173,12 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
                     outputs.add(chunks);
                 }
                 properties.put(ParseJob.PN_OUTPUTS, outputs.toArray(new String[0]));
+                properties.remove(ParseJob.PN_ERROR);
             } else {
                 status = ParseJob.STATUS_FAILED;
                 properties.put(ParseJob.PN_ERROR,
                     outcome.getString(ParseJob.PN_ERROR, "The daemon reported a failure without details"));
+                properties.remove(ParseJob.PN_OUTPUTS);
             }
             properties.put(ParseJob.PN_STATUS, status);
             properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());

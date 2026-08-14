@@ -53,10 +53,16 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Dispatches a queued document parse to the Docling daemon, without waiting for the conversion itself. The daemon is
- * asked asynchronously — {@code POST /parse?path=&chunk=&job_id=&callback=} — and answers "queued" right away, so no
- * thread sits on an open connection for the minutes a conversion takes; when the daemon finishes, it POSTs the
- * outcome to {@link ParseCallbackServlet}, which records it on the job node. This consumer only walks the node from
+ * asked asynchronously — {@code POST /parse?path=&chunk=&job_id=} — and answers "queued" right away, so no thread
+ * sits on an open connection for the minutes a conversion takes; when the daemon finishes, it POSTs the outcome to
+ * {@link ParseCallbackServlet}, which records it on the job node. This consumer only walks the node from
  * {@code queued} to {@code active}: the callback endpoint takes it from there.
+ *
+ * <p>
+ * Only a {@code queued} job is dispatched. Sling re-queues jobs it did not see finish, across a restart for instance,
+ * and re-running a conversion that already completed would overwrite the outputs recorded on the node, so a job in
+ * any other state is dropped untouched.
+ * </p>
  *
  * <p>
  * A refused or unreachable dispatch marks the job failed and is never retried automatically
@@ -70,15 +76,20 @@ import org.slf4j.LoggerFactory;
  * {@link ParseJob#TOKEN_VARIABLE}): without it {@link ParseCallbackServlet} cannot accept the daemon's delivery, so
  * starting the parse would only leave the job hung as {@code active}. The daemon answer must itself be an async
  * accept ({@code {"job_id", "status": "queued"}}); a synchronous success body (as from an older daemon that ignores
- * {@code job_id}/{@code callback}) is recorded as a failure instead of leaving the job waiting for a callback that
- * will never come.
+ * {@code job_id}) is recorded as a failure instead of leaving the job waiting for a callback that will never come.
  * </p>
  *
  * <p>
- * Configurable through OSGi with {@code daemonUrl} (default {@code http://localhost:18765}), {@code callbackUrl}
- * (where the daemon should POST outcomes, default {@code http://host.docker.internal:8080} + the callback path, which
- * reaches a host-run app from inside the daemon's container) and {@code responseTimeout} (seconds to wait for the
- * daemon to accept a dispatch, default 30 — accepting is quick, only the conversion is slow).
+ * Where the daemon POSTs outcomes is <em>not</em> sent with the dispatch: the daemon reads it from its own
+ * {@code IAP_DOCLING_CALLBACK_URL}, and must be configured with the address of {@link ParseJob#CALLBACK_PATH} on this
+ * app. The callback carries the shared token, and the daemon's port has no authentication, so a destination taken
+ * from the request would hand that token to anyone able to reach it.
+ * </p>
+ *
+ * <p>
+ * Configurable through OSGi with {@code daemonUrl} (default {@code http://localhost:18765}) and
+ * {@code responseTimeout} (seconds to wait for the daemon to accept a dispatch, default 30 — accepting is quick, only
+ * the conversion is slow).
  * </p>
  *
  * @version $Id$
@@ -91,9 +102,6 @@ public class ParseJobConsumer implements JobConsumer
 
     /** Where the daemon listens when no {@code daemonUrl} is configured. */
     private static final String DEFAULT_DAEMON_URL = "http://localhost:18765";
-
-    /** Where the daemon should POST outcomes when no {@code callbackUrl} is configured. */
-    private static final String DEFAULT_CALLBACK_URL = "http://host.docker.internal:8080" + ParseJob.CALLBACK_PATH;
 
     /** How long to wait for the daemon to accept a dispatch when no {@code responseTimeout} is configured. */
     private static final long DEFAULT_RESPONSE_TIMEOUT = 30;
@@ -111,8 +119,6 @@ public class ParseJobConsumer implements JobConsumer
 
     private String daemonUrl;
 
-    private String callbackUrl;
-
     private Duration responseTimeout;
 
     /** Whether a callback token is configured so the daemon's delivery can be accepted. */
@@ -128,7 +134,6 @@ public class ParseJobConsumer implements JobConsumer
     protected void activate(final Map<String, Object> configuration)
     {
         this.daemonUrl = url(configuration, "daemonUrl", DEFAULT_DAEMON_URL);
-        this.callbackUrl = url(configuration, "callbackUrl", DEFAULT_CALLBACK_URL);
         long seconds = DEFAULT_RESPONSE_TIMEOUT;
         final Object timeout = configuration.get("responseTimeout");
         if (timeout != null) {
@@ -176,6 +181,14 @@ public class ParseJobConsumer implements JobConsumer
                 return JobResult.CANCEL;
             }
             final ValueMap properties = jobNode.getValueMap();
+            final String status = properties.get(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED);
+            if (!ParseJob.STATUS_QUEUED.equals(status)) {
+                // Sling re-queues jobs it did not see finish, for instance across a restart. Dispatching again
+                // would re-run a conversion that may well have completed, and its callback would overwrite the
+                // outputs already recorded here, so a job past "queued" is left exactly as it is.
+                LOGGER.warn("Dropping parse job {}: it is already {}", jobId, status);
+                return JobResult.CANCEL;
+            }
             path = properties.get(ParseJob.PN_PATH, String.class);
             chunk = properties.get(ParseJob.PN_CHUNK, Boolean.TRUE);
             update(jobNode, resolver, editable -> {
@@ -186,6 +199,20 @@ public class ParseJobConsumer implements JobConsumer
             LOGGER.error("Cannot mark parse job {} as active: {}", jobId, e.getMessage(), e);
             return JobResult.CANCEL;
         }
+        return dispatchIfUsable(jobId, path, chunk);
+    }
+
+    /**
+     * Check what the claimed job node turned out to say, then hand the parse to the daemon. The job is already
+     * {@code active} here, so anything wrong with it is recorded as a failure rather than silently dropped.
+     *
+     * @param jobId the identifier of the job being processed
+     * @param path the path the job node records, may be {@code null} when it holds none
+     * @param chunk whether the document should also be chunked
+     * @return {@link JobResult#OK} when the daemon accepted the parse, {@link JobResult#CANCEL} otherwise
+     */
+    private JobResult dispatchIfUsable(final String jobId, final String path, final boolean chunk)
+    {
         if (path == null || path.isBlank()) {
             fail(jobId, "The job records no document path");
             return JobResult.CANCEL;
@@ -238,10 +265,12 @@ public class ParseJobConsumer implements JobConsumer
      */
     private HttpRequest buildRequest(final String jobId, final String path, final boolean chunk)
     {
+        // No callback parameter: the daemon POSTs outcomes to the URL in its own configuration. Sending one would
+        // mean anyone able to reach the daemon's unauthenticated port could name the destination and be handed the
+        // shared token with it.
         final String url = this.daemonUrl + "/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
             + "&chunk=" + chunk
-            + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8)
-            + "&callback=" + URLEncoder.encode(this.callbackUrl, StandardCharsets.UTF_8);
+            + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8);
         return HttpRequest.newBuilder(URI.create(url))
             .timeout(this.responseTimeout)
             .POST(HttpRequest.BodyPublishers.noBody())
