@@ -107,7 +107,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             }
             final StartEvent start =
                 SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
-            PerformerCheck.verify(serviceResolver, start, actor);
+            PerformerCheck.verify(serviceResolver, privilegedTarget, start, actor);
             return execute(privilegedTarget, event, start, actor);
         }
     }
@@ -167,6 +167,22 @@ public class WorkflowEngineImpl implements WorkflowEngine
             revert(resolver);
             throw e;
         }
+    }
+
+    /**
+     * How an instance performs a service task it meets: through the same dispatch a system workflow uses, so a
+     * handler behaves identically whichever kind of workflow reached it. The variables are this delivery's alone —
+     * an instance's persisted variables are not yet exposed to handlers.
+     *
+     * @param event the event being delivered
+     * @param actor the user the instance is being moved for
+     * @return a performer bound to this delivery
+     */
+    private InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
+    {
+        final Map<String, Object> variables = new LinkedHashMap<>();
+        return (activity, instance) -> perform(activity,
+            new WorkflowTaskContextImpl(InstanceRunner.hostOf(instance), event, activity, variables, actor));
     }
 
     /**
