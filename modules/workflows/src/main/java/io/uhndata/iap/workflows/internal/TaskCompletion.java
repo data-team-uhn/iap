@@ -119,13 +119,13 @@ final class TaskCompletion
                 + " no longer has a definition, so who may complete it cannot be established");
         }
         if (TIMEOUT_EVENT.equals(event.getName())) {
-            expire(resolver, task, definition, performer, conditions);
+            expire(resolver, task, definition, performer, conditions, principals);
             return;
         }
         PerformerCheck.verify(principals, resolver, hostOf(taskResource), definition, actor);
 
         final Object outcome = event.get(OUTCOME_PARAMETER);
-        new InstanceRunner(resolver, performer, actor, conditions)
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
             .complete(task, outcome instanceof String ? (String) outcome : null);
     }
 
@@ -147,13 +147,14 @@ final class TaskCompletion
      * @param definition the activity the task was raised from
      * @param performer how the resumed instance performs any service task it meets
      * @param conditions the evaluator the resumed instance's gateways are asked of
+     * @param principals what the names in the definition of any task raised from here mean
      * @throws WorkflowException when nothing is counting down to this task, its deadline has not passed yet, or the
      *     run cannot continue
      * @throws PersistenceException when the instance cannot be written
      */
     private static void expire(final ResourceResolver resolver, final TaskInstance task, final Activity definition,
-        final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions)
-        throws WorkflowException, PersistenceException
+        final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions,
+        final PrincipalService principals) throws WorkflowException, PersistenceException
     {
         final IntermediateCatchingEvent timer = definition.getBoundaryEvents().stream()
             .filter(event -> event.getElementId().equals(task.getDueEventId()))
@@ -164,7 +165,8 @@ final class TaskCompletion
         if (due == null || due.after(Calendar.getInstance())) {
             throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
         }
-        new InstanceRunner(resolver, performer, task.getAssignee(), conditions).expire(task, timer);
+        new InstanceRunner(resolver, performer, task.getAssignee(), new FlowRouting(conditions), principals)
+            .expire(task, timer);
     }
 
     /**

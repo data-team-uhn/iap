@@ -36,7 +36,8 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalContext;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -109,21 +110,25 @@ final class InstanceRunner
 
     private final FlowRouting routing;
 
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param resolver the engine's own session, which everything is read and written through
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
-     * @param conditions the evaluator a gateway's guards are asked of
+     * @param routing how a gateway's guards decide where execution goes next
+     * @param principals what the names a definition uses for people mean
      */
     InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
-        final ConditionEvaluator conditions)
+        final FlowRouting routing, final PrincipalService principals)
     {
         this.resolver = resolver;
         this.performer = performer;
         this.actor = actor;
-        this.routing = new FlowRouting(conditions);
+        this.routing = routing;
+        this.principals = principals;
     }
 
     /**
@@ -493,6 +498,10 @@ final class InstanceRunner
             // Copied so the task states its own terms: whoever has to do it can read it without being able to read
             // the definition, and what it offers cannot change under them while it waits
             "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
+            // Recorded for the same reason, and answered here because "@creator" is a question about this host
+            // that nothing reading the task later is holding the host to ask
+            "performers", this.principals.resolve(activity.getPerformers(), PrincipalContext.about(hostOf(instance)))
+                .toArray(String[]::new),
             STATUS_PROPERTY, OPEN_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);

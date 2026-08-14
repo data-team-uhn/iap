@@ -613,6 +613,15 @@ one there is *nothing* to decide about, done or not done, and a task list needs 
 distinction: a plain "done" button on a task that expected a decision would complete it
 with no outcome, and the gateway after it would silently take its default arc.
 
+**A user task also says who it is waiting for.** The engine records the activity's
+`performers` onto each task it raises, answering `@creator` against the host as it does,
+so every entry names a principal that stands on its own rather than a question only the
+host can settle. That is what makes "what is waiting for me" a question about *tasks*: a
+listing cannot run the engine per row to find out, and the person owing a decision
+usually cannot read the workflow the task came from. The copy describes, it does not
+permit: every completion is still checked against the definition, so a task turning up
+in somebody's list is not what makes it theirs to decide.
+
 **Reaching an end event can mean something to the host.** An end event carries `hostTag`
 like any other flow node, so the way a process finishes is what places the host's last
 state.
