@@ -22,7 +22,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.Node;
@@ -91,6 +93,8 @@ class UserWorkflowTest
 
     private static final String TARGET_REF = "targetRef";
 
+    private static final String STATUS = "status";
+
     private static final String HOST = "/Submissions/aLongWeekend";
 
     private static final String PROCESS = "/Workflows/timeOffRequest/v1";
@@ -117,7 +121,9 @@ class UserWorkflowTest
         WorkflowFixture.setUp(this.context);
         WorkflowFixture.enableTagging(this.context);
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
-        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"}));
+        // The engine records the person it acted for as createdBy, which @creator reads
+        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},
+            "createdBy", EngineFixture.REQUESTER));
         this.context.create().resource(HOST + "/wf:instances", TYPE, "wf/WorkflowInstances");
     }
 
@@ -154,6 +160,17 @@ class UserWorkflowTest
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
         this.context.create().resource(PROCESS + "/requestRejected", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestRejected", "hostTag", "rejected"));
+    }
+
+    /**
+     * Adds properties to the process's user task, for the cases about what a task carries beyond its label.
+     *
+     * @param properties what to write on the activity
+     */
+    private void onTheUserTask(final Map<String, Object> properties)
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
+            .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified").putAll(properties);
     }
 
     /**
@@ -592,6 +609,72 @@ class UserWorkflowTest
         assertEquals("created", task.get("status"));
         assertEquals("Approve the request", task.get("label"));
         assertEquals(APPROVE, task.get("taskDefinitionId"));
+    }
+
+    @Test
+    void raisesTasksCarryingTheDecisionsTheirDefinitionOffers() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        onTheUserTask(Map.of("outcomes", new String[] {"approved", "rejected"}));
+
+        started();
+
+        assertArrayEquals(new String[] {"approved", "rejected"}, (String[]) read(TASK).get("offeredOutcomes"));
+    }
+
+    @Test
+    void raisesTasksOfferingNothingWhenThereIsNothingToDecide() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+
+        started();
+
+        assertEquals(0, ((String[]) read(TASK).get("offeredOutcomes")).length);
+    }
+
+    @Test
+    void admitsWhoeverRaisedTheHostToATaskThatComesBackToThem() throws Exception
+    {
+        createProcess("@creator");
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals("completed", read(TASK).get(STATUS));
+    }
+
+    @Test
+    void admitsThemEvenWhenTheyTypedTheirNameDifferentlyAtLogin() throws Exception
+    {
+        // A login resolves case-insensitively, and @creator compares against the id recorded on the host
+        createProcess("@creator");
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(EngineFixture.typedAtLogin(as(TASK, EngineFixture.REQUESTER),
+            EngineFixture.REQUESTER.toUpperCase(Locale.ROOT)), APPROVED);
+
+        assertEquals("completed", read(TASK).get(STATUS));
+    }
+
+    @Test
+    void refusesSomebodyElseAtATaskThatComesBackToWhoeverRaisedTheHost() throws Exception
+    {
+        createProcess("@creator");
+        final WorkflowEngine engine = started();
+
+        assertThrows(NotAuthorizedException.class, () -> engine.receiveEvent(as(TASK, "somebody-else"), APPROVED));
+        assertEquals("created", read(TASK).get(STATUS));
+    }
+
+    @Test
+    void offersCompletionToWhoeverRaisedTheHostOfATaskThatComesBackToThem() throws Exception
+    {
+        createProcess("@creator");
+        final WorkflowEngine engine = started();
+
+        assertEquals(Set.of(TaskCompletion.COMPLETE_EVENT),
+            engine.getAvailableEvents(as(TASK, EngineFixture.REQUESTER)));
+        assertEquals(Set.of(), engine.getAvailableEvents(as(TASK, "somebody-else")));
     }
 
     @Test

@@ -293,6 +293,7 @@ final class InstanceRecords
             JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
+            "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
             TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             TaskInstance.START_TIME_PROPERTY, started));
         armNextDeadline(activity, started, List.of(), properties);
