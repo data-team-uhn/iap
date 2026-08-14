@@ -23,6 +23,14 @@ the list submitters read can put the common cases first.
 | `description` | String | What belongs in this category. Written as guidance for submitters, and used verbatim as input for AI-assisted categorization, so it should read as prose rather than as a keyword list. |
 | `schemaVersion` | Reference | The `sch:SchemaVersion` governing submissions filed under this category, which in turn references their workflow. |
 
+The node name is the technical identifier, and it **must not be a number**. Node names are read
+back from the JSON serialization of the tree, where a category appears as a key of its parent
+object, and JavaScript enumerates integer-like keys of an object first, in numeric order, whatever
+order they were written in — so a category named `2024` would come back out of the order it is
+stored in, and reordering its siblings would compute against the wrong neighbour. The category
+manager derives names from labels and never produces one, but hand-authored taxonomy content can:
+name that category `studies2024` and put the year in its `label`.
+
 A category with no subcategories is a **leaf**, and leaves are what submissions are actually filed
 under — an inner node is a grouping, not a choice. Only leaves are therefore expected to carry a
 `schemaVersion`; node types cannot express "this property only applies when there are no children
