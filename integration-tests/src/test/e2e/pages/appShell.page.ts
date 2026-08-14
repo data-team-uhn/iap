@@ -41,9 +41,15 @@ export class AppShell {
     await expect(this.page).toHaveURL(/\/login/);
   }
 
-  /** Who the shell says is signed in, which is the account control's own name for itself. */
+  /**
+   * Who the shell says is signed in, which is the account control's own name for itself.
+   *
+   * Located as an account naming *somebody* rather than as the account control, so that the wait is
+   * for the answer and not merely for the element: the shell renders the control first and asks the
+   * server who is behind it after, and for that moment its label is the bare prefix.
+   */
   async signedInAs(): Promise<string> {
-    const label = await this.page.getByRole('button', { name: /^Account:/ }).getAttribute('aria-label');
+    const label = await this.page.getByRole('button', { name: /^Account: \S/ }).getAttribute('aria-label');
     return (label ?? '').replace('Account: ', '');
   }
 }

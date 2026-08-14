@@ -274,7 +274,9 @@ describe("SubmissionView", () => {
     expect(screen.getByText(/by admin/)).toBeInTheDocument();
 
     // The submission itself was fetched with the deep serialization
-    expect(fetchMock.mock.calls[0][0]).toBe("/Submissions/demo-1.deep.json");
+    // Among the page's requests, not necessarily its first: the header asks what the request is
+    // waiting for, and a child's effect runs before its parent's
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
 
     // The form requirement, its section, and its questions, with and without answers
     expect(screen.getByText("Basic information")).toBeInTheDocument();
@@ -402,7 +404,7 @@ describe("SubmissionView", () => {
     renderAt("/Submissions/demo-1.html");
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0][0]).toBe("/Submissions/demo-1.deep.json");
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
   });
 
   it("reports inaccessible submissions", async () => {
@@ -412,6 +414,67 @@ describe("SubmissionView", () => {
     renderAt("/Submissions/nonexistent");
 
     expect(await screen.findByText("This submission cannot be loaded (404)")).toBeInTheDocument();
+  });
+
+  // The page's own share of the submit button: offering it in both modes, and doing the right
+  // thing once it has been pressed
+  describe("what the request is waiting for", () => {
+    // The submission's own workflow, parked on a step with nothing to decide
+    const WAITING = {
+      timeOffRequest: {
+        "@path": "/Submissions/demo-1/wf:instances/timeOffRequest",
+        "sling:resourceType": "wf/WorkflowInstance",
+        "fillIn": {
+          "@path": "/Submissions/demo-1/wf:instances/timeOffRequest/fillIn",
+          "sling:resourceType": "wf/TaskInstance",
+          "label": "Say when you want to be away",
+          "status": "created",
+        },
+      },
+    };
+
+    // The page as it really answers: its own serialization, the form projection, the tag
+    // definitions, and — once the step has been completed — a workflow with nothing left waiting
+    function withATaskWaiting() {
+      const otherwise = bothModes();
+      let done = false;
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
+        if (init?.method === "POST") {
+          done = true;
+          return Promise.resolve({ url, ok: true, json: () => Promise.resolve({}) } as unknown as Response);
+        }
+        if (url.includes("wf:instances")) {
+          return Promise.resolve(
+            { url, ok: true, json: () => Promise.resolve(done ? {} : WAITING) } as unknown as Response);
+        }
+        return otherwise(url).then(response => ({ ...response, url }));
+      });
+    }
+
+    it("offers the waiting step while filling the request in, not only while reading it", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting());
+
+      renderAt("/Submissions/demo-1.edit");
+
+      expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
+    });
+
+    it("goes back to reading the request once the step is done, and reads it again", async () => {
+      const fetchMock = withATaskWaiting();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1.edit");
+
+      await user.click(await screen.findByRole("button", { name: /Say when you want to be away/ }));
+
+      // Sending it has usually made it read-only, and what has changed is what the person now
+      // wants to see — so the page shows it rather than leaving them in an editor that will refuse.
+      // Asserted in the order it happens: the page changes mode straight away, and only then has
+      // to read the submission again before it can show anything.
+      expect(await screen.findByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Say when you want/ })).toBeNull();
+    });
   });
 
   describe("switching between reading and filling in", () => {
