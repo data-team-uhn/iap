@@ -27,16 +27,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalContext;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
+import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -106,6 +106,8 @@ final class InstanceRunner
 
     private final FlowRouting routing;
 
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
@@ -113,14 +115,16 @@ final class InstanceRunner
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
      * @param routing what decides where tokens go, with the evaluator for the guards on a gateway's arcs
+     * @param principals what the names a definition uses for people mean
      */
     InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
-        final FlowRouting routing)
+        final FlowRouting routing, final PrincipalService principals)
     {
         this.resolver = resolver;
         this.performer = performer;
         this.actor = actor;
         this.routing = routing;
+        this.principals = principals;
     }
 
     /**
@@ -505,6 +509,10 @@ final class InstanceRunner
             // Copied so the task states its own terms: whoever has to do it can read it without being able to read
             // the definition, and what it offers cannot change under them while it waits
             "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
+            // Recorded for the same reason, and answered here because "@creator" is a question about this host
+            // that nothing reading the task later is holding the host to ask
+            "performers", this.principals.resolve(activity.getPerformers(), PrincipalContext.about(hostOf(instance)))
+                .toArray(String[]::new),
             STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);
@@ -600,17 +608,8 @@ final class InstanceRunner
             JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowInstance",
             STATUS_PROPERTY, "active",
             START_TIME_PROPERTY, Calendar.getInstance()));
-        // Through the JCR API. The node type declares a strict REFERENCE, and Oak rejects a string carrying the
-        // right identifier as the wrong type
-        final Node node = Objects.requireNonNull(instance.adaptTo(Node.class),
-            "A freshly created instance is always backed by a JCR node");
-        final Node target = Objects.requireNonNull(resourceOf(version.getPath()).adaptTo(Node.class),
-            "A workflow version is always backed by a JCR node");
-        try {
-            node.setProperty("workflowVersion", target);
-        } catch (final RepositoryException e) {
-            throw new PersistenceException("Could not point the instance at its workflow version", e);
-        }
+        // The node type declares a strict REFERENCE, and Oak rejects a string carrying the right identifier
+        ReferenceUtils.setReference(instance, "workflowVersion", resourceOf(version.getPath()));
         return instance;
     }
 

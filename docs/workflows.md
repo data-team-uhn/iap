@@ -913,6 +913,13 @@ reading the definition. A task offering none has nothing to decide. A plain "don
 task that expected a decision would complete it with no outcome, and the next gateway
 would take its default arc.
 
+**A user task also says who it is waiting for.** The engine records the activity's
+`performers` onto each task it raises, with `@creator` already answered against the
+host. "What is waiting for me" is then a question about tasks: a listing cannot run the
+engine per row, and the person owing a decision usually cannot read the workflow. The
+copy describes, it does not permit: every completion is still checked against the
+definition.
+
 **A task can be given a deadline.** A boundary timer with a `timerDuration` is armed
 when the task is raised: the deadline is recorded on the task, as `dueDate` with
 `dueEventId` naming the timer, so overdue work can be found without the engine and the
