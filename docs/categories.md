@@ -38,6 +38,15 @@ of this type", so that rule is upheld by the administration UI rather than by th
 leaf without one falls back to the default behavior for submissions. Note that a leaf category may
 hold other types of nodes.
 
+Splitting `cat:Category` into a group type and a leaf type would look like a way to have the
+repository enforce that, and it is not: `cat:Category` declares the residual `- * (UNDEFINED)` and
+`+ * (nt:base)` definitions that every IAP type carries for extensibility, and a residual property
+definition admits `schemaVersion` on a group type that never declares it, just as a residual child
+definition admits a category under a leaf type. The split would only bite if categories gave up
+that extensibility — and it would turn giving a leaf its first subcategory into a
+`jcr:primaryType` migration. One type, with the invariant upheld where the editing happens, is the
+deliberate choice.
+
 ### Retirement
 
 Retiring a category closes it to new submissions while existing ones keep referencing it. It is
