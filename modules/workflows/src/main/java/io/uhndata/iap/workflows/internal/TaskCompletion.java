@@ -33,10 +33,11 @@ import io.uhndata.iap.workflows.models.TaskInstance;
 /**
  * Completes a user task: records what the person decided, and carries their instance on from there.
  *
- * <p>Authorization is the same mechanism as everywhere else, asked one step later. The task's defining activity
- * names the principals who may complete it, and {@link PerformerCheck} asks that node exactly as it asks a start
- * event who may fire it. Seeing a task and being allowed to decide it are separate questions. This asks the
- * second.</p>
+ * <p>Authorization is the same mechanism as everywhere else, one step later in the process: the task's
+ * <em>defining activity</em> names the principals who may complete it, and {@link PerformerCheck} asks that node
+ * exactly as it asks a start event who may fire it — including about the resource being worked on, which a task
+ * that comes back to whoever raised it is answered by. Being able to see a task and being allowed to decide it are
+ * separate questions, and this is where the second is answered.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -87,7 +88,8 @@ final class TaskCompletion
             throw new WorkflowDefinitionException("The task " + task.getPath()
                 + " no longer has a definition, so who may complete it cannot be established");
         }
-        PerformerCheck.verify(resolver, definition, actor);
+        PerformerCheck.verify(resolver, InstanceRunner.hostOf(Objects.requireNonNull(taskResource.getParent(),
+            "A task always lives inside its instance")), definition, actor);
 
         final Object outcome = event.get(OUTCOME_PARAMETER);
         new InstanceRunner(resolver, performer, actor)
