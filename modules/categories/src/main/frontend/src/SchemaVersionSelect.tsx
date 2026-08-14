@@ -34,6 +34,8 @@ interface VersionOption {
 }
 
 interface SchemaGroup {
+  // The schema's node name, unique among its siblings, which titles are not.
+  name: string;
   title: string;
   versions: VersionOption[];
 }
@@ -55,6 +57,7 @@ const parseSchemas = (homepage: JcrNode): SchemaGroup[] =>
     .map(([name, schema]) => {
       const node = schema as JcrNode;
       return {
+        name,
         title: (node.title as string | undefined) ?? name,
         versions: Object.values(node)
           .filter(version => isType(version, "sch:SchemaVersion"))
@@ -101,7 +104,7 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
     </MenuItem>,
   ];
   groups.forEach(group => {
-    items.push(<ListSubheader key={`schema-${group.title}`}>{group.title}</ListSubheader>);
+    items.push(<ListSubheader key={`schema-${group.name}`}>{group.title}</ListSubheader>);
     group.versions.forEach(version => {
       items.push(
         <MenuItem key={version.uuid} value={version.uuid}>
