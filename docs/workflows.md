@@ -310,6 +310,11 @@ administrative, raising a submission is what users are here for. The rules:
   everyone until it does; silence is never permission.
 - **`everyone` means any authenticated user**, matched by name because it is a dynamic principal an
   authorizable does not necessarily report belonging to.
+- **`@creator` means whoever raised the resource being worked on** — the person the engine recorded when it
+  created it, not `jcr:createdBy`, which names the engine's own service user for everything it writes. It is
+  the one rule a group can never express, and the one most processes need: a request comes back to the person
+  who made it, not to everyone who could have made one. A resource nothing raised — a homepage — is nobody's,
+  so `@creator` admits nobody there.
 - **Groups are matched transitively**, so naming a group also admits the members of its member groups.
 - **Administrators pass regardless**, exactly as they bypass access control in the repository itself.
   Without that, one bad definition could lock out the very people who could repair it.
@@ -389,8 +394,12 @@ automatically, until it has to stop:
 ```
 POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [instance created, walked to its first wait]
                                                                         │
-                                             wf:instances/timeOffRequest │  token parked on approveRequest
+                                             wf:instances/timeOffRequest │  token parked on fillIn
                                                                         ▼
+POST …/fillIn ──▶ complete ──▶ [task closed, instance walked on to the next wait]
+                                                        │
+                                                        ▼  hostTag: the submission is now tagged "submitted"
+
 POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
                                                         │
                                                         ▼  hostTag: the submission is now tagged "approved"
@@ -410,12 +419,28 @@ carries the instance on. Who may complete it is the same `performers` mechanism 
 step later — of the task's *defining activity* rather than of a start event. Seeing a task and being allowed
 to decide it are different questions, and this is where the second is answered.
 
-**Reaching an end event can mean something to the host.** `hostTag` on the end event is placed on the host as
-a tag, which is how a process says what finishing *this particular way* means to the thing being processed,
-without a service task whose only job is to write it down. Placing it retires whatever other tag the host
-carries in the same category: the categories are what make a set of tags a lifecycle rather than a pile of
-markers, so a submission that has just been approved stops being in review. Tags outside those categories are
-left alone, since a host is free to carry markers that have nothing to do with this process.
+**A user task says what it may be decided with.** `outcomes` on the activity lists the decisions on offer, and
+the engine copies them onto each task it raises as `offeredOutcomes`. Copied rather than looked up, for the
+same reason the label is: a task is decided on the terms it was raised with, and whoever has to do it can read
+the task without being able to read the definition. A task that offers none is one there is *nothing* to
+decide about — it is done or it is not — and that distinction is what a task list needs, because a plain
+"done" button on a task that expected a decision would silently take the default arc of the gateway after it.
+
+**Reaching a node can mean something to the host.** `hostTag` on a flow node is placed on the host as a tag
+when execution arrives there, which is how a process says what being *here* means to the thing being
+processed, without a service task whose only job is to write it down. On an end event that is what finishing
+this particular way meant; on a user task it is the state the host is in for as long as that task waits, which
+is what lets a process move its host between states without finishing — a request is a draft while it is being
+filled in, and submitted the moment it reaches the approver, and neither of those is an ending. Placing a tag
+retires whatever other tag the host carries in the same category: the categories are what make a set of tags a
+lifecycle rather than a pile of markers, so a submission that has just been approved stops being in review.
+Tags outside those categories are left alone, since a host is free to carry markers that have nothing to do
+with this process.
+
+**Submitting is a user task, not a separate mechanism.** A request that can be filled in is one whose process
+is parked on a task performed by `@creator`, tagged `draft`; completing that task is what sends it. There is
+no "submit" event, no submit endpoint and no submitted flag — which is why what the button says is the task's
+own label, and why a deployment that wants a request to go somewhere else first only edits its process.
 
 **Read access is materialized when the instance starts.** Acting is authorized by the definitions, but
 reading cannot be — a query returns rows, and no engine can run a workflow per row — so the workflow declares
