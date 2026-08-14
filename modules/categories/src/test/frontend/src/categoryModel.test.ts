@@ -25,7 +25,7 @@ import {
   parseCategoryTree,
 } from "@iap/categories/categoryModel";
 
-// A trimmed-down /Categories.deep.json response: two top-level categories, one nested leaf with
+// A trimmed-down /Categories.deep.simple.json response: two top-level categories, one nested leaf with
 // an inlined (dereferenced) schema version, a retired category, and non-category entries that
 // must be ignored.
 const homepageJson = {

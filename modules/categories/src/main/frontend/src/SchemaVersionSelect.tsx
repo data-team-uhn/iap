@@ -83,9 +83,9 @@ function SchemaVersionSelect({ value, onChange }: SchemaVersionSelectProps) {
   const authenticatedFetch = useAuthenticatedFetch();
 
   useEffect(() => {
-    // The -dereference selector stops each version's workflow reference from inlining the whole
-    // referenced workflow into the response
-    authenticatedFetch("/Schemas.deep.-dereference.json")
+    // The `simple` selector summarizes each schema version: without it the picker downloads every
+    // version's whole requirement subtree, and its dereferenced workflow, to list version labels
+    authenticatedFetch("/Schemas.deep.simple.json")
       .then(response => response.ok
         ? response.json() as Promise<JcrNode>
         : Promise.reject(new Error(`Failed to load schemas: ${response.status}`)))

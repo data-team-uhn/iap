@@ -87,7 +87,7 @@ describe("SchemaVersionSelect", () => {
     // Asserted on the URL alone: the request goes through useAuthenticatedFetch, which passes an
     // init argument of its own along
     await waitFor(() => {
-      expect(vi.mocked(fetch).mock.calls[0][0]).toBe("/Schemas.deep.-dereference.json");
+      expect(vi.mocked(fetch).mock.calls[0][0]).toBe("/Schemas.deep.simple.json");
     });
   });
 

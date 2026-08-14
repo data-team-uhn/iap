@@ -97,7 +97,7 @@ describe("useCategoryTree", () => {
     stubFetch(treeJson);
     const result = await loadedHook();
 
-    expect(requests[0].url).toBe("/Categories.deep.json");
+    expect(requests[0].url).toBe("/Categories.deep.simple.json");
     expect(result.current.tree.map(node => node.label)).toEqual(["Retrospective studies"]);
     expect(result.current.loadError).toBeUndefined();
   });

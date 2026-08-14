@@ -128,11 +128,13 @@ export function useCategoryTree() {
   const [ loadError, setLoadError ] = useState<string>();
   const authenticatedFetch = useAuthenticatedFetch();
 
-  // Default serialization selectors: `deep` recurses into the tree, and the default-enabled
-  // `dereference` inlines each bound schema version so it can be displayed without extra requests
+  // Serialization selectors: `deep` recurses into the tree, the default-enabled `dereference`
+  // inlines each bound schema version so it can be displayed without extra requests, and `simple`
+  // is what keeps that affordable - without it, inlining a schema version brings its whole
+  // requirement subtree and its dereferenced workflow, BPMN and all, to render two words per chip.
   const reload = useCallback((): Promise<void> =>
     reporting(async () => {
-      const response = checkOk(await authenticatedFetch(`${CATEGORIES_ROOT}.deep.json`));
+      const response = checkOk(await authenticatedFetch(`${CATEGORIES_ROOT}.deep.simple.json`));
       return parseCategoryTree(await response.json() as JcrNode);
     })
       .then(nodes => {
