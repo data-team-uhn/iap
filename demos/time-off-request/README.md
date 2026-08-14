@@ -37,13 +37,22 @@ The whole process, end to end, and `specs/demo/` walks through exactly this:
    the walk passes a service task that looks up how many days the requester has left and records them on
    the request — the demo's own code, reached through the engine's handler extension point, since nothing
    about counting time off belongs in the platform. It then parks: a `wf:WorkflowInstance` appears inside
-   the submission with a token on `approveRequest`, and the task waiting for the approver beside it.
-3. **Reading follows from the same declarations**: starting the instance granted read to the requester and
+   the submission with a token on `fillIn`, the task the requester now owes.
+3. **Filling the request in is that task**, performed by `@creator` — this request's own requester, which no
+   group could name — and tagged `draft`, so the request is editable for exactly as long as the token rests
+   there. Answers are saved one at a time as they are given, and the demo's budget rule refuses a save that
+   would ask for more days than the lookup in step 2 found.
+4. **`demo-requester` sends it** — `POST` to the `fillIn` task, with no outcome, because there is nothing to
+   decide: it is finished or it is not. That is the whole of what a submit button does. The walk carries on
+   to `approveRequest`, raises the approver's task, and the tag on that task moves the request to
+   `submitted` — after which the save workflow refuses further answers, without being told anything new.
+   Somebody else POSTing to `fillIn` is refused with a 403, the approver included.
+5. **Reading follows from the same declarations**: starting the instance granted read to the requester and
    to `time-off-approvers`. A request `demo-requester` neither raised nor approves stays invisible to them.
-4. **`demo-approver` decides** — `POST` to the task with `outcome=approved` or `rejected`. The gateway
-   routes on the outcome, the end event it reaches says what that means to the submission, and its `status`
-   becomes `approved` or `rejected`. The requester, who can see the task, is refused a 403 if they try to
-   decide it themselves.
+6. **`demo-approver` decides** — `POST` to the task with `outcome=approved` or `rejected`, which are the
+   outcomes that task declares. The gateway routes on the outcome, the end event it reaches says what that
+   means to the submission, and its state becomes `approved` or `rejected`. The requester, who can see the
+   task, is refused a 403 if they try to decide it themselves.
 
 What the demo does *not* yet show: the boundary event and the reminder-after-two-days shape, since nothing
 delivers timers yet; and the flow nodes here are hand-written to mirror the diagram, because the BPMN
