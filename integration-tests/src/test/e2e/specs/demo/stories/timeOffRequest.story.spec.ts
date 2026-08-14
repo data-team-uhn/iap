@@ -27,7 +27,7 @@ import { LoginPage } from '../../../pages/login.page';
  * Priya needs the last week of November away. She signs in, raises a time off request, and fills it
  * in: several days rather than a half or a full one, the days she means to be away, and what kind of
  * absence it is. She first picks a month that would take more time than she has left, and is told so
- * on the spot; she corrects it and the request is complete. She submits it and signs out.
+ * on the spot; she corrects it and the request is complete. She sends it and signs out.
  *
  * Her approver signs in, finds the request waiting for a decision, reads what she asked for, and
  * approves it. He signs out.
@@ -54,7 +54,7 @@ test.describe('a story: asking for time off, and getting it', () => {
   // story turns on
   const TOO_FAR = '2026-12-19';
 
-  test('Priya asks for the last week of November, and is told when she asks for too much', async ({ page }) => {
+  test('Priya asks for the last week of November, is told when it is too much, and sends it', async ({ page }) => {
     const login = new LoginPage(page);
     const shell = new AppShell(page);
 
@@ -115,35 +115,49 @@ test.describe('a story: asking for time off, and getting it', () => {
       await expect(page.getByText('Saved')).toHaveCount(1);
     });
 
+    await test.step('she sends it', async () => {
+      // The control says what the process calls this step, because it *is* that step: the workflow
+      // is parked on a task performed by whoever raised the request, and this completes it
+      await page.getByRole('button', { name: /Say when you want to be away/ }).click();
+
+      // Out of her hands, said by the state rather than by a message: the request is submitted, the
+      // page is showing it rather than the editor, and there is nothing left for her to send
+      await expect(page.getByText('Submitted')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'View', pressed: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toHaveCount(0);
+    });
+
+    await test.step('and it will not take any more answers', async () => {
+      // Not a courtesy: the same rule refuses a save, so what the editor says and what the server
+      // does cannot come apart
+      await page.getByRole('button', { name: 'Edit' }).click();
+
+      await expect(page.getByText(/can no longer be changed/)).toBeVisible();
+    });
+
+    await test.step('she signs out', async () => {
+      await shell.signOut();
+    });
+
     // ---------------------------------------------------------------------------------------------
     // THE REST OF THE STORY, still prose because the platform cannot yet tell it:
-    //
-    //   She submits the request.
-    //
-    // Waiting on: a submit action. The editor saves answers and nothing more, so a request stays a
-    // draft for ever — there is no control that says "this is finished", and no event that moves the
-    // lifecycle tag off `draft`. Until then the story cannot leave her hands, and everything below
-    // waits on this one step rather than on itself.
-    //
-    //   She signs out.
-    //
-    // Implementable today (AppShell.signOut), and deliberately not written yet: signing out here
-    // would be a step that advances nothing, since the request it would be leaving behind is not in a
-    // state anybody else can act on.
     //
     //   Her approver signs in, finds the request waiting for a decision, reads what she asked for,
     //   and approves it.
     //
-    // Waiting on: anywhere for an approver to *see* a decision they owe. The engine already routes
-    // the task and authorizes the decision — `carries the request through to approval when the
-    // approver decides`, in the suite beside this one, drives exactly that over HTTP — so what is
-    // missing is the screen, not the machinery: a list of tasks assigned to whoever is signed in, a
-    // view of the request behind one, and controls that complete it.
+    // Waiting on: anywhere for an approver to *see* a decision they owe, and to make it. The engine
+    // routes the task and authorizes the decision — `carries the request through to approval when
+    // the approver decides`, in the suite beside this one, drives exactly that over HTTP — and the
+    // task now says what it may be decided with, so the missing part is a screen: a list of the
+    // tasks assigned to whoever is signed in, a view of the request behind one, and a control per
+    // offered outcome. The submission page deliberately offers nothing for a task carrying
+    // decisions, because approving is not a button — it is a decision with a reason.
     //
     //   He signs out. Priya signs back in and sees that her time off was approved.
     //
-    // Waiting on: the two above. The last step is the cheapest of them — the submission page already
-    // draws the lifecycle tag, so once something can set `approved`, seeing it is already built.
+    // Waiting on: the step above. This one is already built — the page draws the lifecycle tag, as
+    // the `Submitted` assertion above shows — so it becomes two lines the moment something can set
+    // `approved`.
     // ---------------------------------------------------------------------------------------------
   });
 });
