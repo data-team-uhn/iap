@@ -426,6 +426,14 @@ the task without being able to read the definition. A task that offers none is o
 decide about — it is done or it is not — and that distinction is what a task list needs, because a plain
 "done" button on a task that expected a decision would silently take the default arc of the gateway after it.
 
+**A user task also says who it is waiting for.** The engine records the defining activity's `performers` onto
+each task it raises, and answers `@creator` against the host while it does — so every entry names a principal
+that stands on its own, rather than a question only the host can settle. That is what makes "what is waiting
+for me" a question about *tasks*: a listing cannot run the engine per row to find out, and the person owing a
+decision usually cannot read the workflow the task came from. It is the answer to the first of the two
+questions above, and only that one — the copy describes, it does not permit. Every completion is still checked
+against the definition, so a task turning up in somebody's list is not what makes it theirs to decide.
+
 **Reaching a node can mean something to the host.** `hostTag` on a flow node is placed on the host as a tag
 when execution arrives there, which is how a process says what being *here* means to the thing being
 processed, without a service task whose only job is to write it down. On an end event that is what finishing
