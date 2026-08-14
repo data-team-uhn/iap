@@ -56,6 +56,24 @@ test.describe('submission categories', () => {
     expect(page.rows).toHaveLength(0);
   });
 
+  test('defines the retired tag it closes categories with', async ({ request }) => {
+    // The categories module contributes this definition into /Tags, a node the tags module owns. It has
+    // to be inheritable: that is what makes a category under a retired one retired as well, which is
+    // what "this category or its subcategories" has always meant and what a boolean property could
+    // only have promised.
+    const response = await request.get('/Tags/retired.json', { headers: adminAuth });
+    expect(response.ok()).toBeTruthy();
+
+    const definition = (await response.json()) as {
+      'jcr:primaryType'?: string;
+      inheritable?: boolean;
+      targetResourceTypes?: string[];
+    };
+    expect(definition['jcr:primaryType']).toBe('iap:TagDefinition');
+    expect(definition.inheritable).toBe(true);
+    expect(definition.targetResourceTypes).toContain('cat/Category');
+  });
+
   test('publishes a catalogue of itself', async ({ request }) => {
     const response = await request.get('/Categories.doc.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();

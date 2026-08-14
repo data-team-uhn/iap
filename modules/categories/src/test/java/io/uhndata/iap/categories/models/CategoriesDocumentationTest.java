@@ -104,16 +104,16 @@ class CategoriesDocumentationTest
             "jcr:uuid", "33333333-4444-5555-6666-777777777777"));
         this.context.create().resource("/Categories/Paper", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
-            "label", "Paper submissions",
-            "retired", true));
+            "label", "Paper submissions"));
         this.context.create().resource("/Categories/Legacy", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
-            "label", "Legacy studies",
-            "retired", true));
+            "label", "Legacy studies"));
         this.context.create().resource("/Categories/Legacy/LegacyData", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
             "label", "Legacy Data Studies"));
         this.context.create().resource("/Categories/notes", SLING_RESOURCE_TYPE, "iap/Content");
+        // LegacyData is not marked itself: it is retired because Legacy above it is
+        Retirement.retire(this.context, "/Categories/Paper", "/Categories/Legacy");
         return root.adaptTo(CategoriesHomepage.class);
     }
 

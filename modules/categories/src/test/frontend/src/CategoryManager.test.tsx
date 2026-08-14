@@ -29,11 +29,9 @@ const treeJson = {
     "jcr:primaryType": "cat:Category",
     "label": "Retrospective studies",
     "description": "Existing data or specimens only.",
-    "retired": false,
     "RetrospectiveData": {
       "jcr:primaryType": "cat:Category",
       "label": "Retrospective Data Studies",
-      "retired": false,
       "schemaVersion": {
         "jcr:primaryType": "sch:SchemaVersion",
         "jcr:uuid": "uuid-sv1",
@@ -45,7 +43,7 @@ const treeJson = {
   "Paper": {
     "jcr:primaryType": "cat:Category",
     "label": "Paper submissions",
-    "retired": true,
+    "tags": ["retired"],
   },
 };
 
@@ -287,12 +285,12 @@ describe("CategoryManager", () => {
       // The row action only asks; the effect is spelled out because it lands on submitters
       expect(await screen.findByRole("heading", { name: "Retire Retrospective studies?" })).toBeInTheDocument();
       expect(screen.getByText(/no longer be available for new submissions/)).toBeInTheDocument();
-      expect(postsMatching(body => body.includes("retired=true"))).toHaveLength(0);
+      expect(postsMatching(body => body.includes("tags=%2Bretired"))).toHaveLength(0);
 
       fireEvent.click(screen.getByRole("button", { name: "Retire" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("retired=true"))).not.toHaveLength(0);
+        expect(postsMatching(body => body.includes("tags=%2Bretired"))).not.toHaveLength(0);
       });
     });
 
@@ -308,7 +306,7 @@ describe("CategoryManager", () => {
       await waitFor(() => {
         expect(screen.queryByRole("button", { name: "Retire" })).not.toBeInTheDocument();
       });
-      expect(postsMatching(body => body.includes("retired=true"))).toHaveLength(0);
+      expect(postsMatching(body => body.includes("tags=%2Bretired"))).toHaveLength(0);
     });
 
     // Unretiring is the confirmation's undo, so it acts directly
@@ -320,7 +318,7 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Unretire Paper submissions" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("retired=false"))).not.toHaveLength(0);
+        expect(postsMatching(body => body.includes("tags=-retired"))).not.toHaveLength(0);
       });
     });
 
@@ -362,7 +360,7 @@ describe("CategoryManager", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Retire instead" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("retired=true"))).not.toHaveLength(0);
+        expect(postsMatching(body => body.includes("tags=%2Bretired"))).not.toHaveLength(0);
       });
     });
 
@@ -451,7 +449,7 @@ describe("CategoryManager", () => {
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("retired=false"))).toHaveLength(2);
+        expect(postsMatching(body => body.includes("tags=-retired"))).toHaveLength(2);
       });
       await waitFor(() => { expect(screen.queryByRole("alert")).not.toBeInTheDocument(); });
     });

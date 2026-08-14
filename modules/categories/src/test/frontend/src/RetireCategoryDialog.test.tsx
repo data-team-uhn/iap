@@ -26,6 +26,7 @@ const node: CategoryNode = {
   path: "/Categories/Paper",
   label: "Paper submissions",
   retired: false,
+  retiredHere: false,
   children: [],
 };
 

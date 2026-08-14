@@ -90,9 +90,12 @@
   // that restriction, so it is upheld by the administrative UI.
   - schemaVersion (REFERENCE)
 
-  // When true, no new submissions may be filed under this category or its
-  // subcategories; existing submissions keep referencing it.
-  - retired (BOOLEAN) = false mandatory autocreated
+  // Retirement -- no new submissions may be filed under this category or its
+  // subcategories -- is the `retired` tag, defined by this module under /Tags
+  // and marked inheritable, rather than a property declared here. A tag is
+  // what already means "this state covers everything below": placing it on a
+  // category materializes it onto the whole subtree at commit time, which a
+  // boolean property here could only promise. See docs/categories.md.
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

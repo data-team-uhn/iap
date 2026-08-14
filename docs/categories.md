@@ -22,7 +22,6 @@ the list submitters read can put the common cases first.
 | `label` | String | The human-readable name shown to submitters. Mandatory; the node name is the technical identifier. |
 | `description` | String | What belongs in this category. Written as guidance for submitters, and used verbatim as input for AI-assisted categorization, so it should read as prose rather than as a keyword list. |
 | `schemaVersion` | Reference | The `sch:SchemaVersion` governing submissions filed under this category, which in turn references their workflow. |
-| `retired` | Boolean | No new submissions may be filed under this category or its subcategories; existing ones keep referencing it. Defaults to `false`. |
 
 A category with no subcategories is a **leaf**, and leaves are what submissions are actually filed
 under — an inner node is a grouping, not a choice. Only leaves are therefore expected to carry a
@@ -30,6 +29,19 @@ under — an inner node is a grouping, not a choice. Only leaves are therefore e
 of this type", so that rule is upheld by the administration UI rather than by the repository. A
 leaf without one falls back to the default behavior for submissions. Note that a leaf category may
 hold other types of nodes.
+
+### Retirement
+
+Retiring a category closes it to new submissions while existing ones keep referencing it. It is
+the `retired` [tag](tags.md), defined by this module under `/Tags` and marked `inheritable`, rather
+than a property of the node.
+
+That is what makes "this category **and its subcategories**" true rather than merely intended: an
+inheritable tag is materialized by the repository onto every node below the one it was placed on,
+at commit time, into a separate `inheritedTags` property. A category can therefore tell whether it
+was retired in its own right or is covered by an ancestor — `Category.isRetiredHere()` against
+`Category.isRetired()` — which is what decides where the retirement can be lifted again. It also
+makes "everything currently closed" a query rather than a tree walk.
 
 `cat:Category` extends `iap:Entity`: categories are top-level data, comparable to schemas and
 workflows, rather than platform vocabulary like tag or link definitions. So each one is
@@ -93,8 +105,9 @@ re-describes them, binds or unbinds a schema version, moves a subtree to a diffe
 reorders siblings, retires and unretires, and deletes.
 
 Retiring is the counterpart to deleting: a category that submissions already reference must not
-disappear, but it can be closed to new ones. The UI offers retirement when a deletion is refused
-for that reason.
+disappear, but it can be closed to new ones. Only the category actually carrying the retirement
+offers to have it lifted; one retired by an ancestor says so instead, since there is nothing on it
+to take off. The UI offers retirement when a deletion is refused for that reason.
 
 Writes currently go directly to the repository through the standard Sling POST servlet, each
 followed by a re-read of the tree. This predates the workflow engine and is expected to move
@@ -113,10 +126,8 @@ behind it — see below.
   `createCategory`/`moveCategory`/`retireCategory`/… system workflows once the engine lands. That
   is also what would give deletion a real answer: a referenced category should be refused with the
   reasons listed, which the generic Sling delete cannot express.
-- **`retired` does not yet inherit.** The property means "this category and everything under it",
-  and the served catalogue honors that by pruning retired subtrees, but a leaf under a retired
-  parent still reports `retired = false` on its own, and the administration UI shows it as active.
-  Either an accessor that walks the ancestors, or — closer to how the platform already handles
-  derived state — an `inheritable` [tag](tags.md) materialized onto the descendants, which would
-  also make "everything currently closed" queryable.
+- **Retiring writes the tag directly.** The manager patches the `tags` property over the Sling POST
+  servlet, which skips the validation `Taggable.tag()` performs — that the tag is defined, applies
+  to this resource type, and is not a system tag. There is no HTTP endpoint for tagging anywhere in
+  the platform yet; the first one should be generic, and this manager should be its caller.
 - An `oak:index` for querying categories, deferred together with the other domain indexes.

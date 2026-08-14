@@ -26,6 +26,7 @@ const node = (name: string, overrides: Partial<CategoryNode> = {}): CategoryNode
   path: `/Categories/${name}`,
   label: name,
   retired: false,
+  retiredHere: false,
   children: [],
   ...overrides,
 });
@@ -64,12 +65,20 @@ describe("CategoryTree", () => {
   });
 
   it("marks a retired category, and offers to unretire it", () => {
-    const { actions } = renderTree([node("Paper", { retired: true })]);
+    const { actions } = renderTree([node("Paper", { retired: true, retiredHere: true })]);
 
     expect(screen.getByText("Retired")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Unretire Paper" }));
 
     expect(actions.onToggleRetired).toHaveBeenCalledWith(expect.objectContaining({ name: "Paper" }));
+  });
+
+  it("says where a retirement inherited from a parent has to be lifted, and offers no action", () => {
+    renderTree([node("Legacy", { retired: true })]);
+
+    expect(screen.getByText("Retired by a parent")).toBeInTheDocument();
+    // The retirement is not this category's to take off, so the action would only ever fail
+    expect(screen.getByRole("button", { name: "Unretire Legacy" })).toBeDisabled();
   });
 
   it("offers to retire a category that is still in use", () => {

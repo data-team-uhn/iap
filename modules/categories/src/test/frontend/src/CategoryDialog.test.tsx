@@ -30,11 +30,9 @@ const tree = parseCategoryTree({
   "Retrospective": {
     "jcr:primaryType": "cat:Category",
     "label": "Retrospective studies",
-    "retired": false,
     "RetrospectiveData": {
       "jcr:primaryType": "cat:Category",
       "label": "Retrospective Data Studies",
-      "retired": false,
       "schemaVersion": {
         "jcr:primaryType": "sch:SchemaVersion",
         "jcr:uuid": "uuid-sv1",
@@ -46,7 +44,6 @@ const tree = parseCategoryTree({
   "Prospective": {
     "jcr:primaryType": "cat:Category",
     "label": "Prospective studies",
-    "retired": false,
   },
 });
 

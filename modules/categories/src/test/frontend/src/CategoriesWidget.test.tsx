@@ -27,17 +27,15 @@ const treeJson = {
     "jcr:primaryType": "cat:Category",
     "label": "Retrospective studies",
     "description": "Existing data or specimens only.",
-    "retired": false,
     "RetrospectiveData": {
       "jcr:primaryType": "cat:Category",
       "label": "Retrospective Data Studies",
-      "retired": false,
     },
   },
   "Paper": {
     "jcr:primaryType": "cat:Category",
     "label": "Paper submissions",
-    "retired": true,
+    "tags": ["retired"],
   },
 };
 

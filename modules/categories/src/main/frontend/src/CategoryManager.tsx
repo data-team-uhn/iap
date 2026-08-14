@@ -85,8 +85,10 @@ function CategoryManager() {
     onDelete: node => setDeleteTarget(node),
     // Retiring is confirmed, because its effect lands on submitters rather than here; unretiring is
     // that confirmation's undo, so asking again for it would be noise.
+    // Only the category carrying the retirement can have it lifted; one retired by an ancestor has
+    // nothing of its own to take off, and the tree does not offer the action there.
     onToggleRetired: node => {
-      if (node.retired) {
+      if (node.retiredHere) {
         run(`${node.label} could not be unretired`, () => setRetired(node.path, false));
       } else {
         setRetireTarget(node);

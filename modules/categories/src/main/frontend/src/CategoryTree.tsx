@@ -80,6 +80,7 @@ interface CategoryTreeItemProps {
 function CategoryTreeItem({ node, actions, depth, onMoveUp, onMoveDown }: CategoryTreeItemProps) {
   const [ open, setOpen ] = useState(true);
   const hasChildren = node.children.length > 0;
+  const inheritedRetirement = node.retired && !node.retiredHere;
 
   return (
     <>
@@ -125,16 +126,23 @@ function CategoryTreeItem({ node, actions, depth, onMoveUp, onMoveDown }: Catego
             { /* The meaningful actions carry semantic color - primary for the constructive add,
                  amber for the "soft delete", red for the real one - while the routine actions
                  (move, edit, and the restorative unretire) stay quiet. */ }
-            <Tooltip title={node.retired
-              ? "Unretire: allow new submissions again"
-              : "Retire: keep existing submissions, but allow no new ones"}>
-              <IconButton size="small" color={node.retired ? "default" : "warning"}
-                aria-label={`${node.retired ? "Unretire" : "Retire"} ${node.label}`}
-                onClick={() => actions.onToggleRetired(node)}>
-                { node.retired
-                  ? <UnarchiveOutlinedIcon fontSize="small" />
-                  : <ArchiveOutlinedIcon fontSize="small" /> }
-              </IconButton>
+            { /* A category retired by an ancestor cannot be unretired here - the retirement is not
+                 its to lift - so the action says where it does belong instead of failing. */ }
+            <Tooltip title={inheritedRetirement
+              ? "Retired by a parent category: unretire that one to reopen this"
+              : node.retired
+                ? "Unretire: allow new submissions again"
+                : "Retire: keep existing submissions, but allow no new ones"}>
+              <span>
+                <IconButton size="small" color={node.retired ? "default" : "warning"}
+                  aria-label={`${node.retired ? "Unretire" : "Retire"} ${node.label}`}
+                  disabled={inheritedRetirement}
+                  onClick={() => actions.onToggleRetired(node)}>
+                  { node.retired
+                    ? <UnarchiveOutlinedIcon fontSize="small" />
+                    : <ArchiveOutlinedIcon fontSize="small" /> }
+                </IconButton>
+              </span>
             </Tooltip>
             <Tooltip title={hasChildren ? "Delete or move its subcategories first" : "Delete"}>
               <span>
@@ -160,7 +168,14 @@ function CategoryTreeItem({ node, actions, depth, onMoveUp, onMoveDown }: Catego
           primary={
             <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
               <Typography component="span">{node.label}</Typography>
-              { node.retired && <Chip size="small" color="warning" label="Retired" /> }
+              { node.retired
+                && (
+                  <Chip
+                    size="small"
+                    color="warning"
+                    label={inheritedRetirement ? "Retired by a parent" : "Retired"}
+                  />
+                )}
               { node.schemaVersion
                 && (
                   <Chip

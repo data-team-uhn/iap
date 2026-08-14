@@ -67,6 +67,36 @@ test.describe('the sample category taxonomy', () => {
     expect(category['jcr:isCheckedOut']).toBe(false);
   });
 
+  test('retires everything under a retired category', async ({ request }) => {
+    // The one thing only a real repository can show: `retired` is an inheritable tag, so placing it on
+    // a category makes Oak materialize it onto the whole subtree at commit time, into a separate
+    // property. A mock enforces no node types and runs no commit editors, so this behaviour - the whole
+    // reason retirement is a tag rather than a boolean - is invisible to the unit tests.
+    const branch = '/Categories/Prospective/Observational';
+    const leaf = `${branch}/SurveysEducation`;
+    const patch = (value: string) => request.post(branch, {
+      headers: adminAuth,
+      form: { 'tags@TypeHint': 'String[]', 'tags@Patch': 'true', tags: value },
+    });
+
+    expect((await patch('+retired')).ok()).toBeTruthy();
+    try {
+      const response = await request.get(`${leaf}.json`, { headers: adminAuth });
+      expect(response.ok()).toBeTruthy();
+
+      const category = (await response.json()) as { tags?: string[]; inheritedTags?: string[] };
+      // Inherited, not placed: the leaf was never written to, and only the branch can be unretired
+      expect(category.inheritedTags).toContain('retired');
+      expect(category.tags ?? []).not.toContain('retired');
+    } finally {
+      await patch('-retired');
+    }
+
+    const restored = await request.get(`${leaf}.json`, { headers: adminAuth });
+    expect(((await restored.json()) as { inheritedTags?: string[] }).inheritedTags ?? [])
+      .not.toContain('retired');
+  });
+
   test('lists the sample categories through the pagination endpoint', async ({ request }) => {
     const response = await request.get('/Categories.paginate.json', { headers: adminAuth });
     expect(response.status()).toBe(200);

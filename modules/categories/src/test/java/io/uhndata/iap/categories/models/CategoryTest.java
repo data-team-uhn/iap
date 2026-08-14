@@ -80,13 +80,49 @@ class CategoryTest
         final Resource resource = this.context.create().resource("/Categories/Prospective", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
             "label", "Prospective studies",
-            "description", "Studies collecting new data or specimens.",
-            "retired", true));
+            "description", "Studies collecting new data or specimens."));
         final Category category = resource.adaptTo(Category.class);
 
         assertEquals("Prospective studies", category.getLabel());
         assertEquals("Studies collecting new data or specimens.", category.getDescription());
+    }
+
+    @Test
+    void reportsTheRetirementItCarries()
+    {
+        final Resource resource = this.context.create().resource("/Categories/Paper",
+            SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE);
+        Retirement.retire(this.context, "/Categories/Paper");
+        final Category category = resource.adaptTo(Category.class);
+
         assertTrue(category.isRetired());
+        assertTrue(category.isRetiredHere());
+    }
+
+    @Test
+    void reportsTheRetirementOfAnAncestor()
+    {
+        this.context.create().resource("/Categories/Legacy", SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE);
+        final Resource child = this.context.create().resource("/Categories/Legacy/LegacyData",
+            SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE);
+        Retirement.retire(this.context, "/Categories/Legacy");
+        final Category category = child.adaptTo(Category.class);
+
+        // Retired, but not by its own doing: only the ancestor carrying the tag can take it off again
+        assertTrue(category.isRetired());
+        assertFalse(category.isRetiredHere());
+    }
+
+    @Test
+    void isNotRetiredWithoutTheTagsService()
+    {
+        final Resource resource = this.context.create().resource("/Categories/Prospective",
+            SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE);
+        final Category category = resource.adaptTo(Category.class);
+
+        // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like
+        assertFalse(category.isRetired());
+        assertFalse(category.isRetiredHere());
     }
 
     @Test
@@ -99,7 +135,6 @@ class CategoryTest
         assertNotNull(category);
         assertNull(category.getLabel());
         assertNull(category.getDescription());
-        assertFalse(category.isRetired());
         assertNull(category.getSchemaVersion());
     }
 

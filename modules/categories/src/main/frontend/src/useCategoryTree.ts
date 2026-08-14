@@ -26,6 +26,9 @@ import { parseCategoryTree, type CategoryNode, type JcrNode } from "./categoryMo
 // The repository path of the category tree's root.
 export const CATEGORIES_ROOT = "/Categories";
 
+// The tag closing a category to new submissions, defined as inheritable by the categories module.
+const RETIRED_TAG = "retired";
+
 // Thrown when the deletion endpoint refuses to remove a category - something still references it,
 // or a deletion guard objected. Either way the deletion is off the table and the UI offers retiring
 // instead, carrying the endpoint's own account of what stands in the way.
@@ -192,9 +195,16 @@ export function useCategoryTree() {
     await reload();
   }, [authenticatedFetch, reload]);
 
-  // Retires or unretires a category.
+  // Retires or unretires a category by placing or removing the `retired` tag. Sling's @Patch adds and
+  // removes individual values of a multi-valued property, which is what a tag write has to be: the
+  // property holds every tag the category carries, and rewriting it wholesale would drop the others.
+  // TODO Fix this when the workflow engine lands
   const setRetired = useCallback(async (path: string, retired: boolean): Promise<void> => {
-    await post(authenticatedFetch, path, { retired: String(retired), "retired@TypeHint": "Boolean" });
+    await post(authenticatedFetch, path, {
+      "tags@TypeHint": "String[]",
+      "tags@Patch": "true",
+      tags: `${retired ? "+" : "-"}${RETIRED_TAG}`,
+    });
     await reload();
   }, [authenticatedFetch, reload]);
 

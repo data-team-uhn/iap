@@ -49,6 +49,9 @@ export interface CategoryNode {
   description?: string;
   // Whether the category is retired: no new submissions may be filed under it or its children.
   retired: boolean;
+  // Whether the retirement is the category's own, rather than inherited from an ancestor. Only the
+  // category carrying it can have it lifted, so this is what decides whether unretiring is offered.
+  retiredHere: boolean;
   // The schema version bound to this (leaf) category, if any.
   schemaVersion?: SchemaVersionRef;
   // The subcategories, in their stored order.
@@ -57,9 +60,23 @@ export interface CategoryNode {
 
 const CATEGORY_PRIMARY_TYPE = "cat:Category";
 
+// The tag that closes a category to new submissions. It is defined as inheritable, so the repository
+// materializes it onto every node below the one it was placed on, into a separate property: what a
+// category carries itself and what it is covered by are told apart by which property they arrive in.
+const RETIRED_TAG = "retired";
+
+const OWN_TAGS = "tags";
+
+const INHERITED_TAGS = "inheritedTags";
+
 const isCategory = (value: unknown): value is JcrNode =>
   typeof value === "object" && value !== null
     && (value as JcrNode)["jcr:primaryType"] === CATEGORY_PRIMARY_TYPE;
+
+const hasTag = (node: JcrNode, property: string, tag: string): boolean => {
+  const tags = node[property];
+  return Array.isArray(tags) && tags.includes(tag);
+};
 
 const parseSchemaVersion = (value: unknown): SchemaVersionRef | undefined => {
   // With the default `dereference` processor active, a REFERENCE property serializes as the
@@ -82,12 +99,14 @@ const parseSchemaVersion = (value: unknown): SchemaVersionRef | undefined => {
 
 const parseCategory = (name: string, node: JcrNode, parentPath: string): CategoryNode => {
   const path = `${parentPath}/${name}`;
+  const retiredHere = hasTag(node, OWN_TAGS, RETIRED_TAG);
   return {
     name,
     path,
     label: (node.label as string | undefined) ?? name,
     description: node.description as string | undefined,
-    retired: node.retired === true,
+    retired: retiredHere || hasTag(node, INHERITED_TAGS, RETIRED_TAG),
+    retiredHere,
     schemaVersion: parseSchemaVersion(node.schemaVersion),
     children: parseCategoryChildren(node, path),
   };

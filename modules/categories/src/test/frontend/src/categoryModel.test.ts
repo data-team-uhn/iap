@@ -36,11 +36,9 @@ const homepageJson = {
     "jcr:primaryType": "cat:Category",
     "label": "Retrospective studies",
     "description": "Existing data or specimens only.",
-    "retired": false,
     "RetrospectiveData": {
       "jcr:primaryType": "cat:Category",
       "label": "Retrospective Data Studies",
-      "retired": false,
       "schemaVersion": {
         "jcr:primaryType": "sch:SchemaVersion",
         "jcr:uuid": "uuid-sv1",
@@ -50,13 +48,12 @@ const homepageJson = {
     },
     "Unnamed": {
       "jcr:primaryType": "cat:Category",
-      "retired": false,
     },
   },
   "Paper": {
     "jcr:primaryType": "cat:Category",
     "label": "Paper submissions",
-    "retired": true,
+    "tags": ["retired"],
     // The raw UUID string left when the dereference processor is disabled must not break parsing
     "schemaVersion": "uuid-raw",
   },
@@ -73,11 +70,49 @@ describe("parseCategoryTree", () => {
     expect(tree[0].description).toBe("Existing data or specimens only.");
   });
 
-  it("parses the retired flag", () => {
+  it("reads retirement from the tag placed on the category", () => {
     const tree = parseCategoryTree(homepageJson);
 
     expect(tree[0].retired).toBe(false);
     expect(tree[1].retired).toBe(true);
+    expect(tree[1].retiredHere).toBe(true);
+  });
+
+  it("reads a retirement inherited from an ancestor, and keeps it apart from an own one", () => {
+    // What the repository materializes onto every node below the category the tag was placed on
+    const tree = parseCategoryTree({
+      "jcr:primaryType": "cat:CategoriesHomepage",
+      "Legacy": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Legacy studies",
+        "tags": ["retired"],
+        "LegacyData": {
+          "jcr:primaryType": "cat:Category",
+          "label": "Legacy Data Studies",
+          "inheritedTags": ["retired"],
+        },
+      },
+    });
+
+    const child = tree[0].children[0];
+    expect(child.retired).toBe(true);
+    // Not the child's to lift: only the ancestor carrying the tag can be unretired
+    expect(child.retiredHere).toBe(false);
+  });
+
+  it("is not retired by an unrelated tag", () => {
+    const tree = parseCategoryTree({
+      "jcr:primaryType": "cat:CategoriesHomepage",
+      "Draft": {
+        "jcr:primaryType": "cat:Category",
+        "label": "Draft",
+        "tags": ["sensitive"],
+        "inheritedTags": ["sensitive"],
+      },
+    });
+
+    expect(tree[0].retired).toBe(false);
+    expect(tree[0].retiredHere).toBe(false);
   });
 
   it("falls back to the node name when a category has no label", () => {

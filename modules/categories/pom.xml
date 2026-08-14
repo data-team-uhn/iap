@@ -45,6 +45,7 @@
             <Sling-Initial-Content>
               SLING-INF/content/libs/cat/;path:=/libs/cat/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -71,6 +72,12 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-autodoc</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- Retirement is the inheritable `retired` tag, read through the Taggable model -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- Nullability annotations, required by the implemented autodoc API -->

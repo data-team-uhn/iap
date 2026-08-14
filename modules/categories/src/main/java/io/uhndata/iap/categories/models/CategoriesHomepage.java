@@ -94,7 +94,8 @@ public class CategoriesHomepage extends EntityHomepage implements AutoDocumentab
 
     /**
      * Depth-first traversal of the category tree, collecting every live leaf category. A retired category prunes
-     * its whole subtree.
+     * its whole subtree: the leaves under it inherit the retirement and would be skipped one by one anyway, so
+     * this stops the walk rather than deciding the outcome.
      *
      * @param categories the categories to examine, together with their descendants
      * @param leaves collects the live leaf categories

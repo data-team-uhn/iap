@@ -31,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.tags.models.Taggable;
 
 /**
  * A Sling Model wrapping a {@code cat:Category} node, one submission category in the {@code /Categories} tree.
@@ -48,14 +49,14 @@ public class Category extends Entity implements DocumentedItem
     /** The {@code sling:resourceType} of a {@code cat:Category} node. */
     public static final String RESOURCE_TYPE = "cat/Category";
 
+    /** The inheritable tag marking a category as closed to new submissions, defined by this module under /Tags. */
+    public static final String RETIRED_TAG = "retired";
+
     @ValueMapValue
     private String label;
 
     @ValueMapValue
     private String description;
-
-    @ValueMapValue
-    private boolean retired;
 
     @ValueMapValue
     private String schemaVersion;
@@ -85,14 +86,28 @@ public class Category extends Entity implements DocumentedItem
     }
 
     /**
-     * Whether this category is retired. No new submissions may be filed under a retired category or its
-     * subcategories, but existing submissions keep referencing it.
+     * Whether this category is retired: no new submissions may be filed under it, and existing submissions keep
+     * referencing it. Retirement is the inheritable {@code retired} tag, so a category under a retired ancestor is
+     * itself retired without having been marked.
      *
-     * @return {@code true} if this category is retired
+     * @return {@code true} if this category is retired, whether in its own right or under a retired ancestor
      */
     public boolean isRetired()
     {
-        return this.retired;
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && tags.hasTag(RETIRED_TAG);
+    }
+
+    /**
+     * Whether this category was retired in its own right, rather than by an ancestor. Only the category carrying the
+     * tag can have it taken off again, so this is what an administrative UI offers to unretire.
+     *
+     * @return {@code true} if the {@code retired} tag is placed on this category itself
+     */
+    public boolean isRetiredHere()
+    {
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && tags.hasOwnTag(RETIRED_TAG);
     }
 
     /**

@@ -74,7 +74,6 @@ const treeJson = {
   "Retrospective": {
     "jcr:primaryType": "cat:Category",
     "label": "Retrospective studies",
-    "retired": false,
   },
 };
 
@@ -209,15 +208,26 @@ describe("useCategoryTree", () => {
     expect(lastPost()?.params.get(":order")).toBe("before Prospective");
   });
 
-  it("retires a category as a typed boolean", async () => {
+  it("retires a category by placing the retired tag", async () => {
     stubFetch(treeJson);
     const result = await loadedHook();
 
     await result.current.setRetired("/Categories/Retrospective", true);
 
+    // Patched rather than assigned: the property holds every tag the category carries, and the
+    // others must survive a retirement
     const post = lastPost();
-    expect(post?.params.get("retired")).toBe("true");
-    expect(post?.params.get("retired@TypeHint")).toBe("Boolean");
+    expect(post?.params.get("tags@Patch")).toBe("true");
+    expect(post?.params.get("tags")).toBe("+retired");
+  });
+
+  it("unretires a category by removing the same tag", async () => {
+    stubFetch(treeJson);
+    const result = await loadedHook();
+
+    await result.current.setRetired("/Categories/Retrospective", false);
+
+    expect(lastPost()?.params.get("tags")).toBe("-retired");
   });
 
   it("deletes a category through the deletion endpoint and reloads the tree", async () => {
