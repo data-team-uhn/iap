@@ -627,6 +627,14 @@ usually cannot read the workflow the task came from. The copy describes, it does
 permit: every completion is still checked against the definition, so a task turning up
 in somebody's list is not what makes it theirs to decide.
 
+**Submitting is a user task, not a separate mechanism.** A request that can still be
+filled in is one whose process is parked on a task performed by `@creator`; completing
+that task is what sends it. There is no "submit" event and no submit endpoint, which is
+why the button on a submission's page says the task's own label, and why a deployment
+that wants a request to go somewhere else first only edits its process. The page offers
+the tasks the reader may complete, as `@events` lists them, and only those with nothing
+to decide.
+
 **Reaching an end event can mean something to the host.** An end event carries `hostTag`
 like any other flow node, so the way a process finishes is what places the host's last
 state.
