@@ -27,15 +27,16 @@
         "io.uhndata.iap.documents-api:parse-jobs=[iap-documents]"
       ]
     },
-    // Where the Docling daemon listens, and where it should POST parse outcomes back to;
-    // see modules/documents/processing/docker-compose.yml. The callback is authenticated
-    // with the shared JWT both sides read from the IAP_DOCLING_CALLBACK_JWT environment
-    // variable (overridable here with a "callbackToken" property on the
+    // Where the Docling daemon listens; see modules/documents/processing/docker-compose.yml.
+    // Where it POSTs parse outcomes back to is configured on the daemon itself
+    // (IAP_DOCLING_CALLBACK_URL), not sent with the dispatch: that call carries the shared
+    // token and the daemon's port is unauthenticated. The callback is authenticated with the
+    // shared JWT both sides read from the IAP_DOCLING_CALLBACK_JWT environment variable
+    // (overridable here with a "callbackToken" property on the
     // ...internal.ParseCallbackServlet or ...internal.ParseJobConsumer configuration).
     // Without it the consumer refuses to dispatch, since callbacks could not be accepted.
     "io.uhndata.iap.documents.internal.ParseJobConsumer":{
-      "daemonUrl":"http://localhost:18765",
-      "callbackUrl":"http://host.docker.internal:8080/system/documents/parseCallback"
+      "daemonUrl":"http://localhost:18765"
     }
   },
   "repoinit:TEXT|true": "@file"

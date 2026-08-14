@@ -90,15 +90,26 @@ one is running is refused with `503 {"error": "daemon busy: …"}` rather than q
 conversion takes minutes, and holding the socket open for one that has not started only
 invites client timeouts. Callers retry.
 
-Adding `&job_id=<id>&callback=<url>` (both or neither) switches to the asynchronous variant:
-the daemon answers `{"job_id", "status": "queued"}` immediately, converts in the background,
-and POSTs the summary (minus `logs`, plus `job_id`; on failure `{"job_id", "ok": false,
-"error"}`) to the callback URL. The delivery carries the shared JWT from the
-`IAP_DOCLING_CALLBACK_JWT` environment variable as a bearer token, retrying a few times if
-the caller is briefly away (`parse_callbacks.py`); without that variable the daemon refuses
-asynchronous requests. This is how the Java side calls the daemon — its callback endpoint,
-which reads the same variable, is `/system/documents/parseCallback` in
+Adding `&job_id=<id>` switches to the asynchronous variant: the daemon answers
+`{"job_id", "status": "queued"}` immediately, converts in the background, and POSTs the
+summary (minus `logs`, plus `job_id`; on failure `{"job_id", "ok": false, "error"}`) to the
+callback URL.
+
+Both halves of that call come from the daemon's own environment: `IAP_DOCLING_CALLBACK_URL`
+says where to POST, and `IAP_DOCLING_CALLBACK_JWT` is the shared JWT sent as a bearer token.
+Neither is accepted from the request — a `callback` parameter is a 400 — because the daemon's
+port has no authentication, so a caller-chosen destination would hand the token to anyone
+able to reach it. Without either variable the daemon refuses asynchronous requests. Delivery
+is retried a few times if the caller is briefly away, and a redirect is refused rather than
+followed, since following one would drop the body and forward the token
+(`parse_callbacks.py`). This is how the Java side calls the daemon — its callback endpoint,
+which reads the same JWT variable, is `/system/documents/parseCallback` in
 `modules/documents/api`.
+
+Background parses run one at a time: the PDF worker pool is sized for a single conversion,
+so extra requests queue rather than each taking a thread. A shutdown drains them — parses
+already running get up to a minute to deliver their callback, and ones still queued are
+failed to the caller — so no job is left waiting on a callback that will never arrive.
 
 ---
 
@@ -107,7 +118,7 @@ which reads the same variable, is `/system/documents/parseCallback` in
 | Module | Role |
 |---|---|
 | `docling_daemon.py` | **`POST /parse?path=...`** under `IAP_SHARED_DOCS`, `GET /health`, `POST /shutdown` |
-| `parse_callbacks.py` | Authenticated, retried delivery of async parse outcomes to the caller's callback URL |
+| `parse_callbacks.py` | Authenticated, retried delivery of async parse outcomes to the configured callback URL |
 | `parse_document.py` | Shared orchestrator: LibreOffice prep → Docling → `write_chunk_files` |
 | `libreoffice_convert.py` | DOC→DOCX+PDF, DOCX→PDF; saves beside source immediately |
 | `docling_parser.py` | CLI entry via `parse_document` |

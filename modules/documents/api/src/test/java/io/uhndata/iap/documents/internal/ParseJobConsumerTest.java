@@ -48,6 +48,7 @@ import org.mockito.Mockito;
 import com.sun.net.httpserver.HttpServer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -70,7 +71,7 @@ class ParseJobConsumerTest
     /** What the daemon answers when it accepts an asynchronous parse. */
     private static final String ACCEPTED_BODY = "{\"job_id\": \"" + JOB_ID + "\", \"status\": \"queued\"}";
 
-    /** What an older daemon answers when it ignores job_id/callback and runs synchronously. */
+    /** What an older daemon answers when it ignores job_id and runs synchronously. */
     private static final String SYNC_SUCCESS_BODY = "{\"ok\": true,"
         + " \"markdown_path\": \"/shared-docs/proposal.md\", \"chunked\": false, \"chunks_dir\": null}";
 
@@ -110,11 +111,44 @@ class ParseJobConsumerTest
         assertEquals(ParseJob.STATUS_ACTIVE, properties.get(ParseJob.PN_STATUS, String.class));
         assertNotNull(properties.get(ParseJob.PN_STARTED, Calendar.class));
         assertNull(properties.get(ParseJob.PN_FINISHED, Calendar.class));
+        // No callback parameter: the daemon knows on its own where to POST the outcome
         assertEquals("http://localhost:18765/parse?path=%2Fshared-docs%2Fproposal.pdf&chunk=true"
-            + "&job_id=" + JOB_ID
-            + "&callback=http%3A%2F%2Fhost.docker.internal%3A8080%2Fsystem%2Fdocuments%2FparseCallback",
+            + "&job_id=" + JOB_ID,
             this.sentRequest.uri().toString());
         assertEquals(Duration.ofSeconds(30), this.sentRequest.timeout().orElseThrow());
+    }
+
+    @Test
+    void aJobThatIsNoLongerQueuedIsDroppedUntouched()
+    {
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_COMPLETED,
+            ParseJob.PN_PATH, DOCUMENT,
+            ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/proposal.md" });
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        // Re-dispatching would re-run the conversion and overwrite what the callback already recorded
+        assertNull(this.sentRequest);
+        final ValueMap properties = jobProperties();
+        assertEquals(ParseJob.STATUS_COMPLETED, properties.get(ParseJob.PN_STATUS, String.class));
+        assertNull(properties.get(ParseJob.PN_STARTED, Calendar.class));
+        assertEquals(1, properties.get(ParseJob.PN_OUTPUTS, String[].class).length);
+    }
+
+    @Test
+    void aJobAlreadyActiveIsNotDispatchedAgain()
+    {
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
+            ParseJob.PN_PATH, DOCUMENT);
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertNull(this.sentRequest);
+        assertEquals(ParseJob.STATUS_ACTIVE, jobProperties().get(ParseJob.PN_STATUS, String.class));
     }
 
     @Test
@@ -376,10 +410,9 @@ class ParseJobConsumerTest
     }
 
     @Test
-    void honoursTheConfiguredUrlsAndTimeout()
+    void honoursTheConfiguredUrlAndTimeout()
     {
-        activate(this.consumer, Map.of("daemonUrl", "http://docling:9999/",
-            "callbackUrl", "http://iap:8080/system/documents/parseCallback/", "responseTimeout", "5"));
+        activate(this.consumer, Map.of("daemonUrl", "http://docling:9999/", "responseTimeout", "5"));
         jobNode(Boolean.TRUE);
         daemonAnswers(202, ACCEPTED_BODY);
 
@@ -387,21 +420,32 @@ class ParseJobConsumerTest
 
         final String uri = this.sentRequest.uri().toString();
         assertTrue(uri.startsWith("http://docling:9999/parse?"));
-        assertTrue(uri.endsWith("&callback=http%3A%2F%2Fiap%3A8080%2Fsystem%2Fdocuments%2FparseCallback"));
         assertEquals(Duration.ofSeconds(5), this.sentRequest.timeout().orElseThrow());
+    }
+
+    @Test
+    void theCallbackDestinationIsNeverSentToTheDaemon()
+    {
+        activate(this.consumer, Map.of("callbackUrl", "http://attacker.example/steal"));
+        jobNode(Boolean.TRUE);
+        daemonAnswers(202, ACCEPTED_BODY);
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        // The daemon holds its own callback URL; a stale configuration here changes nothing
+        assertFalse(this.sentRequest.uri().toString().contains("callback"));
     }
 
     @Test
     void nonsenseConfigurationFallsBackToTheDefaults()
     {
-        activate(this.consumer, Map.of("daemonUrl", "", "callbackUrl", " ", "responseTimeout", "soon"));
+        activate(this.consumer, Map.of("daemonUrl", "", "responseTimeout", "soon"));
         jobNode(Boolean.TRUE);
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
         assertTrue(this.sentRequest.uri().toString().startsWith("http://localhost:18765/parse?"));
-        assertTrue(this.sentRequest.uri().toString().contains("host.docker.internal"));
         assertEquals(Duration.ofSeconds(30), this.sentRequest.timeout().orElseThrow());
     }
 
