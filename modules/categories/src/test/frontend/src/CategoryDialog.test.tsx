@@ -115,9 +115,82 @@ describe("CategoryDialog", () => {
     expect(onSave).toHaveBeenCalledWith({
       fields: { label: "Device trials", description: "Trials of devices.", schemaVersion: undefined },
       parentPath: "/Categories/Prospective",
+      unbindParent: false,
     });
     // Creating from a specific parent: the parent is not editable
     expect(screen.queryByLabelText(/Parent category/)).not.toBeInTheDocument();
+  });
+
+  it("warns that a bound parent loses its schema version, and asks for it to be unbound", async () => {
+    stubSchemasEndpoint();
+    const onSave = onSaveMock();
+    render(
+      <CategoryDialog
+        mode="create"
+        parentPath="/Categories/Retrospective/RetrospectiveData"
+        tree={tree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    expect(await screen.findByText(/Retrospective Data Studies will lose its schema version/))
+      .toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Label/), { target: { value: "Chart reviews" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].unbindParent).toBe(true);
+  });
+
+  it("asks for the same unbinding when a category is moved under a bound parent", async () => {
+    stubSchemasEndpoint();
+    const onSave = onSaveMock();
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={tree[1]}
+        parentPath="/Categories"
+        tree={tree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    fireEvent.mouseDown(screen.getByLabelText(/Parent category/));
+    fireEvent.click(within(await screen.findByRole("listbox"))
+      .getByText("Retrospective Data Studies"));
+
+    expect(await screen.findByText(/Retrospective Data Studies will lose its schema version/))
+      .toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].unbindParent).toBe(true);
+  });
+
+  it("does not offer to unbind the parent a category already sits under", async () => {
+    stubSchemasEndpoint();
+    const onSave = onSaveMock();
+    render(
+      <CategoryDialog
+        mode="edit"
+        node={tree[0].children[0]}
+        parentPath="/Categories/Retrospective"
+        tree={tree}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/Label/), { target: { value: "Renamed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0].unbindParent).toBe(false);
+    expect(screen.queryByText(/will lose its schema version/)).not.toBeInTheDocument();
   });
 
   it("reports a parent change so the category gets moved", async () => {

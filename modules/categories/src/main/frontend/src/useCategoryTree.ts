@@ -151,6 +151,14 @@ export function useCategoryTree() {
     await reload();
   }, [authenticatedFetch, reload]);
 
+  // Removes a category's schema version binding and touches nothing else, which is what a category
+  // about to receive its first subcategory needs: it is ceasing to be a leaf, and only leaves may
+  // carry a binding.
+  const unbindSchemaVersion = useCallback(async (path: string): Promise<void> => {
+    await post(authenticatedFetch, path, { "schemaVersion@Delete": "true" });
+    await reload();
+  }, [authenticatedFetch, reload]);
+
   // Moves a category (and its subtree) under a new parent, keeping its name.
   const move = useCallback(async (path: string, newParentPath: string): Promise<void> => {
     await post(authenticatedFetch, path, { ":operation": "move", ":dest": `${newParentPath}/` });
@@ -177,5 +185,8 @@ export function useCategoryTree() {
     await reload();
   }, [authenticatedFetch, reload]);
 
-  return { tree, loading, loadError, reload, create, update, move, reorder, setRetired, remove };
+  return {
+    tree, loading, loadError, reload,
+    create, update, unbindSchemaVersion, move, reorder, setRetired, remove,
+  };
 }

@@ -24,21 +24,23 @@ import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog"
 import { messageOf } from "@iap/frontend-commons/requestFailure";
 import { useAsyncAction } from "@iap/frontend-commons/useAsyncAction";
 
-import { childrenOf, flattenForParentPicker, hasDuplicateLabel, type CategoryNode } from "./categoryModel";
+import { childrenOf, findNode, flattenForParentPicker, hasDuplicateLabel, type CategoryNode } from "./categoryModel";
 import SchemaVersionSelect from "./SchemaVersionSelect";
 import { CATEGORIES_ROOT, type CategoryFields } from "./useCategoryTree";
 
-// What the manager receives when the dialog is saved: the edited fields, plus the chosen parent
-// (which, when changed on an existing category, additionally means a move).
+// What the manager receives when the dialog is saved: the edited fields, the chosen parent (which,
+// when changed on an existing category, additionally means a move), and whether that parent has to
+// give up a schema version of its own to take the child.
 export interface CategorySubmission {
   fields: CategoryFields;
   parentPath: string;
+  unbindParent: boolean;
 }
 
-// Which write did not happen. Editing a category that also changes parent takes two of them - the
+// Which write did not happen. Saving can take several of them - unbinding the new parent, the
 // fields, then the move - so a failure has to say which one it was, or a half-applied edit reads as
 // one that did not happen at all.
-export type SaveStep = "create" | "update" | "move";
+export type SaveStep = "unbind" | "create" | "update" | "move";
 
 // A save failure that knows which step it belongs to. The manager raises it, having done the steps;
 // the dialog words it, having the labels.
@@ -83,6 +85,15 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
     && hasDuplicateLabel(childrenOf(tree, parent), label, node?.path);
   const valid = label.trim() !== "" && !duplicateLabel;
 
+  // Filing a category under another - by creating it there, or by moving it there - is what ends
+  // that parent's days as a leaf, and only leaves may carry a schema version. The binding therefore
+  // has to go, and the administrator has to be told before it does: once the parent has a child the
+  // picker is hidden for it, so a binding left behind could never be found or cleared again.
+  const gainingChild = mode === "create" || parent !== parentPath
+    ? findNode(tree, parent)
+    : undefined;
+  const unbindParent = gainingChild?.schemaVersion !== undefined;
+
   const parentOptions = [
     { path: CATEGORIES_ROOT, label: "— Top level —", depth: -1 },
     ...flattenForParentPicker(tree, node?.path),
@@ -98,8 +109,14 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
   // dialog's own title names the category, so these do not repeat it. A move that failed after the
   // fields were saved is the one case where something did happen, and saying so beats being brief.
   const leadFor = (error: unknown): string => {
-    if (error instanceof SaveStepFailure && error.step === "move") {
-      return `The changes were saved, but the category could not be moved to ${parentName}`;
+    if (error instanceof SaveStepFailure) {
+      if (error.step === "unbind") {
+        // Unbinding runs first precisely so that failing it changes nothing
+        return `The schema version bound to ${parentName} could not be removed, so nothing was changed`;
+      }
+      if (error.step === "move") {
+        return `The changes were saved, but the category could not be moved to ${parentName}`;
+      }
     }
     return mode === "create" ? "The category could not be created" : "The changes could not be saved";
   };
@@ -114,7 +131,7 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
         ? (node?.schemaVersion ? null : undefined)
         : schemaVersion,
     };
-    run(() => onSave({ fields, parentPath: parent }));
+    run(() => onSave({ fields, parentPath: parent, unbindParent }));
   };
 
   return (
@@ -127,6 +144,15 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
     >
       <DialogContent dividers>
         <Stack spacing={3} sx={{ pt: 1 }}>
+          { unbindParent
+            && (
+              <Alert severity="warning">
+                <AlertTitle>{gainingChild.label} will lose its schema version</AlertTitle>
+                Submissions are filed under categories that have no subcategories, so only those
+                carry a schema version. Giving {gainingChild.label} a subcategory means submissions
+                are filed under that subcategory instead, and its own binding is removed.
+              </Alert>
+            )}
           <TextField
             required
             fullWidth

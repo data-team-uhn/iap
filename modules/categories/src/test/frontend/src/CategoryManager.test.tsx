@@ -167,6 +167,43 @@ describe("CategoryManager", () => {
       expect(postsMatching(body => body.includes("label=Posters"))).not.toHaveLength(0);
     });
 
+    it("frees the parent's schema version before giving it a subcategory", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Retrospective Data Studies");
+
+      fireEvent.click(screen.getByRole("button", { name: "Add subcategory to Retrospective Data Studies" }));
+      expect(await screen.findByText(/will lose its schema version/)).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText(/Label/), { target: { value: "Chart reviews" } });
+      fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+      await waitFor(() => {
+        expect(postTo("/Categories/Retrospective/RetrospectiveData/")).toHaveLength(1);
+      });
+      const sent = vi.mocked(fetch).mock.calls;
+      const unbound = sent.findIndex(([url, init]) => url === "/Categories/Retrospective/RetrospectiveData"
+        && init?.body instanceof URLSearchParams && init.body.has("schemaVersion@Delete"));
+      const created = sent.findIndex(([url]) => url === "/Categories/Retrospective/RetrospectiveData/");
+      expect(unbound).toBeGreaterThanOrEqual(0);
+      // Unbinding first is what leaves a failure recoverable: a leaf that lost its binding can be
+      // given it back, while a non-leaf that kept one is not offered the picker at all
+      expect(unbound).toBeLessThan(created);
+    });
+
+    it("leaves an unbound parent's fields alone when it gains a subcategory", async () => {
+      stubFetch();
+      renderManager();
+      await screen.findByText("Paper submissions");
+
+      fireEvent.click(screen.getByRole("button", { name: "Add subcategory to Paper submissions" }));
+      fireEvent.change(await screen.findByLabelText(/Label/), { target: { value: "Posters" } });
+      fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+      await waitFor(() => { expect(postTo("/Categories/Paper/")).toHaveLength(1); });
+      expect(postTo("/Categories/Paper")).toHaveLength(0);
+      expect(screen.queryByText(/will lose its schema version/)).not.toBeInTheDocument();
+    });
+
     it("updates one in place when its parent is unchanged", async () => {
       stubFetch();
       renderManager();

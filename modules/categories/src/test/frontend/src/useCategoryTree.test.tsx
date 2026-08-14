@@ -174,6 +174,18 @@ describe("useCategoryTree", () => {
     expect(post?.params.has("schemaVersion")).toBe(false);
   });
 
+  it("unbinds a schema version on its own, leaving the other fields alone", async () => {
+    stubFetch(treeJson);
+    const result = await loadedHook();
+
+    await result.current.unbindSchemaVersion("/Categories/Retrospective");
+
+    const post = lastPost();
+    expect(post?.params.get("schemaVersion@Delete")).toBe("true");
+    expect(post?.params.has("label")).toBe(false);
+    expect(post?.params.has("description")).toBe(false);
+  });
+
   it("moves a category with a trailing-slash destination, keeping its name", async () => {
     stubFetch(treeJson);
     const result = await loadedHook();

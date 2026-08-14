@@ -59,7 +59,10 @@ const attempt = async (step: SaveStep, write: () => Promise<unknown>): Promise<v
 // administrators add, edit, rearrange, retire and delete categories, and bind leaf categories to
 // the schema version their submissions must follow.
 function CategoryManager() {
-  const { tree, loading, loadError, reload, create, update, move, reorder, setRetired, remove } = useCategoryTree();
+  const {
+    tree, loading, loadError, reload,
+    create, update, unbindSchemaVersion, move, reorder, setRetired, remove,
+  } = useCategoryTree();
   const [ dialog, setDialog ] = useState<DialogState>();
   const [ deleteTarget, setDeleteTarget ] = useState<CategoryNode>();
   const [ retireTarget, setRetireTarget ] = useState<CategoryNode>();
@@ -99,9 +102,17 @@ function CategoryManager() {
   // Create saves the new category (deriving its fields' types on the server), then, since the
   // creation POST already targets the right parent, nothing more; edit updates in place and then
   // moves the category if a different parent was picked.
-  const save = async ({ fields, parentPath }: CategorySubmission): Promise<void> => {
+  //
+  // A parent that is about to stop being a leaf gives up its schema version first, before anything
+  // else is written. That order is what keeps every way this can fail recoverable: a parent that
+  // lost its binding is still a leaf, so the picker still offers to restore it, whereas a parent
+  // that kept one while gaining a child is a non-leaf the picker refuses to show at all.
+  const save = async ({ fields, parentPath, unbindParent }: CategorySubmission): Promise<void> => {
     if (!dialog) {
       return;
+    }
+    if (unbindParent) {
+      await attempt("unbind", () => unbindSchemaVersion(parentPath));
     }
     if (dialog.mode === "create") {
       await attempt("create", () => create(dialog.parentPath, fields));
