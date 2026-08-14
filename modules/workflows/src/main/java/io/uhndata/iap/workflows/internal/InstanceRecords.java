@@ -29,6 +29,8 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalContext;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.utils.ReferenceUtils;
@@ -67,14 +69,18 @@ final class InstanceRecords
 
     private final ResourceResolver resolver;
 
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param resolver the engine's own session, which everything is read and written through
+     * @param principals resolves the people a definition names
      */
-    InstanceRecords(final ResourceResolver resolver)
+    InstanceRecords(final ResourceResolver resolver, final PrincipalService principals)
     {
         this.resolver = resolver;
+        this.principals = principals;
     }
 
     /**
@@ -294,6 +300,9 @@ final class InstanceRecords
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
             "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
+            // "@creator" is resolved now, against this host, so the recorded names stand on their own
+            "performers", this.principals.resolve(activity.getPerformers(), PrincipalContext.about(hostOf(instance)))
+                .toArray(String[]::new),
             TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             TaskInstance.START_TIME_PROPERTY, started));
         armNextDeadline(activity, started, List.of(), properties);

@@ -27,6 +27,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
@@ -78,14 +79,15 @@ final class InstanceRunner
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
      * @param routing what decides where tokens go
+     * @param principals resolves the people a definition names
      */
     InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
-        final FlowRouting routing)
+        final FlowRouting routing, final PrincipalService principals)
     {
         this.performer = performer;
         this.actor = actor;
         this.routing = routing;
-        this.records = new InstanceRecords(resolver);
+        this.records = new InstanceRecords(resolver, principals);
     }
 
     /**

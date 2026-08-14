@@ -81,7 +81,7 @@ public class TaskCompletion
      * Constructor.
      *
      * @param routing what decides where the resumed instance's tokens go
-     * @param principals the vocabulary a task's definition names who may complete it in
+     * @param principals resolves the people a task's definition names, and those of any task raised from here
      */
     @Activate
     public TaskCompletion(@Reference final FlowRouting routing, @Reference final PrincipalService principals)
@@ -153,7 +153,7 @@ public class TaskCompletion
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
                 + String.join(", ", definition.getOutcomes()));
         }
-        new InstanceRunner(resolver, performer, actor, this.routing).completeTask(task, outcome);
+        new InstanceRunner(resolver, performer, actor, this.routing, this.principals).completeTask(task, outcome);
     }
 
     /**
@@ -207,7 +207,7 @@ public class TaskCompletion
         if (due == null || due.after(Calendar.getInstance())) {
             throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
         }
-        new InstanceRunner(resolver, performer, actor, this.routing).fireDeadline(task, timer);
+        new InstanceRunner(resolver, performer, actor, this.routing, this.principals).fireDeadline(task, timer);
     }
 
     /**
