@@ -305,6 +305,9 @@ final class InstanceRunner
             // Copied so the task states its own terms: whoever has to do it can read it without being able to read
             // the definition, and what it offers cannot change under them while it waits
             "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
+            // Recorded for the same reason, and resolved here because "@creator" is a question about this host
+            // that nothing reading the task later is holding the host to ask
+            "performers", PerformerCheck.resolve(hostOf(instance), activity.getPerformers()).toArray(String[]::new),
             STATUS, "created",
             START_TIME, Calendar.getInstance()));
     }

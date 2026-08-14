@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.internal;
 
 import java.security.Principal;
 import java.util.LinkedHashSet;
-import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.RepositoryException;
@@ -80,11 +79,9 @@ final class HostAccess
         readers.add(actor);
         version.getAllFlowNodes().stream()
             .filter(node -> node instanceof Activity && ((Activity) node).getHandler() == null)
-            .flatMap(node -> node.getPerformers().stream())
             // A task coming back to whoever raised the host names them the same way here as it does when it
-            // refuses somebody else, so that one declaration still decides both
-            .map(name -> PerformerCheck.CREATOR.equals(name) ? PerformerCheck.creatorOf(host) : name)
-            .filter(Objects::nonNull)
+            // refuses somebody else, and as the raised task itself records them, so one declaration decides all three
+            .flatMap(node -> PerformerCheck.resolve(host, node.getPerformers()).stream())
             .forEach(readers::add);
         grant(resolver, host.getPath(), readers);
     }
