@@ -40,6 +40,12 @@ interface RetireCategoryDialogProps {
 // to explain it: from the tree it is one small button among several, and its consequence is
 // invisible from here.
 function RetireCategoryDialog({ node, onClose, onRetire }: RetireCategoryDialogProps) {
+  // Retirement is inherited, so retiring a branch closes everything under it as well. That is the
+  // part an administrator cannot see from the row they clicked, so it is the part worth naming.
+  const subject = node.children.length > 0
+    ? `"${node.label}" and its subcategories`
+    : `"${node.label}"`;
+
   return (
     <ConfirmActionDialog
       title={`Retire ${node.label}?`}
@@ -49,7 +55,7 @@ function RetireCategoryDialog({ node, onClose, onRetire }: RetireCategoryDialogP
       onClose={onClose}
     >
       <DialogContentText>
-        &quot;{node.label}&quot; will no longer be available for new submissions. {RETIREMENT_EFFECT}
+        {subject} will no longer be available for new submissions. {RETIREMENT_EFFECT}
       </DialogContentText>
     </ConfirmActionDialog>
   );

@@ -30,8 +30,12 @@ const node: CategoryNode = {
   children: [],
 };
 
-const renderDialog = ({ onRetire = vi.fn().mockResolvedValue(undefined), onClose = vi.fn() } = {}) => {
-  render(<RetireCategoryDialog node={node} onClose={onClose} onRetire={onRetire} />);
+const renderDialog = ({
+  target = node,
+  onRetire = vi.fn().mockResolvedValue(undefined),
+  onClose = vi.fn(),
+} = {}) => {
+  render(<RetireCategoryDialog node={target} onClose={onClose} onRetire={onRetire} />);
   return { onRetire, onClose };
 };
 
@@ -45,6 +49,14 @@ describe("RetireCategoryDialog", () => {
     expect(screen.getByText(/Existing submissions stay in this category and keep working/))
       .toBeInTheDocument();
     expect(screen.getByText(/can be undone at any time/)).toBeInTheDocument();
+  });
+
+  it("says that retiring a branch closes everything under it", () => {
+    // The consequence an administrator cannot see from the row they clicked: retirement is inherited
+    const posters = { ...node, name: "Posters", path: "/Categories/Paper/Posters" };
+    renderDialog({ target: { ...node, children: [posters] } });
+
+    expect(screen.getByText(/and its subcategories will no longer be available/)).toBeInTheDocument();
   });
 
   it("retires the category and closes", async () => {
