@@ -27,6 +27,18 @@
       "label": "Record the answers",
       "handler": "saveAnswers",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toValidate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toValidate",
+        "targetRef": "validate"
+      }
+    },
+    "validate": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "validate",
+      "label": "Check what the answers say",
+      "handler": "validateAnswers",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toDone": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDone",
