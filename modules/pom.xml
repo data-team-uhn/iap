@@ -31,8 +31,10 @@
 
   <modules>
     <!-- Keep these alphabetical -->
+    <module>admin-console</module>
     <module>authentication</module>
     <module>autodoc</module>
+    <module>categories</module>
     <module>conditions</module>
     <module>data-model</module>
     <module>deletion</module>

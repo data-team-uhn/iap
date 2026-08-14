@@ -58,8 +58,11 @@ export const INSTANCES: readonly Instance[] = [
     name: 'test-data',
     baseURL: enabled(process.env.IAP_TESTDATA_SKIP, process.env.IAP_TESTDATA_URL),
     description: 'the platform with sample content (test_tar)',
-    // What the login page fetches for itself. /TestEntities is deliberately absent: it needs credentials,
-    // so it cannot be probed this way, and it is only ever read by an API-level test that supplies them.
+    // What the login page fetches for itself. /TestEntities and /Categories are deliberately absent:
+    // they need credentials, so they cannot be probed this way, and they are only ever read by
+    // API-level tests that supply them. `sling.auth.requirements` exempts only /libs, /apps, /login,
+    // the favicons and two /system paths, so a probe outside those is unauthenticated-401 forever,
+    // whatever the node's own ACLs say.
     readyPaths: ['/libs/iap/ParticipatingInstitutions.1.json'],
   },
   {

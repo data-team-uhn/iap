@@ -48,6 +48,7 @@
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/healthcheck/;path:=/libs/iap/healthcheck/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Categories/;path:=/Categories/;overwriteProperties:=true;uninstall:=true;checkin:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

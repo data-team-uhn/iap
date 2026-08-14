@@ -33,6 +33,7 @@ type ResponsiveDialogProps = Omit<DialogProps, "title" | "onClose" | "maxWidth">
   title?: ReactNode;
   width?: Breakpoint;
   withCloseButton?: boolean;
+  closeDisabled?: boolean;
   onClose?: (event: object) => void;
 };
 
@@ -43,6 +44,10 @@ type ResponsiveDialogProps = Omit<DialogProps, "title" | "onClose" | "maxWidth">
 // title: String specifying the title of the dialog
 // withCloseButton: Boolean specifying whether the dialog should have a Close button (x)
 //   at the top-right corner
+// closeDisabled: Boolean refusing every way out of the dialog - the close button, the
+//   Escape key - for as long as it is set. A dialog running an action it cannot take
+//   back sets it while that action is in flight, so that disabling its own Cancel button
+//   is not quietly undone by the chrome around it.
 // width: the default size of the dialog, and the screen size that makes it go
 //   fullScreen. One of xs, sm, md, lg, xl. Defaults to sm.
 // children: the dialog contents
@@ -70,6 +75,7 @@ const ResponsiveDialog = forwardRef<HTMLDivElement, ResponsiveDialogProps>((prop
     width = "sm",
     children,
     withCloseButton,
+    closeDisabled,
     onClose,
     ...rest
   } = props;
@@ -78,7 +84,13 @@ const ResponsiveDialog = forwardRef<HTMLDivElement, ResponsiveDialogProps>((prop
   const fullScreen = useMediaQuery(theme.breakpoints.down(width));
 
   const closeButton = withCloseButton ?
-    <IconButton aria-label="close" sx={{ position: "absolute", right: 8, top: 8 }} onClick={onClose} size="large">
+    <IconButton
+      aria-label="close"
+      sx={{ position: "absolute", right: 8, top: 8 }}
+      onClick={onClose}
+      disabled={closeDisabled}
+      size="large"
+    >
       <CloseIcon />
     </IconButton>
     : null;
@@ -90,7 +102,7 @@ const ResponsiveDialog = forwardRef<HTMLDivElement, ResponsiveDialogProps>((prop
       fullWidth
       fullScreen={fullScreen}
       onClose={(event, reason) => {
-        if (reason !== 'backdropClick') {
+        if (reason !== 'backdropClick' && !closeDisabled) {
           onClose?.(event);
         }
       }}

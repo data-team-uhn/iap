@@ -34,6 +34,11 @@ export type RequestReLogin = () => Promise<boolean>;
 // mounted, in which case an expired session is reported as an error rather than recovered from.
 export const ReLoginContext = createContext<RequestReLogin | null>(null);
 
+// What useAuthenticatedFetch returns: a `fetch` that survives the session expiring underneath it.
+// Named so that the modules a component hands it to can say so in their signatures -- a hook can
+// only be called from a component or another hook, so anything else has to take it as an argument.
+export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
+
 // Sling's session endpoint, reporting who the current session is authenticated as
 export const SESSION_INFO_URL = "/system/sling/info.sessionInfo.json";
 
@@ -75,7 +80,7 @@ async function stillAuthenticated(): Promise<boolean> {
 // fixes nothing and, since the retry hits the same error, prompt again for as long as the user plays
 // along. So a 500 is disambiguated by asking whether the session is still there, and only the
 // answer to that decides between recovering and reporting.
-export function useAuthenticatedFetch(): (url: string, init?: RequestInit) => Promise<Response> {
+export function useAuthenticatedFetch(): AuthenticatedFetch {
   const requestReLogin = useContext(ReLoginContext);
 
   return useCallback(async (url: string, init?: RequestInit) => {

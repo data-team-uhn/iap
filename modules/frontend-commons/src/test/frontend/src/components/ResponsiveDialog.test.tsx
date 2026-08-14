@@ -99,6 +99,22 @@ describe("ResponsiveDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("disables the close button while closing is refused", () => {
+    renderDialog({ title: "Select a subject", withCloseButton: true, closeDisabled: true, onClose: vi.fn() });
+
+    expect(screen.getByRole("button", { name: "close" })).toBeDisabled();
+  });
+
+  it("ignores escape while closing is refused", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderDialog({ closeDisabled: true, onClose });
+
+    await user.keyboard("{Escape}");
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("ignores a click on the backdrop, so work in progress is not lost", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

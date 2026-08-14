@@ -20,6 +20,8 @@
     // One entry per module with frontend sources. webpack_script.py fails the build if a
     // module it aggregated is missing here, so this list cannot silently fall behind.
     "paths": {
+      "@iap/admin-console/*": ["./modules/admin-console/src/main/frontend/src/*"],
+      "@iap/categories/*": ["./modules/categories/src/main/frontend/src/*"],
       "@iap/deletion/*": ["./modules/deletion/src/main/frontend/src/*"],
       "@iap/frontend-commons/*": ["./modules/frontend-commons/src/main/frontend/src/*"],
       "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],

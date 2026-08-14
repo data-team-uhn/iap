@@ -18,7 +18,7 @@
 
 import { type ReactNode } from "react";
 
-import { Box, Paper, Typography } from "@mui/material";
+import { Box, Paper, Stack, Typography } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 
 // The surface every dashboard widget sits on. Styling lives here (driven by theme tokens) rather
@@ -49,30 +49,36 @@ interface WidgetProps {
   title?: string;
   // Optional secondary line rendered under the title (e.g. a short description of the content).
   subtitle?: string;
+  // Optional action (e.g. a Configure button) rendered in the header row, in line with the title.
+  action?: ReactNode;
   // When true, the widget is rendered on a tinted surface to draw attention to it.
   emphasis?: boolean;
   // When true, the widget has no border or surface fill and blends into the page background.
   borderless?: boolean;
-  // When true, the title/subtitle header is not rendered (the widget supplies its own chrome).
+  // When true, the title/subtitle header is not rendered (the widget supplies its own chrome),
+  // and neither is the action.
   hideHeader?: boolean;
   // The widget's content.
   children: ReactNode;
 }
 
 // The frame wrapping one dashboard widget's content: a styled surface with an optional title and
-// subtitle. Title and subtitle form one header block, kept tight together and separated from the
-// content below.
-function Widget({ title, subtitle, emphasis, borderless, hideHeader, children }: WidgetProps) {
+// subtitle, and an optional action beside them. Title and subtitle form one header block, kept
+// tight together and separated from the content below; the action sits at the header's end.
+function Widget({ title, subtitle, action, emphasis, borderless, hideHeader, children }: WidgetProps) {
   return (
     <WidgetSurface emphasis={emphasis} borderless={borderless}>
       {/* An explicitly empty title/subtitle should count as absent too, so `||` (not `??`) is
           intentional here. */}
       {/* eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing */}
-      { !hideHeader && (title || subtitle) && (
-        <Box sx={{ mb: 2 }}>
-          { title && <Typography variant="h6">{title}</Typography> }
-          { subtitle && <Typography variant="body2" color="text.secondary">{subtitle}</Typography> }
-        </Box>
+      { !hideHeader && (title || subtitle || action) && (
+        <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "flex-start", gap: 1, mb: 2 }}>
+          <Box>
+            { title && <Typography variant="h6">{title}</Typography> }
+            { subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography> }
+          </Box>
+          {action}
+        </Stack>
       ) }
       {children}
     </WidgetSurface>

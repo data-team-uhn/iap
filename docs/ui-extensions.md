@@ -71,6 +71,16 @@ breakpoint name or px —, bar `collapseHeight`).
 | --- | --- | --- |
 | `iap/coreUI/view` | `Views` | Full main-content views routed by URL: `iap:targetURL` is the path the view is responsible for; the router renders the matching view's component. Use `?lazy` on the render URL so a view is only loaded when navigated to. |
 
+**Every view URL must be backed by a real resource.** Client-side navigation works regardless,
+but on a refresh or deep link the browser asks Sling for that URL, and an unresolvable path is a
+404 before the SPA ever loads. Views over entities get this for free (the entity node itself
+serves the shell); a *virtual* page (like `/admin`) needs a shell-hosting node created in the
+owning module's repoinit: `create path (iap:Homepage) /admin`. The node also carries the page's
+access control — denying it to `everyone` turns a non-admin deep link into an honest 404.
+
+Requiring a node per virtual page is an interim mechanism: the upcoming virtual resource resolver
+serves a view's URL without one, and this whole note goes away with it.
+
 ### The application bar
 
 The app bar is itself a `frameTop` extension, composed of entries on its own point:
@@ -80,11 +90,12 @@ The app bar is itself a `frameTop` extension, composed of entries on its own poi
 | `iap/appBar/entry` | `AppBarEntry` | Controls in the app bar row. `iap:appBarSection` places an entry in the `start`, `middle` (centered), or `end` section; `iap:defaultOrder` orders within the section. |
 
 Current entries: Branding (start), and the dark mode toggle, notifications bell, persona switcher,
-and user menu (end). The middle section is reserved for e.g. a future search bar. A
-high-visibility element like a maintenance banner should register directly on `frameTop` with
-`iap:defaultOrder` below the app bar's (20) to appear above it; the `iap-commons.NoticeBanner`
-asset renders such a data-only banner extension (markdown message in `iap:data`, optional
-`iap:severity`). Add `iap:visibleBeforeLogin: true` to such a banner to
+administration console button (admins only, see [Administration](administration.md)), and user menu
+(end). The middle section is reserved for e.g. a future search bar. A high-visibility element
+like a maintenance banner should register directly on `frameTop` with `iap:defaultOrder` below
+the app bar's (20) to appear above it; the `iap-commons.NoticeBanner` asset renders such a
+data-only banner extension (markdown message in `iap:data`, optional `iap:severity`).
+Add `iap:visibleBeforeLogin: true` to such a banner to
 also show it on the login page, which renders the `frameTop` extensions carrying this opt-in
 flag (and nothing else from the frame) above its content — so a notice posted once reaches
 users both before and after they sign in. The flag is an interim mechanism: once the upcoming
@@ -123,11 +134,28 @@ short explanation under the button). Register it with a lower `iap:defaultOrder`
 credentials form to make it the primary method, and disable the credentials form entirely with
 `iap:defaultDisabled: true` where local accounts should not be offered.
 
+### The breadcrumb trail
+
+The breadcrumb trail is a `pageTop` extension (homepage module) rendered above the main content
+of every page. It links the current URL's **ancestor** pages — each ancestor path matching a
+registered view's `iap:targetURL` becomes a link labeled with that view's `iap:extensionName`.
+On a top-level page there are no ancestors and nothing is rendered ("home" is reached through
+the logo, and the current page's own title is the page heading, not a crumb). Access control is
+inherited from the views themselves: a view the user cannot read never reaches them, so it
+doesn't appear in their trail either.
+
 ### The dashboard
 
 | Point id | Node name | Purpose |
 | --- | --- | --- |
-| `iap/dashboard/widget` | `DashboardWidget` | Widgets tiled on the homepage dashboard in a responsive grid. Each widget is framed with a title (`iap:extensionName`) and optional subtitle (`iap:subtitle`); optional properties tune the frame: `iap:widgetWidth` (`normal`/`wide`/`full`), `iap:widgetEmphasis`, `iap:widgetBorderless`, `iap:widgetHideHeader`. `iap:personas` restricts a widget to some [personas](#personas). |
+| `iap/dashboard/widget` | `DashboardWidget` | Widgets tiled on the homepage dashboard in a responsive grid. Each widget is framed with a title (`iap:extensionName`) and optional subtitle (`iap:subtitle`); optional properties tune the frame: `iap:widgetWidth` (`normal`/`wide`/`full`), `iap:widgetEmphasis`, `iap:widgetBorderless`, `iap:widgetHideHeader`, and `iap:actionLabel` (a header action in line with the title — a button with this label leading to the widget's `iap:targetURL`, an in-app path; both must be set). `iap:personas` restricts a widget to some [personas](#personas). |
+
+The layout itself — the responsive grid, the titled widget frames, and the tuning properties
+above — is the shared `WidgetDashboard` component (`@iap/frontend-commons/components/WidgetDashboard`),
+parameterized by extension point. The homepage dashboard binds it to `iap/dashboard/widget`; the
+administration console binds the same layout to its own point, `iap/adminDashboard/entry`, so
+widgets behave identically on both — see [Administration](administration.md) for that point and
+for what a tool has to register.
 
 ## Personas
 
