@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 
 import { act, renderHook, waitFor } from "@testing-library/react";
 
-import { CategoryReferencedError, useCategoryTree } from "@iap/categories/useCategoryTree";
+import { DeletionRefusedError, useCategoryTree } from "@iap/categories/useCategoryTree";
 import { ReLoginContext, SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
 // Every request the stubbed fetch has served, for asserting on the wire protocol.
@@ -43,6 +43,7 @@ const stubFetch = (
   treeJson: Record<string, unknown>,
   postStatus = 200,
   location: string | null = "/Categories/new-category",
+  refusal?: Record<string, unknown>,
 ) =>
   vi.stubGlobal("fetch", vi.fn((url: string, options?: RequestInit) => {
     const method = options?.method ?? "GET";
@@ -63,6 +64,8 @@ const stubFetch = (
       statusText: postStatus === 200 ? "OK" : "Error",
       url,
       headers: { get: (name: string) => name === "Location" ? location : null },
+      // Only the deletion endpoint answers with a body; the POST servlet's is never read
+      ...(refusal ? { json: () => Promise.resolve(refusal) } : {}),
     } as unknown as Response);
   }));
 
@@ -217,13 +220,18 @@ describe("useCategoryTree", () => {
     expect(post?.params.get("retired@TypeHint")).toBe("Boolean");
   });
 
-  it("deletes a category and reloads the tree", async () => {
+  it("deletes a category through the deletion endpoint and reloads the tree", async () => {
     stubFetch(treeJson);
     const result = await loadedHook();
 
     await act(() => result.current.remove("/Categories/Retrospective"));
 
-    expect(lastPost()?.params.get(":operation")).toBe("delete");
+    // A DELETE on the category itself, not a :operation=delete write: the endpoint is what knows
+    // the references, keeps the archive copy, and can say why it refused
+    const sent = requests.filter(request => request.method === "DELETE");
+    expect(sent).toHaveLength(1);
+    expect(sent[0].url).toBe("/Categories/Retrospective");
+    expect(requests.filter(request => request.method === "POST")).toHaveLength(0);
     // The reload that follows it
     expect(requests.filter(request => request.method === "GET")).toHaveLength(2);
   });
@@ -255,13 +263,34 @@ describe("useCategoryTree", () => {
     expect(result.current.loadError).toBe("Something went wrong: connection reset");
   });
 
-  it("translates a 409 deletion refusal into a CategoryReferencedError", async () => {
-    stubFetch(treeJson, 409);
+  it("passes on the reason the deletion endpoint refused", async () => {
+    stubFetch(treeJson, 409, null, {
+      "status.code": 409,
+      "status": "referenced",
+      "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
+    });
     const result = await loadedHook();
 
     await expect(result.current.remove("/Categories/Retrospective"))
-      .rejects.toBeInstanceOf(CategoryReferencedError);
-    expect(lastPost()?.params.get(":operation")).toBe("delete");
+      .rejects.toThrow("This item is referenced in 2 submissions (S-1, S-2).");
+  });
+
+  it("still reports a refusal when its reason cannot be read", async () => {
+    stubFetch(treeJson, 409);
+    const result = await loadedHook();
+
+    // A refusal with an unreadable body is still a refusal, not a server failure: the UI has to
+    // keep offering to retire instead
+    await expect(result.current.remove("/Categories/Retrospective"))
+      .rejects.toBeInstanceOf(DeletionRefusedError);
+  });
+
+  it("reports any other deletion failure as a failure", async () => {
+    stubFetch(treeJson, 403);
+    const result = await loadedHook();
+
+    await expect(result.current.remove("/Categories/Retrospective"))
+      .rejects.not.toBeInstanceOf(DeletionRefusedError);
   });
 
   // Why these requests go through useAuthenticatedFetch: Sling answers a *write* with an expired

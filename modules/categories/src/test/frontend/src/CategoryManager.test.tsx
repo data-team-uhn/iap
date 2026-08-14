@@ -132,13 +132,17 @@ describe("CategoryManager", () => {
     await screen.findByText("Paper submissions");
 
     fireEvent.click(screen.getByRole("button", { name: "Delete Paper submissions" }));
-    // The confirmation dialog appears; the server then answers the delete POST with 409
+    // The confirmation dialog appears; the deletion endpoint then refuses, naming what refers to it
     fetchMock.mockResolvedValueOnce({
       ok: false, status: 409, statusText: "Conflict",
+      json: () => Promise.resolve({
+        "status": "referenced",
+        "status.message": "This item is referenced in 2 submissions (S-1, S-2).",
+      }),
     } as unknown as Response);
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
-    expect(await screen.findByText(/cannot be deleted/)).toBeInTheDocument();
+    expect(await screen.findByText(/referenced in 2 submissions/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retire instead" })).toBeInTheDocument();
   });
 
@@ -341,7 +345,8 @@ describe("CategoryManager", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
       await waitFor(() => {
-        expect(postsMatching(body => body.includes("operation=delete"))).not.toHaveLength(0);
+        expect(vi.mocked(fetch).mock.calls.filter(([url, init]) =>
+          url === "/Categories/Paper" && init?.method === "DELETE")).toHaveLength(1);
       });
     });
 

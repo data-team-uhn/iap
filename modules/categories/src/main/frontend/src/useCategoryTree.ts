@@ -26,14 +26,35 @@ import { parseCategoryTree, type CategoryNode, type JcrNode } from "./categoryMo
 // The repository path of the category tree's root.
 export const CATEGORIES_ROOT = "/Categories";
 
-// Thrown when the server refuses to delete a category because submissions (or other content)
-// still reference it; the UI offers retiring instead.
-export class CategoryReferencedError extends Error {
-  constructor() {
-    super("This category has submissions and cannot be deleted. It can be retired instead.");
-    this.name = "CategoryReferencedError";
+// Thrown when the deletion endpoint refuses to remove a category - something still references it,
+// or a deletion guard objected. Either way the deletion is off the table and the UI offers retiring
+// instead, carrying the endpoint's own account of what stands in the way.
+export class DeletionRefusedError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "DeletionRefusedError";
   }
 }
+
+// A refusal from the deletion endpoint, of which the UI needs the sentence describing what blocks
+// the deletion, e.g. "This item is referenced in 3 submissions (S-1, S-2, S-3)."
+interface DeletionRefusal {
+  "status.message"?: string;
+}
+
+const DELETION_REFUSED = "Something still refers to this category, so it cannot be deleted.";
+
+// What the endpoint said stands in the way. A body that cannot be read falls back to the general
+// sentence rather than to a failure: the deletion was still refused, and saying so with less detail
+// beats reporting it as if the server had broken.
+const refusalReason = async (response: Response): Promise<string> => {
+  try {
+    const refusal = await response.json() as DeletionRefusal | null;
+    return refusal?.["status.message"] ?? DELETION_REFUSED;
+  } catch {
+    return DELETION_REFUSED;
+  }
+};
 
 // The fields of a category that the edit dialog manages. `schemaVersion` is the identifier
 // (jcr:uuid) of the bound sch:SchemaVersion; null explicitly removes an existing binding, while
@@ -45,9 +66,6 @@ export interface CategoryFields {
 }
 
 const checkOk = (response: Response): Response => {
-  if (response.status === 409) {
-    throw new CategoryReferencedError();
-  }
   if (!response.ok) {
     throw new RequestError(response.status);
   }
@@ -56,13 +74,13 @@ const checkOk = (response: Response): Response => {
 
 // Every exchange with the repository goes through here, so that a failure - an unreachable server,
 // a refused write, an unreadable response - reaches the UI already worded for the person who will
-// read it. A 409 is the exception: it is not a failure to report but a refusal the UI answers with
-// an offer to retire instead, so it passes through as itself.
+// read it. A refused deletion is the exception: it is not a failure to report but a refusal the UI
+// answers with an offer to retire instead, so it passes through as itself.
 const reporting = async <T>(exchange: () => Promise<T>): Promise<T> => {
   try {
     return await exchange();
   } catch (error: unknown) {
-    if (error instanceof CategoryReferencedError) {
+    if (error instanceof DeletionRefusedError) {
       throw error;
     }
     throw new Error(describeRequestFailure(error));
@@ -178,10 +196,18 @@ export function useCategoryTree() {
     await reload();
   }, [authenticatedFetch, reload]);
 
-  // Deletes a category. Rejects with a CategoryReferencedError when the category has submissions,
-  // which the UI turns into a "retire instead?" offer.
+  // Deletes a category through the platform's deletion endpoint rather than a plain repository
+  // write: it knows what points at the category, moves what it removes into the archive instead of
+  // destroying it, and answers a refusal with the reasons rather than an opaque failure. A refusal
+  // rejects with a DeletionRefusedError, which the UI turns into a "retire instead?" offer.
   const remove = useCallback(async (path: string): Promise<void> => {
-    await post(authenticatedFetch, path, { ":operation": "delete" });
+    await reporting(async () => {
+      const response = await authenticatedFetch(path, { method: "DELETE" });
+      if (response.status === 409) {
+        throw new DeletionRefusedError(await refusalReason(response));
+      }
+      return checkOk(response);
+    });
     await reload();
   }, [authenticatedFetch, reload]);
 

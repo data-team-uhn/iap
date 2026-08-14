@@ -20,7 +20,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import type { CategoryNode } from "@iap/categories/categoryModel";
 import DeleteCategoryDialog from "@iap/categories/DeleteCategoryDialog";
-import { CategoryReferencedError } from "@iap/categories/useCategoryTree";
+import { DeletionRefusedError } from "@iap/categories/useCategoryTree";
 
 const node: CategoryNode = {
   name: "Paper",
@@ -29,6 +29,9 @@ const node: CategoryNode = {
   retired: false,
   children: [],
 };
+
+// The sentence the deletion endpoint answers a refusal with, describing what stands in the way.
+const REFUSAL = "This item is referenced in 2 submissions (S-1, S-2).";
 
 const renderDialog = ({
   onDelete = vi.fn().mockResolvedValue(undefined),
@@ -40,11 +43,11 @@ const renderDialog = ({
 };
 
 describe("DeleteCategoryDialog", () => {
-  it("names the category and warns that the deletion is final", () => {
+  it("names the category and says where it goes", () => {
     renderDialog();
 
     expect(screen.getByRole("heading", { name: "Delete Paper submissions?" })).toBeInTheDocument();
-    expect(screen.getByText(/will be permanently deleted/)).toBeInTheDocument();
+    expect(screen.getByText(/kept in the archive/)).toBeInTheDocument();
   });
 
   it("deletes the category and closes", async () => {
@@ -65,13 +68,14 @@ describe("DeleteCategoryDialog", () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("offers to retire instead when the category still has submissions", async () => {
-    const onDelete = vi.fn().mockRejectedValue(new CategoryReferencedError());
+  it("states the server's reason and offers to retire instead when a deletion is refused", async () => {
+    const onDelete = vi.fn().mockRejectedValue(new DeletionRefusedError(REFUSAL));
     const { onRetire, onClose } = renderDialog({ onDelete });
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
 
-    expect(await screen.findByText(/has submissions and cannot be deleted/)).toBeInTheDocument();
+    // The endpoint's own account of what stands in the way, rather than a guess made here
+    expect(await screen.findByText(/referenced in 2 submissions \(S-1, S-2\)/)).toBeInTheDocument();
     // Retiring is explained here in the same words the retirement dialog uses
     expect(screen.getByText(/Existing submissions stay in this category and keep working/))
       .toBeInTheDocument();
@@ -107,7 +111,7 @@ describe("DeleteCategoryDialog", () => {
   });
 
   it("reports a failed retirement too", async () => {
-    const onDelete = vi.fn().mockRejectedValue(new CategoryReferencedError());
+    const onDelete = vi.fn().mockRejectedValue(new DeletionRefusedError(REFUSAL));
     const onRetire = vi.fn().mockRejectedValue(new Error("HTTP 403"));
     renderDialog({ onDelete, onRetire });
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
