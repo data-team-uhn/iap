@@ -557,6 +557,55 @@ test.describe('the time off request demo', () => {
     await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
   });
 
+  test('refuses a request for more time off than the requester has left', async ({ page }) => {
+    // A rule about what the answers may *say*, rather than about who may write them, and the only place the
+    // whole path can be seen at once: the save is carried out, a validator reads the request as the save would
+    // leave it, objects, and the engine's one-commit rule throws the write away with the rest of the run. What
+    // the submitter is left with is the reason, on the answer they just gave, and a form still holding
+    // everything that was accepted before it.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('Most of November');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await expect(page).toHaveURL(/\.edit$/);
+
+    // Each of these is accepted: until both ends of the span are given there is no number to compare, and a
+    // half-answered request is the ordinary state of one being filled in rather than an error
+    await page.getByRole('radio', { name: 'Several days' }).check();
+    const start = page.getByLabel(/Which day does your time off start/);
+    await start.fill('2026-11-02');
+    await start.blur();
+    // Both of them: the duration and the start date each report their own save, and waiting for the
+    // second is what keeps the next answer from racing the one before it
+    await expect(page.getByText('Saved')).toHaveCount(2);
+
+    // Twenty days, counting both ends, against the twelve the demo's holiday bank gives this requester
+    const back = page.getByLabel(/Which day are you back/);
+    await back.fill('2026-11-21');
+    await back.blur();
+
+    // The reason reaches the field that carries the answer, which is the difference between a refusal a
+    // submitter can act on and a save that merely failed
+    await page.getByLabel('Not saved').hover();
+    await expect(page.getByRole('tooltip'))
+      .toContainText('This asks for more time off than you have left. Requested: 20. Remaining: 12.');
+
+    // And nothing was written: the run that would have stored the return date reverted, while the answers
+    // accepted before it are still there
+    await page.reload();
+    await expect(page.getByLabel(/Which day are you back/)).toHaveValue('');
+    await expect(page.getByLabel(/Which day does your time off start/)).toHaveValue('2026-11-02');
+    await expect(page.getByRole('radio', { name: 'Several days' })).toBeChecked();
+  });
+
   test('creates the two people the demo is about', async ({ page }) => {
     // Proves the accounts exist and their passwords work, which is what the walkthrough depends on
     const login = new LoginPage(page);
