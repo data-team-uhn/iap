@@ -110,7 +110,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             }
             final StartEvent start =
                 SystemWorkflowLocator.find(serviceResolver, privilegedTarget, event, this.conditionEvaluator);
-            PerformerCheck.verify(serviceResolver, start, actor);
+            PerformerCheck.verify(serviceResolver, privilegedTarget, start, actor);
             return execute(privilegedTarget, event, start, actor);
         }
     }
