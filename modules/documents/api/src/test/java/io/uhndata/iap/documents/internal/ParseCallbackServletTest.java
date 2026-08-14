@@ -128,6 +128,43 @@ class ParseCallbackServletTest
     }
 
     @Test
+    void aSuccessClearsAnEarlierError() throws Exception
+    {
+        // A dispatch that timed out while the daemon went on parsing leaves an error behind
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_FAILED,
+            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_ERROR, "Calling the daemon failed: null");
+
+        final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION, SUCCESS_BODY);
+
+        assertEquals(200, response.getStatus());
+        final ValueMap properties = jobProperties();
+        assertEquals(ParseJob.STATUS_COMPLETED, properties.get(ParseJob.PN_STATUS, String.class));
+        assertNull(properties.get(ParseJob.PN_ERROR, String.class));
+    }
+
+    @Test
+    void aFailureClearsEarlierOutputs() throws Exception
+    {
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_COMPLETED,
+            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/proposal.md" });
+
+        final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION,
+            "{\"job_id\": \"" + JOB_ID + "\", \"ok\": false, \"error\": \"cannot parse\"}");
+
+        assertEquals(200, response.getStatus());
+        final ValueMap properties = jobProperties();
+        assertEquals(ParseJob.STATUS_FAILED, properties.get(ParseJob.PN_STATUS, String.class));
+        assertEquals("cannot parse", properties.get(ParseJob.PN_ERROR, String.class));
+        assertNull(properties.get(ParseJob.PN_OUTPUTS, String[].class));
+    }
+
+    @Test
     void failureWithoutAMessageGetsADefault() throws Exception
     {
         jobNode();

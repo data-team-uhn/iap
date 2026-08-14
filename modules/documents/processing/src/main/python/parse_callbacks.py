@@ -17,11 +17,12 @@
 
 """Delivering parse results back to the caller's callback endpoint.
 
-When ``/parse`` is called with ``job_id`` and ``callback`` parameters, the daemon answers
-immediately and converts in the background; once done, it POSTs the outcome as JSON to the
-callback URL. The callback endpoint authenticates the daemon with a shared JWT, handed to
-both sides as the ``IAP_DOCLING_CALLBACK_JWT`` environment variable and sent here as a
-bearer token. The token is opaque to this module: it is attached, never parsed.
+When ``/parse`` is called with a ``job_id``, the daemon answers immediately and converts in
+the background; once done, it POSTs the outcome as JSON to the callback URL. Both halves of
+that call come from the daemon's own environment, never from the request:
+``IAP_DOCLING_CALLBACK_URL`` says where to POST, and ``IAP_DOCLING_CALLBACK_JWT`` carries
+the shared JWT the callback endpoint authenticates with, sent here as a bearer token. The
+token is opaque to this module: it is attached, never parsed.
 
 Kept free of any Docling import so it stays unit-testable without the heavy dependencies.
 """
@@ -37,16 +38,47 @@ from collections.abc import Callable
 from typing import Any
 
 TOKEN_ENVIRONMENT_VARIABLE = "IAP_DOCLING_CALLBACK_JWT"
+URL_ENVIRONMENT_VARIABLE = "IAP_DOCLING_CALLBACK_URL"
 
 DELIVERY_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 5.0
 DELIVERY_TIMEOUT_SECONDS = 30.0
 
 
+class _RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    """Refuse a redirected callback instead of following it.
+
+    Left to itself, ``urlopen`` answers a 301/302/303 by re-sending as a GET: the body is
+    dropped, the bearer token is kept, and the final 200 comes from a request that carried
+    no outcome at all. The delivery would be logged as a success while nothing was recorded
+    and the shared token had been handed to whatever host the redirect named -- an http to
+    https bounce in front of the app is enough. Returning ``None`` leaves the 3xx to the
+    default error handler, which raises it like any other refusal, so it is retried and
+    then reported as a failed delivery.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102
+        return None
+
+
+_OPENER = urllib.request.build_opener(_RefuseRedirects)
+
+
 def callback_token() -> str | None:
     """The shared callback JWT, or ``None`` when not configured."""
     token = (os.environ.get(TOKEN_ENVIRONMENT_VARIABLE) or "").strip()
     return token or None
+
+
+def callback_url() -> str | None:
+    """Where parse outcomes are POSTed, or ``None`` when not configured.
+
+    Deliberately read from the daemon's own environment rather than from the ``/parse``
+    query: the callback carries the shared token, so letting a caller name the destination
+    would hand that token to anyone able to reach the (unauthenticated) daemon port.
+    """
+    url = (os.environ.get(URL_ENVIRONMENT_VARIABLE) or "").strip()
+    return url or None
 
 
 def success_payload(job_id: str, summary: dict[str, Any]) -> dict[str, Any]:
@@ -88,7 +120,9 @@ def deliver(
 
     A short outage of the caller (a redeploy, a restart) should not lose the result of an
     expensive parse, so failed deliveries are retried; a caller that stays away longer than
-    the retries is on its own, and the loss is logged. Every 2xx answer counts as delivered.
+    the retries is on its own, and the loss is logged. Only a 2xx answer to the POST itself
+    counts as delivered: a redirect is refused rather than followed (see
+    :class:`_RefuseRedirects`).
 
     @param callback_url: where to POST
     @param payload: the JSON-serializable callback body
@@ -112,8 +146,9 @@ def deliver(
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                # urlopen only returns for 2xx answers; anything else raises HTTPError
+            with _OPENER.open(request, timeout=timeout) as response:
+                # The opener only returns for 2xx answers; anything else, redirects
+                # included, raises HTTPError
                 log(f"Callback for job {job_id} delivered with HTTP {response.status}")
                 return True
         except urllib.error.HTTPError as refusal:
