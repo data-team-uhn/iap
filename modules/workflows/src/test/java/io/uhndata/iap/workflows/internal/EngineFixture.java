@@ -143,6 +143,36 @@ final class EngineFixture
     }
 
     /**
+     * The same target, seen through a resolver that reports the user's name as they typed it at login rather than
+     * as the repository resolved it. The divergence is real, since a login resolves case-insensitively, and it is
+     * what separates a test that asserts the engine picks the right one from a test that only asserts it picks
+     * something.
+     *
+     * @param target a target whose session is already masked with the canonical id, as {@link #actingAs} does
+     * @param spelling what Sling should report the user id to be
+     * @return the target, disagreeing with itself about who is asking
+     */
+    static Resource typedAtLogin(final Resource target, final String spelling)
+    {
+        final ResourceResolver resolver = new ResourceResolverWrapper(target.getResourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return spelling;
+            }
+        };
+        return new ResourceWrapper(target)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return resolver;
+            }
+        };
+    }
+
+    /**
      * How a task context performs further work, for a handler under test that does none: no handlers to dispatch
      * to, and no event may be sent.
      *

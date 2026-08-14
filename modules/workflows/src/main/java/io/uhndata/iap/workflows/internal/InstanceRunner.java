@@ -490,6 +490,9 @@ final class InstanceRunner
             JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
+            // Copied so the task states its own terms: whoever has to do it can read it without being able to read
+            // the definition, and what it offers cannot change under them while it waits
+            "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
             STATUS_PROPERTY, OPEN_STATUS,
             START_TIME_PROPERTY, Calendar.getInstance()));
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);

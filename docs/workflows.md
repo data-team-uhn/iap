@@ -461,6 +461,12 @@ users are here for. The rules:
   it refuses everyone until it does; silence is never permission.
 - **`everyone` means any authenticated user**, matched by name because it is a dynamic
   principal an authorizable does not necessarily report belonging to.
+- **`@creator` means whoever raised the resource being worked on**: the person the
+  engine recorded when it created it, not `jcr:createdBy`, which names the engine's own
+  service user for everything it writes. It is the one rule a group can never express,
+  and the one most processes need: a request comes back to the person who made it, not
+  to everyone who could have made one. A resource nothing raised, a homepage say, is
+  nobody's, so `@creator` admits nobody there.
 - **Every name is read by the principals service**, the one a notification's recipients
   are read by, so a name means the same people wherever it is written. A group admits
   its members however a deployment stores it: transitively, and including a role an
@@ -598,6 +604,14 @@ task closes it, records the outcome, and carries the instance on. Who may comple
 the same `performers` mechanism as everywhere else, asked one step later — of the task's
 *defining activity* rather than of a start event. Seeing a task and being allowed to
 decide it are different questions, and this is where the second is answered.
+
+**A user task says what it may be decided with.** The engine copies the activity's
+`outcomes` onto each task it raises, as `offeredOutcomes`, for the same reason it copies
+the label: a task is decided on the terms it was raised with, and whoever has to do it
+can read the task without being able to read the definition. A task that offers none is
+one there is *nothing* to decide about, done or not done, and a task list needs that
+distinction: a plain "done" button on a task that expected a decision would complete it
+with no outcome, and the gateway after it would silently take its default arc.
 
 **Reaching an end event can mean something to the host.** An end event carries `hostTag`
 like any other flow node, so the way a process finishes is what places the host's last
