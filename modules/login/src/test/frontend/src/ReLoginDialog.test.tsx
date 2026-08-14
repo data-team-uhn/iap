@@ -24,6 +24,8 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { ReLoginDialog, ReLoginProvider } from "@iap/login/ReLoginDialog";
 
+import { withMessages } from "./messages.fixture";
+
 // Runs a request through the provider, so the tests exercise the whole round trip: expired
 // session, dialog, sign-in, re-sent request.
 function Caller({ label, onResult }: { label: string; onResult: (outcome: string) => void }) {
@@ -51,11 +53,11 @@ const signInResponse = (success: boolean) => ({ ok: success, status: success ? 2
 
 describe("ReLoginDialog", () => {
   it("says what happened and offers the sign-in form", () => {
-    render(
+    render(withMessages(
       <ThemeProvider theme={appTheme} defaultMode="light">
         <ReLoginDialog open onSignedIn={vi.fn()} onAbandoned={vi.fn()} />
       </ThemeProvider>
-    );
+    ));
 
     expect(screen.getByRole("heading", { name: "Your session has expired" })).toBeInTheDocument();
     expect(screen.getByText("Sign in again to continue. Nothing you have entered will be lost.")).toBeInTheDocument();
@@ -64,11 +66,11 @@ describe("ReLoginDialog", () => {
   });
 
   it("stays out of the way until it is needed", () => {
-    render(
+    render(withMessages(
       <ThemeProvider theme={appTheme} defaultMode="light">
         <ReLoginDialog open={false} onSignedIn={vi.fn()} onAbandoned={vi.fn()} />
       </ThemeProvider>
-    );
+    ));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -76,11 +78,11 @@ describe("ReLoginDialog", () => {
   it("is not dismissed by escape, since the work behind it is waiting on the session", async () => {
     const user = userEvent.setup();
     const onAbandoned = vi.fn();
-    render(
+    render(withMessages(
       <ThemeProvider theme={appTheme} defaultMode="light">
         <ReLoginDialog open onSignedIn={vi.fn()} onAbandoned={onAbandoned} />
       </ThemeProvider>
-    );
+    ));
 
     await user.keyboard("{Escape}");
 
@@ -91,11 +93,11 @@ describe("ReLoginDialog", () => {
   it("offers a way out, for a user who cannot produce the credentials it wants", async () => {
     const user = userEvent.setup();
     const onAbandoned = vi.fn();
-    render(
+    render(withMessages(
       <ThemeProvider theme={appTheme} defaultMode="light">
         <ReLoginDialog open onSignedIn={vi.fn()} onAbandoned={onAbandoned} />
       </ThemeProvider>
-    );
+    ));
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
@@ -115,13 +117,13 @@ describe("ReLoginProvider", () => {
     vi.unstubAllGlobals();
   });
 
-  const renderWithProvider = (callers: string[], onResult: (outcome: string) => void) => render(
+  const renderWithProvider = (callers: string[], onResult: (outcome: string) => void) => render(withMessages(
     <ThemeProvider theme={appTheme} defaultMode="light">
       <ReLoginProvider>
         {callers.map(label => <Caller key={label} label={label} onResult={onResult} />)}
       </ReLoginProvider>
     </ThemeProvider>
-  );
+  ));
 
   // Signs in, queueing the answers the re-sent requests should get afterwards. Order matters: the
   // form's own POST is the next request to go out, and the retries follow it.
