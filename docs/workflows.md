@@ -756,6 +756,11 @@ shipped bootstraps admit `iap-administrators` for `/Workflows` and `everyone` fo
   exception is a boundary timer, whose empty list admits the `iap-timer` service user.
 - **`everyone` means any authenticated user**, matched by name since it is a dynamic
   principal.
+- **`@creator` means whoever raised the resource being worked on**: the person the
+  engine recorded in `createdBy`, not `jcr:createdBy`, which names the engine's own
+  service user. No group can express it, and most processes need it: a request comes
+  back to the person who made it. A resource nothing raised, such as a homepage, is
+  nobody's, so `@creator` admits nobody there.
 - **Every name is read by the principals service**, so a name means the same people
   wherever it is written. A group admits its members however a deployment stores it,
   transitively, and including a role an identity provider synchronises without a group
@@ -900,6 +905,13 @@ POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gat
 creates the task; a `complete` event aimed at the task closes it, records the outcome,
 and carries the instance on. Who may complete it is decided by the `performers` of its
 defining activity.
+
+**A user task says what it may be decided with.** The engine copies the activity's
+`outcomes` onto each task it raises, as `offeredOutcomes`, beside its label: a task is
+decided on the terms it was raised with, and whoever does it can read the task without
+reading the definition. A task offering none has nothing to decide. A plain "done" on a
+task that expected a decision would complete it with no outcome, and the next gateway
+would take its default arc.
 
 **A task can be given a deadline.** A boundary timer with a `timerDuration` is armed
 when the task is raised: the deadline is recorded on the task, as `dueDate` with
