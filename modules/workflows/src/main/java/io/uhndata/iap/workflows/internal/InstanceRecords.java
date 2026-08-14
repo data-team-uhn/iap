@@ -24,16 +24,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalContext;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
+import io.uhndata.iap.utils.ReferenceUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
@@ -65,14 +65,18 @@ final class InstanceRecords
 
     private final ResourceResolver resolver;
 
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param resolver the engine's own session, which everything is read and written through
+     * @param principals resolves the people a definition names
      */
-    InstanceRecords(final ResourceResolver resolver)
+    InstanceRecords(final ResourceResolver resolver, final PrincipalService principals)
     {
         this.resolver = resolver;
+        this.principals = principals;
     }
 
     /**
@@ -100,17 +104,8 @@ final class InstanceRecords
             Map.of(JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowInstance",
                 WorkflowInstance.STATUS_PROPERTY, WorkflowInstance.ACTIVE_STATUS,
                 WorkflowInstance.START_TIME_PROPERTY, Calendar.getInstance()));
-        // Through the JCR API. The node type declares a strict REFERENCE, and Oak rejects a string carrying the
-        // right identifier as the wrong type
-        final Node node = Objects.requireNonNull(instance.adaptTo(Node.class),
-            "A freshly created instance is always backed by a JCR node");
-        final Node target = Objects.requireNonNull(versionResource.adaptTo(Node.class),
-            "A workflow version is always backed by a JCR node");
-        try {
-            node.setProperty("workflowVersion", target);
-        } catch (final RepositoryException e) {
-            throw new PersistenceException("Could not point the instance at its workflow version", e);
-        }
+        // The node type declares a strict REFERENCE, and Oak rejects a string carrying the right identifier
+        ReferenceUtils.setReference(instance, "workflowVersion", versionResource);
         return instance;
     }
 
@@ -302,6 +297,9 @@ final class InstanceRecords
             "taskDefinitionId", activity.getElementId(),
             "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
             "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
+            // "@creator" is resolved now, against this host, so the recorded names stand on their own
+            "performers", this.principals.resolve(activity.getPerformers(), PrincipalContext.about(hostOf(instance)))
+                .toArray(String[]::new),
             TaskInstance.STATUS_PROPERTY, TaskInstance.OPEN_STATUS,
             TaskInstance.START_TIME_PROPERTY, started));
         armNextDeadline(activity, started, List.of(), properties);

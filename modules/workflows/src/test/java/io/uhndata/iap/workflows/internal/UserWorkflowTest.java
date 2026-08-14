@@ -631,6 +631,26 @@ class UserWorkflowTest
     }
 
     @Test
+    void raisesTasksNamingWhoMayCompleteThem() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+
+        started();
+
+        assertArrayEquals(new String[] {EngineFixture.REQUESTERS}, (String[]) read(TASK).get("performers"));
+    }
+
+    @Test
+    void answersCreatorAgainstTheHostWhenItRecordsWhoMayCompleteATask() throws Exception
+    {
+        createProcess("@creator");
+
+        started();
+
+        assertArrayEquals(new String[] {EngineFixture.REQUESTER}, (String[]) read(TASK).get("performers"));
+    }
+
+    @Test
     void admitsWhoeverRaisedTheHostToATaskThatComesBackToThem() throws Exception
     {
         createProcess("@creator");
