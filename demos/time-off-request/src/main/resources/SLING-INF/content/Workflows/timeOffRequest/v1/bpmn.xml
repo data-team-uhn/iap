@@ -30,9 +30,14 @@
     <bpmn:sequenceFlow id="toBudget" sourceRef="requestSubmitted" targetRef="checkBudget" />
     <bpmn:serviceTask id="checkBudget" name="Check the time off budget">
       <bpmn:incoming>toBudget</bpmn:incoming>
-      <bpmn:outgoing>toApproval</bpmn:outgoing>
+      <bpmn:outgoing>toFillIn</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toApproval" sourceRef="checkBudget" targetRef="approveRequest" />
+    <bpmn:sequenceFlow id="toFillIn" sourceRef="checkBudget" targetRef="fillIn" />
+    <bpmn:userTask id="fillIn" name="Say when you want to be away">
+      <bpmn:incoming>toFillIn</bpmn:incoming>
+      <bpmn:outgoing>toApproval</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toApproval" sourceRef="fillIn" targetRef="approveRequest" />
     <bpmn:userTask id="approveRequest" name="Approve the request">
       <bpmn:incoming>toApproval</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
@@ -65,48 +70,55 @@
       <bpmndi:BPMNShape id="checkBudgetShape" bpmnElement="checkBudget">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
+      <bpmndi:BPMNShape id="fillInShape" bpmnElement="fillIn">
         <dc:Bounds x="400" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
+        <dc:Bounds x="550" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
-        <dc:Bounds x="555" y="173" width="50" height="50" />
+        <dc:Bounds x="705" y="173" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="554" y="143" width="53" height="14" />
+          <dc:Bounds x="704" y="143" width="53" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestApprovedShape" bpmnElement="requestApproved">
-        <dc:Bounds x="672" y="100" width="36" height="36" />
+        <dc:Bounds x="822" y="100" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="650" y="143" width="81" height="14" />
+          <dc:Bounds x="800" y="143" width="81" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestRejectedShape" bpmnElement="requestRejected">
-        <dc:Bounds x="672" y="260" width="36" height="36" />
+        <dc:Bounds x="822" y="260" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="652" y="303" width="77" height="14" />
+          <dc:Bounds x="802" y="303" width="77" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toBudgetEdge" bpmnElement="toBudget">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
+      <bpmndi:BPMNEdge id="toFillInEdge" bpmnElement="toFillIn">
         <di:waypoint x="350" y="198" />
         <di:waypoint x="400" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+      <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
         <di:waypoint x="500" y="198" />
-        <di:waypoint x="555" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+        <di:waypoint x="650" y="198" />
+        <di:waypoint x="705" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
-        <di:waypoint x="580" y="173" />
-        <di:waypoint x="580" y="118" />
-        <di:waypoint x="672" y="118" />
+        <di:waypoint x="730" y="173" />
+        <di:waypoint x="730" y="118" />
+        <di:waypoint x="822" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
-        <di:waypoint x="580" y="223" />
-        <di:waypoint x="580" y="278" />
-        <di:waypoint x="672" y="278" />
+        <di:waypoint x="730" y="223" />
+        <di:waypoint x="730" y="278" />
+        <di:waypoint x="822" y="278" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
