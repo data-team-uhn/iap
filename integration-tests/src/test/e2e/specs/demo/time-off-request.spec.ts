@@ -583,6 +583,104 @@ test.describe('the time off request demo', () => {
     await expect(page.getByText('A Tuesday in October')).toBeVisible();
   });
 
+  test('asks what the answers make relevant, with nothing to press to save', async ({ page }) => {
+    // The demo's whole point, exercised the way it is met: the questions on screen depend on the answers
+    // already given, and *the server* decides which ones apply. Nothing in the browser evaluates a
+    // condition — an answer is saved as soon as it is finished, the form is read again, and what comes
+    // back is drawn. Asserted here rather than only in unit tests because every piece of that loop is
+    // real: the save is a workflow event the engine authorizes, the condition is a subtree of typed
+    // nodes, and the projection that filters on it is a servlet.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('A week in November');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+
+    // In through the listing's own Edit action, which is how a submitter reaches the editor. The
+    // address is the submission's path with `.edit` on the end — a view of a resource, asked for by
+    // extension like every other, and served by a script of its own rather than by a query parameter.
+    await page.getByRole('link', { name: /Back to the dashboard/ }).click();
+    await page.getByRole('row', { name: /A week in November/ }).getByLabel('Edit').click();
+    await expect(page).toHaveURL(/\.edit$/);
+
+    // The question offers its answers, so it is picked from rather than typed into
+    await expect(page.getByRole('radiogroup', { name: /half day, a full day, or several days/ })).toBeVisible();
+    // Not yet asked, because nothing yet makes it relevant. It is absent from what the server sent, not
+    // hidden by the browser — which is the difference the whole design turns on.
+    await expect(page.getByLabel(/Which day are you back/)).toHaveCount(0);
+
+    // Picking finishes the answer as it happens: there is no field to leave
+    await page.getByRole('radio', { name: 'Several days' }).check();
+
+    await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
+
+    // The same mechanism one level up: a whole requirement, appearing because of an answer given to a
+    // question in another one
+    await expect(page.getByText('Doctor\'s note')).toHaveCount(0);
+    await page.getByRole('radio', { name: 'Sick leave' }).check();
+    await expect(page.getByText('Doctor\'s note')).toBeVisible();
+
+    // Stored rather than remembered: a reload asks the server again, and the answers are the ones the
+    // engine wrote — as a user with no write access anywhere, through a workflow that authorized them
+    await page.reload();
+    await expect(page.getByRole('radio', { name: 'Several days' })).toBeChecked();
+    await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
+  });
+
+  test('refuses a request for more time off than the requester has left', async ({ page }) => {
+    // A rule about what the answers may *say*, rather than about who may write them, and the only place the
+    // whole path can be seen at once: the save is carried out, a validator reads the request as the save would
+    // leave it, objects, and the engine's one-commit rule throws the write away with the rest of the run. What
+    // the submitter is left with is the reason, on the answer they just gave, and a form still holding
+    // everything that was accepted before it.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('Most of November');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await expect(page).toHaveURL(/\.edit$/);
+
+    // Each of these is accepted: until both ends of the span are given there is no number to compare, and a
+    // half-answered request is the ordinary state of one being filled in rather than an error
+    await page.getByRole('radio', { name: 'Several days' }).check();
+    const start = page.getByLabel(/Which day does your time off start/);
+    await start.fill('2026-11-02');
+    await start.blur();
+    // Both of them: the duration and the start date each report their own save, and waiting for the
+    // second is what keeps the next answer from racing the one before it
+    await expect(page.getByText('Saved')).toHaveCount(2);
+
+    // Twenty days, counting both ends, against the twelve the demo's holiday bank gives this requester
+    const back = page.getByLabel(/Which day are you back/);
+    await back.fill('2026-11-21');
+    await back.blur();
+
+    // The reason reaches the field that carries the answer, which is the difference between a refusal a
+    // submitter can act on and a save that merely failed
+    await page.getByLabel('Not saved').hover();
+    await expect(page.getByRole('tooltip'))
+      .toContainText('This asks for more time off than you have left. Requested: 20. Remaining: 12.');
+
+    // And nothing was written: the run that would have stored the return date reverted, while the answers
+    // accepted before it are still there
+    await page.reload();
+    await expect(page.getByLabel(/Which day are you back/)).toHaveValue('');
+    await expect(page.getByLabel(/Which day does your time off start/)).toHaveValue('2026-11-02');
+    await expect(page.getByRole('radio', { name: 'Several days' })).toBeChecked();
+  });
+
   test('creates the two people the demo is about', async ({ page }) => {
     // Proves the accounts exist and their passwords work, which is what the walkthrough depends on
     const login = new LoginPage(page);
