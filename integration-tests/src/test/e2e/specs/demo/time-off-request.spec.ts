@@ -332,7 +332,7 @@ test.describe('the time off request demo', () => {
       expect(someoneElses.status()).toBe(404);
     });
 
-    test('puts the new request under its workflow, waiting on the approver', async ({ request }) => {
+    test('puts the new request under its workflow, waiting for its requester to send it', async ({ request }) => {
       // The submission's schema version names the workflow, so raising one starts it — and the instance lives
       // inside the submission, which is what makes it findable, securable and disposable along with it
       // `deep` is what asks the serializer for child nodes; without it a resource is its own properties and the
@@ -342,11 +342,13 @@ test.describe('the time off request demo', () => {
       });
       expect(response.ok()).toBeTruthy();
       const submission = (await response.json()) as {
+        tags?: string[];
         'wf:instances'?: {
           timeOffRequest?: {
             status?: string;
             token?: { currentNodeId?: string };
-            approveRequest?: { status?: string; label?: string; taskDefinitionId?: string };
+            fillIn?: { status?: string; label?: string; taskDefinitionId?: string; offeredOutcomes?: string[] };
+            approveRequest?: unknown;
           };
         };
       };
@@ -354,11 +356,82 @@ test.describe('the time off request demo', () => {
       const instance = submission['wf:instances']?.timeOffRequest;
       expect(instance).toBeTruthy();
       expect(instance?.status).toBe('active');
-      // Parked on the user task, with a token recording exactly where
+      // Parked on the first user task, with a token recording exactly where. The approver's task does not exist
+      // yet — a task is raised when the token reaches it, so there is nothing for them to see or decide.
+      expect(instance?.token?.currentNodeId).toBe('fillIn');
+      expect(instance?.fillIn?.status).toBe('created');
+      expect(instance?.fillIn?.label).toBe('Say when you want to be away');
+      expect(instance?.fillIn?.taskDefinitionId).toBe('fillIn');
+      expect(instance?.approveRequest).toBeUndefined();
+      // And the state the request is in is the state of the task it is waiting at, placed by the engine when the
+      // token arrived there rather than written by the handler that created it
+      expect(submission.tags).toEqual([ 'draft' ]);
+      // Nothing to decide: sending a request is not a choice between outcomes, which is what tells a task list
+      // to offer one plain control rather than a decision
+      expect(instance?.fillIn?.offeredOutcomes).toEqual([]);
+    });
+
+    test('refuses to let somebody else send a request they did not raise', async ({ request }) => {
+      // @creator is the rule no group can express, and this is it being enforced: the approver is named on the
+      // task after this one, and belongs to the group that decides — and still cannot send somebody's request
+      // for them.
+      const response = await request.post(`${raised}/wf:instances/timeOffRequest/fillIn`, {
+        headers: asApprover,
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(403);
+      expect(((await response.json()) as { error?: string }).error).toContain('not allowed');
+    });
+
+    test('sends the request on to the approver when its requester says it is finished', async ({ request }) => {
+      // No outcome: this task offers none, so completing it is not a decision. This is the submit button's whole
+      // server side — there is no submit event and no submitted flag, only a task being completed.
+      const sent = await request.post(`${raised}/wf:instances/timeOffRequest/fillIn`, {
+        headers: asRequester,
+        maxRedirects: 0,
+      });
+      expect(sent.status()).toBe(200);
+
+      const response = await request.get(`${raised}.deep.-dereference.infinity.json`, { headers: asApprover });
+      const submission = (await response.json()) as {
+        tags?: string[];
+        'wf:instances'?: {
+          timeOffRequest?: {
+            token?: { currentNodeId?: string };
+            fillIn?: { status?: string; assignee?: string; outcome?: string };
+            approveRequest?: { status?: string; label?: string; offeredOutcomes?: string[] };
+          };
+        };
+      };
+      const instance = submission['wf:instances']?.timeOffRequest;
+      expect(instance).toBeTruthy();
+      expect(instance?.fillIn?.status).toBe('completed');
+      expect(instance?.fillIn?.assignee).toBe('demo-requester');
+      // Completed without deciding anything, which is not the same as deciding nothing in particular
+      expect(instance?.fillIn?.outcome).toBeUndefined();
+      // The walk carried on to the next thing a person has to do, and raised it
       expect(instance?.token?.currentNodeId).toBe('approveRequest');
       expect(instance?.approveRequest?.status).toBe('created');
       expect(instance?.approveRequest?.label).toBe('Approve the request');
-      expect(instance?.approveRequest?.taskDefinitionId).toBe('approveRequest');
+      expect(instance?.approveRequest?.offeredOutcomes).toEqual([ 'approved', 'rejected' ]);
+      // And the request is now in the approver's hands, said by the state rather than by a flag: `submitted`
+      // retired `draft`, because a lifecycle is a state and not an accumulation
+      expect(submission.tags).toEqual([ 'submitted' ]);
+    });
+
+    test('will not take any more answers once the request has been sent', async ({ request }) => {
+      // The same rule the editor reads off the form projection, enforced where it actually matters. Nothing was
+      // added to the save workflow to make this happen: the state moved, and the save handler already refused
+      // anything that is not a draft.
+      const response = await request.post(raised, {
+        headers: asRequester,
+        form: { 'details/duration': 'full-day' },
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(403);
+      expect(((await response.json()) as { error?: string }).error).toContain('no longer be changed');
     });
 
     test('has already looked up the requester\'s remaining days by the time anyone decides', async ({ request }) => {
@@ -461,6 +534,10 @@ test.describe('the time off request demo', () => {
       // Its own request, so its own path: nothing about a submission's name can be predicted from its title
       const path = refused.headers().location;
       expect(path).toMatch(FILED);
+
+      // Sent by its requester first, since the approver has nothing to decide until it reaches them
+      expect((await request.post(`${path}/wf:instances/timeOffRequest/fillIn`,
+        { headers: asRequester, maxRedirects: 0 })).status()).toBe(200);
 
       const decision = await request.post(
         `${path}/wf:instances/timeOffRequest/approveRequest`,
