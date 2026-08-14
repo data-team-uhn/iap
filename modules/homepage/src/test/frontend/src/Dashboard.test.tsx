@@ -16,16 +16,25 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 
 import Dashboard from "@iap/homepage/Dashboard";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
+import { STORE_KEY, setActivePersona } from "@iap/ui-extension/personas";
 
-vi.mock("@iap/ui-extension/extensionManager", () => ({
+// Only the loading half is mocked; visibleInPersona is pure, and the dashboard's persona filtering
+// is only worth testing against the real predicate.
+vi.mock("@iap/ui-extension/extensionManager", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@iap/ui-extension/extensionManager")>()),
   loadExtensions: vi.fn(),
 }));
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
+
+// The active persona is held on `window`; reset it so tests don't inherit each other's choice.
+afterEach(() => {
+  Reflect.deleteProperty(window, STORE_KEY);
+});
 
 // Builds a widget extension as returned by loadExtensions: the parsed iap:Extension
 // JSON with the render asset already resolved to a component.
@@ -113,5 +122,47 @@ describe("Dashboard", () => {
     await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
     expect(container.querySelector(".MuiPaper-root")).toBeNull();
     errorSpy.mockRestore();
+  });
+
+  describe("persona filtering", () => {
+    it("shows a widget that belongs to the active persona", async () => {
+      mockedLoadExtensions.mockResolvedValue([
+        { ...widget("Reviews", 0), "iap:personas": [ "submitter" ] },
+      ]);
+
+      render(<Dashboard />);
+
+      expect(await screen.findByText("Reviews content")).toBeInTheDocument();
+    });
+
+    it("hides a widget that belongs to another persona", async () => {
+      mockedLoadExtensions.mockResolvedValue([
+        widget("Everyone", 0),
+        { ...widget("Reviews", 1), "iap:personas": [ "reviewer" ] },
+      ]);
+
+      render(<Dashboard />);
+
+      // The ungated widget proves the dashboard finished loading before we assert an absence
+      expect(await screen.findByText("Everyone content")).toBeInTheDocument();
+      expect(screen.queryByText("Reviews content")).not.toBeInTheDocument();
+    });
+
+    it("re-lays out when the persona changes, without loading the widgets again", async () => {
+      mockedLoadExtensions.mockResolvedValue([
+        { ...widget("Reviews", 0), "iap:personas": [ "reviewer" ] },
+      ]);
+      // The mock is shared by every test in this file; only this render's calls should be counted.
+      mockedLoadExtensions.mockClear();
+
+      render(<Dashboard />);
+      await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
+      expect(screen.queryByText("Reviews content")).not.toBeInTheDocument();
+
+      act(() => setActivePersona("reviewer"));
+
+      expect(await screen.findByText("Reviews content")).toBeInTheDocument();
+      expect(mockedLoadExtensions).toHaveBeenCalledTimes(1);
+    });
   });
 });

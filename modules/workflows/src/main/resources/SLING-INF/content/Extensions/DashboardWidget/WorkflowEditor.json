@@ -3,5 +3,6 @@
   "iap:extensionPointId": "iap/dashboard/widget",
   "iap:extensionName": "Workflow Editor",
   "iap:extensionRenderURL": "asset:iap-workflows.WorkflowEditorWidget.js",
-  "iap:defaultOrder": 10
+  "iap:defaultOrder": 10,
+  "iap:personas": ["reviewer", "administrator"]
 }

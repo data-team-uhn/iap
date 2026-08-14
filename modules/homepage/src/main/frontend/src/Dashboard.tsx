@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 
 import { Box } from "@mui/material";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import { loadExtensions } from "@iap/ui-extension/extensionManager";
+import { loadExtensions, visibleInPersona } from "@iap/ui-extension/extensionManager";
+import { usePersona } from "@iap/ui-extension/personas";
 
 import Widget from "./Widget";
 
@@ -44,6 +45,15 @@ async function getDashboardWidgets(): Promise<WidgetExtension[]> {
   return loadExtensions("DashboardWidget");
 }
 
+// A React key that identifies a widget rather than its position, since the persona filter changes
+// which widgets are displayed while the page is up. Keying by index would hand one widget's key to
+// another as the list shrinks, remounting a widget that only moved and throwing away its state.
+function widgetKey(widget: WidgetExtension, index: number): string {
+  return (widget["jcr:path"] as string | undefined)
+    ?? (widget["iap:extensionName"] as string | undefined)
+    ?? `widget-${index}`;
+}
+
 // The dashboard view: widgets contributed by other modules through the `iap/dashboard/widget`
 // extension point, laid out in a responsive CSS grid (1/2/3 columns). The dashboard wraps every
 // widget in a titled Widget frame — the title from `iap:extensionName`, an optional subtitle from
@@ -52,18 +62,27 @@ async function getDashboardWidgets(): Promise<WidgetExtension[]> {
 //     stretches across the row);
 //   - `iap:widgetEmphasis` — render on a tinted surface;
 //   - `iap:widgetBorderless` — drop the border/fill and blend into the page;
-//   - `iap:widgetHideHeader` — skip the title/subtitle header (the widget provides its own).
+//   - `iap:widgetHideHeader` — skip the title/subtitle header (the widget provides its own);
+//   - `iap:personas` — the personas the widget belongs to (absent means all of them), see personas.ts.
 // Registered as a view on the `iap/coreUI/view` extension point.
 function Dashboard() {
-  const [ widgets, setWidgets ] = useState<WidgetExtension[]>([]);
+  const [ allWidgets, setAllWidgets ] = useState<WidgetExtension[]>([]);
   const [ loading, setLoading ] = useState(true);
+  const persona = usePersona();
 
   useEffect(() => {
     getDashboardWidgets()
-      .then(extensions => setWidgets(extensions))
+      .then(extensions => setAllWidgets(extensions))
       .catch((err: unknown) => console.error("Something went wrong loading the dashboard", err))
       .finally(() => setLoading(false));
   }, []);
+
+  // Only the widgets belonging to the persona currently being worn. Filtered here rather than at
+  // load time so that switching persona re-lays out the dashboard without fetching anything again.
+  const widgets = useMemo(
+    () => allWidgets.filter(widget => visibleInPersona(widget, persona)),
+    [ allWidgets, persona ]
+  );
 
   // Collapse the grid to the number of widgets when there are only one or two, so a lone widget
   // fills the row and two widgets sit side by side rather than leaving empty columns. Three or more
@@ -94,7 +113,7 @@ function Dashboard() {
             const span = WIDTH_SPAN[(widget["iap:widgetWidth"] as string | undefined) ?? "normal"] ?? 1;
             return (
               <Box
-                key={"widget-" + index}
+                key={widgetKey(widget, index)}
                 sx={{
                   gridColumn: {
                     xs: "span 1",

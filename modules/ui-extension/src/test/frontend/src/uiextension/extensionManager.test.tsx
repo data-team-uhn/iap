@@ -21,7 +21,7 @@ import type { ComponentType } from "react";
 import { render, screen } from "@testing-library/react";
 
 import { loadAsset } from "@iap/frontend-commons/assetManager";
-import { loadExtensions } from "@iap/ui-extension/extensionManager";
+import { loadExtensions, visibleInPersona } from "@iap/ui-extension/extensionManager";
 
 // getURLParameters is left un-mocked (it's pure, no side effects) so the `?lazy`
 // detection is exercised for real; the network-touching loadAsset is mocked, as is LazyAsset,
@@ -160,5 +160,33 @@ describe("loadExtensions", () => {
       }) as Error,
     );
     errorSpy.mockRestore();
+  });
+});
+
+describe("visibleInPersona", () => {
+  it("shows an extension that names no personas to every persona", () => {
+    expect(visibleInPersona({ "iap:extensionName": "Welcome" }, "submitter")).toBe(true);
+    expect(visibleInPersona({ "iap:extensionName": "Welcome" }, "administrator")).toBe(true);
+  });
+
+  it("shows an extension to a persona it names", () => {
+    expect(visibleInPersona({ "iap:personas": [ "reviewer", "administrator" ] }, "reviewer")).toBe(true);
+  });
+
+  it("hides an extension from a persona it does not name", () => {
+    expect(visibleInPersona({ "iap:personas": [ "reviewer", "administrator" ] }, "submitter")).toBe(false);
+  });
+
+  it("hides an extension that names an empty set of personas", () => {
+    expect(visibleInPersona({ "iap:personas": [] }, "submitter")).toBe(false);
+  });
+
+  it("accepts a single persona stored as a bare value rather than an array", () => {
+    expect(visibleInPersona({ "iap:personas": "reviewer" }, "reviewer")).toBe(true);
+    expect(visibleInPersona({ "iap:personas": "reviewer" }, "submitter")).toBe(false);
+  });
+
+  it("treats an explicitly null property as naming no personas at all", () => {
+    expect(visibleInPersona({ "iap:personas": null }, "submitter")).toBe(true);
   });
 });
