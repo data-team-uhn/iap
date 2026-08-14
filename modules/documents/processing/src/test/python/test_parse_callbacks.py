@@ -35,8 +35,9 @@ import parse_callbacks
 class _Receiver:
     """A local stand-in for the Java callback endpoint, answering scripted statuses."""
 
-    def __init__(self, statuses):
+    def __init__(self, statuses, redirect_to=None):
         self.statuses = list(statuses)
+        self.redirect_to = redirect_to
         self.requests = []
         receiver = self
 
@@ -47,6 +48,16 @@ class _Receiver:
                 receiver.requests.append((dict(self.headers), body))
                 status = receiver.statuses.pop(0) if receiver.statuses else 200
                 self.send_response(status)
+                if receiver.redirect_to is not None:
+                    self.send_header("Location", receiver.redirect_to)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            def do_GET(self):
+                # Only reachable if a redirect was followed, which is exactly what must not
+                # happen: record it so the test can say so
+                receiver.requests.append((dict(self.headers), b"GET"))
+                self.send_response(200)
                 self.send_header("Content-Length", "0")
                 self.end_headers()
 
@@ -66,8 +77,8 @@ class _Receiver:
 def receiver_factory():
     receivers = []
 
-    def build(statuses=()):
-        receiver = _Receiver(statuses)
+    def build(statuses=(), redirect_to=None):
+        receiver = _Receiver(statuses, redirect_to)
         receivers.append(receiver)
         return receiver
 
@@ -132,6 +143,29 @@ class TestDeliver:
         assert len(receiver.requests) == 2
         assert any("abandoned after 2 attempts" in line for line in messages)
 
+    def test_a_redirect_is_refused_not_followed(self, receiver_factory):
+        # The redirect points back at the same server, so a followed one would be visible as
+        # a second (GET) request rather than a connection error
+        receiver = receiver_factory([302])
+        receiver.redirect_to = receiver.url.replace("/callback", "/elsewhere")
+        messages = []
+
+        delivered = parse_callbacks.deliver(
+            receiver.url,
+            parse_callbacks.success_payload("86a4c102", {"ok": True}),
+            token="secret-jwt",
+            attempts=1,
+            retry_delay=0,
+            log=messages.append,
+        )
+
+        assert delivered is False
+        assert any("refused with HTTP 302" in line for line in messages)
+        # Only the POST happened: the token never went anywhere else, and no delivery was
+        # claimed for a request that carried no body
+        assert [body for _headers, body in receiver.requests] != [b"GET"]
+        assert len(receiver.requests) == 1
+
     def test_an_unreachable_receiver_is_a_failed_delivery(self, receiver_factory):
         receiver = receiver_factory()
         receiver.stop()
@@ -192,3 +226,19 @@ class TestCallbackToken:
     def test_a_blank_token_is_none(self, monkeypatch):
         monkeypatch.setenv(parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE, "   ")
         assert parse_callbacks.callback_token() is None
+
+
+class TestCallbackUrl:
+    """Where outcomes go is the daemon's own configuration, never the caller's."""
+
+    def test_reads_the_url_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv(parse_callbacks.URL_ENVIRONMENT_VARIABLE, "  http://iap:8080/cb  ")
+        assert parse_callbacks.callback_url() == "http://iap:8080/cb"
+
+    def test_a_missing_url_is_none(self, monkeypatch):
+        monkeypatch.delenv(parse_callbacks.URL_ENVIRONMENT_VARIABLE, raising=False)
+        assert parse_callbacks.callback_url() is None
+
+    def test_a_blank_url_is_none(self, monkeypatch):
+        monkeypatch.setenv(parse_callbacks.URL_ENVIRONMENT_VARIABLE, "   ")
+        assert parse_callbacks.callback_url() is None
