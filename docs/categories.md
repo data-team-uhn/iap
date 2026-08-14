@@ -90,10 +90,14 @@ for (final Category top : categories.getCategories()) {
 
 Over HTTP, `GET /Categories.deep.json` returns the whole tree in one response, children in their
 stored order, with each bound schema version inlined by the default `dereference` serialization
-processor — which is what the administration UI reads. `GET /Categories.paginate.json` lists the
-categories through the pagination endpoint every entity homepage carries, with the same filtering
-and sorting parameters; it is a flat listing of the whole subtree, so it answers "find the
-categories matching X" rather than "render the tree".
+processor. The administration UI asks for `GET /Categories.deep.simple.json` instead: `simple`
+summarizes each inlined schema version down to what identifies it, leaving out the requirements
+hanging under it and the workflow it references — otherwise naming a bound schema on a chip
+downloads that schema's whole requirement subtree and a BPMN document with it.
+
+`GET /Categories.paginate.json` lists the categories through the pagination endpoint every entity
+homepage carries, with the same filtering and sorting parameters; it is a flat listing of the whole
+subtree, so it answers "find the categories matching X" rather than "render the tree".
 
 ## Self-documentation
 
@@ -124,9 +128,15 @@ reorders siblings, retires and unretires, and deletes.
 Retiring is the counterpart to deleting: a category that submissions already reference must not
 disappear, but it can be closed to new ones. Only the category actually carrying the retirement
 offers to have it lifted; one retired by an ancestor says so instead, since there is nothing on it
-to take off. The UI offers retirement when a deletion is refused for that reason.
+to take off.
 
-Writes currently go directly to the repository through the standard Sling POST servlet, each
+Deleting goes through the platform's [deletion endpoint](deletion.md) — `DELETE` on the category
+itself — rather than a repository write, because that endpoint knows what refers to the category
+and can say so. A category something still points at is refused with the reasons listed, and the
+dialog turns that refusal into the offer to retire instead. What is deleted is moved to the
+archive rather than destroyed.
+
+Every other write goes directly to the repository through the standard Sling POST servlet, each
 followed by a re-read of the tree. This predates the workflow engine and is expected to move
 behind it — see below.
 
@@ -140,9 +150,7 @@ behind it — see below.
 - **Administrative writes belong in the workflow engine.** Every other data change in the platform
   is a workflow event, and creating a workflow definition already goes through a system workflow;
   the category manager's direct POSTs are an interim, and should become
-  `createCategory`/`moveCategory`/`retireCategory`/… system workflows once the engine lands. That
-  is also what would give deletion a real answer: a referenced category should be refused with the
-  reasons listed, which the generic Sling delete cannot express.
+  `createCategory`/`moveCategory`/`retireCategory`/… system workflows once the engine lands.
 - **Retiring writes the tag directly.** The manager patches the `tags` property over the Sling POST
   servlet, which skips the validation `Taggable.tag()` performs — that the tag is defined, applies
   to this resource type, and is not a system tag. There is no HTTP endpoint for tagging anywhere in
