@@ -26,11 +26,11 @@ Endpoints:
     POST /parse    -> ?path=/shared-docs/.../file.pdf[&chunk=true][&max_tokens=]
                       [&min_structure_tokens=]
                      -> {"ok", "markdown_path", "chunked", "chunks_dir", "logs", "filename"}
-                     With ``&job_id=&callback=`` the daemon instead answers
+                     With ``&job_id=`` the daemon instead answers
                      {"job_id", "status": "queued"} immediately, converts in the background,
                      and POSTs the summary (minus "logs", plus "job_id"; on failure
-                     {"job_id", "ok": false, "error"}) to the callback URL, authenticated
-                     with the ``IAP_DOCLING_CALLBACK_JWT`` bearer token.
+                     {"job_id", "ok": false, "error"}) to ``IAP_DOCLING_CALLBACK_URL``,
+                     authenticated with the ``IAP_DOCLING_CALLBACK_JWT`` bearer token.
     POST /shutdown -> graceful stop; served only with ``--enable-shutdown``
 
 The daemon and the main app share ``/shared-docs`` (env ``IAP_SHARED_DOCS``).
@@ -38,12 +38,15 @@ The daemon and the main app share ``/shared-docs`` (env ``IAP_SHARED_DOCS``).
 ``/parse`` and ``/shutdown`` change state, so both refuse any request carrying an ``Origin``
 header (no legitimate caller here is a web page, and a page on the operator's machine can
 reach loopback) and, when ``IAP_DOCLING_TOKEN`` is set, require it as a bearer token.
-``GET /health`` stays open so probes need no credential.
+``GET /health`` stays open so probes need no credential. Where the callback goes is not part
+of the request either: it carries the shared token, so it is read from the daemon's own
+environment and a caller cannot point it elsewhere.
 
-Beyond that, keeping the port private to the app is the security boundary: a caller of
-``/parse`` chooses where the callback (which carries the shared token) is sent. Background
-parses are lost on shutdown: their callbacks are never sent, and the caller's job stays
-unfinished.
+One conversion runs at a time (:data:`MAX_CONCURRENT_PARSES`), synchronous and background
+alike, because the PDF worker pool is sized for a single conversion. A shutdown drains the
+background ones: in-flight parses are given :data:`SHUTDOWN_DRAIN_SECONDS` to deliver their
+callbacks, and ones that never started are failed to the caller, so no job is left waiting
+for a callback that will never come.
 """
 
 from __future__ import annotations
@@ -54,7 +57,13 @@ import signal
 import sys
 import threading
 import traceback
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import (
+    CancelledError,
+    Future,
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+    wait,
+)
 from concurrent.futures.process import BrokenProcessPool
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -93,11 +102,21 @@ from parse_document import parse_document
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 18765
 
-# One conversion at a time: the whole RAM budget in docling_batch_sizing is calculated for a
-# single conversion spread over the pool. ThreadingHTTPServer starts a thread per request
-# anyway, so without this a burst of callers gets a worker OOM-killed, and the BrokenProcessPool
-# that follows marks the daemon permanently broken.
+# One conversion at a time, counting the synchronous path and the background one together:
+# the whole RAM budget in docling_batch_sizing is calculated for a single conversion spread
+# over the pool. ThreadingHTTPServer starts a thread per request anyway, so without this a
+# burst of callers gets a worker OOM-killed, and the BrokenProcessPool that follows marks the
+# daemon permanently broken. It gates every _run_parse, so a synchronous request and a queued
+# background job cannot convert at the same time.
 MAX_CONCURRENT_PARSES = 1
+
+# How long a shutdown waits for in-flight parses to deliver their callbacks. The container
+# has to allow at least this long to stop (stop_grace_period in docker-compose.yml), or the
+# drain is cut short by SIGKILL and the point of it is lost.
+SHUTDOWN_DRAIN_SECONDS = 60.0
+
+# How long each "this parse never started" callback may take while shutting down.
+SHUTDOWN_DELIVERY_TIMEOUT_SECONDS = 5.0
 
 
 def _log_stderr(message: str) -> None:
@@ -117,6 +136,13 @@ class DaemonState:
             # Spawn, not fork: torch is already loaded here. See get_worker_context().
             mp_context=get_worker_context(),
         )
+        self.parse_executor = ThreadPoolExecutor(
+            max_workers=MAX_CONCURRENT_PARSES, thread_name_prefix="parse"
+        )
+        # The background parses that have not delivered a callback yet, so a shutdown can
+        # account for every one of them
+        self.pending_parses: dict[Future, tuple[str, str, str]] = {}
+        self.pending_lock = threading.Lock()
         self.docx_lock = threading.Lock()
         # The DOCX converter lives in this process, not the pool, so it sits outside the
         # per-worker RAM budget. That is fine: SimplePipeline parses OOXML and loads no models.
@@ -133,6 +159,7 @@ class DaemonState:
             self.docx_converter = get_docx_converter()
             self.docx_converter.initialize_pipeline(InputFormat.DOCX)
         except Exception:
+            self.parse_executor.shutdown(wait=False)
             self.pdf_executor.shutdown(wait=False, cancel_futures=True)
             raise
 
@@ -146,7 +173,89 @@ class DaemonState:
         """
         return not self.shutdown_requested and not self.pdf_executor_broken
 
+    def submit_parse(
+        self,
+        job_id: str,
+        callback_url: str,
+        token: str,
+        input_path: Path,
+        **options: Any,
+    ) -> None:
+        """Queue a background parse, and remember it until its callback is delivered.
+
+        @param job_id: the caller's identifier for this parse
+        @param callback_url: where the outcome is POSTed
+        @param token: the shared callback JWT
+        @param input_path: the already-validated document path
+        @param options: the ``chunk`` / ``max_tokens`` / ``min_structure_tokens`` arguments
+        @raise RuntimeError: when the daemon has begun shutting down
+        """
+        with self.pending_lock:
+            if self.shutdown_requested:
+                raise RuntimeError("the daemon is shutting down")
+            future = self.parse_executor.submit(
+                _parse_and_call_back, job_id, callback_url, token, input_path, **options
+            )
+            self.pending_parses[future] = (job_id, callback_url, token)
+        future.add_done_callback(self._forget_parse)
+
+    def _forget_parse(self, future: Future) -> None:
+        """Drop a parse that has run its course, callback and all."""
+        with self.pending_lock:
+            self.pending_parses.pop(future, None)
+
+    def drain_parses(self, timeout: float = SHUTDOWN_DRAIN_SECONDS) -> None:
+        """Stop taking parses and account for the ones already accepted.
+
+        Every accepted parse owes its caller a callback, and the caller has no timeout of
+        its own: a background parse that disappears at shutdown leaves a job stuck forever.
+        So queued parses, which never started and never will, are failed to their callers
+        right away, and running ones are given ``timeout`` to finish and deliver. A parse
+        still running after that keeps its (non-daemon) thread, so it is joined at exit
+        rather than killed; the PDF pool closing under it turns into a failure callback,
+        which is still an answer.
+
+        @param timeout: seconds to wait for the running parses
+        """
+        self.shutdown_requested = True
+        # Taken before the shutdown: cancelling a queued parse fires its done callback,
+        # which forgets it, so a snapshot taken afterwards would not show it at all
+        with self.pending_lock:
+            pending = dict(self.pending_parses)
+        self.parse_executor.shutdown(wait=False, cancel_futures=True)
+        running = []
+        for future, (job_id, callback_url, token) in pending.items():
+            if future.cancelled():
+                _stderr(f"Parse job {job_id} never started; failing it to the caller")
+                parse_callbacks.deliver(
+                    callback_url,
+                    parse_callbacks.failure_payload(
+                        job_id, "The daemon shut down before this parse started"
+                    ),
+                    token=token,
+                    # One short attempt each: the process is going down, and the usual
+                    # retry schedule would spend minutes per job waiting for a caller that
+                    # is evidently not answering
+                    attempts=1,
+                    timeout=SHUTDOWN_DELIVERY_TIMEOUT_SECONDS,
+                    log=_stderr,
+                )
+            else:
+                running.append(future)
+        if running:
+            _stderr(
+                f"Waiting up to {timeout:.0f}s for {len(running)} parse(s) to call back"
+            )
+            unfinished = wait(running, timeout=timeout).not_done
+            if unfinished:
+                _stderr(
+                    f"{len(unfinished)} parse(s) are still running; their callbacks are "
+                    "delivered before the process exits"
+                )
+
     def close(self) -> None:
+        # Parses first: they use the PDF pool, and they owe their callers a callback
+        self.drain_parses()
         self.pdf_executor.shutdown(wait=True, cancel_futures=True)
 
 
@@ -227,19 +336,29 @@ def _parse_and_call_back(
     max_tokens: int,
     min_structure_tokens: int,
 ) -> None:
-    """Run one background parse and POST its outcome to the caller's callback endpoint."""
+    """Run one background parse and POST its outcome to the caller's callback endpoint.
+
+    Takes a parse slot for the conversion itself, blocking until one is free. The pool
+    already runs these one at a time, but the synchronous path converts too, and the RAM
+    budget covers one conversion in total — not one of each. Waiting is right here where
+    refusing is right there: nobody is holding a socket open for this.
+    """
     try:
-        summary = _run_parse(
-            input_path,
-            chunk=chunk,
-            max_tokens=max_tokens,
-            min_structure_tokens=min_structure_tokens,
-        )
+        with _STATE.parse_slots:
+            summary = _run_parse(
+                input_path,
+                chunk=chunk,
+                max_tokens=max_tokens,
+                min_structure_tokens=min_structure_tokens,
+            )
         payload = parse_callbacks.success_payload(job_id, summary)
-    except Exception as exc:
+    except (Exception, CancelledError) as exc:
+        # CancelledError is a BaseException, so "except Exception" would miss it: it is what
+        # a shutdown closing the PDF pool mid-parse raises here, and that still owes the
+        # caller a failure callback rather than silence.
         # The callback carries only the summary message; the traceback goes to the log
         traceback.print_exc(file=sys.stderr)
-        payload = parse_callbacks.failure_payload(job_id, str(exc))
+        payload = parse_callbacks.failure_payload(job_id, str(exc) or type(exc).__name__)
     parse_callbacks.deliver(callback_url, payload, token=token, log=_stderr)
 
 
@@ -329,8 +448,8 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         """Parse a document already on the shared volume.
 
         Query: ``?path=/shared-docs/.../file.pdf&chunk=true&max_tokens=2000``
-        ``&min_structure_tokens=20000``, plus ``&job_id=&callback=`` for the
-        asynchronous, callback-delivered variant.
+        ``&min_structure_tokens=20000``, plus ``&job_id=`` for the asynchronous,
+        callback-delivered variant.
         """
         if self._refuse_unauthorized("/parse"):
             return
@@ -354,15 +473,19 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                 input_path = resolve_parse_path(query.get("path", [""])[0] or "")
                 chunk = parse_chunk_flag(query)
                 options = parse_token_options(query)
-                job_id = (query.get("job_id", [""])[0] or "").strip()
-                callback_url = (query.get("callback", [""])[0] or "").strip()
-
-                if job_id or callback_url:
-                    # Answers immediately and converts on a background thread, so it takes no
-                    # parse slot here; the slot below guards the caller-blocking path only
-                    reply = self._accept_async_parse(
-                        job_id, callback_url, input_path, chunk, options
+                if query.get("callback"):
+                    # Refused rather than ignored, so a caller still sending its own callback
+                    # finds out instead of quietly getting outcomes somewhere it is not looking
+                    raise ParseRequestError(
+                        "callback is not accepted; the daemon POSTs outcomes to its configured"
+                        f" {parse_callbacks.URL_ENVIRONMENT_VARIABLE}"
                     )
+                job_id = (query.get("job_id", [""])[0] or "").strip()
+
+                if job_id:
+                    # Answers immediately; the background task takes the parse slot when it
+                    # actually converts, so the acquire below covers the blocking path only
+                    reply = self._accept_async_parse(job_id, input_path, chunk, options)
                 elif not _STATE.parse_slots.acquire(blocking=False):
                     # Refused rather than queued: a conversion takes minutes, and holding the
                     # socket open for one that has not started yet only invites client timeouts
@@ -417,53 +540,64 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
     def _accept_async_parse(
         self,
         job_id: str,
-        callback_url: str,
         input_path: Path,
         chunk: bool,
         options: dict[str, Any],
     ) -> tuple[HTTPStatus, dict[str, Any]]:
         """Queue a background parse and answer immediately; the outcome goes to the callback.
 
+        Where the callback goes is the daemon's own configuration, never the caller's: it
+        carries the shared token, and nothing about reaching this port proves the caller is
+        the app.
+
         Returns the reply rather than sending it, so ``_handle_parse`` still writes exactly
         once. Sending from here meant a caller that had already gone away raised inside the
         try, was answered a second time by the handler, and logged a second traceback.
 
         @param job_id: the caller's identifier for this parse, echoed back in the callback
-        @param callback_url: where the outcome is POSTed
         @param input_path: the already-validated document path
         @param chunk: whether the document should also be chunked
         @param options: validated ``max_tokens`` / ``min_structure_tokens`` overrides
         @return: the status and body ``_handle_parse`` should send
-        @raise ParseRequestError: when the job_id/callback pair is incomplete or malformed
+        @raise ParseRequestError: when the job_id is malformed
         """
-        if not job_id or not callback_url:
-            raise ParseRequestError("job_id and callback must be sent together")
         if len(job_id) > 200:
             raise ParseRequestError("job_id is unreasonably long")
-        if not callback_url.startswith(("http://", "https://")):
-            raise ParseRequestError("callback must be an http(s) URL")
+        callback_url = parse_callbacks.callback_url()
         token = parse_callbacks.callback_token()
-        if token is None:
+        missing = [
+            name
+            for name, value in (
+                (parse_callbacks.URL_ENVIRONMENT_VARIABLE, callback_url),
+                (parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE, token),
+            )
+            if value is None
+        ]
+        if missing:
             return (
                 HTTPStatus.SERVICE_UNAVAILABLE,
                 {
-                    "error": f"{parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE} is not configured,"
-                    " asynchronous parsing is unavailable"
+                    "error": "asynchronous parsing is unavailable: "
+                    + " and ".join(missing)
+                    + " not configured"
                 },
             )
-        threading.Thread(
-            target=_parse_and_call_back,
-            args=(job_id, callback_url, token, input_path),
-            kwargs={
-                "chunk": chunk,
-                "max_tokens": options.get("max_tokens", DEFAULT_MAX_TOKENS),
-                "min_structure_tokens": options.get(
+        assert _STATE is not None
+        try:
+            _STATE.submit_parse(
+                job_id,
+                callback_url,
+                token,
+                input_path,
+                chunk=chunk,
+                max_tokens=options.get("max_tokens", DEFAULT_MAX_TOKENS),
+                min_structure_tokens=options.get(
                     "min_structure_tokens", DEFAULT_MIN_STRUCTURE_TOKENS
                 ),
-            },
-            name=f"parse-{job_id}",
-            daemon=True,
-        ).start()
+            )
+        except RuntimeError:
+            # The shutdown started between the readiness check and here
+            return (HTTPStatus.SERVICE_UNAVAILABLE, {"error": "daemon shutting down"})
         return (HTTPStatus.ACCEPTED, {"job_id": job_id, "status": "queued"})
 
 
