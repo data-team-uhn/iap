@@ -46,6 +46,30 @@ mvn clean install -PintegrationTests -Dit.platform.skip=true
 This is also how a CI matrix should run them: one instance per job keeps peak memory to a single instance
 instead of all of them at once.
 
+## Watching it, debugging it, picking browsers
+
+Everything the Playwright CLI takes can be passed through the build with `-Dplaywright.args`, so none of
+these need you to leave Maven:
+
+```
+mvn install -PintegrationTests -Dplaywright.args=--headed                        # a real browser window
+mvn install -PintegrationTests -Dplaywright.args=--debug                         # the Playwright Inspector
+mvn install -PintegrationTests -Dplaywright.args=--ui                            # time-travelling UI mode
+mvn install -PintegrationTests -Dplaywright.args="--grep @smoke"                 # only tagged tests
+mvn install -PintegrationTests -Dplaywright.args="--project=test-data-chromium"  # one suite/engine
+mvn install -PintegrationTests -Dplaywright.browsers="chromium firefox"          # download and run both
+```
+
+The first three want a display, and two of them want someone to drive — they are for iterating locally,
+not for CI, where a build sitting on the Inspector is sitting on you. `mvn` swallows a bare `-Dkey=a b`,
+so anything containing a space needs the quotes above.
+
+`playwright.browsers` is the single source of truth: the same list decides which engines are downloaded
+and which are run, so an engine can never be installed and then quietly ignored. Each one gets a project
+per suite, named `<suite>-<browser>` — the suffix is there even with one browser, so that a `--project=`
+written down today keeps meaning the same thing after a second engine is added. Unknown names are
+rejected rather than silently treated as Chromium.
+
 ## Running against an instance you already have
 
 The suites only need a URL, so an instance started by hand works just as well, and iterating this way is
@@ -55,8 +79,11 @@ far quicker than a Maven round trip:
 cd src/test/e2e
 yarn install
 yarn playwright install chromium
-IAP_TESTDATA_URL=http://localhost:8080 yarn test --project=test-data
-IAP_TESTDATA_URL=http://localhost:8080 yarn test:ui        # watch mode, time-travel debugging
+IAP_TESTDATA_URL=http://localhost:8080 yarn test --project=test-data-chromium
+IAP_TESTDATA_URL=http://localhost:8080 yarn test:ui           # watch mode, time-travel debugging
+IAP_TESTDATA_URL=http://localhost:8080 yarn test:headed       # a real browser window
+IAP_TESTDATA_URL=http://localhost:8080 yarn test:debug        # the Playwright Inspector
+IAP_TESTDATA_URL=http://localhost:8080 PLAYWRIGHT_BROWSERS="chromium firefox" yarn test
 ```
 
 ## Browsers need system libraries
@@ -69,8 +96,9 @@ sudo yarn playwright install-deps        # or the apt-get line Playwright prints
 ```
 
 This needs root, so it belongs in the CI image build rather than the test run. Only Chromium is installed
-by default (`-Dplaywright.browsers="chromium firefox"` to widen it) — the other engines multiply both the
-download and the system packages for very little extra signal on an internal application.
+and run by default (`-Dplaywright.browsers="chromium firefox"` to widen it, as above) — the other engines
+multiply both the download and the system packages for very little extra signal on an internal
+application.
 
 ## Writing tests
 

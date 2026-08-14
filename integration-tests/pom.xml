@@ -49,9 +49,18 @@
     <it.platform.skip>false</it.platform.skip>
     <it.testdata.skip>false</it.testdata.skip>
     <it.demo.skip>false</it.demo.skip>
-    <!-- Only Chromium by default: the other engines multiply the download and the CI system packages
-         they need, for very little extra signal on an internal application. -->
+    <!-- The engines to download *and* run on, space-separated: chromium, firefox, webkit. Only Chromium
+         by default, because the others multiply the download and the CI system packages they need, for
+         very little extra signal on an internal application. Each one produces a Playwright project of
+         its own per suite, named `suite-browser`. -->
     <playwright.browsers>chromium</playwright.browsers>
+    <!-- Extra arguments for the test run, passed straight through to the Playwright CLI. This is what
+         keeps the flags a standalone runner would offer reachable from the build: running headed, the
+         Inspector, UI mode, selecting a project, filtering by tag. The headed ones want a display and
+         someone to drive, so they are for iterating locally rather than for CI, where a build sitting on
+         the Inspector is sitting on you. README.md has the invocations, spelled out there rather than
+         here because an XML comment may not contain a double dash. -->
+    <playwright.args></playwright.args>
     <!-- Extra arguments for the browser download. CI passes the "with deps" flag here, which makes
          Playwright apt-get the 21 shared libraries Chromium links against; a developer machine already
          has them, and installing them needs root, which is not something an ordinary build should ask
@@ -272,7 +281,7 @@
             </goals>
             <phase>integration-test</phase>
             <configuration>
-              <arguments>test</arguments>
+              <arguments>test ${playwright.args}</arguments>
               <!-- The failure must not stop the build here, or post-integration-test never runs and the
                    instances are left behind: the launcher plugin's shutdown hook kills the launcher script
                    but not the JVM under it, so a failed run orphans a full Sling instance and keeps its
@@ -288,6 +297,9 @@
                 <IAP_TESTDATA_SKIP>${it.testdata.skip}</IAP_TESTDATA_SKIP>
                 <IAP_DEMO_URL>http://localhost:${demo.http.port}</IAP_DEMO_URL>
                 <IAP_DEMO_SKIP>${it.demo.skip}</IAP_DEMO_SKIP>
+                <!-- The same list the browsers were installed from, so what runs and what was downloaded
+                     cannot drift apart -->
+                <PLAYWRIGHT_BROWSERS>${playwright.browsers}</PLAYWRIGHT_BROWSERS>
               </environmentVariables>
             </configuration>
           </execution>

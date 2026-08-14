@@ -23,12 +23,43 @@ import { activeInstances } from './support/instances';
 const isCI = Boolean(process.env.CI);
 
 /**
- * One Playwright project per launched instance, each pointed at its own instance and reading its specs
- * from its own directory. Anything shared — page objects, fixtures — lives outside those directories and
- * is imported.
+ * The device profile to drive each browser engine with. Also the set of names `playwright.browsers`
+ * accepts, so that asking for one that cannot be run says so instead of quietly running Chromium.
+ */
+const DEVICE_FOR_BROWSER: Record<string, string> = {
+  chromium: 'Desktop Chrome',
+  firefox: 'Desktop Firefox',
+  webkit: 'Desktop Safari',
+};
+
+/**
+ * The engines to run on, from the same `playwright.browsers` property that decides which ones the build
+ * downloads — so the two can never disagree, which is exactly what happens when a browser is installed
+ * and then never used.
+ */
+const browsers = (): string[] => {
+  const requested = (process.env.PLAYWRIGHT_BROWSERS ?? 'chromium').trim().split(/\s+/).filter(Boolean);
+  const unknown = requested.filter(browser => !(browser in DEVICE_FOR_BROWSER));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unknown browser(s): ${unknown.join(', ')}. Known: ${Object.keys(DEVICE_FOR_BROWSER).join(', ')}.`,
+    );
+  }
+  return requested.length > 0 ? requested : ['chromium'];
+};
+
+/**
+ * One Playwright project per launched instance per browser, each pointed at its own instance and reading
+ * its specs from its own directory. Anything shared — page objects, fixtures — lives outside those
+ * directories and is imported.
  *
  * A suite whose instance was not launched simply produces no project, so `-Dit.platform.skip=true` needs
  * no matching change here.
+ *
+ * Projects are named `<suite>-<browser>` even when only one browser is being run. The suffix is not
+ * decoration: a name that appeared only once a second browser was configured would silently invalidate
+ * every `--project=` already written down, and a report that says which engine a failure came from is
+ * worth more than four saved keystrokes.
  */
 export default defineConfig({
   testDir: './specs',
@@ -59,9 +90,11 @@ export default defineConfig({
     video: 'retain-on-failure',
     ignoreHTTPSErrors: true,
   },
-  projects: activeInstances().map(instance => ({
-    name: instance.name,
-    testDir: `./specs/${instance.name}`,
-    use: { ...devices['Desktop Chrome'], baseURL: instance.baseURL },
-  })),
+  projects: activeInstances().flatMap(instance =>
+    browsers().map(browser => ({
+      name: `${instance.name}-${browser}`,
+      testDir: `./specs/${instance.name}`,
+      use: { ...devices[DEVICE_FOR_BROWSER[browser]], baseURL: instance.baseURL },
+    })),
+  ),
 });

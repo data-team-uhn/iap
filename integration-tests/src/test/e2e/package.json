@@ -8,7 +8,9 @@
     "test": "playwright test",
     "check-results": "node support/check-results.mjs",
     "test:ui": "playwright test --ui",
-    "report": "playwright show-report",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report ../../../target/e2e-report",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },
