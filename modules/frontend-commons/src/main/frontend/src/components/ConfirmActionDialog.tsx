@@ -42,8 +42,9 @@ interface ConfirmActionDialogProps {
 
 // The shell for an action that asks before it acts: it states the consequences, runs the action
 // once, and - since the dialog is already the user's focus - reports a failure right there rather
-// than handing it to a second dialog. While the action is in flight neither button takes a further
-// instruction.
+// than handing it to a second dialog. While the action is in flight the dialog takes no further
+// instruction at all - not the buttons, and not the close button or Escape either, since an action
+// that cannot be taken back should not be abandoned halfway by a stray keypress.
 //
 // Sample usage:
 // <ConfirmActionDialog
@@ -67,7 +68,7 @@ function ConfirmActionDialog(
   });
 
   return (
-    <ResponsiveDialog open title={title} width="xs" withCloseButton onClose={onClose}>
+    <ResponsiveDialog open title={title} width="xs" withCloseButton closeDisabled={working} onClose={onClose}>
       <DialogContent dividers>
         { children }
         { failure && <Alert severity="error" sx={{ mt: 2 }}>{failure}</Alert> }

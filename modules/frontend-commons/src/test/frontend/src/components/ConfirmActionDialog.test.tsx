@@ -146,4 +146,20 @@ describe("ConfirmActionDialog", () => {
     finish();
     await waitFor(() => { expect(onClose).toHaveBeenCalled(); });
   });
+
+  it("offers no way out at all while the action is in flight", async () => {
+    let finish: () => void = () => { /* replaced below */ };
+    const onConfirm = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+    const { onClose } = renderDialog({ onConfirm });
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    // Disabling Cancel is not enough on its own: the title bar and the keyboard are ways out too
+    await waitFor(() => { expect(screen.getByRole("button", { name: "close" })).toBeDisabled(); });
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+
+    finish();
+    await waitFor(() => { expect(onClose).toHaveBeenCalled(); });
+  });
 });

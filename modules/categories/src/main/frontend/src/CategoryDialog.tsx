@@ -122,6 +122,7 @@ function CategoryDialog({ mode, node, parentPath, tree, onClose, onSave }: Categ
       open
       title={mode === "create" ? "New category" : `Edit ${node?.label ?? "category"}`}
       withCloseButton
+      closeDisabled={saving}
       onClose={onClose}
     >
       <DialogContent dividers>
