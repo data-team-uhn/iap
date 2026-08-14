@@ -28,7 +28,7 @@ import { useCategoryTree } from "./useCategoryTree";
 import type { CategoryNode } from "./categoryModel";
 
 // One category of the summary tree: its label (and retired state), a chevron to collapse its
-// subtree, and, collapsibly, its subcategories. Leaves keep an invisible chevron so all labels
+// subtree. Leaves keep an invisible chevron so all labels
 // align. Top-level categories start collapsed, keeping the widget compact; the deeper levels
 // start open, so expanding a top-level category reveals its whole subtree in one click.
 function CategoryItem({ node, depth }: { node: CategoryNode; depth: number }) {
