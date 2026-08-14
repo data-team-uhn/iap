@@ -20,9 +20,12 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
+import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
 import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+
+import { SEND, SEND_LABEL, waitingOn } from "./workflowTasks.fixture";
 
 // A submission as returned by the `deep` serialization: children nested, references expanded
 const DEEP_SUBMISSION = {
@@ -259,7 +262,8 @@ function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <SubmissionView />
-    </MemoryRouter>
+    </MemoryRouter>,
+    { wrapper: NoticeProvider }
   );
 }
 
@@ -281,8 +285,9 @@ describe("SubmissionView", () => {
     expect(screen.getByText(/ClinicalTrial 1.0/)).toBeInTheDocument();
     expect(screen.getByText(/by admin/)).toBeInTheDocument();
 
-    // The submission itself was fetched with the deep serialization
-    expect(fetchMock.mock.calls[0][0]).toBe("/Submissions/demo-1.deep.json");
+    // The submission itself was fetched with the deep serialization. It need not be the first request:
+    // the header also asks what the request is waiting for, and a child's effect runs first
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
 
     // The form requirement, its section, and its questions, with and without answers
     expect(screen.getByText("Basic information")).toBeInTheDocument();
@@ -408,7 +413,7 @@ describe("SubmissionView", () => {
     renderAt("/Submissions/demo-1.html");
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0][0]).toBe("/Submissions/demo-1.deep.json");
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
   });
 
   it("reports inaccessible submissions", async () => {
@@ -581,6 +586,50 @@ describe("SubmissionView", () => {
 
       expect(await screen.findByRole("progressbar", { name: "Loading the documents" })).toBeInTheDocument();
       expect(screen.queryByText("This request asks for no documents")).toBeNull();
+    });
+  });
+
+  describe("what the request is waiting for", () => {
+    // The submission's own workflow, parked on a step with nothing to decide
+    const WAITING = waitingOn("/Submissions/demo-1", { fillIn: SEND });
+
+    // What the page reads: its own serialization, the form projection, the tag definitions, and, once the
+    // step is completed, a workflow with nothing left waiting
+    function withATaskWaiting() {
+      const otherwise = bothModes();
+      let done = false;
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
+        if (init?.method === "POST") {
+          done = true;
+          return Promise.resolve({ url, ok: true, json: () => Promise.resolve({}) } as unknown as Response);
+        }
+        if (url.includes("wf:instances")) {
+          return Promise.resolve(
+            { url, ok: true, json: () => Promise.resolve(done ? {} : WAITING) } as unknown as Response);
+        }
+        return otherwise(url).then(response => ({ ...response, url }));
+      });
+    }
+
+    it("offers the waiting step while filling the request in, not only while reading it", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting());
+
+      renderAt("/Submissions/demo-1.edit");
+
+      expect(await screen.findByRole("button", { name: SEND_LABEL })).toBeInTheDocument();
+    });
+
+    it("goes back to reading the request once the step is done, and reads it again", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting());
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1.edit");
+
+      await user.click(await screen.findByRole("button", { name: SEND_LABEL }));
+
+      // In the order it happens: the page changes mode at once, then reads the submission again
+      expect(await screen.findByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: SEND_LABEL })).toBeNull();
     });
   });
 

@@ -960,6 +960,13 @@ engine per row, and the person owing a decision usually cannot read the workflow
 copy describes, it does not permit: every completion is still checked against the
 definition.
 
+**Submitting is a user task, not a separate mechanism.** A request that can still be
+filled in is one whose process is parked on a task performed by `@creator`; completing
+that task sends it. There is no "submit" event and no submit endpoint: the button on a
+submission's page says the task's own label, and a deployment that wants a request to go
+somewhere else first only edits its process. The page offers the tasks the reader may
+complete, as `@events` lists them, and only those with nothing to decide.
+
 **A task can be given a deadline.** A boundary timer with a `timerDuration` is armed
 when the task is raised: the deadline is recorded on the task, as `dueDate` with
 `dueEventId` naming the timer, so overdue work can be found without the engine and the
