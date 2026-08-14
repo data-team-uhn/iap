@@ -48,3 +48,15 @@ like any repository content.
 
 - [Category manager](categories.md#managing-the-tree) (`/admin/categories`, from the `categories`
   module) — organizes the tree of submission categories.
+
+## Future work
+
+A console tile is currently a React component, which is more than most tools need. Two kinds are
+worth adding once there is a second tool to design them against:
+
+- **A link and a label**, with no component at all — enough for a tool whose dashboard presence is
+  only a way in.
+- **A summary**, one line of the state a tool is responsible for: "45 registered users", "5
+  installed vocabularies, 2 with new versions available", "1 planned downtime active". That is what
+  makes the console a status page rather than a menu, and it is the contract each tool would
+  implement.
