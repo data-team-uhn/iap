@@ -139,7 +139,8 @@ final class TaskCompletion
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
                 + String.join(", ", definition.getOutcomes()));
         }
-        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).complete(task, outcome);
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
+            .complete(task, outcome);
     }
 
     /**
@@ -172,7 +173,7 @@ final class TaskCompletion
      * @param actor the user who sent the event
      * @param performer how the resumed instance performs any service task it meets
      * @param conditions the evaluator for the resumed instance's gateway guards
-     * @param principals the vocabulary the timer names who may fire it in
+     * @param principals the vocabulary the timer, and any task raised from here, name people in
      * @throws WorkflowException when nothing is counting down to this task, the timer does not admit the actor, its
      *     deadline has not passed yet, or the run cannot continue
      * @throws PersistenceException when the instance cannot be written
@@ -195,7 +196,8 @@ final class TaskCompletion
         if (due == null || due.after(Calendar.getInstance())) {
             throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
         }
-        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions)).expire(task, timer);
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
+            .expire(task, timer);
     }
 
     /**
