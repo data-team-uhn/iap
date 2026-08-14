@@ -19,8 +19,8 @@ package io.uhndata.iap.workflows.internal;
 
 import java.security.Principal;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -78,10 +78,14 @@ final class HostAccess
     {
         final Set<String> readers = new LinkedHashSet<>();
         readers.add(actor);
-        readers.addAll(version.getAllFlowNodes().stream()
+        version.getAllFlowNodes().stream()
             .filter(node -> node instanceof Activity && ((Activity) node).getHandler() == null)
             .flatMap(node -> node.getPerformers().stream())
-            .collect(Collectors.toSet()));
+            // A task coming back to whoever raised the host names them the same way here as it does when it
+            // refuses somebody else, so that one declaration still decides both
+            .map(name -> PerformerCheck.CREATOR.equals(name) ? PerformerCheck.creatorOf(host) : name)
+            .filter(Objects::nonNull)
+            .forEach(readers::add);
         grant(resolver, host.getPath(), readers);
     }
 

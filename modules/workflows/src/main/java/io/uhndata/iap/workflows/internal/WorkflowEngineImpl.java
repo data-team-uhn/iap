@@ -102,7 +102,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 return resume(privilegedTarget, event, actor);
             }
             final StartEvent start = SystemWorkflowLocator.find(serviceResolver, target, event);
-            PerformerCheck.verify(serviceResolver, start, actor);
+            PerformerCheck.verify(serviceResolver, privilegedTarget, start, actor);
             return execute(privilegedTarget, event, start, actor);
         } catch (final LoginException e) {
             throw new WorkflowFailedException("The workflow engine's service user is not available", e);
@@ -150,19 +150,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor));
-    }
-
-    /**
-     * The resource an instance drives, two levels up past its container.
-     *
-     * @param instance a running instance
-     * @return the host resource
-     */
-    private Resource hostOf(final Resource instance)
-    {
-        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-            "An instance always lives in a container").getParent(), "A container always lives in its host");
+            new WorkflowTaskContextImpl(InstanceRunner.hostOf(instance), event, activity, variables, actor));
     }
 
     /**
