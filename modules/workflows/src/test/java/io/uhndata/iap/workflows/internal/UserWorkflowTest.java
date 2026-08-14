@@ -365,6 +365,32 @@ class UserWorkflowTest
     }
 
     @Test
+    void raisesTasksNamingWhoMayCompleteThem() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+
+        started();
+
+        // So that "what is waiting for me" is a question about tasks: whoever owes the decision cannot
+        // necessarily read the definition this came from
+        assertArrayEquals(new String[] {EngineFixture.REQUESTERS},
+            (String[]) read(TASK).get("performers"));
+    }
+
+    @Test
+    void answersCreatorAgainstTheHostWhenItRecordsWhoMayCompleteATask() throws Exception
+    {
+        // "@creator" is a question about this host, and nothing reading the task later is holding the host to
+        // ask it — so it is answered once, here, and what is recorded stands on its own
+        createProcess(PerformerCheck.CREATOR);
+
+        started();
+
+        assertArrayEquals(new String[] {EngineFixture.REQUESTER},
+            (String[]) read(TASK).get("performers"));
+    }
+
+    @Test
     void admitsWhoeverRaisedTheHostToATaskThatComesBackToThem() throws Exception
     {
         // The rule a group cannot express: this request comes back to the person who made it, not to everyone
