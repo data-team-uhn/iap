@@ -44,10 +44,8 @@ function AdminScreen({ title, action, children }: AdminScreenProps) {
   // pages (like the console's landing page) have no trail and keep a normal top margin instead.
   const { pathname } = useLocation();
   const nested = pathname.replace(/\/+$/, "").split("/").filter(Boolean).length > 1;
-  // Longhand marginTop for the calc branch: it must reach the stylesheet verbatim, without
-  // going through the spacing shorthand's value transformer (which mangles it).
   const collapseOntoTrail = nested
-    ? { marginTop: "calc(-1 * var(--iap-content-gutter) - 2px)" }
+    ? { mt: "calc(-1 * var(--iap-content-gutter) - 2px)" }
     : { mt: 2 };
 
   // The admin widget container carries the whole "more responsibility here" signal: a
