@@ -45,6 +45,9 @@ public class Activity extends FlowNode
     @ValueMapValue
     private String handler;
 
+    @ValueMapValue
+    private String[] outcomes;
+
     /**
      * The name of the {@code ServiceTaskHandler} that performs this activity. Only meaningful on
      * service-task-typed activities: user tasks are performed by people, so they wait instead of naming a
@@ -56,6 +59,25 @@ public class Activity extends FlowNode
     public String getHandler()
     {
         return this.handler;
+    }
+
+    /**
+     * The decisions a person may complete this task with, e.g. {@code approved} and {@code rejected} — the values a
+     * {@link Gateway} downstream then routes on. Only meaningful on user tasks: nobody asks a service task what it
+     * decided.
+     *
+     * <p>Declared here because a task list has to know what to offer, and the only other record of which outcomes
+     * exist is the {@link SequenceFlow#getConditionExpression() condition} on some later gateway's arcs — which is
+     * where they are <em>consumed</em>, not where they are announced, and which the person doing the task cannot
+     * necessarily read. So an empty list is a statement, not a gap: this is a task there is nothing to decide
+     * about, done or not done, and completing it records no decision.</p>
+     *
+     * @return the outcomes this task offers, empty when completing it is not a decision
+     */
+    @NotNull
+    public List<String> getOutcomes()
+    {
+        return this.outcomes == null ? List.of() : List.of(this.outcomes);
     }
 
     /**

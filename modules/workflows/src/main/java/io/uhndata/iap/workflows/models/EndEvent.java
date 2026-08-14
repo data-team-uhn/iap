@@ -21,7 +21,6 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * A Sling Model wrapping a {@code wf:EndEvent} node: where a branch of the workflow stops. Always
@@ -40,25 +39,6 @@ public class EndEvent extends Event
 
     @ValueMapValue
     private boolean terminate;
-
-    @ValueMapValue
-    private String hostTag;
-
-    /**
-     * The tag to place on the host resource when an instance ends here, e.g. {@code approved} on the end event an
-     * approval leads to. This is how a process says what finishing this particular way <em>means</em> to the thing
-     * being processed, without needing a service task whose only job is to write it down.
-     *
-     * <p>Placing it retires whatever other tag the host carries in the same category, since the lifecycle is a
-     * state rather than a growing list of everything that ever happened.</p>
-     *
-     * @return a tag to place on the host, or {@code null} if reaching this event says nothing about it
-     */
-    @Nullable
-    public String getHostTag()
-    {
-        return this.hostTag;
-    }
 
     /**
      * Whether reaching this event ends the whole instance at once, discarding every other token that is still in

@@ -173,6 +173,23 @@
   // sits in when the diagram is drawn with lanes.
   - performers (STRING) multiple
 
+  // The tag to place on the host resource when execution reaches this node, e.g.
+  // "approved" on the end event an approval leads to, or "submitted" on the task
+  // that waits for an approver. What being here means to the thing being
+  // processed belongs with the node that says so, rather than needing a service
+  // task whose only job is to record it. Also the kind of thing a BPMN parser can
+  // carry across, being a plain attribute on the element.
+  //
+  // On any node, not just on end events: for a user task it says what state the
+  // host is in for as long as that task waits, which is what lets a process move
+  // its host between states without finishing. A node that names none leaves the
+  // host's state alone.
+  //
+  // Placing it removes whatever other tag the host carries in the same category,
+  // because a lifecycle is a state and not an accumulation: a submission that
+  // finished as "approved" must stop being "in-review".
+  - hostTag (STRING)
+
   // Allow any other properties for extensibility: the properties a flow node
   // carries beyond these depend on its type, and are listed by that type's
   // wf:FlowNodeType.properties
@@ -226,17 +243,6 @@
   // engine has to tell the two apart, so it is a property rather than a separate
   // kind of end event.
   - terminate (BOOLEAN) = false
-
-  // The tag to place on the host resource when an instance ends here, e.g.
-  // "approved". What finishing this way means to the thing being processed
-  // belongs with the end event that says so, rather than needing a service task
-  // whose only job is to record it. Also the kind of thing a BPMN parser can
-  // carry across, being a plain attribute on the element.
-  //
-  // Placing it removes whatever other tag the host carries in the same
-  // category, because a lifecycle is a state and not an accumulation: a
-  // submission that finished as "approved" must stop being "in-review".
-  - hostTag (STRING)
 
 //-----------------------------------------------------------------------------
 // Abstract base for the catch and throw events occurring mid-process. Abstract
@@ -293,6 +299,18 @@
   // meaningful on service-task-typed activities: user tasks are performed by
   // people, so they wait instead of naming a handler.
   - handler (STRING)
+
+  // The decisions this task may be completed with, e.g. approved and rejected —
+  // the values a gateway downstream then routes on. Only meaningful on user
+  // tasks: nobody asks a service task what it decided.
+  //
+  // Declared because a task list has to know what to offer. Without it, the only
+  // record of which outcomes exist is the conditionExpression on some later
+  // gateway's arcs, which is where they are *consumed*; a task offering nothing
+  // would be completed with no decision at all and quietly take the default arc.
+  // So a task that names no outcomes is one there is nothing to decide about —
+  // it is done or it is not — and that is the difference a task list needs.
+  - outcomes (STRING) multiple
 
   // Any events that can occur while this activity is active. Nesting them here is
   // what makes them boundary events; the same node type standing directly under

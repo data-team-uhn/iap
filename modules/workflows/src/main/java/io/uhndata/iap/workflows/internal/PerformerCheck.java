@@ -30,8 +30,11 @@ import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.jetbrains.annotations.Nullable;
 
+import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -46,11 +49,19 @@ import io.uhndata.iap.workflows.models.FlowNode;
  * The refusal has to happen here, before the first step, and it has to be strict: an actor passes only if the
  * definition named them, or named a group they belong to.</p>
  *
+ * <p>Two of the names a definition can use are not principals at all. {@code everyone} is the built-in group
+ * meaning any authenticated user, and {@code @creator} means whoever the engine recorded as having raised the
+ * resource being worked on — the one rule that a group can never express, and the one most processes need: a
+ * request comes back to the person who made it, not to everyone who could have made one.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
 final class PerformerCheck
 {
+    /** The name standing for whoever raised the resource being worked on, rather than for a principal. */
+    static final String CREATOR = "@creator";
+
     /** The built-in group that stands for every authenticated user. */
     private static final String EVERYONE = "everyone";
 
@@ -66,13 +77,14 @@ final class PerformerCheck
      * facing a node that names nobody is refused too: a definition has to say who may use it.
      *
      * @param serviceResolver the engine's own session, used to look the actor up
+     * @param host the resource being worked on, which is what {@code @creator} is asked about
      * @param node the flow node execution wants to pass through
      * @param actor the user who fired the event, as their repository user id
      * @throws NotAuthorizedException when the node does not admit this actor
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
-    static void verify(final ResourceResolver serviceResolver, final FlowNode node, final String actor)
-        throws WorkflowException
+    static void verify(final ResourceResolver serviceResolver, final Resource host, final FlowNode node,
+        final String actor) throws WorkflowException
     {
         final Authorizable authorizable = lookUp(serviceResolver, actor);
         if (authorizable == null) {
@@ -86,9 +98,40 @@ final class PerformerCheck
         final List<String> performers = node.getPerformers();
         // "everyone" is matched by name rather than by membership: it is a dynamic principal an authorizable does
         // not necessarily report belonging to, and every authenticated actor is in it by definition
-        if (!performers.contains(EVERYONE) && !isNamed(authorizable, performers)) {
+        if (!performers.contains(EVERYONE) && !raisedIt(host, performers, actor)
+            && !isNamed(authorizable, performers)) {
             throw new NotAuthorizedException(REFUSAL);
         }
+    }
+
+    /**
+     * Whether the node admits whoever raised the host, and this actor is them.
+     *
+     * <p>Asked of the host rather than of the repository's {@code jcr:createdBy}, which names the engine's own
+     * service user for everything it writes; the engine records the human separately, and that is what this
+     * compares against. A host nothing raised — a homepage, say — is nobody's, so this admits nobody.</p>
+     *
+     * @param host the resource being worked on
+     * @param performers the principals the node admits
+     * @param actor the user who fired the event
+     * @return {@code true} if the node names {@code @creator} and this actor raised the host
+     */
+    private static boolean raisedIt(final Resource host, final List<String> performers, final String actor)
+    {
+        return performers.contains(CREATOR) && actor.equals(creatorOf(host));
+    }
+
+    /**
+     * Who the engine recorded as having raised a resource.
+     *
+     * @param host the resource being worked on
+     * @return their user id, or {@code null} if nothing raised it — a homepage, say, which is nobody's
+     */
+    @Nullable
+    static String creatorOf(final Resource host)
+    {
+        final Content content = host.adaptTo(Content.class);
+        return content == null ? null : content.getCreatedBy();
     }
 
     /**

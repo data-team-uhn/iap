@@ -55,6 +55,7 @@ import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -106,7 +107,10 @@ class UserWorkflowTest
         WorkflowFixture.setUp(this.context);
         this.context.registerService(TagOperations.class, EngineFixture.lifecycleTags());
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
-        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"}));
+        // createdBy is what the engine records when it raises something, jcr:createdBy naming the engine itself;
+        // it is what a task coming back to whoever raised the host is answered by
+        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"},
+            "createdBy", EngineFixture.REQUESTER));
         this.context.create().resource(HOST + "/wf:instances", TYPE, "wf/WorkflowInstances");
     }
 
@@ -143,6 +147,17 @@ class UserWorkflowTest
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
         this.context.create().resource(PROCESS + "/requestRejected", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestRejected", "hostTag", "rejected"));
+    }
+
+    /**
+     * Adds properties to the process's user task, for the cases about what a task carries beyond its label.
+     *
+     * @param properties what to write on the activity
+     */
+    private void onTheUserTask(final Map<String, Object> properties)
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
+            .adaptTo(ModifiableValueMap.class), "The mock repository lets any node be modified").putAll(properties);
     }
 
     /**
@@ -328,6 +343,70 @@ class UserWorkflowTest
         assertEquals("created", task.get("status"));
         assertEquals("Approve the request", task.get("label"));
         assertEquals(APPROVE, task.get("taskDefinitionId"));
+    }
+
+    @Test
+    void movesTheHostIntoTheStateOfTheTaskItIsWaitingAt() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        onTheUserTask(Map.of("hostTag", "in-review"));
+
+        final WorkflowEngine engine = started();
+
+        // Placed on arrival rather than only on finishing: what state a thing is in is where its process has got
+        // to, and for almost all of a process's life that is a task somebody has not done yet
+        assertEquals(Set.of("in-review"), hostTags());
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals(Set.of("approved"), hostTags());
+    }
+
+    @Test
+    void raisesTasksCarryingTheDecisionsTheirDefinitionOffers() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+        onTheUserTask(Map.of("outcomes", new String[] {"approved", "rejected"}));
+
+        started();
+
+        // Copied onto the task, so that what it may be decided with can be read without reading the definition
+        assertArrayEquals(new String[] {"approved", "rejected"},
+            (String[]) read(TASK).get("offeredOutcomes"));
+    }
+
+    @Test
+    void raisesTasksOfferingNothingWhenThereIsNothingToDecide() throws Exception
+    {
+        createProcess(EngineFixture.REQUESTERS);
+
+        started();
+
+        assertEquals(0, ((String[]) read(TASK).get("offeredOutcomes")).length);
+    }
+
+    @Test
+    void admitsWhoeverRaisedTheHostToATaskThatComesBackToThem() throws Exception
+    {
+        // The rule a group cannot express: this request comes back to the person who made it, not to everyone
+        // who could have made one
+        createProcess(PerformerCheck.CREATOR);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals("completed", read(TASK).get("status"));
+    }
+
+    @Test
+    void refusesSomebodyElseAtATaskThatComesBackToWhoeverRaisedTheHost() throws Exception
+    {
+        createProcess(PerformerCheck.CREATOR);
+        final WorkflowEngine engine = started();
+
+        assertThrows(NotAuthorizedException.class,
+            () -> engine.receiveEvent(as(TASK, "somebody-else"), APPROVED));
+        assertEquals("created", read(TASK).get("status"));
     }
 
     @Test

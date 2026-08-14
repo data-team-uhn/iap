@@ -144,6 +144,14 @@
   // Value recorded at completion; used for downstream gateway routing
   - outcome (STRING)
 
+  // The decisions this task may be completed with, copied from its defining
+  // activity when the task was raised. Copied rather than looked up, for the same
+  // reason the label is: a task is decided on the terms it was raised with, not
+  // on terms the definition may have grown since, and the person doing it cannot
+  // necessarily read the definition at all. A task offering none is one there is
+  // nothing to decide about — it is done, or it is not.
+  - offeredOutcomes (STRING) multiple
+
   // Optional associated iap form
   - form (REFERENCE)
 

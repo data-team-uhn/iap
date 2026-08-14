@@ -206,15 +206,34 @@ class FlowNodeTest
     }
 
     @Test
-    void exposesWhatReachingAnEndEventMeansToTheHost()
+    void exposesWhatReachingANodeMeansToTheHost()
     {
         final Resource plain = this.context.create().resource(VERSION_PATH + "/end_p", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_p"));
         final Resource meaningful = this.context.create().resource(VERSION_PATH + "/end_m", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_m", "hostTag", "approved"));
+        // Not only end events: a task carries the state its host is in while it waits, which is what lets a
+        // process move its host between states without finishing
+        final Resource waiting = this.context.create().resource(VERSION_PATH + "/task_w", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_w", "hostTag", "in-review"));
 
-        assertNull(((EndEvent) plain.adaptTo(FlowNode.class)).getHostTag());
-        assertEquals("approved", ((EndEvent) meaningful.adaptTo(FlowNode.class)).getHostTag());
+        assertNull(plain.adaptTo(FlowNode.class).getHostTag());
+        assertEquals("approved", meaningful.adaptTo(FlowNode.class).getHostTag());
+        assertEquals("in-review", waiting.adaptTo(FlowNode.class).getHostTag());
+    }
+
+    @Test
+    void exposesTheDecisionsAUserTaskOffers()
+    {
+        final Resource plain = this.context.create().resource(VERSION_PATH + "/task_n", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_n"));
+        final Resource deciding = this.context.create().resource(VERSION_PATH + "/task_d", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_d",
+            "outcomes", new String[] {"approved", "rejected"}));
+
+        // Offering nothing is a statement, not a gap: this is a task there is nothing to decide about
+        assertEquals(List.of(), ((Activity) plain.adaptTo(FlowNode.class)).getOutcomes());
+        assertEquals(List.of("approved", "rejected"), ((Activity) deciding.adaptTo(FlowNode.class)).getOutcomes());
     }
 
     @Test

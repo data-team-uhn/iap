@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.models;
 
 import java.util.Calendar;
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.RepositoryException;
@@ -79,7 +80,8 @@ class TaskInstanceTest
             "startTime", this.started,
             "endTime", this.started,
             "dueDate", this.started,
-            "outcome", "approved"));
+            "outcome", "approved",
+            "offeredOutcomes", new String[] {"approved", "rejected"}));
         final TaskInstance task = resource.adaptTo(TaskInstance.class);
 
         assertNotNull(task);
@@ -91,6 +93,7 @@ class TaskInstanceTest
         assertEquals(this.started, task.getEndTime());
         assertEquals(this.started, task.getDueDate());
         assertEquals("approved", task.getOutcome());
+        assertEquals(List.of("approved", "rejected"), task.getOfferedOutcomes());
     }
 
     @Test
@@ -120,6 +123,8 @@ class TaskInstanceTest
         assertNull(task.getEndTime());
         assertNull(task.getDueDate());
         assertNull(task.getOutcome());
+        // A task offering nothing is one there is nothing to decide about: it is done, or it is not
+        assertEquals(List.of(), task.getOfferedOutcomes());
         assertNull(task.getForm());
         assertNull(task.getWorkflowInstance());
         assertNull(task.getDefinition());
