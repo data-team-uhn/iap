@@ -53,7 +53,7 @@
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/wf/;path:=/libs/wf/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/WorkflowTypes;path:=/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>
           </instructions>
         </configuration>
