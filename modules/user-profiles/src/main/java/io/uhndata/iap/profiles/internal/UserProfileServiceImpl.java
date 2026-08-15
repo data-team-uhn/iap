@@ -123,7 +123,16 @@ public class UserProfileServiceImpl implements UserProfileService
         try (ResourceResolver resolver = this.accounts.open()) {
             final Authorizable account = this.accounts.find(resolver, accountId);
             final ProfileFieldsHomepage catalogue = catalogue(resolver);
-            if (account == null || catalogue == null) {
+            if (catalogue == null) {
+                // Distinguished from an unknown account, which is an ordinary 404: no catalogue means the instance
+                // cannot serve anybody's profile, and saying so is the difference between a five-minute diagnosis
+                // and reading the permission design to work out which of the two it was
+                LOGGER.warn("No readable profile field catalogue at {}; no profile can be served",
+                    ProfileFieldsHomepage.PATH);
+                return Optional.empty();
+            }
+            if (account == null) {
+                LOGGER.warn("No account named {} that this service may read", accountId);
                 return Optional.empty();
             }
             return Optional.of(project(account, requester, catalogue));
