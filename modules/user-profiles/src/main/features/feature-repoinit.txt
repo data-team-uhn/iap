@@ -39,6 +39,10 @@ end
 create service user iap-userprofile
 
 set ACL for iap-userprofile
+    # The catalogue is this service's own dependency, so it is granted here rather than relied upon through the
+    # blanket read `everyone` has: a deployment that tightened that grant would otherwise take the whole profile API
+    # down, and the failure would look like "no such account" rather than "cannot read the catalogue".
+    allow   jcr:read    on /ProfileFields
     allow   jcr:read    on /home/users
     allow   rep:write   on /home/users restriction(rep:glob,*/profile*)
     allow   rep:write   on /home/users restriction(rep:glob,*/preferences*)
