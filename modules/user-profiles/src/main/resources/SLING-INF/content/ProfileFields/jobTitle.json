@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "iap:ProfileFieldDefinition",
+  "label": "Role",
+  "description": "Your role or job title, shown alongside your name.",
+  "kind": "profile",
+  "dataType": "text",
+  "readableBy": "authenticated",
+  "writableBy": "owner",
+  "category": ["Identity"],
+  "order": 40
+}

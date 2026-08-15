@@ -1,0 +1,12 @@
+{
+  "jcr:primaryType": "iap:ProfileFieldDefinition",
+  "label": "Email notifications",
+  "description": "How often this platform may email you about things that need your attention.",
+  "kind": "preference",
+  "dataType": "text",
+  "allowedValues": ["immediately", "daily", "weekly", "never"],
+  "readableBy": "self",
+  "writableBy": "owner",
+  "category": ["Notifications"],
+  "order": 100
+}
