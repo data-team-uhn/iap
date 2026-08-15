@@ -71,15 +71,31 @@ breakpoint name or px —, bar `collapseHeight`).
 | --- | --- | --- |
 | `iap/coreUI/view` | `Views` | Full main-content views routed by URL: `iap:targetURL` is the path the view is responsible for; the router renders the matching view's component. Use `?lazy` on the render URL so a view is only loaded when navigated to. |
 
-**Every view URL must be backed by a real resource.** Client-side navigation works regardless,
-but on a refresh or deep link the browser asks Sling for that URL, and an unresolvable path is a
-404 before the SPA ever loads. Views over entities get this for free (the entity node itself
-serves the shell); a *virtual* page (like `/admin`) needs a shell-hosting node created in the
-owning module's repoinit: `create path (iap:Homepage) /admin`. The node also carries the page's
-access control — denying it to `everyone` turns a non-admin deep link into an honest 404.
+`iap:targetURL` is handed to the router as-is, so it takes the router's own patterns — a parameter
+(`/Submissions/:id`) or a trailing splat (`/Submissions/:id/*`) both work, and the breadcrumb trail
+matches ancestors against the same patterns. What a pattern does **not** do is make the URLs it
+covers resolvable on the server.
 
-Requiring a node per virtual page is an interim mechanism: the upcoming virtual resource resolver
-serves a view's URL without one, and this whole note goes away with it.
+**Every view URL must be backed by a resource.** Client-side navigation works regardless, but on a
+refresh or a deep link the browser asks Sling for that whole URL, and an unresolvable path is a 404
+before the SPA ever loads. So `/Submissions/123` resolves (the submission node serves the shell)
+while `/Submissions/123/reviews/financial` does not, however the view's pattern is written. There
+are two ways to give a URL a resource:
+
+- **A node**, created in the owning module's repoinit — `create path (iap:Homepage) /content`. It
+  also carries the page's access control, so denying it to `everyone` turns a deep link into an
+  honest 404. Fine for a single virtual page; it cannot cover paths that vary.
+- **A `ResourceProvider`**, which synthesizes them. `AdminViewResourceProvider` (module
+  `admin-console`) does this for the whole `/admin` subtree in `overlay` mode: anything below the
+  console that is not in the repository is answered with a synthetic resource carrying the
+  console's own resource type, so the shell renders and the router decides what the path means.
+  Real content still wins, and a synthetic resource borrows `/admin`'s readability, since it has no
+  access control of its own. That is why an admin tool needs **no** node of its own for
+  `/admin/<tool>`.
+
+A module wanting deep or varying URLs of its own — the `/Submissions/{id}/*` case — needs its own
+provider over its own root; there is no platform-wide one, and `/admin` is currently the only
+subtree with one.
 
 ### The application bar
 
