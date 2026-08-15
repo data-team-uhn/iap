@@ -62,4 +62,19 @@ test.describe('the workflow editor as an administrative tool', () => {
     await expect(page.getByRole('button', { name: 'Load' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'New' })).toBeVisible();
   });
+
+  // No real node is created behind /admin/workflows, check that the URL still resolves correctly
+  test('serves its own address to a request that starts there', async ({ page }) => {
+    await signInAs(page, ADMIN);
+    await page.goto('/admin/workflows');
+
+    await expect(page.getByRole('heading', { level: 1, name: 'Workflows' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Load' })).toBeVisible();
+  });
+
+  test('serves it to nobody who cannot reach the console', async ({ request }) => {
+    // `maxRedirects: 0` because otherwise it redirects to /login, a 200 sign-in page.
+    const anonymous = await request.get('/admin/workflows', { maxRedirects: 0 });
+    expect(anonymous.status()).not.toBe(200);
+  });
 });

@@ -28,7 +28,6 @@
       "scripts": [
         "create path (wf:WorkflowsHomepage) /Workflows",
         "create path (wf:WorkflowTypesHomepage) /WorkflowTypes",
-        "create path (iap:Homepage) /admin/workflows",
         "create service user workflows \n set ACL for workflows \n allow jcr:all on / \n end"
       ]
     },
