@@ -328,6 +328,7 @@ class ProfileFieldDefinitionTest
 
         final JsonObject json = field.documentationJsonBuilder().build().asJsonObject();
         assertEquals(".+@.+", json.getString("pattern"));
+        assertEquals("profile", json.getString("kind"));
         assertEquals("text", json.getString("dataType"));
         assertFalse(json.getBoolean("required"));
         assertFalse(json.getBoolean("multiple"));
@@ -343,12 +344,26 @@ class ProfileFieldDefinitionTest
     }
 
     @Test
+    void tellsAPreferenceApartFromAProfileFieldWhenSerializing()
+    {
+        // What lets a form group identity apart from settings. Asserted on a definition whose storage is elsewhere
+        // entirely, since that is the case the `storage` prefix could not have answered.
+        final JsonObject json = definition("fullName", Map.of("kind", "preference", "storage", "rep:fullname"))
+            .documentationJsonBuilder().build().asJsonObject();
+
+        assertEquals("preference", json.getString("kind"));
+        assertEquals("rep:fullname", json.getString("storage"));
+    }
+
+    @Test
     void leavesOutWhatIsNotSetWhenSerializing()
     {
         final JsonObject json = definition("broken", Map.of("kind", "nonsense", "dataType", "nonsense",
             "writableBy", "nonsense", "readableBy", "nonsense")).documentationJsonBuilder().build().asJsonObject();
 
         assertEquals("text", json.getString("dataType"));
+        // An unreadable kind falls back to `profile`, and is reported as the fallback rather than as what was written
+        assertEquals("profile", json.getString("kind"));
         assertEquals("owner", json.getString("writableBy"));
         assertEquals("self", json.getString("readableBy"));
         assertFalse(json.getBoolean("usable"));
