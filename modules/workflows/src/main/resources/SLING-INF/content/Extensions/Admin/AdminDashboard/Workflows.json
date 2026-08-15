@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/adminDashboard/entry",
+  "iap:extensionName": "Workflows",
+  "iap:subtitle": "Create and edit workflow definitions using the visual BPMN editor",
+  "iap:extensionRenderURL": "asset:iap-workflows.WorkflowsWidget.js",
+  "iap:actionLabel": "Manage workflows",
+  "iap:targetURL": "/admin/workflows",
+  "iap:defaultOrder": 20
+}

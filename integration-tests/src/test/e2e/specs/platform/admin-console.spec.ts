@@ -16,24 +16,15 @@
  * limitations under the License.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-import { LoginPage } from '../../pages/login.page';
-import { ADMIN, adminAuth } from '../../support/auth';
+import { ADMIN, adminAuth, signInAs } from '../../support/auth';
 
 /**
  * The administration console: who may reach it, and whether the tools registered on it actually
  * arrive there.
  */
 test.describe('the administration console', () => {
-  const signIn = async (page: Page): Promise<void> => {
-    const login = new LoginPage(page);
-    await login.open();
-    await login.signInAs(ADMIN.username, ADMIN.password);
-    // The sign-in form going away is what says the session exists; navigating before that races it.
-    await expect(login.signIn).toHaveCount(0);
-  };
-
   test('serves its tools to an administrator and to nobody else', async ({ request }) => {
     // `maxRedirects: 0` because otherwise it redirects to /login, a 200 sign-in page.
     const anonymous = await request.get('/Extensions/Admin.2.json', { maxRedirects: 0 });
@@ -46,7 +37,7 @@ test.describe('the administration console', () => {
   });
 
   test('offers the category manager as one of its tools', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
 
     await expect(page.getByRole('heading', { name: 'Submission categories' })).toBeVisible();
@@ -54,7 +45,7 @@ test.describe('the administration console', () => {
   });
 
   test('summarises the current categories on the console itself', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
 
     // A bare deployment ships no categories, so what the widget has to show is its empty state rather
@@ -65,7 +56,7 @@ test.describe('the administration console', () => {
   });
 
   test('opens the category manager, ready to create the first category', async ({ page }) => {
-    await signIn(page);
+    await signInAs(page, ADMIN);
     await page.goto('/admin');
     await page.getByRole('link', { name: 'Manage categories' }).click();
 
