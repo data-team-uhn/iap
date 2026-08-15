@@ -24,6 +24,7 @@ import {
   Button,
   DialogActions,
   DialogContent,
+  Link as MuiLink,
   Stack,
   Table,
   TableBody,
@@ -37,6 +38,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { Link as RouterLink } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
@@ -223,7 +225,8 @@ export function ArchiveBrowser() {
                 <TableCell>{entry.deletedBy}</TableCell>
                 <TableCell>
                   <Tooltip title={entry.originalPaths.join(", ")}>
-                    <span>{entry.requestedPath}</span>
+                    {/* Through to the entry, where what-would-happen can be seen before acting. */}
+                    <MuiLink component={RouterLink} to={entry.path}>{entry.requestedPath}</MuiLink>
                   </Tooltip>
                 </TableCell>
                 <TableCell>{entry.itemCount}</TableCell>

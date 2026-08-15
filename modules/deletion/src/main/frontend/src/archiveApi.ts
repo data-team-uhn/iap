@@ -103,6 +103,16 @@ export interface ActionResponse {
   vetoes?: ActionVeto[];
 }
 
+/** One entry, with what would happen if either action were taken on it now. */
+export interface ArchiveEntryDetail extends ArchiveEntry {
+  /** Whether a restore requested now would go through. */
+  restorable: boolean;
+  restoreConflicts: RestoreConflict[];
+  /** Whether a purge requested now would go through. */
+  purgeable: boolean;
+  purgeVetoes: ActionVeto[];
+}
+
 /** The archive root. The entries themselves live in buckets under it and are addressed by path. */
 const ARCHIVE_PATH = "/Archive";
 
@@ -187,3 +197,26 @@ const act = async (doFetch: AuthenticatedFetch, url: string, method: string): Pr
   };
 };
 
+/**
+ * Describe one entry: what is archived in it, and whether restoring or purging it would work.
+ *
+ * The preflight is a snapshot rather than a promise — another deletion can occupy a path between
+ * reading this and acting on it — so the actions still report their own refusals.
+ *
+ * Rejects when the path does not name an archive entry: buckets share the archive's resource type
+ * and answer with something else entirely, and rendering that as an empty entry would be a lie.
+ */
+export const fetchArchiveEntry = async (
+  doFetch: AuthenticatedFetch,
+  path: string
+): Promise<ArchiveEntryDetail> => {
+  const response = await doFetch(`${path}.entry.json`, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    throw new Error(`That archive entry could not be read (${String(response.status)})`);
+  }
+  const body = await response.json() as ArchiveEntryDetail | null;
+  if (!body?.path) {
+    throw new Error("That is not an archive entry.");
+  }
+  return body;
+};

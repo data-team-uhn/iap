@@ -18,6 +18,7 @@
 
 import {
   fetchArchiveEntries,
+  fetchArchiveEntry,
   fetchArchiveSummary,
   purgeEntry,
   restoreEntry,
@@ -158,3 +159,42 @@ describe("an answer this page cannot read", () => {
   });
 });
 
+describe("fetchArchiveEntry", () => {
+  const detail = {
+    path: "/Archive/ab/cd/ef/one", requestedPath: "/content/one", deletedBy: "alice",
+    created: "2026-08-14T00:00:00.000+00:00", originalPaths: [ "/content/one" ], itemCount: 1,
+    restorable: true, restoreConflicts: [], purgeable: true, purgeVetoes: [],
+  };
+
+  it("asks the entry itself what would happen to it", async () => {
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, detail));
+    await expect(fetchArchiveEntry(doFetch, "/Archive/ab/one")).resolves.toEqual(detail);
+    expect(doFetch.mock.calls[0][0]).toBe("/Archive/ab/one.entry.json");
+  });
+
+  it("carries the preflight through", async () => {
+    const blocked = {
+      ...detail,
+      restorable: false,
+      restoreConflicts: [ { originalPath: "/content/one", reason: "OCCUPIED" } ],
+      purgeable: false,
+      purgeVetoes: [ { vetoer: "RetentionVeto", path: "/Archive/ab/one", reason: "Too recent" } ],
+    };
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, blocked));
+    const answer = await fetchArchiveEntry(doFetch, "/Archive/ab/one");
+    expect(answer.restorable).toBe(false);
+    expect(answer.restoreConflicts[0].reason).toBe("OCCUPIED");
+    expect(answer.purgeVetoes[0].reason).toBe("Too recent");
+  });
+
+  it("rejects when the entry cannot be read", async () => {
+    const doFetch = vi.fn().mockResolvedValue(new Response("", { status: 404 }));
+    await expect(fetchArchiveEntry(doFetch, "/Archive/ab/one")).rejects.toThrow("404");
+  });
+
+  it("rejects a path that is not an entry at all", async () => {
+    // A prefix-tree bucket shares the archive's resource type and answers with something else
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { "jcr:primaryType": "iap:Archive" }));
+    await expect(fetchArchiveEntry(doFetch, "/Archive/ab")).rejects.toThrow("not an archive entry");
+  });
+});

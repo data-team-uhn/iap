@@ -791,6 +791,9 @@ class DeletionServiceImplTest
         };
         assertThrows(DeletionException.class, () -> this.service.restore(fake));
         assertThrows(DeletionException.class, () -> this.service.purge(fake));
+        // The preflights read the same entry, so they fail the same way
+        assertThrows(DeletionException.class, () -> this.service.checkRestore(fake));
+        assertThrows(DeletionException.class, () -> this.service.checkPurge(fake));
     }
 
     @Test
@@ -836,4 +839,82 @@ class DeletionServiceImplTest
         assertThrows(DeletionException.class,
             () -> this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.archive()));
     }
+
+    @Test
+    void checkRestoreReportsNothingWhenTheWayIsClear() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        assertTrue(this.service.checkRestore(this.resource(deleted.getArchiveEntryPath())).isEmpty());
+        // The point of asking is that asking does nothing
+        assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
+        assertFalse(this.session.nodeExists(VICTIM_PATH));
+    }
+
+    @Test
+    void checkRestoreNamesWhatIsInTheWay() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        this.target(VICTIM);
+        final List<RestoreConflict> conflicts =
+            this.service.checkRestore(this.resource(deleted.getArchiveEntryPath()));
+        assertEquals(1, conflicts.size());
+        assertEquals(RestoreConflict.Reason.OCCUPIED, conflicts.get(0).getReason());
+        assertEquals(VICTIM_PATH, conflicts.get(0).getOriginalPath());
+    }
+
+    @Test
+    void checkRestoreAgreesWithTheRestoreItself() throws Exception
+    {
+        // The preflight is only worth showing if it says what the operation will do
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        this.target(VICTIM);
+        final Resource entry = this.resource(deleted.getArchiveEntryPath());
+        final List<RestoreConflict> predicted = this.service.checkRestore(entry);
+        final RestoreResult actual = this.service.restore(entry);
+        assertEquals(RestoreResult.Status.CONFLICT, actual.getStatus());
+        assertEquals(predicted.size(), actual.getConflicts().size());
+        assertEquals(predicted.get(0).getReason(), actual.getConflicts().get(0).getReason());
+    }
+
+    @Test
+    void checkRestoreRejectsNonEntries() throws Exception
+    {
+        this.target(VICTIM);
+        assertThrows(IllegalArgumentException.class,
+            () -> this.service.checkRestore(this.resource(VICTIM_PATH)));
+    }
+
+    @Test
+    void checkPurgeReportsNoObjectionsWhenThereAreNone() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        assertTrue(this.service.checkPurge(this.resource(deleted.getArchiveEntryPath())).isEmpty());
+        assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
+    }
+
+    @Test
+    void checkPurgeNamesTheGuardsThatWouldRefuse() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        this.session.getNode(deleted.getArchiveEntryPath()).getNode("0/victim")
+            .addMixin(DeletionService.UNDELETABLE_MIXIN);
+        this.session.save();
+        assertFalse(this.service.checkPurge(this.resource(deleted.getArchiveEntryPath())).isEmpty());
+        // Asking destroyed nothing
+        assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
+    }
+
+    @Test
+    void checkPurgeRejectsNonEntries() throws Exception
+    {
+        this.target(VICTIM);
+        assertThrows(IllegalArgumentException.class,
+            () -> this.service.checkPurge(this.resource(VICTIM_PATH)));
+    }
+
 }

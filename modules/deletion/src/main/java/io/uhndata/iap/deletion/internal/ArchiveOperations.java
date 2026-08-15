@@ -149,6 +149,26 @@ final class ArchiveOperations
     }
 
     /**
+     * Work out where each archived item would go and what stands in the way, without moving anything. Shared with
+     * {@link #restore} so that a preflight and the operation itself cannot disagree about what is restorable.
+     *
+     * @param entry the archive entry to evaluate
+     * @param userSession the session of the user asking, whose rights decide the destinations
+     * @return the plan: the conflicts, and the items that would move
+     * @throws RepositoryException if the archive cannot be read
+     */
+    RestorePlan evaluateRestore(final Node entry, final Session userSession) throws RepositoryException
+    {
+        final List<RestoreConflict> conflicts = new ArrayList<>();
+        final Map<String, Node> toRestore = new TreeMap<>();
+        final NodeIterator wrappers = entry.getNodes();
+        while (wrappers.hasNext()) {
+            this.evaluateItem(wrappers.nextNode(), userSession, conflicts, toRestore);
+        }
+        return new RestorePlan(conflicts, toRestore);
+    }
+
+    /**
      * Move the contents of an archive entry back to their recorded original locations, all or nothing.
      *
      * @param entry the entry node, in the service session
@@ -158,12 +178,9 @@ final class ArchiveOperations
      */
     RestoreResult restore(final Node entry, final Session userSession) throws RepositoryException
     {
-        final List<RestoreConflict> conflicts = new ArrayList<>();
-        final Map<String, Node> toRestore = new TreeMap<>();
-        final NodeIterator wrappers = entry.getNodes();
-        while (wrappers.hasNext()) {
-            this.evaluateItem(wrappers.nextNode(), userSession, conflicts, toRestore);
-        }
+        final RestorePlan plan = this.evaluateRestore(entry, userSession);
+        final List<RestoreConflict> conflicts = plan.conflicts();
+        final Map<String, Node> toRestore = plan.toRestore();
         if (!conflicts.isEmpty()) {
             return new RestoreResult(RestoreResult.Status.CONFLICT, List.of(), conflicts);
         }
@@ -280,5 +297,17 @@ final class ArchiveOperations
     {
         final int cut = path.lastIndexOf('/');
         return cut == 0 ? "/" : path.substring(0, cut);
+    }
+
+    /**
+     * What restoring an archive entry would do: where each archived item would go, and what stands in the way.
+     *
+     * @param conflicts everything blocking the restore; empty means it would go through
+     * @param toRestore the original path each item would move back to, and the node that would move
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record RestorePlan(List<RestoreConflict> conflicts, Map<String, Node> toRestore)
+    {
     }
 }

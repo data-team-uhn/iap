@@ -19,6 +19,7 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 
 import { ArchiveBrowser } from "@iap/deletion/ArchiveBrowser";
 import { appTheme } from "@iap/frontend-commons/appTheme";
@@ -75,10 +76,13 @@ const server = (options: {
   return { calls, mock };
 };
 
+// Rendered by the application shell's router, and its rows link through it to each entry.
 const browser = () => render(
-  <ThemeProvider theme={appTheme} defaultMode="light">
-    <ArchiveBrowser />
-  </ThemeProvider>
+  <MemoryRouter>
+    <ThemeProvider theme={appTheme} defaultMode="light">
+      <ArchiveBrowser />
+    </ThemeProvider>
+  </MemoryRouter>
 );
 
 const listings = (calls: string[]) => calls.filter(url => url.includes(".entries.json"));
@@ -298,5 +302,13 @@ describe("ArchiveBrowser", () => {
     expect(screen.queryByText("/content/one")).not.toBeInTheDocument();
   });
 
+  it("links each row through to the entry, where the preflight lives", async () => {
+    server({ listing: () => jsonResponse(200, page([ entry("one") ])) });
+    browser();
+
+    const link = await screen.findByRole("link", { name: "/content/one" });
+    // The bucket path is storage; a reader is only ever shown the short address
+    expect(link).toHaveAttribute("href", "/Archive/one");
+  });
 
 });
