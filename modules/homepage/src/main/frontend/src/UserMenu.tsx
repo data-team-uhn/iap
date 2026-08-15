@@ -34,6 +34,7 @@ import {
 
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import { readJson } from "@iap/frontend-commons/requestFailure";
+import { initialsOf } from "@iap/frontend-commons/words";
 
 import PersonaSwitcher from "./PersonaSwitcher";
 
@@ -48,16 +49,6 @@ const fullNameOf = (user: Record<string, unknown>): string =>
   ((user.displayName as string | undefined) ?? "").trim()
   || [ user.firstname ?? user.givenName, user.lastname ?? user.familyName ]
     .filter(Boolean).join(" ").trim();
-
-// The first letters of a name's first and last words, in upper case. Empty for a blank name.
-const initialsOf = (name: string): string => {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) {
-    return "";
-  }
-  const initials = words[0][0] + (words.length > 1 ? words[words.length - 1][0] : "");
-  return initials.toUpperCase();
-};
 
 // The current user's avatar, with the initials of their full name, or of their username without
 // one. It opens a menu with the username, and the full name where it differs. The menu also has
