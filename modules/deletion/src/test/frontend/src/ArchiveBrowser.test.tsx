@@ -31,6 +31,7 @@ const jsonResponse = (status: number, body: unknown) => new Response(JSON.string
 
 const entry = (name: string, extra: Record<string, unknown> = {}) => ({
   path: `/Archive/ab/cd/ef/${name}`,
+  shortPath: `/Archive/${name}`,
   requestedPath: `/content/${name}`,
   deletedBy: "alice",
   created: "2026-08-14T00:00:00.000+00:00",

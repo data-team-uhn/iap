@@ -24,9 +24,12 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { ArchiveEntryView } from "@iap/deletion/ArchiveEntryView";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 
-// The view is opened the way a reader reaches it, at the entry's own path; everything the page
-// does is relative to it.
-const ENTRY = "/Archive/ab/cd/ef/one";
+// The view is opened the way a reader reaches it: at the short address, which the resource provider
+// translates back to the bucket path server-side. Everything the page does therefore goes through it.
+const ENTRY = "/Archive/one";
+
+/** Where the entry is really stored, which is what the endpoint reports back as its path. */
+const STORED = "/Archive/ab/cd/ef/one";
 
 const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,
@@ -34,7 +37,8 @@ const jsonResponse = (status: number, body: unknown) => new Response(JSON.string
 });
 
 const detail = (extra: Record<string, unknown> = {}) => ({
-  path: ENTRY,
+  path: STORED,
+  shortPath: ENTRY,
   requestedPath: "/content/one",
   deletedBy: "alice",
   created: "2026-08-14T00:00:00.000+00:00",

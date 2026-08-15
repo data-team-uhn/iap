@@ -35,8 +35,10 @@ export interface ArchiveSummary {
 
 /** One recorded deletion. */
 export interface ArchiveEntry {
-  /** The entry's own repository path — the address restore and purge act on. */
+  /** The entry's own repository path — where it is stored, inside the prefix tree. */
   path: string;
+  /** The same entry without the prefix tree, which is what a reader should be shown and linked to. */
+  shortPath: string;
   /** The path whose deletion was requested. */
   requestedPath: string;
   /** The user who asked for it. */

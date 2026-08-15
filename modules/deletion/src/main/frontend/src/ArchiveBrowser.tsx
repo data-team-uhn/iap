@@ -225,8 +225,9 @@ export function ArchiveBrowser() {
                 <TableCell>{entry.deletedBy}</TableCell>
                 <TableCell>
                   <Tooltip title={entry.originalPaths.join(", ")}>
-                    {/* Through to the entry, where what-would-happen can be seen before acting. */}
-                    <MuiLink component={RouterLink} to={entry.path}>{entry.requestedPath}</MuiLink>
+                    {/* Through to the entry, where what-would-happen can be seen before acting. The short
+                        address is the one a reader should ever see; the buckets are storage. */}
+                    <MuiLink component={RouterLink} to={entry.shortPath}>{entry.requestedPath}</MuiLink>
                   </Tooltip>
                 </TableCell>
                 <TableCell>{entry.itemCount}</TableCell>

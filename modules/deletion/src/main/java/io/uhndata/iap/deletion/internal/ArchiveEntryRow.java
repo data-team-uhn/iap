@@ -30,6 +30,7 @@ import jakarta.json.JsonObjectBuilder;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
 
+import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
@@ -37,9 +38,9 @@ import io.uhndata.iap.utils.DateUtils;
  * delete, and where everything the operation dragged along came from.
  *
  * <p>
- * The entry's own path is included because it is the address the restore and purge endpoints act on, and a listing
- * is the only place a client can learn it — the entries live in a prefix tree of buckets, so no client can construct
- * one.
+ * Two addresses are included. {@code path} is where the entry is stored and what the restore and purge endpoints
+ * act on; {@code shortPath} is the same entry without the prefix tree, which is what a reader should be shown and
+ * linked to. A listing is the only place a client can learn either, since no client can construct a bucket path.
  * </p>
  *
  * @version $Id$
@@ -63,6 +64,9 @@ final class ArchiveEntryRow
         final ValueMap properties = entry.getValueMap();
         final JsonObjectBuilder row = Json.createObjectBuilder()
             .add("path", entry.getPath())
+            // Where a reader can address it, which is the same entry without the storage layout in the way.
+            // Emitted rather than left to the client so that the prefix tree stays a server-side concern.
+            .add("shortPath", DeletionService.ARCHIVE_PATH + "/" + entry.getName())
             .add("requestedPath", properties.get("requestedPath", ""))
             .add("deletedBy", properties.get("deletedBy", ""));
         final Calendar created = properties.get("jcr:created", Calendar.class);
