@@ -1,0 +1,12 @@
+{
+  "jcr:primaryType": "iap:ProfileFieldDefinition",
+  "label": "Language",
+  "description": "The language this platform uses for you, including in the notifications it sends you.",
+  "kind": "preference",
+  "dataType": "text",
+  "allowedValues": ["en", "fr"],
+  "readableBy": "self",
+  "writableBy": "owner",
+  "category": ["Appearance"],
+  "order": 120
+}

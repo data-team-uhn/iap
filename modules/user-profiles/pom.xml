@@ -40,9 +40,15 @@
             <Include-Resource>{maven-resources}</Include-Resource>
             <Sling-Nodetypes>SLING-INF/nodetypes/userProfiles.cnd</Sling-Nodetypes>
             <Sling-Model-Packages>io.uhndata.iap.profiles.models</Sling-Model-Packages>
+            <!-- The ProfileFields entry ships the catalogue this instance starts with. A directory entry, because
+                 `path:=` is only honoured for those: a file entry is read correctly and then lands at the repository
+                 root, named after the file. repoinit has already created /ProfileFields as an iap:ProfileFieldsHomepage;
+                 the content loader reuses an existing node rather than skipping it, so the definitions land inside it
+                 rather than being passed over. -->
             <Sling-Initial-Content>
               SLING-INF/content/libs/iap/ProfileFieldsHomepage/;path:=/libs/iap/ProfileFieldsHomepage/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/ProfileFieldDefinition/;path:=/libs/iap/ProfileFieldDefinition/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/ProfileFields;path:=/ProfileFields;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

@@ -606,6 +606,11 @@ public class ProfileFieldDefinition extends Content implements DocumentedItem
     public JsonObjectBuilder documentationJsonBuilder()
     {
         final JsonObjectBuilder json = DocumentedItem.super.documentationJsonBuilder()
+            // Whether this describes the person or how they want the application to behave. Said explicitly rather
+            // than left to be inferred from `storage`: a definition may point anywhere inside the account -- the node
+            // type's own example is `rep:fullname`, which sits under neither subtree -- so the prefix is not a
+            // reliable answer, and a form that groups identity apart from settings needs a reliable one.
+            .add("kind", label(getKind()))
             .add("dataType", label(getDataType()))
             .add("required", isRequired())
             .add("multiple", isMultiple())
