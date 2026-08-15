@@ -55,7 +55,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import PropertiesPanel from "./PropertiesPanel";
-import { WORKFLOWS_ROOT, parseWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
+import { WORKFLOWS_ROOT, loadWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
 
 // The diagram is an nt:file child of the version node rather than one of its properties, so it is
 // fetched and posted on its own path; listing the versions no longer carries every diagram with it.
@@ -170,18 +170,8 @@ export default function BpmnEditor() {
   const loadDefinitions = useCallback((): Promise<void> => {
     setLoadingDefs(true);
     setListError(undefined);
-    // Two levels is exactly what this list renders: the definitions, for their titles, and the
-    // versions under them. The depth selector both turns child serialization on and stops the
-    // traversal there, so a version's own children -- the diagram file, and the parsed flow nodes
-    // once those exist -- are left as bare paths instead of being dragged into every listing.
-    return fetchUtil(`${WORKFLOWS_ROOT}.2.json`)
-      .then(response => {
-        if (!response.ok) {
-          throw new RequestError(response.status);
-        }
-        return response.json() as Promise<Record<string, unknown>>;
-      })
-      .then(data => setDefinitions(parseWorkflowList(data)))
+    return loadWorkflowList(fetchUtil)
+      .then(setDefinitions)
       .catch((err: unknown) => setListError(describeRequestFailure(err)))
       .finally(() => setLoadingDefs(false));
   }, [fetchUtil]);

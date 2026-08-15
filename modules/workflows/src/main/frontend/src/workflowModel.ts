@@ -16,8 +16,11 @@
  * limitations under the License.
  */
 
-// The workflow definitions' home in the repository, and the parsing of its JSON listing —
+// The workflow definitions' home in the repository, and the reading of its JSON listing —
 // shared by the BPMN editor and the administration console widget.
+
+import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { RequestError } from "@iap/frontend-commons/requestFailure";
 
 export const WORKFLOWS_ROOT = "/Workflows";
 
@@ -60,4 +63,25 @@ export function parseWorkflowList(data: Record<string, unknown>): WorkflowVersio
   return Object.entries(data)
     .filter(([, v]) => v && typeof v === "object" && (v as JcrNode)["jcr:primaryType"] === "wf:WorkflowDefinition")
     .flatMap(([defKey, defNode]) => extractVersions(defKey, defNode as JcrNode));
+}
+
+// Reads the workflow versions the repository holds, for whoever is asking to see a list of them.
+//
+// The status is read off the response before the body is parsed, because a refusal answers with an
+// error page rather than with JSON: parsing it first reports how the body disappointed the parser,
+// which says nothing about what was refused.
+//
+// Two levels is exactly what a listing renders: the definitions, for their titles, and the versions
+// under them. The depth selector both turns child serialization on and stops the traversal there, so
+// a version's own children -- the diagram file, and the parsed flow nodes once those exist -- are
+// left as bare paths instead of being dragged into every listing.
+export function loadWorkflowList(fetchUtil: AuthenticatedFetch): Promise<WorkflowVersionSummary[]> {
+  return fetchUtil(`${WORKFLOWS_ROOT}.2.json`)
+    .then(response => {
+      if (!response.ok) {
+        throw new RequestError(response.status);
+      }
+      return response.json() as Promise<Record<string, unknown>>;
+    })
+    .then(parseWorkflowList);
 }

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { parseWorkflowList } from "@iap/workflows/workflowModel";
+import { loadWorkflowList, parseWorkflowList } from "@iap/workflows/workflowModel";
 
 const listing = {
   "jcr:primaryType": "wf:WorkflowsHomepage",
@@ -73,5 +73,29 @@ describe("parseWorkflowList", () => {
     // may leak into the summaries (or crash the parsing).
     expect(parseWorkflowList(listing)).toHaveLength(3);
     expect(parseWorkflowList({ "jcr:primaryType": "wf:WorkflowsHomepage" })).toEqual([]);
+  });
+});
+
+describe("loadWorkflowList", () => {
+  it("asks for the two levels a listing renders, and summarizes what comes back", async () => {
+    const fetchUtil = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(listing),
+    });
+
+    expect((await loadWorkflowList(fetchUtil)).map(v => v.name))
+      .toEqual(["review/1-0", "review/2-0", "untitled/1-0"]);
+    expect(fetchUtil).toHaveBeenCalledWith("/Workflows.2.json");
+  });
+
+  // A refusal answers with an error page rather than with JSON, so the status has to be read before
+  // the body: parsing first reports how the body disappointed the parser, not what was refused.
+  it("rejects with the status when the server refused, without reading the body", async () => {
+    const json = vi.fn().mockRejectedValue(new SyntaxError("Unexpected token '<'"));
+    const fetchUtil = vi.fn().mockResolvedValue({ ok: false, status: 403, json });
+
+    await expect(loadWorkflowList(fetchUtil)).rejects.toMatchObject({ status: 403 });
+    expect(json).not.toHaveBeenCalled();
   });
 });

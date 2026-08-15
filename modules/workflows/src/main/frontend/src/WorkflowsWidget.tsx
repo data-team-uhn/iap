@@ -22,9 +22,9 @@ import { CircularProgress, List, ListItem, ListItemText, Typography } from "@mui
 
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+import { describeRequestFailure } from "@iap/frontend-commons/requestFailure";
 
-import { WORKFLOWS_ROOT, parseWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
+import { loadWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
 
 // The administration console widget summarizing the workflows: one line per workflow version,
 // read-only. It reuses the same listing plumbing as the BPMN editor, which itself is behind the
@@ -36,15 +36,9 @@ function WorkflowsWidget() {
   const authenticatedFetch = useAuthenticatedFetch();
 
   const load = useCallback((): Promise<void> =>
-    authenticatedFetch(`${WORKFLOWS_ROOT}.2.json`)
-      .then(response => {
-        if (!response.ok) {
-          throw new RequestError(response.status);
-        }
-        return response.json() as Promise<Record<string, unknown>>;
-      })
-      .then(data => {
-        setVersions(parseWorkflowList(data));
+    loadWorkflowList(authenticatedFetch)
+      .then(loaded => {
+        setVersions(loaded);
         setLoadError(undefined);
       })
       .catch((error: unknown) => {
