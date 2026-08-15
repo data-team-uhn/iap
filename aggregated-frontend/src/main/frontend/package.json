@@ -14,12 +14,18 @@
   ],
   "babel": {
     "presets": [
-      ["@babel/preset-env", {
-        "bugfixes": true
-      }],
-      ["@babel/preset-react", {
-        "runtime": "automatic"
-      }],
+      [
+        "@babel/preset-env",
+        {
+          "bugfixes": true
+        }
+      ],
+      [
+        "@babel/preset-react",
+        {
+          "runtime": "automatic"
+        }
+      ],
       "@babel/preset-typescript"
     ]
   },
@@ -29,6 +35,7 @@
     "aggregate": "python3 webpack_script.py ../../..",
     "aggregate:tests": "python3 webpack_script.py ../../.. --with-tests",
     "typecheck": "yarn aggregate && tsc -p ../../../../tsconfig.json --noEmit",
+    "check:messages": "python3 messages_script.py ../../..",
     "test": "yarn aggregate:tests && vitest run --coverage",
     "test:watch": "yarn aggregate:tests && vitest",
     "test:coverage": "yarn aggregate:tests && vitest run --coverage"

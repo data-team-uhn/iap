@@ -23,6 +23,8 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import FooterContent, { FooterCredits } from "@iap/frontend-commons/components/FooterContent";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
+import { withMessages } from "../messages.fixture";
+
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(),
 }));
@@ -39,9 +41,11 @@ describe("FooterContent", () => {
 
   const renderContent = async (props: object = {}) => {
     const result = render(
-      <ThemeProvider theme={appTheme} defaultMode="light">
-        <FooterContent {...props} />
-      </ThemeProvider>
+      withMessages(
+        <ThemeProvider theme={appTheme} defaultMode="light">
+          <FooterContent {...props} />
+        </ThemeProvider>
+      )
     );
     // Commit the extension-loading state update before the test proceeds
     await act(() => Promise.resolve());

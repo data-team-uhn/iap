@@ -21,19 +21,22 @@ import { useState } from "react";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import { Badge, IconButton, Menu, MenuItem, Tooltip } from "@mui/material";
 
+import { useMessage } from "@iap/frontend-commons/messages";
+
 // The notifications bell in the app bar, revealing the list of notifications as a dropdown.
 // There is no notification mechanism yet, so for now the list is always empty and the badge
 // hidden; the control establishes the UI so notifications have a home when they arrive.
 // Registered on the `iap/appBar/entry` extension point, end section.
 function Notifications() {
+  const message = useMessage();
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
   const notificationCount = 0;
 
   return (
     <>
-      <Tooltip title="Notifications">
+      <Tooltip title={message("iap.shell.notifications.label")}>
         <IconButton
-          aria-label="Notifications"
+          aria-label={message("iap.shell.notifications.label")}
           onClick={event => setAnchor(event.currentTarget)}
           size="small"
         >
@@ -44,7 +47,7 @@ function Notifications() {
         </IconButton>
       </Tooltip>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-        <MenuItem disabled>You have no new notifications</MenuItem>
+        <MenuItem disabled>{message("iap.shell.notifications.empty")}</MenuItem>
       </Menu>
     </>
   );

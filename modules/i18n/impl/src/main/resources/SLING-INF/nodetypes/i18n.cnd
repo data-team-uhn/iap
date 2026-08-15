@@ -1,0 +1,86 @@
+//
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<mix = 'http://www.jcp.org/jcr/mix/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+
+//-----------------------------------------------------------------------------
+// The messages of one catalog in one language.
+//
+// The shape is Sling's, not ours: its ResourceBundleProvider finds catalogs by
+// querying for nodes carrying the mix:language mixin with a jcr:language
+// property, and reads sling:basename to learn which catalog a node holds. What
+// this type adds is a name for that arrangement, so a catalog is declared
+// rather than assembled out of two mixins and a convention, and a resource type
+// the export endpoint can bind to.
+//
+// Under /libs, with a deployment's overrides in the matching /apps path: Sling
+// merges the two, which is what lets an institution reword a single message
+// without rebuilding anything.
+[iap:MessageCatalog] > sling:Folder, mix:language
+  - sling:resourceType (STRING) = "iap/MessageCatalog" mandatory autocreated protected
+
+  // Which catalog this is: iap.interface for developer-authored strings,
+  // iap.content for translations keyed by the path of the property they
+  // translate. Declared by Sling, listed here because it is not optional in
+  // practice -- a catalog nobody can name cannot be asked for.
+  - sling:basename (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains messages.
+  //
+  // The declared default is documentation, not behaviour: sling:Folder brings
+  // its own residual child definition, and the supertype's wins, so a child
+  // created without an explicit type comes out a sling:Folder however this line
+  // reads. Measured both ways. Content must therefore always state
+  // jcr:primaryType -- an entry that does not is not a sling:Message either, so
+  // Sling simply will not see the message, with nothing anywhere reporting it.
+  + * (iap:MessageEntry) = iap:MessageEntry
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One message.
+//
+// sling:key and sling:message come from Sling's sling:Message mixin, which
+// sling:MessageEntry already carries; this type exists for the one property
+// Sling has nowhere to put.
+[iap:MessageEntry] > sling:MessageEntry
+
+  // What the translator needs to know and cannot deduce: who says this, to
+  // whom, and what the arguments stand for. Without somewhere to write it the
+  // note ends up in a spreadsheet, or nowhere.
+  //
+  // Sling's own sling:MessageEntry extends nt:hierarchyNode, which declares no
+  // residual properties, so this could not simply be written onto an entry --
+  // the commit is rejected. That is the whole reason this type exists, and it
+  // is why the property has to exist before the first catalog does rather than
+  // being added once there is content to migrate.
+  - iap:description (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

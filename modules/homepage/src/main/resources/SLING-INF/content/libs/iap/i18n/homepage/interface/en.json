@@ -1,0 +1,59 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "en",
+  "sling:basename": "iap.interface",
+  "switchToDarkMode": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.colourScheme.switchToDark",
+    "sling:message": "Switch to dark mode",
+    "iap:description": "Names the button that turns the interface dark, and describes what clicking it does rather than what is showing now. Two separate messages rather than one naming the mode, because a language that inflects \"dark\" and \"light\" differently cannot build the phrase from parts."
+  },
+  "switchToLightMode": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.colourScheme.switchToLight",
+    "sling:message": "Switch to light mode",
+    "iap:description": "The counterpart of the message above, shown while the interface is dark."
+  },
+  "notifications": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.notifications.label",
+    "sling:message": "Notifications",
+    "iap:description": "Names the bell in the app bar. A noun — what the button opens — not an instruction."
+  },
+  "noNotifications": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.notifications.empty",
+    "sling:message": "You have no new notifications",
+    "iap:description": "The whole content of the notifications menu when there is nothing in it. Addressed to the reader, and reassuring rather than apologetic: nothing has gone wrong."
+  },
+  "account": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.userMenu.account.label",
+    "sling:message": "Your account",
+    "iap:description": "Names the avatar button that opens the account menu, for somebody navigating without seeing it. The account holder's own name is announced separately, from the tooltip, so it must not appear here."
+  },
+  "signOut": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.userMenu.signOut",
+    "sling:message": "Sign out",
+    "iap:description": "The menu entry that ends the session. Matches \"Sign in\" on the other side, so the two should be translated as a pair."
+  },
+  "openSidePanel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.sidePanel.open",
+    "sling:message": "Open the side panel",
+    "iap:description": "Names the half-pill tab at the edge of the screen that pulls the collapsed side panel out. Deliberately \"side\" rather than left or right: the tab's own position says which side, and it swaps in a right-to-left layout."
+  },
+  "sidePanelHint": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.sidePanel.hint",
+    "sling:message": "The side panel is available here",
+    "iap:description": "Shown once, unprompted, to point out the tab above the first time it appears. A statement rather than an instruction — the reader has not asked for help."
+  },
+  "welcome": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.shell.welcome.text",
+    "sling:message": "Welcome to the Institutional Authorization Platform.",
+    "iap:description": "The greeting on the dashboard of a deployment that has added no widgets of its own. \"Institutional Authorization Platform\" is what this software does, not a brand name, so translate it."
+  }
+}

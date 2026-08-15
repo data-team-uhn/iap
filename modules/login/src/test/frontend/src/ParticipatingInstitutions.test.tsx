@@ -22,11 +22,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import ParticipatingInstitutions from "@iap/login/ParticipatingInstitutions";
 
-const renderWithTheme = () => render(
+import { withMessages } from "./messages.fixture";
+
+const renderWithTheme = () => render(withMessages(
   <ThemeProvider theme={appTheme}>
     <ParticipatingInstitutions />
   </ThemeProvider>
-);
+));
 
 describe("ParticipatingInstitutions", () => {
   afterEach(() => {
@@ -78,11 +80,11 @@ describe("ParticipatingInstitutions", () => {
       "lightOnly": { "name": "Light only", "logoLight": "/only-light.png" },
     }), { status: 200 }));
 
-    render(
+    render(withMessages(
       <ThemeProvider theme={appTheme} defaultMode="dark">
         <ParticipatingInstitutions />
       </ThemeProvider>
-    );
+    ));
 
     expect(await screen.findByAltText("Both")).toHaveAttribute("src", "/dark.png");
     expect(screen.getByAltText("Light only")).toHaveAttribute("src", "/only-light.png");

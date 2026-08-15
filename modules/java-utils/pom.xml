@@ -55,6 +55,13 @@
       <artifactId>annotations</artifactId>
     </dependency>
     <dependency>
+      <!-- Interfaces only, and the reason they are a bundle of their own: the implementation depends on this
+           module, so this module cannot depend back on it. -->
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-i18n-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
@@ -115,6 +122,12 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <!-- Used by the tests, to outrank sling-mock's own ResourceBundleProvider -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.framework</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>

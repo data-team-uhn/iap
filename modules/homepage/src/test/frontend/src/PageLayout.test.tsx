@@ -17,11 +17,13 @@
  */
 
 import { ThemeProvider } from "@mui/material/styles";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import PageLayout from "@iap/homepage/PageLayout";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
+
+import { renderWithMessages as render } from "./messages.fixture";
 
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(),

@@ -17,14 +17,20 @@
  */
 package io.uhndata.iap.scripting;
 
+import java.util.Locale;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
+import org.osgi.framework.Constants;
+
+import io.uhndata.iap.i18n.api.Messages;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,6 +51,149 @@ class ConfigMetadataTest
     void setUp()
     {
         this.context.addModelsForClasses(ConfigMetadata.class);
+    }
+
+    @Test
+    void translatesConfigurationForAReaderWhoAsksForAnotherLanguage()
+    {
+        // The sign-in page's intro text reaches the browser as a <meta> tag rendered here, not as JSON, so
+        // this is where a translation of shipped configuration has to be applied.
+        this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        assertEquals("Bienvenue", forA(Locale.FRENCH).getProperties().get("introText"));
+    }
+
+    @Test
+    void leavesConfigurationAsShippedWhereNoTranslationExists()
+    {
+        this.context.create().resource("/libs/iap/conf/Version", Map.of("version", "1.0.0"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        // Additive: a version number has no translation and should not acquire one
+        assertEquals("1.0.0", forA(Locale.FRENCH).getProperties().get("version"));
+    }
+
+    @Test
+    void tellsThePageWhichLanguageItIsIn()
+    {
+        // Rendered into <html lang> while the page is being parsed: a screen reader picks its voice and its
+        // pronunciation from that attribute, and a script correcting it afterwards is already too late
+        assertEquals("fr", forANamed(Locale.ENGLISH, "fr").getLanguage());
+        assertEquals("", forA(Locale.ENGLISH).getLanguage());
+    }
+
+    @Test
+    void tellsThePageWhichWayItReads()
+    {
+        assertEquals("ltr", forA(Locale.ENGLISH).getDirection());
+    }
+
+    @Test
+    void tellsThePageToTurnAroundForALanguageThatReadsThatWay()
+    {
+        final MockSlingJakartaHttpServletRequest request =
+            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
+        request.setResource(this.context.create().resource("/content/mirrored"));
+        request.setAttribute("io.uhndata.iap.i18n.direction", "rtl");
+
+        assertEquals("rtl", request.adaptTo(ConfigMetadata.class).getDirection());
+    }
+
+    @Test
+    void namesNoLanguageWhereThereIsNoReaderToHaveOne()
+    {
+        // Adapted from a plain resource — a background job, say — there is nobody the page is being rendered
+        // for, so it claims neither a language nor a direction rather than inventing one
+        final ConfigMetadata config =
+            this.context.create().resource("/content/nobody").adaptTo(ConfigMetadata.class);
+
+        assertEquals("", config.getLanguage());
+        assertEquals("ltr", config.getDirection());
+    }
+
+    @Test
+    void prefersTheLanguageTheRequestAsksForOverTheOneTheBrowserAnnounces()
+    {
+        // Somebody who has landed on a sign-in page in a language they do not read has to be able to say so,
+        // and changing a browser preference to read one page is not something to ask of a visitor.
+        this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        assertEquals("Bienvenue", forANamed(Locale.ENGLISH, "fr").getProperties().get("introText"));
+    }
+
+    @Test
+    void fallsBackToTheBrowserWhenTheRequestAsksForNothing()
+    {
+        this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+
+        assertEquals("Bienvenue", forANamed(Locale.FRENCH, "").getProperties().get("introText"));
+    }
+
+    @Test
+    void leavesConfigurationAsShippedWhenThereIsNoReader()
+    {
+        // Adapted from a plain resource rather than a request — a background job, say. There is nobody whose
+        // language it could be, so nothing is translated.
+        this.context.create().resource("/libs/iap/conf/LoginPage", Map.of("introText", "Welcome"));
+        offer(Locale.FRENCH, Map.of("/libs/iap/conf/LoginPage/introText", "Bienvenue"));
+        final Resource resource = this.context.create().resource("/content/page");
+
+        assertEquals("Welcome", resource.adaptTo(ConfigMetadata.class).getProperties().get("introText"));
+    }
+
+    /**
+     * A request from a browser announcing one language while the URL names another.
+     *
+     * @param announced what the browser announced
+     * @param named the language the request asked for, or empty for none
+     * @return the model built from that request
+     */
+    private ConfigMetadata forANamed(final Locale announced, final String named)
+    {
+        final MockSlingJakartaHttpServletRequest request =
+            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
+        request.setResource(this.context.create().resource("/content/named" + named));
+        request.setLocale(announced);
+        if (!named.isEmpty()) {
+            request.setAttribute("io.uhndata.iap.i18n.locale", Locale.forLanguageTag(named));
+        }
+        return request.adaptTo(ConfigMetadata.class);
+    }
+
+    private ConfigMetadata forA(final Locale locale)
+    {
+        final MockSlingJakartaHttpServletRequest request =
+            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
+        request.setResource(this.context.create().resource("/content/page" + locale));
+        request.setLocale(locale);
+        return request.adaptTo(ConfigMetadata.class);
+    }
+
+    /**
+     * A set of translations for one language, as the message service would answer them.
+     *
+     * <p>A stand-in rather than the real service, which lives in a bundle this one cannot depend on — it
+     * depends on this one. What a missing translation does is that service's contract and is tested against
+     * it; what matters here is only that this model asks for the right key in the right language and renders
+     * whatever comes back.</p>
+     *
+     * @param locale the language the translations are in
+     * @param entries the translations, by the path of the property each one translates
+     */
+    private void offer(final Locale locale, final Map<String, String> entries)
+    {
+        final Messages messages = Mockito.mock(Messages.class);
+        Mockito.when(messages.translate(Mockito.eq(Messages.CONTENT), Mockito.anyString(), Mockito.any(),
+            Mockito.anyString())).thenAnswer(call -> {
+                final String key = call.getArgument(1);
+                return locale.equals(call.getArgument(2)) ? entries.getOrDefault(key, call.getArgument(3))
+                    : call.getArgument(3);
+            });
+        this.context.registerService(Messages.class, messages,
+            Map.of(Constants.SERVICE_RANKING, Integer.valueOf(1000)));
     }
 
     @Test

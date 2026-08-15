@@ -23,6 +23,8 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import LoginPage from "@iap/login/LoginPage";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
+import { withMessages } from "./messages.fixture";
+
 vi.mock("@iap/ui-extension/extensionManager", () => ({
   loadExtensions: vi.fn(),
 }));
@@ -55,11 +57,11 @@ describe("LoginPage", () => {
   };
 
   const renderPage = async () => {
-    const result = render(
+    const result = render(withMessages(
       <ThemeProvider theme={appTheme} defaultMode="light">
         <LoginPage />
       </ThemeProvider>
-    );
+    ));
     // Commit the state updates of the extension- and registry-loading effects before the
     // test proceeds, so no update lands outside act() after the assertions
     await act(() => Promise.resolve());
@@ -107,22 +109,22 @@ describe("LoginPage", () => {
   // theme.vars. A theme without them has to keep working, since nothing stops a deployment from
   // dropping the variables.
   it("reads its colours straight off the palette when the theme has no CSS variables", async () => {
-    render(
+    render(withMessages(
       <ThemeProvider theme={createTheme()}>
         <LoginPage />
       </ThemeProvider>
-    );
+    ));
     await act(() => Promise.resolve());
 
     expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
   });
 
   it("mirrors the decorative chevron in a right-to-left theme", async () => {
-    render(
+    render(withMessages(
       <ThemeProvider theme={createTheme({ direction: "rtl" })}>
         <LoginPage />
       </ThemeProvider>
-    );
+    ));
     await act(() => Promise.resolve());
 
     expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();

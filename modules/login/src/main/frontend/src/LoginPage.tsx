@@ -22,6 +22,8 @@ import { type Theme } from "@mui/material/styles";
 import FooterContent, { FooterCredits } from "@iap/frontend-commons/components/FooterContent";
 import FormattedText from "@iap/frontend-commons/components/FormattedText";
 import Logo from "@iap/frontend-commons/components/Logo";
+import LanguageSwitcher from "@iap/frontend-commons/LanguageSwitcher";
+import { useMessage } from "@iap/frontend-commons/messages";
 
 import ParticipatingInstitutions from "./ParticipatingInstitutions";
 import PreLoginExtensions from "./PreLoginExtensions";
@@ -60,11 +62,18 @@ const seamBorder = (theme: Theme) => `1px solid ${theme.vars?.palette.divider ??
 // extension point (see SignInMethods): the credentials form by default, an identity-provider
 // redirect once a deployment registers one — nothing else on the page moves.
 export default function LoginPage() {
+  const message = useMessage();
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
   const tagline = meta("tagline");
   const introText = meta("introText");
-  const signInLabel = meta("signInLabel") ?? "Sign in";
-  const signInHeading = meta("signInHeading") ?? "Continue with institutional credentials";
+  // A deployment may write these itself, and what it writes is translated as content; where it has not,
+  // the platform's own wording stands in -- from the catalog, so that the default is translated too. An
+  // English literal here would be the one part of the page a French reader could not get out of.
+  const signInLabel = meta("signInLabel") ?? message("iap.login.signInPanel.label");
+  const signInHeading = meta("signInHeading") ?? message("iap.login.signInPanel.heading");
+  // Which languages this deployment offers, configured rather than compiled in: a deployment that adds a
+  // translation should not need a new build to let anyone reach it.
+  const languages = meta("languages")?.split(/\s+/).filter(Boolean) ?? [];
 
   return (
     <Box sx={{ minBlockSize: "100dvh", display: "flex", flexDirection: "column" }}>
@@ -86,7 +95,7 @@ export default function LoginPage() {
       >
         <Box
           component="section"
-          aria-label="About the platform"
+          aria-label={message("iap.login.page.aboutPlatform.label")}
           sx={theme => ({
             gridArea: "brand",
             position: "relative",
@@ -114,6 +123,9 @@ export default function LoginPage() {
               blockSize: 36,
               clipPath: "polygon(0 0, 0 100%, 100% 50%)",
               bgcolor: SEAM_COLOR,
+              // A clip path is drawn in physical coordinates, so this is the one thing on the page that
+              // logical properties cannot mirror: without it the pointer changes sides but goes on pointing
+              // the same way, which in a mirrored layout is back into the seam instead of across it.
               transform: theme.direction === "rtl" ? "scaleX(-1)" : undefined,
               // The inner fill is the outer triangle's edges offset inward by 1px (for the
               // 45-degree slants that is 1.4px along each axis), leaving a hairline outline
@@ -246,12 +258,15 @@ export default function LoginPage() {
             gridArea: "credits",
             display: "flex",
             alignItems: "center",
-            justifyContent: "flex-start",
+            justifyContent: "space-between",
+            gap: 2,
+            flexWrap: "wrap",
             px: PANEL_PADDING,
             py: 2,
           }}
         >
           <FooterCredits />
+          <LanguageSwitcher languages={languages} />
         </Box>
       </Box>
     </Box>

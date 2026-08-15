@@ -49,8 +49,66 @@ export class LoginPage {
     this.participatingInstitutions = page.getByRole('heading', { name: 'Participating institutions' });
   }
 
-  async open(): Promise<void> {
-    await this.page.goto('/login');
+  /**
+   * Opens the sign-in page, optionally naming the language to read it in.
+   *
+   * Naming it in the URL rather than setting the browser's language on purpose: that is the mechanism the
+   * page actually offers a visitor, and it is the only way to reach a pseudo-locale, which Sling resolves
+   * away to the default because nothing is stored under that name.
+   *
+   * @param locale the language to ask for, or nothing to let the browser decide
+   */
+  async open(locale?: string): Promise<void> {
+    await this.page.goto(locale === undefined ? '/login' : `/login?locale=${encodeURIComponent(locale)}`);
+  }
+
+  /** Every label in the credentials form, as a reader sees it. */
+  labels(): Locator {
+    return this.page.locator('form label');
+  }
+
+  /** The link that switches to a given language, named in that language. */
+  language(name: string): Locator {
+    return this.page.getByRole('link', { name });
+  }
+
+  /**
+   * A link in the page footer, by the words on it.
+   *
+   * Scoped to the footer landmark rather than the whole page, so this cannot accidentally match a link of
+   * the same name elsewhere — and so it goes on working when the footer moves.
+   *
+   * @param name the link's label, in whatever language the page is being read in
+   * @return the link
+   */
+  footerLink(name: string): Locator {
+    return this.page.locator('footer').getByRole('link', { name });
+  }
+
+  /**
+   * The "Built by DATA" credit in the footer.
+   *
+   * Located by where it points rather than by what it says, since what it says is the thing under test —
+   * and it is worth naming separately from the rest of the footer because it is the one piece of footer
+   * text the *browser* fetches from a catalog. The link labels beside it are translated by the server, so
+   * a check that accepts any translated text in the footer is satisfied by those alone.
+   */
+  footerCredit(): Locator {
+    return this.page.locator('footer a[href="https://uhndata.io"]');
+  }
+
+  /**
+   * A piece of shipped configuration as the server rendered it into the page.
+   *
+   * Read from the `<meta>` tag rather than from the paragraph it ends up in, because the tag is the thing
+   * under test: it is written by the server before any script runs, and reading it here says nothing about
+   * how the page later chooses to lay it out.
+   *
+   * @param name the configuration property
+   * @return its value, or null where the server rendered no such tag
+   */
+  async configured(name: string): Promise<string | null> {
+    return this.page.locator(`meta[name="${name}"]`).getAttribute('content');
   }
 
   /**

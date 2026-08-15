@@ -18,6 +18,7 @@
 
 import { Button, Stack, Typography } from "@mui/material";
 
+import { useMessage } from "@iap/frontend-commons/messages";
 import { type Extension } from "@iap/ui-extension/ExtensionList";
 
 import { loginRedirectPath } from "./loginRedirect";
@@ -45,12 +46,17 @@ export function redirectSignInTarget(extension: Extension): string | null {
 // provider integration (e.g. the keycloak module) only has to register an extension
 // node — this component is the whole frontend. The extension provides:
 // - `iap:targetURL`: the endpoint to navigate to (required; nothing renders without it);
-// - `iap:actionLabel` (optional): the button text, defaulting to "Continue to sign-in";
+// - `iap:actionLabel` (optional): the button text; without one the platform's own wording is used,
+//   from the message catalog rather than as an English literal;
 // - `iap:hint` (optional): a short explanation displayed under the button, e.g. telling the
 //   user they are about to be redirected.
 export default function RedirectSignIn({ extension }: { extension: Extension }) {
+  const message = useMessage();
   const target = redirectSignInTarget(extension);
-  const label = (extension["iap:actionLabel"] as string | undefined) ?? "Continue to sign-in";
+  // The extension names its own button where it can; this is the wording for one that does not, and so
+  // the only part of the label that is ours to translate -- the same division SignInMethods makes.
+  const label = (extension["iap:actionLabel"] as string | undefined)
+    ?? message("iap.login.redirectSignIn.action");
   const hint = extension["iap:hint"] as string | undefined;
 
   if (!target) {

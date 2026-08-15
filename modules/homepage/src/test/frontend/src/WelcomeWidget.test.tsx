@@ -16,9 +16,11 @@
  * limitations under the License.
  */
 
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 
 import WelcomeWidget from "@iap/homepage/WelcomeWidget";
+
+import { renderWithMessages as render } from "./messages.fixture";
 
 describe("WelcomeWidget", () => {
   it("greets the user", () => {

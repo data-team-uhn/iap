@@ -25,6 +25,7 @@ import { type SystemStyleObject } from "@mui/system";
 import { type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
+import { useMessage } from "../messages";
 import Logo from "./Logo";
 
 const DATA_TEAM_URL = "https://uhndata.io";
@@ -48,6 +49,7 @@ interface FooterCreditsProps {
 // The platform version and the "Built by DATA" credit, usable on its own (e.g. at the bottom
 // of the login page's sign-in panel) or as part of FooterContent.
 function FooterCredits({ endAnchored = false, sx }: FooterCreditsProps) {
+  const message = useMessage();
   const { mode, systemMode } = useColorScheme();
   const resolvedMode = (mode === "system" ? systemMode : mode) ?? "light";
   // Media query matching viewports wide enough for the credits to lay out as one row
@@ -86,7 +88,7 @@ function FooterCredits({ endAnchored = false, sx }: FooterCreditsProps) {
         // instead of letting it hang below (as centering the taller image would)
         sx={{ display: "flex", alignItems: "baseline", gap: 1, color: "text.secondary" }}
       >
-        <Typography variant="caption">Built by</Typography>
+        <Typography variant="caption">{message("iap.footer.credit.builtBy")}</Typography>
         <Box component="img" src={DATA_LOGO[resolvedMode]} alt="DATA" sx={{ display: "block", blockSize: 14 }} />
       </Link>
     </Box>
@@ -118,6 +120,7 @@ interface FooterContentProps {
 function FooterContent(
   { sx, internalLinkProps = (url: string) => ({ href: url }), credits = true }: FooterContentProps
 ) {
+  const message = useMessage();
   // Media query matching viewports wide enough for the footer to lay out as one row
   const oneRow = useTheme().breakpoints.up(STACK_BELOW_WIDTH);
   const [ links, setLinks ] = useState<Extension[]>([]);
@@ -145,7 +148,7 @@ function FooterContent(
       {links.length > 0 && (
         <Box
           component="nav"
-          aria-label="Footer"
+          aria-label={message("iap.footer.landmark.label")}
           sx={{
             display: "flex",
             // On narrow screens the links stack vertically on their own full-width row, instead

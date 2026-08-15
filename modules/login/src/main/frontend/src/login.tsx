@@ -23,6 +23,7 @@ import { ThemeProvider, StyledEngineProvider } from '@mui/material/styles';
 import { createRoot } from 'react-dom/client';
 
 import { appTheme } from '@iap/frontend-commons/appTheme';
+import { MessagesProvider } from '@iap/frontend-commons/messages';
 
 import LoginPage from './LoginPage';
 
@@ -33,7 +34,9 @@ if (container) {
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={appTheme} defaultMode="system">
           <CssBaseline enableColorScheme />
-          <LoginPage />
+          <MessagesProvider>
+            <LoginPage />
+          </MessagesProvider>
         </ThemeProvider>
       </StyledEngineProvider>
     </StrictMode>

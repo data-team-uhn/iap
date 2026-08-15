@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import javax.jcr.RepositoryException;
@@ -29,14 +30,21 @@ import javax.script.Bindings;
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.scripting.SlingScriptHelper;
 import org.apache.sling.scripting.sightly.pojo.Use;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.uhndata.iap.i18n.api.Locales;
+import io.uhndata.iap.i18n.api.Messages;
 
 /**
  * A HTL Use-API that lists UI Extensions. To use this API, simply place the following code in a HTL file:
@@ -71,6 +79,11 @@ public class ExtensionsManager implements Use
 
     private ResourceResolver resourceResolver;
 
+    /** Absent where the i18n bundle is not up yet, in which case extensions are listed as they were written. */
+    private Messages messages;
+
+    private Locales locales;
+
     @Override
     public void init(@NotNull final Bindings bindings)
     {
@@ -81,6 +94,11 @@ public class ExtensionsManager implements Use
         }
 
         this.resourceResolver = (ResourceResolver) bindings.get("resolver");
+        final SlingScriptHelper sling = (SlingScriptHelper) bindings.get("sling");
+        if (sling != null) {
+            this.messages = sling.getService(Messages.class);
+            this.locales = sling.getService(Locales.class);
+        }
 
         try {
             findExtensions(uixp);
@@ -177,9 +195,45 @@ public class ExtensionsManager implements Use
                 // A failed serialization of one extension shouldn't take down the whole extension point
                 LOGGER.warn("Could not serialize extension [{}] to JSON, skipping it", extension.getPath());
             } else {
-                builder.add(json);
+                builder.add(inReadersLanguage(extension, json));
             }
         });
         return builder.build().toString();
+    }
+
+    /**
+     * One extension with its text in the language the page is being rendered in.
+     *
+     * <p>Translated here rather than by the serializer's localize processor, which is driven by a selector on
+     * the request and never sees one: these resources are found by a query and adapted directly, so there is
+     * no request path carrying a language for that processor to read. The label an extension displays is
+     * exactly the kind of text a deployment rewrites, so leaving it untranslatable would make the footer of
+     * every page the one part of it stuck in English.</p>
+     *
+     * <p>Keyed by the path of each property, like every other translation of shipped content: a property with
+     * no entry in the catalog comes back exactly as it was, which is what {@code iap:targetURL} and
+     * {@code iap:extensionPointId} need — most of what an extension carries is machinery rather than
+     * words.</p>
+     *
+     * @param extension the extension being listed
+     * @param json its properties, as serialized
+     * @return the same properties, with the ones somebody has translated replaced
+     */
+    private JsonObject inReadersLanguage(final Resource extension, final JsonObject json)
+    {
+        if (this.messages == null || this.locales == null) {
+            return json;
+        }
+        final Locale locale = this.locales.getReaderLocale();
+        final JsonObjectBuilder translated = Json.createObjectBuilder();
+        json.forEach((name, value) -> {
+            if (value.getValueType() == JsonValue.ValueType.STRING) {
+                translated.add(name, this.messages.translate(Messages.CONTENT,
+                    extension.getPath() + "/" + name, locale, ((JsonString) value).getString()));
+            } else {
+                translated.add(name, value);
+            }
+        });
+        return translated.build();
     }
 }

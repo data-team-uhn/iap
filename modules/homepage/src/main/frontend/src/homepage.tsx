@@ -24,6 +24,7 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Route, RouterProvider, Routes } from "react-router";
 
 import { appTheme } from "@iap/frontend-commons/appTheme";
+import { MessagesProvider } from "@iap/frontend-commons/messages";
 import { getRoutes } from "@iap/frontend-commons/routes";
 import { ReLoginProvider } from "@iap/login/ReLoginDialog";
 
@@ -83,9 +84,11 @@ if (container) {
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={appTheme} defaultMode="system">
           <CssBaseline enableColorScheme />
-          <ReLoginProvider>
-            <RouterProvider router={router} />
-          </ReLoginProvider>
+          <MessagesProvider>
+            <ReLoginProvider>
+              <RouterProvider router={router} />
+            </ReLoginProvider>
+          </MessagesProvider>
         </ThemeProvider>
       </StyledEngineProvider>
     </StrictMode>

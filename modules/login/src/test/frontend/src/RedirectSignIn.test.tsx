@@ -20,6 +20,8 @@ import { render, screen } from "@testing-library/react";
 
 import RedirectSignIn, { redirectSignInTarget } from "@iap/login/RedirectSignIn";
 
+import { withMessages } from "./messages.fixture";
+
 describe("redirectSignInTarget", () => {
   it("attaches the validated return path to the target endpoint", () => {
     const target = redirectSignInTarget({ "iap:targetURL": "/goto-external-login" });
@@ -35,24 +37,24 @@ describe("redirectSignInTarget", () => {
 
 describe("RedirectSignIn", () => {
   it("renders the action button, with the extension's label and hint", () => {
-    render(<RedirectSignIn extension={{
+    render(withMessages(<RedirectSignIn extension={{
       "iap:targetURL": "/goto-external-login",
       "iap:hint": "You will be redirected to your institution's sign-in page.",
-    }} />);
+    }} />));
 
     expect(screen.getByRole("button", { name: "Continue to sign-in" })).toBeInTheDocument();
     expect(screen.getByText("You will be redirected to your institution's sign-in page.")).toBeInTheDocument();
   });
 
   it("renders nothing without a target", () => {
-    const { container } = render(<RedirectSignIn extension={{}} />);
+    const { container } = render(withMessages(<RedirectSignIn extension={{}} />));
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it("renders nothing for a target that is not a URL at all", () => {
     // An unparseable host, so building the URL throws rather than just producing something odd
-    const { container } = render(<RedirectSignIn extension={{ "iap:targetURL": "http://[" }} />);
+    const { container } = render(withMessages(<RedirectSignIn extension={{ "iap:targetURL": "http://[" }} />));
 
     expect(container).toBeEmptyDOMElement();
   });
@@ -63,7 +65,7 @@ describe("RedirectSignIn", () => {
       configurable: true,
       value: { ...window.location, assign, origin: window.location.origin, pathname: "/login", search: "" },
     });
-    render(<RedirectSignIn extension={{ "iap:targetURL": "/goto-external-login" }} />);
+    render(withMessages(<RedirectSignIn extension={{ "iap:targetURL": "/goto-external-login" }} />));
 
     screen.getByRole("button", { name: "Continue to sign-in" }).click();
 

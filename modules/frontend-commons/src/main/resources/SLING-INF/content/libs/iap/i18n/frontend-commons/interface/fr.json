@@ -1,0 +1,15 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "fr",
+  "sling:basename": "iap.interface",
+  "footerLandmark": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.footer.landmark.label",
+    "sling:message": "Pied de page"
+  },
+  "footerBuiltBy": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.footer.credit.builtBy",
+    "sling:message": "Conçu par"
+  }
+}

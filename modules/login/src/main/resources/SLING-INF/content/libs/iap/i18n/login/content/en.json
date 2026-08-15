@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "en",
+  "sling:basename": "iap.content",
+  "loginPageIntroText": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "/libs/iap/conf/LoginPage/introText",
+    "sling:message": "**QuorumPath** guides research studies through **institutional authorization**.\\\nDesigned to make the process **faster**: fewer forms, clearer progress, and help where the paperwork tends to pile up.",
+    "iap:description": "The paragraph under the sign-in form, addressed to a visitor who has not signed in and may not know what this platform is for. Repeats what the configuration node itself says, which is not redundant: an entry here is what marks a configured property as prose somebody reads. Anything not listed in this catalog is rendered exactly as stored, which is what a version number and a list of language codes need."
+  }
+}

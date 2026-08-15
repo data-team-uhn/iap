@@ -1,0 +1,65 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "en",
+  "sling:basename": "iap.interface",
+  "usernameLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.username.label",
+    "sling:message": "Username",
+    "iap:description": "Field label on the sign-in form. The name the person signs in with, which is not necessarily their email address."
+  },
+  "passwordLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.password.label",
+    "sling:message": "Password",
+    "iap:description": "Field label on the sign-in form, beneath the username."
+  },
+  "invalidCredentials": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.error.invalidCredentials",
+    "sling:message": "Invalid username or password",
+    "iap:description": "Shown after a failed sign-in. Deliberately does not say which of the two was wrong, so that the form cannot be used to discover whether an account exists."
+  },
+  "moreSignInOptions": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.signInMethods.moreOptions.label",
+    "sling:message": "More sign-in options",
+    "iap:description": "Reveals the sign-in methods that are not the primary one, e.g. a local account where an institutional login comes first."
+  },
+  "aboutThePlatform": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.page.aboutPlatform.label",
+    "sling:message": "About the platform",
+    "iap:description": "Accessible name for the side of the sign-in page that introduces the product. Read aloud, never seen."
+  },
+  "submitLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.credentialsForm.submit.label",
+    "sling:message": "Sign in",
+    "iap:description": "The button that submits the sign-in form. A verb, not a noun — 'Sign in', never 'Signin'."
+  },
+  "participatingInstitutions": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.participatingInstitutions.heading",
+    "sling:message": "Participating institutions",
+    "iap:description": "Heading of the strip of institutions under the sign-in form, on a deployment serving several of them. Used only where the registry does not name the strip itself. \"Participating\" in the sense of taking part in this platform, not of participating in a study."
+  },
+  "signInPanelLabel": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.signInPanel.label",
+    "sling:message": "Sign in",
+    "iap:description": "The small heading over the sign-in panel, naming what the panel is for. Used where the deployment has not configured a signInLabel of its own. The same words as the submit button, and they are separate messages on purpose: a language may name the act differently from the button that performs it."
+  },
+  "signInPanelHeading": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.signInPanel.heading",
+    "sling:message": "Continue with institutional credentials",
+    "iap:description": "The larger heading inside the sign-in panel, used where the deployment has not configured a signInHeading. \"Institutional credentials\" means the account a hospital or university issued, as opposed to one created here."
+  },
+  "redirectSignInAction": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "iap.login.redirectSignIn.action",
+    "sling:message": "Continue to sign-in",
+    "iap:description": "The button that hands somebody over to their institution's own sign-in page, used where the registered method does not name its own button. It leads away from this page rather than signing anybody in here, which is why it says continue rather than sign in."
+  }
+}

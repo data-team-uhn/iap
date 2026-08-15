@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "fr",
+  "sling:basename": "iap.content",
+  "loginPageIntroText": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "/libs/iap/conf/LoginPage/introText",
+    "sling:message": "**QuorumPath** accompagne les études de recherche tout au long de l'**autorisation institutionnelle**.\\\nConçu pour accélérer le processus : moins de formulaires, un suivi plus clair, et de l'aide là où la paperasse s'accumule."
+  }
+}

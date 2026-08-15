@@ -1,0 +1,29 @@
+{
+  "jcr:primaryType": "iap:MessageCatalog",
+  "jcr:language": "en",
+  "sling:basename": "iap.content",
+  "footerTermsOfUse": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "/Extensions/FooterLink/TermsOfUse/iap:extensionName",
+    "sling:message": "Terms of use",
+    "iap:description": "Footer link. The conditions somebody agrees to by using the platform — a legal document, so translate the name conservatively rather than idiomatically."
+  },
+  "footerUserManual": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "/Extensions/FooterLink/UserManual/iap:extensionName",
+    "sling:message": "User manual",
+    "iap:description": "Footer link to the documentation for people using the platform, as opposed to the people running it."
+  },
+  "footerFAQ": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "/Extensions/FooterLink/FAQ/iap:extensionName",
+    "sling:message": "FAQ",
+    "iap:description": "Footer link. An abbreviation of \"frequently asked questions\", and a language that has no established abbreviation of its own should spell it out rather than keep the English letters."
+  },
+  "footerBugReports": {
+    "jcr:primaryType": "iap:MessageEntry",
+    "sling:key": "/Extensions/FooterLink/BugReports/iap:extensionName",
+    "sling:message": "Report a bug",
+    "iap:description": "Footer link. An invitation addressed to the reader, not a heading — an imperative in languages that make the distinction."
+  }
+}

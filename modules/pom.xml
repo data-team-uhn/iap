@@ -43,6 +43,7 @@
     <module>healthcheck</module>
     <module>homepage</module>
     <module>http-requests</module>
+    <module>i18n</module>
     <module>java-utils</module>
     <module>keycloak</module>
     <module>login</module>
