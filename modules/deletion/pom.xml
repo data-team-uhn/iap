@@ -57,6 +57,7 @@
             <Sling-Nodetypes>SLING-INF/nodetypes/deletion.cnd</Sling-Nodetypes>
             <Sling-Initial-Content>
               SLING-INF/content/libs/iap/;path:=/libs/iap/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/oak%3Aindex/;path:=/oak:index/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>

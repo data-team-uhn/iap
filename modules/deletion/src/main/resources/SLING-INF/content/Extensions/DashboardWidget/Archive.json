@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/dashboard/widget",
+  "iap:extensionName": "Archive",
+  "iap:subtitle": "Deleted items waiting to be restored or purged",
+  "iap:extensionRenderURL": "asset:iap-deletion.ArchiveWidget.js",
+  "iap:defaultOrder": 20,
+  "iap:personas": ["administrator"]
+}
