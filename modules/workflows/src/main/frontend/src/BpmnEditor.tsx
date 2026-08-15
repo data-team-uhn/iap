@@ -175,8 +175,13 @@ export default function BpmnEditor() {
     // traversal there, so a version's own children -- the diagram file, and the parsed flow nodes
     // once those exist -- are left as bare paths instead of being dragged into every listing.
     return fetchUtil(`${WORKFLOWS_ROOT}.2.json`)
-      .then(r => r.json())
-      .then((data: Record<string, unknown>) => setDefinitions(parseWorkflowList(data)))
+      .then(response => {
+        if (!response.ok) {
+          throw new RequestError(response.status);
+        }
+        return response.json() as Promise<Record<string, unknown>>;
+      })
+      .then(data => setDefinitions(parseWorkflowList(data)))
       .catch((err: unknown) => setListError(describeRequestFailure(err)))
       .finally(() => setLoadingDefs(false));
   }, [fetchUtil]);

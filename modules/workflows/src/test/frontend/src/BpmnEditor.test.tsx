@@ -256,6 +256,29 @@ describe("BpmnEditor", () => {
       expect(within(report).getByRole("button", { name: "Retry" })).toBeInTheDocument();
     });
 
+    // A refused listing answers with an error page, not with JSON, so the status has to be read off
+    // the response rather than discovered by trying to parse the body: parsing reports how the body
+    // disappointed the parser, which says nothing about what the server refused.
+    it("reports the status of a listing the server refused", async () => {
+      const user = userEvent.setup();
+      renderEditor();
+
+      // A 403 rather than a 500: a 500 is the one status useAuthenticatedFetch cannot read on its
+      // own, so it probes the session with a second request, and this test is about the listing.
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        url: "",
+        json: () => Promise.reject(new SyntaxError("Unexpected token '<'")),
+        headers: new Headers(),
+      });
+      await user.click(screen.getByRole("button", { name: "Load" }));
+
+      const report = await within(screen.getByRole("dialog")).findByRole("alert");
+      expect(report).toHaveTextContent("The workflows could not be loaded");
+      expect(report).toHaveTextContent("You do not have permission to do this. (HTTP 403)");
+    });
+
     it("lists the definitions after a failed listing is retried", async () => {
       const user = userEvent.setup();
       renderEditor();
