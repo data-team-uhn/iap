@@ -49,6 +49,7 @@
               SLING-INF/content/libs/iap/ProfileFieldsHomepage/;path:=/libs/iap/ProfileFieldsHomepage/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/ProfileFieldDefinition/;path:=/libs/iap/ProfileFieldDefinition/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/ProfileFields;path:=/ProfileFields;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
