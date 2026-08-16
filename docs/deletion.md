@@ -174,7 +174,7 @@ listing a bucket is occasionally useful when diagnosing, and costs nothing to su
   `created`, `itemCount` and the `originalPaths` of everything archived in it, plus `shortPath` —
   the address to link to, as opposed to `path`, which is where it is stored.
 - `GET /Archive.summary.json` returns `last24Hours`, `lastWeek` and `total` — the three counts the
-  dashboard widget shows, without fetching rows nothing displays.
+  administration console widget shows, without fetching rows nothing displays.
 - `GET /Archive/<xx>/<yy>/<zz>/<entry>.entry.json` describes one entry **and what would happen to
   it**: the same fields as a listing row, plus `restorable` with the `restoreConflicts` that would
   block a restore, and `purgeable` with the `purgeVetoes` that would block a purge.
@@ -202,8 +202,10 @@ listing is served by an index rather than by traversing the archive.
 
 The UI is in `modules/deletion/src/main/frontend`, and both halves are extensions rather than pages:
 
-- `ArchiveWidget` is registered on `iap/dashboard/widget`; it shows the three counts and links to
-  the archive view through the application shell's router, so opening it costs no page load.
+- `ArchiveWidget` is registered on `iap/adminDashboard/entry`, so it sits on the administration
+  console beside the other administrative tools rather than on everybody's homepage. It shows the
+  three counts; the way through to the archive is the dashboard frame's own header action, declared
+  by the extension's `iap:actionLabel` and `iap:targetURL` rather than drawn by the widget.
 - `ArchiveBrowser` is registered on `iap/coreUI/view` with `iap:targetURL` `/Archive` — a
   filterable, sortable table with per-entry restore and purge actions, displayed by the shell just
   like the dashboard. Each row links through to its entry.
@@ -219,9 +221,10 @@ the extensionless URL to it, the same pair `iap:Content` declares for its subtyp
 they also carry one-line `header.html` and `footer.html` borrowing the shared chrome by path. Nothing about the page is bespoke — the shell
 decides what a page looks like, and the resource's readability decides who may open it.
 
-The widget is registered for the `administrator` persona; that is presentation only, and a user
-wearing that persona without the rights to match is told the archive is unavailable rather than
-shown three zeros.
+The widget needs no persona restriction, because the administration console is reached only by
+those who can read its extensions — access control is repository-side. Reaching the console is still
+not the same as being allowed to read the archive, so a user whose rights do not match is told the
+archive is unavailable rather than shown three zeros.
 
 ## The Java API
 

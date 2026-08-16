@@ -18,16 +18,13 @@
 
 import { useEffect, useState } from "react";
 
-import { Box, Button, Skeleton, Stack, Typography } from "@mui/material";
-import { Link as RouterLink } from "react-router";
+import { Box, Skeleton, Stack, Typography } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { fetchArchiveSummary, type ArchiveSummary } from "./archiveApi";
 
 /** The archive view's URL, as registered on the `iap/coreUI/view` extension point. */
-const ARCHIVE_VIEW_URL = "/Archive";
-
 // One counted period.
 function Count({ label, value, approximate }: { label: string; value: number; approximate: boolean }) {
   return (
@@ -40,12 +37,13 @@ function Count({ label, value, approximate }: { label: string; value: number; ap
   );
 }
 
-// A dashboard widget summarizing the archive: how many deletions were recorded recently and in
-// total, and a way through to the full view where they can be restored or purged.
+// An administration console widget summarizing the archive: how many deletions were recorded
+// recently and in total. The way through to the full view is the frame's own header action, from
+// the extension's `iap:actionLabel` and `iap:targetURL`, so this renders only the summary.
 //
-// The archive is readable only by users who can see it, so this widget can be shown to somebody the
-// server will refuse — wearing a persona is not the same as holding the rights that go with it. It
-// says so plainly rather than showing zeros, which would be a claim that the archive is empty.
+// The console is reached only by administrators, but reaching it is not the same as holding the
+// rights to read the archive, so the summary can still be refused. It says so plainly rather than
+// showing zeros, which would be a claim that nothing has ever been deleted.
 function ArchiveWidget() {
   const doFetch = useAuthenticatedFetch();
   const [ summary, setSummary ] = useState<ArchiveSummary | null>(null);
@@ -74,18 +72,11 @@ function ArchiveWidget() {
   }
 
   return (
-    <Stack spacing={1}>
-      <Box>
-        <Count label="Archived in the last 24 hours" value={summary.last24Hours} approximate={summary.approximate} />
-        <Count label="Archived in the last 7 days" value={summary.lastWeek} approximate={summary.approximate} />
-        <Count label="Archived in total" value={summary.total} approximate={summary.approximate} />
-      </Box>
-      <Box>
-        <Button component={RouterLink} to={ARCHIVE_VIEW_URL} size="small">
-          Open the archive
-        </Button>
-      </Box>
-    </Stack>
+    <Box>
+      <Count label="Archived in the last 24 hours" value={summary.last24Hours} approximate={summary.approximate} />
+      <Count label="Archived in the last 7 days" value={summary.lastWeek} approximate={summary.approximate} />
+      <Count label="Archived in total" value={summary.total} approximate={summary.approximate} />
+    </Box>
   );
 }
 

@@ -24,7 +24,7 @@
 /** The fetch a caller supplies, normally the session-aware one from `@iap/frontend-commons/reLogin`. */
 export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
 
-/** The archive at a glance, as the dashboard widget shows it. */
+/** The archive at a glance, as the administration console widget shows it. */
 export interface ArchiveSummary {
   last24Hours: number;
   lastWeek: number;
@@ -119,7 +119,7 @@ export interface ArchiveEntryDetail extends ArchiveEntry {
 const ARCHIVE_PATH = "/Archive";
 
 /**
- * Read the three counts the dashboard widget shows.
+ * Read the three counts the administration console widget shows.
  *
  * Rejects rather than resolving on failure: the widget has nothing to display without them, so
  * there is no partial answer worth inventing.

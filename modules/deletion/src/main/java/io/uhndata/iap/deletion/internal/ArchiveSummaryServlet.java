@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
  * the last day, in the last week, and altogether.
  *
  * <p>
- * This is what the archive dashboard widget shows, which is why it is a separate endpoint from the listing rather
+ * This is what the archive console widget shows, which is why it is a separate endpoint from the listing rather
  * than a field on it: the widget wants three numbers and no rows, and asking for a page of entries to read a count
  * off it would fetch what nothing displays.
  * </p>
