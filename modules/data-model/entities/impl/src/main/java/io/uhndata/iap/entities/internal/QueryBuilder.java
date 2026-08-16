@@ -235,15 +235,23 @@ final class QueryBuilder
     }
 
     /**
-     * Escapes a full text search term before it is interpolated into a {@code contains()} call: on top of the
-     * string literal escaping, the full text search grammar has its own layer where the backslash is the escape
-     * character, so literal backslashes must be doubled to keep a trailing one from escaping the closing quote.
+     * Escapes a full text search term before it is interpolated into a {@code contains()} call. On top of the
+     * string literal escaping, the full text search grammar has its own layer, where the backslash escapes and
+     * the double quote opens a phrase: both have to be neutralized, the backslash so that a trailing one does
+     * not escape the closing quote, and the double quote so that an odd number of them — one apostrophe's worth
+     * of ordinary typing — does not leave a phrase unterminated and fail the whole query to parse.
+     *
+     * <p>
+     * What this deliberately leaves alone is the grammar's <em>meaning</em>, as opposed to its syntax: a leading
+     * {@code -} still excludes a term and {@code OR} still reads as the operator, so a search reaching those is
+     * answered oddly rather than refused. Making them literal would take away the only way to ask for them.
      *
      * @param value the value to escape, may be {@code null}
      * @return the escaped search expression, or an empty string if the value was {@code null}
      */
     private static String escapeFullText(final String value)
     {
-        return escape(value).replace("\\", "\\\\");
+        // Backslash first, or it would escape the escapes added after it
+        return escape(value).replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

@@ -229,6 +229,25 @@ public class QueryBuilderTest
     }
 
     @Test
+    public void fullTextSearchEscapesQuotesThatWouldOpenAPhrase()
+    {
+        // The double quote opens a phrase in the full text grammar, so an odd number of them -- a
+        // measurement, an inch mark, ordinary typing -- would leave one unterminated and fail the
+        // whole query to parse rather than merely searching oddly
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, '2\\\" pipe') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("2\" pipe").build());
+    }
+
+    @Test
+    public void fullTextSearchEscapesTheEscapeBeforeTheQuote()
+    {
+        // Order matters: doubling the backslashes after escaping the quote would turn the escape
+        // this just added back into a literal backslash, re-opening the phrase it closed
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'a\\\\\\\" b') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("a\\\" b").build());
+    }
+
+    @Test
     public void sortingCanBeCustomized()
     {
         Assertions.assertEquals(BASE_QUERY + " order by n.[jcr:lastModified] DESC",
