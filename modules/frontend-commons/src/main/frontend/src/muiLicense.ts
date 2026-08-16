@@ -22,9 +22,18 @@ import { LicenseInfo } from "@mui/x-license";
 // Import this module (for its side effect) from any file that renders a Pro component, so the
 // key is always set before the first render, no matter which entry point loads first.
 //
-// The key is not a secret: MUI X licensing is honor-based and the key is validated client-side,
-// so it necessarily ships in the public JS bundle. It is still kept in this one place so that
-// rotating it (or moving it to a build-time injection) is a single-file change.
+// The key arrives from the MUI_LICENSE_KEY environment variable, substituted into the bundle at
+// build time (see the DefinePlugin entry in webpack.config-template.js).
 //
-// TODO: replace the placeholder below with the team's actual license key.
-LicenseInfo.setLicenseKey("REPLACE-WITH-THE-TEAM-MUI-X-LICENSE-KEY");
+// An unset key is deliberately not a build failure: this repository is public and anyone should
+// be able to build it. The grid then reports itself unlicensed and paints its watermark, which
+// is a licensing question rather than a broken build.
+const licenseKey = process.env.MUI_LICENSE_KEY;
+
+if (licenseKey) {
+  LicenseInfo.setLicenseKey(licenseKey);
+} else {
+  console.warn(
+    "MUI_LICENSE_KEY was not set when this bundle was built, so the MUI X Pro components are "
+    + "running unlicensed and will show their watermark. Set it in the build environment.");
+}

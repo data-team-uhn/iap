@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import webpack from 'webpack';
 import { WebpackAssetsManifest } from 'webpack-assets-manifest';
 import MinimizerPlugin from 'minimizer-webpack-plugin';
 import ESLintPlugin from 'eslint-webpack-plugin';
@@ -103,6 +104,11 @@ ENTRY_CONTENT
     plugins: [
       new WebpackAssetsManifest({
         output: "assets.json"
+      }),
+      // The MUI X license key belongs to the deployment rather than to this (public) repository,
+      // so it is read from the build environment and substituted in here.
+      new webpack.DefinePlugin({
+        "process.env.MUI_LICENSE_KEY": JSON.stringify(process.env.MUI_LICENSE_KEY),
       }),
       // The client-side assetManager fetches an asset *dependencies* manifest alongside the
       // assets.json name map (see frontend-commons/src/assetManager.tsx). No IAP entry point
