@@ -121,7 +121,7 @@ registerEntityType(CHOICE_TYPE, {
       type: "singleSelect",
       valueOptions: [
         // Filled, because the default soft styling is color-mix()/light-dark() CSS that
-        // jsdom cannot verify — chipStyle' own tests pin the soft recipes down
+        // jsdom cannot verify — chipStyle's own tests pin the soft recipes down
         { value: "open", label: "Open", color: "#1d6a3a", variant: "filled" },
         { value: "closed", label: "Closed" },
       ],

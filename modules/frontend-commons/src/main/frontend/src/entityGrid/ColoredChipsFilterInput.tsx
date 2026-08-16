@@ -37,8 +37,8 @@ export interface ColoredValueOption {
 }
 
 // The stock "is any of" input for choice columns, with each picked value rendered as a chip
-// in its option's own color (when it declares a safe one; see safeCssColor) instead of the
-// stock outlined look.
+// styled from its option's own color and variant (when it declares a usable color; see
+// chipStyle) instead of the stock outlined look.
 function ColoredChipsFilterInput(props: GridFilterInputMultipleSingleSelectProps) {
   const theme = useTheme();
   return (
