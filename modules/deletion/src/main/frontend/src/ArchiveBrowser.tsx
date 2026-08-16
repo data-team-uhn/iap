@@ -20,7 +20,6 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   Alert,
-  Box,
   Button,
   DialogActions,
   DialogContent,
@@ -40,11 +39,13 @@ import {
 } from "@mui/material";
 import { Link as RouterLink } from "react-router";
 
+import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import {
+  entryRoute,
   fetchArchiveEntries,
   purgeEntry,
   restoreEntry,
@@ -172,9 +173,8 @@ export function ArchiveBrowser() {
   const rows = data?.rows ?? [];
 
   return (
-    <Box>
+    <AdminScreen title="Archive">
       <LoadingOverlay open={!settled} />
-      <Typography variant="h5" component="h1" gutterBottom>Archive</Typography>
       <Typography variant="body2" color="text.secondary" gutterBottom>
         Everything that has been deleted and not yet destroyed. Restoring an entry puts every item it
         holds back where it was deleted from; purging it destroys them.
@@ -227,7 +227,9 @@ export function ArchiveBrowser() {
                   <Tooltip title={entry.originalPaths.join(", ")}>
                     {/* Through to the entry, where what-would-happen can be seen before acting. The short
                         address is the one a reader should ever see; the buckets are storage. */}
-                    <MuiLink component={RouterLink} to={entry.shortPath}>{entry.requestedPath}</MuiLink>
+                    <MuiLink component={RouterLink} to={entryRoute(entry.shortPath)}>
+                      {entry.requestedPath}
+                    </MuiLink>
                   </Tooltip>
                 </TableCell>
                 <TableCell>{entry.itemCount}</TableCell>
@@ -298,7 +300,7 @@ export function ArchiveBrowser() {
           </DialogActions>
         </ResponsiveDialog>
       )}
-    </Box>
+    </AdminScreen>
   );
 }
 

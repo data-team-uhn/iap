@@ -24,8 +24,10 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { ArchiveEntryView } from "@iap/deletion/ArchiveEntryView";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 
-// The view is opened the way a reader reaches it: at the short address, which the resource provider
-// translates back to the bucket path server-side. Everything the page does therefore goes through it.
+// The view is opened the way a reader reaches it: at its page of the administration console.
+const ROUTE = "/admin/archive/one";
+
+/** The entry's short repository address, which is what the page asks the endpoints about. */
 const ENTRY = "/Archive/one";
 
 /** Where the entry is really stored, which is what the endpoint reports back as its path. */
@@ -69,14 +71,14 @@ const server = (options: { entry?: () => Response; action?: () => Response } = {
   return calls;
 };
 
-// Rendered the way the shell renders it: at the entry's own path, with the listing as a sibling
-// route so that navigating away after the entry stops existing is observable.
-const view = () => render(
-  <MemoryRouter initialEntries={[ ENTRY ]}>
+// Rendered the way the shell renders it: at the console route for one entry, with the listing as a
+// sibling route so that navigating away after the entry stops existing is observable.
+const view = (route: string = ROUTE) => render(
+  <MemoryRouter initialEntries={[ route ]}>
     <ThemeProvider theme={appTheme} defaultMode="light">
       <Routes>
-        <Route path="/Archive" element={<div>the archive listing</div>} />
-        <Route path="/Archive/*" element={<ArchiveEntryView />} />
+        <Route path="/admin/archive" element={<div>the archive listing</div>} />
+        <Route path="/admin/archive/*" element={<ArchiveEntryView />} />
       </Routes>
     </ThemeProvider>
   </MemoryRouter>
@@ -91,7 +93,16 @@ describe("ArchiveEntryView", () => {
     const calls = server();
     view();
     await screen.findByRole("heading", { name: "/content/one" });
+    // The console route is not the entry's path, so the page converts before asking
     expect(calls[0]).toBe(`${ENTRY}.entry.json`);
+  });
+
+  it("reports a route that names no entry rather than asking about one", async () => {
+    const calls = server();
+    view("/admin/archive/one/deeper");
+
+    expect(await screen.findByText("That is not an archive entry.")).toBeInTheDocument();
+    expect(calls).toHaveLength(0);
   });
 
   it("says who deleted it and when", async () => {
@@ -181,7 +192,10 @@ describe("ArchiveEntryView", () => {
     await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Purge" }));
 
     expect(await screen.findByText("the archive listing")).toBeInTheDocument();
-    expect(calls).toContain(ENTRY);
+    // Acted on where the entry actually is, which the endpoint just reported, rather than on the
+    // short address the route was built from: one fewer thing to be wrong about at the moment of
+    // destroying something. The read above still goes through the short address.
+    expect(calls).toContain(STORED);
   });
 
   it("re-reads the preflight when an action is refused after all", async () => {

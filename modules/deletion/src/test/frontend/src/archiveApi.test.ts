@@ -17,6 +17,9 @@
  */
 
 import {
+  ARCHIVE_ROUTE,
+  entryResourcePath,
+  entryRoute,
   fetchArchiveEntries,
   fetchArchiveEntry,
   fetchArchiveSummary,
@@ -196,5 +199,28 @@ describe("fetchArchiveEntry", () => {
     // A prefix-tree bucket shares the archive's resource type and answers with something else
     const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { "jcr:primaryType": "iap:Archive" }));
     await expect(fetchArchiveEntry(doFetch, "/Archive/ab")).rejects.toThrow("not an archive entry");
+  });
+});
+
+describe("the console route and the repository path", () => {
+  it("routes to an entry's console page from its repository path", () => {
+    expect(entryRoute("/Archive/one")).toBe(`${ARCHIVE_ROUTE}/one`);
+    expect(entryRoute("/Archive/ab/cd/ef/one")).toBe(`${ARCHIVE_ROUTE}/one`);
+  });
+
+  it("converts a console route back to the path the endpoints answer on", () => {
+    expect(entryResourcePath(`${ARCHIVE_ROUTE}/one`)).toBe("/Archive/one");
+  });
+
+  it("refuses a route that does not name exactly one entry", () => {
+    // The browse page itself, and anything deeper than one entry, address no entry at all
+    expect(entryResourcePath(ARCHIVE_ROUTE)).toBeNull();
+    expect(entryResourcePath(`${ARCHIVE_ROUTE}/one/deeper`)).toBeNull();
+    expect(entryResourcePath("/somewhere/else")).toBeNull();
+  });
+
+  it("tolerates a trailing slash on either side", () => {
+    expect(entryRoute("/Archive/one/")).toBe(`${ARCHIVE_ROUTE}/one`);
+    expect(entryResourcePath(`${ARCHIVE_ROUTE}/one/`)).toBeNull();
   });
 });

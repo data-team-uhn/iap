@@ -20,7 +20,6 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   Alert,
-  Box,
   Button,
   Chip,
   DialogActions,
@@ -35,11 +34,14 @@ import {
 } from "@mui/material";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
+import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import {
+  ARCHIVE_ROUTE,
+  entryResourcePath,
   fetchArchiveEntry,
   purgeEntry,
   restoreEntry,
@@ -50,7 +52,7 @@ import {
 import { describeOutcome, failureMessage, type Outcome } from "./archiveOutcome";
 
 /** Where the archive listing lives, for the way back and for after an entry stops existing. */
-const ARCHIVE_URL = "/Archive";
+
 
 /** What each refused restore means, in words an administrator can act on. */
 const CONFLICT_REASONS: Record<string, string> = {
@@ -87,7 +89,11 @@ function Item({ path, conflict }: { path: string; conflict?: string }) {
 // the endpoint says so and the page reports it rather than rendering an empty entry.
 export function ArchiveEntryView() {
   const doFetch = useAuthenticatedFetch();
-  const path = useLocation().pathname;
+  // The console route and the entry's repository path are different strings now that the archive is
+  // a page of the administration console: the browser is at /admin/archive/<entry>, while the
+  // endpoints answer on the entry itself. A route naming no entry -- which is what the prefix-tree
+  // buckets and the browse page look like -- yields null and is reported rather than fetched.
+  const resourcePath = entryResourcePath(useLocation().pathname);
   const navigate = useNavigate();
 
   const [ entry, setEntry ] = useState<ArchiveEntryDetail | null>(null);
@@ -100,26 +106,33 @@ export function ArchiveEntryView() {
 
   const latest = useRef(0);
 
+  // Derived rather than stored, because a route naming no entry is knowable at render time and
+  // setting state for it inside the effect is a cascading render the compiler rejects.
+  const routeError = resourcePath === null ? "That is not an archive entry." : null;
+
   useEffect(() => {
+    if (resourcePath === null) {
+      return undefined;
+    }
     latest.current += 1;
     const mine = latest.current;
     const current = () => mine === latest.current;
-    fetchArchiveEntry(doFetch, path)
+    fetchArchiveEntry(doFetch, resourcePath)
       .then(result => { if (current()) { setEntry(result); setLoadError(null); } })
       .catch((error: unknown) => {
         if (current()) { setLoadError(failureMessage(error, "That archive entry could not be read.")); }
       })
       .finally(() => { if (current()) { setSettled(true); } });
     return () => { latest.current += 1; };
-  }, [ doFetch, path, reloadKey ]);
+  }, [ doFetch, resourcePath, reloadKey ]);
 
   const act = (action: (f: AuthenticatedFetch, target: string) => Promise<ActionResponse>) => {
     setBusy(true);
-    action(doFetch, path)
+    action(doFetch, entry?.path ?? "")
       .then((response: ActionResponse) => {
         if (response.status === "restored" || response.status === "deleted") {
           // The entry no longer exists, so there is nothing left for this page to show
-          void navigate(ARCHIVE_URL);
+          void navigate(ARCHIVE_ROUTE);
           return;
         }
         setNotice(describeOutcome(response));
@@ -135,16 +148,17 @@ export function ArchiveEntryView() {
     entry?.restoreConflicts.find(conflict => conflict.originalPath === originalPath)?.reason;
 
   return (
-    <Box>
-      <LoadingOverlay open={!settled} />
-      <Link component={RouterLink} to={ARCHIVE_URL} variant="body2">← Back to the archive</Link>
+    <AdminScreen title="Archive entry">
+      <LoadingOverlay open={routeError === null && !settled} />
+      <Link component={RouterLink} to={ARCHIVE_ROUTE} variant="body2">← Back to the archive</Link>
 
       {notice && (
         <Alert severity={notice.severity} onClose={() => { setNotice(null); }} sx={{ my: 2 }}>
           {notice.message}
         </Alert>
       )}
-      {loadError !== null && <Alert severity="error" sx={{ my: 2 }}>{loadError}</Alert>}
+      {(routeError ?? loadError) !== null
+        && <Alert severity="error" sx={{ my: 2 }}>{routeError ?? loadError}</Alert>}
 
       {entry && (
         <>
@@ -221,7 +235,7 @@ export function ArchiveEntryView() {
           </DialogActions>
         </ResponsiveDialog>
       )}
-    </Box>
+    </AdminScreen>
   );
 }
 

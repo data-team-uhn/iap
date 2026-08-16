@@ -309,7 +309,7 @@ describe("ArchiveBrowser", () => {
 
     const link = await screen.findByRole("link", { name: "/content/one" });
     // The bucket path is storage; a reader is only ever shown the short address
-    expect(link).toHaveAttribute("href", "/Archive/one");
+    expect(link).toHaveAttribute("href", "/admin/archive/one");
   });
 
 });

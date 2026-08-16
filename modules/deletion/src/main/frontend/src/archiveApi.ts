@@ -119,6 +119,35 @@ export interface ArchiveEntryDetail extends ArchiveEntry {
 const ARCHIVE_PATH = "/Archive";
 
 /**
+ * Where the archive is browsed, which is a page of the administration console rather than the
+ * repository path the entries actually live at.
+ *
+ * The two used to be the same string, and everything derived one from the other by appending a
+ * selector. They part company here, so the conversions are kept next to each other and next to the
+ * root they are built from: a route that drifted from the resource path would send the browser
+ * somewhere real and fetch from somewhere that is not.
+ */
+export const ARCHIVE_ROUTE = "/admin/archive";
+
+/** The name of the entry addressed by a path or route ending in it, or null if there is none. */
+const entryName = (path: string): string | null => {
+  const name = path.replace(/\/+$/, "").split("/").pop();
+  return name === undefined || name.length === 0 ? null : name;
+};
+
+/** The console route showing the entry stored at this repository path. */
+export const entryRoute = (path: string): string => `${ARCHIVE_ROUTE}/${entryName(path) ?? ""}`;
+
+/**
+ * The repository path of the entry a console route is showing, or null when the route names no
+ * entry — which is what the browse page's own route looks like.
+ */
+export const entryResourcePath = (route: string): string | null => {
+  const name = entryName(route);
+  return name === null || `${ARCHIVE_ROUTE}/${name}` !== route ? null : `${ARCHIVE_PATH}/${name}`;
+};
+
+/**
  * Read the three counts the administration console widget shows.
  *
  * Rejects rather than resolving on failure: the widget has nothing to display without them, so

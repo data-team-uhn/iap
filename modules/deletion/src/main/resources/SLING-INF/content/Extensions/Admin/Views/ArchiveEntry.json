@@ -2,6 +2,6 @@
   "jcr:primaryType": "iap:Extension",
   "iap:extensionPointId": "iap/coreUI/view",
   "iap:extensionName": "Archive entry",
-  "iap:targetURL": "/Archive/*",
+  "iap:targetURL": "/admin/archive/*",
   "iap:extensionRenderURL": "asset:iap-deletion.ArchiveEntryView.js?lazy"
 }

@@ -206,11 +206,21 @@ The UI is in `modules/deletion/src/main/frontend`, and both halves are extension
   console beside the other administrative tools rather than on everybody's homepage. It shows the
   three counts; the way through to the archive is the dashboard frame's own header action, declared
   by the extension's `iap:actionLabel` and `iap:targetURL` rather than drawn by the widget.
-- `ArchiveBrowser` is registered on `iap/coreUI/view` with `iap:targetURL` `/Archive` — a
-  filterable, sortable table with per-entry restore and purge actions, displayed by the shell just
-  like the dashboard. Each row links through to its entry.
-- `ArchiveEntryView` is registered the same way for `/Archive/*`: one entry, what it holds, and
-  whether each item could go back where it came from — the preflight above, per item and in words.
+- `ArchiveBrowser` is registered on `iap/coreUI/view` with `iap:targetURL` `/admin/archive` — a
+  filterable, sortable table with per-entry restore and purge actions, wrapped in the console's
+  `AdminScreen` chrome like every other administrative tool. Each row links through to its entry.
+- `ArchiveEntryView` is registered the same way for `/admin/archive/*`: one entry, what it holds,
+  and whether each item could go back where it came from — the preflight above, per item and in
+  words.
+
+Both are pages of the administration console rather than standalone pages, so they carry no HTL of
+their own: `/admin/**` is served by the console's own resource provider, which renders the
+application shell for any path under it.
+
+**The console route and the repository path are different strings, deliberately.** The browser sits
+at `/admin/archive/<entry>` while the endpoints answer on `/Archive/<entry>`; `archiveApi.ts` owns
+both constants and the two conversions between them, so they cannot drift into a route that
+navigates somewhere real and fetches from somewhere that is not.
   That route also covers the prefix-tree buckets, which are not entries; the endpoint says so and
   the page reports it rather than rendering an empty entry.
 
