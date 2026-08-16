@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { Fragment, type ReactNode, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import ClearIcon from "@mui/icons-material/Clear";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -590,6 +590,9 @@ function EntityDataGrid(props: EntityDataGridProps) {
     }
   };
 
+  const gridColumns = useMemo(
+    () => withCompactDates(withServerFilterOperators(config?.columns ?? [])), [config?.columns]);
+
   if (!config) {
     return <Alert severity="error">Unknown entity type: {entityType}</Alert>;
   }
@@ -606,7 +609,14 @@ function EntityDataGrid(props: EntityDataGridProps) {
       .map(term => term.endsWith("*") ? term : `${term}*`);
     setFullText(terms.join(" "));
     setColumnFilters(toPropertyFilters(model, config.columns));
-    setPaginationModel(current => ({ ...current, page: 0 }));
+    setPaginationModel(current => current.page === 0 ? current : { ...current, page: 0 });
+  };
+
+  // Sorting reorders the whole collection server-side, so page 4 of the old order says nothing
+  // about where the reader wants to be in the new one; start them at the top of it.
+  const sortBy = (model: GridSortModel) => {
+    setSortModel(model);
+    setPaginationModel(current => current.page === 0 ? current : { ...current, page: 0 });
   };
 
   // The single synthetic "column" rendering each row as a card in list mode. The cards honor
@@ -624,6 +634,15 @@ function EntityDataGrid(props: EntityDataGridProps) {
       : <GenericListItem row={params.row} columns={visibleColumns} />,
   };
 
+  // A row is identified by where it lives. `@name` is only unique among siblings, but the rows of
+  // one grid are siblings, so it stands in when a projection omits the path; falling through to
+  // the row's position keeps two such rows apart, which a shared "undefined" would not -- the
+  // grid throws on duplicate ids and would take the whole widget down with it.
+  const getRowId = (row: EntityRow) => {
+    const path = row["@path"] ?? row["@name"];
+    return typeof path === "string" ? path : `@${rows.indexOf(row)}`;
+  };
+
   // Clicking a row navigates to the entity's own page, when the entity type declares one
   const { rowLink } = config;
   const openRow = rowLink && ((row: EntityRow) => {
@@ -636,9 +655,9 @@ function EntityDataGrid(props: EntityDataGridProps) {
   return (
     <Box sx={{ height, width: "100%", "& .MuiDataGrid-row": { cursor: openRow ? "pointer" : "inherit" } }}>
       <DataGridPro
-        columns={withCompactDates(withServerFilterOperators(config.columns))}
+        columns={gridColumns}
         rows={rows}
-        getRowId={row => String(row["@path"] ?? row["@name"])}
+        getRowId={getRowId}
         // An approximate total is only a lower bound: report the count as unknown-but-estimated,
         // so the grid keeps the next page reachable (a plain rowCount would cap the page count)
         // and presents the total with its stock estimate wording. The servlet counts far enough
@@ -655,7 +674,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
         pageSizeOptions={pageSizeOptions}
         sortingMode="server"
         sortModel={sortModel}
-        onSortModelChange={setSortModel}
+        onSortModelChange={sortBy}
         filterMode="server"
         onFilterModelChange={searchFor}
         listView={compactList}

@@ -402,10 +402,14 @@ describe("EntityDataGrid", () => {
 
   it("leaves rows unclickable for types that declare no row links", async () => {
     const user = userEvent.setup();
-    // The second row also exercises the row-id fallback for rows without a path
+    // The later rows exercise the row-id fallbacks: to the node name when the projection carries
+    // no path, and to the row's position when it carries neither -- two such rows must still be
+    // told apart, since the grid throws on duplicate ids and would take the widget down with it
     mockPage([
       { "@path": "/PlainEntities/e1", title: "Plain entity" },
       { "@name": "e2", title: "Nameless entity" },
+      { title: "Pathless entity" },
+      { title: "Another pathless entity" },
     ]);
 
     render(
@@ -419,6 +423,9 @@ describe("EntityDataGrid", () => {
     // Clicking a row must not navigate anywhere: the grid is still on screen afterwards
     await user.click(await screen.findByText("Plain entity"));
     expect(screen.getByText("Plain entity")).toBeInTheDocument();
+    // Both identity-less rows rendered, rather than one of them colliding the grid into an error
+    expect(screen.getByText("Pathless entity")).toBeInTheDocument();
+    expect(screen.getByText("Another pathless entity")).toBeInTheDocument();
   });
 
   it("stays put when a row's link resolves to nothing", async () => {
@@ -649,6 +656,47 @@ describe("EntityDataGrid", () => {
     expect(screen.getByRole("button", { name: /next page/i })).toBeEnabled();
     // The servlet's counted lower bound shows through the grid's own estimate wording
     expect(screen.getByText(/1–5 of around 8/)).toBeInTheDocument();
+  });
+
+  // Sorting reorders the whole collection server-side, so where the reader was in the old order
+  // says nothing about where they want to be in the new one.
+  //
+  // The assertion is on the requests rather than on where the grid ends up: left to itself the grid
+  // reaches the first page anyway, but only after fetching page 2 of the new order and showing it,
+  // so the end state is the same either way and only the traffic tells the two apart.
+  it("returns to the first page when the sort order changes, in one request", async () => {
+    const rows = Array.from({ length: 5 }, (unused, index) => (
+      { "@path": `/GridEntities/e${index}`, "title": `Entity ${index}` }));
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve({
+      ok: true,
+      url: "",
+      json: () => Promise.resolve({ rows, offset: 0, limit: 5, returnedrows: 5, totalrows: 20,
+        totalIsApproximate: false }),
+    } as unknown as Response));
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Entity 0");
+
+    await user.click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => {
+      const url = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
+      expect(url.searchParams.get("offset")).toBe("5");
+    });
+
+    const before = fetchMock.mock.calls.length;
+    await user.click(screen.getByText("Status"));
+
+    await waitFor(() => {
+      const url = new URL(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0], "http://localhost");
+      expect(url.searchParams.get("sortBy")).toBe("status");
+    });
+    const sorted = fetchMock.mock.calls.slice(before).map(call => {
+      const url = new URL(call[0], "http://localhost");
+      return `${url.searchParams.get("offset")}/${url.searchParams.get("sortBy")}`;
+    });
+    expect(sorted).toEqual(["0/status"]);
   });
 
   it("recovers from a fetch error through the retry button, keeping its controls", async () => {
