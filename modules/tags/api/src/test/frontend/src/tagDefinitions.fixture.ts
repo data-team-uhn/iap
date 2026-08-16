@@ -36,6 +36,13 @@ export const TAG_DEFINITIONS: (TagDefinition & { category: string[] })[] = [
     order: 70, category: ["lifecycle", "review"] },
 ];
 
+// A successful response carrying the given JSON body. Build every stand-in response through this:
+// besides `ok` and `json`, useAuthenticatedFetch reads `url` to tell a real answer from a redirect
+// to the login page, and a stub missing it makes every request throw and resolve to no definitions.
+export function jsonResponse(body: unknown): Promise<Response> {
+  return Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(body) } as unknown as Response);
+}
+
 // A fetch stand-in that answers the tag definition search like the TagListServlet (filtered by
 // the category parameter, in definition order), and every other URL with the given payload.
 export function tagAwareFetch(payload: unknown): (url: string) => Promise<Response> {
@@ -46,6 +53,6 @@ export function tagAwareFetch(payload: unknown): (url: string) => Promise<Respon
       const tags = TAG_DEFINITIONS.filter(tag => category == null || tag.category.includes(category));
       body = { tags, total: tags.length };
     }
-    return Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(body) } as unknown as Response);
+    return jsonResponse(body);
   };
 }

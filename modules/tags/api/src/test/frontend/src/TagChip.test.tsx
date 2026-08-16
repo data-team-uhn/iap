@@ -21,7 +21,7 @@ import { act, render, screen } from "@testing-library/react";
 import TagChip from "@iap/tags/TagChip";
 import { clearTagDefinitionsCache, tagValueOptions } from "@iap/tags/tagDefinitions";
 
-import { tagAwareFetch } from "./tagDefinitions.fixture";
+import { jsonResponse, tagAwareFetch } from "./tagDefinitions.fixture";
 
 describe("TagChip", () => {
   afterEach(() => {
@@ -35,7 +35,7 @@ describe("TagChip", () => {
     render(<TagChip tags={["in-review"]} category="lifecycle" />);
 
     // The soft styling is derived color-mix()/light-dark() CSS that jsdom cannot compute
-    // (chipStyle' own tests pin it down exactly); what the DOM can vouch for is the label
+    // (chipStyle's own tests pin it down exactly); what the DOM can vouch for is the label
     // and the declared icon
     expect(await screen.findByText("In review")).toBeInTheDocument();
     expect(screen.getByTestId("VisibilityOutlinedIcon")).toBeInTheDocument();
@@ -43,8 +43,8 @@ describe("TagChip", () => {
 
   it("fills the chip with the raw color for the filled variant", async () => {
     const tags = [{ name: "loud", label: "Loud", color: "#673ab7", variant: "filled" }];
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve({ tags, total: tags.length }) } as unknown as Response)));
+    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
+      () => jsonResponse({ tags, total: tags.length })));
 
     render(<TagChip tags={["loud"]} category="custom" />);
 
