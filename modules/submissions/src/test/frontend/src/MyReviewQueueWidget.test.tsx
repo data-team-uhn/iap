@@ -20,9 +20,14 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 import MyReviewQueueWidget from "@iap/submissions/MyReviewQueueWidget";
+import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
 describe("MyReviewQueueWidget", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    // The definitions are cached for the page's lifetime, which outlives a test
+    clearTagDefinitionsCache();
+  });
 
   it("asks for submissions with an open review assigned to the current user", async () => {
     const page = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };

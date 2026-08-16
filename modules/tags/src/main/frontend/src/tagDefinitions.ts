@@ -69,10 +69,18 @@ export function loadTagDefinitions(
 // filtering by a category of tags: the defined tag names, labeled and colored like their
 // definitions (colors are passed through raw; whoever places one into styles is responsible
 // for whitelisting it, like TagChip does). Returns a provider function rather than the
-// values, because the definitions are fetched asynchronously: each call answers from the
-// snapshot fetched so far (and triggers the fetch, so a panel opened too early is at most
-// one reopen away from the full list).
+// values, because the definitions are fetched asynchronously and the grid asks for them
+// synchronously.
+//
+// The fetch starts here, as the column is configured, rather than only in the provider: columns
+// are configured when their module loads, long before anyone can open a filter panel, and that is
+// what keeps the snapshot from being empty when it is first read. It matters more than it looks --
+// the grid's multi-select filter input renders only those of its values it finds among the
+// options, so an empty snapshot shows an applied filter as having no values, and the next edit
+// then saves only what was displayed, silently dropping the rest. The provider re-triggers the
+// load too, to recover if the cache was cleared.
 export function tagValueOptions(category: string): () => { value: string; label: string; color?: string }[] {
+  void loadTagDefinitions(category);
   return () => {
     void loadTagDefinitions(category);
     return (resolvedDefinitions.get(category) ?? [])
