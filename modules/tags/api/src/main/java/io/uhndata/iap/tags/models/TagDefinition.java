@@ -20,6 +20,7 @@ package io.uhndata.iap.tags.models;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -300,22 +301,11 @@ public class TagDefinition extends Content implements DocumentedItem
             getTargetResourceTypes().forEach(targets::add);
             json.add("targetResourceTypes", targets);
         }
-        final String tagColor = getColor();
-        if (tagColor != null) {
-            json.add("color", tagColor);
-        }
-        final String tagVariant = getVariant();
-        if (tagVariant != null) {
-            json.add("variant", tagVariant);
-        }
-        final String tagIcon = getIcon();
-        if (tagIcon != null) {
-            json.add("icon", tagIcon);
-        }
-        final Long tagOrder = getOrder();
-        if (tagOrder != null) {
-            json.add("order", tagOrder);
-        }
+        // Optional fields are left out of the JSON entirely rather than serialized as null
+        Optional.ofNullable(getColor()).ifPresent(value -> json.add("color", value));
+        Optional.ofNullable(getVariant()).ifPresent(value -> json.add("variant", value));
+        Optional.ofNullable(getIcon()).ifPresent(value -> json.add("icon", value));
+        Optional.ofNullable(getOrder()).ifPresent(value -> json.add("order", value));
         return json.add("path", getPath());
     }
 }
