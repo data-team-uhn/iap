@@ -47,9 +47,10 @@ function DefinedTagChip({ definition }: { definition: TagDefinition }) {
       size="small"
       label={definition.label ?? definition.name}
       icon={tagIcon(definition.icon)}
-      sx={style && {
+      sx={{
         ...style,
-        // The icon follows the text color instead of MUI's default muted icon tint
+        // The icon follows the text color instead of MUI's default muted icon tint — also on a
+        // chip with no usable color, whose label is the stock one the icon should still match
         "& .MuiChip-icon": { color: "inherit" },
       }}
     />
