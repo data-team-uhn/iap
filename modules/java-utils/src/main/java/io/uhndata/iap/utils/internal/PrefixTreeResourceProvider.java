@@ -37,10 +37,7 @@ import io.uhndata.iap.utils.PrefixTree;
  *
  * <p>
  * The tree exists so that no single parent holds every node of a kind; that is a storage concern, and there is no
- * reason for it to reach the people reading a URL. Because a bucket path is derived from the node's own name —
- * {@link PrefixTree#pathFor} computes it without touching the repository — the short form can be translated back
- * with no lookup, no index and nothing to keep in step. That is what makes this possible at all: had the buckets
- * been assigned any other way, this would need a lookup table and would have to be maintained.
+ * reason for it to reach the people reading a URL.
  * </p>
  *
  * <p>
@@ -113,11 +110,16 @@ public class PrefixTreeResourceProvider extends ResourceProvider<Object>
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Iterator<Resource> listChildren(final ResolveContext<Object> ctx, final Resource parent)
     {
-        // The short forms alias nodes the repository already lists in their buckets. Returning them here as well
-        // would report every node twice, once under the root and once in its bucket.
-        return null;
+        // Whatever the repository holds there, and nothing of this provider's own
+        final ResourceProvider<Object> below = (ResourceProvider<Object>) ctx.getParentResourceProvider();
+        final ResolveContext<Object> belowContext = (ResolveContext<Object>) ctx.getParentResolveContext();
+        if (below == null || belowContext == null) {
+            return null;
+        }
+        return below.listChildren(belowContext, parent);
     }
 
     /**

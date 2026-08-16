@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.utils.internal;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -202,10 +204,28 @@ class PrefixTreeResourceProviderTest
     }
 
     @Test
-    void theShortFormsAreNotListedAsChildren()
+    void childrenAreWhateverTheRepositoryHolds()
     {
-        // They alias nodes the repository already lists in their buckets; listing them here would double every
-        // node in the tree
+        // Being mounted over the tree makes this the provider asked about every path inside it, so what it answers
+        // here is what the whole subtree looks like. Answering for the repository is the only right answer: the
+        // short forms are addresses, not children, and this provider has no children of its own to add.
+        final Iterator<Resource> children = List.of(this.stored).iterator();
+        doReturn(children).when(this.repository).listChildren(eq(this.belowContext), eq(this.stored));
+
+        assertSame(children, this.mountedAt("/Archive").listChildren(this.context, this.stored));
+    }
+
+    @Test
+    void childrenWithoutARepositoryBelowAreRefused()
+    {
+        doReturn(null).when(this.context).getParentResourceProvider();
+        assertNull(this.mountedAt("/Archive").listChildren(this.context, this.stored));
+    }
+
+    @Test
+    void childrenWithoutAContextAreAlsoRefused()
+    {
+        doReturn(null).when(this.context).getParentResolveContext();
         assertNull(this.mountedAt("/Archive").listChildren(this.context, this.stored));
     }
 }
