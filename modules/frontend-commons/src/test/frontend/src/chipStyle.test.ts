@@ -60,6 +60,13 @@ describe("chipStyle", () => {
     });
   });
 
+  it("reads the filled variant's contrast from the fill in any accepted notation", () => {
+    // MUI's palette helpers only parse comma-separated channels; a space-separated color would
+    // otherwise decompose to a NaN luminance, which always comes back as white text
+    expect(chipStyle(plain, "hsl(55 100% 90%)", "filled")?.color).toBe(plain.palette.text.primary);
+    expect(chipStyle(plain, "rgb(30 40 90 / 90%)", "filled")?.color).toBe(plain.palette.common.white);
+  });
+
   it("draws only readable text and a matching border for the outlined variant", () => {
     expect(chipStyle(plain, "#55408f", "outlined")).toEqual({
       backgroundColor: "transparent",

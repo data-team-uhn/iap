@@ -55,6 +55,20 @@ function readableText(color: string): string {
     + `oklch(from ${color} ${DARK_TEXT_LIGHTNESS} c h))`;
 }
 
+// The black-or-white text a fill needs to stay readable. MUI's palette helpers only parse the
+// legacy comma-separated rgb()/hsl() channels, and answer the modern space-separated notation --
+// which safeCssColor accepts just as happily -- with a NaN luminance that getContrastText silently
+// reads as "dark background", handing back white text for even a near-white fill. Normalizing the
+// separators first keeps the contrast decision honest for every notation a definition may use.
+function contrastText(theme: Theme, color: string): string {
+  const open = color.indexOf("(");
+  if (open < 0) {
+    return theme.palette.getContrastText(color);
+  }
+  const channels = color.slice(open + 1, -1).trim().replace(/\s*[,/]\s*/g, ",").replace(/\s+/g, ",");
+  return theme.palette.getContrastText(`${color.slice(0, open)}(${channels})`);
+}
+
 // How a chip declaring a color should be styled, per its variant, or undefined for a plain
 // unstyled chip. The color comes from repository-editable content and is interpolated into
 // generated CSS, so it is whitelisted here (see safeCssColor); an unusable value counts as
@@ -80,7 +94,7 @@ export function chipStyle(theme: Theme, color?: string, variant?: string): ChipS
   if (variant === "filled") {
     return {
       backgroundColor: safeColor,
-      color: theme.palette.getContrastText(safeColor),
+      color: contrastText(theme, safeColor),
       transition: "none",
     };
   }
