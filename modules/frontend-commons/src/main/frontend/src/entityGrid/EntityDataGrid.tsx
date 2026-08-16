@@ -67,6 +67,8 @@ import { useNavigate } from "react-router";
 
 // Imported for its side effect: registers the MUI X license before the first Pro render
 import "../muiLicense";
+import { useAuthenticatedFetch } from "../reLogin";
+import { describeRequestFailure } from "../requestFailure";
 import { type DescendantFilter, type EntityRow, type PropertyFilter, fetchEntityPage } from "./pagination";
 import { type EntityGridColumn, getEntityTypeConfig } from "./registry";
 import { toPropertyFilters, withServerFilterOperators } from "./serverFilters";
@@ -522,6 +524,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const [retryCount, setRetryCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const fetchUtil = useAuthenticatedFetch();
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
   const [sortModel, setSortModel] = useState<GridSortModel>(
     config?.defaultSort ? [{ field: config.defaultSort.field, sort: config.defaultSort.sort }] : []
@@ -545,7 +548,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     const sortColumn = sortModel[0] && config.columns.find(column => column.field === sortModel[0].field);
-    fetchEntityPage({
+    fetchEntityPage(fetchUtil, {
       homepage: config.homepage,
       offset: paginationModel.page * paginationModel.pageSize,
       limit: paginationModel.pageSize,
@@ -566,7 +569,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
         setRows([]);
         setRowCount(0);
         setApproximate(false);
-        setError(e instanceof Error ? e.message : String(e));
+        setError(describeRequestFailure(e));
       }
     }).finally(() => {
       if (!cancelled) {
@@ -576,7 +579,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     return () => {
       cancelled = true;
     };
-  }, [config, paginationModel, sortModel, filterKey, fullText, retryCount]);
+  }, [config, fetchUtil, paginationModel, sortModel, filterKey, fullText, retryCount]);
 
   const changeColumnVisibility = (model: GridColumnVisibilityModel) => {
     setColumnVisibilityModel(model);

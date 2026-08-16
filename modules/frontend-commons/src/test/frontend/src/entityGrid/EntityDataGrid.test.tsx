@@ -151,7 +151,7 @@ function mockPage(rows: Record<string, unknown>[]) {
     totalIsApproximate: false,
   };
   const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-    { ok: true, json: () => Promise.resolve(page) } as unknown as Response));
+    { ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response));
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
 }
@@ -205,11 +205,12 @@ describe("EntityDataGrid", () => {
 
   it("shows an error when the server rejects the request", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => Promise.resolve({ ok: false, status: 500 } as unknown as Response)));
+      () => Promise.resolve({ ok: false, url: "", status: 503 } as unknown as Response)));
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    expect(await screen.findByText("Failed to list /GridEntities: 500")).toBeInTheDocument();
+    // The shared vocabulary for a status, rather than the developer-facing wording it replaced
+    expect(await screen.findByText(/The server ran into a problem.*\(HTTP 503\)/)).toBeInTheDocument();
   });
 
   it("shows an error for an unregistered entity type", () => {
@@ -439,12 +440,11 @@ describe("EntityDataGrid", () => {
 
   it("stringifies non-Error fetch rejections into the error message", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
       () => Promise.reject("catastrophe")));
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
 
-    expect(await screen.findByText("catastrophe")).toBeInTheDocument();
+    expect(await screen.findByText(/catastrophe/)).toBeInTheDocument();
   });
 
   it("switches to a generic card list on narrow screens, keeping rows tappable", async () => {
@@ -640,7 +640,7 @@ describe("EntityDataGrid", () => {
       totalrows: 8, totalIsApproximate: true,
     };
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(page) } as unknown as Response)));
+      { ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response)));
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
     await screen.findByText("Entity 0");
@@ -656,7 +656,7 @@ describe("EntityDataGrid", () => {
     const page = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => failing
       ? Promise.reject(new Error("Failed to list /GridEntities: 500 — Query parse error"))
-      : Promise.resolve({ ok: true, json: () => Promise.resolve(page) } as unknown as Response)));
+      : Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response)));
     const user = userEvent.setup();
 
     render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
@@ -696,7 +696,7 @@ describe("EntityDataGrid", () => {
       settlers.push(resolve);
     })));
     const pageWith = (title: string) => ({
-      ok: true,
+      ok: true, url: "",
       json: () => Promise.resolve({
         rows: [{ "@path": `/GridEntities/${title}`, title }],
         offset: 0, limit: 5, returnedrows: 1, totalrows: 1, totalIsApproximate: false,

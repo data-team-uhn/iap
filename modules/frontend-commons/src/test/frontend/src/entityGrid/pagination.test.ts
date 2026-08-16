@@ -32,10 +32,10 @@ describe("fetchEntityPage", () => {
 
   it("requests the right page from the homepage's pagination servlet", async () => {
     const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
+      { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchEntityPage({
+    await fetchEntityPage(fetch, {
       homepage: "/Submissions",
       offset: 10,
       limit: 5,
@@ -67,10 +67,10 @@ describe("fetchEntityPage", () => {
 
   it("omits the optional parameters when not provided", async () => {
     const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
+      { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
-    const page = await fetchEntityPage({ homepage: "/Submissions" });
+    const page = await fetchEntityPage(fetch, { homepage: "/Submissions" });
 
     const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     const params = url.searchParams;
@@ -83,10 +83,10 @@ describe("fetchEntityPage", () => {
 
   it("sends group parameters for every filter once any filter is grouped", async () => {
     const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
+      { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchEntityPage({
+    await fetchEntityPage(fetch, {
       homepage: "/Submissions",
       filters: [
         { name: "jcr:createdBy", value: "@me" },
@@ -102,29 +102,24 @@ describe("fetchEntityPage", () => {
 
   it("omits group parameters when no filter is grouped", async () => {
     const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
+      { ok: true, url: "", json: () => Promise.resolve(EMPTY_PAGE) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchEntityPage({ homepage: "/Submissions", filters: [{ name: "status", value: "draft" }] });
+    await fetchEntityPage(fetch, { homepage: "/Submissions", filters: [{ name: "status", value: "draft" }] });
 
     const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     expect(url.searchParams.getAll("fieldGroup")).toEqual([]);
   });
 
-  it("reports server errors, with the servlet's own detail when it sends one", async () => {
-    // A bare failure, no JSON body to mine for details
+  // The status is what the caller needs: describeRequestFailure turns it into the sentence a user
+  // reads, so the rejection carries the status rather than wording of its own.
+  it("rejects with the status when the server refuses, without reading the body", async () => {
+    const json = vi.fn().mockRejectedValue(new SyntaxError("Unexpected token '<'"));
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: false, status: 400, json: () => Promise.reject(new Error()) } as unknown as Response)));
-    await expect(fetchEntityPage({ homepage: "/Submissions" }))
-      .rejects.toThrow("Failed to list /Submissions: 400");
+      { ok: false, url: "", status: 403, json } as unknown as Response)));
 
-    // The servlet's error responses carry an explanation worth surfacing
-    vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve({
-      ok: false,
-      status: 400,
-      json: () => Promise.resolve({ error: "The fieldValue parameters must be provided once per filter name" }),
-    } as unknown as Response)));
-    await expect(fetchEntityPage({ homepage: "/Submissions" }))
-      .rejects.toThrow("Failed to list /Submissions: 400 — The fieldValue parameters must be provided once per filter name");
+    await expect(fetchEntityPage(fetch, { homepage: "/Submissions" }))
+      .rejects.toMatchObject({ status: 403 });
+    expect(json).not.toHaveBeenCalled();
   });
 });

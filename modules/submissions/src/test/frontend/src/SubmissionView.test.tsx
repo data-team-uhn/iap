@@ -332,17 +332,16 @@ describe("SubmissionView", () => {
 
     renderAt("/Submissions/demo-1");
 
-    expect(await screen.findByText("network down")).toBeInTheDocument();
+    expect(await screen.findByText(/network down/)).toBeInTheDocument();
   });
 
   it("stringifies non-Error fetch rejections", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
       () => Promise.reject("catastrophe")));
 
     renderAt("/Submissions/demo-1");
 
-    expect(await screen.findByText("catastrophe")).toBeInTheDocument();
+    expect(await screen.findByText(/catastrophe/)).toBeInTheDocument();
   });
 
   it("ignores responses that arrive after the view is gone", async () => {
@@ -354,7 +353,7 @@ describe("SubmissionView", () => {
     // A response landing after unmount must not update state
     const first = renderAt("/Submissions/demo-1");
     first.unmount();
-    settlers[0].resolve({ ok: true, json: () => Promise.resolve(DEEP_SUBMISSION) } as unknown as Response);
+    settlers[0].resolve({ ok: true, url: "", json: () => Promise.resolve(DEEP_SUBMISSION) } as unknown as Response);
     await act(() => Promise.resolve());
 
     // Same for a failure landing after unmount
@@ -368,7 +367,7 @@ describe("SubmissionView", () => {
 
   it("reports an empty response as an undisplayable submission", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(null) } as unknown as Response)));
+      { ok: true, url: "", json: () => Promise.resolve(null) } as unknown as Response)));
 
     renderAt("/Submissions/demo-1");
 
@@ -377,7 +376,7 @@ describe("SubmissionView", () => {
 
   it("tolerates a .html suffix in the page URL", async () => {
     const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve(DEEP_SUBMISSION) } as unknown as Response));
+      { ok: true, url: "", json: () => Promise.resolve(DEEP_SUBMISSION) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
     renderAt("/Submissions/demo-1.html");
@@ -388,10 +387,11 @@ describe("SubmissionView", () => {
 
   it("reports inaccessible submissions", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => Promise.resolve({ ok: false, status: 404 } as unknown as Response)));
+      () => Promise.resolve({ ok: false, url: "", status: 404 } as unknown as Response)));
 
     renderAt("/Submissions/nonexistent");
 
-    expect(await screen.findByText("This submission cannot be loaded (404)")).toBeInTheDocument();
+    // The shared vocabulary for a status, rather than wording this view invented for itself
+    expect(await screen.findByText(/It could not be found on the server/)).toBeInTheDocument();
   });
 });

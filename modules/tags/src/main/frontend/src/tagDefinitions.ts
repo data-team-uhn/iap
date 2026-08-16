@@ -38,11 +38,12 @@ const resolvedDefinitions = new Map<string, TagDefinition[]>();
 
 // The definitions of the given category, or all defined tags when no category is given, in
 // the definitions' own order. Never rejects: fetch failures resolve to an empty list.
-export function loadTagDefinitions(category?: string): Promise<TagDefinition[]> {
+export function loadTagDefinitions(
+  category?: string, fetchUtil: (url: string) => Promise<Response> = fetch): Promise<TagDefinition[]> {
   const cacheKey = category ?? "*";
   let cached = definitionCache.get(cacheKey);
   if (!cached) {
-    cached = fetch(category ? `/Tags.search.json?category=${encodeURIComponent(category)}` : "/Tags.search.json")
+    cached = fetchUtil(category ? `/Tags.search.json?category=${encodeURIComponent(category)}` : "/Tags.search.json")
       .then(async response => {
         if (!response.ok) {
           throw new Error(`Listing the tag definitions failed: ${response.status}`);

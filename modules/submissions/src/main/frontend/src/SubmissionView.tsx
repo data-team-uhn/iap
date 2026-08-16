@@ -22,6 +22,8 @@ import { Alert, Box, Divider, Link, Paper, Stack, Typography } from "@mui/materi
 import { Link as RouterLink, useLocation } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
 import { schemaLabel } from "./submissionGrid";
@@ -195,13 +197,14 @@ function SubmissionView() {
   // fetch for the currently displayed path has settled, one way or the other
   const [loadedPath, setLoadedPath] = useState<string>();
   const loading = loadedPath !== path;
+  const fetchUtil = useAuthenticatedFetch();
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${path}.deep.json`)
+    fetchUtil(`${path}.deep.json`)
       .then(response => {
         if (!response.ok) {
-          throw new Error(`This submission cannot be loaded (${response.status})`);
+          throw new RequestError(response.status);
         }
         return response.json() as Promise<JsonNode>;
       })
@@ -213,7 +216,7 @@ function SubmissionView() {
       })
       .catch((e: unknown) => {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e));
+          setError(describeRequestFailure(e));
         }
       })
       .finally(() => {
@@ -224,7 +227,7 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, fetchUtil]);
 
   if (loading) {
     return <LoadingOverlay open />;

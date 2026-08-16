@@ -139,7 +139,7 @@ describe("TagChip", () => {
       { name: "sneaky", label: "Sneaky", color: "#fff;background:url(https://evil.example/x)" },
     ];
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve({ tags, total: tags.length }) } as unknown as Response)));
+      { ok: true, url: "", json: () => Promise.resolve({ tags, total: tags.length }) } as unknown as Response)));
 
     render(
       <>
@@ -166,7 +166,7 @@ describe("TagChip", () => {
 
   it("treats a search result without a tag list as no definitions", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
-      { ok: true, json: () => Promise.resolve({ total: 0 }) } as unknown as Response)));
+      { ok: true, url: "", json: () => Promise.resolve({ total: 0 }) } as unknown as Response)));
 
     const { container } = render(<TagChip tags={["draft"]} category="lifecycle" />);
 
@@ -182,7 +182,7 @@ describe("TagChip", () => {
 
     const { unmount } = render(<TagChip tags={["draft"]} category="lifecycle" />);
     unmount();
-    settlers[0]({ ok: true, json: () => Promise.resolve({ tags: [] }) } as unknown as Response);
+    settlers[0]({ ok: true, url: "", json: () => Promise.resolve({ tags: [] }) } as unknown as Response);
     await act(() => Promise.resolve());
   });
 
@@ -223,7 +223,7 @@ describe("TagChip", () => {
 
     // The full listing still shows the raw names, just muted
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-      () => Promise.resolve({ ok: false, status: 500 } as unknown as Response)));
+      () => Promise.resolve({ ok: false, url: "", status: 503 } as unknown as Response)));
     render(<TagChip tags={["draft"]} />);
     expect((await screen.findByText("draft")).closest(".MuiChip-root")).toHaveClass("MuiChip-outlined");
   });

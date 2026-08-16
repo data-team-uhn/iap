@@ -41,6 +41,6 @@ export function tagAwareFetch(payload: unknown): (url: string) => Promise<Respon
       const tags = TAG_DEFINITIONS.filter(tag => category == null || tag.category.includes(category));
       body = { tags, total: tags.length };
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as unknown as Response);
+    return Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(body) } as unknown as Response);
   };
 }

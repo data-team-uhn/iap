@@ -20,6 +20,10 @@
 // (e.g. `/Submissions.paginate.json`) one page at a time. See PaginationServlet in the
 // data-model/entities module for the full list of supported parameters.
 
+
+import { type AuthenticatedFetch } from "../reLogin";
+import { RequestError } from "../requestFailure";
+
 // One serialized entity; the exact properties depend on the entity type. Every row carries at
 // least the `@path` and `@name` identification of the underlying node.
 export type EntityRow = Record<string, unknown>;
@@ -95,10 +99,13 @@ function nonEmpty(value: string | undefined): string | undefined {
   return value === "" ? undefined : value;
 }
 
-// Fetches one page of entities from the pagination servlet.
+// Fetches one page of entities from the pagination servlet, through the caller's session-aware
+// fetch so that a session expiring mid-browse is signed back in rather than losing the page.
 //
-// @throws Error if the server rejects the request or the fetch itself fails
-export async function fetchEntityPage(request: PaginationRequest): Promise<PaginatedPage> {
+// @throws RequestError if the server rejects the request, or whatever `fetch` failed with; both
+//         are for `describeRequestFailure` to turn into something worth showing a user
+export async function fetchEntityPage(
+  fetchUtil: AuthenticatedFetch, request: PaginationRequest): Promise<PaginatedPage> {
   // Every scalar of the request under its servlet parameter name; unset ones are skipped
   const scalars = {
     offset: String(request.offset ?? 0),
@@ -117,16 +124,9 @@ export async function fetchEntityPage(request: PaginationRequest): Promise<Pagin
   });
   appendFilters(params, "field", request.filters ?? []);
   appendFilters(params, "childField", request.childFilter?.filters ?? []);
-  const response = await fetch(`${request.homepage}.paginate.json?${params.toString()}`);
+  const response = await fetchUtil(`${request.homepage}.paginate.json?${params.toString()}`);
   if (!response.ok) {
-    let detail = "";
-    try {
-      const body = await response.json() as { error?: string };
-      detail = body.error ? ` — ${body.error}` : "";
-    } catch {
-      // A non-JSON error body carries no detail worth showing
-    }
-    throw new Error(`Failed to list ${request.homepage}: ${response.status}${detail}`);
+    throw new RequestError(response.status);
   }
   return await response.json() as PaginatedPage;
 }

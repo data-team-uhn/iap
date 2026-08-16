@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { Chip, Stack } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { safeCssColor } from "@iap/frontend-commons/safeColor";
 
 import { type TagDefinition, loadTagDefinitions } from "./tagDefinitions";
@@ -57,11 +58,12 @@ function DefinedTagChip({ definition }: { definition: TagDefinition }) {
 // Nothing is rendered while the definitions load, or for an untagged node.
 function TagChip({ tags, category }: { tags?: unknown; category?: string }) {
   const [definitions, setDefinitions] = useState<TagDefinition[]>();
+  const fetchUtil = useAuthenticatedFetch();
 
   useEffect(() => {
     let cancelled = false;
     // loadTagDefinitions cannot reject: fetch failures already resolve to an empty list
-    void loadTagDefinitions(category).then(loaded => {
+    void loadTagDefinitions(category, fetchUtil).then(loaded => {
       if (!cancelled) {
         setDefinitions(loaded);
       }
@@ -69,7 +71,7 @@ function TagChip({ tags, category }: { tags?: unknown; category?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [category]);
+  }, [category, fetchUtil]);
 
   const names = tagNames(tags);
   if (!definitions || names.length === 0) {
