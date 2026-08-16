@@ -52,10 +52,16 @@ const VALUELESS_OPERATORS: Record<string, string> = {
   isNotEmpty: "IS NOT NULL",
 };
 
+// Text typed by a user, placed into a LIKE pattern so that it matches itself: the pattern
+// language's own three characters are escaped, since somebody searching for "50%" or a Windows
+// path means those literally rather than as wildcards. Backslash goes first, or it would escape
+// the escapes added after it. The servlet quotes the value by doubling apostrophes and leaves
+// backslashes alone, so what is escaped here is what Oak's matcher sees.
+const likeLiteral = (value: string): string => value.replace(/[\\%_]/g, "\\$&");
+
 // How each value-carrying grid operator translates into a servlet filter: either a plain
 // comparator on the unchanged value, or a (possibly negated) case-insensitive LIKE with the
-// value placed into a wildcard pattern. Any % or _ the user types acts as an extra wildcard —
-// the escaping needed to make them literal would not survive the servlet's own quoting.
+// value placed into a wildcard pattern.
 const VALUED_OPERATORS: Record<string, (name: string, value: string) => PropertyFilter> = {
   "equals": (name, value) => ({ name, comparator: "=", value }),
   "is": (name, value) => ({ name, comparator: "=", value }),
@@ -67,10 +73,10 @@ const VALUED_OPERATORS: Record<string, (name: string, value: string) => Property
   ">=": (name, value) => ({ name, comparator: ">=", value }),
   "<": (name, value) => ({ name, comparator: "<", value }),
   "<=": (name, value) => ({ name, comparator: "<=", value }),
-  "contains": (name, value) => ({ name, comparator: "ILIKE", value: `%${value}%` }),
-  "doesNotContain": (name, value) => ({ name, comparator: "NOT ILIKE", value: `%${value}%` }),
-  "startsWith": (name, value) => ({ name, comparator: "ILIKE", value: `${value}%` }),
-  "endsWith": (name, value) => ({ name, comparator: "ILIKE", value: `%${value}` }),
+  "contains": (name, value) => ({ name, comparator: "ILIKE", value: `%${likeLiteral(value)}%` }),
+  "doesNotContain": (name, value) => ({ name, comparator: "NOT ILIKE", value: `%${likeLiteral(value)}%` }),
+  "startsWith": (name, value) => ({ name, comparator: "ILIKE", value: `${likeLiteral(value)}%` }),
+  "endsWith": (name, value) => ({ name, comparator: "ILIKE", value: `%${likeLiteral(value)}` }),
 };
 
 // The picked day as midnight in the user's own timezone. The grid's date filter input hands
@@ -122,7 +128,10 @@ function toFilterTriples(item: GridFilterItem, column: EntityGridColumn | undefi
   }
   // Like for sorting, sortProperty overrides which server-side property a column maps to
   const name = column.sortProperty ?? column.field;
-  if (item.operator in VALUELESS_OPERATORS) {
+  // `hasOwn` rather than `in`: the operator is a string from the grid's model, and `in` would also
+  // answer for everything Object.prototype carries, so an operator named "constructor" or
+  // "toString" would look supported and be translated into nonsense.
+  if (Object.hasOwn(VALUELESS_OPERATORS, item.operator)) {
     return [{ name, comparator: VALUELESS_OPERATORS[item.operator], value: "" }];
   }
   if (item.operator === "isAnyOf") {
@@ -137,7 +146,7 @@ function toFilterTriples(item: GridFilterItem, column: EntityGridColumn | undefi
   if (column.type === "date" || column.type === "dateTime") {
     return dayFilters(item.operator, name, item.value, group);
   }
-  if (item.operator in VALUED_OPERATORS) {
+  if (Object.hasOwn(VALUED_OPERATORS, item.operator)) {
     return [VALUED_OPERATORS[item.operator](name, String(item.value))];
   }
   return [];
@@ -170,7 +179,8 @@ function stockOperators(type: EntityGridColumn["type"]) {
 }
 
 function serverFilterOperators(type: EntityGridColumn["type"]) {
-  const supported = SUPPORTED_OPERATORS[type ?? "string"] ?? SUPPORTED_OPERATORS.string;
+  const named = type ?? "string";
+  const supported = Object.hasOwn(SUPPORTED_OPERATORS, named) ? SUPPORTED_OPERATORS[named] : SUPPORTED_OPERATORS.string;
   return stockOperators(type)
     .filter(operator => supported.includes(operator.value))
     // On choice columns, values picked in "is any of" show as chips in their options' own

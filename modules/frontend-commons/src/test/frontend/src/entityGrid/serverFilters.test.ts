@@ -138,6 +138,18 @@ describe("toPropertyFilters", () => {
       .toEqual([{ name: "title", comparator: "NOT ILIKE", value: "%card%" }]);
   });
 
+  // Somebody searching for "50%" means the character, not "anything"; the wildcards belong to the
+  // pattern this builds, not to what was typed into it.
+  it("matches the pattern language's own characters literally when they were typed", () => {
+    expect(filters({ field: "title", operator: "contains", value: "50%" }))
+      .toEqual([{ name: "title", comparator: "ILIKE", value: "%50\\%%" }]);
+    expect(filters({ field: "title", operator: "contains", value: "a_b" }))
+      .toEqual([{ name: "title", comparator: "ILIKE", value: "%a\\_b%" }]);
+    // The escape character itself, escaped first so it does not consume the escapes added after it
+    expect(filters({ field: "title", operator: "startsWith", value: "C:\\temp" }))
+      .toEqual([{ name: "title", comparator: "ILIKE", value: "C:\\\\temp%" }]);
+  });
+
   it("expands a negated date to the day's outside, ORed through a shared group", () => {
     const start = new Date("2026-07-01T00:00:00").toISOString();
     const end = new Date("2026-07-02T00:00:00").toISOString();
