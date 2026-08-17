@@ -50,6 +50,44 @@ The OIDC handler is therefore registered at **both `/` and `/oidc-login`**, with
 in `core/oidc.json`. It exists because the OAuth client returns the user to the path that triggered
 login; that landing path redirects on to the app.
 
+## Sign-out flow
+
+Signing out is the reverse problem. The OAuth client's `dropCredentials` is a no-op, so
+`/system/sling/logout` (the generic Sign Out target) tears down the Sling session but leaves the
+`sling.oidcauth` cookie in place — and even once that is cleared, Keycloak's own SSO session lives
+on, so the next "Continue with institutional credentials" click signs the user straight back in with
+no password prompt. Two pieces in the OIDC support bundle close that gap:
+
+- **`OidcLogoutAuthenticationHandler`** (registered at `/`, so Sling calls its `dropCredentials` on
+  every logout). When the `sling.oidcauth` cookie is present — the sole signal that this was an OIDC
+  session — it expires that cookie and steers Sling's post-logout redirect (via the `resource`
+  request attribute) to the end-session servlet. A local (non-OIDC) logout is left untouched and
+  never involves Keycloak.
+- **`OidcEndSessionServlet`** (`/system/sling/oauth/logout`, auth-exempt). It redirects the browser
+  to Keycloak's `end_session_endpoint` with `client_id` and a registered `post_logout_redirect_uri`,
+  so Keycloak ends its SSO session and returns the now-anonymous browser to `/login`.
+
+`dropCredentials` cannot redirect to Keycloak itself: Sling runs `redirectAfterLogout` immediately
+after it (a second redirect on an already-committed response), and its `AuthUtil.isRedirectValid`
+rejects any absolute/external URL. Steering to a local servlet that then does the cross-host hop is
+the way around both constraints.
+
+```
+Sign Out ──▶ GET /system/sling/logout
+   ├─ OidcLogoutAuthenticationHandler.dropCredentials: expire sling.oidcauth,
+   │     set resource=/system/sling/oauth/logout   (only when the cookie was present)
+   └─ redirectAfterLogout ──▶ GET /system/sling/oauth/logout
+        └─ OidcEndSessionServlet ──▶ {FRONTEND_KEYCLOAK_REALM_URL}/protocol/openid-connect/logout
+               ?client_id=…&post_logout_redirect_uri={IAP_PUBLIC_URL}/login
+               └─ Keycloak ends the SSO session ──▶ GET /login
+```
+
+The `post_logout_redirect_uri` (`{IAP_PUBLIC_URL}/login`) must be registered on the Keycloak client
+as a **Valid post logout redirect URI** — `keycloak_setup.sh` sets the client's
+`post.logout.redirect.uris` attribute — otherwise Keycloak refuses it and shows its own
+logout-confirmation page instead of returning to IAP. The endpoint uses the **front-channel**
+`FRONTEND_KEYCLOAK_REALM_URL` because the browser is the one making the call.
+
 ## Enabling the institutional sign-in button
 
 The "Institutional account" method ships **disabled** (`ext:defaultDisabled: true` in `Keycloak.json`),
@@ -79,7 +117,8 @@ Sling process runs (Docker/K8s env, systemd unit, etc.):
 
 | Variable                        | Example                                   | Notes                                                                                                                                                                            |
 | ------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `KEYCLOAK_BASE_URL`             | `https://keycloak.example.org/realms/iap` | Realm root; endpoints are read from its OIDC discovery document.                                                                                                                 |
+| `FRONTEND_KEYCLOAK_REALM_URL`   | `https://keycloak.example.org/realms/iap` | Realm root as the **browser** reaches it: the issuer, and the base for the authorization and end-session (logout) endpoints.                                                     |
+| `BACKEND_KEYCLOAK_REALM_URL`    | `http://keycloak:8080/realms/iap`         | Realm root as **IAP** reaches it in-network: the base for the token, JWKS, and userinfo endpoints. Same as the frontend URL when IAP and Keycloak share a network.               |
 | `KEYCLOAK_CLIENT_ID`            | `iap-sling`                               | The confidential client below.                                                                                                                                                   |
 | `KEYCLOAK_CLIENT_SECRET`        | (secret)                                  | The client's secret; never commit it. Must match the client's Credentials in Keycloak exactly.                                                                                   |
 | `IAP_PUBLIC_URL`                | `https://iap.example.org`                 | Public base URL of IAP; used to build the callback URI.                                                                                                                          |
@@ -92,7 +131,7 @@ automates all of the steps below (realm, client, roles, and the `groups` mapper)
 `KEYCLOAK_*` env block to paste into IAP's environment. Run `keycloak_setup.sh --help` for its
 options. The manual steps are documented here as the reference the script implements:
 
-1. **Realm**: create a realm (e.g. `iap`) — this is the path segment in `KEYCLOAK_BASE_URL`.
+1. **Realm**: create a realm (e.g. `iap`) — this is the realm segment in the `*_KEYCLOAK_REALM_URL` values.
 2. **Client**: create a confidential client:
    - Client ID: `iap-sling` (match `KEYCLOAK_CLIENT_ID`).
    - Client authentication: **On** (confidential). Copy the secret into `KEYCLOAK_CLIENT_SECRET`.
