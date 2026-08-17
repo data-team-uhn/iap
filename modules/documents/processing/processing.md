@@ -75,7 +75,20 @@ POST /parse?path=/shared-docs/.../file.pdf&chunk=true&max_tokens=2000&min_struct
 
 `path` is required and is resolved against `IAP_SHARED_DOCS` (`resolve_parse_path`); the
 request body is ignored. `chunk` defaults to true; `max_tokens` and `min_structure_tokens`
-default to the constants below. The daemon also serves `GET /health` and `POST /shutdown`.
+default to the constants below. The daemon also serves `GET /health`, and `POST /shutdown`
+when started with `--enable-shutdown`.
+
+`/parse` and `/shutdown` change state, so both refuse any request carrying an `Origin`
+header — nothing that legitimately drives the daemon is a web page, and loopback binding is
+no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN` additionally
+requires it as a bearer token on those two endpoints. `GET /health` stays open so container
+probes need no credential.
+
+One conversion runs at a time (`MAX_CONCURRENT_PARSES`), because the whole RAM budget is
+calculated for a single conversion spread across the worker pool. A request arriving while
+one is running is refused with `503 {"error": "daemon busy: …"}` rather than queued — a
+conversion takes minutes, and holding the socket open for one that has not started only
+invites client timeouts. Callers retry.
 
 ---
 
@@ -126,10 +139,13 @@ converter that produced the `.md`, and everything below takes that text as-is.
 
 ```
 chunk_file(<stem>.md)                                        # md is already cleaned
-  └─ write_chunk_files(md, output_file)
-       ├─ verify_bookmarks(extract_bookmarks(...))(<stem>.pdf, md)  # sibling PDF bookmarks, pages verified
-       └─ build_chunk_tree(md, filename, records) # pure: no filesystem, returns the whole tree
-            ├─ derive_outline(md, records)        # fork → toc, backmatterLine, tokens, source
+  └─ write_chunk_files(md, output_file, filename)
+       └─ build_chunk_tree(md, filename, markdown_path, max_tokens, min_structure_tokens)
+            │                                     # pure: no writes, returns the whole tree
+            ├─ derive_outline(md, markdown_path, min_structure_tokens)
+            │    ├─ extract_bookmarks(<stem>.pdf) → verify_bookmarks  # sibling PDF, pages verified
+            │    └─ _detect_toc(md)               # always; cleans the printed TOC in place
+            │                                     # → toc, backmatterLine, tokens, toc_source
             │
             ├─ size gate:  tokens = len(md)//4  vs  DEFAULT_MIN_STRUCTURE_TOKENS (20000)
             │    ├─ below → outline only {chunked:false}; STOP (whole-doc used downstream)
@@ -139,19 +155,23 @@ chunk_file(<stem>.md)                                        # md is already cle
             ├─ unite consecutive sections up to DEFAULT_MAX_TOKENS (2000)
             ├─ over-budget piece → _split_oversized → _subchunk_blocks, in order:
             │       ATX sub-heading → outline-record cut → numbered stand-out → paragraph
+            ├─ heading-only part folded into a sibling (never its own chunk file)
             ├─ small text-only tail (< MIN_TAIL_TOKENS 500) folded into the previous part
             └─ backmatterLine..EOF → one standalone backmatter chunk (no sub-splitting)
        │
-       └─ write Chunks/ : Chunk-*.md, catalog.json, outline.json,
-                          bookmarks.json (the resolved records, when there are any)
+       └─ write Chunks/ : Chunk-*.md, catalog.json, outline.json
 ```
 
-Disk writing lives in `write_chunk_files` (analysis in `build_chunk_tree`). The only caller
-of `write_chunk_files` is `chunk_file`:
+Disk writing lives in `write_chunk_files` (analysis in `build_chunk_tree`). It has two
+callers:
 
 - `parse_document(...)` — daemon / `docling_parser.py` CLI: LibreOffice → Docling → write `.md`
-  → `chunk_file`.
-- `python chunker.py <file>` — re-chunk an already-parsed `.md` via `chunk_file` alone.
+  → `write_chunk_files` directly.
+- `chunk_file(<stem>.md)` — re-chunk an already-parsed `.md`, including `python chunker.py <file>`.
+
+There is one `Chunks/` per folder, and writing it replaces whatever is there. That is safe
+because a parse gets a directory of its own: the caller stages each upload under
+`/shared-docs/{uuid}/`, so a second document never shares a folder with the first.
 
 ---
 
@@ -160,28 +180,32 @@ of `write_chunk_files` is `chunk_file`:
 The document **outline** is a list of records `{title, level|null, page|null, verified?}`,
 held in memory for the whole run and folded into `Chunks/outline.json`. It drives three
 things: the `toc` array, `backmatterLine`, and record-based sub-chunk cut points. Records
-come from one of two sources, decided by a **fork** in `derive_outline`:
+come from one of two sources, decided inside `derive_outline`.
 
-The CLI also drops the resolved records into `Chunks/bookmarks.json` so a run can be
-inspected. Nothing reads that file back — records are always re-derived — which is what keeps
-a stale copy from being mistaken for authoritative bookmarks on a later run.
+Records are never written to disk on their own — they live in memory for the run and only
+`outline.json` survives it. `_remove_sidecars` deletes any `bookmarks.json` it finds beside
+the `.md`, so a stale copy left by an older build cannot be mistaken for authoritative
+bookmarks on a later run.
+
+The printed TOC is cleaned **whether or not** PDF bookmarks were found: `_detect_toc` runs
+unconditionally, because a printed TOC left in the body would otherwise be chunked as content.
+Bookmarks decide which records win, not whether the document is rewritten.
 
 ```mermaid
 flowchart TD
-    A["write_chunk_files / daemon POST /parse"] --> B{"a PDF with bookmarks in hand?"}
-    B -->|yes| C["extract_bookmarks pypdf, then verify_bookmarks page-correct"]
-    B -->|no| D["no records to pass in"]
-    C --> E{"derive_outline: any records passed in?"}
-    D --> E
-    E -->|yes| F["AUTHORITATIVE: use records; printed TOC left untouched"]
-    E -->|no| G["_detect_toc: clean printed TOC in place; harvest entries to records"]
-    F --> H["toc = record titles; backmatterLine from records; record cut-keys drive splits"]
-    G --> H
+    A["write_chunk_files / daemon POST /parse"] --> B["derive_outline"]
+    B --> C["_detect_toc: always cleans the printed TOC in place, harvests its entries"]
+    C --> D{"sibling stem.pdf with bookmarks?"}
+    D -->|yes| E["extract_bookmarks pypdf, then verify_bookmarks page-correct
+    AUTHORITATIVE: records replace the harvested entries"]
+    D -->|no| F["records = the harvested printed-TOC entries"]
+    E --> G["toc = record titles; backmatterLine from records; record cut-keys drive splits"]
+    F --> G
 ```
 
 The producer is recorded as **`toc_source`** in `outline.json` — `pdf-bookmarks`,
 `md-toc`, or `none` — and echoed in the chunk logs (`chunk_file` → `toc_source=…`),
-so you can tell after the fact (or live) which path produced a document's `bookmarks.json`.
+so you can tell after the fact (or live) which path produced a document's outline.
 
 Key behaviours:
 
@@ -209,8 +233,8 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
 ```
 <answerDir>/
     <stem>.md                 # the parsed Markdown (written by write_chunk_files)
-    <stem>.pdf                # co-located source / rendition (for the bookmark outline)
-    bookmarks.json            # outline records (regenerated on reconvert)
+    <stem>.pdf                # the staged source, or a copy of the LibreOffice rendition
+                              # saved here only when the name was free
     Chunks/
         outline.json          # ALWAYS written: fileId, tokens, chunked, toc_source, toc (+ unchunkedReason when below the gate)
         catalog.json          # only when chunked: one slim entry per Chunk-*.md
@@ -220,10 +244,32 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
         Chunk-2.2.md
 ```
 
-`clear_prior_outputs(output_file)` deletes sibling `outline.json` / `bookmarks.json` and the
-whole `Chunks/` tree. `write_chunk_files` always replaces `Chunks/`; `parse_document` with
-`chunk=false` writes the `.md` and then calls `clear_prior_outputs` so a prior run's chunks
-cannot linger. Staleness is handled by **wipe-and-redo**, not versioning.
+No `bookmarks.json` is written: outline records stay in memory and reach disk only inside
+`outline.json`.
+
+`clear_prior_outputs(output_file)` deletes the sibling `outline.json` / `bookmarks.json`
+sidecars an older build may have left and the whole `Chunks/` tree. `write_chunk_files`
+replaces `Chunks/`;
+`parse_document` with `chunk=false` writes the `.md` and then calls `clear_prior_outputs` so a
+prior run's chunks cannot linger. Staleness is handled by **wipe-and-redo**, not versioning.
+
+**Publication is all-or-nothing.** The chunk tree is written into `Chunks.new-<pid>/` and
+moved into place with a rename, and the `.md` goes through a temporary file of its own — so a
+crash, a full disk or a kill can never leave a half-written chunk set that looks finished.
+The chunks are swapped in *before* the Markdown, which makes the `.md` the commit marker: a
+new `.md` guarantees the chunks beside it are the matching new set. Nothing locks the
+directory, because nothing else is writing to it: one parse owns one `/shared-docs/{uuid}/`,
+and the daemon runs one conversion at a time.
+
+### LibreOffice renditions
+
+`prepare_office_document` writes `{stem}.docx` (for a `.doc`) and a best-effort `{stem}.pdf`
+beside the source, and `derive_outline` picks the PDF up as the `.md`'s sibling. That works
+because a parse owns its directory: the only `{stem}.pdf` there is the one this run rendered,
+or the staged PDF itself when the upload was already a PDF.
+
+`convert()` requires the expected file to exist afterwards, because `soffice` exits 0 having
+converted nothing often enough to be worth checking.
 
 ---
 

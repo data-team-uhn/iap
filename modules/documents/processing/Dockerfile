@@ -62,10 +62,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir \
-        "docling>=2.115" \
-        pypdf \
-        psutil
+# Pinned in requirements.txt rather than inline: the layer below bakes model weights whose
+# contents depend on the docling version, and CI never builds this image, so an unbounded
+# range let the same commit produce materially different images with nothing to catch it.
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Bake the model weights into the image. Without this the first conversion tries to reach
 # huggingface.co and fails on any host with no egress or with TLS interception — the container

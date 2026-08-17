@@ -25,6 +25,8 @@ a block of N tokens is a string of length 4*N."""
 import json
 from pathlib import Path
 
+import pytest
+
 from bookmarks import build_line_index, build_lines_catalog
 import chunker
 
@@ -283,6 +285,34 @@ class TestNoHeadingOnlyChunkFiles:
         files = self._files(md, tmp_path)
         assert all(size > 100 for _, size in files), files
 
+    def test_an_empty_top_level_section_is_not_its_own_file(self, tmp_path):
+        # Regression: a top-level section with a heading and no body reaches the packing loop
+        # as a single part, so the per-packed-chunk merge had no neighbour to fold it into and
+        # wrote it out as a chunk holding nothing but the title. Merging across packed chunks
+        # before numbering catches it.
+        body = "Prose paragraph about the study protocol. " * 200
+        md = "\n".join([
+            "# 1.0 Section One", body, "",
+            "# 2.0 Section Two", body, "",
+            "# 3.0 Appendix Section Title",
+        ])
+        files = self._files(md, tmp_path)
+        assert all(size > 100 for _, size in files), files
+        assert not any(size < 60 for _, size in files), files
+
+    def test_the_empty_section_title_is_still_in_the_output(self, tmp_path):
+        body = "Prose paragraph about the study protocol. " * 200
+        md = "\n".join([
+            "# 1.0 Section One", body, "",
+            "# 2.0 Section Two", body, "",
+            "# 3.0 Appendix Section Title",
+        ])
+        tree = chunker.build_chunk_tree(
+            md, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
+        )
+        # Folded into a sibling, never dropped
+        assert any("Appendix Section Title" in chunk["text"] for chunk in tree["chunks"])
+
 
 class TestMergeSmallTextTails:
     def test_small_text_tail_folded_into_previous(self):
@@ -532,6 +562,50 @@ class TestBookmarksStorage:
         assert outline["toc"] == []
         assert outline["toc_source"] == "none"
         assert "bookmarks" not in outline
+
+
+class TestAtomicPublication:
+    """The .md and Chunks/ are swapped into place, never built in place.
+
+    Regression: the Markdown was overwritten, the old Chunks/ deleted, and the new files then
+    created one by one. Any failure in the middle left new Markdown beside missing or
+    half-written chunks, indistinguishable from a finished parse.
+    """
+
+    def _document(self, tmp_path):
+        body = "Prose paragraph about the study protocol. " * 1200
+        md = tmp_path / "alpha.md"
+        md.write_text(f"# 1.0 Alpha\n\n{body}\n\n# 2.0 Methods\n\n{body}\n", encoding="utf-8")
+        return md
+
+    def _leftovers(self, tmp_path):
+        return [p.name for p in tmp_path.iterdir()
+                if ".new-" in p.name or ".old-" in p.name or p.name.endswith(".tmp")]
+
+    def test_a_clean_run_leaves_no_scratch_behind(self, tmp_path):
+        chunker.chunk_file(str(self._document(tmp_path)))
+        assert self._leftovers(tmp_path) == []
+
+    def test_a_failure_mid_publish_keeps_the_previous_tree(self, tmp_path, monkeypatch):
+        md = self._document(tmp_path)
+        chunker.chunk_file(str(md))
+        before = sorted(p.name for p in (tmp_path / "Chunks").iterdir())
+        markdown_before = md.read_text(encoding="utf-8")
+
+        original = chunker._write_json
+
+        def fail_on_catalog(path, data):
+            if path.name == chunker.CATALOG_NAME:
+                raise OSError("disk full")
+            original(path, data)
+
+        monkeypatch.setattr(chunker, "_write_json", fail_on_catalog)
+        with pytest.raises(OSError):
+            chunker.chunk_file(str(md))
+
+        assert sorted(p.name for p in (tmp_path / "Chunks").iterdir()) == before
+        assert md.read_text(encoding="utf-8") == markdown_before
+        assert self._leftovers(tmp_path) == []
 
 
 class TestRecordCutKeys:

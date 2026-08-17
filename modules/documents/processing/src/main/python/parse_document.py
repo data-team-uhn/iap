@@ -24,6 +24,7 @@ Docling then converts to Markdown in memory. :func:`chunker.write_chunk_files` w
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -105,12 +106,9 @@ def parse_document(
             source_file=filename,
         )
     else:
-        if docx_lock is not None:
-            with docx_lock:
-                markdown = convert_docx_to_markdown(
-                    docling_input, converter=docx_converter, source_file=filename
-                )
-        else:
+        # The lock is optional (the CLI has no concurrent callers), so the two arms differed
+        # only in holding it — nullcontext keeps the call itself written once
+        with docx_lock if docx_lock is not None else contextlib.nullcontext():
             markdown = convert_docx_to_markdown(
                 docling_input, converter=docx_converter, source_file=filename
             )
