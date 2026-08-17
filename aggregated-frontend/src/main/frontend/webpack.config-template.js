@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+import webpack from 'webpack';
 import { WebpackAssetsManifest } from 'webpack-assets-manifest';
 import MinimizerPlugin from 'minimizer-webpack-plugin';
 import ESLintPlugin from 'eslint-webpack-plugin';
@@ -104,6 +105,11 @@ ENTRY_CONTENT
       new WebpackAssetsManifest({
         output: "assets.json"
       }),
+      // The MUI X license key belongs to the deployment rather than to this (public) repository,
+      // so it is read from the build environment and substituted in here.
+      new webpack.DefinePlugin({
+        "process.env.MUI_LICENSE_KEY": JSON.stringify(process.env.MUI_LICENSE_KEY),
+      }),
       // The client-side assetManager fetches an asset *dependencies* manifest alongside the
       // assets.json name map (see frontend-commons/src/assetManager.tsx). No IAP entry point
       // declares runtime dependencies on other entry points, so emit an empty manifest to
@@ -160,6 +166,12 @@ ENTRY_CONTENT
     },
     optimization: {
       usedExports: true,
+      // Recompute [contenthash] from each asset's final bytes. Without this (it is on only in
+      // production mode by default), an entry whose own modules are unchanged keeps its old
+      // filename even when the chunk hashes it references change — and since hashed assets are
+      // served as immutable (IAP-86), browsers then keep loading the cached old entry, which
+      // points at the previous build's chunks: redeployed code never reaches the user.
+      realContentHash: true,
       minimize: isProduction,
       minimizer: [
         new MinimizerPlugin({

@@ -156,11 +156,24 @@ public class PaginationServletTest
     public void countingStopsAfterTheLookaheadAndReportsAnApproximateTotal() throws Exception
     {
         withParameter("limit", "1");
-        mockResults(IntStream.range(0, 15).mapToObj(i -> "/Submissions/s" + i).toArray(String[]::new));
+        mockResults(IntStream.range(0, 150).mapToObj(i -> "/Submissions/s" + i).toArray(String[]::new));
         this.servlet.doGet(this.request, this.response);
         final JsonObject result = getResponseJson();
         Assertions.assertEquals(1, result.getJsonArray("rows").size());
-        Assertions.assertEquals(10, result.getJsonNumber("totalrows").longValue());
+        Assertions.assertEquals(100, result.getJsonNumber("totalrows").longValue());
+        Assertions.assertTrue(result.getBoolean("totalIsApproximate"));
+    }
+
+    @Test
+    public void lookaheadIsBoundedForLargePageSizes() throws Exception
+    {
+        // 100 pages of lookahead at this page size would mean counting 20 000 rows; the absolute
+        // row bound kicks in instead
+        withParameter("limit", "200");
+        mockResults(IntStream.range(0, 10_150).mapToObj(i -> "/Submissions/s" + i).toArray(String[]::new));
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(10_000, result.getJsonNumber("totalrows").longValue());
         Assertions.assertTrue(result.getBoolean("totalIsApproximate"));
     }
 

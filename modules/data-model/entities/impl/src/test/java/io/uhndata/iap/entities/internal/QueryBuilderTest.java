@@ -67,7 +67,7 @@ public class QueryBuilderTest
             .withFilters(List.of(new Filter("title", "ILIKE", "%CARdiac's%")))
             .build();
         Assertions.assertEquals(
-            BASE_QUERY + " and (LOWER(n.[title]) LIKE '%cardiac\\'s%') order by n.[jcr:created] ASC", query);
+            BASE_QUERY + " and (LOWER(n.[title]) LIKE '%cardiac''s%') order by n.[jcr:created] ASC", query);
     }
 
     @Test
@@ -211,6 +211,43 @@ public class QueryBuilderTest
     }
 
     @Test
+    public void quotesAreEscapedByDoubling()
+    {
+        // JCR-SQL2's only string escape; a backslash escape would be a parse error
+        Assertions.assertEquals(BASE_QUERY + " and (n.[title] = 'O''Brien') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE)
+                .withFilters(List.of(new Filter("title", "=", "O'Brien"))).build());
+    }
+
+    @Test
+    public void fullTextSearchEscapesItsOwnGrammar()
+    {
+        // On top of quote doubling, the full text grammar treats the backslash as its escape
+        // character, so literal backslashes are doubled to keep the term inert
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'O''Brien \\\\ ties') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("O'Brien \\ ties").build());
+    }
+
+    @Test
+    public void fullTextSearchEscapesQuotesThatWouldOpenAPhrase()
+    {
+        // The double quote opens a phrase in the full text grammar, so an odd number of them -- a
+        // measurement, an inch mark, ordinary typing -- would leave one unterminated and fail the
+        // whole query to parse rather than merely searching oddly
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, '2\\\" pipe') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("2\" pipe").build());
+    }
+
+    @Test
+    public void fullTextSearchEscapesTheEscapeBeforeTheQuote()
+    {
+        // Order matters: doubling the backslashes after escaping the quote would turn the escape
+        // this just added back into a literal backslash, re-opening the phrase it closed
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'a\\\\\\\" b') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("a\\\" b").build());
+    }
+
+    @Test
     public void sortingCanBeCustomized()
     {
         Assertions.assertEquals(BASE_QUERY + " order by n.[jcr:lastModified] DESC",
@@ -224,15 +261,18 @@ public class QueryBuilderTest
     @Test
     public void valuesAreEscaped()
     {
+        // Quote doubling is JCR-SQL2's only string escape: a backslash stays a plain literal
+        // character in property comparisons, and is only doubled inside contains(), where the
+        // full text grammar makes it an escape character of its own
         final String query = new QueryBuilder(SUBMISSION, "/Sub'missions")
             .withFilters(List.of(new Filter("title", "=", "It's a \\ test"), new Filter("status", "=", null)))
             .withFullText("some'text")
             .build();
         Assertions.assertEquals(
-            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Sub\\'missions')"
-                + " and (n.[title] = 'It\\'s a \\\\ test')"
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Sub''missions')"
+                + " and (n.[title] = 'It''s a \\ test')"
                 + " and (n.[status] = '')"
-                + " and contains(n.*, 'some\\'text')"
+                + " and contains(n.*, 'some''text')"
                 + " order by n.[jcr:created] ASC", query);
     }
 

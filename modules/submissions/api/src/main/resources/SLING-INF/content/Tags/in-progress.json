@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "In progress",
+  "description": "This review was started and has no decision yet.",
+  "category": ["review"],
+  "system": true,
+  "color": "#0288d1",
+  "order": 40
+}

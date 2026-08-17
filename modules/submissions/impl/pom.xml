@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.uhndata.iap</groupId>
+    <artifactId>iap-submissions</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>iap-submissions-impl</artifactId>
+  <!--
+    Today this module owns the submissions UI and nothing else: the frontend is collected into the
+    aggregated bundle by webpack_script.py rather than packaged here, so this builds no artifact
+    worth deploying and is deliberately absent from the feature model.
+
+    It exists as a module anyway because the UI has to live somewhere real. Its previous home,
+    modules/submissions/, is a `pom` aggregator: Maven builds no sources there at all, so those
+    files were reachable only by the aggregation script walking directories, outside the reactor
+    that checks and packages everything else.
+
+    The handlers and endpoints serving that UI are being written on the workflow engine branch and
+    land here, alongside it, which is also why `impl` rather than folding the UI into `api`.
+  -->
+  <packaging>jar</packaging>
+  <name>IAP - Submissions - Implementation</name>
+  <description>The submissions UI, and in time the handlers and endpoints serving it.</description>
+</project>

@@ -29,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.tags.models.Taggable;
 
 /**
  * A Sling Model wrapping a {@code sub:Review} node: one reviewer's assessment of the submission.
@@ -48,9 +49,6 @@ public class Review extends EntityPart
 
     @ValueMapValue
     private String requirement;
-
-    @ValueMapValue
-    private String status;
 
     /**
      * The principal name of the reviewer.
@@ -73,18 +71,6 @@ public class Review extends EntityPart
     public Requirement getRequirement()
     {
         return this.getReference(this.requirement, Requirement.class);
-    }
-
-    /**
-     * The current state of this review, e.g. {@code in-progress}, {@code changes-requested}, {@code approved},
-     * {@code rejected}.
-     *
-     * @return a status name
-     */
-    @NotNull
-    public String getStatus()
-    {
-        return this.status;
     }
 
     /**
@@ -112,12 +98,14 @@ public class Review extends EntityPart
     }
 
     /**
-     * Whether this review has been approved, i.e. its state is {@code approved}.
+     * Whether this review has been approved, i.e. it carries the {@code approved} tag. The tag has to be placed on
+     * the review itself to count, rather than reaching it from the submission it belongs to.
      *
-     * @return {@code true} if approved
+     * @return {@code true} if approved, {@code false} also when the tags service is unavailable
      */
     public boolean isApproved()
     {
-        return "approved".equals(this.status);
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && tags.hasOwnTag(Submission.APPROVED_TAG);
     }
 }

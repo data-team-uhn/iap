@@ -40,6 +40,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.tags.models.Taggable;
 
 /**
  * A Sling Model wrapping a {@code sub:Submission} node, a submission filed by a submitter against a specific
@@ -56,6 +57,9 @@ public class Submission extends Entity
     /** The {@code sling:resourceType} of a {@code sub:Submission} node. */
     public static final String RESOURCE_TYPE = "sub/Submission";
 
+    /** The {@code lifecycle} tag a submission carries once the reviewers have accepted it. */
+    public static final String APPROVED_TAG = "approved";
+
     @OSGiService
     private ConditionEvaluator conditionEvaluator;
 
@@ -64,9 +68,6 @@ public class Submission extends Entity
 
     @ValueMapValue
     private String schemaVersion;
-
-    @ValueMapValue
-    private String status;
 
     /**
      * The title of the submission.
@@ -89,17 +90,6 @@ public class Submission extends Entity
     {
         return Objects.requireNonNull(this.getReference(this.schemaVersion, SchemaVersion.class),
             "Missing mandatory schemaVersion reference");
-    }
-
-    /**
-     * The current lifecycle state of the submission, managed by the attached user workflow.
-     *
-     * @return a status name, e.g. {@code draft} or {@code in-review}
-     */
-    @NotNull
-    public String getStatus()
-    {
-        return this.status;
     }
 
     /**
@@ -136,14 +126,15 @@ public class Submission extends Entity
     }
 
     /**
-     * Whether this submission has been approved, i.e. its lifecycle state (set by the attached user workflow) is
-     * {@code approved}.
+     * Whether this submission has been approved, i.e. it carries the {@code approved} lifecycle tag (set by the
+     * attached user workflow).
      *
-     * @return {@code true} if approved
+     * @return {@code true} if approved, {@code false} also when the tags service is unavailable
      */
     public boolean isApproved()
     {
-        return "approved".equals(this.status);
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && tags.hasOwnTag(APPROVED_TAG);
     }
 
     /**

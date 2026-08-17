@@ -165,12 +165,11 @@ class SubmissionTest
             SLING_RESOURCE_TYPE, "sub/Submission",
             "title", "Effects of caffeine on code quality",
             "schemaVersion", "2b7de6a1-3c4d-4e5f-8a9b-fedcba098765",
-            "status", "in-review"));
+            "tags", new String[] { "in-review" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertEquals("Effects of caffeine on code quality", submission.getTitle());
         assertEquals("1.0", submission.getSchemaVersion().getVersion());
-        assertEquals("in-review", submission.getStatus());
     }
 
     @Test
@@ -214,15 +213,14 @@ class SubmissionTest
     @Test
     void toleratesMissingOptionalProperties()
     {
-        // The status and title properties are mandatory at the JCR level, but the model itself
-        // must not fail on a resource that lacks them.
+        // The title property is mandatory at the JCR level, but the model itself must not fail
+        // on a resource that lacks it, or that carries no tags at all.
         final Resource resource = this.context.create().resource("/Submissions/bare",
             SLING_RESOURCE_TYPE, "sub/Submission");
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertNotNull(submission);
         assertNull(submission.getTitle());
-        assertNull(submission.getStatus());
         // The schema version is different: the mandatory reference is part of the model's contract,
         // so resolving it fails fast instead of quietly returning null
         assertThrows(NullPointerException.class, submission::getSchemaVersion);
@@ -259,20 +257,46 @@ class SubmissionTest
     }
 
     @Test
-    void reportsApprovedWhenStatusIsApproved()
+    void reportsApprovedWhenTaggedApproved()
     {
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission",
-            SLING_RESOURCE_TYPE, "sub/Submission", "status", "approved");
+            SLING_RESOURCE_TYPE, "sub/Submission", "tags", new String[] { "approved" });
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertTrue(submission.isApproved());
     }
 
     @Test
-    void reportsNotApprovedForOtherStatus()
+    void reportsApprovedWhenApprovedIsAmongOtherTags()
     {
+        // The lifecycle tag shares the multivalued property with unrelated markers
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission",
-            SLING_RESOURCE_TYPE, "sub/Submission", "status", "in-review");
+            SLING_RESOURCE_TYPE, "sub/Submission", "tags", new String[] { "sensitive", "approved", "external" });
+        final Submission submission = resource.adaptTo(Submission.class);
+
+        assertTrue(submission.isApproved());
+    }
+
+    @Test
+    void reportsNotApprovedWithoutTheTagsService()
+    {
+        // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like:
+        // the lifecycle state cannot be read, and an unreadable state is not an approval
+        final Resource resource = this.context.create().resource("/Submissions/submission",
+            SLING_RESOURCE_TYPE, "sub/Submission", "tags", new String[] { "approved" });
+        final Submission submission = resource.adaptTo(Submission.class);
+
+        assertFalse(submission.isApproved());
+    }
+
+    @Test
+    void reportsNotApprovedForOtherTags()
+    {
+        Tagging.enable(this.context);
+        final Resource resource = this.context.create().resource("/Submissions/submission",
+            SLING_RESOURCE_TYPE, "sub/Submission", "tags", new String[] { "in-review" });
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertFalse(submission.isApproved());
@@ -303,6 +327,8 @@ class SubmissionTest
     void reportsNoMissingRequirementsWhenAllFulfilled()
         throws RepositoryException
     {
+        // Whether the approval requirement is met is read from a tag on the review itself
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID));
@@ -317,7 +343,7 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "status", "approved"));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertTrue(submission.getMissingRequirements().isEmpty());
@@ -327,6 +353,8 @@ class SubmissionTest
     void reportsMissingFormRequirementWhenAQuestionIsUnanswered()
         throws RepositoryException
     {
+        // Whether the approval requirement is met is read from a tag on the review itself
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID));
@@ -340,7 +368,7 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "status", "approved"));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         final List<Requirement> missing = submission.getMissingRequirements();
@@ -353,6 +381,8 @@ class SubmissionTest
     void reportsMissingDocumentRequirementWhenNoDocumentIsAttached()
         throws RepositoryException
     {
+        // Whether the approval requirement is met is read from a tag on the review itself
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID));
@@ -365,7 +395,7 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", REB_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "status", "approved"));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         final List<Requirement> missing = submission.getMissingRequirements();
@@ -378,6 +408,8 @@ class SubmissionTest
     void reportsMissingApprovalRequirementWhenReviewIsNotApproved()
         throws RepositoryException
     {
+        // Whether the approval requirement is met is read from a tag on the review itself
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID));
@@ -389,10 +421,10 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "status", "in-progress"));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "in-progress" }));
         // This review is approved, but addresses a different requirement (the consent document).
         this.context.create().resource("/Submissions/submission/r2", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", CONSENT_ID, "status", "approved"));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", CONSENT_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         final List<Requirement> missing = submission.getMissingRequirements();
