@@ -41,6 +41,7 @@ import { Link as RouterLink } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
@@ -54,7 +55,7 @@ import {
   type ArchivePage,
   type AuthenticatedFetch,
 } from "./archiveApi";
-import { describeOutcome, failureMessage, type Outcome } from "./archiveOutcome";
+import { describeOutcome, failureMessage } from "./archiveOutcome";
 
 /** How long to wait after the last keystroke before asking the server again. */
 const FILTER_DELAY_MS = 300;
@@ -104,7 +105,7 @@ export function ArchiveBrowser() {
   const [ settled, setSettled ] = useState(false);
   const [ loadError, setLoadError ] = useState<string | null>(null);
 
-  const [ notice, setNotice ] = useState<Outcome | null>(null);
+  const [ notice, setNotice ] = useState<Notice>();
   const [ busyPath, setBusyPath ] = useState<string | null>(null);
   const [ confirming, setConfirming ] = useState<ArchiveEntry | null>(null);
 
@@ -152,16 +153,21 @@ export function ArchiveBrowser() {
   };
 
   const act = (entry: ArchiveEntry, action: (f: AuthenticatedFetch, path: string) => Promise<ActionResponse>) => {
+    // The same action on the same entry, if there's a need to retry
+    const retry = () => { act(entry, action); };
     setBusyPath(entry.path);
     action(doFetch, entry.path)
       .then((response: ActionResponse) => {
-        setNotice(describeOutcome(response));
+        setNotice(describeOutcome(response, retry));
         // Only a completed action changes what the table should show; a refusal changed nothing.
         if (response.status === "restored" || response.status === "deleted") {
           setReloadKey(key => key + 1);
         }
       })
-      .catch(() => { setNotice({ severity: "error", message: "The request could not be sent." }); })
+      .catch(() => {
+        // Nothing reached the server, so nothing was decided: this is the outcome most worth another go
+        setNotice({ severity: "error", title: "The request could not be sent.", onRetry: retry });
+      })
       .finally(() => { setBusyPath(null); });
   };
 
@@ -180,11 +186,6 @@ export function ArchiveBrowser() {
         holds back where it was deleted from; purging it destroys them.
       </Typography>
 
-      {notice && (
-        <Alert severity={notice.severity} onClose={() => { setNotice(null); }} sx={{ my: 2 }}>
-          {notice.message}
-        </Alert>
-      )}
       {loadError !== null && <Alert severity="error" sx={{ my: 2 }}>{loadError}</Alert>}
 
       <TextField
@@ -300,6 +301,8 @@ export function ArchiveBrowser() {
           </DialogActions>
         </ResponsiveDialog>
       )}
+
+      <NoticeSnackbar notice={notice} onClose={() => { setNotice(undefined); }} />
     </AdminScreen>
   );
 }

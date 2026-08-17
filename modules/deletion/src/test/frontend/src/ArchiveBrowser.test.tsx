@@ -176,7 +176,29 @@ describe("ArchiveBrowser", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /next page/i }));
 
-    await waitFor(() => { expect(listings(calls).at(-1)).toContain("offset=25"); });
+    // That the next page was asked for, rather than that it was asked for last: the filter debounce
+    // set going on mount fires 300ms in and returns to the first page, so under a slow enough run
+    // (coverage instrumentation is enough) a second listing lands after this one and the reader is
+    // back where they started. Harmless in a browser, where nobody pages within 300ms of a load.
+    await waitFor(() => {
+      expect(listings(calls).some(url => url.includes("offset=25"))).toBe(true);
+    });
+  });
+
+  it("asks for a different page size when one is chosen", async () => {
+    const { calls } = server({
+      listing: () => jsonResponse(200, page([ entry("one") ], { totalrows: 100 })),
+    });
+    browser();
+    await screen.findByText("/content/one");
+
+    await userEvent.click(screen.getByRole("combobox", { name: /rows per page/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "10" }));
+
+    // Only the size is asserted, deliberately. Choosing one also returns to the first page, but on
+    // the first page that cannot be told from staying put, and getting somewhere else first would
+    // mean racing the mount's own debounce — which is what makes the test above timing-bound.
+    await waitFor(() => { expect(listings(calls).at(-1)).toContain("limit=10"); });
   });
 
   it("restores an entry and says what came back", async () => {
@@ -276,6 +298,29 @@ describe("ArchiveBrowser", () => {
     expect(await screen.findByText("The request could not be sent.")).toBeInTheDocument();
   });
 
+  it("offers another go at a request that never arrived, and takes it", async () => {
+    // Nothing reached the server, so nothing was decided: the same action can simply be sent again
+    let attempts = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
+      if (String(url).includes(".entries.json")) {
+        return Promise.resolve(jsonResponse(200, page([ entry("one") ])));
+      }
+      attempts += 1;
+      return attempts === 1
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(jsonResponse(200, { status: "restored", restored: [ "/content/one" ] }));
+    });
+    browser();
+    await screen.findByText("/content/one");
+    await userEvent.click(screen.getByRole("button", { name: "Restore" }));
+    await screen.findByText("The request could not be sent.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText(/Restored 1 item/)).toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
+
   it("lets a message be dismissed", async () => {
     server();
     browser();
@@ -283,7 +328,7 @@ describe("ArchiveBrowser", () => {
     await userEvent.click(screen.getByRole("button", { name: "Restore" }));
     await screen.findByText(/Restored 1 item/);
 
-    await userEvent.click(screen.getByRole("button", { name: /close/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
 
     await waitFor(() => { expect(screen.queryByText(/Restored 1 item/)).not.toBeInTheDocument(); });
   });

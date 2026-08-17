@@ -22,21 +22,21 @@ describe("describeOutcome", () => {
   it("counts what a restore put back", () => {
     const outcome = describeOutcome({ status: "restored", restored: [ "/a", "/b" ] });
     expect(outcome.severity).toBe("success");
-    expect(outcome.message).toContain("2 items");
+    expect(outcome.title).toContain("2 items");
   });
 
   it("says one item in the singular", () => {
-    expect(describeOutcome({ status: "restored", restored: [ "/a" ] }).message).toContain("1 item to");
+    expect(describeOutcome({ status: "restored", restored: [ "/a" ] }).title).toContain("1 item to");
   });
 
   it("copes with a restore that reported no paths", () => {
-    expect(describeOutcome({ status: "restored" }).message).toContain("0 items");
+    expect(describeOutcome({ status: "restored" }).title).toContain("0 items");
   });
 
   it("reports a purge as permanent", () => {
     const outcome = describeOutcome({ status: "deleted" });
     expect(outcome.severity).toBe("success");
-    expect(outcome.message).toContain("permanently removed");
+    expect(outcome.title).toContain("permanently removed");
   });
 
   it("names what is in the way of a restore, with the reason", () => {
@@ -45,6 +45,7 @@ describe("describeOutcome", () => {
       conflicts: [ { originalPath: "/content/x", reason: "OCCUPIED" } ],
     });
     expect(outcome.severity).toBe("warning");
+    expect(outcome.title).toContain("something is in the way");
     expect(outcome.message).toContain("/content/x (OCCUPIED)");
   });
 
@@ -53,19 +54,22 @@ describe("describeOutcome", () => {
     expect(outcome.message).toBe("Something is in the way");
   });
 
-  it("has wording of its own when a conflict explains nothing at all", () => {
-    expect(describeOutcome({ status: "conflict" }).message).toContain("in the way");
+  it("says only what it knows when a conflict explains nothing at all", () => {
+    const outcome = describeOutcome({ status: "conflict" });
+    expect(outcome.title).toContain("in the way");
+    expect(outcome.message).toBeUndefined();
   });
 
   it("prefers the guard's own reason for a veto", () => {
     // The server knows why it refused; inventing a sentence here could describe the wrong reason
     const outcome = describeOutcome({ status: "vetoed", "status.message": "Archived less than 30 days ago" });
     expect(outcome.severity).toBe("warning");
+    expect(outcome.title).toContain("guard refused");
     expect(outcome.message).toBe("Archived less than 30 days ago");
   });
 
   it("still says something when a veto explains nothing", () => {
-    expect(describeOutcome({ status: "vetoed" }).message).toContain("guard refused");
+    expect(describeOutcome({ status: "vetoed" }).title).toContain("guard refused");
   });
 
   it("treats a refused request as an error the user can read", () => {
@@ -76,6 +80,21 @@ describe("describeOutcome", () => {
   it("treats a server failure as an error", () => {
     expect(describeOutcome({ status: "failed" }).severity).toBe("error");
     expect(describeOutcome({ status: "failed", "status.message": "Boom" }).message).toBe("Boom");
+  });
+
+  it("offers another go at a failure, which could come out differently", () => {
+    const retry = vi.fn();
+    expect(describeOutcome({ status: "failed" }, retry).onRetry).toBe(retry);
+  });
+
+  it("offers none at a decision, which would only be made again", () => {
+    // A conflict and a veto are answers, not mishaps: a Retry button here would promise nothing
+    const retry = vi.fn();
+    expect(describeOutcome({ status: "conflict" }, retry).onRetry).toBeUndefined();
+    expect(describeOutcome({ status: "vetoed" }, retry).onRetry).toBeUndefined();
+    expect(describeOutcome({ status: "invalid" }, retry).onRetry).toBeUndefined();
+    expect(describeOutcome({ status: "restored" }, retry).onRetry).toBeUndefined();
+    expect(describeOutcome({ status: "deleted" }, retry).onRetry).toBeUndefined();
   });
 });
 

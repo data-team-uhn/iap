@@ -231,6 +231,30 @@ describe("ArchiveEntryView", () => {
     expect(await screen.findByText("The request could not be sent.")).toBeInTheDocument();
   });
 
+  it("offers another go at a request that never arrived, and takes it", async () => {
+    // Nothing reached the server, so nothing was decided and the same action can simply be sent
+    // again — this time it lands, and the entry stops existing, so the page leaves for the listing
+    let attempts = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation((url: RequestInfo | URL) => {
+      if (String(url).endsWith(".entry.json")) {
+        return Promise.resolve(jsonResponse(200, detail()));
+      }
+      attempts += 1;
+      return attempts === 1
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(jsonResponse(200, { status: "restored", restored: [ "/content/one" ] }));
+    });
+    view();
+    await screen.findByRole("heading", { name: "/content/one" });
+    await userEvent.click(screen.getByRole("button", { name: "Restore everything" }));
+    await screen.findByText("The request could not be sent.");
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByText("the archive listing")).toBeInTheDocument();
+    expect(attempts).toBe(2);
+  });
+
   it("says so when the path is not an archive entry", async () => {
     server({ entry: () => jsonResponse(200, { "jcr:primaryType": "iap:Archive" }) });
     view();
@@ -248,7 +272,7 @@ describe("ArchiveEntryView", () => {
     await userEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Purge" }));
     await screen.findByText("Too recent");
 
-    await userEvent.click(screen.getByRole("button", { name: /close/i }));
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
 
     await waitFor(() => { expect(screen.queryByText("Too recent")).not.toBeInTheDocument(); });
   });

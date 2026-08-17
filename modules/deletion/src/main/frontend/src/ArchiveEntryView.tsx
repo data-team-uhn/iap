@@ -36,6 +36,7 @@ import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
+import NoticeSnackbar, { type Notice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
@@ -49,7 +50,7 @@ import {
   type ArchiveEntryDetail,
   type AuthenticatedFetch,
 } from "./archiveApi";
-import { describeOutcome, failureMessage, type Outcome } from "./archiveOutcome";
+import { describeOutcome, failureMessage } from "./archiveOutcome";
 
 /** Where the archive listing lives, for the way back and for after an entry stops existing. */
 
@@ -99,7 +100,7 @@ export function ArchiveEntryView() {
   const [ entry, setEntry ] = useState<ArchiveEntryDetail | null>(null);
   const [ settled, setSettled ] = useState(false);
   const [ loadError, setLoadError ] = useState<string | null>(null);
-  const [ notice, setNotice ] = useState<Outcome | null>(null);
+  const [ notice, setNotice ] = useState<Notice>();
   const [ busy, setBusy ] = useState(false);
   const [ confirming, setConfirming ] = useState(false);
   const [ reloadKey, setReloadKey ] = useState(0);
@@ -127,6 +128,8 @@ export function ArchiveEntryView() {
   }, [ doFetch, resourcePath, reloadKey ]);
 
   const act = (action: (f: AuthenticatedFetch, target: string) => Promise<ActionResponse>) => {
+    // The same action on the same entry, if there's a need to retry
+    const retry = () => { act(action); };
     setBusy(true);
     action(doFetch, entry?.path ?? "")
       .then((response: ActionResponse) => {
@@ -135,12 +138,15 @@ export function ArchiveEntryView() {
           void navigate(ARCHIVE_ROUTE);
           return;
         }
-        setNotice(describeOutcome(response));
+        setNotice(describeOutcome(response, retry));
         // The preflight said this would work, and it did not: something changed underneath, so
         // re-read it rather than leaving a claim on screen that has just been disproved.
         setReloadKey(key => key + 1);
       })
-      .catch(() => { setNotice({ severity: "error", message: "The request could not be sent." }); })
+      .catch(() => {
+        // Nothing reached the server, so nothing was decided: this is the outcome most worth another go
+        setNotice({ severity: "error", title: "The request could not be sent.", onRetry: retry });
+      })
       .finally(() => { setBusy(false); });
   };
 
@@ -152,11 +158,6 @@ export function ArchiveEntryView() {
       <LoadingOverlay open={routeError === null && !settled} />
       <Link component={RouterLink} to={ARCHIVE_ROUTE} variant="body2">← Back to the archive</Link>
 
-      {notice && (
-        <Alert severity={notice.severity} onClose={() => { setNotice(null); }} sx={{ my: 2 }}>
-          {notice.message}
-        </Alert>
-      )}
       {(routeError ?? loadError) !== null
         && <Alert severity="error" sx={{ my: 2 }}>{routeError ?? loadError}</Alert>}
 
@@ -235,6 +236,8 @@ export function ArchiveEntryView() {
           </DialogActions>
         </ResponsiveDialog>
       )}
+
+      <NoticeSnackbar notice={notice} onClose={() => { setNotice(undefined); }} />
     </AdminScreen>
   );
 }
