@@ -71,7 +71,6 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
 
     extension = target_format.split(":", 1)[0]
     expected = out_dir / f"{source.stem}.{extension}"
-
     profile_dir = Path(tempfile.mkdtemp(prefix="iap-lo-profile-"))
     try:
         command = [
@@ -109,7 +108,8 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
             )
         if not expected.is_file():
             raise RuntimeError(
-                f"LibreOffice conversion succeeded but output not found: {expected}"
+                "LibreOffice reported success but produced no output for "
+                f"'{source.name}' (expected {expected.name})"
             )
         return expected
     finally:

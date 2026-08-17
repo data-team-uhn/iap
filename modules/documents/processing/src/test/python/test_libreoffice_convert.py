@@ -19,6 +19,8 @@
 
 from pathlib import Path
 
+import pytest
+
 import libreoffice_convert as lo
 
 
@@ -85,3 +87,52 @@ class TestPrepareOfficeDocument:
         pdf = tmp_path / "native.pdf"
         pdf.write_bytes(b"%PDF")
         assert lo.prepare_office_document(pdf) == pdf
+
+
+class TestConvertRequiresOutput:
+    """soffice exits 0 having converted nothing often enough to be worth checking for.
+
+    Nothing tries to tell a fresh output file from an older one at that path, because there
+    is never an older one: each parse is staged in a directory of its own.
+    """
+
+    def _soffice(self, monkeypatch, *, writes):
+        import subprocess
+
+        def fake_run(command, **kwargs):
+            if writes:
+                outdir = Path(command[command.index("--outdir") + 1])
+                source = Path(command[-1])
+                (outdir / f"{source.stem}.docx").write_bytes(b"FRESH")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        monkeypatch.setattr(lo.subprocess, "run", fake_run)
+
+    def test_a_silent_failure_is_still_an_error(self, monkeypatch, tmp_path):
+        source = tmp_path / "legacy.doc"
+        source.write_bytes(b"doc")
+        self._soffice(monkeypatch, writes=False)
+
+        with pytest.raises(RuntimeError, match="produced no output"):
+            lo.convert(source, "docx", tmp_path)
+
+    def test_a_real_conversion_returns_its_output(self, monkeypatch, tmp_path):
+        source = tmp_path / "legacy.doc"
+        source.write_bytes(b"doc")
+        self._soffice(monkeypatch, writes=True)
+
+        produced = lo.convert(source, "docx", tmp_path)
+        assert produced == tmp_path / "legacy.docx"
+        assert produced.read_bytes() == b"FRESH"
+
+    def test_the_profile_directory_is_always_cleaned_up(self, monkeypatch, tmp_path):
+        source = tmp_path / "legacy.doc"
+        source.write_bytes(b"doc")
+        self._soffice(monkeypatch, writes=False)
+
+        with pytest.raises(RuntimeError):
+            lo.convert(source, "docx", tmp_path)
+
+        assert [p.name for p in tmp_path.iterdir() if p.name.startswith("iap-lo-")] == []
+
+

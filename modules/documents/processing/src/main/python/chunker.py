@@ -86,6 +86,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -554,12 +555,15 @@ def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
             take(block)
             index += 1
             continue
-        if _is_standalone_heading("\n\n".join(pieces)):
+        # Joined once: this is the flush path, and the comment above explains why building
+        # the accumulated part twice to answer one predicate is what made packing quadratic.
+        joined = "\n\n".join(pieces)
+        if _is_standalone_heading(joined):
             # Do not emit a heading-only part — pull the next block in even over budget.
             take(block)
             index += 1
             continue
-        body, current = _flush_without_trailing_page_markers("\n\n".join(pieces), block)
+        body, current = _flush_without_trailing_page_markers(joined, block)
         if body is not None:
             parts.append(body)
         restart(current)
@@ -819,6 +823,77 @@ class ChunkingSummary(NamedTuple):
     logs: str
 
 
+def _write_atomically(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` via a temporary file and a rename.
+
+    A direct ``write_text`` truncates first, so an interrupted write leaves a half-written
+    document that still looks like a finished one.
+
+    @param path: the file to write
+    @param text: its complete new content
+    """
+    scratch = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        scratch.write_text(text, encoding="utf-8")
+        os.replace(scratch, path)
+    finally:
+        scratch.unlink(missing_ok=True)
+
+
+def _stage_chunks(chunks_dir: Path, tree: dict[str, Any]) -> Path:
+    """Write the whole chunk tree into a staging directory beside its final home.
+
+    Building in place meant deleting the previous tree and then creating files one by one,
+    so any failure in the middle left a half-written set that is indistinguishable from a
+    complete one. Everything is written here first and moved into place in one step.
+
+    @param chunks_dir: where the tree will end up
+    @param tree: the built chunk tree
+    @return: the staging directory, ready to be swapped in
+    """
+    staging = chunks_dir.with_name(f"{chunks_dir.name}.new-{os.getpid()}")
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
+    try:
+        _write_json(staging / OUTLINE_NAME, tree["outline"])
+        if tree["chunked"]:
+            for chunk in tree["chunks"]:
+                (staging / chunk["file"]).write_text(
+                    chunk_file_content(chunk["text"]), encoding="utf-8"
+                )
+            # Last inside the staging directory as well, so even a torn move leaves the
+            # catalog as the marker that the set beside it is complete
+            _write_json(staging / CATALOG_NAME, tree["catalog"])
+    except BaseException:
+        # A half-written staging directory has no further use, and leaving it behind would
+        # litter the shared volume with one per failed parse
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return staging
+
+
+def _swap_into_place(staging: Path, target: Path) -> None:
+    """Replace ``target`` with ``staging`` using renames, keeping the old tree until it is.
+
+    @param staging: the fully written new tree
+    @param target: the directory it replaces
+    """
+    previous = target.with_name(f"{target.name}.old-{os.getpid()}")
+    shutil.rmtree(previous, ignore_errors=True)
+    try:
+        if target.exists():
+            os.replace(target, previous)
+        os.replace(staging, target)
+    except OSError:
+        # Put the previous tree back rather than leaving the document with none at all
+        if previous.exists() and not target.exists():
+            os.replace(previous, target)
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    shutil.rmtree(previous, ignore_errors=True)
+
+
 def write_chunk_files(
     markdown_content: str,
     output_file: Path,
@@ -850,20 +925,20 @@ def write_chunk_files(
         max_tokens,
         min_structure_tokens,
     )
-    # write markdown file
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(tree["markdown"], encoding="utf-8")
-
     chunks_dir = output_file.parent / CHUNKS_DIRNAME
-    if chunks_dir.exists():
-        shutil.rmtree(chunks_dir)
-    chunks_dir.mkdir(parents=True, exist_ok=True)
-    # write outline.json file
-    _write_json(chunks_dir / OUTLINE_NAME, tree["outline"])
-    _remove_sidecars(output_file)
-
     toc_source = tree["outline"].get("toc_source")
     chunk_count = len(tree["chunks"])
+
+    staging = _stage_chunks(chunks_dir, tree)
+    # Chunks first, Markdown last. Neither rename can be made atomic with the other, so the
+    # .md is the commit marker: seeing the new one guarantees the chunks beside it are
+    # already the new set. A crash in between leaves the previous .md next to newer chunks of
+    # the same document, which a reconvert fixes — the other order would leave new Markdown
+    # next to chunks of a different revision.
+    _swap_into_place(staging, chunks_dir)
+    _write_atomically(output_file, tree["markdown"])
+    _remove_sidecars(output_file)
 
     if not tree["chunked"]:
         tokens = count_tokens(tree["markdown"])
@@ -879,13 +954,6 @@ def write_chunk_files(
                 f"{CHUNKS_DIRNAME}/{OUTLINE_NAME}"
             ),
         )
-
-    for chunk in tree["chunks"]:
-        (chunks_dir / chunk["file"]).write_text(
-            chunk_file_content(chunk["text"]), encoding="utf-8"
-        )
-    # write catalog.json file
-    _write_json(chunks_dir / CATALOG_NAME, tree["catalog"])
     return ChunkingSummary(
         chunks_dir=chunks_dir,
         chunked=True,
@@ -982,6 +1050,11 @@ def build_chunk_tree(
     # _pack_blocks already ends with _move_trailing_page_markers, so nothing more is needed
     # here; a second pass only re-walked and re-split every packed part to find nothing.
     packed = _pack_blocks(top_texts, max_tokens) if top_texts else []
+    # Fold heading-only packed chunks into a sibling before anything is numbered. Doing it
+    # only per packed chunk further down cannot catch a top-level section that has a heading
+    # and no body: it arrives as a single part, so there is no neighbour inside that call to
+    # fold into and it becomes a chunk file holding nothing but a title.
+    packed = _merge_heading_only_parts(packed)
     # Prefer Chunk-0 when the document has a leading preamble; otherwise start at 1.
     first_number = 0 if (top_chunks and top_chunks[0]["number"] == 0) else 1
     preamble_text = top_chunks[0]["text"] if first_number == 0 else ""

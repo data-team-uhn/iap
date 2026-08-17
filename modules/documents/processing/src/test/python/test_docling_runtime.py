@@ -24,6 +24,7 @@ body draining, health reporting, and the batch-abandon path that runs when a pag
 """
 
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
@@ -79,6 +80,11 @@ class _FakeHandler:
 
     def header_value(self, name):
         return next((v for k, v in self.sent if k == name.lower()), None)
+
+    # The real guard, borrowed rather than stubbed: it reads only self.headers and writes
+    # through _json_response, both of which this stand-in provides, so the tests exercise
+    # the actual Origin and bearer-token checks.
+    _refuse_unauthorized = daemon.DoclingDaemonHandler._refuse_unauthorized
 
 
 class TestAbandonBatches:
@@ -267,10 +273,15 @@ class TestParseErrorStatus:
         handler.path = "/parse?" + urlencode(query)
         return handler
 
-    def _ready(self, monkeypatch):
-        state = SimpleNamespace(shutdown_requested=False, pdf_executor_broken=False)
+    def _ready(self, monkeypatch, slots=daemon.MAX_CONCURRENT_PARSES):
+        state = SimpleNamespace(
+            shutdown_requested=False,
+            pdf_executor_broken=False,
+            parse_slots=threading.BoundedSemaphore(slots),
+        )
         state.is_ready = lambda: True
         monkeypatch.setattr(daemon, "_STATE", state)
+        return state
 
     def _staged_pdf(self, monkeypatch, tmp_path):
         monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
@@ -306,6 +317,195 @@ class TestParseErrorStatus:
         handler = self._handler({"path": str(pdf)})
         daemon.DoclingDaemonHandler._handle_parse(handler)
         assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+class TestConcurrentParsesAreBounded:
+    """Only one conversion at a time; the rest are refused, not queued.
+
+    Regression: ThreadingHTTPServer starts a thread per request, so N simultaneous callers ran
+    N conversions, each holding a full assembled document and chunk tree — against a RAM
+    budget calculated for exactly one. The cgroup OOM killer took a worker and the
+    BrokenProcessPool that followed marked the daemon permanently broken.
+    """
+
+    def _handler(self, query: dict):
+        handler = _FakeHandler(b"")
+        del handler.headers["Content-Length"]
+        handler.path = "/parse?" + urlencode(query)
+        return handler
+
+    def _staged_pdf(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        pdf = tmp_path / "doc.pdf"
+        pdf.write_bytes(b"%PDF")
+        return pdf
+
+    def _ready(self, monkeypatch):
+        state = SimpleNamespace(
+            shutdown_requested=False,
+            pdf_executor_broken=False,
+            parse_slots=threading.BoundedSemaphore(daemon.MAX_CONCURRENT_PARSES),
+        )
+        state.is_ready = lambda: True
+        monkeypatch.setattr(daemon, "_STATE", state)
+        return state
+
+    def test_a_second_parse_is_refused_while_one_runs(self, monkeypatch, tmp_path):
+        state = self._ready(monkeypatch)
+        pdf = self._staged_pdf(monkeypatch, tmp_path)
+        running = threading.Event()
+        release = threading.Event()
+
+        def slow(*args, **kwargs):
+            running.set()
+            release.wait(5)
+            return {"ok": True}
+
+        monkeypatch.setattr(daemon, "_run_parse", slow)
+        first = self._handler({"path": str(pdf)})
+        worker = threading.Thread(
+            target=daemon.DoclingDaemonHandler._handle_parse, args=(first,)
+        )
+        worker.start()
+        try:
+            assert running.wait(5), "the first parse never started"
+            second = self._handler({"path": str(pdf)})
+            daemon.DoclingDaemonHandler._handle_parse(second)
+            assert second.header_value("status") == HTTPStatus.SERVICE_UNAVAILABLE
+            assert b"busy" in second.written
+        finally:
+            release.set()
+            worker.join(10)
+        assert first.header_value("status") == HTTPStatus.OK
+        # The slot is handed back, so the daemon is usable again
+        assert state.parse_slots.acquire(blocking=False)
+
+    def test_the_slot_is_released_when_a_parse_fails(self, monkeypatch, tmp_path):
+        state = self._ready(monkeypatch)
+        pdf = self._staged_pdf(monkeypatch, tmp_path)
+
+        def explode(*args, **kwargs):
+            raise ValueError("invalid xref table")
+
+        monkeypatch.setattr(daemon, "_run_parse", explode)
+        handler = self._handler({"path": str(pdf)})
+        daemon.DoclingDaemonHandler._handle_parse(handler)
+
+        assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
+        # A failed conversion must not wedge the daemon shut for good
+        assert state.parse_slots.acquire(blocking=False)
+
+    def test_a_rejected_request_never_takes_a_slot(self, monkeypatch, tmp_path):
+        state = self._ready(monkeypatch)
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        handler = self._handler({})
+
+        daemon.DoclingDaemonHandler._handle_parse(handler)
+
+        assert handler.header_value("status") == HTTPStatus.BAD_REQUEST
+        assert state.parse_slots.acquire(blocking=False)
+
+
+class TestMutatingEndpointsAreGuarded:
+    """/parse and /shutdown are not simply open because the port is loopback.
+
+    A page in the operator's browser runs on the same host, and a POST with a simple content
+    type needs no preflight, so any site could otherwise spend the worker pool or stop the
+    daemon. /health stays open for probes.
+    """
+
+    def _handler(self, path, headers=None):
+        handler = _FakeHandler(b"", headers=headers)
+        del handler.headers["Content-Length"]
+        handler.path = path
+        return handler
+
+    def _ready(self, monkeypatch):
+        state = SimpleNamespace(
+            shutdown_requested=False,
+            pdf_executor_broken=False,
+            worker_count=1,
+            parse_slots=threading.BoundedSemaphore(1),
+        )
+        state.is_ready = lambda: True
+        monkeypatch.setattr(daemon, "_STATE", state)
+
+    def test_a_browser_origin_is_refused_on_parse(self, monkeypatch, tmp_path):
+        monkeypatch.delenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        self._ready(monkeypatch)
+        pdf = tmp_path / "doc.pdf"
+        pdf.write_bytes(b"%PDF")
+        handler = self._handler(
+            f"/parse?path={pdf}", headers={"Origin": "https://evil.example"}
+        )
+
+        daemon.DoclingDaemonHandler._handle_parse(handler)
+
+        assert handler.header_value("status") == HTTPStatus.FORBIDDEN
+
+    def test_shutdown_is_off_unless_enabled(self, monkeypatch):
+        monkeypatch.setattr(daemon, "_SHUTDOWN_ENABLED", False)
+        stopped = []
+        monkeypatch.setattr(daemon, "_request_shutdown", lambda: stopped.append(True))
+        handler = self._handler("/shutdown")
+
+        daemon.DoclingDaemonHandler.do_POST(handler)
+
+        assert handler.header_value("status") == HTTPStatus.NOT_FOUND
+        assert stopped == []
+
+    def test_an_enabled_shutdown_still_refuses_a_browser(self, monkeypatch):
+        monkeypatch.setattr(daemon, "_SHUTDOWN_ENABLED", True)
+        monkeypatch.delenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
+        stopped = []
+        monkeypatch.setattr(daemon, "_request_shutdown", lambda: stopped.append(True))
+        handler = self._handler("/shutdown", headers={"Origin": "https://evil.example"})
+
+        daemon.DoclingDaemonHandler.do_POST(handler)
+
+        assert handler.header_value("status") == HTTPStatus.FORBIDDEN
+        assert stopped == []
+
+    def test_an_enabled_shutdown_works_for_a_plain_caller(self, monkeypatch):
+        monkeypatch.setattr(daemon, "_SHUTDOWN_ENABLED", True)
+        monkeypatch.delenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
+        stopped = []
+        monkeypatch.setattr(daemon, "_request_shutdown", lambda: stopped.append(True))
+        handler = self._handler("/shutdown")
+
+        daemon.DoclingDaemonHandler.do_POST(handler)
+
+        assert handler.header_value("status") == HTTPStatus.OK
+        assert stopped == [True]
+
+    def test_the_token_is_required_when_configured(self, monkeypatch):
+        monkeypatch.setattr(daemon, "_SHUTDOWN_ENABLED", True)
+        monkeypatch.setenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, "s3cret")
+        stopped = []
+        monkeypatch.setattr(daemon, "_request_shutdown", lambda: stopped.append(True))
+
+        missing = self._handler("/shutdown")
+        daemon.DoclingDaemonHandler.do_POST(missing)
+        assert missing.header_value("status") == HTTPStatus.UNAUTHORIZED
+
+        wrong = self._handler("/shutdown", headers={"Authorization": "Bearer nope"})
+        daemon.DoclingDaemonHandler.do_POST(wrong)
+        assert wrong.header_value("status") == HTTPStatus.UNAUTHORIZED
+
+        right = self._handler("/shutdown", headers={"Authorization": "Bearer s3cret"})
+        daemon.DoclingDaemonHandler.do_POST(right)
+        assert right.header_value("status") == HTTPStatus.OK
+        assert stopped == [True]
+
+    def test_health_needs_no_credential(self, monkeypatch):
+        monkeypatch.setenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, "s3cret")
+        self._ready(monkeypatch)
+        handler = self._handler("/health")
+
+        daemon.DoclingDaemonHandler.do_GET(handler)
+
+        assert handler.header_value("status") == HTTPStatus.OK
 
 
 class TestCliBatchPagesFlag:

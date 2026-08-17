@@ -95,13 +95,24 @@ python modules/documents/processing/src/main/python/docling_daemon.py --host 127
 - `GET  http://localhost:18765/health` — readiness probe (includes `shared_docs` root).
 - `POST http://localhost:18765/parse?path=/shared-docs/.../proto.pdf&chunk=true` —
   path under the shared root → summary JSON. LibreOffice prep + Docling + `write_chunk_files`.
-- `POST http://localhost:18765/shutdown` — graceful stop.
+- `POST http://localhost:18765/shutdown` — graceful stop; **served only with
+  `--enable-shutdown`**, and answers 404 otherwise. A container is stopped with a signal, so the
+  endpoint is useful only when the caller owns the daemon process and is a denial-of-service
+  handle everywhere else.
 
 Paths outside `IAP_SHARED_DOCS` (default `/shared-docs`) are refused.
 
-The daemon has **no authentication**. Every endpoint, `/shutdown` included, is open to whoever can
-reach the port, so nothing that can route to it may be untrusted. Parsing is also slow, which makes
-a reachable endpoint a cheap denial-of-service target. Two ways to hold that line:
+`/parse` and `/shutdown` refuse any request carrying an `Origin` header. Nothing that
+legitimately drives this daemon is a web page, and loopback binding does not help there: the
+browser runs on the same host, and a `POST` with a simple content type needs no preflight, so any
+site the operator visits could otherwise spend the worker pool or stop the daemon.
+
+Setting **`IAP_DOCLING_TOKEN`** additionally requires `Authorization: Bearer <token>` on those two
+endpoints, so that reaching the port is not by itself authority to use it. `GET /health` stays
+open, so container probes need no credential.
+
+Beyond that the daemon has **no authentication**, and parsing is slow, which makes a reachable
+endpoint a cheap denial-of-service target. Two more ways to hold that line:
 
 - **The deployment** (`docker-compose.yml`) publishes the port as `127.0.0.1:18765:18765`, so only
   this host can reach it. A bare `18765:18765` would bind every host interface, and Docker's
