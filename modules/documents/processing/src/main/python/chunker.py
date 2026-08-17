@@ -88,11 +88,11 @@ import argparse
 import json
 import os
 import re
-import shutil
 import sys
 from pathlib import Path
 from typing import Any, Callable, NamedTuple
 
+import shared_docs
 from bookmarks import (
     BOOKMARKS_NAME,
     LineIndex,
@@ -757,7 +757,9 @@ def chunk_file_content(text: str) -> str:
 
 def _write_json(path: Path, data: object) -> None:
     """Write ``data`` as pretty-printed UTF-8 JSON with a trailing newline."""
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    shared_docs.write_text(
+        path, json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+    )
 
 
 def _remove_sidecars(output_file: Path) -> None:
@@ -771,8 +773,8 @@ def _remove_sidecars(output_file: Path) -> None:
     bookmarks*, which suppressed printed-TOC detection and reported the previous document's
     outline for the current one.
     """
-    output_file.with_name(OUTLINE_NAME).unlink(missing_ok=True)
-    output_file.with_name(BOOKMARKS_NAME).unlink(missing_ok=True)
+    shared_docs.remove_file(output_file.with_name(OUTLINE_NAME))
+    shared_docs.remove_file(output_file.with_name(BOOKMARKS_NAME))
 
 
 def clear_prior_outputs(output_file: Path) -> None:
@@ -782,8 +784,8 @@ def clear_prior_outputs(output_file: Path) -> None:
     """
     _remove_sidecars(output_file)
     chunks_dir = output_file.parent / CHUNKS_DIRNAME
-    if chunks_dir.exists():
-        shutil.rmtree(chunks_dir)
+    if shared_docs.path_exists(chunks_dir):
+        shared_docs.remove_tree(chunks_dir)
 
 
 def _record_cut_keys(
@@ -834,10 +836,10 @@ def _write_atomically(path: Path, text: str) -> None:
     """
     scratch = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
-        scratch.write_text(text, encoding="utf-8")
-        os.replace(scratch, path)
+        shared_docs.write_text(scratch, text)
+        shared_docs.replace_file(scratch, path)
     finally:
-        scratch.unlink(missing_ok=True)
+        shared_docs.remove_file(scratch)
 
 
 def _stage_chunks(chunks_dir: Path, tree: dict[str, Any]) -> Path:
@@ -852,15 +854,15 @@ def _stage_chunks(chunks_dir: Path, tree: dict[str, Any]) -> Path:
     @return: the staging directory, ready to be swapped in
     """
     staging = chunks_dir.with_name(f"{chunks_dir.name}.new-{os.getpid()}")
-    if staging.exists():
-        shutil.rmtree(staging)
-    staging.mkdir(parents=True)
+    if shared_docs.path_exists(staging):
+        shared_docs.remove_tree(staging)
+    shared_docs.make_dirs(staging)
     try:
         _write_json(staging / OUTLINE_NAME, tree["outline"])
         if tree["chunked"]:
             for chunk in tree["chunks"]:
-                (staging / chunk["file"]).write_text(
-                    chunk_file_content(chunk["text"]), encoding="utf-8"
+                shared_docs.write_text(
+                    staging / chunk["file"], chunk_file_content(chunk["text"])
                 )
             # Last inside the staging directory as well, so even a torn move leaves the
             # catalog as the marker that the set beside it is complete
@@ -868,7 +870,7 @@ def _stage_chunks(chunks_dir: Path, tree: dict[str, Any]) -> Path:
     except BaseException:
         # A half-written staging directory has no further use, and leaving it behind would
         # litter the shared volume with one per failed parse
-        shutil.rmtree(staging, ignore_errors=True)
+        shared_docs.remove_tree(staging, ignore_errors=True)
         raise
     return staging
 
@@ -880,18 +882,18 @@ def _swap_into_place(staging: Path, target: Path) -> None:
     @param target: the directory it replaces
     """
     previous = target.with_name(f"{target.name}.old-{os.getpid()}")
-    shutil.rmtree(previous, ignore_errors=True)
+    shared_docs.remove_tree(previous, ignore_errors=True)
     try:
-        if target.exists():
-            os.replace(target, previous)
-        os.replace(staging, target)
+        if shared_docs.path_exists(target):
+            shared_docs.replace_file(target, previous)
+        shared_docs.replace_file(staging, target)
     except OSError:
         # Put the previous tree back rather than leaving the document with none at all
-        if previous.exists() and not target.exists():
-            os.replace(previous, target)
-        shutil.rmtree(staging, ignore_errors=True)
+        if shared_docs.path_exists(previous) and not shared_docs.path_exists(target):
+            shared_docs.replace_file(previous, target)
+        shared_docs.remove_tree(staging, ignore_errors=True)
         raise
-    shutil.rmtree(previous, ignore_errors=True)
+    shared_docs.remove_tree(previous, ignore_errors=True)
 
 
 def write_chunk_files(
@@ -925,7 +927,7 @@ def write_chunk_files(
         max_tokens,
         min_structure_tokens,
     )
-    output_file.parent.mkdir(parents=True, exist_ok=True)
+    shared_docs.make_dirs(output_file.parent)
     chunks_dir = output_file.parent / CHUNKS_DIRNAME
     toc_source = tree["outline"].get("toc_source")
     chunk_count = len(tree["chunks"])

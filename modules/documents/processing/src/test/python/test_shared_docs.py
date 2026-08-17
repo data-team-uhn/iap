@@ -17,15 +17,20 @@
 
 """Attacks on the shared-docs allowlist, the boundary guarding ``POST /parse?path=``.
 
-CodeQL reports every file operation downstream of that query parameter as
-py/path-injection -- 25 alerts on PR 116 -- because it does not model
-``Path.relative_to`` inside a try/except as a sanitizer. These tests are the evidence
-that the boundary does hold, and the guard against someone weakening it later.
+CodeQL's ``py/path-injection`` query models ``os.path.realpath`` (normalization) then
+``str.startswith`` (SafeAccessCheck on the true branch). It does not model
+``os.path.commonpath`` or ``Path.relative_to``. ``resolve_parse_path`` uses all three:
+``startswith`` so the query sees a check, ``commonpath`` so a sibling whose name merely
+starts with the root is still refused. Derived writes (``{stem}.md``, ``Chunks/``) are
+new path expressions and stay tainted; they go through the I/O helpers that repeat
+``realpath`` + ``startswith`` in the same function as the syscall.
 
 Deliberately not in ``test_docling_runtime.py``: that module skips itself wherever
 Docling is absent, which includes CI, and a security check that does not run in CI is
 not a check. :mod:`shared_docs` has no Docling dependency so this runs everywhere.
 """
+
+import os
 
 import pytest
 
@@ -73,12 +78,28 @@ class TestEscapesAreRefused:
             shared_docs.resolve_parse_path(str(root / "good.pdf") + "\x00.txt")
 
     def test_a_sibling_whose_name_starts_with_the_root(self, root, tmp_path):
-        # "/shared-evil" must not pass as being under "/shared".
+        # "/shared-evil" must not pass as being under "/shared". startswith would
+        # accept it; commonpath is the check that does not.
         evil = tmp_path / "shared-evil"
         evil.mkdir()
-        (evil / "secret.pdf").write_bytes(b"%PDF")
+        secret = evil / "secret.pdf"
+        secret.write_bytes(b"%PDF")
+        root_s = os.path.realpath(root)
+        evil_s = os.path.realpath(secret)
+        assert os.path.commonpath([root_s, evil_s]) != root_s
+        assert evil_s.startswith(root_s)
         with pytest.raises(ValueError, match="must be under"):
-            shared_docs.resolve_parse_path(str(evil / "secret.pdf"))
+            shared_docs.resolve_parse_path(str(secret))
+
+    def test_commonpath_on_different_volumes_is_a_refusal(self, root, monkeypatch):
+        (root / "good.pdf").write_bytes(b"%PDF")
+
+        def boom(_paths):
+            raise ValueError("Can't mix path types")
+
+        monkeypatch.setattr(os.path, "commonpath", boom)
+        with pytest.raises(shared_docs.ParseRequestError, match="must be under"):
+            shared_docs.resolve_parse_path(str(root / "good.pdf"))
 
     def test_a_symlink_pointing_out_of_the_root(self, root, outside):
         try:
@@ -130,6 +151,36 @@ class TestLegitimatePathsStillWork:
         literal = root / "report%20final.pdf"
         literal.write_bytes(b"%PDF")
         assert shared_docs.resolve_parse_path(str(literal)) == literal
+
+    def test_an_accepted_path_satisfies_the_commonpath_sanitizer(self, root):
+        (root / "proto.pdf").write_bytes(b"%PDF")
+        accepted = shared_docs.resolve_parse_path(str(root / "proto.pdf"))
+        root_s = os.path.realpath(root)
+        resolved = os.path.realpath(accepted)
+        assert resolved.startswith(root_s)
+        assert os.path.commonpath([root_s, resolved]) == root_s
+
+
+class TestIoHelpersWorkOutsideTheJail:
+    def test_write_text_and_replace_on_tmp_path(self, tmp_path):
+        # The CLI and pytest write beside files that are not under IAP_SHARED_DOCS.
+        dest = tmp_path / "out.md"
+        scratch = tmp_path / "out.md.tmp"
+        shared_docs.write_text(scratch, "hello")
+        shared_docs.replace_file(scratch, dest)
+        assert dest.read_text(encoding="utf-8") == "hello"
+        assert not shared_docs.path_exists(scratch)
+
+    def test_make_dirs_exists_and_remove_tree(self, tmp_path):
+        nested = tmp_path / "Chunks" / "inner"
+        shared_docs.make_dirs(nested)
+        shared_docs.write_text(nested / "Chunk-1.md", "body\n")
+        assert shared_docs.path_is_file(nested / "Chunk-1.md")
+        shared_docs.remove_tree(tmp_path / "Chunks")
+        assert not shared_docs.path_exists(tmp_path / "Chunks")
+
+    def test_remove_file_missing_is_ok(self, tmp_path):
+        shared_docs.remove_file(tmp_path / "absent.txt")
 
 
 class TestDerivedOutputsStayContained:

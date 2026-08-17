@@ -32,6 +32,7 @@ from typing import Any, Callable
 
 from docling.document_converter import DocumentConverter
 
+import shared_docs
 from chunker import DEFAULT_MAX_TOKENS, CHUNKS_DIRNAME, clear_prior_outputs, write_chunk_files
 from docling_docx_parser import convert_docx_to_markdown
 from docling_pdf_parser import convert_pdf_to_markdown
@@ -119,8 +120,8 @@ def parse_document(
 
     if not chunk:
         clear_prior_outputs(output_md)
-        output_md.parent.mkdir(parents=True, exist_ok=True)
-        output_md.write_text(markdown, encoding="utf-8")
+        shared_docs.make_dirs(output_md.parent)
+        shared_docs.write_text(output_md, markdown)
         return {
             "ok": True,
             "markdown_path": str(output_md.resolve()),
