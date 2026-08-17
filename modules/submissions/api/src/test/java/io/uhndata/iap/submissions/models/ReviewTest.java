@@ -90,7 +90,6 @@ class ReviewTest
         assertEquals("reviewer1", review.getReviewer());
         assertEquals(ApprovalRequirement.class, review.getRequirement().getClass());
         assertEquals("REB approval", review.getRequirement().getLabel());
-        assertEquals(List.of("in-progress"), review.getTags());
     }
 
     @Test
@@ -144,17 +143,18 @@ class ReviewTest
     void toleratesMissingTags()
     {
         // A freshly created review may not be tagged yet; it counts as open, not approved
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE);
         final Review review = resource.adaptTo(Review.class);
 
-        assertTrue(review.getTags().isEmpty());
         assertFalse(review.isApproved());
     }
 
     @Test
     void reportsApprovedWhenTaggedApproved()
     {
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
         final Review review = resource.adaptTo(Review.class);
@@ -166,6 +166,7 @@ class ReviewTest
     void reportsApprovedWhenApprovedIsAmongOtherTags()
     {
         // The review state tag shares the multivalued property with unrelated markers
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "flagged", "approved" });
         final Review review = resource.adaptTo(Review.class);
@@ -174,8 +175,21 @@ class ReviewTest
     }
 
     @Test
+    void reportsNotApprovedWithoutTheTagsService()
+    {
+        // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like:
+        // the state cannot be read, and an unreadable state is not an approval
+        final Resource resource = this.context.create().resource("/Submissions/submission/review",
+            "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "approved" });
+        final Review review = resource.adaptTo(Review.class);
+
+        assertFalse(review.isApproved());
+    }
+
+    @Test
     void reportsNotApprovedForOtherTags()
     {
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission/review",
             "sling:resourceType", Review.RESOURCE_TYPE, "tags", new String[] { "changes-requested" });
         final Review review = resource.adaptTo(Review.class);

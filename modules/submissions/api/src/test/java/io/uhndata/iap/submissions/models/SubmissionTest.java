@@ -170,7 +170,6 @@ class SubmissionTest
 
         assertEquals("Effects of caffeine on code quality", submission.getTitle());
         assertEquals("1.0", submission.getSchemaVersion().getVersion());
-        assertEquals(List.of("in-review"), submission.getTags());
     }
 
     @Test
@@ -222,7 +221,6 @@ class SubmissionTest
 
         assertNotNull(submission);
         assertNull(submission.getTitle());
-        assertTrue(submission.getTags().isEmpty());
         // The schema version is different: the mandatory reference is part of the model's contract,
         // so resolving it fails fast instead of quietly returning null
         assertThrows(NullPointerException.class, submission::getSchemaVersion);
@@ -261,6 +259,7 @@ class SubmissionTest
     @Test
     void reportsApprovedWhenTaggedApproved()
     {
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission",
             SLING_RESOURCE_TYPE, "sub/Submission", "tags", new String[] { "approved" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -272,6 +271,7 @@ class SubmissionTest
     void reportsApprovedWhenApprovedIsAmongOtherTags()
     {
         // The lifecycle tag shares the multivalued property with unrelated markers
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission",
             SLING_RESOURCE_TYPE, "sub/Submission", "tags", new String[] { "sensitive", "approved", "external" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -280,8 +280,21 @@ class SubmissionTest
     }
 
     @Test
+    void reportsNotApprovedWithoutTheTagsService()
+    {
+        // Nothing registers the Taggable view here, which is what a repository without the tags bundle looks like:
+        // the lifecycle state cannot be read, and an unreadable state is not an approval
+        final Resource resource = this.context.create().resource("/Submissions/submission",
+            SLING_RESOURCE_TYPE, "sub/Submission", "tags", new String[] { "approved" });
+        final Submission submission = resource.adaptTo(Submission.class);
+
+        assertFalse(submission.isApproved());
+    }
+
+    @Test
     void reportsNotApprovedForOtherTags()
     {
+        Tagging.enable(this.context);
         final Resource resource = this.context.create().resource("/Submissions/submission",
             SLING_RESOURCE_TYPE, "sub/Submission", "tags", new String[] { "in-review" });
         final Submission submission = resource.adaptTo(Submission.class);
@@ -314,6 +327,8 @@ class SubmissionTest
     void reportsNoMissingRequirementsWhenAllFulfilled()
         throws RepositoryException
     {
+        // Whether the approval requirement is met is read from a tag on the review itself
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID));
@@ -338,6 +353,8 @@ class SubmissionTest
     void reportsMissingFormRequirementWhenAQuestionIsUnanswered()
         throws RepositoryException
     {
+        // Whether the approval requirement is met is read from a tag on the review itself
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID));
@@ -364,6 +381,8 @@ class SubmissionTest
     void reportsMissingDocumentRequirementWhenNoDocumentIsAttached()
         throws RepositoryException
     {
+        // Whether the approval requirement is met is read from a tag on the review itself
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID));
@@ -389,6 +408,8 @@ class SubmissionTest
     void reportsMissingApprovalRequirementWhenReviewIsNotApproved()
         throws RepositoryException
     {
+        // Whether the approval requirement is met is read from a tag on the review itself
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource("/Submissions/submission", Map.of(
             SLING_RESOURCE_TYPE, "sub/Submission", "schemaVersion", SCHEMA_VERSION_ID));
