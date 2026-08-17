@@ -35,6 +35,8 @@ import tempfile
 from pathlib import Path
 from typing import Callable
 
+import shared_docs
+
 # Explicit Writer PDF export filter (matches the former Java LibreOfficeConverter).
 _PDF_CONVERT_TO = "pdf:writer_pdf_Export"
 
@@ -106,7 +108,7 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
                 f"LibreOffice conversion failed (exit {completed.returncode}) for "
                 f"'{source.name}': {detail.strip() or '(no output)'}"
             )
-        if not expected.is_file():
+        if not shared_docs.path_is_file(expected):
             raise RuntimeError(
                 "LibreOffice reported success but produced no output for "
                 f"'{source.name}' (expected {expected.name})"
