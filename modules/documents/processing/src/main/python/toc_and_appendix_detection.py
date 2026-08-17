@@ -376,7 +376,7 @@ def _confirm_table_toc(flattened: list[str]) -> bool:
         page = _entry_to_record(stripped)["page"]
         if page is not None:
             pages.append(page)
-        elif is_toc_entry_line(stripped):
+        elif is_toc_entry_line(stripped):  # see _is_flattened_toc_entry
             # A page-less outline entry ("2.0 Introduction") is still TOC structure; carry
             # the running page so it neither breaks nor fakes the ordering.
             pages.append(pages[-1] if pages else 0)
@@ -385,6 +385,22 @@ def _confirm_table_toc(flattened: list[str]) -> bool:
     if len(pages) < MIN_DENSITY_MATCHES:
         return False
     return all(earlier <= later for earlier, later in zip(pages, pages[1:]))
+
+
+def _is_flattened_toc_entry(text: str) -> bool:
+    """Whether a flattened table row reads as a TOC entry.
+
+    ``_flatten_table_block`` joins cells with a single space, and none of
+    ``is_toc_entry_line``'s separators (tab, dash, 2+ dot leaders, 2+ spaces) accept that, so
+    a row like "Protocol Summary 3" fails it however TOC-shaped it is. Trailing page numbers
+    are what survive flattening, which is why :func:`_confirm_table_toc` reads them with
+    :func:`_entry_to_record`; harvesting has to use the same union or it finds nothing in a
+    table it has just confirmed.
+
+    @param text: one already-flattened, already-cleaned row
+    @return: whether it counts as an entry
+    """
+    return is_toc_entry_line(text) or _entry_to_record(text)["page"] is not None
 
 
 def _skip_to_next_content(lines: list[str], index: int) -> int:
@@ -396,18 +412,24 @@ def _skip_to_next_content(lines: list[str], index: int) -> int:
     return index
 
 
-def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], int, str]:
+def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], int, int | None]:
     """Within one page (or the whole document, if unpaged), collect contiguous
     ``is_of_type``-matching lines from ``start``, tolerating blank lines and a short
     (<= MAX_LEADING_WORDS_FOR_CONTINUATION words) non-matching interlude as a
     separator between matches. Stops at a page marker, a real heading line, a longer
     non-matching run, or end of document.
 
-    @param is_of_type: predicate classifying a raw line as part of the block 
+    Tolerated lines are only ever kept when a later match absorbs them; a trailing run of
+    them belongs to whatever follows the block, so every exit rolls the boundary back past
+    it. Doing that on some exits but not others deletes those lines outright: they sit
+    outside ``collected`` yet inside the replaced range.
+
+    @param is_of_type: predicate classifying a raw line as part of the block
         (e.g. _is_markdown_table_line or is_toc_entry_line)
-    @return: (collected_lines, index, reason); reason is one of "page_marker" | "body_text" | "eof"; 
-        index is the position in lines at which the block ends (exclusive) — the page marker,
-        the start of the non-matching run, or len(lines)
+    @return: (collected_lines, boundary, marker); ``boundary`` is the position in lines at
+        which the block ends (exclusive), never counting a trailing tolerated run;
+        ``marker`` is the index of the page marker that ended the block, or ``None`` when
+        it ended at body text or end of document
     """
     collected: list[str] = []
     pending: list[str] = []
@@ -418,7 +440,7 @@ def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], in
         line = lines[index]
         stripped = line.strip()
         if PAGE_MARKER_LINE.match(stripped):
-            return collected, index, "page_marker"
+            return collected, index - len(pending), index
         if is_of_type(line):
             collected.extend(pending)
             collected.append(line)
@@ -433,7 +455,7 @@ def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], in
         if HEADING.match(stripped):
             # A real heading is always a hard content boundary — never tolerated as
             # page-header noise, however short (e.g. "## Glossary of Abbreviations").
-            return collected, index - len(pending), "body_text"
+            return collected, index - len(pending), None
         if is_page_numbered_entry(line):
             # Structurally a page-numbered TOC entry, but is_of_type rejected it — in
             # practice an entry longer than the word limit. It is not prose, so charging it
@@ -444,10 +466,10 @@ def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], in
             continue
         pending_words += len(stripped.split())
         if pending_words > MAX_LEADING_WORDS_FOR_CONTINUATION:
-            return collected, index - len(pending), "body_text"
+            return collected, index - len(pending), None
         pending.append(line)
         index += 1
-    return collected, index - len(pending), "eof"
+    return collected, index - len(pending), None
 
 
 def _resume_after_page_break(lines: list[str], start: int, is_of_type) -> int | None:
@@ -483,11 +505,11 @@ def _scan_region(lines: list[str], start: int, is_of_type) -> tuple[list[str], i
     as long as the region resumes on the next page (see :func:`_resume_after_page_break`)
     and no label re-appears first. Page markers that fall *between* continued TOC pages are
     kept inside the collected block (not dropped); running header/footer lines between them
-    are not. A page marker with no continuation after it stays outside the block (boundary
-    points at that marker).
+    are not. A page marker with no continuation after it stays outside the block, along with
+    any tolerated lines leading up to it.
     Degrades to a single :func:`_scan_block` call when the document has no page markers
-    (DOCX), since ``"page_marker"`` is then never returned — one implementation covers
-    both the table path and the plain-line path, and both paged and unpaged documents.
+    (DOCX), since no marker is then ever reported — one implementation covers both the table
+    path and the plain-line path, and both paged and unpaged documents.
 
     @param lines: the document's lines
     @param start: the first index to scan from
@@ -500,16 +522,18 @@ def _scan_region(lines: list[str], start: int, is_of_type) -> tuple[list[str], i
     all_collected: list[str] = []
     index = start
     while True:
-        block, end_index, reason = _scan_block(lines, index, is_of_type)
+        block, boundary, marker = _scan_block(lines, index, is_of_type)
         all_collected.extend(block)
-        if reason != "page_marker":
-            return all_collected, end_index
-        resume = _resume_after_page_break(lines, end_index + 1, is_of_type)
+        if marker is None:
+            return all_collected, boundary
+        resume = _resume_after_page_break(lines, marker + 1, is_of_type)
         if resume is None:
-            return all_collected, end_index
+            # Nothing continues the region, so the block ends before the tolerated run that
+            # leads up to the marker; those lines are ordinary content again
+            return all_collected, boundary
         # The region continues on the next page — keep the intervening marker inside it and
         # scan on from where it resumed. ``resume > index`` always, so this terminates.
-        all_collected.append(lines[end_index])
+        all_collected.append(lines[marker])
         index = resume
 
 
@@ -565,10 +589,16 @@ def _detect_toc(md: str) -> tuple[str, dict]:
         block_lines = _flatten_table_block(raw_block)
         if not _confirm_table_toc(block_lines):
             return md, {}
+        # Flattening joins cells with a single space, which none of ``is_toc_entry_line``'s
+        # separators accept, so it alone would harvest nothing from a table TOC that was
+        # nevertheless just confirmed as one — and the document has already been rewritten
+        # by then. Recognise a row the same way :func:`_confirm_table_toc` does.
+        is_entry = _is_flattened_toc_entry
     else:
         if not _confirm_plain_toc(lines, label_index):
             return md, {}
         block_lines, boundary = _scan_region(lines, label_index + 1, is_toc_entry_line)
+        is_entry = is_toc_entry_line
 
     if not block_lines:
         return md, {}
@@ -613,7 +643,7 @@ def _detect_toc(md: str) -> tuple[str, dict]:
         if not stripped or PAGE_MARKER_LINE.match(stripped):
             continue
         candidate = _clean_toc_line(line)
-        if candidate and is_toc_entry_line(candidate):
+        if candidate and is_entry(candidate):
             stored = _block_cleanup(candidate).strip()
             if stored:
                 toc_entries.append(stored)
