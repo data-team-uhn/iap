@@ -36,25 +36,42 @@ export interface ColoredValueOption {
   variant?: string;
 }
 
+// What a picked value gives a chip to show. A column may declare its choices either as plain strings
+// or as objects, and a chip expects a proper object.
+function chipOption(option: unknown): { label: string; color?: string; variant?: string } {
+  if (typeof option !== "object" || option === null) {
+    return { label: String(option) };
+  }
+  // Partial, not ColoredValueOption: the point of this function is that the option may not be
+  // one, so asserting every field is present would make the fallbacks below look pointless
+  const { label, value, color, variant } = option as Partial<ColoredValueOption>;
+  return { label: label ?? String(value), color, variant };
+}
+
 // The stock "is any of" input for choice columns, with each picked value rendered as a chip
 // styled from its option's own color and variant (when it declares a usable color; see
 // chipStyle) instead of the stock outlined look.
 function ColoredChipsFilterInput(props: GridFilterInputMultipleSingleSelectProps) {
   const theme = useTheme();
+  // Every level of slotProps is merged rather than set: passing an object here replaces whatever
+  // the filter form passed for the same slot, and what it passes is the sizing that keeps this
+  // input the same height as the column and operator selects beside it.
+  const { slotProps, ...rest } = props;
+  const rootProps = slotProps?.root;
   return (
     <GridFilterInputMultipleSingleSelect
-      {...props}
+      {...rest}
       slotProps={{
+        ...slotProps,
         root: {
+          ...rootProps,
           slotProps: {
-            // This replaces the stock input's own slotProps, so its text field wiring (the
-            // focus target for the newly added condition) is restated here
+            ...rootProps?.slotProps,
+            // Restated because this replaces the stock input's own slotProps: the text field is
+            // the focus target for a newly added condition
             textField: { type: "text", inputRef: props.focusElementRef },
-            // The chips only ever render declared options: the stock input resolves the
-            // filter's values back through the column's options before rendering, so even a
-            // freely typed value never reaches here as a bare string
             chip: option => {
-              const { label, color, variant } = option as ColoredValueOption;
+              const { label, color, variant } = chipOption(option);
               const style = chipStyle(theme, color, variant);
               return {
                 label,

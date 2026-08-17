@@ -48,9 +48,23 @@ export interface ChipStyle {
   transition: "none";
 }
 
+// Whether the browser can resolve the scheme-adaptive text recipe below.
+// An environment with no CSS.supports at all (jsdom, server rendering) is treated as capable.
+function supportsAdaptiveText(): boolean {
+  if (typeof CSS === "undefined" || typeof CSS.supports !== "function") {
+    return true;
+  }
+  return CSS.supports("color", "light-dark(red, blue)")
+    && CSS.supports("color", "oklch(from red 0.5 c h)");
+}
+
 // The declared color pulled into a lightness band readable on the active scheme: light-dark()
 // follows the color-scheme MUI sets per scheme, even in inline styles.
+// Where that cannot be resolved, the declared color stands in unchanged.
 function readableText(color: string): string {
+  if (!supportsAdaptiveText()) {
+    return color;
+  }
   return `light-dark(oklch(from ${color} ${LIGHT_TEXT_LIGHTNESS} c h), `
     + `oklch(from ${color} ${DARK_TEXT_LIGHTNESS} c h))`;
 }

@@ -76,6 +76,46 @@ describe("chipStyle", () => {
     });
   });
 
+  // A browser missing either half of the adaptive recipe would drop the whole declaration, taking
+  // the chip's color with it — and for the outlined variant its border too, which is all it has.
+  // The declared color stands in instead: not scheme-aware, but still the tag's own hue.
+  describe("on a browser without light-dark() or relative colors", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    const withoutAdaptiveColor = () => vi.stubGlobal("CSS", {
+      supports: (property: string, value: string) =>
+        !(value.startsWith("light-dark(") || value.includes("oklch(from ")),
+    });
+
+    it("uses the declared color for the outlined variant's text and border", () => {
+      withoutAdaptiveColor();
+
+      expect(chipStyle(plain, "#55408f", "outlined")).toEqual({
+        backgroundColor: "transparent",
+        color: "#55408f",
+        border: "1px solid #55408f",
+        transition: "none",
+      });
+    });
+
+    it("keeps the soft variant's tint, deriving its border from the declared color", () => {
+      withoutAdaptiveColor();
+      const soft = chipStyle(plain, "#55408f");
+
+      expect(soft?.color).toBe("#55408f");
+      // The tint is color-mix(), which every browser missing the above still resolves
+      expect(soft?.backgroundColor).toContain("color-mix(in srgb, #55408f");
+      expect(soft?.border).toContain("color-mix(in srgb, #55408f");
+    });
+
+    it("leaves the filled variant alone, which never depended on either", () => {
+      withoutAdaptiveColor();
+
+      expect(chipStyle(plain, "#55408f", "filled")).toEqual(chipStyle(plain, "#55408f", "filled"));
+      expect(chipStyle(plain, "#55408f", "filled")?.backgroundColor).toBe("#55408f");
+    });
+  });
+
   it("treats any unrecognized variant as soft", () => {
     expect(chipStyle(plain, "#55408f", "sparkly")).toEqual(chipStyle(plain, "#55408f"));
   });
