@@ -39,6 +39,10 @@ services:
     user: "${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}"
     environment:
       IAP_SHARED_DOCS: /shared-docs
+      # Optional shared secret. When set, /parse requires "Authorization: Bearer <token>",
+      # so reaching the port is not by itself authority to use it. Left empty the published
+      # loopback binding below is the only boundary, which is fine for local work.
+      IAP_DOCLING_TOKEN: ${IAP_DOCLING_TOKEN:-}
       # An overridden uid has no passwd entry, so HOME would be unset. Point it somewhere
       # writable for any library that still wants a home directory. LibreOffice does not
       # need it (libreoffice_convert passes its own -env:UserInstallation temp profile).

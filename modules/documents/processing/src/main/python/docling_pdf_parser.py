@@ -24,6 +24,7 @@ Each worker process loads the converter once via _init_worker(); page batches ar
 
 import gc
 import logging
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
@@ -76,9 +77,26 @@ def _init_worker() -> None:
     _converter = build_pdf_converter()
 
 
-def _warm_worker() -> bool:
-    """Touch the per-worker converter so model weights are loaded at daemon startup."""
-    return _converter is not None
+def _warm_worker() -> int:
+    """Build the PDF pipeline in this worker so model weights are loaded before any request.
+
+    ``build_pdf_converter`` only constructs the ``DocumentConverter``; Docling creates the
+    pipeline and loads the weights lazily on the first ``convert()``, which is what
+    ``initialize_pipeline`` is for. Merely checking that the converter exists left every
+    worker cold, so the first real parse still paid the full model load — the cost the warm
+    pool exists to avoid — while ``/health`` already reported ready.
+
+    Doing the real work here is also what spreads the warm-up across processes: a task that
+    returns instantly is handed straight back to an idle worker, so a pool sized for N ends
+    up running one or two of them (see :func:`warm_pdf_workers`).
+
+    @return: this worker's process id, so the caller can count how many were reached;
+        ``0`` when the converter was never initialized
+    """
+    if _converter is None:
+        return 0
+    _converter.initialize_pipeline(InputFormat.PDF)
+    return os.getpid()
 
 
 LogFn = Callable[[str], None]
@@ -255,12 +273,38 @@ def convert_pdf_to_markdown(
 WORKER_WARMUP_TIMEOUT_SECONDS = 120
 
 
-def warm_pdf_workers(executor: ProcessPoolExecutor, worker_count: int) -> None:
-    """Run a no-op task in each worker process to load Docling models eagerly."""
+def warm_pdf_workers(
+    executor: ProcessPoolExecutor, worker_count: int, log: LogFn | None = None
+) -> None:
+    """Load the Docling models in every worker process before the first request.
+
+    All tasks are submitted before any is awaited, and each one is slow (it builds the
+    pipeline), so no worker is idle when the next task arrives and the pool has to spawn a
+    process for it. Awaiting them one at a time instead would let a single worker take the
+    lot: ``ProcessPoolExecutor`` only spawns beyond its current process count when no idle
+    worker can be handed the item.
+
+    Coverage is reported rather than enforced. The pool is free to run fewer processes than
+    asked for, and a daemon that warmed most of its workers is still worth starting — but an
+    operator seeing slow first parses needs to know it happened.
+
+    @param executor: the pool to warm, already created with ``_init_worker``
+    @param worker_count: how many worker processes the pool was sized for
+    @param log: optional line logger for partial coverage
+    @raise RuntimeError: if any warm-up task reports an uninitialized converter
+    """
     futures = [executor.submit(_warm_worker) for _ in range(worker_count)]
+    warmed: set[int] = set()
     for future in futures:
-        if not future.result(timeout=WORKER_WARMUP_TIMEOUT_SECONDS):
+        pid = future.result(timeout=WORKER_WARMUP_TIMEOUT_SECONDS)
+        if not pid:
             raise RuntimeError("PDF worker warm-up failed: converter not initialized")
+        warmed.add(pid)
+    if log is not None and len(warmed) < worker_count:
+        log(
+            f"Warmed {len(warmed)} of {worker_count} PDF workers; the rest load their "
+            "models on first use"
+        )
 
 
 def parse_pdf_chunk(args: tuple[str, int, int]) -> tuple[int, int, str, str, int, float, str | None]:

@@ -301,17 +301,45 @@ def positive_int(value: str) -> int:
     return parsed
 
 
+def add_workers_argument(parser: argparse.ArgumentParser) -> None:
+    """Add the shared ``--workers`` flag to a parser.
+
+    The daemon and the CLI both take it, with the same validation and the same help text
+    interpolating :data:`GB_PER_WORKER` — and this module already owns both, so the flag
+    belongs here rather than being written out twice and left to drift.
+
+    @param parser: the parser to extend
+    """
+    parser.add_argument(
+        "--workers",
+        type=positive_int,
+        default=None,
+        metavar="N",
+        help=(
+            "parallel PDF worker processes (default: auto from logical CPU cores "
+            f"and RAM budget / {GB_PER_WORKER:.1f} GB per worker)"
+        ),
+    )
+
+
 def calc_workers(workers_override: int | None = None) -> int:
     """
     Resolve the number of parallel worker processes. CLI: --workers
 
     Clamped to at least 1: ``ProcessPoolExecutor(max_workers=0)`` raises, so a bad
     override must not reach it even if it bypassed :func:`positive_int`.
-    When ``workers_override`` is omitted, free RAM is refreshed first.
+
+    Free RAM is refreshed either way. An override decides the worker count but says nothing
+    about the module-level RAM figures, which :func:`print_parallelism_summary` reports and
+    operators size containers from: returning early left them at whatever was measured on
+    import. In the daemon that meant every conversion logging the boot-time snapshot, since
+    each parse passes the already-resolved worker count and so always takes the override
+    path.
     """
+    refreshed = refresh_default_max_workers()
     if workers_override is not None:
         return max(1, workers_override)
-    return refresh_default_max_workers()
+    return refreshed
 
 
 def calc_batch_pages(

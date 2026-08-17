@@ -411,6 +411,96 @@ class TestTocAcrossPageBreaks:
         assert len(entries) == 4
 
 
+class TestTolerated_LinesBeforeAnEndingPageMarker:
+    """Content between the last TOC entry and a page marker must survive.
+
+    Regression: ``_scan_block`` rolled the boundary back past its trailing tolerated run on
+    the body-text and end-of-document exits but not on the page-marker one. A short line
+    sitting there was therefore left out of the collected block *and* inside the range the
+    cleaned block replaced, so it was deleted from the document and from every chunk built
+    from it.
+    """
+
+    def _doc(self, tail):
+        return "\n".join([
+            "## TABLE OF CONTENTS",
+            "",
+            "1.0 Introduction\t3",
+            "2.0 Background\t5",
+            "3.0 Objectives\t7",
+            "4.0 Study Design\t9",
+            *tail,
+            "",
+            "<!-- page: 2 -->",
+            "",
+            "Body prose starts here and runs on for a good while afterwards.",
+        ])
+
+    def test_a_short_line_before_the_marker_is_not_deleted(self):
+        document = tad._detect_toc(self._doc(["IMPORTANT SAFETY TEXT HERE"]))[0]
+        assert "IMPORTANT SAFETY TEXT HERE" in document
+
+    def test_it_is_not_harvested_as_an_entry_either(self):
+        entries = tad._detect_toc(self._doc(["IMPORTANT SAFETY TEXT HERE"]))[1]["toc"]
+        assert not any("SAFETY" in entry for entry in entries)
+
+    def test_the_toc_itself_is_still_cleaned(self):
+        entries = tad._detect_toc(self._doc(["IMPORTANT SAFETY TEXT HERE"]))[1]["toc"]
+        assert len(entries) == 4
+
+    def test_nothing_is_lost_when_there_is_no_tolerated_run(self):
+        document = tad._detect_toc(self._doc([]))[0]
+        assert "Body prose starts here" in document
+
+
+class TestTableTocEntryHarvest:
+    """A confirmed table TOC must yield its entries, not just get flattened.
+
+    Regression: harvesting re-tested the already-flattened rows with ``is_toc_entry_line``,
+    whose separators never match the single space ``_row_to_line`` joins cells with. The
+    document was rewritten destructively and ``toc`` came back empty, so ``toc_source`` fell
+    to "none" and ``backmatterLine`` was never set.
+    """
+
+    def _fields(self, rows):
+        document = "\n".join([
+            "## Table of Contents",
+            "",
+            "| Section | Page |",
+            "| --- | --- |",
+            *rows,
+            "",
+            "## Introduction",
+            "Body prose.",
+        ])
+        return tad._detect_toc(document)[1]
+
+    ROWS = [
+        "| Protocol Summary | 3 |",
+        "| Study Schema | 5 |",
+        "| Background Rationale | 7 |",
+        "| Study Objectives | 9 |",
+    ]
+
+    def test_unnumbered_rows_are_harvested(self):
+        entries = self._fields(self.ROWS)["toc"]
+        assert len(entries) == 4
+        assert any("Protocol Summary" in entry for entry in entries)
+
+    def test_the_page_numbers_survive_flattening(self):
+        entries = self._fields(self.ROWS)["toc"]
+        assert entries[0].endswith("3")
+
+    def test_numbered_rows_still_work(self):
+        rows = [
+            "| 1.0 Introduction | 3 |",
+            "| 2.0 Background | 5 |",
+            "| 3.0 Objectives | 7 |",
+            "| 4.0 Design | 9 |",
+        ]
+        assert len(self._fields(rows)["toc"]) == 4
+
+
 class TestResumeAfterPageBreak:
     LINES = ["<!-- page: 2 -->", RUNNING_HEADER, "5.0 Statistical Analysis\t12"]
 

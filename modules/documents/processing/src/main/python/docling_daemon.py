@@ -26,9 +26,14 @@ Endpoints:
     POST /parse    -> ?path=/shared-docs/.../file.pdf[&chunk=true][&max_tokens=]
                       [&min_structure_tokens=]
                      -> {"ok", "markdown_path", "chunked", "chunks_dir", "logs", "filename"}
-    POST /shutdown -> graceful stop (used when the caller owns the daemon process)
+    POST /shutdown -> graceful stop; served only with ``--enable-shutdown``
 
 The daemon and the main app share ``/shared-docs`` (env ``IAP_SHARED_DOCS``).
+
+``/parse`` and ``/shutdown`` change state, so both refuse any request carrying an ``Origin``
+header (no legitimate caller here is a web page, and a page on the operator's machine can
+reach loopback) and, when ``IAP_DOCLING_TOKEN`` is set, require it as a bearer token.
+``GET /health`` stays open so probes need no credential.
 
 The daemon has no authentication: every endpoint is open including ``/shutdown``.
 """
@@ -36,7 +41,9 @@ The daemon has no authentication: every endpoint is open including ``/shutdown``
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
+import os
 import signal
 import sys
 import threading
@@ -52,7 +59,7 @@ from urllib.parse import parse_qs, urlsplit
 import docling_config  # noqa: F401 — apply shared Docling settings on import
 
 from chunker import DEFAULT_MAX_TOKENS
-from docling_batch_sizing import GB_PER_WORKER, calc_workers, positive_int
+from docling_batch_sizing import add_workers_argument, calc_workers
 from docling_docx_parser import get_docx_converter
 from docling_pdf_parser import warm_pdf_workers, _init_worker
 from shared_docs import ParseRequestError, resolve_parse_path, shared_docs_root
@@ -61,6 +68,31 @@ from toc_and_appendix_detection import DEFAULT_MIN_STRUCTURE_TOKENS
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 18765
+
+# How many conversions may be in flight at once. One, because the whole RAM budget in
+# docling_batch_sizing — worker count, page-batch size, the cgroup limit it reads — is
+# calculated for a single conversion spread over the worker pool. ThreadingHTTPServer will
+# start a thread per request regardless, so without this a burst of callers each holds a
+# full assembled document plus its chunk tree, the cgroup OOM killer takes a worker, and the
+# BrokenProcessPool that follows marks the daemon permanently broken.
+MAX_CONCURRENT_PARSES = 1
+
+# Optional shared secret for the mutating endpoints. When set, /parse and /shutdown require
+# "Authorization: Bearer <token>". Left unset the daemon behaves as before and the port is
+# the only boundary, which is fine for a loopback-only deployment and not fine for anything
+# else — hence the warning at startup.
+TOKEN_ENVIRONMENT_VARIABLE = "IAP_DOCLING_TOKEN"
+
+
+def _stderr(message: str) -> None:
+    """Log one line to the container log."""
+    print(message, file=sys.stderr, flush=True)
+
+
+def daemon_token() -> str | None:
+    """The shared secret guarding the mutating endpoints, or ``None`` when unset."""
+    token = (os.environ.get(TOKEN_ENVIRONMENT_VARIABLE) or "").strip()
+    return token or None
 
 
 class DaemonState:
@@ -77,8 +109,11 @@ class DaemonState:
         self.docx_converter = None
         self.shutdown_requested = False
         self.pdf_executor_broken = False
+        # Non-blocking: a caller that arrives while the daemon is busy is told so, rather
+        # than parked on a socket for however long the conversion ahead of it takes
+        self.parse_slots = threading.BoundedSemaphore(MAX_CONCURRENT_PARSES)
         try:
-            warm_pdf_workers(self.pdf_executor, self.worker_count)
+            warm_pdf_workers(self.pdf_executor, self.worker_count, log=_stderr)
             self.docx_converter = get_docx_converter()
         except Exception:
             self.pdf_executor.shutdown(wait=False, cancel_futures=True)
@@ -100,6 +135,7 @@ class DaemonState:
 
 _STATE: DaemonState | None = None
 _SERVER: ThreadingHTTPServer | None = None
+_SHUTDOWN_ENABLED = False
 
 
 def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any]) -> None:
@@ -208,8 +244,57 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             },
         )
 
+    def _refuse_unauthorized(self, endpoint: str) -> bool:
+        """Reject a mutating request that came from a browser, or that lacks the secret.
+
+        Two checks, covering different callers:
+
+        * An ``Origin`` header means a page made this request. Nothing that legitimately
+          drives this daemon is a web page, and loopback binding is no defence — the browser
+          runs on the same host, and a ``POST`` with a simple content type needs no
+          preflight, so any site the operator visits could otherwise spend the worker pool
+          or call ``/shutdown``.
+        * A bearer token, when :data:`TOKEN_ENVIRONMENT_VARIABLE` is set, so that reaching
+          the port is not by itself authority to use it.
+
+        @param endpoint: the endpoint name, for the log line
+        @return: whether the request was refused, with a response already written
+        """
+        if self.headers.get("Origin") is not None:
+            _stderr(f"Refused a browser-originated {endpoint} request")
+            _json_response(
+                self,
+                HTTPStatus.FORBIDDEN,
+                {"error": "requests carrying an Origin header are not accepted"},
+            )
+            return True
+        token = daemon_token()
+        if token is None:
+            return False
+        presented = self.headers.get("Authorization") or ""
+        if not hmac.compare_digest(presented, f"Bearer {token}"):
+            _json_response(
+                self,
+                HTTPStatus.UNAUTHORIZED,
+                {"error": f"missing or invalid {TOKEN_ENVIRONMENT_VARIABLE} bearer token"},
+            )
+            return True
+        return False
+
     def do_POST(self) -> None:
         if self.path == "/shutdown":
+            _drain_request_body(self)
+            if not _SHUTDOWN_ENABLED:
+                # Off unless asked for: the container is stopped with a signal, so the
+                # endpoint is a liability everywhere except a caller-owned daemon
+                _json_response(
+                    self,
+                    HTTPStatus.NOT_FOUND,
+                    {"error": "/shutdown is disabled; start with --enable-shutdown"},
+                )
+                return
+            if self._refuse_unauthorized("/shutdown"):
+                return
             _request_shutdown()
             _json_response(self, HTTPStatus.OK, {"status": "shutting_down"})
             return
@@ -227,6 +312,8 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         Query: ``?path=/shared-docs/.../file.pdf&chunk=true&max_tokens=2000&min_structure_tokens=20000``.
         """
         _drain_request_body(self)
+        if self._refuse_unauthorized("/parse"):
+            return
         try:
             if _STATE is None or not _STATE.is_ready():
                 _json_response(
@@ -252,14 +339,29 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                         raise ParseRequestError(f"{name} must be 1 or greater; got {parsed}")
                     options[name] = parsed
 
-            payload = _run_parse(
-                input_path,
-                chunk=chunk,
-                max_tokens=options.get("max_tokens", DEFAULT_MAX_TOKENS),
-                min_structure_tokens=options.get(
-                    "min_structure_tokens", DEFAULT_MIN_STRUCTURE_TOKENS
-                ),
-            )
+            if not _STATE.parse_slots.acquire(blocking=False):
+                # Refused rather than queued: a conversion takes minutes, and holding the
+                # socket open for one that has not started yet only invites client timeouts
+                _json_response(
+                    self,
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                    {
+                        "error": "daemon busy: a conversion is already running "
+                        f"(limit {MAX_CONCURRENT_PARSES})"
+                    },
+                )
+                return
+            try:
+                payload = _run_parse(
+                    input_path,
+                    chunk=chunk,
+                    max_tokens=options.get("max_tokens", DEFAULT_MAX_TOKENS),
+                    min_structure_tokens=options.get(
+                        "min_structure_tokens", DEFAULT_MIN_STRUCTURE_TOKENS
+                    ),
+                )
+            finally:
+                _STATE.parse_slots.release()
             _json_response(self, HTTPStatus.OK, payload)
         except ParseRequestError as exc:
             _json_response(self, HTTPStatus.BAD_REQUEST, {"error": str(exc)})
@@ -302,36 +404,38 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_PORT,
         help=f"listen port (default: {DEFAULT_PORT})",
     )
+    add_workers_argument(parser)
     parser.add_argument(
-        "--workers",
-        type=positive_int,
-        default=None,
-        metavar="N",
+        "--enable-shutdown",
+        action="store_true",
         help=(
-            "parallel PDF worker processes (default: auto from logical CPU cores "
-            f"and RAM budget / {GB_PER_WORKER:.1f} GB per worker)"
+            "serve POST /shutdown. Off by default: a container is stopped with a signal, so "
+            "the endpoint is only useful when the caller owns the daemon process, and it is "
+            "a denial-of-service handle everywhere else"
         ),
     )
     return parser.parse_args()
 
 
 def _warn_if_exposed(host: str) -> None:
-    """Say so, loudly, when the bind address is not loopback."""
-    if host in ("127.0.0.1", "::1", "localhost"):
+    """Say so, loudly, when the bind address is not loopback and nothing authenticates."""
+    if host in ("127.0.0.1", "::1", "localhost") or daemon_token() is not None:
         return
     print(
-        f"WARNING: binding {host}, not loopback. No endpoint authenticates, so anyone who can "
-        f"reach this port can upload documents, spend the worker pool and call /shutdown. In "
-        f"Docker, publish as \"127.0.0.1:<port>:{DEFAULT_PORT}\" so only this host can reach it.",
+        f"WARNING: binding {host}, not loopback, with no {TOKEN_ENVIRONMENT_VARIABLE} set. "
+        f"Anyone who can reach this port can parse any document on the shared volume and "
+        f"spend the worker pool. Set {TOKEN_ENVIRONMENT_VARIABLE}, or in Docker publish as "
+        f"\"127.0.0.1:<port>:{DEFAULT_PORT}\" so only this host can reach it.",
         file=sys.stderr,
         flush=True,
     )
 
 
 def main() -> None:
-    global _STATE, _SERVER
+    global _STATE, _SERVER, _SHUTDOWN_ENABLED
 
     args = parse_args()
+    _SHUTDOWN_ENABLED = args.enable_shutdown
     _warn_if_exposed(args.host)
     try:
         _STATE = DaemonState(args.workers)
@@ -339,10 +443,15 @@ def main() -> None:
         print(f"Docling daemon initialization failed: {e}", file=sys.stderr, flush=True)
         sys.exit(1)
 
+    # The server is built before the handlers are installed. Installing them first leaves a
+    # window in which a signal finds _SERVER still None: _request_shutdown would set the flag
+    # and return with nothing to stop the accept loop, and serve_forever would then run
+    # forever answering 503 to everything until the stop grace period ran out and SIGKILL
+    # landed — a container that looks hung rather than one that stops.
+    _SERVER = ThreadingHTTPServer((args.host, args.port), DoclingDaemonHandler)
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
-    _SERVER = ThreadingHTTPServer((args.host, args.port), DoclingDaemonHandler)
     print(
         f"Docling daemon listening on http://{args.host}:{args.port} "
         f"with {_STATE.worker_count} warm PDF workers "
@@ -351,7 +460,10 @@ def main() -> None:
     )
 
     try:
-        _SERVER.serve_forever()
+        # A signal delivered between installing the handlers and getting here has already
+        # set the flag, so check it rather than entering a loop nothing will leave
+        if _STATE.is_ready():
+            _SERVER.serve_forever()
     finally:
         pool_broke = _STATE.pdf_executor_broken
         _STATE.close()

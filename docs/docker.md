@@ -147,10 +147,26 @@ huggingface.co and fail, and the container would report healthy until the first 
 weights are saved in `DOCLING_ARTIFACTS_PATH`, and `HF_HUB_OFFLINE` is set afterwards so that
 the runtime stays offline after downloading.
 
-The daemon publishes **no port**. `modules/documents/processing/docker-compose.yml` runs it as a
-Compose service with no `ports:` entry, so IAP reaches it by service name at
-`http://docling:18765` and nothing outside that network can access it. `POST /parse` takes the document
-in the request body and returns the Markdown and chunk tree in the response.
+`POST /shutdown` is not served unless the daemon is started with `--enable-shutdown`, and both
+mutating endpoints (`/parse`, `/shutdown`) refuse requests carrying an `Origin` header so a page in
+the operator's browser cannot drive them. Set `IAP_DOCLING_TOKEN` to require a bearer token on top
+of that; `GET /health` stays open for probes. Otherwise the port is what keeps the daemon private.
+`modules/documents/processing/docker-compose.yml` publishes it as
+`127.0.0.1:18765:18765` — bound to loopback on the host, reachable from the host for local work but
+not from the network. Inside a Compose network IAP can also reach it by service name at
+`http://docling:18765`. If you change that mapping, keep the `127.0.0.1:` prefix.
 
-See `modules/documents/processing/requirements.md` for the endpoints, the system properties IAP
-uses to reach the daemon, and how to run it by hand for local work.
+`POST /parse` is **path-based**, not an upload. The caller stages the document on the volume shared
+with the daemon (`IAP_SHARED_DOCS`, `/shared-docs` in the image) and passes its path:
+
+```
+POST /parse?path=/shared-docs/<dir>/<file>.pdf&chunk=true
+```
+
+The request body is read and discarded. The reply is a small JSON summary
+(`markdown_path`, `chunked`, `chunks_dir`, `logs`, `filename`) — the Markdown and the chunk tree are
+written to the shared volume beside the source, not returned. A request without `path` is a
+`400 {"error": "path query parameter is required"}`.
+
+See [processing.md](../modules/documents/processing/processing.md) for the endpoints, the sizing
+environment variables, and how to run the daemon by hand for local work.
