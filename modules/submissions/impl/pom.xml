@@ -21,17 +21,25 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-modules</artifactId>
+    <artifactId>iap-submissions</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-submissions</artifactId>
-  <packaging>pom</packaging>
-  <name>IAP - Submissions</name>
-  <description>Submissions filed against a schema, with answers, attached documents, and reviews.</description>
+  <artifactId>iap-submissions-impl</artifactId>
+  <!--
+    Today this module owns the submissions UI and nothing else: the frontend is collected into the
+    aggregated bundle by webpack_script.py rather than packaged here, so this builds no artifact
+    worth deploying and is deliberately absent from the feature model.
 
-  <modules>
-    <module>api</module>
-    <module>impl</module>
-  </modules>
+    It exists as a module anyway because the UI has to live somewhere real. Its previous home,
+    modules/submissions/, is a `pom` aggregator: Maven builds no sources there at all, so those
+    files were reachable only by the aggregation script walking directories, outside the reactor
+    that checks and packages everything else.
+
+    The handlers and endpoints serving that UI are being written on the workflow engine branch and
+    land here, alongside it, which is also why `impl` rather than folding the UI into `api`.
+  -->
+  <packaging>jar</packaging>
+  <name>IAP - Submissions - Implementation</name>
+  <description>The submissions UI, and in time the handlers and endpoints serving it.</description>
 </project>
