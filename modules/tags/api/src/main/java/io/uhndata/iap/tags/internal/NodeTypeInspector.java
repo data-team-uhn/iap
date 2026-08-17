@@ -64,12 +64,18 @@ public final class NodeTypeInspector
 
     /**
      * Checks whether tag properties may be stored on the given node: one of the node's primary or mixin types, or one
-     * of their supertypes, must either declare the tag properties by name (like {@code iap:Taggable} does) or accept
-     * residual properties (like {@code nt:unstructured} does). Writing to any other node would be rejected by the
-     * type validation, failing the whole commit.
+     * of their supertypes, must declare the tag properties by name, which is what {@code iap:Taggable} does and what
+     * every {@code iap:Content} node inherits.
+     *
+     * <p>
+     * Taggability has to be <em>declared</em> rather than merely tolerated. A type that happens to accept residual
+     * properties — {@code nt:unstructured}, and therefore {@code rep:root} and every free-form container in the
+     * repository — has not opted into tags, and derived properties written onto such nodes are how an aggregated tag
+     * used to reach the repository root. A node of such a type becomes taggable by adding the mixin.
+     * </p>
      *
      * @param node the node to check
-     * @return {@code true} if one of the node's types accepts the tag properties
+     * @return {@code true} if one of the node's types declares the tag properties
      */
     public boolean canStoreTags(final NodeState node)
     {
@@ -134,7 +140,6 @@ public final class NodeTypeInspector
 
     private boolean accepts(final NodeState definition)
     {
-        return definition.hasChildNode("rep:residualPropertyDefinitions")
-            || definition.getChildNode("rep:namedPropertyDefinitions").hasChildNode(TagManager.TAGS_PROPERTY);
+        return definition.getChildNode("rep:namedPropertyDefinitions").hasChildNode(TagManager.TAGS_PROPERTY);
     }
 }

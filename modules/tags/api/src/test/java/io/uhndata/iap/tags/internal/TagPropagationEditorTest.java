@@ -118,7 +118,10 @@ class TagPropagationEditorTest
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY, PART));
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA, ENTITY));
         assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, DATA));
-        // The repository root carries no writable type, so it is never written to
+        // The repository root declares none of the tag properties — it merely inherits nt:unstructured's willingness
+        // to hold any property — so it is never written to, however far the aggregate would otherwise climb. Nothing
+        // could read a repository-wide aggregate anyway, and writing one would need permissions on / that no session
+        // holds, failing the commit of whoever placed the tag.
         assertTrue(read(result, AGGREGATED).isEmpty());
         // The tagged node itself has no descendants carrying the tag
         assertTrue(read(result, AGGREGATED, DATA, ENTITY, PART, ANSWER).isEmpty());
@@ -233,7 +236,7 @@ class TagPropagationEditorTest
     }
 
     @Test
-    void nodesWithStrictTypesAreBoundaries() throws Exception
+    void nodesThatDoNotDeclareTheTagPropertiesAreBoundaries() throws Exception
     {
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
@@ -247,19 +250,45 @@ class TagPropagationEditorTest
         final NodeBuilder mystery = descend(after, DATA, ENTITY).child("mystery");
         mystery.setProperty(PRIMARY_TYPE, "custom:Unknown", Type.NAME);
         mystery.setProperty("jcr:mixinTypes", List.of("nt:file"), Type.NAMES);
-        // A free-form node whose own type accepts any property is writable
+        // And a free-form node, which would accept the properties but has not asked for them: tolerating any
+        // property is not the same as declaring these, and treating the two alike is what let derived tags reach
+        // every plumbing container in the repository, the root included
         descend(after, DATA, ENTITY).child("free").setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
         descend(after, DATA, ENTITY).setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
 
         final NodeState result = process(before, after);
 
         assertEquals(Set.of(SENSITIVE), read(result, INHERITED, DATA, ENTITY, PART));
-        assertEquals(Set.of(SENSITIVE), read(result, INHERITED, DATA, ENTITY, "free"));
         // The boundary nodes are not written to, and the chain stops there
+        assertTrue(read(result, INHERITED, DATA, ENTITY, "free").isEmpty());
         assertTrue(read(result, INHERITED, DATA, ENTITY, "file").isEmpty());
         assertTrue(read(result, INHERITED, DATA, ENTITY, "file", "inner").isEmpty());
         assertTrue(read(result, INHERITED, DATA, ENTITY, "folder").isEmpty());
         assertTrue(read(result, INHERITED, DATA, ENTITY, "mystery").isEmpty());
+    }
+
+    /**
+     * The failure flag obeys the same writability rule as the tags themselves. It has to: a flag stuck on a node
+     * nobody may write is read by {@code enter} on every commit that reaches it, so a flag on the repository root
+     * would make every commit try to remove it, and every commit by a non-administrator fail.
+     */
+    @Test
+    void aFailingProcessorDoesNotFlagNodesThatCannotCarryTags() throws Exception
+    {
+        final EditorHook broken = hookWith(new FailingProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        descend(after, DATA, ENTITY).child("free").setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
+
+        final NodeState result = broken.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+        assertFalse(result.hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
+        assertFalse(descend(result.builder(), DATA, ENTITY, "free")
+            .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
+        // The node that can carry tags is still flagged, so the run really did fail everywhere
+        assertTrue(descend(result.builder(), DATA, ENTITY, PART, ANSWER)
+            .hasProperty(TagManager.COMPUTATION_STATE_PROPERTY));
     }
 
     @Test
@@ -624,6 +653,9 @@ class TagPropagationEditorTest
     private NodeBuilder base()
     {
         final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
+        // Typed as the real repository root is, which is what makes the root's own writability a real question: it
+        // extends nt:unstructured, so it accepts any property, while declaring none of the tag ones itself
+        root.setProperty(PRIMARY_TYPE, "rep:root", Type.NAME);
         // A minimal node type registry backing the writability checks: the iap:Taggable mixin declaring the
         // tag properties by name, content types carrying it through their expanded supertypes, a free-form type
         // accepting any property, and strict types
@@ -639,6 +671,7 @@ class TagPropagationEditorTest
         types.child("nt:file");
         types.child("nt:folder").setProperty("rep:supertypes", List.of("nt:base"), Type.NAMES);
         types.child("nt:base");
+        types.child("rep:root").setProperty("rep:supertypes", List.of("nt:unstructured", "nt:base"), Type.NAMES);
         final NodeBuilder homepage = root.child("Tags");
         homepage.setProperty(TYPE_PROPERTY, "iap/TagsHomepage");
         define(homepage, INCOMPLETE, true, false);

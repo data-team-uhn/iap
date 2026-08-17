@@ -132,10 +132,12 @@ Propagation details worth knowing:
 
 - Copies travel in one direction only: an aggregated copy on an ancestor is not re-inherited by
   the source's siblings, even for a tag that is both `aggregated` and `inheritable`.
-- Derived properties are only written on nodes carrying a `sling:resourceType` (every
-  `iap:Content` node does). Strict node types that would reject extra properties — file contents,
-  access control entries, the system and index subtrees — are never touched and act as
-  propagation boundaries.
+- Derived properties are only written on nodes whose types *declare* them, which is what the
+  `iap:Taggable` mixin does and what every `iap:Content` node inherits. A type that merely tolerates
+  residual properties — `nt:unstructured`, and so every free-form container, the repository root
+  included — has not opted in, and strict types that would reject them (file contents, access
+  control entries, the system and index subtrees) never could. All of them act as propagation
+  boundaries; a free-form node becomes taggable by adding the mixin.
 - `targetResourceTypes` restricts where a tag may be *explicitly placed*; derived copies are exempt.
 - Changing a definition's `aggregated`/`inheritable` flags does not by itself recompute the copies
   already stored elsewhere, and neither does deleting a definition: no content changed, so nothing

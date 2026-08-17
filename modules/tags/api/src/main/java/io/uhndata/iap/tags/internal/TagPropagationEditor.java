@@ -69,9 +69,16 @@ import io.uhndata.iap.tags.spi.TagProcessor.Scope;
  * </p>
  *
  * <p>
- * Derived properties are only written on nodes whose types accept them, as decided by the {@link NodeTypeInspector};
- * strict node types that would reject the properties (file contents, access control entries...) are never touched
- * and act as propagation boundaries.
+ * Derived properties are only written on nodes whose types <em>declare</em> them, as decided by the
+ * {@link NodeTypeInspector}: types that merely tolerate residual properties have not opted into tags, and strict
+ * types that would reject them (file contents, access control entries...) never could. Both act as propagation
+ * boundaries.
+ * </p>
+ *
+ * <p>
+ * That bound is not cosmetic. Every write this editor makes is attributed to the session that committed, and Oak
+ * validates permissions after the editors have run, so a copy landing on an ancestor the committer may not write
+ * fails their commit — losing the very data the rule above exists to protect.
  * </p>
  *
  * @version $Id$
