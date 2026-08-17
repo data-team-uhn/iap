@@ -20,6 +20,7 @@ package io.uhndata.iap.tags.models;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -82,6 +83,12 @@ public class TagDefinition extends Content implements DocumentedItem
 
     @ValueMapValue
     private String color;
+
+    @ValueMapValue
+    private String variant;
+
+    @ValueMapValue
+    private String icon;
 
     @ValueMapValue
     private Long order;
@@ -173,7 +180,8 @@ public class TagDefinition extends Content implements DocumentedItem
     }
 
     /**
-     * An optional color used when displaying this tag, as a CSS color value.
+     * An optional color used when displaying this tag, as a CSS color value; the chip's background, text and border
+     * are all derived from it, according to the {@link #getVariant() variant}.
      *
      * @return the color, or {@code null} if not set
      */
@@ -181,6 +189,32 @@ public class TagDefinition extends Content implements DocumentedItem
     public String getColor()
     {
         return this.color;
+    }
+
+    /**
+     * How this tag is displayed: {@code soft} (the default when absent) tints the background with the
+     * {@link #getColor() color} and clamps the color into a readable text, {@code outlined} draws only that readable
+     * text and a matching border on a transparent background, and {@code filled} uses the color as a loud fill under
+     * contrasting text.
+     *
+     * @return the variant, or {@code null} if not set, meaning the default soft display
+     */
+    @Nullable
+    public String getVariant()
+    {
+        return this.variant;
+    }
+
+    /**
+     * An optional icon displayed next to this tag's label, as a MUI icon name, e.g. {@code EditOutlined}. Names
+     * outside the UI's curated icon set display no icon.
+     *
+     * @return the icon name, or {@code null} if not set
+     */
+    @Nullable
+    public String getIcon()
+    {
+        return this.icon;
     }
 
     /**
@@ -267,14 +301,11 @@ public class TagDefinition extends Content implements DocumentedItem
             getTargetResourceTypes().forEach(targets::add);
             json.add("targetResourceTypes", targets);
         }
-        final String tagColor = getColor();
-        if (tagColor != null) {
-            json.add("color", tagColor);
-        }
-        final Long tagOrder = getOrder();
-        if (tagOrder != null) {
-            json.add("order", tagOrder);
-        }
+        // Optional fields are left out of the JSON entirely rather than serialized as null
+        Optional.ofNullable(getColor()).ifPresent(value -> json.add("color", value));
+        Optional.ofNullable(getVariant()).ifPresent(value -> json.add("variant", value));
+        Optional.ofNullable(getIcon()).ifPresent(value -> json.add("icon", value));
+        Optional.ofNullable(getOrder()).ifPresent(value -> json.add("order", value));
         return json.add("path", getPath());
     }
 }

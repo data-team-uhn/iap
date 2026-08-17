@@ -66,7 +66,8 @@ class TagDefinitionTest
     @Test
     void exposesDefinitionProperties()
     {
-        final Resource resource = this.context.create().resource("/Tags/incomplete", Map.of(
+        // Property pairs passed as varargs: Map.of tops out at ten pairs, which this outgrew
+        final Resource resource = this.context.create().resource("/Tags/incomplete",
             "sling:resourceType", "iap/TagDefinition",
             "label", "Incomplete",
             "description", "Some required answers are missing",
@@ -74,8 +75,10 @@ class TagDefinitionTest
             "aggregated", true,
             "targetResourceTypes", new String[] { "iap/Entity", "iap/EntityPart" },
             "color", "#ff9800",
+            "variant", "filled",
+            "icon", "RuleOutlined",
             "order", 25L,
-            "system", true));
+            "system", true);
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
 
         assertEquals("incomplete", definition.getName());
@@ -86,6 +89,8 @@ class TagDefinitionTest
         assertTrue(definition.isAggregated());
         assertEquals(List.of("iap/Entity", "iap/EntityPart"), definition.getTargetResourceTypes());
         assertEquals("#ff9800", definition.getColor());
+        assertEquals("filled", definition.getVariant());
+        assertEquals("RuleOutlined", definition.getIcon());
         assertEquals(25L, definition.getOrder());
         assertTrue(definition.isSystem());
     }
@@ -106,6 +111,8 @@ class TagDefinitionTest
         assertFalse(definition.isAggregated());
         assertEquals(List.of(), definition.getTargetResourceTypes());
         assertNull(definition.getColor());
+        assertNull(definition.getVariant());
+        assertNull(definition.getIcon());
         assertNull(definition.getOrder());
         assertFalse(definition.isSystem());
     }
@@ -221,7 +228,8 @@ class TagDefinitionTest
     @Test
     void serializesTheFullDefinitionAsJson()
     {
-        final Resource resource = this.context.create().resource("/Tags/sensitive", Map.of(
+        // Property pairs passed as varargs: Map.of tops out at ten pairs, which this outgrew
+        final Resource resource = this.context.create().resource("/Tags/sensitive",
             "sling:resourceType", "iap/TagDefinition",
             "label", "Sensitive",
             "description", "Contains confidential data",
@@ -229,8 +237,10 @@ class TagDefinitionTest
             "inheritable", true,
             "targetResourceTypes", new String[] { "iap/Entity" },
             "color", "#f44336",
+            "variant", "filled",
+            "icon", "CancelOutlined",
             "order", 10L,
-            "system", true));
+            "system", true);
         final JsonObject json = resource.adaptTo(TagDefinition.class).toDocumentationJson();
 
         assertEquals("sensitive", json.getString("name"));
@@ -242,6 +252,8 @@ class TagDefinitionTest
         assertTrue(json.getBoolean("system"));
         assertEquals("iap/Entity", json.getJsonArray("targetResourceTypes").getString(0));
         assertEquals("#f44336", json.getString("color"));
+        assertEquals("filled", json.getString("variant"));
+        assertEquals("CancelOutlined", json.getString("icon"));
         assertEquals(10, json.getJsonNumber("order").longValue());
         assertEquals("/Tags/sensitive", json.getString("path"));
     }
@@ -258,6 +270,8 @@ class TagDefinitionTest
         assertFalse(json.containsKey("category"));
         assertFalse(json.containsKey("targetResourceTypes"));
         assertFalse(json.containsKey("color"));
+        assertFalse(json.containsKey("variant"));
+        assertFalse(json.containsKey("icon"));
         assertFalse(json.containsKey("order"));
         assertEquals("/Tags/plain", json.getString("path"));
     }

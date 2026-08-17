@@ -120,10 +120,23 @@ registerEntityType(CHOICE_TYPE, {
       headerName: "State",
       type: "singleSelect",
       valueOptions: [
-        { value: "open", label: "Open", color: "#2e7d32" },
+        // Filled, because the default soft styling is color-mix()/light-dark() CSS that
+        // jsdom cannot verify — chipStyle's own tests pin the soft recipes down
+        { value: "open", label: "Open", color: "#1d6a3a", variant: "filled" },
         { value: "closed", label: "Closed" },
       ],
     },
+  ],
+});
+
+// A choice column declaring its options the other way MUI allows, as plain strings: there is no
+// label, color or variant to read off one, and the grid passes them along as declared
+const STRING_CHOICE_TYPE = "test/StringChoiceEntity";
+registerEntityType(STRING_CHOICE_TYPE, {
+  homepage: "/StringChoiceEntities",
+  columns: [
+    { field: "title", headerName: "Title" },
+    { field: "state", headerName: "State", type: "singleSelect", valueOptions: ["open", "closed"] },
   ],
 });
 
@@ -769,8 +782,9 @@ describe("EntityDataGrid", () => {
   });
 
   // The many sequential picker interactions make this the file's slowest test; under a
-  // coverage-instrumented full-suite run it can brush the default timeout, so it gets room
-  it("shows values picked in \"is any of\" as chips in their options' colors", { timeout: 30_000 }, async () => {
+  // coverage-instrumented full-suite run it can far exceed the default timeout, so it gets
+  // generous room
+  it("shows values picked in \"is any of\" as chips in their options' colors", { timeout: 60_000 }, async () => {
     const user = userEvent.setup();
     mockPage([]);
 
@@ -790,12 +804,42 @@ describe("EntityDataGrid", () => {
     await user.click(screen.getByRole("combobox", { name: "Value" }));
     await user.click(await screen.findByRole("option", { name: "Closed" }));
 
-    // A colored option fills its chip with the color; one without stays stock outlined
+    // A colored option styles its chip per its color and variant; an option without a color
+    // stays stock outlined
     const open = screen.getByText("Open").closest(".MuiChip-root");
     expect(open).toHaveClass("MuiChip-filled");
-    expect(open).toHaveStyle({ backgroundColor: "#2e7d32" });
+    expect(open).toHaveStyle({ backgroundColor: "#1d6a3a", color: "#fff" });
     const closed = screen.getByText("Closed").closest(".MuiChip-root");
     expect(closed).toHaveClass("MuiChip-outlined");
+
+    // The input keeps the size the filter form asked for, so it lines up with the column and
+    // operator selects beside it rather than standing a size taller
+    expect(screen.getByRole("combobox", { name: "Value" }).closest(".MuiInputBase-root"))
+      .toHaveClass("MuiInputBase-sizeSmall");
+  });
+
+  // A column may declare its choices as plain strings, and the grid passes an option along as it
+  // was declared: there is no label to read off it, and claiming there is leaves the chip blank.
+  it("labels the chips of a column whose options are plain strings", { timeout: 60_000 }, async () => {
+    const user = userEvent.setup();
+    mockPage([]);
+
+    render(<EntityDataGrid entityType={STRING_CHOICE_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+    await screen.findByText("Nothing to show");
+
+    await user.click(screen.getAllByRole("button", { name: /filter/i })[0]);
+    await user.click(await screen.findByRole("combobox", { name: "Column" }));
+    await user.click(await screen.findByRole("option", { name: "State" }));
+    await user.click(screen.getByRole("combobox", { name: "Operator" }));
+    await user.click(await screen.findByRole("option", { name: "is any of" }));
+
+    await user.click(screen.getByRole("combobox", { name: "Value" }));
+    await user.click(await screen.findByRole("option", { name: "open" }));
+
+    // The chip carries the value as its label, the way MUI labels a plain-string option
+    const chip = screen.getByText("open").closest(".MuiChip-root");
+    expect(chip).toBeInTheDocument();
+    expect(chip).toHaveTextContent("open");
   });
 
   it("docks the filter panel to the bottom of narrow screens, one card per condition", async () => {
