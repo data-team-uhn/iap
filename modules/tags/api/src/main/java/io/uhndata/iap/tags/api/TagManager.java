@@ -45,6 +45,13 @@ public interface TagManager
     String TAGS_PROPERTY = "tags";
 
     /**
+     * The mixin marking a container that {@code aggregated} tags travel up to and no further: it carries the
+     * aggregate of everything beneath it, and offers nothing to its own ancestors. {@code iap:EntityHomepage}
+     * declares it, so every entity listing is one.
+     */
+    String BOUNDARY_MIXIN = "iap:TagBoundary";
+
+    /**
      * The name of the property marking content whose derived tags cannot be trusted, declared by the
      * {@code iap:Taggable} mixin. Absent when they can. See {@link #STATE_FAILED} and
      * {@link #STATE_RECOMPUTING} for the two values, and note that the property's presence, not its value, is what

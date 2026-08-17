@@ -32,6 +32,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -415,7 +418,10 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     }
 
     /**
-     * Gathers the aggregated tags belonging to a resource's descendants, visiting the whole subtree.
+     * Gathers the aggregated tags belonging to a resource's descendants, visiting the subtree down to the nearest
+     * boundaries. An {@code iap:TagBoundary} container is where aggregation stops, so neither it nor anything inside it
+     * contributes here — the same rule the stored {@code aggregatedTags} are built by, and this has to agree with them
+     * or the two ways of asking the same question give different answers.
      *
      * @param resource the resource being described
      * @param definitions the known definitions, by tag name
@@ -428,10 +434,34 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
         resource.getChildren().forEach(toVisit::add);
         while (!toVisit.isEmpty()) {
             final Resource descendant = toVisit.removeFirst();
+            if (isBoundary(descendant)) {
+                continue;
+            }
             ownTags(descendant).stream()
                 .filter(name -> isAggregated(definitions.get(name)))
                 .forEach(name -> record(found, name, Tag.Origin.AGGREGATED, descendant.getPath()));
             descendant.getChildren().forEach(toVisit::add);
+        }
+    }
+
+    /**
+     * Checks whether a resource is where aggregation stops. {@code isNodeType} rather than a property check, so that
+     * the mixin is seen both when a node carries it explicitly and when its primary type declares it, which is how
+     * every {@code iap:EntityHomepage} is one.
+     *
+     * @param resource the resource to check
+     * @return {@code true} if aggregated tags may not travel out of this resource
+     */
+    private boolean isBoundary(final Resource resource)
+    {
+        final Node node = resource.adaptTo(Node.class);
+        try {
+            return node != null && node.isNodeType(TagManager.BOUNDARY_MIXIN);
+        } catch (final RepositoryException e) {
+            // Describing a resource must not fail because one node could not be classified; treating it as ordinary
+            // content is what the aggregation did before boundaries existed
+            LOGGER.warn("Could not tell whether {} bounds tag aggregation: {}", resource.getPath(), e.getMessage());
+            return false;
         }
     }
 

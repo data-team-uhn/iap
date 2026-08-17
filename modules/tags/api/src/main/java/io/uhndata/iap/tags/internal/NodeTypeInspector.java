@@ -19,6 +19,7 @@ package io.uhndata.iap.tags.internal;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -28,10 +29,11 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import io.uhndata.iap.tags.api.TagManager;
 
 /**
- * Answers the two node type questions the tag propagation needs, against the node type registry materialized at
- * {@code /jcr:system/jcr:nodeTypes}: whether a node may store the tag properties at all, and whether it is the
- * {@code iap:Entity} that bounds an {@link io.uhndata.iap.tags.spi.TagProcessor.Scope#ENTITY} computation. Verdicts
- * are cached per type name, so one instance must not outlive the commit it was created for.
+ * Answers the three node type questions the tag propagation needs, against the node type registry materialized at
+ * {@code /jcr:system/jcr:nodeTypes}: whether a node may store the tag properties at all, whether it is the
+ * {@code iap:Entity} that bounds an {@link io.uhndata.iap.tags.spi.TagProcessor.Scope#ENTITY} computation, and
+ * whether it is the {@code iap:TagBoundary} that aggregated tags travel up to and no further. Verdicts are cached
+ * per type name, so one instance must not outlive the commit it was created for.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,7 +43,12 @@ public final class NodeTypeInspector
     /** The node type of the standalone records that bound an entity-scoped computation. */
     private static final String ENTITY_TYPE = "iap:Entity";
 
+    /** The mixin declaring that aggregated tags stop at a node rather than climbing past it. */
+    private static final String BOUNDARY_TYPE = TagManager.BOUNDARY_MIXIN;
+
     private static final String PRIMARY_TYPE = "jcr:primaryType";
+
+    private static final String MIXIN_TYPES = "jcr:mixinTypes";
 
     /** Holds the full, transitively expanded set of supertypes of a registered node type. */
     private static final String SUPERTYPES = "rep:supertypes";
@@ -51,6 +58,8 @@ public final class NodeTypeInspector
     private final Map<String, Boolean> writable = new HashMap<>();
 
     private final Map<String, Boolean> entities = new HashMap<>();
+
+    private final Map<String, Boolean> boundaries = new HashMap<>();
 
     /**
      * Basic constructor.
@@ -79,7 +88,22 @@ public final class NodeTypeInspector
      */
     public boolean canStoreTags(final NodeState node)
     {
-        return checkTypes(node.getProperty(PRIMARY_TYPE)) || checkTypes(node.getProperty("jcr:mixinTypes"));
+        return anyTypeMatches(node.getProperty(PRIMARY_TYPE), this::isWritableType)
+            || anyTypeMatches(node.getProperty(MIXIN_TYPES), this::isWritableType);
+    }
+
+    /**
+     * Checks whether the given node is where aggregated tags stop, i.e. whether it carries the
+     * {@code iap:TagBoundary} mixin, either directly or through one of its types' supertypes as
+     * {@code iap:EntityHomepage} does.
+     *
+     * @param node the node to check
+     * @return {@code true} if aggregated tags may not travel past this node
+     */
+    public boolean isTagBoundary(final NodeState node)
+    {
+        return anyTypeMatches(node.getProperty(PRIMARY_TYPE), this::isBoundaryType)
+            || anyTypeMatches(node.getProperty(MIXIN_TYPES), this::isBoundaryType);
     }
 
     /**
@@ -108,20 +132,35 @@ public final class NodeTypeInspector
             .anyMatch(ENTITY_TYPE::equals);
     }
 
-    private boolean checkTypes(final PropertyState types)
+    private static boolean anyTypeMatches(final PropertyState types, final Predicate<String> verdict)
     {
         if (types == null) {
             return false;
         }
         if (types.isArray()) {
-            return StreamSupport.stream(types.getValue(Type.NAMES).spliterator(), false).anyMatch(this::isWritableType);
+            return StreamSupport.stream(types.getValue(Type.NAMES).spliterator(), false).anyMatch(verdict);
         }
-        return isWritableType(types.getValue(Type.NAME));
+        return verdict.test(types.getValue(Type.NAME));
     }
 
     private boolean isWritableType(final String type)
     {
         return this.writable.computeIfAbsent(type, this::computeWritableType);
+    }
+
+    private boolean isBoundaryType(final String type)
+    {
+        return this.boundaries.computeIfAbsent(type, this::computeBoundaryType);
+    }
+
+    private boolean computeBoundaryType(final String type)
+    {
+        if (BOUNDARY_TYPE.equals(type)) {
+            return true;
+        }
+        final PropertyState supertypes = this.registry.getChildNode(type).getProperty(SUPERTYPES);
+        return supertypes != null && StreamSupport.stream(supertypes.getValue(Type.NAMES).spliterator(), false)
+            .anyMatch(BOUNDARY_TYPE::equals);
     }
 
     private boolean computeWritableType(final String type)

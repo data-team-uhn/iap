@@ -21,10 +21,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.commit.DefaultEditor;
 import org.apache.jackrabbit.oak.spi.commit.Editor;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.slf4j.Logger;
@@ -69,16 +71,19 @@ import io.uhndata.iap.tags.spi.TagProcessor.Scope;
  * </p>
  *
  * <p>
- * Derived properties are only written on nodes whose types <em>declare</em> them, as decided by the
- * {@link NodeTypeInspector}: types that merely tolerate residual properties have not opted into tags, and strict
- * types that would reject them (file contents, access control entries...) never could. Both act as propagation
- * boundaries.
+ * Two rules bound where the writing reaches, both decided by the {@link NodeTypeInspector}. A node is written to only
+ * if one of its types <em>declares</em> the tag properties, which is what {@code iap:Taggable} does: types that
+ * merely tolerate residual properties have not opted into tags, and strict types that would reject them (file
+ * contents, access control entries...) never could. And aggregated tags climb no further than an
+ * {@code iap:TagBoundary} — an entity homepage, or anything else that declares itself the top of its own content —
+ * which is what keeps them out of the containers above it and out of the repository root.
  * </p>
  *
  * <p>
  * That bound is not cosmetic. Every write this editor makes is attributed to the session that committed, and Oak
- * validates permissions after the editors have run, so a copy landing on an ancestor the committer may not write
- * fails their commit — losing the very data the rule above exists to protect.
+ * validates permissions after the editors have run, so a copy travelling further up than the committer can write
+ * fails their commit — losing the very data the "a failing processor never fails the commit" rule below exists to
+ * protect. An unbounded aggregate reached the repository root, which no session may write and no query can use.
  * </p>
  *
  * @version $Id$
@@ -186,7 +191,10 @@ public class TagPropagationEditor extends DefaultEditor
         if (this.added || this.childContributionChanged) {
             upChanged = runPhase(Phase.BOTTOM_UP, this.node, parentState(), this.path, scopeRoot());
         }
-        if (this.parent != null && (this.ownTagsChanged || upChanged || this.added)) {
+        final boolean contributes = this.ownTagsChanged || upChanged || this.added;
+        // A boundary tells its parent nothing: what it aggregated is its own, and stops here. Only the saved
+        // recomputation, though — what makes it opaque is that the aggregation never reads a boundary child at all
+        if (this.parent != null && contributes && !isBoundary()) {
             // The tags flowing up from this node may have changed, the parent must recompute
             this.parent.childContributionChanged = true;
         }
@@ -306,7 +314,7 @@ public class TagPropagationEditor extends DefaultEditor
             final NodeState processorScope = processor.getScope() == Scope.ENTITY ? scope : null;
             try {
                 computed.addAll(processor.computeTags(new NodeTagContext(target.getNodeState(), targetParent,
-                    targetPath, processorScope, this.config.getDefinitions())));
+                    targetPath, processorScope, this.config)));
             } catch (final RuntimeException e) {
                 failed = true;
                 LOGGER.error("The tag processor {} failed on {}, the {} of that node are left as they were: {}",
@@ -397,6 +405,16 @@ public class TagPropagationEditor extends DefaultEditor
         return this.parent == null ? null : this.parent.entity;
     }
 
+    /**
+     * Whether aggregated tags stop at this node rather than flowing up to its parent.
+     *
+     * @return {@code true} if this node's types declare it an {@code iap:TagBoundary}
+     */
+    private boolean isBoundary()
+    {
+        return this.config.getNodeTypes().isTagBoundary(this.node.getNodeState());
+    }
+
     private NodeState scopeRoot()
     {
         return this.entity == null ? null : this.entity.node.getNodeState();
@@ -428,7 +446,7 @@ public class TagPropagationEditor extends DefaultEditor
      * @param name a child node name
      * @return {@code true} if the child must not be processed
      */
-    private boolean skip(final String name)
+    private static boolean skip(final String name)
     {
         return name.charAt(0) == ':' || SKIPPED_NODES.contains(name);
     }
@@ -448,16 +466,16 @@ public class TagPropagationEditor extends DefaultEditor
 
         private final NodeState scopeRoot;
 
-        private final TagDefinitions definitions;
+        private final TagPropagationConfig config;
 
         NodeTagContext(final NodeState node, final NodeState parent, final String path, final NodeState scopeRoot,
-            final TagDefinitions definitions)
+            final TagPropagationConfig config)
         {
             this.node = node;
             this.parent = parent;
             this.path = path;
             this.scopeRoot = scopeRoot;
-            this.definitions = definitions;
+            this.config = config;
         }
 
         @Override
@@ -485,9 +503,18 @@ public class TagPropagationEditor extends DefaultEditor
         }
 
         @Override
+        public Iterable<? extends ChildNodeEntry> getAggregationSources()
+        {
+            return StreamSupport.stream(this.node.getChildNodeEntries().spliterator(), false)
+                .filter(child -> !skip(child.getName()))
+                .filter(child -> !this.config.getNodeTypes().isTagBoundary(child.getNodeState()))
+                .toList();
+        }
+
+        @Override
         public TagDefinitions getDefinitions()
         {
-            return this.definitions;
+            return this.config.getDefinitions();
         }
     }
 }

@@ -21,7 +21,7 @@ through their initial content, e.g. the test-data module ships a demo set in
 | `description` | String | What the tag means and when it applies |
 | `category` | String[] | Grouping/filtering facets, e.g. `lifecycle`, `validation`, `privacy` |
 | `inheritable` | Boolean | The tag flows *down*: resources under a tagged node implicitly carry it too (e.g. everything inside a `sensitive` submission is sensitive) |
-| `aggregated` | Boolean | The tag bubbles *up*: a node implicitly carries it when any descendant explicitly does (e.g. a submission with an `incomplete` answer is incomplete) |
+| `aggregated` | Boolean | The tag bubbles *up*: a node implicitly carries it when any descendant explicitly does (e.g. a submission with an `incomplete` answer is incomplete), as far as the nearest `iap:TagBoundary` — see [How far a copy travels](#how-far-a-copy-travels) |
 | `targetResourceTypes` | String[] | `sling:resourceType`s the tag may be placed on, subtypes included; empty means unrestricted |
 | `color` | String | Optional CSS color the tag is displayed in; the chip's background, text and border are all derived from it, per the `variant` |
 | `variant` | String | How the tag displays: `soft` (the default) tints the background with the color and clamps the color into readable text, `outlined` draws only that readable text and a matching border on a transparent background, `filled` uses the color as a loud fill under contrasting text |
@@ -138,10 +138,43 @@ Propagation details worth knowing:
   included — has not opted in, and strict types that would reject them (file contents, access
   control entries, the system and index subtrees) never could. All of them act as propagation
   boundaries; a free-form node becomes taggable by adding the mixin.
-- `targetResourceTypes` restricts where a tag may be *explicitly placed*; derived copies are exempt.
+- `targetResourceTypes` restricts where a tag may be *explicitly placed*; derived copies are exempt,
+  and have to be — an aggregated copy exists to mark an *ancestor*, which is by construction not of
+  the type the tag targets. What bounds a copy is the boundary below, not the target types.
 - Changing a definition's `aggregated`/`inheritable` flags does not by itself recompute the copies
   already stored elsewhere, and neither does deleting a definition: no content changed, so nothing
   recomputes. Repair those with `POST /Tags.repair.json?tag=<name>` — see [Repair](#repair).
+
+### How far a copy travels
+
+Inheritance and aggregation are bounded differently, because they are asymmetric. An **inheritable**
+tag flows out of a node somebody deliberately tagged into that node's own subtree, so it is bounded
+by construction: whoever placed it chose the reach. An **aggregated** tag has no such author — every
+ancestor of every tagged node is a candidate — so it needs a declared top, and that is the
+`iap:TagBoundary` mixin. A boundary carries the aggregate of everything beneath it and contributes
+nothing to its own ancestors. It stops what flows up and nothing else: an inheritable tag placed
+above one still reaches the content inside it.
+
+`iap:EntityHomepage` is a boundary, which puts the top where the value has a reader — a homepage is
+what lists and filters its entities on `aggregatedTags`, and nothing above it lists anything.
+Anything else that contains content and is not an entity homepage may declare itself one too.
+
+Without a top, an aggregated tag climbs to the repository root, and both consequences are bad. The
+value stops answering any question: the root's aggregate is the union of every aggregated tag in the
+repository. And, less obviously, **it breaks writes**. Every property the propagation editor sets is
+attributed to the session that committed, and Oak evaluates permissions *after* the editors run, so
+a copy landing on an ancestor the committer may not write fails their commit outright — with a bare
+`OakAccess0000: Access denied`, naming no path. That is worth knowing when granting rights: a
+deployment shipping an `aggregated` definition must let everyone who can write the content it
+aggregates from also write the boundary node, e.g.
+
+```
+set ACL for iap-error-tracking
+    allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /LoggedErrors
+end
+```
+
+where `/LoggedErrors` is both the content's container and its boundary, so one grant covers both.
 
 ### When a computation fails
 

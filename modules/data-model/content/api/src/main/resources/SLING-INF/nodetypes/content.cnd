@@ -68,6 +68,26 @@
   // System-maintained, do not write manually.
   - tagComputationState (STRING) IGNORE
 
+//-----------------------------------------------------------------------------
+// Marks a container that `aggregated` tags travel up to and no further: it
+// carries the aggregate of everything beneath it, and contributes nothing to
+// its own ancestors.
+//
+// Aggregation needs a top, and the top has to be declared rather than
+// discovered. Without one, an aggregated tag placed anywhere climbs to the
+// repository root, which has two consequences: the value stops answering any
+// question anybody can ask — the root's aggregate is the union of every
+// aggregated tag in the repository — and every session that writes such
+// content has to hold property-write permission on every ancestor up to the
+// root, which no deployment grants and none should. A boundary bounds both.
+//
+// Placed where the aggregate has a reader: an entity homepage, which is what
+// lists and filters its entities on the derived properties. Anything else that
+// contains content but is not an entity homepage — an archive, say — may
+// declare itself one too.
+[iap:TagBoundary]
+  mixin
+
 [iap:Content] > sling:Folder, sling:Resource, sling:ResourceSuperType, iap:Taggable
   // Attributes:
 

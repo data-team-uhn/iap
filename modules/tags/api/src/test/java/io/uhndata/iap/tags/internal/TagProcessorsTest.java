@@ -19,9 +19,12 @@ package io.uhndata.iap.tags.internal;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.Test;
@@ -146,13 +149,24 @@ class TagProcessorsTest
         assertEquals(Set.of(AGG), this.aggregation.computeTags(context(node.getNodeState(), null)));
     }
 
+    /**
+     * Aggregation reads what the context offers and never the node's own child list, which is what makes the
+     * context's exclusions — hidden children, and the boundaries an aggregated tag may not climb past — binding
+     * rather than advisory.
+     */
     @Test
-    void aggregationSkipsHiddenChildren()
+    void aggregationOnlyReadsTheSourcesItIsOffered()
     {
         final NodeBuilder node = EmptyNodeState.EMPTY_NODE.builder();
-        node.child(":hidden").setProperty(TAGS, List.of(AGG), Type.STRINGS);
+        node.child("offered").setProperty(TAGS, List.of(AGG), Type.STRINGS);
+        node.child("withheld").setProperty(TAGS, List.of(AGG), Type.STRINGS);
+        final NodeState state = node.getNodeState();
+        final List<ChildNodeEntry> offered = StreamSupport.stream(state.getChildNodeEntries().spliterator(), false)
+            .filter(child -> "offered".equals(child.getName()))
+            .collect(Collectors.toList());
 
-        assertTrue(this.aggregation.computeTags(context(node.getNodeState(), null)).isEmpty());
+        assertEquals(Set.of(AGG), this.aggregation.computeTags(context(state, null, offered)));
+        assertTrue(this.aggregation.computeTags(context(state, null, List.of())).isEmpty());
     }
 
     @Test
@@ -181,6 +195,21 @@ class TagProcessorsTest
      */
     private TagContext context(final NodeState node, final NodeState parent)
     {
+        return context(node, parent, node.getChildNodeEntries());
+    }
+
+    /**
+     * The same, with an explicit list of the children whose tags may flow up, as the editor hands a bottom-up
+     * processor once the hidden children and the boundaries have been left out.
+     *
+     * @param node the node being processed
+     * @param parent the node's parent, {@code null} for the repository root
+     * @param sources the children that may contribute
+     * @return a context backed by the fixed test definitions
+     */
+    private TagContext context(final NodeState node, final NodeState parent,
+        final Iterable<? extends ChildNodeEntry> sources)
+    {
         return new TagContext()
         {
             @Override
@@ -193,6 +222,12 @@ class TagProcessorsTest
             public NodeState getParent()
             {
                 return parent;
+            }
+
+            @Override
+            public Iterable<? extends ChildNodeEntry> getAggregationSources()
+            {
+                return sources;
             }
 
             @Override

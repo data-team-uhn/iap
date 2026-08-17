@@ -76,7 +76,11 @@
 //
 //-----------------------------------------------------------------------------
 
-[iap:EntityHomepage] > iap:Content, rep:AccessControllable
+// An iap:TagBoundary because this is where an aggregated tag has a reader: the
+// homepage lists and filters its entities on the derived tag properties, and
+// nothing above it lists anything. See iap:TagBoundary for why aggregation
+// needs a declared top at all.
+[iap:EntityHomepage] > iap:Content, rep:AccessControllable, iap:TagBoundary
   // Attributes:
 
   // This is an abstract node type, specific homepage types must be defined.

@@ -58,6 +58,8 @@ class TagPropagationEditorTest
 
     private static final String ENTITY_TYPE = "iap:TestEntity";
 
+    private static final String BOUNDARY_TYPE = "iap:TestHomepage";
+
     private static final String COMPUTED = TagProcessor.Phase.LOCAL.getPropertyName();
 
     private static final String STATUS = "status";
@@ -265,6 +267,88 @@ class TagPropagationEditorTest
         assertTrue(read(result, INHERITED, DATA, ENTITY, "file", "inner").isEmpty());
         assertTrue(read(result, INHERITED, DATA, ENTITY, "folder").isEmpty());
         assertTrue(read(result, INHERITED, DATA, ENTITY, "mystery").isEmpty());
+    }
+
+    @Test
+    void aggregationStopsAtADeclaredBoundary() throws Exception
+    {
+        final NodeBuilder start = base();
+        // A boundary holding content, itself inside ordinary taggable content: the case the repository root used to
+        // hide, since there the next node up happened to be unwritable anyway
+        start.child("container").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        final NodeBuilder homepage = start.child("container").child("homepage");
+        homepage.setProperty(PRIMARY_TYPE, BOUNDARY_TYPE, Type.NAME);
+        homepage.child("item").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        // A second boundary, declared through a mixin on an otherwise ordinary node
+        final NodeBuilder byMixin = start.child("container").child("mixed");
+        byMixin.setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        byMixin.setProperty("jcr:mixinTypes", List.of("iap:TagBoundary"), Type.NAMES);
+        byMixin.child("item").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        final NodeState before = start.getNodeState();
+
+        final NodeBuilder after = before.builder();
+        descend(after, "container", "homepage", "item").setProperty(TAGS, List.of(INCOMPLETE), Type.STRINGS);
+        descend(after, "container", "mixed", "item").setProperty(TAGS, List.of(INCOMPLETE), Type.STRINGS);
+
+        final NodeState result = process(before, after);
+
+        // The boundary itself carries the aggregate — that is what it is for, and what a listing of its content reads
+        assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, "container", "homepage"));
+        assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, "container", "mixed"));
+        // ...and nothing above it hears about it, whichever way the boundary was declared
+        assertTrue(read(result, AGGREGATED, "container").isEmpty());
+        assertTrue(read(result, AGGREGATED).isEmpty());
+    }
+
+    /**
+     * Withholding the "recompute, a child changed" signal is not what makes a boundary opaque — the aggregation chain
+     * is. A parent recomputing for a reason of its own must still not read what the boundary beneath it aggregated.
+     */
+    @Test
+    void aBoundaryIsOpaqueEvenWhenItsParentRecomputesForOtherReasons() throws Exception
+    {
+        final NodeBuilder start = base();
+        start.child("container").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        final NodeBuilder homepage = start.child("container").child("homepage");
+        homepage.setProperty(PRIMARY_TYPE, BOUNDARY_TYPE, Type.NAME);
+        homepage.child("item").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        final NodeState before = start.getNodeState();
+        final NodeBuilder tagging = before.builder();
+        descend(tagging, "container", "homepage", "item").setProperty(TAGS, List.of(INCOMPLETE), Type.STRINGS);
+        final NodeState aggregated = process(before, tagging);
+        assertEquals(Set.of(INCOMPLETE), read(aggregated, AGGREGATED, "container", "homepage"));
+
+        // A second commit adding a sibling to the container, which makes the container run its own bottom-up phase
+        final NodeBuilder after = aggregated.builder();
+        descend(after, "container").child("sibling").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+
+        final NodeState result = process(aggregated, after);
+
+        assertTrue(read(result, AGGREGATED, "container").isEmpty());
+        assertEquals(Set.of(INCOMPLETE), read(result, AGGREGATED, "container", "homepage"));
+    }
+
+    /**
+     * A boundary stops what flows <em>up</em> and nothing else: it is not a wall. An inheritable tag placed above one
+     * still reaches the content inside it, which is what lets a whole container be marked sensitive.
+     */
+    @Test
+    void aBoundaryStillPassesInheritedTagsDown() throws Exception
+    {
+        final NodeBuilder start = base();
+        start.child("container").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        final NodeBuilder homepage = start.child("container").child("homepage");
+        homepage.setProperty(PRIMARY_TYPE, BOUNDARY_TYPE, Type.NAME);
+        homepage.child("item").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        final NodeState before = start.getNodeState();
+
+        final NodeBuilder after = before.builder();
+        descend(after, "container").setProperty(TAGS, List.of(SENSITIVE), Type.STRINGS);
+
+        final NodeState result = process(before, after);
+
+        assertEquals(Set.of(SENSITIVE), read(result, INHERITED, "container", "homepage"));
+        assertEquals(Set.of(SENSITIVE), read(result, INHERITED, "container", "homepage", "item"));
     }
 
     /**
@@ -657,8 +741,8 @@ class TagPropagationEditorTest
         // extends nt:unstructured, so it accepts any property, while declaring none of the tag ones itself
         root.setProperty(PRIMARY_TYPE, "rep:root", Type.NAME);
         // A minimal node type registry backing the writability checks: the iap:Taggable mixin declaring the
-        // tag properties by name, content types carrying it through their expanded supertypes, a free-form type
-        // accepting any property, and strict types
+        // tag properties by name, content types carrying it through their expanded supertypes, a boundary type,
+        // a free-form type accepting any property, and strict types
         final NodeBuilder types = root.child("jcr:system").child("jcr:nodeTypes");
         types.child("iap:Taggable").child("rep:namedPropertyDefinitions").child(TAGS);
         types.child("iap:Content").setProperty("rep:supertypes", List.of("iap:Taggable"), Type.NAMES);
@@ -667,6 +751,9 @@ class TagPropagationEditorTest
         types.child("iap:Entity");
         types.child(ENTITY_TYPE)
             .setProperty("rep:supertypes", List.of("iap:Content", "iap:Entity", "iap:Taggable"), Type.NAMES);
+        types.child("iap:TagBoundary");
+        types.child(BOUNDARY_TYPE).setProperty("rep:supertypes",
+            List.of("iap:Content", "iap:Taggable", "iap:TagBoundary"), Type.NAMES);
         types.child("nt:unstructured").child("rep:residualPropertyDefinitions");
         types.child("nt:file");
         types.child("nt:folder").setProperty("rep:supertypes", List.of("nt:base"), Type.NAMES);
