@@ -67,7 +67,7 @@ public class Activity extends FlowNode
      * decided.
      *
      * <p>Declared here because a task list has to know what to offer, and the only other record of which outcomes
-     * exist is the {@link SequenceFlow#getConditionExpression() condition} on some later gateway's arcs — which is
+     * exist is the {@link SequenceFlow#getCondition() condition} on some later gateway's arcs — which is
      * where they are <em>consumed</em>, not where they are announced, and which the person doing the task cannot
      * necessarily read. So an empty list is a statement, not a gap: this is a task there is nothing to decide
      * about, done or not done, and completing it records no decision.</p>
