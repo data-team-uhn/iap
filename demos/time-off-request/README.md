@@ -95,10 +95,11 @@ lookup as the first project-supplied handler. What is left:
 - Validating the doctor's note against the reason given for the absence. Waiting on the language-model
   module being built separately; `sch:DocumentRequirement.aiCheckPrompt` is where the instruction will go,
   and is deliberately left unset until something reads it.
-- Requests over 30 days needing a second approval. **Blocked**: a gateway currently routes by matching a
-  sequence flow's `conditionExpression` against the instance's `outcome` variable, so it cannot branch on
-  the answers. `wf:SequenceFlow` carries a raw string where it should carry a `cond:condition`, which the
-  conditions module can now support.
+- Requests over 30 days needing a second approval. **Partly unblocked**: an arc now carries a real
+  `cond:condition`, evaluated by the conditions module, and this workflow's gateway already routes on one.
+  What is still missing is a way to read the *request's answers* from it: a guard is asked of the running
+  instance, so the `variable` operand source reaches what the execution knows and nothing yet reaches the
+  submission the instance is attached to.
 - Unapproved requests flagged after two days; email on creation, approval and staleness. **Blocked**:
   nothing delivers timers, so a parked catching event has no way to wake.
 - Raising a request by email as well as through the UI. The engine's entry point is already

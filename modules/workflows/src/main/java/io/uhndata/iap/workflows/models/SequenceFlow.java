@@ -26,6 +26,8 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import io.uhndata.iap.conditions.models.Condition;
+import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.EntityPart;
 
 /**
@@ -39,7 +41,7 @@ import io.uhndata.iap.entities.models.EntityPart;
  */
 @Model(adaptables = Resource.class, resourceType = SequenceFlow.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class SequenceFlow extends EntityPart
+public class SequenceFlow extends EntityPart implements Conditionable
 {
     /** The {@code sling:resourceType} of a {@code wf:SequenceFlow} node. */
     public static final String RESOURCE_TYPE = "wf/SequenceFlow";
@@ -52,9 +54,6 @@ public class SequenceFlow extends EntityPart
 
     @ValueMapValue
     private String targetRef;
-
-    @ValueMapValue
-    private String conditionExpression;
 
     @ValueMapValue(name = "isDefault")
     private boolean defaultFlow;
@@ -94,16 +93,17 @@ public class SequenceFlow extends EntityPart
 
     /**
      * The guard deciding whether this arc may be taken, evaluated when the arc leaves a conditional
-     * {@link Gateway}.
-     * TODO: return a structured condition instead of a raw expression, once the conditions module lands and the
-     * node type can carry a condition child the way schema items do.
+     * {@link Gateway}. Structured rather than an expression, and the same mechanism schema items use to say when
+     * they apply, so that what a process routes on is described once and read by one evaluator.
      *
-     * @return an expression, or {@code null} if this arc is unconditional
+     * @return a condition, or {@code null} if this arc is unconditional — which for a gateway means it is taken
+     *         as soon as it is considered
      */
+    @Override
     @Nullable
-    public String getConditionExpression()
+    public Condition getCondition()
     {
-        return this.conditionExpression;
+        return this.getChild("cond:condition", Condition.class);
     }
 
     /**

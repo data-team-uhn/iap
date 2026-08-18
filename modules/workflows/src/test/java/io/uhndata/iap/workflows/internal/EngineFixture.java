@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,6 +53,9 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
+import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.tags.internal.TagOperations;
 import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.workflows.models.Activity;
@@ -257,6 +261,23 @@ final class EngineFixture
             throw new IllegalStateException(e);
         }
         return factory;
+    }
+
+    /**
+     * A condition evaluator wired the way the platform wires it, with the operand sources a workflow's own guards
+     * use: literals, and the variables of the instance being routed. Built by hand because the bundle plugin only
+     * generates the DS metadata at packaging time, the same way the conditions module tests its own evaluator.
+     *
+     * @return an evaluator a gateway's guards can be asked of
+     * @throws ReflectiveOperationException when the injection fails, which would be a bug in this fixture
+     */
+    static ConditionEvaluator conditions() throws ReflectiveOperationException
+    {
+        final ConditionEvaluatorImpl evaluator = new ConditionEvaluatorImpl();
+        final Field resolvers = ConditionEvaluatorImpl.class.getDeclaredField("resolvers");
+        resolvers.setAccessible(true);
+        resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new VariableOperandResolver()));
+        return evaluator;
     }
 
     /**

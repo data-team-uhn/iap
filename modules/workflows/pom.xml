@@ -87,6 +87,13 @@
       <artifactId>iap-data-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- A gateway's guards are ordinary structured conditions, evaluated by this module's evaluator, and the
+         engine contributes the operand source that reads a running instance's variables -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-conditions</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- An end event records what finishing meant by tagging the host, so the engine speaks the tag vocabulary -->
     <dependency>
       <groupId>${project.groupId}</groupId>
