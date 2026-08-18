@@ -33,6 +33,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
@@ -83,6 +84,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private volatile List<ServiceTaskHandler> handlers;
 
+    /** What a gateway's guards are asked of: the same evaluator, and the same conditions, schema items use. */
+    @Reference
+    private ConditionEvaluator conditions;
+
     @Override
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
     {
@@ -124,7 +129,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = task.getResourceResolver();
         try {
-            TaskCompletion.apply(resolver, task, event, actor, performer(event, actor));
+            TaskCompletion.apply(resolver, task, event, actor, performer(event, actor), this.conditions);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -219,9 +224,9 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 + " names no handler to perform it automatically");
         }
         if (WorkflowStarter.HANDLER_NAME.equals(name)) {
-            // Built into the engine rather than registered: putting an entity under a workflow is the engine's
-            // own business. Which entities get one stays a matter of content
-            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()));
+            // Built into the engine rather than registered: putting an entity under a workflow is the engine's own
+            // business, even though which entities get one stays a matter of content
+            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()), this.conditions);
             return;
         }
         final ServiceTaskHandler handler = this.handlers.stream()

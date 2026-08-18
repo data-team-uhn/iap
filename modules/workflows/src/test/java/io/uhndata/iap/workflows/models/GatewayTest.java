@@ -57,8 +57,9 @@ class GatewayTest
         final Resource resource = this.context.create().resource(GATEWAY_PATH, Map.of(
             TYPE, ExclusiveGateway.RESOURCE_TYPE, "elementId", "gateway_1"));
         this.context.create().resource(GATEWAY_PATH + "/flow_approved", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_approved", "targetRef", "end_1",
-            "conditionExpression", "${approved}"));
+            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_approved", "targetRef", "end_1"));
+        this.context.create().resource(GATEWAY_PATH + "/flow_approved/cond:condition",
+            TYPE, "cond/SingleCondition");
         this.context.create().resource(GATEWAY_PATH + "/flow_otherwise", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_otherwise", "targetRef", "task_2",
             "isDefault", true));

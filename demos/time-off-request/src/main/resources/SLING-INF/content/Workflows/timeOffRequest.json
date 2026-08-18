@@ -6,7 +6,7 @@
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
-    "description": "Someone asks for time off; a service task looks up what they have left, they fill the request in and send it, and their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. Filling in is a task like any other, performed by @creator - the person who raised this particular request, which no group can name - and it is what holds the request in draft: while its token rests there the request is editable, and sending it is completing it, which is the same act as an approver deciding. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element, hand-written only because the BPMN parser does not exist yet - once it does, it generates exactly this. Three places where the two forms differ deliberately: the gateway's conditionExpression here is the interim literal outcome the engine matches on, where the diagram carries the real expression a conditions module will compile; hostTag and outcomes, which say what being at a node means to the submission and what may be decided there, are the kind of plain attributes the parser will be able to carry across; and the service task's handler names the code that performs it, where BPMN would carry an implementation attribute.",
+    "description": "Someone asks for time off; a service task looks up what they have left, they fill the request in and send it, and their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. Filling in is a task like any other, performed by @creator - the person who raised this particular request, which no group can name - and it is what holds the request in draft: while its token rests there the request is editable, and sending it is completing it, which is the same act as an approver deciding. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element, hand-written only because the BPMN parser does not exist yet - once it does, it generates exactly this. Two places where the two forms differ deliberately: hostTag and outcomes, which say what being at a node means to the submission and what may be decided there, are the kind of plain attributes the parser will be able to carry across; and the service task's handler names the code that performs it, where BPMN would carry an implementation attribute.",
     "requestSubmitted": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requestSubmitted",
@@ -73,7 +73,22 @@
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toApproved",
         "targetRef": "requestApproved",
-        "conditionExpression": "approved"
+        // The same structured condition mechanism a schema item uses to say when it applies, asked here of the
+        // running instance: the `variable` operand source reads what the execution knows, and what it knows at
+        // this point is the outcome the approver recorded when they completed their task.
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "variable",
+            "value": [ "outcome" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "approved" ]
+          }
+        }
       },
       "toRejected": {
         "jcr:primaryType": "wf:SequenceFlow",
