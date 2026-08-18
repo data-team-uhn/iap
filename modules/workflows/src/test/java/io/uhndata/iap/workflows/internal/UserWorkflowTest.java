@@ -133,8 +133,9 @@ class UserWorkflowTest
         this.context.create().resource(PROCESS + "/decision", Map.of(
             TYPE, ExclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, "decision"));
         this.context.create().resource(PROCESS + "/decision/toApproved", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved",
-            "conditionExpression", "approved"));
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
+        // The guard reads what the execution knows: the outcome the completed task recorded
+        outcomeIs(PROCESS + "/decision/toApproved", "approved");
         this.context.create().resource(PROCESS + "/decision/toRejected", Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRejected", TARGET_REF, "requestRejected",
             "isDefault", true));
@@ -142,6 +143,23 @@ class UserWorkflowTest
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
         this.context.create().resource(PROCESS + "/requestRejected", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestRejected", "hostTag", "rejected"));
+    }
+
+    /**
+     * Gives an arc the guard "the instance's outcome is this", written the way a definition writes it: a single
+     * condition comparing the {@code outcome} variable with a literal.
+     *
+     * @param flowPath the arc to put the condition on
+     * @param outcome the outcome the arc is taken for
+     */
+    private void outcomeIs(final String flowPath, final String outcome)
+    {
+        this.context.create().resource(flowPath + "/cond:condition", Map.of(
+            TYPE, "cond/SingleCondition", "comparator", "equals"));
+        this.context.create().resource(flowPath + "/cond:condition/operandA", Map.of(
+            TYPE, "cond/ConditionOperand", "source", "variable", "value", "outcome"));
+        this.context.create().resource(flowPath + "/cond:condition/operandB", Map.of(
+            TYPE, "cond/ConditionOperand", "value", outcome));
     }
 
     /**
@@ -199,6 +217,7 @@ class UserWorkflowTest
         final WorkflowEngineImpl impl = new WorkflowEngineImpl();
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(impl, "handlers", List.of());
+        inject(impl, "conditionEvaluator", EngineFixture.conditions());
         return impl;
     }
 
@@ -443,6 +462,7 @@ class UserWorkflowTest
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context,
             new PersistenceException("the disk is on fire")));
         inject(engine, "handlers", List.of());
+        inject(engine, "conditionEvaluator", EngineFixture.conditions());
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -610,6 +630,7 @@ class UserWorkflowTest
         final WorkflowEngineImpl engine = new WorkflowEngineImpl();
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(engine, "handlers", List.of(handler));
+        inject(engine, "conditionEvaluator", EngineFixture.conditions());
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);

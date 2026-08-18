@@ -83,6 +83,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private ResourceResolverFactory resolverFactory;
 
+    /**
+     * What every guard is asked of, a start event's and a gateway arc's alike: the same evaluator, and the same
+     * conditions, schema items use.
+     */
     @Reference
     private ConditionEvaluator conditionEvaluator;
 
@@ -157,7 +161,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final ResourceResolver resolver = task.getResourceResolver();
         try {
             TaskCompletion.apply(resolver, task, event, actor,
-                new ServiceTaskDispatcher(this.handlers).performer(event, actor));
+                new ServiceTaskDispatcher(this.handlers, this.conditionEvaluator).performer(event, actor),
+                this.conditionEvaluator);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -186,7 +191,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final String actor) throws WorkflowException
     {
         final ResourceResolver resolver = target.getResourceResolver();
-        final ServiceTaskDispatcher dispatcher = new ServiceTaskDispatcher(this.handlers);
+        final ServiceTaskDispatcher dispatcher = new ServiceTaskDispatcher(this.handlers, this.conditionEvaluator);
         final Map<String, Object> variables = new LinkedHashMap<>();
         try {
             FlowNode node = start;
