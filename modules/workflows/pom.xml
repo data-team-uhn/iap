@@ -87,6 +87,8 @@
       <artifactId>iap-data-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Guards, a start event's and a gateway arc's alike, are ordinary structured conditions evaluated by this
+         module's evaluator; the engine contributes the operand source that reads a running instance's variables -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-conditions</artifactId>
