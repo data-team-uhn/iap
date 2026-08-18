@@ -100,8 +100,12 @@ lookup as the first project-supplied handler. What is left:
   What is still missing is a way to read the *request's answers* from it: a guard is asked of the running
   instance, so the `variable` operand source reaches what the execution knows and nothing yet reaches the
   submission the instance is attached to.
-- Unapproved requests flagged after two days; email on creation, approval and staleness. **Blocked**:
-  nothing delivers timers, so a parked catching event has no way to wake.
+- Unapproved requests flagged after five days. **Built**: the approval task is watched by an interrupting
+  boundary timer, so a request nobody decides on ends as `expired` rather than waiting forever. What is
+  still missing is the *reminder* shape — telling somebody without ending the request — which needs a
+  second token beside the first.
+- Email on creation, approval and staleness. **Blocked**: nothing wires the notification module to workflow
+  events yet.
 - Raising a request by email as well as through the UI. The engine's entry point is already
   channel-agnostic; what is missing is something that turns an arriving mail into an event.
 

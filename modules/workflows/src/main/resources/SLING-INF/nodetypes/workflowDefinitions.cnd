@@ -294,6 +294,18 @@
   // second token can reach.
   - interrupting (BOOLEAN) = true autocreated
 
+  // How long this event waits before firing, as an ISO-8601 duration such as
+  // P5D or PT48H, which is what makes it a timer: an event with one is fired by
+  // the clock, and an event without one waits for something to be delivered to
+  // it. Relative rather than absolute because it is a definition, shared by every
+  // instance -- when the waiting starts is a fact about the run, and is recorded
+  // on the task the event watches.
+  //
+  // The BPMN counterpart lives in a nested timeEventDefinition element rather
+  // than in an attribute, so the parser will have to reach into the element to
+  // fill this in; the vocabulary can only copy attributes across.
+  - timerDuration (STRING)
+
 //-----------------------------------------------------------------------------
 // A throwing event occurring mid-process.
 [wf:IntermediateThrowingEvent] > wf:IntermediateEvent
