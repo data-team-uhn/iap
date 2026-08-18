@@ -100,7 +100,7 @@ parser once it exists:
   is a user task: nothing can perform it automatically, so it waits for a person.
 - **`outcomes` on an activity** lists the decisions that person may complete the task with — the values a
   gateway downstream then routes on. Declared because a task list has to know what to offer: the only
-  other record of which outcomes exist is the `conditionExpression` on some later gateway's arcs, which
+  other record of which outcomes exist is the `cond:condition` on some later gateway's arcs, which
   is where they are *consumed* rather than announced, and which whoever does the task cannot necessarily
   read. An empty list is a statement rather than a gap — this is a task there is nothing to decide about,
   done or not done.
@@ -458,11 +458,6 @@ disagree.
 
 ## Known gaps
 
-- **Gateway conditions are an interim placeholder.** An arc is taken when its `conditionExpression` equals
-  the instance's `outcome` variable, and the arc marked default is taken when none matches. That covers the
-  approve-or-reject shape and deliberately nothing more; the demo's BPMN carries the real expression
-  (`outcome == 'approved'`) which the conditions module will compile, and the stored graph carries the
-  literal the engine can match today.
 - **One token at a time.** Parallel and inclusive gateways are rejected rather than forked, and `terminate`
   on an end event is not yet distinguished from an ordinary one, since with a single token there is nothing
   else to discard.
@@ -473,9 +468,9 @@ disagree.
   refused rather than parked, because nothing could ever wake it up again.
 - **Read access is granted for the life of the instance**, not only while a task is open, and is never
   revoked. Narrowing it as state changes is a refinement for when there is a reason to want it.
-- **`wf:SequenceFlow.conditionExpression` is a raw string.** It should use the structured conditions
-  mechanism, the way schema items express their conditions; it is left as an expression until the
-  conditions module lands.
+- **A gateway's guards can only ask about the execution.** They are evaluated against the instance, so the
+  `variable` operand source reaches what the run knows — the outcome a task recorded — and nothing yet
+  reaches the host it is attached to, which is what routing on a request's own answers would need.
 - **Event definitions carry no payload yet.** A timer event is recognized as a timer, but there is
   nowhere to put its duration, and a message event records its `messageRef` without resolving it to the
   `<bpmn:message>` declared at document level — which is what the engine's event dictionary will need.
