@@ -46,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class FlowNodeTest
 {
+    private static final String ELEMENT_ID = "elementId";
+
     private static final String VERSION_PATH = "/Workflows/timeOff/1.0";
 
     private static final String TYPE_ID = "activity-type-uuid";
@@ -63,7 +65,7 @@ class FlowNodeTest
     void exposesFlowNodeProperties()
     {
         final Resource resource = this.context.create().resource(VERSION_PATH + "/task_1", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1", "label", "Approve the request"));
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_1", "label", "Approve the request"));
         final FlowNode node = resource.adaptTo(FlowNode.class);
 
         assertNotNull(node);
@@ -75,7 +77,7 @@ class FlowNodeTest
     void toleratesAnUnlabelledNodeWithNoType()
     {
         final Resource resource = this.context.create().resource(VERSION_PATH + "/task_1", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1"));
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_1"));
         final FlowNode node = resource.adaptTo(FlowNode.class);
 
         assertNull(node.getLabel());
@@ -94,7 +96,7 @@ class FlowNodeTest
         WorkflowFixture.resolveReference(this.context, TYPE_ID, "/WorkflowTypes/UserTask");
 
         final Resource resource = this.context.create().resource(VERSION_PATH + "/task_1", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1", "flowNodeType", TYPE_ID));
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_1", "flowNodeType", TYPE_ID));
         final FlowNodeType type = resource.adaptTo(FlowNode.class).getFlowNodeType();
 
         assertNotNull(type);
@@ -106,11 +108,11 @@ class FlowNodeTest
     void listsItsOutgoingFlows()
     {
         final Resource resource = this.context.create().resource(VERSION_PATH + "/gateway_1", Map.of(
-            TYPE, ExclusiveGateway.RESOURCE_TYPE, "elementId", "gateway_1"));
+            TYPE, ExclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, "gateway_1"));
         this.context.create().resource(VERSION_PATH + "/gateway_1/flow_1", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_1", "targetRef", "end_1"));
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "flow_1", "targetRef", "end_1"));
         this.context.create().resource(VERSION_PATH + "/gateway_1/flow_2", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_2", "targetRef", "task_1"));
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "flow_2", "targetRef", "task_1"));
 
         final List<SequenceFlow> flows = resource.adaptTo(FlowNode.class).getOutgoingFlows();
 
@@ -123,9 +125,9 @@ class FlowNodeTest
     void findsItsOwningVersionFromAnyDepth()
     {
         final Resource activity = this.context.create().resource(VERSION_PATH + "/task_1", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1"));
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_1"));
         final Resource boundary = this.context.create().resource(VERSION_PATH + "/task_1/boundary_1", Map.of(
-            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "boundary_1"));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, "boundary_1"));
 
         // A direct child finds it as its parent, a boundary event has to walk one level further up
         assertEquals("1.0", activity.adaptTo(FlowNode.class).getWorkflowVersion().getVersion());
@@ -136,7 +138,7 @@ class FlowNodeTest
     void hasNoOwningVersionWhenStoredOutsideOne()
     {
         final Resource resource = this.context.create().resource("/somewhere/else/task_1", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1"));
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_1"));
 
         assertNull(resource.adaptTo(FlowNode.class).getWorkflowVersion());
     }
@@ -145,12 +147,12 @@ class FlowNodeTest
     void listsTheBoundaryEventsOfAnActivity()
     {
         final Resource resource = this.context.create().resource(VERSION_PATH + "/task_1", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "task_1"));
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_1"));
         this.context.create().resource(VERSION_PATH + "/task_1/timeout", Map.of(
-            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, "elementId", "timeout", "catching", true));
+            TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, "timeout", "catching", true));
         // An outgoing flow is a child too, but it is not a boundary event
         this.context.create().resource(VERSION_PATH + "/task_1/flow_1", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "flow_1", "targetRef", "end_1"));
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "flow_1", "targetRef", "end_1"));
 
         final Activity activity = (Activity) resource.adaptTo(FlowNode.class);
         final List<IntermediateCatchingEvent> boundaries = activity.getBoundaryEvents();
@@ -165,14 +167,84 @@ class FlowNodeTest
     }
 
     @Test
+    void exposesTheMessageNameOfMessageFlavoredEvents()
+    {
+        final Resource plain = this.context.create().resource(VERSION_PATH + "/start_0", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "start_0"));
+        final Resource message = this.context.create().resource(VERSION_PATH + "/start_m", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "start_m", "messageName", "create"));
+
+        assertNull(((Event) plain.adaptTo(FlowNode.class)).getMessageName());
+        assertEquals("create", ((Event) message.adaptTo(FlowNode.class)).getMessageName());
+    }
+
+    @Test
+    void exposesTheHandlerOfServiceActivities()
+    {
+        final Resource manual = this.context.create().resource(VERSION_PATH + "/task_m", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_m"));
+        final Resource service = this.context.create().resource(VERSION_PATH + "/task_s", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_s", "handler", "createEntity"));
+
+        assertNull(((Activity) manual.adaptTo(FlowNode.class)).getHandler());
+        assertEquals("createEntity", ((Activity) service.adaptTo(FlowNode.class)).getHandler());
+    }
+
+    @Test
+    void exposesThePerformersANodeAdmits()
+    {
+        final Resource unrestricted = this.context.create().resource(VERSION_PATH + "/start_o", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "start_o"));
+        final Resource restricted = this.context.create().resource(VERSION_PATH + "/start_p", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "start_p",
+            "performers", new String[] {"iap-administrators", "reviewers"}));
+
+        // A node that names nobody admits nobody — the reading that makes a forgotten declaration safe rather
+        // than wide open
+        assertEquals(List.of(), unrestricted.adaptTo(FlowNode.class).getPerformers());
+        assertEquals(List.of("iap-administrators", "reviewers"), restricted.adaptTo(FlowNode.class).getPerformers());
+    }
+
+    @Test
+    void exposesWhatReachingANodeMeansToTheHost()
+    {
+        final Resource plain = this.context.create().resource(VERSION_PATH + "/end_p", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_p"));
+        final Resource meaningful = this.context.create().resource(VERSION_PATH + "/end_m", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_m", "hostTag", "approved"));
+        // Not only end events: a task carries the state its host is in while it waits, which is what lets a
+        // process move its host between states without finishing
+        final Resource waiting = this.context.create().resource(VERSION_PATH + "/task_w", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_w", "hostTag", "in-review"));
+
+        assertNull(plain.adaptTo(FlowNode.class).getHostTag());
+        assertEquals("approved", meaningful.adaptTo(FlowNode.class).getHostTag());
+        assertEquals("in-review", waiting.adaptTo(FlowNode.class).getHostTag());
+    }
+
+    @Test
+    void exposesTheDecisionsAUserTaskOffers()
+    {
+        final Resource plain = this.context.create().resource(VERSION_PATH + "/task_n", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_n"));
+        final Resource deciding = this.context.create().resource(VERSION_PATH + "/task_d", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_d",
+            "outcomes", new String[] {"approved", "rejected"}));
+
+        // Offering nothing is a statement, not a gap: this is a task there is nothing to decide about
+        assertEquals(List.of(), ((Activity) plain.adaptTo(FlowNode.class)).getOutcomes());
+        assertEquals(List.of("approved", "rejected"), ((Activity) deciding.adaptTo(FlowNode.class)).getOutcomes());
+    }
+
+    @Test
     void distinguishesCatchingFromThrowingEvents()
     {
         final Resource start = this.context.create().resource(VERSION_PATH + "/start_1", Map.of(
-            TYPE, StartEvent.RESOURCE_TYPE, "elementId", "start_1", "catching", true));
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "start_1", "catching", true));
         final Resource end = this.context.create().resource(VERSION_PATH + "/end_1", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, "elementId", "end_1", "catching", false));
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end_1", "catching", false));
         final Resource throwing = this.context.create().resource(VERSION_PATH + "/throw_1", Map.of(
-            TYPE, IntermediateThrowingEvent.RESOURCE_TYPE, "elementId", "throw_1", "catching", false));
+            TYPE, IntermediateThrowingEvent.RESOURCE_TYPE, ELEMENT_ID, "throw_1", "catching", false));
 
         assertTrue(((Event) start.adaptTo(FlowNode.class)).isCatching());
         assertFalse(((Event) end.adaptTo(FlowNode.class)).isCatching());
@@ -201,7 +273,7 @@ class FlowNodeTest
         // Asking for any of the bases a start event answers for must still yield the start event itself, which is
         // what the two-level adapters declaration buys and what the /libs registry makes resolvable
         final Resource resource = this.context.create().resource(VERSION_PATH + "/start_1", Map.of(
-            TYPE, StartEvent.RESOURCE_TYPE, "elementId", "start_1"));
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "start_1"));
 
         assertEquals(StartEvent.class, resource.adaptTo(FlowNode.class).getClass());
         assertEquals(StartEvent.class, resource.adaptTo(Event.class).getClass());
@@ -211,7 +283,7 @@ class FlowNodeTest
     private Class<?> adaptNode(final String name, final String resourceType)
     {
         final Resource resource = this.context.create().resource(VERSION_PATH + "/" + name, Map.of(
-            TYPE, resourceType, "elementId", name));
+            TYPE, resourceType, ELEMENT_ID, name));
         return resource.adaptTo(FlowNode.class).getClass();
     }
 }

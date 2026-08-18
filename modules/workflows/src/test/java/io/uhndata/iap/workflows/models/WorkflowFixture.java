@@ -69,6 +69,7 @@ final class WorkflowFixture
 
         registerType(context, "WorkflowsHomepage", "iap/EntityHomepage");
         registerType(context, "WorkflowTypesHomepage", "iap/EntityHomepage");
+        registerType(context, "SystemWorkflowsHomepage", "iap/EntityHomepage");
         registerType(context, "FlowNodeType", "iap/Entity");
         registerType(context, "CatchingEventType", FlowNodeType.RESOURCE_TYPE);
         registerType(context, "ThrowingEventType", FlowNodeType.RESOURCE_TYPE);

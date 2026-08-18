@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.models;
 
 import java.util.Calendar;
+import java.util.List;
 import java.util.Optional;
 
 import org.apache.sling.api.resource.Resource;
@@ -68,6 +69,12 @@ public class TaskInstance extends Entity
 
     @ValueMapValue
     private String outcome;
+
+    @ValueMapValue
+    private String[] offeredOutcomes;
+
+    @ValueMapValue
+    private String[] performers;
 
     @ValueMapValue
     private String form;
@@ -163,6 +170,39 @@ public class TaskInstance extends Entity
     public String getOutcome()
     {
         return this.outcome;
+    }
+
+    /**
+     * The decisions this task may be completed with, as its {@link Activity#getOutcomes() defining activity}
+     * offered them when the task was raised.
+     *
+     * <p>Copied onto the task rather than looked up, for the same reason the {@link #getLabel() label} is: a task is
+     * decided on the terms it was raised with rather than on terms the definition may have grown since, and whoever
+     * has to do it can read the task without necessarily being able to read the workflow it came from.</p>
+     *
+     * @return the outcomes on offer, empty when completing this task is not a decision
+     */
+    @NotNull
+    public List<String> getOfferedOutcomes()
+    {
+        return this.offeredOutcomes == null ? List.of() : List.of(this.offeredOutcomes);
+    }
+
+    /**
+     * The principals who may complete this task, as its {@link FlowNode#getPerformers() defining activity} named them
+     * when the task was raised, with {@code @creator} already answered against the host it drives.
+     *
+     * <p>Recorded on the task so that "what is waiting for me" can be asked of tasks alone: whoever owes the decision
+     * can rarely read the workflow it came from, and a listing cannot run the engine per row to find out. It is a
+     * description and not a permission — every completion is still checked against the definition — so finding a task
+     * here is not what makes it lawful to complete.</p>
+     *
+     * @return the principals the task admits, empty when it names none, which admits nobody
+     */
+    @NotNull
+    public List<String> getPerformers()
+    {
+        return this.performers == null ? List.of() : List.of(this.performers);
     }
 
     /**

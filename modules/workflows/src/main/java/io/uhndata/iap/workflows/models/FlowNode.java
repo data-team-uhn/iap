@@ -74,6 +74,12 @@ public abstract class FlowNode extends EntityPart
     @ValueMapValue
     private String flowNodeType;
 
+    @ValueMapValue
+    private String[] performers;
+
+    @ValueMapValue
+    private String hostTag;
+
     /**
      * The stable BPMN identifier of this node, e.g. {@code task_1}. This, not the node name, is how the rest of the
      * graph refers to it: the node name is only whatever escaping the identifier needed to become a JCR name.
@@ -107,6 +113,45 @@ public abstract class FlowNode extends EntityPart
     public FlowNodeType getFlowNodeType()
     {
         return this.getReference(this.flowNodeType, FlowNodeType.class);
+    }
+
+    /**
+     * The principals allowed to make execution pass through this node: who may fire this event, and — once user
+     * tasks run — who may complete this task. This is the authorization of the whole platform: the content a
+     * workflow manages grants nobody any rights, so what a user may do is what the definitions let them do here,
+     * rather than what an access control list on the data says.
+     *
+     * <p>An empty list means nobody. That is deliberate rather than an oversight to be lenient about: a definition
+     * that forgot to say who may use it should refuse everyone until it does, not admit everyone. The one principal
+     * with a wider meaning is the built-in {@code everyone} group, which matches any authenticated user.</p>
+     *
+     * @return the names of the users and groups allowed here, empty if none are named
+     */
+    @NotNull
+    public List<String> getPerformers()
+    {
+        return this.performers == null ? List.of() : List.of(this.performers);
+    }
+
+    /**
+     * The tag to place on the host when execution reaches this node, e.g. {@code approved} on the end event an
+     * approval leads to, or {@code submitted} on the task that waits for an approver. This is how a process says
+     * what being here <em>means</em> to the thing being processed, without needing a service task whose only job is
+     * to write it down.
+     *
+     * <p>Answered by every node rather than only by end events, because a lifecycle is not only about finishing:
+     * a user task's tag is the state its host is in for as long as that task waits, which is what lets a process
+     * move its host between states in the middle of running. A node that names no tag leaves the state alone.</p>
+     *
+     * <p>Placing it retires whatever other tag the host carries in the same category, since the lifecycle is a
+     * state rather than a growing list of everything that ever happened.</p>
+     *
+     * @return a tag to place on the host, or {@code null} if arriving here says nothing about it
+     */
+    @Nullable
+    public String getHostTag()
+    {
+        return this.hostTag;
     }
 
     /**

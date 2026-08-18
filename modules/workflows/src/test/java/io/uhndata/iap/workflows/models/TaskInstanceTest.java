@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.models;
 
 import java.util.Calendar;
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.RepositoryException;
@@ -70,16 +71,20 @@ class TaskInstanceTest
     void exposesTaskProperties()
     {
         this.context.create().resource(INSTANCE_PATH, TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active");
-        final Resource resource = this.context.create().resource(TASK_PATH, Map.of(
-            TYPE, TaskInstance.RESOURCE_TYPE,
-            "taskDefinitionId", "task_1",
-            "label", "Approve the request",
-            "assignee", "alice",
-            "status", "completed",
-            "startTime", this.started,
-            "endTime", this.started,
-            "dueDate", this.started,
-            "outcome", "approved"));
+        // Map.ofEntries rather than Map.of: the properties a completed task carries are past the ten pairs
+        // Map.of has overloads for
+        final Resource resource = this.context.create().resource(TASK_PATH, Map.ofEntries(
+            Map.entry(TYPE, TaskInstance.RESOURCE_TYPE),
+            Map.entry("taskDefinitionId", "task_1"),
+            Map.entry("label", "Approve the request"),
+            Map.entry("assignee", "alice"),
+            Map.entry("status", "completed"),
+            Map.entry("startTime", this.started),
+            Map.entry("endTime", this.started),
+            Map.entry("dueDate", this.started),
+            Map.entry("outcome", "approved"),
+            Map.entry("offeredOutcomes", new String[] {"approved", "rejected"}),
+            Map.entry("performers", new String[] {"time-off-approvers"})));
         final TaskInstance task = resource.adaptTo(TaskInstance.class);
 
         assertNotNull(task);
@@ -91,6 +96,8 @@ class TaskInstanceTest
         assertEquals(this.started, task.getEndTime());
         assertEquals(this.started, task.getDueDate());
         assertEquals("approved", task.getOutcome());
+        assertEquals(List.of("approved", "rejected"), task.getOfferedOutcomes());
+        assertEquals(List.of("time-off-approvers"), task.getPerformers());
     }
 
     @Test
@@ -120,6 +127,10 @@ class TaskInstanceTest
         assertNull(task.getEndTime());
         assertNull(task.getDueDate());
         assertNull(task.getOutcome());
+        // A task offering nothing is one there is nothing to decide about: it is done, or it is not
+        assertEquals(List.of(), task.getOfferedOutcomes());
+        // Naming nobody admits nobody, the same way a definition that names no performers does
+        assertEquals(List.of(), task.getPerformers());
         assertNull(task.getForm());
         assertNull(task.getWorkflowInstance());
         assertNull(task.getDefinition());

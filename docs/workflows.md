@@ -8,20 +8,22 @@ through that graph.
 This page describes the data model and the Sling Models over it. The execution engine is not written yet;
 what exists today is everything it will read and write.
 
-## The three trees
+## The four trees
 
-| Path              | Holds                                                                        |
-|-------------------|------------------------------------------------------------------------------|
-| `/Workflows`      | The workflows themselves — definitions, their versions, and the parsed graphs |
-| `/WorkflowTypes`  | The vocabulary: what kinds of node exist at all                               |
-| inside the resource | Runtime instances, in the `wf:instances` container of whatever they drive   |
+| Path                | Holds                                                                         |
+|---------------------|-------------------------------------------------------------------------------|
+| `/Workflows`        | The workflows themselves — definitions, their versions, and the parsed graphs |
+| `/SystemWorkflows`  | The workflows that are the platform's own behavior, not a user process        |
+| `/WorkflowTypes`    | The vocabulary: what kinds of node exist at all                               |
+| inside the resource | Runtime instances, in the `wf:instances` container of whatever they drive     |
 
 ### Definitions and versions
 
 ```
 /Workflows                         wf:WorkflowsHomepage
-└── timeOffRequest                 wf:WorkflowDefinition   title, active, systemWorkflow
-    └── 1.0                        wf:WorkflowVersion      version, active, bpmnXmlParsedHash
+└── timeOffRequest                 wf:WorkflowDefinition   title, active
+    └── 1.0                        wf:WorkflowVersion      version, active, bpmnXmlParsedHash,
+                                                           targetResourceType
         ├── bpmn.xml               nt:file                 the BPMN 2.0 source
         ├── start_1                wf:StartEvent           elementId, label, flowNodeType
         │   └── flow_1             wf:SequenceFlow         elementId, targetRef
@@ -49,6 +51,8 @@ Writing it means a multipart POST with a part named `./bpmn.xml` and the `nt:fil
 version and uploading its diagram are two requests, since Sling creates the node a file part's path
 implies before it applies `jcr:primaryType`, and one combined request would leave a `sling:Folder`
 behind. Its on-parent-version is `COPY`, so checking a version in captures the diagram with it.
+`WorkflowVersion.getBpmnFile()` hands back the file rather than its contents, leaving the caller — the
+BPMN parser, when it exists — to decide how to read a document of unknown size.
 
 Two things about how the graph is addressed:
 
@@ -72,6 +76,39 @@ Whether it **interrupts** that activity is the difference between "give up after
 reminder after five days but keep waiting" — two quite different processes that are otherwise drawn
 identically, so the flag is not decoration. It is parsed from BPMN's `cancelActivity`, whose default is
 likewise true, and it is meaningful only on an attached event; on a free-standing one it is ignored.
+
+### What an executable graph carries
+
+Six properties exist for the engine rather than for the diagram, all set by hand today and by the BPMN
+parser once it exists:
+
+- **`messageName` on an event** is the domain event name it catches or throws, resolved from the BPMN
+  `messageRef`. It is what an incoming event is matched against.
+- **`targetResourceType` on a version**, e.g. `wf/WorkflowsHomepage`, is the resource type whose events
+  that version handles, which is how a workflow describing the platform's own behavior is found. User
+  workflows need none: they are reached through the schema version that references them.
+- **`performers` on a flow node** names the principals allowed to make execution pass through it — who
+  may fire an event, and who may complete a user task. This is where authorization lives, because nobody
+  holds repository rights on the content a workflow manages: the engine writes as its own service user,
+  once the definition has said the actor belongs here. So an absent or empty list admits *nobody*,
+  deliberately — a definition that forgot to say who may use it should refuse everyone until it does,
+  and silence is never permission. The built-in `everyone` group means any authenticated user. It
+  corresponds to BPMN's potentialOwner resource role, and to the lane a node sits in when the diagram is
+  drawn with lanes.
+- **`handler` on an activity** names the service task handler that performs it. An activity naming none
+  is a user task: nothing can perform it automatically, so it waits for a person.
+- **`outcomes` on an activity** lists the decisions that person may complete the task with — the values a
+  gateway downstream then routes on. Declared because a task list has to know what to offer: the only
+  other record of which outcomes exist is the `conditionExpression` on some later gateway's arcs, which
+  is where they are *consumed* rather than announced, and which whoever does the task cannot necessarily
+  read. An empty list is a statement rather than a gap — this is a task there is nothing to decide about,
+  done or not done.
+- **`hostTag` on a flow node** is the tag to place on the host when execution reaches that node: how a
+  process says what being *here* means to the thing being processed, without needing a service task whose
+  only job is to write it down. On any node rather than only on end events — on a user task it is the
+  state the host is in for as long as that task waits, which is what lets a process move its host between
+  states without finishing. Placing it retires whatever other tag the host carries in the same category,
+  since a lifecycle is a state rather than a growing pile of markers.
 
 ### The vocabulary
 
@@ -135,7 +172,8 @@ A workflow lives **inside the thing it drives**, so that it is found, secured an
     └── review                      wf:WorkflowInstance   workflowVersion, status, startTime, endTime
         ├── t1                      wf:WorkflowToken      currentNodeId
         ├── requestedDays           wf:Variable           dataType, longValue
-        └── approve_1               wf:TaskInstance       taskDefinitionId, label, assignee, status, outcome
+        └── approve_1               wf:TaskInstance       taskDefinitionId, label, assignee, status,
+                                                          outcome, offeredOutcomes, performers
 ```
 
 A **token** is one branch of an execution and the single fact of where it has got to. Tokens are the whole
@@ -150,7 +188,11 @@ A **task instance** is an entity in its own right rather than a part of the inst
 something people go looking for: "what is on my desk" should be a query over these, not a walk of every
 running workflow. Its `outcome` is recorded separately from its `status` because the two answer different
 questions — the status says the task is over, the outcome says how, and the gateway downstream routes on
-the latter.
+the latter. The terms it is decided on — `offeredOutcomes` and `performers` — are copied onto it from its
+defining activity as it is raised, rather than looked up: a task is decided on the terms it was raised
+with rather than on terms the definition may have grown since, and whoever owes the decision can rarely
+read the definition at all. Those copies describe rather than permit; what makes a completion lawful is
+still the definition.
 
 Anything that workflows should be able to run over carries the `wf:WorkflowAttachable` mixin, which
 autocreates the container:
@@ -231,9 +273,14 @@ it.**
   `<bpmn:message>` declared at document level — which is what the engine's event dictionary will need.
   The vocabulary can copy XML *attributes*; these payloads live in nested *elements*, and the mechanism
   for pulling those across is best designed alongside the parser that needs it.
+- **`performers` is a principal list, not a condition.** It cannot express "and only if the schema they
+  name belongs to their institution". That data-dependent half is a job for the conditions module,
+  evaluated against the actor alongside the list rather than instead of it: a list can be enumerated to
+  decide which buttons to render, a condition cannot.
 - **No lanes.** BPMN lanes are the natural place for "this task belongs to the coordinator, that one to
-  the board", and task assignment currently has no source at all. Mapping lanes onto groups touches how
-  `ApprovalRequirement.approverGroup` already works, so it is a design decision rather than an omission.
+  the board", and `performers` is set per node rather than derived from a lane the way a diagram would
+  express it. Mapping lanes onto groups touches how `ApprovalRequirement.approverGroup` already works, so
+  it is a design decision rather than an omission.
 - **No subprocesses, call activities or multi-instance markers.** "One review per assigned reviewer" is a
   multi-instance activity in BPMN, and that is the first of these likely to be wanted.
 - **Signal, escalation, conditional and link events** are unmapped; the vocabulary covers timer, message,

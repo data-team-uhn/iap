@@ -48,6 +48,32 @@
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
+// Homepage node for the /SystemWorkflows root path: the workflows that ARE the
+// platform's own behavior, e.g. what happens when a POST asks a homepage for a
+// new entity. Deliberately a separate tree rather than a flag on /Workflows:
+// being under /SystemWorkflows is what makes a workflow a system one, the two
+// audiences get separate ACLs wholesale, and user-facing listings need no
+// filtering. The engine reads this tree through its service user, so ordinary
+// users need no access to it at all.
+[wf:SystemWorkflowsHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "wf/SystemWorkflowsHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // The listed entities are ordinary workflow definitions; only their location
+  // makes them system workflows.
+  - childNodeType (STRING) = "wf:WorkflowDefinition" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains workflow definitions
+  + * (wf:WorkflowDefinition) = wf:WorkflowDefinition
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
 //
 // Workflow Definitions
 //
@@ -63,9 +89,6 @@
 
   // When false, no new instances may be created from this definition
   - active (BOOLEAN) = false
-
-  // Whether the workflow is a system workflow (to be used by technical admins) or not
-  - systemWorkflow (BOOLEAN)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -93,6 +116,12 @@
 
   // When false, no new instances may be created from this version
   - active (BOOLEAN) = false
+
+  // The resource type of the node whose events this version handles, e.g.
+  // "wf/WorkflowsHomepage". This is how the engine matches an incoming event's
+  // target to a system workflow; user workflows don't need it, since they are
+  // reached through the schema version that references them.
+  - targetResourceType (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -131,6 +160,36 @@
   // Optional display label
   - label (STRING)
 
+  // The principals — users or groups — allowed to make execution pass through
+  // this node: who may fire a catching event, and later, who may complete a user
+  // task. This is where authorization lives. Nobody holds repository rights on
+  // the content workflows manage; the engine writes with its own service user
+  // once it has decided the actor belongs here, so this property, not an ACL, is
+  // what says who may do what. Absent or empty means nobody, deliberately: a
+  // definition has to name its performers, silence is never permission. The
+  // built-in "everyone" group means any authenticated user.
+  //
+  // Corresponds to BPMN's potentialOwner resource role, and to the lane a node
+  // sits in when the diagram is drawn with lanes.
+  - performers (STRING) multiple
+
+  // The tag to place on the host resource when execution reaches this node, e.g.
+  // "approved" on the end event an approval leads to, or "submitted" on the task
+  // that waits for an approver. What being here means to the thing being
+  // processed belongs with the node that says so, rather than needing a service
+  // task whose only job is to record it. Also the kind of thing a BPMN parser can
+  // carry across, being a plain attribute on the element.
+  //
+  // On any node, not just on end events: for a user task it says what state the
+  // host is in for as long as that task waits, which is what lets a process move
+  // its host between states without finishing. A node that names none leaves the
+  // host's state alone.
+  //
+  // Placing it removes whatever other tag the host carries in the same category,
+  // because a lifecycle is a state and not an accumulation: a submission that
+  // finished as "approved" must stop being "in-review".
+  - hostTag (STRING)
+
   // Allow any other properties for extensibility: the properties a flow node
   // carries beyond these depend on its type, and are listed by that type's
   // wf:FlowNodeType.properties
@@ -161,6 +220,12 @@
   // No default: a default only takes effect when the property is autocreated, so
   // declaring one here would be the appearance of a guarantee rather than one.
   - catching (BOOLEAN) protected
+
+  // The resolved name of the BPMN message this event catches or throws — the
+  // domain event name the engine matches incoming events against. Only set for
+  // message-flavored events; the parser will resolve it from the messageRef,
+  // hand-authored definitions set it directly.
+  - messageName (STRING)
 
 //-----------------------------------------------------------------------------
 // Entry point of a workflow process.
@@ -243,6 +308,23 @@
 // is what lets a new kind of task be added without a new node type.
 [wf:Activity] > wf:FlowNode
   - sling:resourceType (STRING) = "wf/Activity" mandatory autocreated protected
+
+  // The name of the ServiceTaskHandler that performs this activity. Only
+  // meaningful on service-task-typed activities: user tasks are performed by
+  // people, so they wait instead of naming a handler.
+  - handler (STRING)
+
+  // The decisions this task may be completed with, e.g. approved and rejected —
+  // the values a gateway downstream then routes on. Only meaningful on user
+  // tasks: nobody asks a service task what it decided.
+  //
+  // Declared because a task list has to know what to offer. Without it, the only
+  // record of which outcomes exist is the conditionExpression on some later
+  // gateway's arcs, which is where they are *consumed*; a task offering nothing
+  // would be completed with no decision at all and quietly take the default arc.
+  // So a task that names no outcomes is one there is nothing to decide about —
+  // it is done or it is not — and that is the difference a task list needs.
+  - outcomes (STRING) multiple
 
   // Any events that can occur while this activity is active. Nesting them here is
   // what makes them boundary events; the same node type standing directly under

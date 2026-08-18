@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.models;
 
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The abstract base shared by everything in a workflow graph that marks something happening rather than something
@@ -39,6 +40,9 @@ public abstract class Event extends FlowNode
     @ValueMapValue
     private boolean catching;
 
+    @ValueMapValue
+    private String messageName;
+
     /**
      * Whether this event waits for something to happen, rather than announcing that something has.
      *
@@ -52,5 +56,17 @@ public abstract class Event extends FlowNode
     public boolean isCatching()
     {
         return this.catching;
+    }
+
+    /**
+     * The name of the BPMN message this event catches or throws — the domain event name the engine matches
+     * incoming events against.
+     *
+     * @return a message name, or {@code null} for events that are not message-flavored
+     */
+    @Nullable
+    public String getMessageName()
+    {
+        return this.messageName;
     }
 }

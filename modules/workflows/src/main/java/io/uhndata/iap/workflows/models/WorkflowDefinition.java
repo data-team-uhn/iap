@@ -48,9 +48,6 @@ public class WorkflowDefinition extends Entity
     @ValueMapValue
     private boolean active;
 
-    @ValueMapValue
-    private boolean systemWorkflow;
-
     /**
      * The human-readable name of this workflow.
      *
@@ -71,17 +68,6 @@ public class WorkflowDefinition extends Entity
     public boolean isActive()
     {
         return this.active;
-    }
-
-    /**
-     * Whether this is a system workflow, one driving the platform's own plumbing rather than a process that the
-     * institution's users take part in.
-     *
-     * @return {@code true} if this is a system workflow
-     */
-    public boolean isSystemWorkflow()
-    {
-        return this.systemWorkflow;
     }
 
     /**
