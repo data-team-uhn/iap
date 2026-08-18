@@ -41,7 +41,7 @@ smaller than :data:`MIN_TAIL_TOKENS` is not cut off — it is folded back into t
 part even if that pushes it over the budget.
 
 Everything from ``backmatterLine`` (the first Reference/Appendix heading recorded in
-the sidecar ``outline.json``) to the end of the document becomes one standalone final
+``Chunks/outline.json``) to the end of the document becomes one standalone final
 chunk.
 
 All chunks are summarised in ``catalog.json``
@@ -94,7 +94,6 @@ from typing import Any, Callable, NamedTuple
 
 import shared_docs
 from bookmarks import (
-    BOOKMARKS_NAME,
     LineIndex,
     normalize_title,
     resolve_record_line,
@@ -131,10 +130,7 @@ DEFAULT_HEADING = "General Information"
 # Name of the per-document catalog file written into the chunks folder.
 CATALOG_NAME = "catalog.json"
 
-# Per-document outline file written inside Chunks/ (TOC / token size / routing). The same base
-# name is used by the transient sidecar an older pipeline wrote beside the .md; write_chunk_files
-# deletes any such leftover once done (see :func:`_remove_sidecars`) so it cannot be read back on
-# a later run as if it were real PDF bookmarks.
+# Per-document outline file written inside Chunks/ (TOC / token size / routing).
 OUTLINE_NAME = "outline.json"
 
 # Name of the folder, beside a document's .md, holding its chunk files, catalog and outline.
@@ -749,8 +745,7 @@ def chunk_file_content(text: str) -> str:
     """The exact content written for a chunk file: the chunk text plus a trailing newline.
 
     :func:`build_chunk_tree` records this length in ``catalog.json`` and
-    :func:`write_chunk_files` writes it, so the two have to agree. The catalog used to
-    record ``len(text)``, one character short of every file on disk.
+    :func:`write_chunk_files` writes it, so the two have to agree.
     """
     return text + "\n"
 
@@ -762,27 +757,10 @@ def _write_json(path: Path, data: object) -> None:
     )
 
 
-def _remove_sidecars(output_file: Path) -> None:
-    """Delete any leftover ``outline.json`` / ``bookmarks.json`` sitting *beside*
-    ``output_file``.
-
-    Nothing writes those paths any more — the outline and the records go into ``Chunks/`` —
-    so this only clears artefacts left by an older version of the pipeline. It matters
-    because a stale sidecar beside the ``.md`` is indistinguishable from a fresh one to
-    anyone inspecting the folder, and an earlier revision read it back as *authoritative PDF
-    bookmarks*, which suppressed printed-TOC detection and reported the previous document's
-    outline for the current one.
-    """
-    shared_docs.remove_file(output_file.with_name(OUTLINE_NAME))
-    shared_docs.remove_file(output_file.with_name(BOOKMARKS_NAME))
-
-
 def clear_prior_outputs(output_file: Path) -> None:
-    """Remove a previous convert's sibling sidecars and ``Chunks/`` folder
-    (including ``catalog.json``) beside ``output_file``, so a reconvert cannot reuse
-    stale ranges or chunk files.
+    """Remove a previous convert's ``Chunks/`` folder beside ``output_file``, so a
+    reconvert cannot reuse stale ranges or chunk files.
     """
-    _remove_sidecars(output_file)
     chunks_dir = output_file.parent / CHUNKS_DIRNAME
     if shared_docs.path_exists(chunks_dir):
         shared_docs.remove_tree(chunks_dir)
@@ -940,7 +918,6 @@ def write_chunk_files(
     # next to chunks of a different revision.
     _swap_into_place(staging, chunks_dir)
     _write_atomically(output_file, tree["markdown"])
-    _remove_sidecars(output_file)
 
     if not tree["chunked"]:
         tokens = count_tokens(tree["markdown"])
@@ -1089,7 +1066,6 @@ def build_chunk_tree(
         else:
             parts = [packed_text]
         parts = _merge_heading_only_parts(parts)
-        # This pass is not redundant, unlike the one that used to follow _pack_blocks above.
         # _split_oversized re-splits individual packed parts, and the last piece of each split
         # keeps its trailing markers — which lands in the middle of the list once the next
         # packed part follows it. Merging parts can leave one mid-list too.

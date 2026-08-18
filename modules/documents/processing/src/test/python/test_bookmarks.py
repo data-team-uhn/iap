@@ -32,6 +32,10 @@ def _verify(records, md: str):
     return bookmarks.verify_bookmarks(records, md, _catalog(md))
 
 
+def _pages(md: str):
+    return bookmarks.pages_from_positions(_catalog(md))
+
+
 class TestNormalizeTitle:
     def test_strips_markup(self):
         assert bookmarks.normalize_title("## 1.0 Background:") == "10background"
@@ -43,9 +47,9 @@ class TestNormalizeTitle:
         assert bookmarks.normalize_title("  ---  ") == ""
 
 
-class TestPageLineTexts:
+class TestPagesFromPositions:
     def test_groups_by_page(self):
-        pages = bookmarks.page_line_texts("<!-- page: 1 -->\n## Intro\ntext\n<!-- page: 2 -->\n## Methods")
+        pages = _pages("<!-- page: 1 -->\n## Intro\ntext\n<!-- page: 2 -->\n## Methods")
         assert pages[1] == {"intro", "text"}
         assert pages[2] == {"methods"}
 
@@ -53,7 +57,7 @@ class TestPageLineTexts:
         # Only the canonical marker starts a page; anything else is ordinary content, so its
         # text keys onto page 0 instead of opening page 4.
         for marker in ("<!--  page:  4  -->", "<!-- page: 4-->", "<!--page:4-->"):
-            pages = bookmarks.page_line_texts(f"{marker}\nFoo")
+            pages = _pages(f"{marker}\nFoo")
             assert 4 not in pages, marker
             assert "foo" in pages[0], marker
 
@@ -119,17 +123,6 @@ class TestUnpagedDocument:
 
     def test_empty_records(self):
         assert _verify([], self.UNPAGED) == []
-
-
-class TestBookmarksName:
-    # There is no sidecar IO here: records live in memory for the run. This module still owns
-    # the legacy filename constant so chunker can delete older leftovers beside the ``.md``.
-    def test_name_is_the_json_file(self):
-        assert bookmarks.BOOKMARKS_NAME == "bookmarks.json"
-
-    def test_no_io_helpers_remain(self):
-        assert not hasattr(bookmarks, "read_bookmarks")
-        assert not hasattr(bookmarks, "write_bookmarks")
 
 
 class TestLinePages:

@@ -24,7 +24,6 @@ import json
 import pytest
 
 import chunker
-from bookmarks import BOOKMARKS_NAME
 
 
 class TestValidHeading:
@@ -146,8 +145,8 @@ class TestChunkFile:
         assert len(catalog["chunks"]) == summary["chunks"]
 
     def test_catalog_length_matches_the_chunk_file(self, tmp_path):
-        # "length" is documented as the character count of the chunk file's content, and the
-        # writer appends a newline — so it used to be one short for every chunk.
+        # "length" is the character count of the chunk file on disk, including the trailing
+        # newline the writer appends.
         path = self._write_large(tmp_path)
         chunker.chunk_file(str(path))
         chunks_dir = path.parent / chunker.CHUNKS_DIRNAME
@@ -168,12 +167,8 @@ class TestChunkFile:
         assert not (path.parent / chunker.CHUNKS_DIRNAME / chunker.CATALOG_NAME).exists()
 
 
-class TestBookmarksJsonNotWritten:
-    """Resolved outline records stay in memory; ``bookmarks.json`` is never written.
-
-    Titles still land in ``outline.json``'s ``toc`` list. A legacy sibling ``bookmarks.json``
-    is still cleaned up (see :class:`TestSidecarCleanup`).
-    """
+class TestOutlineToc:
+    """Printed-TOC and PDF-bookmark titles land in ``Chunks/outline.json``'s ``toc`` list."""
 
     PARAGRAPH = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 60
 
@@ -186,7 +181,7 @@ class TestBookmarksJsonNotWritten:
         body = [f"# Section {i} Heading\n\n{self.PARAGRAPH}\n" for i in range(1, 51)]
         path.write_text("\n".join(toc + body), encoding="utf-8")
 
-    def test_printed_toc_titles_land_in_outline_not_bookmarks_file(self, tmp_path):
+    def test_printed_toc_titles_land_in_outline(self, tmp_path):
         path = tmp_path / "proto.md"
         self._protocol(path)
         chunker.chunk_file(str(path))
@@ -195,16 +190,8 @@ class TestBookmarksJsonNotWritten:
         )
         assert "1.0 Background" in outline["toc"]
         assert "4.0 Analysis" in outline["toc"]
-        assert not (path.parent / chunker.CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
-        assert not (tmp_path / BOOKMARKS_NAME).exists()
 
-    def test_absent_when_no_records_were_resolved(self, tmp_path):
-        path = tmp_path / "plain.md"
-        path.write_text("# Title\n\n" + self.PARAGRAPH, encoding="utf-8")
-        chunker.chunk_file(str(path))
-        assert not (path.parent / chunker.CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
-
-    def test_absent_on_the_unchunked_path_too(self, tmp_path, monkeypatch):
+    def test_pdf_bookmarks_on_the_unchunked_path(self, tmp_path, monkeypatch):
         records = [{"title": "Alpha Section", "level": 1, "page": 1}]
         monkeypatch.setattr(
             "toc_and_appendix_detection.extract_bookmarks", lambda *a, **k: records
@@ -220,19 +207,10 @@ class TestBookmarksJsonNotWritten:
             (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
         )
         assert outline["toc"] == ["Alpha Section"]
-        assert not (path.parent / chunker.CHUNKS_DIRNAME / BOOKMARKS_NAME).exists()
 
 
-class TestSidecarCleanup:
-    """Legacy sibling ``bookmarks.json`` / ``outline.json`` beside the ``.md`` are deleted.
-
-    Regression: a run that harvested a printed TOC used to leave ``bookmarks.json`` beside the
-    ``.md``, and the next run read it back as *authoritative PDF bookmarks*, skipped
-    printed-TOC detection, and reported the previous document's outline for the current one.
-    Neither half is possible now — nothing writes that path and nothing reads it — but the
-    cleanup stays, because an older version's leftover is indistinguishable from a fresh file
-    to anyone inspecting the folder.
-    """
+class TestRechunk:
+    """A second ``chunk_file`` on the same path rebuilds the outline from the current document."""
 
     PARAGRAPH = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 60
 
@@ -246,14 +224,6 @@ class TestSidecarCleanup:
             (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
         )
 
-    def test_no_sidecars_left_beside_the_md(self, tmp_path):
-        path = tmp_path / "proto.md"
-        self._write(path, ["1.0 Background", "2.0 Objectives", "3.0 Design", "4.0 Analysis"])
-        chunker.chunk_file(str(path))
-        assert self._outline(path)["toc_source"] == "md-toc"
-        assert not (tmp_path / BOOKMARKS_NAME).exists()
-        assert not (tmp_path / chunker.OUTLINE_NAME).exists()
-
     def test_rerun_on_new_content_does_not_reuse_the_old_outline(self, tmp_path):
         path = tmp_path / "proto.md"
         self._write(path, ["1.0 Background", "2.0 Objectives", "3.0 Design", "4.0 Analysis"])
@@ -262,34 +232,18 @@ class TestSidecarCleanup:
             "1.0 Background", "2.0 Objectives", "3.0 Design", "4.0 Analysis",
         ]
 
-        # Same output path, entirely different document.
         self._write(path, ["9.0 Completely New", "8.0 Other Topic", "7.0 Third Thing"])
         chunker.chunk_file(str(path))
         outline = self._outline(path)
         assert outline["toc_source"] == "md-toc"
         assert outline["toc"] == ["9.0 Completely New", "8.0 Other Topic", "7.0 Third Thing"]
 
-    def test_unchunked_path_also_clears_sidecars(self, tmp_path):
-        path = tmp_path / "small.md"
-        path.write_text("# Tiny protocol\n\nShort content.\n", encoding="utf-8")
-        (tmp_path / BOOKMARKS_NAME).write_text(
-            json.dumps([{"title": "Alpha Section", "level": 1, "page": 1}]), encoding="utf-8"
-        )
-        chunker.chunk_file(str(path), min_structure_tokens=10 ** 9)
-        # A leftover sidecar is neither honoured nor left behind: the outline comes from
-        # the document alone, and the stale file is removed on the unchunked path too.
-        assert self._outline(path)["toc"] == []
-        assert self._outline(path)["toc_source"] == "none"
-        assert not (tmp_path / BOOKMARKS_NAME).exists()
 
-    def test_clear_prior_outputs_removes_both_sidecars_and_chunks(self, tmp_path):
+class TestClearPriorOutputs:
+    def test_removes_chunks_dir(self, tmp_path):
         path = tmp_path / "doc.md"
         path.write_text("# Doc\n\nbody\n", encoding="utf-8")
-        (tmp_path / BOOKMARKS_NAME).write_text("[]", encoding="utf-8")
-        (tmp_path / chunker.OUTLINE_NAME).write_text("{}", encoding="utf-8")
         (tmp_path / chunker.CHUNKS_DIRNAME).mkdir()
         (tmp_path / chunker.CHUNKS_DIRNAME / "Chunk-1.md").write_text("stale", encoding="utf-8")
         chunker.clear_prior_outputs(path)
-        assert not (tmp_path / BOOKMARKS_NAME).exists()
-        assert not (tmp_path / chunker.OUTLINE_NAME).exists()
         assert not (tmp_path / chunker.CHUNKS_DIRNAME).exists()

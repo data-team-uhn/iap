@@ -22,8 +22,7 @@ Runs before Docling. Converted files are written beside the source immediately:
 * ``.doc``  -> ``{stem}.docx`` then ``{stem}.pdf``
 * ``.docx`` -> ``{stem}.pdf``
 
-``soffice`` is resolved from ``IAP_LIBREOFFICE_SOFFICE`` or ``LIBREOFFICE_PATH``, else
-``soffice`` on PATH.
+``soffice`` is resolved from ``IAP_LIBREOFFICE_SOFFICE``, else ``soffice`` on PATH.
 """
 
 from __future__ import annotations
@@ -37,7 +36,8 @@ from typing import Callable
 
 import shared_docs
 
-# Explicit Writer PDF export filter (matches the former Java LibreOfficeConverter).
+# Name the Writer PDF filter explicitly rather than passing a bare "pdf", so the export
+# does not depend on which filter LibreOffice picks for the input it was handed.
 _PDF_CONVERT_TO = "pdf:writer_pdf_Export"
 
 _CONVERSION_TIMEOUT_SECONDS = 120
@@ -47,11 +47,8 @@ LogFn = Callable[[str], None]
 
 def resolve_soffice_path() -> str:
     """Absolute or PATH-relative path to the LibreOffice executable."""
-    for key in ("IAP_LIBREOFFICE_SOFFICE", "LIBREOFFICE_PATH"):
-        configured = (os.environ.get(key) or "").strip()
-        if configured:
-            return configured
-    return "soffice"
+    configured = (os.environ.get("IAP_LIBREOFFICE_SOFFICE") or "").strip()
+    return configured or "soffice"
 
 
 def convert(input_path: Path, target_format: str, output_dir: Path | None = None) -> Path:

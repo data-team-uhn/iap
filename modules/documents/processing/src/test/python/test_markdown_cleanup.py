@@ -33,8 +33,6 @@ class TestCleanMarkdown:
         assert result == "# Title\n\nBody text."
 
     def test_running_it_again_changes_nothing(self):
-        # There is no sentinel in the output any more, so this holds structurally: every step
-        # is a removal or a collapse, and the pipeline calls it once regardless.
         once = mc.clean_markdown("# Title\n\n\n\n***\n\n<!-- image -->\n\nBody text.")
         assert mc.clean_markdown(once) == once
 

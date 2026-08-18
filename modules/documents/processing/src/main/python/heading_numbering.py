@@ -30,14 +30,14 @@ emitted as bold body text instead of an ATX ``#`` heading.
     "1.2 Methods"         -> [1, 2]        (depth 2)
     "2.3.1.1 Measures"    -> [2, 3, 1, 1]  (depth 4)
     "3. 1. 1 Aim 1"       -> [3, 1, 1]     (depth 3 -- space-mangled numbering still parses)
-    "A. Consent"          -> []            (letter: use :func:`letter_numbering`)
+    "A. Consent"          -> []            (a letter prefix is not numbering here)
     "II. Results"         -> []            (roman: use :func:`roman_numbering`)
 
-:func:`numbering_vector` / :func:`numbering_depth` accept Arabic-decimal only. Letter and
-Roman have their own helpers (:func:`letter_numbering`, :func:`roman_numbering`) for callers
-that need them (e.g. TOC page tokens). In the protocol corpus, letter/Roman markers appear
-almost only as sub-levels nested under a numeric outline, and a bare leading "I"/"V"/"A" of
-an ordinary heading word is an easy false positive.
+:func:`numbering_vector` / :func:`numbering_depth` accept Arabic-decimal only. Roman has
+its own helper (:func:`roman_numbering`), used for TOC page tokens. In the protocol corpus,
+letter/Roman markers appear almost only as sub-levels nested under a numeric outline, and a
+bare leading "I"/"V"/"A" of an ordinary heading word is an easy false positive, so a letter
+prefix is not read as numbering at all.
 """
 
 from __future__ import annotations
@@ -53,9 +53,6 @@ _NUMERIC_MULTI = re.compile(rf"^(\d+(?:{_NUMERIC_SEP}\d+)+)")
 # end -- so "1 Background", "1.", "1:", "1)" match, but "1st" and "1-year" do not.
 _NUMERIC_SINGLE = re.compile(r"^\d+(?=[.):\s]|$)")
 _NUMERIC_TOKENS = re.compile(r"\d+")
-
-# A single leading letter followed by a separator ("A. ", "b) ", "C - ").
-_LETTER_PREFIX = re.compile(r"^([A-Za-z])[.)\s-]+")
 
 # Roman numerals at the start, optionally dotted ("II.", "XI.2"), or a bare run.
 _ROMAN_PREFIX = re.compile(r"^((?:[IVXLCDM]+[.\s-])+|[IVXLCDM]+$)", re.IGNORECASE)
@@ -82,14 +79,6 @@ def numerical_numbering(text: str) -> list[int]:
     if single:
         return [int(single.group(0))]
     return []
-
-
-def letter_numbering(text: str) -> list[int]:
-    """The letter-numbering vector (``A``=1, ``b``=2, ...) at the start of ``text``."""
-    match = _LETTER_PREFIX.match(text.strip())
-    if not match:
-        return []
-    return [ord(match.group(1).lower()) - ord("a") + 1]
 
 
 def _roman_to_int(roman: str) -> int:
@@ -142,8 +131,8 @@ def numbering_vector(text: str) -> list[int]:
     """The Arabic-decimal heading-numbering vector for ``text`` (``[]`` when it has none),
     normalized for hierarchy depth (trailing ``.0`` collapsed).
 
-    Letter and Roman prefixes are ignored here; use :func:`letter_numbering` /
-    :func:`roman_numbering` when those styles are needed.
+    Letter and Roman prefixes are ignored here; use :func:`roman_numbering` when Roman
+    numbering is needed.
 
     @param text: the heading text (``#``/``**`` markers already stripped)
     @return: the numbering vector, or ``[]``

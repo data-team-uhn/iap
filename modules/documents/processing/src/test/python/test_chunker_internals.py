@@ -57,8 +57,7 @@ class TestBackmatterHeading:
 
     def test_list_marker_and_partial_emphasis_stripped(self):
         # Docling emits backmatter headings as list items with only part of them bold, e.g.
-        # "- 20.0 **Appendices**" on a real protocol — neither an ATX heading nor fully bold,
-        # so it used to reach the catalog verbatim.
+        # "- 20.0 **Appendices**" on a real protocol — neither an ATX heading nor fully bold.
         assert chunker._backmatter_heading("- 20.0 **Appendices**\n\nbody") == ["20.0 Appendices"]
         assert chunker._backmatter_heading("* 19.0 References") == ["19.0 References"]
         assert chunker._backmatter_heading("+ **Annexes**") == ["Annexes"]
@@ -539,20 +538,6 @@ class TestSubchunkBlocksNumberedFallback:
 class TestBookmarksStorage:
     def _outline(self, tmp_path):
         return json.loads((tmp_path / "Chunks" / "outline.json").read_text(encoding="utf-8"))
-
-    def test_a_leftover_sidecar_is_not_treated_as_bookmarks(self, tmp_path):
-        # Records now come from a sibling PDF or the printed TOC only. A bookmarks.json left
-        # beside the .md by an older run is ignored, which is what stops it reporting the
-        # previous document's outline for this one.
-        md = tmp_path / "doc.md"
-        md.write_text("# Title\n\nshort body\n", encoding="utf-8")
-        records = [{"title": "Alpha Section", "level": 1, "page": 1}]
-        (tmp_path / "bookmarks.json").write_text(json.dumps(records) + "\n", encoding="utf-8")
-        chunker.chunk_file(str(md), min_structure_tokens=10 ** 9)
-        outline = self._outline(tmp_path)
-        assert outline["toc_source"] == "none"
-        assert outline["toc"] == []
-        assert "bookmarks" not in outline
 
     def test_no_sibling_pdf_no_toc(self, tmp_path):
         md = tmp_path / "doc.md"
