@@ -229,9 +229,9 @@ describe("DeleteItem", () => {
     const onDeleted = vi.fn();
     render(
       <ThemeProvider theme={appTheme} defaultMode="light">
-        <ReLoginContext.Provider value={signIn}>
+        <ReLoginContext value={signIn}>
           <DeleteItem path={PATH} type="submission" onDeleted={onDeleted} />
-        </ReLoginContext.Provider>
+        </ReLoginContext>
       </ThemeProvider>
     );
 
