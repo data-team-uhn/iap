@@ -80,6 +80,12 @@ public interface DeletionVeto
      * whose deletion was requested, which is the one its answer is really about.
      * </p>
      *
+     * <p>
+     * The test is mechanical: a guard that reads anything at all off its {@code node} judges resources, no matter how
+     * few of them it ends up objecting to. Narrowing by node type is not the same thing — it selects which resources
+     * this guard speaks about, and keeps that decision inside the guard, where a caller cannot get it wrong.
+     * </p>
+     *
      * @return {@code true} to be asked once; {@code false}, the default, to be asked about every impacted resource
      */
     default boolean judgesWholeOperation()
