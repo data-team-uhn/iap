@@ -70,6 +70,9 @@ public class TaskInstance extends Entity
     private String outcome;
 
     @ValueMapValue
+    private String dueEventId;
+
+    @ValueMapValue
     private String[] offeredOutcomes;
 
     @ValueMapValue
@@ -166,6 +169,19 @@ public class TaskInstance extends Entity
     public String getOutcome()
     {
         return this.outcome;
+    }
+
+    /**
+     * The boundary event whose timer set this task's {@link #getDueDate() deadline}, named by its element
+     * identifier. Recorded because an activity may be watched by several events, and what happens when the
+     * deadline passes is where execution goes next — read from the definition rather than guessed at.
+     *
+     * @return an element identifier, or {@code null} when nothing is counting down to this task
+     */
+    @Nullable
+    public String getDueEventId()
+    {
+        return this.dueEventId;
     }
 
     /**

@@ -62,6 +62,23 @@
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toDecision",
         "targetRef": "decision"
+      },
+      // Stored inside the activity it watches, which is what makes it a boundary event: it listens only for as
+      // long as this task is open, and the engine starts its clock when the task is raised. Interrupting, so the
+      // deadline passing cancels the task rather than starting a second path beside it - "remind them but let
+      // them carry on" needs two tokens, which this engine does not have yet.
+      "approvalOverdue": {
+        "jcr:primaryType": "wf:IntermediateCatchingEvent",
+        "elementId": "approvalOverdue",
+        "label": "Not decided in time",
+        "timerDuration": "P5D",
+        "interrupting": true,
+        "jcr:reference:flowNodeType": "/WorkflowTypes/TimerBoundaryEvent",
+        "toExpired": {
+          "jcr:primaryType": "wf:SequenceFlow",
+          "elementId": "toExpired",
+          "targetRef": "requestExpired"
+        }
       }
     },
     "decision": {
@@ -109,6 +126,13 @@
       "elementId": "requestRejected",
       "label": "Time off refused",
       "hostTag": "rejected",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "requestExpired": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestExpired",
+      "label": "Nobody decided in time",
+      "hostTag": "expired",
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
     }
   }

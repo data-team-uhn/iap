@@ -450,6 +450,19 @@ is parked on a task performed by `@creator`, tagged `draft`; completing that tas
 no "submit" event, no submit endpoint and no submitted flag — which is why what the button says is the task's
 own label, and why a deployment that wants a request to go somewhere else first only edits its process.
 
+**A task can be given a deadline.** A boundary timer — an event stored *inside* the activity, with a
+`timerDuration` — is armed when the task is raised: the engine works out when the wait ends and records it on
+the task itself, as `dueDate` and the `dueEventId` naming the timer. That puts the deadline where anything
+looking for overdue work can see it without running the engine, and it survives a restart, which a scheduled
+job in memory would not.
+
+When it passes, a periodic sweep hands the task to `receiveEvent` as an ordinary `timeout` event, so the
+clock comes through the same door as everything else. The task is cancelled — no assignee, no outcome,
+because nobody did it and nothing was decided — and execution leaves down the timer's own arc rather than the
+activity's, which is how a process says what running out of time *means*. There is no performer check:
+`performers` says who may make execution pass through a node, and time belongs to no group; refusing the
+clock for that would park the instance on a task that can never now be done.
+
 **Read access is materialized when the instance starts.** Acting is authorized by the definitions, but
 reading cannot be — a query returns rows, and no engine can run a workflow per row — so the workflow declares
 and the engine writes an ACL: the person it is being run for, plus the performers of every user task in the
@@ -464,18 +477,23 @@ disagree.
 - **Instance variables are not exposed to handlers.** The runtime persists `outcome` as a `wf:Variable`, but
   a service task inside an instance gets variables that live only for that delivery. Typed variables are
   already in the node types; wiring them to the SPI is what is missing.
-- **Nothing delivers a timer or a message.** An instance that reaches a mid-process catching event is
-  refused rather than parked, because nothing could ever wake it up again.
+- **Nothing delivers a message.** A timer is delivered — a boundary timer on a user task is armed when the
+  task is raised and fired by a periodic sweep — but an instance that reaches a *free-standing* catching
+  event is still refused rather than parked, because nothing could then wake it: what a message event waits
+  for would have to be addressed to it, and the engine's door currently opens onto a homepage or a task.
+- **Only interrupting timers.** A boundary timer cancels the task it watches. "Remind them but let them
+  carry on" is a second path beside the first, and an instance has one token.
 - **Read access is granted for the life of the instance**, not only while a task is open, and is never
   revoked. Narrowing it as state changes is a refinement for when there is a reason to want it.
 - **A gateway's guards can only ask about the execution.** They are evaluated against the instance, so the
   `variable` operand source reaches what the run knows — the outcome a task recorded — and nothing yet
   reaches the host it is attached to, which is what routing on a request's own answers would need.
-- **Event definitions carry no payload yet.** A timer event is recognized as a timer, but there is
-  nowhere to put its duration, and a message event records its `messageRef` without resolving it to the
-  `<bpmn:message>` declared at document level — which is what the engine's event dictionary will need.
-  The vocabulary can copy XML *attributes*; these payloads live in nested *elements*, and the mechanism
-  for pulling those across is best designed alongside the parser that needs it.
+- **The parser cannot yet fill in an event's payload.** A timer's duration now has somewhere to live —
+  `timerDuration` on the catching event — but BPMN keeps it in a nested `timeDuration` element, and a
+  message event records its `messageRef` without resolving it to the `<bpmn:message>` declared at document
+  level, which is what the engine's event dictionary will need. The vocabulary can copy XML *attributes*;
+  these payloads live in nested *elements*, and the mechanism for reaching them is best designed alongside
+  the parser that needs it.
 - **`performers` is a principal list, not a condition.** It cannot express "and only if the schema they
   name belongs to their institution". That data-dependent half is a job for the conditions module,
   evaluated against the actor alongside the list rather than instead of it: a list can be enumerated to
