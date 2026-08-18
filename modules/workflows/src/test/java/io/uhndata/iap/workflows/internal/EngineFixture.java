@@ -108,7 +108,8 @@ public final class EngineFixture
     static final String LIFECYCLE = "lifecycle";
 
     /** The lifecycle states these tests move a host through. */
-    static final List<String> STATES = List.of("draft", "submitted", "in-review", "approved", "rejected");
+    static final List<String> STATES =
+        List.of("draft", "submitted", "in-review", "approved", "rejected", "expired");
 
     private EngineFixture()
     {
