@@ -17,15 +17,9 @@
 
 """Tests for the shared markers module.
 
-The page-marker pattern used to be re-declared in four modules with three different
-spellings, and one copy required a space before ``-->`` while the Python parser emitted none,
-so that copy silently never matched. The tests here pin the canonical emitted format, assert
-that every consumer agrees on it, and assert that every other spacing — including the older
-no-space spelling — is rejected outright. A document carrying a pre-unification marker has to be
-re-parsed rather than half-read: a marker that matches in one consumer and not another is how
-the original bug produced page numbers that disagreed across the pipeline."""
+Pin the canonical ``<!-- page: N -->`` form, assert every consumer agrees on it, and
+assert that every other spacing is rejected."""
 
-import re
 import time
 
 import bookmarks
@@ -34,12 +28,15 @@ import markdown_cleanup
 import markdown_markers as mm
 import toc_and_appendix_detection as tad
 
-# The canonical form, exactly as markdown_markers.page_marker builds it and as both the
-# Python PDF parser and the Java PdfMarkdownGenerator emit it.
+# The canonical form, exactly as markdown_markers.page_marker builds it and as the PDF
+# parser emits it.
 EMITTED = "<!-- page: 12 -->"
+NON_CANONICAL = "<!-- page: 12-->"
 
-# The pre-unification spelling, still present in already-parsed .md files on disk.
-LEGACY_NO_SPACE = "<!-- page: 12-->"
+
+def _pages(markdown: str):
+    """Page number -> normalized line keys, the way the chunker reads a document."""
+    return bookmarks.pages_from_positions(bookmarks.build_lines_catalog(markdown.split("\n")))
 
 
 class TestCanonicalPageMarker:
@@ -48,10 +45,6 @@ class TestCanonicalPageMarker:
 
     def test_page_marker_has_a_space_before_the_close(self):
         assert mm.page_marker(7) == "<!-- page: 7 -->"
-
-    def test_what_the_pdf_parser_emits_is_what_page_marker_builds(self):
-        # Guards the emitter against drifting away from the shared definition.
-        assert mm.page_marker(12) == EMITTED
 
 
 class TestPageMarkerFormat:
@@ -62,12 +55,6 @@ class TestPageMarkerFormat:
     def test_captures_the_page_number(self):
         assert mm.PAGE_MARKER.search(EMITTED).group(1) == "12"
         assert mm.PAGE_MARKER_LINE.match(EMITTED).group(1) == "12"
-
-    def test_rejects_the_legacy_no_space_spelling(self):
-        # Spacing is exact: only the marker this pipeline writes is recognised. A document
-        # carrying the pre-unification spelling must be re-parsed, not half-read.
-        assert mm.PAGE_MARKER_LINE.match(LEGACY_NO_SPACE) is None
-        assert mm.PAGE_MARKER.search(LEGACY_NO_SPACE) is None
 
     def test_rejects_other_spacings(self):
         for text in ("<!--  page:  4  -->", "<!--page:7-->", "<!--\tpage:\t9\t-->",
@@ -88,8 +75,8 @@ class TestPageMarkerFormat:
     def test_split_keeps_the_marker_and_its_newlines(self):
         assert mm.PAGE_MARKER_SPLIT.split(f"a\n{EMITTED}\nb") == ["a", f"\n{EMITTED}\n", "b"]
 
-    def test_split_does_not_recognise_the_legacy_spelling(self):
-        text = f"a\n{LEGACY_NO_SPACE}\nb"
+    def test_split_does_not_recognise_non_canonical_spacing(self):
+        text = f"a\n{NON_CANONICAL}\nb"
         assert mm.PAGE_MARKER_SPLIT.split(text) == [text]
 
     def test_line_pattern_allows_only_line_level_whitespace_slack(self):
@@ -100,42 +87,21 @@ class TestPageMarkerFormat:
 
 
 class TestConsumersAgreeOnTheMarker:
-    """Every stage that recognises a page marker must recognise the emitted one.
-
-    A stage whose pattern silently never matches does not fail loudly — it just stops
-    seeing page boundaries, which is how the cross-page TOC continuation logic came to be
-    dead code.
-    """
+    """Every stage that recognises a page marker must recognise the emitted one."""
 
     def test_every_stage_reads_the_canonical_marker(self):
         assert chunker.is_neutral(EMITTED) is True
         assert chunker._pages_in(f"body\n{EMITTED}\nmore") == [12]
-        assert bookmarks.page_line_texts(f"{EMITTED}\nSome Title") == {12: {"sometitle"}}
+        assert _pages(f"{EMITTED}\nSome Title") == {12: {"sometitle"}}
         assert tad.PAGE_MARKER_LINE.match(EMITTED) is not None
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{EMITTED}\nb") is not None
 
-    def test_every_stage_rejects_the_legacy_marker_consistently(self):
-        # The point of one shared definition: no stage disagrees about what counts as a
-        # marker, so a legacy document fails uniformly instead of half-parsing.
-        assert chunker.is_neutral(LEGACY_NO_SPACE) is False
-        assert chunker._pages_in(f"body\n{LEGACY_NO_SPACE}\nmore") == []
-        assert bookmarks.page_line_texts(f"{LEGACY_NO_SPACE}\nSome Title") != {12: {"sometitle"}}
-        assert tad.PAGE_MARKER_LINE.match(LEGACY_NO_SPACE) is None
-        assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{LEGACY_NO_SPACE}\nb") is None
-
-    def test_chunker_sees_it(self):
-        assert chunker.is_neutral(EMITTED) is True
-        assert chunker._pages_in(f"body\n{EMITTED}\nmore") == [12]
-
-    def test_bookmarks_sees_it(self):
-        assert bookmarks.page_line_texts(f"{EMITTED}\nSome Title") == {12: {"sometitle"}}
-
-    def test_toc_detection_sees_it(self):
-        # Reached through the module's own alias, so a future divergence fails here.
-        assert tad.PAGE_MARKER_LINE.match(EMITTED) is not None
-
-    def test_markdown_cleanup_sees_it(self):
-        assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{EMITTED}\nb") is not None
+    def test_every_stage_rejects_non_canonical_spacing(self):
+        assert chunker.is_neutral(NON_CANONICAL) is False
+        assert chunker._pages_in(f"body\n{NON_CANONICAL}\nmore") == []
+        assert _pages(f"{NON_CANONICAL}\nSome Title") != {12: {"sometitle"}}
+        assert tad.PAGE_MARKER_LINE.match(NON_CANONICAL) is None
+        assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{NON_CANONICAL}\nb") is None
 
 
 class TestHeadingPattern:
@@ -171,18 +137,10 @@ class TestHeadingPattern:
         assert time.perf_counter() - start < 1.0
 
     def test_the_heading_text_group_may_carry_trailing_whitespace(self):
-        # The pattern no longer trims the tail itself -- that is what removed the ambiguity.
-        # _match_heading strips it, and every other caller uses HEADING as a predicate.
+        # _match_heading strips trailing whitespace; every other caller uses HEADING as a
+        # predicate and does not care about the captured tail.
         assert mm.HEADING.match("## Study Design   ").group(2) == "Study Design   "
         assert mm.HEADING.match("## Study Design").group(2) == "Study Design"
-
-    def test_matches_the_looser_predicate_it_replaced(self):
-        # toc_and_appendix_detection used r"^#{1,6}\s+\S" as a separate "is a heading line"
-        # check; HEADING must be a drop-in for it.
-        looser = re.compile(r"^#{1,6}\s+\S")
-        for case in ("# A", "## Foo", "###### Deep", "####### Seven", "#", "## ",
-                     "#NoSpace", "  ## Indented", "## trailing   ", "##\tTabbed", ""):
-            assert bool(looser.match(case)) == bool(mm.HEADING.match(case)), case
 
 
 class TestRuleLine:

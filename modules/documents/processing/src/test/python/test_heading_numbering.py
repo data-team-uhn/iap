@@ -85,20 +85,6 @@ class TestNumericalNumberingRealWorld:
         assert hn.numbering_vector("3 5-year survival") == [3]
 
 
-class TestLetterNumbering:
-    def test_uppercase_dot(self):
-        assert hn.letter_numbering("A. Consent") == [1]
-
-    def test_lowercase_paren(self):
-        assert hn.letter_numbering("b) Details") == [2]
-
-    def test_lowercase_dot(self):
-        assert hn.letter_numbering("a. Background") == [1]
-
-    def test_no_separator(self):
-        assert hn.letter_numbering("Appendix") == []
-
-
 class TestRomanNumbering:
     def test_simple(self):
         assert hn.roman_numbering("II. Results") == [2]

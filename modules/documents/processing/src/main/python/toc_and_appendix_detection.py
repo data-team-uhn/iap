@@ -29,7 +29,6 @@ in ``outline.json``.
 
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
 
@@ -199,16 +198,6 @@ TOC_OUTLINE_ENTRY_PATTERN = re.compile(
     """,
     re.IGNORECASE | re.VERBOSE,
 )
-
-
-def read_outline(outline_path: Path | None) -> dict:
-    """Read the outline.json file."""
-    if outline_path is None or not outline_path.is_file():
-        return {}
-    try:
-        return json.loads(outline_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
 
 
 def is_toc_entry_line(line: str) -> bool:
@@ -561,9 +550,7 @@ def _detect_toc(md: str) -> tuple[str, dict]:
     """Detect the document's TOC and clean it in place, returning the outline fields it
     yields rather than writing them anywhere.
 
-    :func:`derive_outline` takes the entries straight from memory. They used to be written to
-    ``outline.json`` and read back to build records — a file round-trip used as a data channel,
-    which also forced several read-modify-write cycles over the same file.
+    :func:`derive_outline` takes the entries straight from memory.
 
     ``tocStartLine`` / ``tocEndLine`` describe the *returned* document, which is the only one
     any caller sees now that cleanup is unconditional. They are not interchangeable with a range
@@ -804,8 +791,8 @@ def derive_outline(
     """
     # A sibling <stem>.pdf is the only disk source of real bookmarks: native PDFs and the
     # DOC/DOCX→PDF renditions LibreOffice writes beside the source before Docling runs.
-    # Re-extracted every run rather than read from a sidecar. Page verification waits until
-    # the shared catalog is built below, so the PDF and printed-TOC paths share one scan.
+    # Page verification waits until the shared catalog is built below, so the PDF and
+    # printed-TOC paths share one scan.
     bookmarks: list[dict] = []
     if markdown_path is not None:
         pdf_file = markdown_path.with_suffix(".pdf")
@@ -843,9 +830,7 @@ def derive_outline(
         )
         toc_source = "md-toc" if toc_records else "none"
 
-    # One dict for the whole outline: these fields used to be spread over three
-    # read-modify-write cycles of the same file, which wrote ``tokens`` twice with two
-    # different values before the final one won.
+    # One dict for the whole outline.
     toc_summary["tokens"] = count_tokens(md_file)
     toc_summary["toc_source"] = toc_source
     toc_summary["toc"] = [record["title"] for record in toc_records if record.get("title")]

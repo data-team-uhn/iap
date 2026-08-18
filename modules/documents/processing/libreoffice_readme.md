@@ -47,8 +47,6 @@ LibreOffice runs inside the **Python parsing service** (daemon or CLI).
 
    ```
    IAP_LIBREOFFICE_SOFFICE=/usr/bin/soffice
-   # or
-   LIBREOFFICE_PATH=/usr/bin/soffice
    ```
 
    On Windows (CLI / local daemon):
@@ -84,7 +82,7 @@ LibreOffice runs inside the **Python parsing service** (daemon or CLI).
 
 | Variable                                       | Default        | Purpose                            |
 | ---------------------------------------------- | -------------- | ---------------------------------- |
-| `IAP_LIBREOFFICE_SOFFICE` / `LIBREOFFICE_PATH` | `soffice`      | LibreOffice executable             |
+| `IAP_LIBREOFFICE_SOFFICE`                      | `soffice`      | LibreOffice executable             |
 | `IAP_SHARED_DOCS`                              | `/shared-docs` | Shared staging + parse output root |
 
 Nothing starts the daemon for you. When the daemon cannot be reached, parsing fails. There is no
