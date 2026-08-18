@@ -97,14 +97,13 @@ callback URL.
 
 Both halves of that call come from the daemon's own environment: `IAP_DOCLING_CALLBACK_URL`
 says where to POST, and `IAP_DOCLING_CALLBACK_JWT` is the shared JWT sent as a bearer token.
-Neither is accepted from the request — a `callback` parameter is a 400 — because the daemon's
-port has no authentication, so a caller-chosen destination would hand the token to anyone
-able to reach it. Without either variable the daemon refuses asynchronous requests. Delivery
-is retried a few times if the caller is briefly away, and a redirect is refused rather than
-followed, since following one would drop the body and forward the token
-(`parse_callbacks.py`). This is how the Java side calls the daemon — its callback endpoint,
-which reads the same JWT variable, is `/system/documents/parseCallback` in
-`modules/documents/api`.
+Neither is taken from the request, because the daemon's port has no authentication and a
+caller-chosen destination would hand the token to anyone able to reach it. Without either
+variable the daemon refuses asynchronous requests. Delivery is retried a few times if the
+caller is briefly away, and a redirect is refused rather than followed, since following one
+would drop the body and forward the token (`parse_callbacks.py`). This is how the Java side
+calls the daemon — its callback endpoint, which reads the same JWT variable, is
+`/system/documents/parseCallback` in `modules/documents/api`.
 
 Background parses run one at a time: the PDF worker pool is sized for a single conversion,
 so extra requests queue rather than each taking a thread. A shutdown drains them — parses
