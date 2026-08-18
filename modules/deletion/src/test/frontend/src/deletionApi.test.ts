@@ -16,7 +16,8 @@
  * limitations under the License.
  */
 
-import { requestDeletion, type AuthenticatedFetch } from "@iap/deletion/deletionApi";
+import { requestDeletion } from "@iap/deletion/deletionApi";
+import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 const jsonResponse = (status: number, body: unknown) => new Response(JSON.stringify(body), {
   status,

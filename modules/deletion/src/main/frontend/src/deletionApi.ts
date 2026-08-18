@@ -16,17 +16,14 @@
  * limitations under the License.
  */
 
+import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+
 // The client half of the deletion endpoint documented in docs/deletion.md: the shape of what it
 // answers, and one call that always resolves to that shape.
-
-/**
- * A `fetch` that survives the session expiring underneath it, as returned by `useAuthenticatedFetch`
- * (`@iap/frontend-commons/reLogin`).
- *
- * Taken as an argument rather than reached for here, because that hook can only be called from a
- * component — and keeping this module free of React is what lets it be tested as a plain function.
- */
-export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
+//
+// The authenticated fetch is taken as an argument rather than reached for here, because the hook
+// producing it can only be called from a component — and keeping this module free of React is what
+// lets it be tested as a plain function.
 
 /** The machine-readable outcome word every deletion response carries. */
 export type DeletionStatus =
