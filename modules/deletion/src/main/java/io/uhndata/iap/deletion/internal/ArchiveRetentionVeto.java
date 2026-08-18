@@ -84,9 +84,8 @@ public class ArchiveRetentionVeto implements DeletionVeto
     }
 
     /**
-     * The instant from which an entry archived at the given time may be destroyed. Kept in the timestamp's own zone
-     * so that the reported instant reads the way the entry was recorded, and counted in calendar days rather than
-     * fixed 24-hour spans, which is what "days" means to whoever configured it.
+     * The instant from which an entry archived at the given time may be destroyed, kept in the timestamp's own zone so
+     * that the reported instant reads the way the entry was recorded.
      */
     private ZonedDateTime destroyableFrom(final Calendar archivedAt)
     {
