@@ -80,7 +80,8 @@ class TaskInstanceTest
             Map.entry("dueDate", this.started),
             Map.entry("outcome", "approved"),
             Map.entry("offeredOutcomes", new String[] {"approved", "rejected"}),
-            Map.entry("performers", new String[] {"time-off-approvers"})));
+            Map.entry("performers", new String[] {"time-off-approvers"}),
+            Map.entry("dueEventId", "approvalOverdue")));
         final TaskInstance task = resource.adaptTo(TaskInstance.class);
 
         assertNotNull(task);
@@ -94,6 +95,7 @@ class TaskInstanceTest
         assertEquals("approved", task.getOutcome());
         assertEquals(List.of("approved", "rejected"), task.getOfferedOutcomes());
         assertEquals(List.of("time-off-approvers"), task.getPerformers());
+        assertEquals("approvalOverdue", task.getDueEventId());
     }
 
     @Test
@@ -127,6 +129,8 @@ class TaskInstanceTest
         assertEquals(List.of(), task.getOfferedOutcomes());
         // Naming nobody admits nobody, the same way a definition that names no performers does
         assertEquals(List.of(), task.getPerformers());
+        // Nothing is counting down to it
+        assertNull(task.getDueEventId());
         assertNull(task.getWorkflowInstance());
         assertNull(task.getDefinition());
     }

@@ -43,6 +43,14 @@
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toDecision" sourceRef="approveRequest" targetRef="decision" />
+    <bpmn:boundaryEvent id="approvalOverdue" name="Not decided in time" attachedToRef="approveRequest"
+        cancelActivity="true">
+      <bpmn:outgoing>toExpired</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P5D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="toExpired" sourceRef="approvalOverdue" targetRef="requestExpired" />
     <bpmn:exclusiveGateway id="decision" name="Approved?" default="toRejected">
       <bpmn:incoming>toDecision</bpmn:incoming>
       <bpmn:outgoing>toApproved</bpmn:outgoing>
@@ -57,6 +65,9 @@
     </bpmn:endEvent>
     <bpmn:endEvent id="requestRejected" name="Time off refused">
       <bpmn:incoming>toRejected</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="requestExpired" name="Nobody decided in time">
+      <bpmn:incoming>toExpired</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="timeOffRequestDiagram">
@@ -76,6 +87,18 @@
       <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
         <dc:Bounds x="550" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approvalOverdueShape" bpmnElement="approvalOverdue">
+        <dc:Bounds x="582" y="220" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="560" y="263" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="requestExpiredShape" bpmnElement="requestExpired">
+        <dc:Bounds x="582" y="380" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="556" y="423" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
         <dc:Bounds x="705" y="173" width="50" height="50" />
         <bpmndi:BPMNLabel>
@@ -94,6 +117,10 @@
           <dc:Bounds x="802" y="303" width="77" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toExpiredEdge" bpmnElement="toExpired">
+        <di:waypoint x="600" y="256" />
+        <di:waypoint x="600" y="380" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toBudgetEdge" bpmnElement="toBudget">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
