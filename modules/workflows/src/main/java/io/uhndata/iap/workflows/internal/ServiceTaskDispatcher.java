@@ -25,6 +25,7 @@ import java.util.Objects;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -46,14 +47,19 @@ final class ServiceTaskDispatcher
 {
     private final List<ServiceTaskHandler> handlers;
 
+    /** What a started instance's gateways are asked of. */
+    private final ConditionEvaluator conditions;
+
     /**
      * Constructor.
      *
      * @param handlers the registered service task handlers
+     * @param conditions the evaluator a started instance's gateways are asked of
      */
-    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers)
+    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final ConditionEvaluator conditions)
     {
         this.handlers = handlers;
+        this.conditions = conditions;
     }
 
     /**
@@ -75,7 +81,7 @@ final class ServiceTaskDispatcher
         if (WorkflowStarter.HANDLER_NAME.equals(name)) {
             // Built into the engine rather than registered: putting an entity under a workflow is the engine's
             // own business. Which entities get one stays a matter of content
-            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()));
+            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()), this.conditions);
             return;
         }
         final ServiceTaskHandler handler = this.handlers.stream()

@@ -150,6 +150,7 @@ class WorkflowEngineImplTest
         resolvers.setAccessible(true);
         resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
         inject(impl, "conditionEvaluator", evaluator);
+        inject(impl, "conditions", EngineFixture.conditions());
         return impl;
     }
 

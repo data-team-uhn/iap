@@ -89,6 +89,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private volatile List<ServiceTaskHandler> handlers;
 
+    /** What a gateway's guards are asked of: the same evaluator, and the same conditions, schema items use. */
+    @Reference
+    private ConditionEvaluator conditions;
+
     @Override
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
     {
@@ -157,7 +161,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final ResourceResolver resolver = task.getResourceResolver();
         try {
             TaskCompletion.apply(resolver, task, event, actor,
-                new ServiceTaskDispatcher(this.handlers).performer(event, actor));
+                new ServiceTaskDispatcher(this.handlers, this.conditions).performer(event, actor),
+                this.conditions);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -167,22 +172,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
             revert(resolver);
             throw e;
         }
-    }
-
-    /**
-     * How an instance performs a service task it meets: through the same dispatch a system workflow uses, so a
-     * handler behaves identically whichever kind of workflow reached it. The variables are this delivery's alone —
-     * an instance's persisted variables are not yet exposed to handlers.
-     *
-     * @param event the event being delivered
-     * @param actor the user the instance is being moved for
-     * @return a performer bound to this delivery
-     */
-    private InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
-    {
-        final Map<String, Object> variables = new LinkedHashMap<>();
-        return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(InstanceRunner.hostOf(instance), event, activity, variables, actor));
     }
 
     /**
@@ -202,7 +191,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final String actor) throws WorkflowException
     {
         final ResourceResolver resolver = target.getResourceResolver();
-        final ServiceTaskDispatcher dispatcher = new ServiceTaskDispatcher(this.handlers);
+        final ServiceTaskDispatcher dispatcher = new ServiceTaskDispatcher(this.handlers, this.conditions);
         final Map<String, Object> variables = new LinkedHashMap<>();
         try {
             FlowNode node = start;
