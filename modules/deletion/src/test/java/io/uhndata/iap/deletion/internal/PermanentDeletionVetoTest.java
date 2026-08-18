@@ -31,6 +31,7 @@ import io.uhndata.iap.deletion.spi.DeletionMode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -91,6 +92,13 @@ class PermanentDeletionVetoTest
         this.configure(true, ALICE);
 
         assertNull(this.veto.veto(this.node, DeletionMode.PURGE, session(ALICE)));
+    }
+
+    // The answer never varies by node, so the engine asks once instead of once per impacted node
+    @Test
+    void judgesTheOperationRatherThanEachResource()
+    {
+        assertTrue(this.veto.judgesWholeOperation());
     }
 
     // getUserID() may return null, and the allowlist is an unmodifiable set, which throws rather than

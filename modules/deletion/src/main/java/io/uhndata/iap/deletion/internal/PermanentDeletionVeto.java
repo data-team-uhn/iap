@@ -101,6 +101,14 @@ public class PermanentDeletionVeto implements DeletionVeto
             : "Permanently deleting resources is not permitted here; delete it to the archive instead";
     }
 
+    @Override
+    public boolean judgesWholeOperation()
+    {
+        // The ban is about the operation, so the answer is the same for every impacted resource; asking per resource
+        // would report one identical objection per node of the subtree.
+        return true;
+    }
+
     /**
      * Whether the requester is named in the allowlist, either by user id or through any principal the session is
      * bound to.

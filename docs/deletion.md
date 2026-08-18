@@ -44,6 +44,12 @@ every impacted node, with the kind of deletion under consideration (`ARCHIVE`, `
 guard cannot decide, the data stays. A typical future use is protecting workflow versions that have
 ever been activated.
 
+A guard enforcing a blanket policy rather than judging resources one by one overrides
+`judgesWholeOperation()` to return `true`, and is then asked only about the resource whose deletion
+was requested. Without that, a policy that refuses everything reports one identical objection per
+node of every impacted subtree; with it, the report carries one objection naming the resource the
+user actually asked about.
+
 The requester's session is what lets a guard answer "*who* may do this", as opposed to "*what* may
 be done": identity through `getUserID()`, and what the session acts as through
 `JackrabbitSession.getBoundPrincipals()`. Note the two sessions in play — the node is read through
@@ -75,8 +81,9 @@ identity-provider principals included. It is an **exemption, never a grant**: a 
 refuse, so an exempt user still needs exactly the access rights any deletion requires, and with
 the ban off the list means nothing. An empty list with the ban on refuses everybody.
 
-Because guards are asked about every impacted node, a refused deletion reports one objection per
-node rather than one for the operation; they carry the same reason and differ only in path.
+This guard judges the operation rather than the resource, so it declares
+`judgesWholeOperation() == true` and a refusal reports **one** objection, against the resource whose
+deletion was requested — not one per node of the subtree.
 
 ## The archive
 

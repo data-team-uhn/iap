@@ -492,6 +492,47 @@ class DeletionServiceImplTest
         assertTrue(result.getImpact().getVetoes().get(0).getReason().contains("Could not verify"));
     }
 
+    // A blanket policy answers the same for every node, so asking it per node would report one identical
+    // objection per node of the subtree. The paired test below is the control: a per-resource guard still does.
+    @Test
+    void aGuardJudgingTheWholeOperationIsAskedOnlyAboutTheRequestedResource() throws Exception
+    {
+        final Node node = this.target(VICTIM);
+        node.addNode("part").addNode("deeper");
+        this.session.save();
+        inject(this.service, "vetoes", List.of(refusingGuard("policy", true)));
+
+        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+
+        assertEquals(DeletionResult.Status.VETOED, result.getStatus());
+        assertEquals(1, result.getImpact().getVetoes().size());
+        assertEquals(VICTIM_PATH, result.getImpact().getVetoes().get(0).getPath());
+    }
+
+    @Test
+    void aGuardJudgingEachResourceIsAskedAboutEveryOne() throws Exception
+    {
+        final Node node = this.target(VICTIM);
+        node.addNode("part").addNode("deeper");
+        this.session.save();
+        inject(this.service, "vetoes", List.of(refusingGuard("perResource", false)));
+
+        final DeletionResult result = this.delete(VICTIM_PATH, false, false);
+
+        assertEquals(DeletionResult.Status.VETOED, result.getStatus());
+        assertEquals(3, result.getImpact().getVetoes().size());
+    }
+
+    private static DeletionVeto refusingGuard(final String name, final boolean wholeOperation)
+        throws RepositoryException
+    {
+        final DeletionVeto guard = mock(DeletionVeto.class);
+        when(guard.getName()).thenReturn(name);
+        when(guard.judgesWholeOperation()).thenReturn(wholeOperation);
+        when(guard.veto(any(), any(), any())).thenReturn("no");
+        return guard;
+    }
+
     @Test
     void missingGuardsMeanNoVetoes() throws Exception
     {

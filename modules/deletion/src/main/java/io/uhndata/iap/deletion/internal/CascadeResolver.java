@@ -21,6 +21,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -70,12 +71,15 @@ class CascadeResolver
 
     private final DeletionPlan plan;
 
-    private final List<DeletionVeto> vetoes;
+    private final List<DeletionVeto> resourceVetoes;
+
+    private final List<DeletionVeto> operationVetoes;
 
     CascadeResolver(final DeletionPlan plan, final List<DeletionVeto> vetoes)
     {
         this.plan = plan;
-        this.vetoes = vetoes;
+        this.resourceVetoes = perResource(vetoes);
+        this.operationVetoes = perOperation(vetoes);
     }
 
     /**
@@ -86,6 +90,11 @@ class CascadeResolver
      */
     void resolve(final Node start) throws RepositoryException
     {
+        // A guard that judges the operation rather than the resource is asked once, about what was actually
+        // requested: its answer does not vary by node, so asking per node would repeat it for every node of every
+        // impacted subtree.
+        checkVetoes(start, this.operationVetoes, this.plan.getMode(), this.plan.getUserSession(),
+            this.plan.getVetoes());
         final Deque<Node> queue = new ArrayDeque<>();
         queue.add(start);
         while (!queue.isEmpty()) {
@@ -122,7 +131,8 @@ class CascadeResolver
 
     private void checkVetoes(final Node node) throws RepositoryException
     {
-        checkVetoes(node, this.vetoes, this.plan.getMode(), this.plan.getUserSession(), this.plan.getVetoes());
+        checkVetoes(node, this.resourceVetoes, this.plan.getMode(), this.plan.getUserSession(),
+            this.plan.getVetoes());
     }
 
     /**
@@ -146,7 +156,8 @@ class CascadeResolver
     }
 
     /**
-     * Ask every guard about every node of a subtree, e.g. the contents of an archive entry about to be purged.
+     * Ask every guard about a subtree, e.g. the contents of an archive entry about to be purged: the root is shown to
+     * all of them, its descendants only to those judging each resource separately.
      *
      * @param root the top of the subtree
      * @param vetoes the registered guards
@@ -159,10 +170,32 @@ class CascadeResolver
         final Session requester, final List<Veto> results) throws RepositoryException
     {
         checkVetoes(root, vetoes, mode, requester, results);
-        final NodeIterator children = root.getNodes();
+        sweepDescendants(root, perResource(vetoes), mode, requester, results);
+    }
+
+    private static void sweepDescendants(final Node node, final List<DeletionVeto> vetoes, final DeletionMode mode,
+        final Session requester, final List<Veto> results) throws RepositoryException
+    {
+        final NodeIterator children = node.getNodes();
         while (children.hasNext()) {
-            sweepVetoes(children.nextNode(), vetoes, mode, requester, results);
+            final Node child = children.nextNode();
+            checkVetoes(child, vetoes, mode, requester, results);
+            sweepDescendants(child, vetoes, mode, requester, results);
         }
+    }
+
+    private static List<DeletionVeto> perResource(final List<DeletionVeto> vetoes)
+    {
+        return vetoes.stream()
+            .filter(veto -> !veto.judgesWholeOperation())
+            .collect(Collectors.toList());
+    }
+
+    private static List<DeletionVeto> perOperation(final List<DeletionVeto> vetoes)
+    {
+        return vetoes.stream()
+            .filter(DeletionVeto::judgesWholeOperation)
+            .collect(Collectors.toList());
     }
 
     private static Veto applyVeto(final DeletionVeto veto, final Node node, final String path,
