@@ -120,6 +120,7 @@ class WorkflowEngineImplTest
         final List<ServiceTaskHandler> allHandlers = new ArrayList<>(List.of(extraHandlers));
         allHandlers.add(new CreateEntityHandler());
         inject(impl, "handlers", allHandlers);
+        inject(impl, "conditions", EngineFixture.conditions());
         return impl;
     }
 
