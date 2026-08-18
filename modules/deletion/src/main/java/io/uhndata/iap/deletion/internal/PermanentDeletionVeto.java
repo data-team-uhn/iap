@@ -98,7 +98,9 @@ public class PermanentDeletionVeto implements DeletionVeto
         if (this.allowedPrincipals.isEmpty()) {
             return false;
         }
-        if (this.allowedPrincipals.contains(requester.getUserID())) {
+        // getUserID() is permitted to be null, and an unmodifiable set throws rather than answering false for it
+        final String userId = requester.getUserID();
+        if (userId != null && this.allowedPrincipals.contains(userId)) {
             return true;
         }
         // Membership is read from the principals the requesting session is <em>bound to</em>, not from group nodes

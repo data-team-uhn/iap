@@ -75,6 +75,16 @@ class PermanentDeletionVetoTest
         assertNull(this.veto.veto(this.node, DeletionMode.PURGE, requester));
     }
 
+    // getUserID() may return null, and the allowlist is an unmodifiable set, which throws rather than
+    // answering false when asked whether it contains null
+    @Test
+    void refusesASessionWithNoUserIdWithoutFailing() throws Exception
+    {
+        this.configure(true, ALICE);
+
+        assertNotNull(this.veto.veto(this.node, DeletionMode.PERMANENT, session(null)));
+    }
+
     @Test
     void refusesEverybodyWhenNobodyIsExempt() throws Exception
     {
