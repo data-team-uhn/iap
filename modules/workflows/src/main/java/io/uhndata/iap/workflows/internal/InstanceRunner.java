@@ -19,7 +19,9 @@ package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayDeque;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +42,7 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.FlowNode;
+import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstances;
@@ -442,8 +445,8 @@ final class InstanceRunner
         for (final TaskInstance task : model.getTaskInstances()) {
             if (OPEN.equals(task.getStatus())) {
                 final ModifiableValueMap properties = modifiable(resourceOf(task.getPath()));
-                properties.put(STATUS, CANCELLED);
-                properties.put(END_TIME, Calendar.getInstance());
+                properties.put(STATUS_PROPERTY, CANCELLED);
+                properties.put(END_TIME_PROPERTY, Calendar.getInstance());
             }
         }
         close(instance);
@@ -471,18 +474,69 @@ final class InstanceRunner
     private void createTask(final Resource instance, final Activity activity) throws PersistenceException
     {
         final String name = NodeNameUtils.findFreeName(instance, activity.getName());
-        this.resolver.create(instance, name, Map.of(
-            JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance",
-            "taskDefinitionId", activity.getElementId(),
-            "label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()),
-            // Copied so the task states its own terms: whoever has to do it can read it without being able to read
-            // the definition, and what it offers cannot change under them while it waits
-            "offeredOutcomes", activity.getOutcomes().toArray(String[]::new),
-            // Recorded for the same reason, and resolved here because "@creator" is a question about this host
-            // that nothing reading the task later is holding the host to ask
-            "performers", PerformerCheck.resolve(hostOf(instance), activity.getPerformers()).toArray(String[]::new),
-            STATUS_PROPERTY, OPEN,
-            START_TIME_PROPERTY, Calendar.getInstance()));
+        final Calendar started = Calendar.getInstance();
+        final Map<String, Object> properties = new HashMap<>();
+        properties.put(JCR_PRIMARY_TYPE_PROPERTY, "wf:TaskInstance");
+        properties.put("taskDefinitionId", activity.getElementId());
+        properties.put("label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()));
+        // Copied so the task states its own terms: whoever has to do it can read it without being able to read
+        // the definition, and what it offers cannot change under them while it waits
+        properties.put("offeredOutcomes", activity.getOutcomes().toArray(String[]::new));
+        // Recorded for the same reason, and resolved here because "@creator" is a question about this host
+        // that nothing reading the task later is holding the host to ask
+        properties.put("performers",
+            PerformerCheck.resolve(hostOf(instance), activity.getPerformers()).toArray(String[]::new));
+        properties.put(STATUS_PROPERTY, OPEN);
+        properties.put(START_TIME_PROPERTY, started);
+        arm(activity, started, properties);
+        this.resolver.create(instance, name, properties);
+    }
+
+    /**
+     * Starts the clock on the deadline a boundary timer gives this task, if one watches it.
+     *
+     * @param activity the user task being raised
+     * @param started when the task began waiting, which the deadline is measured from
+     * @param properties the task's properties, added to in place
+     */
+    private static void arm(final Activity activity, final Calendar started, final Map<String, Object> properties)
+    {
+        activity.getBoundaryEvents().stream()
+            .filter(event -> event.getTimerDuration() != null)
+            .min(Comparator.comparing(IntermediateCatchingEvent::getTimerDuration))
+            .ifPresent(timer -> {
+                final Calendar due = (Calendar) started.clone();
+                due.add(Calendar.SECOND, (int) Objects.requireNonNull(timer.getTimerDuration()).toSeconds());
+                properties.put("dueDate", due);
+                properties.put("dueEventId", timer.getElementId());
+            });
+    }
+
+    /**
+     * Fires the boundary timer a task's deadline belongs to: the task is cancelled, and execution leaves down the
+     * timer's own arc rather than the activity's.
+     *
+     * @param task the task whose deadline has passed
+     * @param timer the boundary event counting down to it
+     * @throws WorkflowException when the definition cannot be run on from here
+     * @throws PersistenceException when the instance cannot be written
+     */
+    void expire(final TaskInstance task, final IntermediateCatchingEvent timer)
+        throws WorkflowException, PersistenceException
+    {
+        final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
+            "A task always lives inside its instance");
+        final Activity definition = Objects.requireNonNull(task.getDefinition(),
+            "A task is only expired once its definition has been found");
+        final Resource instanceResource = resourceOf(instance.getPath());
+        final Resource token = tokenAt(instanceResource, definition.getElementId());
+        final ModifiableValueMap taskProperties = modifiable(resourceOf(task.getPath()));
+        taskProperties.put(STATUS_PROPERTY, CANCELLED);
+        taskProperties.put(END_TIME_PROPERTY, Calendar.getInstance());
+        // Deliberately no assignee and no outcome: nobody did this, and nothing was decided. A gateway reading the
+        // outcome downstream therefore sees whatever the last decision was, or nothing at all, which is why a
+        // process that wants to know it timed out routes from the timer's own arc rather than on an outcome.
+        run(instanceResource, token, timer);
     }
 
     /**

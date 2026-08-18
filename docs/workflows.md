@@ -599,6 +599,18 @@ completing that task is what sends it. There is no "submit" event, no submit end
 no submitted flag — which is why what the button says is the task's own label, and why a
 deployment that wants a request to go somewhere else first only edits its process.
 
+**A task can be given a deadline.** A boundary timer, an event stored inside the activity with a
+`timerDuration`, is armed when the task is raised: the engine works out when the wait ends and records it on
+the task itself, as `dueDate` and the `dueEventId` naming the timer. That puts the deadline where anything
+looking for overdue work can see it without running the engine, and it survives a restart, which a scheduled
+job in memory would not.
+
+When it passes, a periodic sweep hands the task to `receiveEvent` as an ordinary `timeout` event, so the
+clock comes through the same door as everything else. The task is cancelled, with no assignee and no outcome,
+because nobody did it and nothing was decided, and execution leaves down the timer's own arc rather than the
+activity's. There is no performer check: `performers` says who may make execution pass through a node, and
+time belongs to no group.
+
 **Read access is materialized when the instance starts.** Acting is authorized by the
 definitions, but reading cannot be — a query returns rows, and no engine can run a
 workflow per row — so the workflow declares and the engine writes an ACL: the person it
@@ -615,9 +627,10 @@ disagree.
   a `wf:Variable`, but a service task inside an instance gets variables that live only
   for that delivery. Typed variables are already in the node types; wiring them to the
   SPI is what is missing.
-- **Nothing delivers a timer or a message.** An instance that reaches a mid-process
-  catching event is refused rather than parked, because nothing could ever wake it up
-  again.
+- **Nothing delivers a message.** A timer is delivered: a boundary timer on a user task is
+  armed when the task is raised and fired by a periodic sweep. An instance that reaches a
+  free-standing catching event is still refused rather than parked, because nothing could
+  then wake it.
 - **Read access is granted for the life of the instance**, not only while a task is
   open, and is never revoked. Narrowing it as state changes is a refinement for when
   there is a reason to want it.
