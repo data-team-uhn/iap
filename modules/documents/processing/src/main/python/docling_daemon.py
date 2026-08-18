@@ -275,11 +275,6 @@ def _get_health_status() -> str:
     return "ok"
 
 
-def _stderr(message: str) -> None:
-    """Log a line to the container log."""
-    print(message, file=sys.stderr, flush=True)
-
-
 def _run_parse(
     input_path: Path,
     *,
@@ -473,13 +468,6 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                 input_path = resolve_parse_path(query.get("path", [""])[0] or "")
                 chunk = parse_chunk_flag(query)
                 options = parse_token_options(query)
-                if query.get("callback"):
-                    # Refused rather than ignored, so a caller still sending its own callback
-                    # finds out instead of quietly getting outcomes somewhere it is not looking
-                    raise ParseRequestError(
-                        "callback is not accepted; the daemon POSTs outcomes to its configured"
-                        f" {parse_callbacks.URL_ENVIRONMENT_VARIABLE}"
-                    )
                 job_id = (query.get("job_id", [""])[0] or "").strip()
 
                 if job_id:
