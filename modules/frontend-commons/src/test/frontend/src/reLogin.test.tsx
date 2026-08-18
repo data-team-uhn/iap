@@ -20,7 +20,13 @@ import type { ReactNode } from "react";
 
 import { render, screen, waitFor } from "@testing-library/react";
 
-import { ReLoginContext, useAuthenticatedFetch, type RequestReLogin } from "@iap/frontend-commons/reLogin";
+import {
+  isNotAuthenticated,
+  NotAuthenticatedError,
+  ReLoginContext,
+  useAuthenticatedFetch,
+  type RequestReLogin
+} from "@iap/frontend-commons/reLogin";
 
 const SESSION_INFO_URL = "/system/sling/info.sessionInfo.json";
 
@@ -269,5 +275,18 @@ describe("useAuthenticatedFetch", () => {
       await waitFor(() => { expect(requestReLogin).toHaveBeenCalled(); });
       await waitFor(() => { expect(onResult).toHaveBeenCalledWith("resolved:recovered"); });
     });
+  });
+});
+
+// Why the failure has a type rather than a recognisable message: a caller has to tell "the session is
+// gone" apart from "the server could not be reached", and matching on message text would couple them.
+describe("isNotAuthenticated", () => {
+  it("recognises a session that could not be recovered", () => {
+    expect(isNotAuthenticated(new NotAuthenticatedError("gone"))).toBe(true);
+  });
+
+  it("does not mistake an ordinary failure for an authentication one", () => {
+    expect(isNotAuthenticated(new Error("offline"))).toBe(false);
+    expect(isNotAuthenticated("offline")).toBe(false);
   });
 });

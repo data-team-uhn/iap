@@ -244,6 +244,51 @@ describe("DeleteItem", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  // The same expiry, but the user dismisses the sign-in. Reporting a transport failure here would be
+  // false -- the server was reached and answered 401 -- and would send them to check their network.
+  it("asks the user to sign in when a deletion is abandoned at the sign-in prompt", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(dryRun())
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    const signIn = vi.fn().mockResolvedValue(false);
+    render(
+      <ThemeProvider theme={appTheme} defaultMode="light">
+        <ReLoginContext value={signIn}>
+          <DeleteItem path={PATH} type="submission" />
+        </ReLoginContext>
+      </ThemeProvider>
+    );
+
+    await openDialog(user);
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByText(/no longer signed in/)).toBeInTheDocument();
+    expect(screen.queryByText(/could not be reached/)).not.toBeInTheDocument();
+  });
+
+  // The dry run fails the same way, and the fallback for a lost preview is a plain confirmation --
+  // which would offer a Delete button that cannot possibly succeed.
+  it("does not offer a confirmation when the session is already gone", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 401 }));
+    const signIn = vi.fn().mockResolvedValue(false);
+    render(
+      <ThemeProvider theme={appTheme} defaultMode="light">
+        <ReLoginContext value={signIn}>
+          <DeleteItem path={PATH} type="submission" />
+        </ReLoginContext>
+      </ThemeProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete submission" }));
+
+    expect(await screen.findByText(/no longer signed in/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
   it("reports a deletion that could not be sent", async () => {
     const user = userEvent.setup();
     vi.spyOn(console, "error").mockImplementation(() => {});
