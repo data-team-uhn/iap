@@ -25,6 +25,7 @@ import java.util.Objects;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -49,16 +50,32 @@ final class ServiceTaskDispatcher
     /** How the engine runs the workflow waiting for an event a service task sends. */
     private final EventChain chain;
 
+    /** What a started instance's gateways are asked of. */
+    private final ConditionEvaluator conditions;
+
     /**
      * Constructor.
      *
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
+     * @param conditions the evaluator a started instance's gateways are asked of
      */
-    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain)
+    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain,
+        final ConditionEvaluator conditions)
     {
         this.handlers = handlers;
         this.chain = chain;
+        this.conditions = conditions;
+    }
+
+    /**
+     * The evaluator a started instance's gateways are asked of.
+     *
+     * @return the condition evaluator
+     */
+    ConditionEvaluator getConditions()
+    {
+        return this.conditions;
     }
 
     /**

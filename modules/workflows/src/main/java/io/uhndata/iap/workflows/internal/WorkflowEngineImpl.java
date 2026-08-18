@@ -92,6 +92,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
     private volatile List<ServiceTaskHandler> handlers;
 
+    /** What a gateway's guards are asked of: the same evaluator, and the same conditions, schema items use. */
+    @Reference
+    private ConditionEvaluator conditions;
+
     @Override
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
     {
@@ -159,7 +163,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = task.getResourceResolver();
         try {
-            TaskCompletion.apply(resolver, task, event, actor, dispatcher().performer(event, actor));
+            TaskCompletion.apply(resolver, task, event, actor, dispatcher().performer(event, actor),
+                this.conditions);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -272,7 +277,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
      */
     private ServiceTaskDispatcher dispatcher()
     {
-        return new ServiceTaskDispatcher(this.handlers, this::chain);
+        return new ServiceTaskDispatcher(this.handlers, this::chain, this.conditions);
     }
 
     /**

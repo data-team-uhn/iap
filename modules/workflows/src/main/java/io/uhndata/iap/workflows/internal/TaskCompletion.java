@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -88,13 +89,14 @@ final class TaskCompletion
      * @param event the incoming event
      * @param actor the user completing it
      * @param performer how the resumed instance performs any service task it meets
+     * @param conditions the evaluator the resumed instance's gateways are asked of
      * @throws WorkflowException when the event does not apply, the actor may not complete it, a decision arrives
      *             without an outcome, or the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     static void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
-        final String actor, final InstanceRunner.ServiceTaskPerformer performer)
-        throws WorkflowException, PersistenceException
+        final String actor, final InstanceRunner.ServiceTaskPerformer performer,
+        final ConditionEvaluator conditions) throws WorkflowException, PersistenceException
     {
         if (!COMPLETE_EVENT.equals(event.getName())) {
             throw new NoApplicableWorkflowException("A task has nothing waiting for a " + event.getName()
@@ -120,6 +122,6 @@ final class TaskCompletion
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
                 + String.join(", ", definition.getOutcomes()));
         }
-        new InstanceRunner(resolver, performer, actor).complete(task, outcome);
+        new InstanceRunner(resolver, performer, actor, conditions).complete(task, outcome);
     }
 }
