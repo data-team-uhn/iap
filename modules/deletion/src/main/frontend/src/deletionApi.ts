@@ -16,8 +16,14 @@
  * limitations under the License.
  */
 
+import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+
 // The client half of the deletion endpoint documented in docs/deletion.md: the shape of what it
 // answers, and one call that always resolves to that shape.
+//
+// The authenticated fetch is taken as an argument rather than reached for here, because the hook
+// producing it can only be called from a component — and keeping this module free of React is what
+// lets it be tested as a plain function.
 
 /** The machine-readable outcome word every deletion response carries. */
 export type DeletionStatus =
@@ -77,9 +83,11 @@ export interface DeletionRequest {
  * Ask the deletion endpoint to delete a resource, or — with `dryRun` — what deleting it would do.
  *
  * A refusal is an outcome, not an error: this resolves for every answer the endpoint gives, so
- * callers switch on `status` rather than catching. Only a network failure rejects.
+ * callers switch on `status` rather than catching. Only a network failure, or an expired session the
+ * user declined to sign back in for, rejects.
  */
 export const requestDeletion = async (
+  authenticatedFetch: AuthenticatedFetch,
   path: string,
   options: DeletionRequest = {}
 ): Promise<DeletionResponse> => {
@@ -88,7 +96,10 @@ export const requestDeletion = async (
     .filter(([, enabled]) => enabled)
     .forEach(([option]) => url.searchParams.set(option, "true"));
 
-  const response = await fetch(url, { method: "DELETE", headers: { Accept: "application/json" } });
+  const response = await authenticatedFetch(url.toString(), {
+    method: "DELETE",
+    headers: { Accept: "application/json" }
+  });
   return await readResponse(response);
 };
 

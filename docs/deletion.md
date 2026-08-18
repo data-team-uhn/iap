@@ -44,12 +44,46 @@ every impacted node, with the kind of deletion under consideration (`ARCHIVE`, `
 guard cannot decide, the data stays. A typical future use is protecting workflow versions that have
 ever been activated.
 
+A guard enforcing a blanket policy rather than judging resources one by one overrides
+`judgesWholeOperation()` to return `true`, and is then asked only about the resource whose deletion
+was requested. Without that, a policy that refuses everything reports one identical objection per
+node of every impacted subtree; with it, the report carries one objection naming the resource the
+user actually asked about.
+
 The requester's session is what lets a guard answer "*who* may do this", as opposed to "*what* may
-be done": identity through `getUserID()`, group membership through
-`JackrabbitSession.getUserManager()`, e.g. a policy that permanently deleting anything is reserved
-to a named group. Note the two sessions in play — the node is read through the privileged
-`iap-deletion` session and may well be invisible to the requester, whose own rights are checked
-separately, node by node, before any guard is consulted. Guards must not write through either.
+be done": identity through `getUserID()`, and what the session acts as through
+`JackrabbitSession.getBoundPrincipals()`. Note the two sessions in play — the node is read through
+the privileged `iap-deletion` session and may well be invisible to the requester, whose own rights
+are checked separately, node by node, before any guard is consulted. Guards must not write through
+either.
+
+> Prefer bound principals to a `UserManager` membership lookup when a guard asks what a user
+> belongs to. With `user.dynamicMembership` enabled — which is how this platform is configured —
+> an identity provider's roles reach the repository as principals with **no local group node**
+> behind them, so `getAuthorizable(id).memberOf()` reports that a Keycloak role's members belong
+> to nothing at all. Bound principals cover local groups and provider-supplied roles alike.
+
+### Permanent deletion
+
+`Permanent deletion policy` (`PermanentDeletionConfiguration`) can refuse the two deletions that
+leave nothing to restore — `PERMANENT`, which never reaches the archive, and `PURGE`, which removes
+what is already in it — while leaving archiving untouched: a user refused here can still delete the
+resource in the ordinary, recoverable way. It is off by default, leaving the decision to access
+control alone.
+
+**Both modes, deliberately.** Guarding only `PERMANENT` would leave the ban defeatable in two
+ordinary steps: delete to the archive, then purge the entry. Note this is a property of *this*
+policy, not of the retention floor below, which keys on the archive entry's own type precisely
+because only the entry carries the timestamp it needs.
+
+`allowedPrincipals` lists user ids and principal names exempt from the ban, group and
+identity-provider principals included. It is an **exemption, never a grant**: a veto can only
+refuse, so an exempt user still needs exactly the access rights any deletion requires, and with
+the ban off the list means nothing. An empty list with the ban on refuses everybody.
+
+This guard judges the operation rather than the resource, so it declares
+`judgesWholeOperation() == true` and a refusal reports **one** objection, against the resource whose
+deletion was requested — not one per node of the subtree.
 
 ## The archive
 
@@ -97,6 +131,13 @@ reported. Links removed by the original deletion are **not** recreated.
 
 Purging an entry removes it and everything in it, permanently. The guards are consulted again
 (with the `PURGE` mode), so protected content blocks the purge.
+
+#### Retention period
+
+`Archive retention` (`ArchiveRetentionConfiguration`) sets a **minimum age**, in calendar days, that
+an entry must reach before it may be purged. It defaults to `0`, which imposes no floor: an entry
+may be purged the moment it is created. Raising it only ever prevents destruction — nothing purges
+anything automatically, so this is a floor under purging rather than a schedule for it.
 
 ## The Java API
 

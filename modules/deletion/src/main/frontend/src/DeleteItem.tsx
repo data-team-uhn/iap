@@ -35,6 +35,7 @@ import {
 
 import ErrorDialog from "@iap/frontend-commons/components/ErrorDialog";
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { requestDeletion, type DeletionResponse } from "./deletionApi";
 
@@ -91,6 +92,8 @@ const DeleteItem = (props: DeleteItemProps) => {
     onClose
   } = props;
 
+  const authenticatedFetch = useAuthenticatedFetch();
+
   const [ open, setOpen ] = useState(false);
   const [ impact, setImpact ] = useState<DeletionResponse | null>(null);
   const [ busy, setBusy ] = useState(false);
@@ -126,14 +129,25 @@ const DeleteItem = (props: DeleteItemProps) => {
   const failWith = (outcome: DeletionResponse) =>
     fail(outcome["status.message"] ?? `The ${type ?? "item"} could not be deleted.`);
 
+  // The session went and could not be recovered. Reporting a transport failure here would be false —
+  // the server answered — and would send the user to check their network instead of signing in.
+  const failNotAuthenticated = () =>
+    fail(`You are no longer signed in, so the ${type ?? "item"} was not deleted. Sign in and try again.`);
+
   const examine = () => {
     setOpen(true);
     setImpact(null);
     setBusy(true);
-    requestDeletion(path, { permanent, dryRun: true })
+    requestDeletion(authenticatedFetch, path, { permanent, dryRun: true })
       .then(outcome => setImpact(outcome))
       .catch((err: unknown) => {
         console.error("Could not determine what deleting %s would do", path, err);
+        if (isNotAuthenticated(err)) {
+          // The deletion itself would fail the same way, so offering a confirmation would offer a
+          // button that cannot work
+          failNotAuthenticated();
+          return;
+        }
         // Losing the preview is not a reason to block the deletion; the endpoint refuses
         // anything unsafe on its own, so the dialog just falls back to a plain confirmation
         setImpact(null);
@@ -143,7 +157,7 @@ const DeleteItem = (props: DeleteItemProps) => {
 
   const confirm = (recursive: boolean) => {
     setBusy(true);
-    requestDeletion(path, { permanent, recursive })
+    requestDeletion(authenticatedFetch, path, { permanent, recursive })
       .then(outcome => {
         switch (outcome.status) {
           // "missing" counts as done: the caller wanted it absent, and it is
@@ -171,6 +185,10 @@ const DeleteItem = (props: DeleteItemProps) => {
       })
       .catch((err: unknown) => {
         console.error("Could not delete %s", path, err);
+        if (isNotAuthenticated(err)) {
+          failNotAuthenticated();
+          return;
+        }
         fail(`The ${type ?? "item"} could not be deleted. The server could not be reached.`);
       })
       .finally(() => setBusy(false));

@@ -26,9 +26,10 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * A guard protecting resources from deletion. Before anything is deleted, every registered veto is asked about
- * every impacted resource, including the descendants of the deleted ones; a single veto anywhere blocks the whole
- * operation. Vetoes must be fast, side-effect free, and must not hold on to the passed node. A veto that throws is
- * counted as a veto — when a guard cannot decide, the data stays.
+ * every impacted resource, including the descendants of the deleted ones — unless it
+ * {@link #judgesWholeOperation() judges the operation as a whole}, in which case it is asked once. A single veto
+ * anywhere blocks the whole operation. Vetoes must be fast, side-effect free, and must not hold on to the passed
+ * node. A veto that throws is counted as a veto — when a guard cannot decide, the data stays.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,12 +58,38 @@ public interface DeletionVeto
      * @param node a node that the examined deletion would remove from its current location, in a privileged
      *            session
      * @param mode the kind of deletion being examined
-     * @param requester the session of the user who asked for the deletion, for identity and group membership
-     *            (through {@code JackrabbitSession.getUserManager()}); never written to
+     * @param requester the session of the user who asked for the deletion, for identity
+     *            ({@code getUserID()}) and what it acts as ({@code JackrabbitSession.getBoundPrincipals()}); never
+     *            written to
      * @return a human-readable reason why the deletion must not happen, or {@code null} to allow it
      * @throws RepositoryException if the decision cannot be made; treated as a veto
      */
     @Nullable
     String veto(@NotNull Node node, @NotNull DeletionMode mode, @NotNull Session requester)
         throws RepositoryException;
+
+    /**
+     * Whether this guard judges the deletion as a whole rather than each resource on its own merits.
+     *
+     * <p>
+     * Most guards answer a question about the resource in front of them — "is this one protected?" — and must see
+     * every impacted resource, since any one of them can be the reason to refuse, and naming which ones is the
+     * useful part of the report. That is the default. A guard implementing a blanket policy — "nobody may destroy
+     * anything outright" — answers the same thing about every resource, so asking it per resource yields one
+     * identical objection per node of the subtree; it returns {@code true} here and is asked only about the resource
+     * whose deletion was requested, which is the one its answer is really about.
+     * </p>
+     *
+     * <p>
+     * The test is mechanical: a guard that reads anything at all off its {@code node} judges resources, no matter how
+     * few of them it ends up objecting to. Narrowing by node type is not the same thing — it selects which resources
+     * this guard speaks about, and keeps that decision inside the guard, where a caller cannot get it wrong.
+     * </p>
+     *
+     * @return {@code true} to be asked once; {@code false}, the default, to be asked about every impacted resource
+     */
+    default boolean judgesWholeOperation()
+    {
+        return false;
+    }
 }
