@@ -57,8 +57,9 @@ public interface DeletionVeto
      * @param node a node that the examined deletion would remove from its current location, in a privileged
      *            session
      * @param mode the kind of deletion being examined
-     * @param requester the session of the user who asked for the deletion, for identity and group membership
-     *            (through {@code JackrabbitSession.getUserManager()}); never written to
+     * @param requester the session of the user who asked for the deletion, for identity
+     *            ({@code getUserID()}) and what it acts as ({@code JackrabbitSession.getBoundPrincipals()}); never
+     *            written to
      * @return a human-readable reason why the deletion must not happen, or {@code null} to allow it
      * @throws RepositoryException if the decision cannot be made; treated as a veto
      */
