@@ -183,9 +183,7 @@ things: the `toc` array, `backmatterLine`, and record-based sub-chunk cut points
 come from one of two sources, decided inside `derive_outline`.
 
 Records are never written to disk on their own — they live in memory for the run and only
-`outline.json` survives it. `_remove_sidecars` deletes any `bookmarks.json` it finds beside
-the `.md`, so a stale copy left by an older build cannot be mistaken for authoritative
-bookmarks on a later run.
+`Chunks/outline.json` survives it.
 
 The printed TOC is cleaned **whether or not** PDF bookmarks were found: `_detect_toc` runs
 unconditionally, because a printed TOC left in the body would otherwise be chunked as content.
@@ -244,11 +242,9 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
         Chunk-2.2.md
 ```
 
-No `bookmarks.json` is written: outline records stay in memory and reach disk only inside
-`outline.json`.
+Outline records stay in memory and reach disk only as titles in `Chunks/outline.json`.
 
-`clear_prior_outputs(output_file)` deletes the sibling `outline.json` / `bookmarks.json`
-sidecars an older build may have left and the whole `Chunks/` tree. `write_chunk_files`
+`clear_prior_outputs(output_file)` deletes the whole `Chunks/` tree. `write_chunk_files`
 replaces `Chunks/`;
 `parse_document` with `chunk=false` writes the `.md` and then calls `clear_prior_outputs` so a
 prior run's chunks cannot linger. Staleness is handled by **wipe-and-redo**, not versioning.

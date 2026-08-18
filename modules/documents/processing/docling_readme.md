@@ -134,7 +134,7 @@ Environment:
 | Variable                                       | Default        | Purpose                                                                                                                        |
 | ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `IAP_SHARED_DOCS`                              | `/shared-docs` | Shared root. `?path=` is resolved against it, and paths outside it are refused                                                 |
-| `IAP_LIBREOFFICE_SOFFICE` / `LIBREOFFICE_PATH` | `soffice`      | LibreOffice executable                                                                                                         |
+| `IAP_LIBREOFFICE_SOFFICE`                      | `soffice`      | LibreOffice executable                                                                                                         |
 | `IAP_DOCLING_UID` / `IAP_DOCLING_GID`          | `1000`         | Compose only. Who the container runs as; must own the host directory behind `/shared-docs` or the daemon cannot write its output |
 | `OMP_NUM_THREADS` / `DOCLING_NUM_THREADS`      | `1`            | Per-process thread caps, so the outer `ProcessPoolExecutor` owns the parallelism (set on import by `docling_config.py`)        |
 

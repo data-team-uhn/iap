@@ -20,9 +20,6 @@
 The CLI is the only way to parse or chunk a document without a daemon, an HTTP client, an auth
 token or a JVM — which makes it the tool you reach for when something is wrong, including
 ``docker exec`` into the parsing container to answer "is Docling working in this image at all".
-Nothing in production calls it, so without a test it can break silently and be found broken at
-exactly the moment it is needed. That is not hypothetical: the CLI *fallback* that used to exist
-rotted this way before being removed.
 
 These run the entry point through ``sys.executable`` rather than importing ``main()``, so
 argument parsing, exit codes and stdout are covered too — the parts an in-process call skips.
@@ -87,11 +84,6 @@ class TestChunkerCli:
             (large_md.parent / CHUNKS_DIRNAME / CATALOG_NAME).read_text(encoding="utf-8")
         )
         assert f"Created {len(catalog['chunks'])} chunk file(s)." in result.stdout
-
-    def test_leaves_no_sidecars_beside_the_md(self, large_md):
-        run_cli(large_md)
-        # A leftover bookmarks.json is read back on the next run as authoritative PDF bookmarks.
-        assert [p.name for p in large_md.parent.glob("*.json")] == []
 
     def test_small_document_is_left_unchunked(self, tmp_path):
         path = tmp_path / "small.md"

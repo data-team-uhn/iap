@@ -16,11 +16,10 @@
 #
 
 """Tests for toc_and_appendix_detection: TOC entry recognition, label finding, in-place
-TOC cleanup, Reference/Appendix heading detection, the size gate, and the outline reader.
+TOC cleanup, Reference/Appendix heading detection, the size gate, and derive_outline.
 
 The outline is derived by derive_outline, which writes nothing and returns
-``(document, updates, records, line_index)`` — so what these tests used to write to
-outline.json and read back is simply the second return value."""
+``(document, updates, records, line_index)``."""
 
 import time
 
@@ -186,19 +185,6 @@ class TestMarkTocAndAppendix:
         assert updates["toc"] == ["Alpha"]
 
 
-class TestOutlineReader:
-    # Only the reader survives: outline.json is written by chunker.write_chunk_files, in one
-    # shot from the tree, so there is no merging writer here any more.
-    def test_read_missing_returns_empty(self, tmp_path):
-        assert tad.read_outline(tmp_path / "nope.json") == {}
-        assert tad.read_outline(None) == {}
-
-    def test_read_unparseable_returns_empty(self, tmp_path):
-        broken = tmp_path / "outline.json"
-        broken.write_text("{not json", encoding="utf-8")
-        assert tad.read_outline(broken) == {}
-
-
 class TestEntryToRecord:
     def test_dash_page_and_level(self):
         assert tad._entry_to_record("1.0 Background - 9") == {"title": "1.0 Background", "level": 1, "page": 9}
@@ -213,8 +199,8 @@ class TestEntryToRecord:
         assert tad._entry_to_record("2.0 Introduction") == {"title": "2.0 Introduction", "level": 1, "page": None}
 
     def test_section_letters_are_not_roman_pages(self):
-        # "Appendix C" used to parse as title "Appendix", page 100 — the truncated title then
-        # never matched its body heading, so the appendix was never marked as backmatter.
+        # A trailing section letter is not a roman page: "Appendix C" is the whole title,
+        # not title "Appendix" page 100 (which would never match the body heading).
         for entry in ("Appendix C", "Appendix D", "Appendix I", "Annex X"):
             assert tad._entry_to_record(entry) == {"title": entry, "level": None, "page": None}
 
@@ -311,29 +297,21 @@ class TestMarkTocAndAppendixFork:
         assert {"title": "1.0 Introduction", "level": 1, "page": 1} in records
 
     def test_bookmark_path_discards_the_printed_toc_entries(self, monkeypatch, tmp_path):
-        # Renamed from test_bookmark_path_skips_printed_toc: the printed TOC is no longer skipped.
-        # It is cleaned like anywhere else, so the document has one version and one line
-        # numbering, and its *entries* are what the records displace — ``toc`` comes from the
-        # records, not from the page.
+        # The printed TOC is still cleaned; its *entries* are what the PDF bookmark records
+        # displace — ``toc`` comes from the records, not from the page.
         known = [{"title": "Alpha", "level": 1, "page": 1}]
         result, updates, _, _ = _derive_with_bookmarks(
             monkeypatch, tmp_path, self._doc_with_toc(), known
         )
         assert updates["toc_source"] == "pdf-bookmarks"
         assert updates["toc"] == ["Alpha"]
-        # The label survives cleanup, so the block is still identifiable in the output.
         assert "## Table of Contents" in result
-        # And its range is now reported, which is what lets the backmatter lookup and the record
-        # cut keys exclude it. It used to be absent on this path.
         assert isinstance(updates["tocStartLine"], int)
         assert updates["tocEndLine"] >= updates["tocStartLine"]
 
-    def test_bookmark_path_reports_a_toc_range_where_it_used_to_report_none(
-        self, monkeypatch, tmp_path
-    ):
-        # The regression this refactor closes: without a range, a page-less "References" entry
-        # collides with the body heading it points at, and both backmatter_from_records and
-        # chunker._record_cut_keys silently fail open.
+    def test_bookmark_path_reports_toc_range(self, monkeypatch, tmp_path):
+        # Without a range, a page-less "References" entry collides with the body heading it
+        # points at, and both backmatter_from_records and chunker._record_cut_keys fail open.
         pageless = [{"title": "References", "level": None, "page": None}]
         _, updates, _, _ = _derive_with_bookmarks(
             monkeypatch, tmp_path, self._doc_with_toc(), pageless
@@ -355,12 +333,7 @@ RUNNING_HEADER = "REB Protocol 24-5450 Version 3.0 dated 12 March 2026 Confident
 
 
 class TestTocAcrossPageBreaks:
-    """A printed TOC that continues on the next PDF page.
-
-    Regression: the module's page-marker pattern required a space before ``-->`` that the
-    PDF parser never emits, so ``_scan_block`` never reported a page boundary and the whole
-    cross-page continuation branch was unreachable. A two-page TOC lost its second half.
-    """
+    """A printed TOC that continues on the next PDF page."""
 
     def _doc(self, separator):
         return "\n".join([
@@ -685,9 +658,6 @@ class TestBackmatterOnTheBookmarksPath:
 
 class TestOutlineIsOneObject:
     def test_all_fields_arrive_in_a_single_dict(self):
-        # The fields used to be spread over three read-modify-write cycles of outline.json,
-        # which wrote "tokens" twice with two different values. Returning one dict makes that
-        # class of bug unrepresentable, so this asserts the shape rather than a call count.
         doc = "\n".join([
             "## Table of Contents",
             "1.0 Background\t3",
