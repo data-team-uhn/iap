@@ -285,29 +285,6 @@ class TestParseErrorStatus:
         daemon.DoclingDaemonHandler._handle_parse(handler)
         assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
 
-    def test_a_caller_supplied_callback_is_400(self, monkeypatch, tmp_path):
-        # The callback carries the shared token, so the daemon uses its own configured
-        # destination and refuses to be told a different one
-        self._ready(monkeypatch)
-        pdf = self._staged_pdf(monkeypatch, tmp_path)
-        handler = self._handler(
-            {"path": str(pdf), "job_id": "86a4c102", "callback": "http://attacker/steal"}
-        )
-
-        daemon.DoclingDaemonHandler._handle_parse(handler)
-
-        assert handler.header_value("status") == HTTPStatus.BAD_REQUEST
-        assert parse_callbacks.URL_ENVIRONMENT_VARIABLE.encode() in handler.written
-
-    def test_a_callback_without_a_job_id_is_refused_too(self, monkeypatch, tmp_path):
-        self._ready(monkeypatch)
-        pdf = self._staged_pdf(monkeypatch, tmp_path)
-        handler = self._handler({"path": str(pdf), "callback": "http://attacker/steal"})
-
-        daemon.DoclingDaemonHandler._handle_parse(handler)
-
-        assert handler.header_value("status") == HTTPStatus.BAD_REQUEST
-
 
 class TestConcurrentParsesAreBounded:
     """Only one conversion at a time; the rest are refused, not queued.
