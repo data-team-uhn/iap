@@ -16,14 +16,14 @@ in-memory only.
 |-------------|--------|
 | `test_markdown_cleanup.py` | garbage-line stripping, blank-line collapsing, leading line-number removal, source-file headers |
 | `test_markdown_markers.py` | shared `<!-- page: N -->` format (one accepted spelling), token helpers, supported suffixes |
-| `test_toc_and_appendix_detection.py` | TOC entry recognition, label finding, in-place TOC cleanup, TOCs split across page breaks, Reference/Appendix detection, `derive_outline`'s bookmark-vs-printed-TOC fork, and `read_outline` |
-| `test_chunker.py` | heading/token helpers; `chunk_file()` routing (small docs left whole, large ones split into `Chunks/`); `outline.json` / `catalog.json` / `bookmarks.json`; sidecar cleanup and `clear_prior_outputs` |
+| `test_toc_and_appendix_detection.py` | TOC entry recognition, label finding, in-place TOC cleanup, TOCs split across page breaks, Reference/Appendix detection, `derive_outline`'s bookmark-vs-printed-TOC fork |
+| `test_chunker.py` | heading/token helpers; `chunk_file()` routing (small docs left whole, large ones split into `Chunks/`); `outline.json` / `catalog.json`; `clear_prior_outputs` |
 | `test_chunker_internals.py` | splitting internals via `build_chunk_tree`: block packing, oversized splitting, paragraph fallback, heading resolution, running-header suppression, merge passes that avoid bare-heading or tiny orphan chunks |
 | `test_bookmarks.py` | outline-record helpers: title normalization, page verification with off-by-one correction, unpaged early exit, line resolution, `LineIndex` |
 | `test_pdf_bookmarks.py` | flattening a PDF's embedded bookmark tree (pypdf; fake reader, no real PDF needed) |
 | `test_heading_numbering.py` | section-numbering depth (`1.2.3` → 3, `1.0` → 1) and roman numbering |
 | `test_docling_batch_sizing.py` | worker/RAM/batch-page arithmetic, including cgroup v1 and v2 quota reading |
-| `test_docling_runtime.py` | daemon plumbing with no model inference: `IAP_SHARED_DOCS` path allowlisting for `POST /parse`, body draining, health reporting, broken PDF-pool shutdown, batch-abandon path; asserts legacy byte-upload / gzip helpers are gone |
+| `test_docling_runtime.py` | daemon plumbing with no model inference: `IAP_SHARED_DOCS` path allowlisting for `POST /parse`, body draining, health reporting, broken PDF-pool shutdown, batch-abandon path |
 | `test_cli_end_to_end.py` | `chunker.py` run as a subprocess (re-chunk an existing `.md`); does **not** call `docling_parser.py` / Docling |
 
 `derive_outline` writes nothing — it returns

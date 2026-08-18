@@ -36,8 +36,6 @@ from typing import NamedTuple
 
 from markdown_markers import PAGE_MARKER, PAGE_MARKER_LINE
 
-BOOKMARKS_NAME = "bookmarks.json"
-
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 
@@ -76,22 +74,15 @@ def build_lines_catalog(lines: list[str]) -> list[tuple[int, int, str]]:
 def pages_from_positions(
     positions: list[tuple[int, int, str]],
 ) -> dict[int, set[str]]:
-    """Map each page number to normalized line keys from :func:`build_lines_catalog` output."""
+    """Map each page number to normalized line keys from :func:`build_lines_catalog` output.
+
+    Page 0 collects the lines before the first ``<!-- page: N -->`` marker (the source
+    header); an unpaged document (DOCX) yields only page 0.
+    """
     pages: dict[int, set[str]] = {}
     for _index, page, key in positions:
         pages.setdefault(page, set()).add(key)
     return pages
-
-
-def page_line_texts(markdown: str) -> dict[int, set[str]]:
-    """Map each 1-based page number to the set of normalized full-line keys on that page,
-    per the ``<!-- page: N -->`` markers. Lines before the first marker (the source header)
-    are page 0; an unpaged document (DOCX) yields only page 0.
-
-    @param markdown: the assembled Markdown document
-    @return: page number -> set of normalized line keys
-    """
-    return pages_from_positions(build_lines_catalog(markdown.split("\n")))
 
 
 class LineIndex(NamedTuple):
