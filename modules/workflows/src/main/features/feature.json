@@ -27,10 +27,6 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (wf:WorkflowsHomepage) /Workflows",
-        // /WorkflowTypes is not created here: the vocabulary is shipped as initial content whose descriptor
-        // declares the homepage's node type itself, leaving repoinit nothing to do. Add it back if this tree
-        // ever needs an ACL, since only repoinit can set one; the content loader copes either way, reusing a
-        // node that already exists and creating the children under it.
         "create service user workflows \n set ACL for workflows \n allow jcr:all on / \n end"
       ]
     },
