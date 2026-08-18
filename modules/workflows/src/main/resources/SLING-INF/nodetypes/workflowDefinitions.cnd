@@ -20,6 +20,7 @@
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <tag = 'https://iap.uhndata.io/tag/'>
 <data = 'https://iap.uhndata.io/data/'>
+<cond = 'https://iap.uhndata.io/cond/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 
 //-----------------------------------------------------------------------------
@@ -373,7 +374,7 @@
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
 // Stored as a child node of the source flow node.
-[wf:SequenceFlow] > data:EntityPart
+[wf:SequenceFlow] > data:EntityPart, cond:Conditionable
   - sling:resourceType (STRING) = "wf/SequenceFlow" mandatory autocreated protected
 
   // Stable BPMN element identifier
@@ -385,11 +386,11 @@
   // Optional label shown on the arc
   - label (STRING)
 
-  // Guard condition evaluated for exclusive/inclusive gateways.
-  // TODO: replace this raw expression with the structured conditions mechanism
-  // (the cond:Conditionable mixin plus a cond:condition child), the same way
-  // schema items express their conditions, once the conditions module lands.
-  - conditionExpression (STRING)
+  // The guard a gateway evaluates before taking this arc is the cond:condition
+  // child the cond:Conditionable supertype brings, the same way schema items
+  // express theirs. An arc with none is unconditional, which for a gateway means
+  // it is taken as soon as it is considered - so ordering, and the default arc,
+  // are what keep such an arc from swallowing every decision.
 
   // When true, this is the default outgoing flow of its source gateway
   - isDefault (BOOLEAN)

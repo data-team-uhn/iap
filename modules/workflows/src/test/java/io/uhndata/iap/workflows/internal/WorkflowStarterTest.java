@@ -96,7 +96,8 @@ class WorkflowStarterTest
     void refusesAnActivityThatDoesNotSayWhereToLook()
     {
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
-            () -> WorkflowStarter.execute(context(null, HOST), performer()));
+            () -> WorkflowStarter.execute(context(null, HOST), performer(),
+                EngineFixture.conditions()));
         assertTrue(rejection.getMessage().contains(CHAIN));
     }
 
@@ -104,14 +105,15 @@ class WorkflowStarterTest
     void refusesABlankChain()
     {
         assertThrows(WorkflowDefinitionException.class,
-            () -> WorkflowStarter.execute(context(" ", HOST), performer()));
+            () -> WorkflowStarter.execute(context(" ", HOST), performer(),
+                EngineFixture.conditions()));
     }
 
     @Test
     void startsTheWorkflowOnWhateverTheRunJustCreated() throws Exception
     {
         reference(HOST, "workflow", VERSION);
-        WorkflowStarter.execute(context("workflow", "/Submissions", HOST), performer());
+        WorkflowStarter.execute(context("workflow", "/Submissions", HOST), performer(), EngineFixture.conditions());
 
         // The created entity, not the homepage the event was aimed at, is what ends up under the workflow
         assertNotNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
@@ -122,7 +124,7 @@ class WorkflowStarterTest
     {
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
             () -> WorkflowStarter.execute(context("workflow", "/Submissions", "/Submissions/vanished"),
-                performer()));
+                performer(), EngineFixture.conditions()));
         assertTrue(rejection.getMessage().contains("Nothing was created"));
     }
 
@@ -130,7 +132,9 @@ class WorkflowStarterTest
     void doesNothingWhenTheChainLeadsNowhere() throws Exception
     {
         // No `workflow` property at all: an entity with no workflow is a perfectly ordinary entity
-        assertDoesNotThrow(() -> WorkflowStarter.execute(context("workflow", HOST), performer()));
+        assertDoesNotThrow(
+            () -> WorkflowStarter.execute(context("workflow", HOST), performer(),
+                EngineFixture.conditions()));
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
@@ -142,7 +146,9 @@ class WorkflowStarterTest
             .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class)
             .put("workflow", "1e17e5b1-0000-0000-0000-000000000000");
 
-        assertDoesNotThrow(() -> WorkflowStarter.execute(context("workflow", HOST), performer()));
+        assertDoesNotThrow(
+            () -> WorkflowStarter.execute(context("workflow", HOST), performer(),
+                EngineFixture.conditions()));
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
@@ -152,7 +158,9 @@ class WorkflowStarterTest
         // A real reference, but not to a workflow version — the entity is simply not under a workflow
         reference(HOST, "workflow", "/Workflows/timeOffRequest");
 
-        assertDoesNotThrow(() -> WorkflowStarter.execute(context("workflow", HOST), performer()));
+        assertDoesNotThrow(
+            () -> WorkflowStarter.execute(context("workflow", HOST), performer(),
+                EngineFixture.conditions()));
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
@@ -164,7 +172,8 @@ class WorkflowStarterTest
             .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class).put("active", false);
 
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
-            () -> WorkflowStarter.execute(context("workflow", HOST), performer()));
+            () -> WorkflowStarter.execute(context("workflow", HOST), performer(),
+                EngineFixture.conditions()));
         assertTrue(rejection.getMessage().contains("not active"));
     }
 
@@ -175,7 +184,8 @@ class WorkflowStarterTest
         reference("/Submissions/plain", "workflow", VERSION);
 
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
-            () -> WorkflowStarter.execute(context("workflow", "/Submissions/plain"), performer()));
+            () -> WorkflowStarter.execute(context("workflow", "/Submissions/plain"), performer(),
+                EngineFixture.conditions()));
         assertTrue(rejection.getMessage().contains("cannot hold workflows"));
     }
 
@@ -188,7 +198,7 @@ class WorkflowStarterTest
         Mockito.when(empty.getNodeByIdentifier(Mockito.anyString())).thenReturn(null);
 
         assertDoesNotThrow(() -> WorkflowStarter.execute(
-            context("workflow", HOST, null, sessionOf(empty)), performer()));
+            context("workflow", HOST, null, sessionOf(empty)), performer(), EngineFixture.conditions()));
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
     }
 
@@ -222,7 +232,8 @@ class WorkflowStarterTest
         };
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> WorkflowStarter.execute(context("workflow", HOST, null, sabotaged), performer()));
+            () -> WorkflowStarter.execute(context("workflow", HOST, null, sabotaged), performer(),
+                EngineFixture.conditions()));
         assertTrue(failure.getMessage().contains("point the instance at its workflow version"));
     }
 
@@ -234,7 +245,8 @@ class WorkflowStarterTest
         Mockito.when(broken.getNodeByIdentifier(Mockito.anyString()))
             .thenThrow(new RepositoryException("the identifier index is corrupt"));
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
-            () -> WorkflowStarter.execute(context("workflow", HOST, null, sessionOf(broken)), performer()));
+            () -> WorkflowStarter.execute(context("workflow", HOST, null, sessionOf(broken)), performer(),
+                EngineFixture.conditions()));
         assertTrue(rejection.getMessage().contains("usable reference"));
     }
 

@@ -30,6 +30,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -40,7 +41,6 @@ import io.uhndata.iap.workflows.models.Gateway;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
-import io.uhndata.iap.workflows.models.Variable;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
@@ -90,18 +90,23 @@ final class InstanceRunner
 
     private final String actor;
 
+    private final ConditionEvaluator conditions;
+
     /**
      * Constructor.
      *
      * @param resolver the engine's own session, which everything is read and written through
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
+     * @param conditions the evaluator a gateway's guards are asked of
      */
-    InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor)
+    InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
+        final ConditionEvaluator conditions)
     {
         this.resolver = resolver;
         this.performer = performer;
         this.actor = actor;
+        this.conditions = conditions;
     }
 
     /**
@@ -242,33 +247,31 @@ final class InstanceRunner
     }
 
     /**
-     * Picks a gateway's outgoing arc.
+     * Picks a gateway's outgoing arc: the first whose condition holds, or the one marked as the default when none
+     * does.
      *
-     * <p>Interim semantics, until the conditions module lands: an arc is taken when its
-     * {@code conditionExpression} equals the instance's {@code outcome} variable — what the last person to complete
-     * a task decided — and the arc marked as the default is taken when none matches. That covers the
-     * approve-or-reject shape every review process has, and deliberately nothing more; a real expression language
-     * is the conditions module's job, and this is the placeholder that lets the demo run in the meantime.</p>
+     * <p>The condition is the ordinary structured one, evaluated by the conditions module against the
+     * <em>instance</em> — so a guard reads what the execution knows, such as the {@code outcome} the last completed
+     * task recorded, through the {@code variable} operand source. An arc with no condition at all holds trivially,
+     * which is why the default arc is a separate flag rather than simply the unconditional one: a gateway needs a
+     * way to say "otherwise" that does not depend on where in the list it sits.</p>
      *
      * @param gateway the gateway being passed
      * @param flows its outgoing arcs
-     * @param instance the running instance
+     * @param instance the running instance, which is what the conditions are asked about
      * @return the arc to follow
      * @throws WorkflowDefinitionException when nothing matches and there is no default
      */
     private SequenceFlow choose(final Gateway gateway, final List<SequenceFlow> flows,
         final WorkflowInstance instance) throws WorkflowDefinitionException
     {
-        final Variable recorded = instance.getVariable(OUTCOME);
-        final Object outcome = recorded == null ? null : recorded.getValue();
         return flows.stream()
-            // Asked this way round so that an unrecorded outcome matches nothing rather than matching every arc
-            // that carries no condition
-            .filter(flow -> outcome != null && outcome.equals(flow.getConditionExpression()))
+            .filter(flow -> flow.getCondition() != null
+                && this.conditions.isSatisfied(flow.getCondition(), instance))
             .findFirst()
             .or(() -> flows.stream().filter(SequenceFlow::isDefault).findFirst())
             .orElseThrow(() -> new WorkflowDefinitionException("No outgoing sequence flow of " + gateway.getPath()
-                + " matches the outcome " + outcome + ", and none is marked as the default"));
+                + " has a condition that holds for " + instance.getPath() + ", and none is marked as the default"));
     }
 
     /**
