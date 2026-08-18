@@ -64,15 +64,33 @@ class PermanentDeletionVetoTest
         assertNull(this.veto.veto(this.node, DeletionMode.PERMANENT, session(ALICE)));
     }
 
-    // Archiving and purging destroy nothing that the archive was holding for recovery, so the ban leaves them alone
+    // Archiving is recoverable, which is the whole point of refusing the other two
     @Test
-    void leavesEveryOtherKindOfDeletionAlone() throws Exception
+    void leavesArchivingAlone() throws Exception
     {
         this.configure(true);
-        final Session requester = session(ALICE);
 
-        assertNull(this.veto.veto(this.node, DeletionMode.ARCHIVE, requester));
-        assertNull(this.veto.veto(this.node, DeletionMode.PURGE, requester));
+        assertNull(this.veto.veto(this.node, DeletionMode.ARCHIVE, session(ALICE)));
+    }
+
+    // Without this the ban is defeatable in two ordinary steps: archive, then purge the entry
+    @Test
+    void refusesPurgingAsWellAsPermanentDeletion() throws Exception
+    {
+        this.configure(true);
+
+        final String reason = this.veto.veto(this.node, DeletionMode.PURGE, session(ALICE));
+
+        // A resource already in the archive cannot be told to go to the archive instead
+        assertEquals("Destroying archived resources is not permitted here; this one stays in the archive", reason);
+    }
+
+    @Test
+    void exemptsAnAllowedUserFromPurgingToo() throws Exception
+    {
+        this.configure(true, ALICE);
+
+        assertNull(this.veto.veto(this.node, DeletionMode.PURGE, session(ALICE)));
     }
 
     // getUserID() may return null, and the allowlist is an unmodifiable set, which throws rather than

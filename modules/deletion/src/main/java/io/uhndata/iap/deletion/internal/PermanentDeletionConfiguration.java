@@ -21,24 +21,27 @@ import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
 /**
- * Who, if anybody, may destroy a resource outright instead of archiving it.
+ * Who, if anybody, may destroy a resource irreversibly, whether outright or out of the archive.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ObjectClassDefinition(name = "Permanent deletion policy",
-    description = "Whether resources may be destroyed outright, bypassing the archive, and who may do it.")
+    description = "Whether resources may be destroyed irreversibly - outright, or out of the archive - and who may "
+        + "do it.")
 public @interface PermanentDeletionConfiguration
 {
     /**
-     * Whether permanent deletion is banned for everyone outside the allowlist.
+     * Whether irreversible deletion is banned for everyone outside the allowlist.
      *
      * @return {@code true} to ban it, {@code false}, the default, to leave it to access control alone
      */
     @AttributeDefinition(name = "Prevent permanent deletion",
-        description = "Refuse permanent deletions, which destroy a resource without leaving anything in the archive "
-            + "to restore. Off by default, leaving the decision to access control alone. Archiving is unaffected: a "
-            + "user who is refused here can still delete the resource in the ordinary, recoverable way.")
+        description = "Refuse the two deletions that leave nothing to restore: permanent deletion, which never "
+            + "reaches the archive, and purging, which removes what is already in it. Guarding only the first would "
+            + "leave the ban defeatable by archiving and then purging. Off by default, leaving the decision to "
+            + "access control alone. Archiving is unaffected: a user who is refused here can still delete the "
+            + "resource in the ordinary, recoverable way.")
     boolean preventPermanentDeletion() default false;
 
     /**
@@ -49,8 +52,8 @@ public @interface PermanentDeletionConfiguration
     @AttributeDefinition(name = "Allowed principals",
         description = "User ids and principal names exempt from the ban. Group principals work as well as user "
             + "ones, and identity-provider roles as well as local groups, since a principal name is checked without "
-            + "asking where the principal came from. Empty, the default, exempts nobody: with the ban on, permanent "
-            + "deletion is then refused to everyone. This list only ever lifts the ban above - it grants no rights "
-            + "of its own, so a member still needs the access rights the deletion itself requires.")
+            + "asking where the principal came from. Empty, the default, exempts nobody: with the ban on, "
+            + "irreversible deletion is then refused to everyone. This list only ever lifts the ban above - it "
+            + "grants no rights of its own, so a member still needs the access rights the deletion itself requires.")
     String[] allowedPrincipals() default {};
 }

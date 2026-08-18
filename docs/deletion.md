@@ -59,10 +59,16 @@ either.
 
 ### Permanent deletion
 
-`Permanent deletion policy` (`PermanentDeletionConfiguration`) can refuse permanent deletions —
-the one kind that leaves nothing in the archive to restore — while leaving archiving untouched: a
-user refused here can still delete the resource in the ordinary, recoverable way. It is off by
-default, leaving the decision to access control alone.
+`Permanent deletion policy` (`PermanentDeletionConfiguration`) can refuse the two deletions that
+leave nothing to restore — `PERMANENT`, which never reaches the archive, and `PURGE`, which removes
+what is already in it — while leaving archiving untouched: a user refused here can still delete the
+resource in the ordinary, recoverable way. It is off by default, leaving the decision to access
+control alone.
+
+**Both modes, deliberately.** Guarding only `PERMANENT` would leave the ban defeatable in two
+ordinary steps: delete to the archive, then purge the entry. Note this is a property of *this*
+policy, not of the retention floor below, which keys on the archive entry's own type precisely
+because only the entry carries the timestamp it needs.
 
 `allowedPrincipals` lists user ids and principal names exempt from the ban, group and
 identity-provider principals included. It is an **exemption, never a grant**: a veto can only

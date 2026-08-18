@@ -19,6 +19,7 @@ package io.uhndata.iap.deletion.internal;
 
 import java.security.Principal;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -37,8 +38,13 @@ import io.uhndata.iap.deletion.spi.DeletionMode;
 import io.uhndata.iap.deletion.spi.DeletionVeto;
 
 /**
- * Reserves permanent deletion — the one deletion that leaves nothing in the archive to restore — to a configured
- * set of principals, or bans it outright.
+ * Reserves irreversible deletion to a configured set of principals, or bans it outright.
+ *
+ * <p>
+ * Two modes destroy data with nothing left to restore, and the ban covers both: {@link DeletionMode#PERMANENT},
+ * which never reaches the archive, and {@link DeletionMode#PURGE}, which removes what is already in it. Guarding
+ * only the first would leave the ban defeatable in two ordinary steps — archive, then purge.
+ * </p>
  *
  * <p>
  * A veto can only refuse, never permit, so the allowlist is an exemption from the ban rather than a grant of the
@@ -54,6 +60,9 @@ import io.uhndata.iap.deletion.spi.DeletionVeto;
 public class PermanentDeletionVeto implements DeletionVeto
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(PermanentDeletionVeto.class);
+
+    /** The deletions that leave nothing behind to restore. */
+    private static final Set<DeletionMode> IRREVERSIBLE = EnumSet.of(DeletionMode.PERMANENT, DeletionMode.PURGE);
 
     private volatile boolean preventPermanentDeletion;
 
@@ -78,15 +87,18 @@ public class PermanentDeletionVeto implements DeletionVeto
     public String veto(final Node node, final DeletionMode mode, final Session requester)
         throws RepositoryException
     {
-        if (!this.preventPermanentDeletion || mode != DeletionMode.PERMANENT) {
+        if (!this.preventPermanentDeletion || !IRREVERSIBLE.contains(mode)) {
             return null;
         }
         if (this.isExempt(requester)) {
             return null;
         }
-        // Naming who is exempt would tell an unauthorized caller how the policy is configured; saying what to do
-        // instead is both safer and more useful, since archiving remains open to them.
-        return "Permanently deleting resources is not permitted here; delete it to the archive instead";
+        // Naming who is exempt would tell an unauthorized caller how the policy is configured; saying where the
+        // resource ends up instead is both safer and more useful. Which reassurance is true depends on the mode: an
+        // ordinary deletion is still open to them, but a resource that is already archived simply stays there.
+        return mode == DeletionMode.PURGE
+            ? "Destroying archived resources is not permitted here; this one stays in the archive"
+            : "Permanently deleting resources is not permitted here; delete it to the archive instead";
     }
 
     /**
