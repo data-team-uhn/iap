@@ -141,6 +141,12 @@
   // Optional deadline for completing this task
   - dueDate (DATE)
 
+  // The elementId of the boundary event whose timer set that deadline, so that
+  // what happens when it passes is read from the definition rather than guessed
+  // at: an activity may be watched by several events, and only one of them is
+  // the one the clock is counting down to.
+  - dueEventId (STRING)
+
   // Value recorded at completion; used for downstream gateway routing
   - outcome (STRING)
 
