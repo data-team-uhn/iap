@@ -17,9 +17,13 @@
  */
 package io.uhndata.iap.submissions.internal;
 
+import java.util.LinkedHashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
@@ -55,7 +59,39 @@ final class Tagging
             final Taggable taggable = Mockito.mock(Taggable.class);
             Mockito.when(taggable.hasOwnTag(Mockito.anyString()))
                 .thenAnswer(invocation -> own.contains(invocation.getArgument(0)));
+            // Placing and removing write back to the node's own tags, so a test reads the outcome where the real
+            // service would have left it rather than by interrogating a mock
+            try {
+                Mockito.when(taggable.tag(Mockito.anyString(), Mockito.anyBoolean()))
+                    .thenAnswer(invocation -> write(resource, own, invocation.getArgument(0), true));
+                Mockito.when(taggable.untag(Mockito.anyString(), Mockito.anyBoolean()))
+                    .thenAnswer(invocation -> write(resource, own, invocation.getArgument(0), false));
+            } catch (final PersistenceException e) {
+                // Declared by the methods being stubbed, thrown by neither the stubbing nor the mock
+                throw new IllegalStateException(e);
+            }
             return taggable;
         });
+    }
+
+    /**
+     * Adds or removes one tag on a node.
+     *
+     * @param resource the node to change
+     * @param own the tags it carried when it was adapted
+     * @param name the tag to place or remove
+     * @param placing {@code true} to place it, {@code false} to remove it
+     * @return whether the node's tags changed
+     */
+    private static boolean write(final Resource resource, final Set<String> own, final String name,
+        final boolean placing)
+    {
+        final Set<String> tags = new LinkedHashSet<>(own);
+        final boolean changed = placing ? tags.add(name) : tags.remove(name);
+        if (changed) {
+            Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class),
+                "A mock resource is always modifiable").put("tags", tags.toArray(String[]::new));
+        }
+        return changed;
     }
 }

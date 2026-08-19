@@ -376,6 +376,19 @@ created from an inactive version" stops being a comment in the CND and becomes a
 sets the submission's `schemaVersion` as a real JCR REFERENCE — the strict node type rejects a
 stringly-typed identifier at commit.
 
+Saving a submission's answers is the same shape and shows what a chain of service tasks buys: the
+`/SystemWorkflows/saveAnswers` definition runs `saveAnswers` (write the answers), then `validateAnswers`
+(put them past every registered `AnswerValidator`), then `markCompleteness` (record whether anything the
+schema still asks for is unanswered, as the `incomplete` tag). Each step can refuse, and a refusal on the
+way to the end event reverts the whole run — so a save that breaks a rule leaves nothing behind, and the
+tag is only ever written for answers that were accepted.
+
+That last step is why a control offering to send a request can refuse to: **whether a request is complete
+is recorded on it rather than worked out by whoever asks.** A required question that a condition hides is
+not missing, so completeness has to be judged against the resolved form by the same evaluator that decides
+what the form shows — done once, at save time, instead of by every reader. The tag is a system tag in its
+own `completeness` category: nobody can hand-place it, and it does not displace the lifecycle state.
+
 Four properties carry the engine's matching, authorization and dispatch, all set by hand today and by the
 BPMN parser once it exists: `messageName` on events (the domain event name), `targetResourceType` on
 versions (what a system workflow answers for), `performers` on flow nodes (who may pass through), and
