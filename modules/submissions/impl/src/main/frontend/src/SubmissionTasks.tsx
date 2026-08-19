@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import SendIcon from "@mui/icons-material/Send";
-import { Alert, Button, Stack } from "@mui/material";
+import { Alert, Button, Stack, Tooltip } from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
@@ -45,7 +45,15 @@ function message(error: unknown): string {
 // refusal appears here in the engine's own words. A workflow's performers can name groups and
 // group membership, which a page cannot evaluate — so a page that tried to decide this for itself
 // would be guessing, and would sometimes hide a control from somebody entitled to use it.
-function SubmissionTasks({ path, onCompleted }: { path: string; onCompleted?: () => void }) {
+//
+// `blockedReason` is the one thing a page may decide, and it is not about *who* may act: it is about
+// whether the request is ready to be sent at all, which the save workflow has already worked out and
+// recorded on the submission. Given rather than read here so that this control keeps fetching only
+// what a task list needs — the caller already holds the submission.
+function SubmissionTasks(
+  { path, blockedReason, onCompleted }:
+  { path: string; blockedReason?: string; onCompleted?: () => void },
+) {
   const authenticatedFetch = useAuthenticatedFetch();
   const [ tasks, setTasks ] = useState<SubmissionTask[]>([]);
   const [ error, setError ] = useState<string>();
@@ -79,15 +87,20 @@ function SubmissionTasks({ path, onCompleted }: { path: string; onCompleted?: ()
   return (
     <Stack spacing={1}>
       { offered.map(task => (
-        <Button
-          key={task.path}
-          variant="contained"
-          startIcon={<SendIcon />}
-          disabled={busy}
-          onClick={() => complete(task)}
-        >
-          {task.label}
-        </Button>
+        // Wrapped, because a disabled button fires no events and so shows no tooltip of its own: the
+        // reason has to hang on something that is still listening
+        <Tooltip key={task.path} title={blockedReason ?? ""}>
+          <span>
+            <Button
+              variant="contained"
+              startIcon={<SendIcon />}
+              disabled={busy || blockedReason != undefined}
+              onClick={() => complete(task)}
+            >
+              {task.label}
+            </Button>
+          </span>
+        </Tooltip>
       )) }
       { error && <Alert severity="error" onClose={() => setError(undefined)}>{error}</Alert> }
     </Stack>

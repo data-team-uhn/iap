@@ -37,9 +37,14 @@
     <bpmn:sequenceFlow id="toValidate" sourceRef="save" targetRef="validate" />
     <bpmn:serviceTask id="validate" name="Check what the answers say">
       <bpmn:incoming>toValidate</bpmn:incoming>
+      <bpmn:outgoing>toMark</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toMark" sourceRef="validate" targetRef="mark" />
+    <bpmn:serviceTask id="mark" name="Record whether anything is still missing">
+      <bpmn:incoming>toMark</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:sequenceFlow id="toDone" sourceRef="validate" targetRef="done" />
+    <bpmn:sequenceFlow id="toDone" sourceRef="mark" targetRef="done" />
     <bpmn:endEvent id="done" name="Answers saved">
       <bpmn:incoming>toDone</bpmn:incoming>
     </bpmn:endEvent>
@@ -58,10 +63,13 @@
       <bpmndi:BPMNShape id="validateShape" bpmnElement="validate">
         <dc:Bounds x="410" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markShape" bpmnElement="mark">
+        <dc:Bounds x="570" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
-        <dc:Bounds x="570" y="180" width="36" height="36" />
+        <dc:Bounds x="730" y="180" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="552" y="223" width="73" height="14" />
+          <dc:Bounds x="712" y="223" width="73" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toSaveEdge" bpmnElement="toSave">
@@ -72,9 +80,13 @@
         <di:waypoint x="350" y="198" />
         <di:waypoint x="410" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+      <bpmndi:BPMNEdge id="toMarkEdge" bpmnElement="toMark">
         <di:waypoint x="510" y="198" />
         <di:waypoint x="570" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="670" y="198" />
+        <di:waypoint x="730" y="198" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
