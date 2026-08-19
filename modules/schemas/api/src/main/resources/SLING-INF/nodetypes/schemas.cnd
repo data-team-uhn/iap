@@ -163,6 +163,24 @@
   // Whether more than one value may be provided
   - multiple (BOOLEAN) = false
 
+  // How the question is rendered to the submitter
+  - displayMode (STRING)
+
+  // What this question is for, in the reviewer's terms
+  - purpose (STRING)
+
+  // The prompt an llm is given to read this answer out of the submitted documents
+  - prompt (STRING)
+
+  // The shape the llm model's reply must take, as a JSON schema
+  - responseShape (STRING)
+
+  // Tags for proposal schema sections that may contain the answer
+  // Selection of chunks for extraction is tag-driven: 
+  // take the union of the extraction fields' rubricTags 
+  // and select every chunk whose llm-assigned rubricTags intersect that union
+  - rubricTags (STRING) multiple
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
