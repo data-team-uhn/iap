@@ -71,7 +71,7 @@ function SubmissionTasks({ path, onCompleted }: { path: string; onCompleted?: ()
       .finally(() => setBusy(false));
   };
 
-  const offered = tasks.filter(task => task.outcomes.length === 0);
+  const offered = tasks.filter(task => task.outcomeOptions.length === 0);
   if (offered.length === 0 && !error) {
     return null;
   }

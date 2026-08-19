@@ -46,7 +46,7 @@ public class Activity extends FlowNode
     private String handler;
 
     @ValueMapValue
-    private String[] outcomes;
+    private String[] outcomeOptions;
 
     /**
      * The name of the {@code ServiceTaskHandler} that performs this activity. Only meaningful on
@@ -75,9 +75,9 @@ public class Activity extends FlowNode
      * @return the outcomes this task offers, empty when completing it is not a decision
      */
     @NotNull
-    public List<String> getOutcomes()
+    public List<String> getOutcomeOptions()
     {
-        return this.outcomes == null ? List.of() : List.of(this.outcomes);
+        return this.outcomeOptions == null ? List.of() : List.of(this.outcomeOptions);
     }
 
     /**
