@@ -161,6 +161,34 @@ class ParallelBranchesTest
     }
 
     @Test
+    void endsTheWholeInstanceAtATerminateEndEvent() throws Exception
+    {
+        // "Withdrawn" is not "one branch finished": the other branch's work is moot, so its token goes and the task
+        // it was waiting on is cancelled rather than left on somebody's desk forever
+        createProcess();
+        this.context.create().resource(PROCESS + "/" + FORK + "/toWithdraw", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toWithdraw", TARGET_REF, "withdraw"));
+        task("withdraw", "Withdraw the request");
+        // The withdrawal's own way out, which ends everything rather than joining
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(PROCESS + "/withdraw/toJoin"));
+        this.context.create().resource(PROCESS + "/withdraw/toWithdrawn", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "withdrawToEnd", TARGET_REF, "withdrawn"));
+        this.context.create().resource(PROCESS + "/withdrawn", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "withdrawn", "terminate", true));
+        final WorkflowEngine engine = start();
+        assertEquals(3, openTasks().size());
+
+        engine.receiveEvent(as(INSTANCE + "/withdraw", EngineFixture.REQUESTER), DONE);
+
+        assertEquals("completed", instance().getStatus());
+        assertEquals(0, instance().getTokens().size());
+        assertEquals(List.of(), openTasks());
+        assertEquals(List.of("cancelled", "cancelled", "completed"), instance().getTaskInstances().stream()
+            .map(TaskInstance::getStatus).sorted().toList());
+    }
+
+    @Test
     void refusesAConditionOnAParallelArc() throws Exception
     {
         // A parallel gateway takes every branch, so a guard on one of its arcs describes a gateway of another kind;

@@ -44,6 +44,7 @@ import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
+import io.uhndata.iap.workflows.models.WorkflowToken;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
@@ -201,7 +202,10 @@ final class InstanceRunner
                 throw new WorkflowDefinitionException("The instance " + instance.getPath() + " did not settle within "
                     + MAX_STEPS + " steps; its sequence flows probably form a cycle");
             }
-            step(instance, pending.remove(), pending);
+            if (!step(instance, pending.remove(), pending)) {
+                // The whole instance is over, so whatever else was queued has nowhere to go
+                return;
+            }
         }
     }
 
@@ -211,10 +215,11 @@ final class InstanceRunner
      * @param instance the running instance
      * @param step the token and the node it has reached
      * @param pending the queue to add the positions this step leads to
+     * @return {@code false} when the instance has been ended outright and the walk must stop
      * @throws WorkflowException when the definition cannot be run
      * @throws PersistenceException when the instance cannot be written
      */
-    private void step(final Resource instance, final Step step, final Deque<Step> pending)
+    private boolean step(final Resource instance, final Step step, final Deque<Step> pending)
         throws WorkflowException, PersistenceException
     {
         final Resource token = step.token();
@@ -228,13 +233,17 @@ final class InstanceRunner
             HostLifecycle.record(hostOf(instance), node);
         }
         if (node instanceof EndEvent) {
+            if (((EndEvent) node).isTerminate()) {
+                terminate(instance);
+                return false;
+            }
             spend(instance, token);
-            return;
+            return true;
         }
         if (node instanceof Activity && ((Activity) node).getHandler() == null) {
             // Nothing can perform it automatically, so it is a user task: park here and wait for a person
             createTask(instance, (Activity) node);
-            return;
+            return true;
         }
         if (node instanceof Activity) {
             this.performer.perform((Activity) node, instance);
@@ -244,9 +253,10 @@ final class InstanceRunner
         }
         if (!merged(instance, node, token)) {
             // A join still waiting for another branch; this token stays on it
-            return;
+            return true;
         }
         fork(instance, token, node, pending);
+        return true;
     }
 
     /**
@@ -362,6 +372,34 @@ final class InstanceRunner
         if (adapt(instance).getTokens().isEmpty()) {
             close(instance);
         }
+    }
+
+    /**
+     * Ends the whole instance at once: every remaining token is discarded, and every task still waiting for
+     * somebody is cancelled.
+     *
+     * <p>This is what {@code terminate} on an end event means, and why it is a property of an end event rather than
+     * a kind of its own: the difference is entirely in what happens to the <em>other</em> branches. The open tasks
+     * have to go with their tokens — a task whose token has been discarded can never be completed, and leaving it
+     * open would put work on somebody's desk that nothing will ever take off it again.</p>
+     *
+     * @param instance the running instance
+     * @throws PersistenceException when the instance cannot be written
+     */
+    private void terminate(final Resource instance) throws PersistenceException
+    {
+        final WorkflowInstance model = adapt(instance);
+        for (final WorkflowToken token : model.getTokens()) {
+            this.resolver.delete(resourceOf(token.getPath()));
+        }
+        for (final TaskInstance task : model.getTaskInstances()) {
+            if (OPEN.equals(task.getStatus())) {
+                final ModifiableValueMap properties = modifiable(resourceOf(task.getPath()));
+                properties.put(STATUS, CANCELLED);
+                properties.put(END_TIME, Calendar.getInstance());
+            }
+        }
+        close(instance);
     }
 
     /**
