@@ -41,13 +41,12 @@
       <artifactId>iap-schemas-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- Test-only: the handlers read a submission's lifecycle state through the model, and the tests stand in
-         for the tags service the model delegates to -->
+    <!-- The save workflow records whether a submission is still missing an answer by tagging it, and the
+         handlers read its lifecycle state through the same model -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
-      <scope>test</scope>
     </dependency>
     <!-- The form projection leaves out whatever does not currently apply, which the schema's
          conditions decide -->

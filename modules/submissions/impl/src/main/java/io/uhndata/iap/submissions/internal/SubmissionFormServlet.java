@@ -18,7 +18,6 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,7 +43,6 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Section;
-import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
@@ -117,7 +115,9 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      */
     private JsonObject form(final Submission submission, final String reader)
     {
-        final Map<String, List<String>> answers = answersByQuestion(submission);
+        // Shared with FormCompleteness, which judges the same answers: two indexes that disagreed about
+        // what counts as an answer would have the form and the decision to accept it disagree too
+        final Map<String, List<String>> answers = FormCompleteness.answersByQuestion(submission);
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         submission.getSchemaVersion().getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
@@ -222,30 +222,6 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add("multiple", question.isMultiple())
             .add("options", options)
             .add("value", value);
-    }
-
-    /**
-     * The submission's answers, keyed by the absolute path of the question each one answers. Keyed by path rather
-     * than by name because two sections may ask questions of the same name.
-     *
-     * @param submission the submission to read
-     * @return the recorded values, by question path
-     */
-    private static Map<String, List<String>> answersByQuestion(final Submission submission)
-    {
-        // A loop rather than a stream on purpose: the question has to be read once into a local — asking twice
-        // around a null check is what makes a @Nullable accessor look safe to dereference — and collecting to a
-        // map would need a merge function for a collision that only degenerate content can produce, which is a
-        // branch nothing would ever cover.
-        final Map<String, List<String>> byQuestion = new HashMap<>();
-        for (final Answer answer : submission.getAnswers()) {
-            final Question question = answer.getQuestion();
-            // An answer whose question no longer resolves is the answer to nothing being asked now
-            if (question != null) {
-                byQuestion.putIfAbsent(question.getPath(), List.of(answer.getValue()));
-            }
-        }
-        return byQuestion;
     }
 
     /**
