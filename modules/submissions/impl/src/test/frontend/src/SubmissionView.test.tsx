@@ -22,7 +22,7 @@ import { MemoryRouter } from "react-router";
 
 import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
-import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 // A submission as returned by the `deep` serialization: children nested, references expanded
 const DEEP_SUBMISSION = {
@@ -255,6 +255,29 @@ function renderAt(path: string) {
   );
 }
 
+// The container SubmissionTasks asks for, holding one open step. Without it the page has no send
+// control at all, and a test about whether sending is offered would assert nothing.
+const WAITING = {
+  timeOffRequest: {
+    "sling:resourceType": "wf/WorkflowInstance",
+    "@path": "/Submissions/demo-1/wf:instances/timeOffRequest",
+    "fillIn": {
+      "sling:resourceType": "wf/TaskInstance",
+      "@path": "/Submissions/demo-1/wf:instances/timeOffRequest/fillIn",
+      "status": "created",
+      "label": "Send it",
+      "outcomeOptions": [] as string[],
+    },
+  },
+};
+
+// The page's own fetch plus that container, so the send control is really on the page
+function servingWithSendStep(submission: unknown) {
+  return vi.fn((url: string) => url.includes("wf:instances")
+    ? jsonResponse(WAITING)
+    : tagAwareFetch(submission)(url));
+}
+
 describe("SubmissionView", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -319,6 +342,23 @@ describe("SubmissionView", () => {
     expect(screen.getByText("on Study protocol")).toBeInTheDocument();
     expect(screen.getByText(/Formatting fixed/)).toBeInTheDocument();
     expect(screen.getByText(/✓/)).toBeInTheDocument();
+  });
+
+  it("offers to send a request once nothing it asks for is missing", async () => {
+    vi.stubGlobal("fetch", servingWithSendStep(DEEP_SUBMISSION));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeEnabled();
+  });
+
+  it("will not offer to send one that is still missing an answer", async () => {
+    // The save workflow placed the tag, so the page knows without asking for the form
+    vi.stubGlobal("fetch", servingWithSendStep({ ...DEEP_SUBMISSION, "tags": ["draft", "incomplete"] }));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeDisabled();
   });
 
   it("credits whoever raised the submission, not the engine that wrote it", async () => {
