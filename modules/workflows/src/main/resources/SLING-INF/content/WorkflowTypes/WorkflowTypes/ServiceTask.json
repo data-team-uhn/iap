@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "Service Task",
+  "description": "Work that the platform carries out on its own, without waiting for a person.",
+  "category": ["Activities"],
+  "priority": 0,
+  "xmlElement": "bpmn:serviceTask",
+  "jcrNodeType": "wf:Activity"
+}

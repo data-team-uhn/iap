@@ -84,6 +84,12 @@
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- A submission has workflows attached to it, through the wf:WorkflowAttachable mixin -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-workflows</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>

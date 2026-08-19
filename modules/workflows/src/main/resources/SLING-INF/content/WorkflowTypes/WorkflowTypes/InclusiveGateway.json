@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:GatewayType",
+  "label": "Inclusive Gateway",
+  "description": "A fork where every outgoing path whose condition holds is taken.",
+  "category": ["Gateways"],
+  "priority": 0,
+  "xmlElement": "bpmn:inclusiveGateway",
+  "jcrNodeType": "wf:InclusiveGateway"
+}

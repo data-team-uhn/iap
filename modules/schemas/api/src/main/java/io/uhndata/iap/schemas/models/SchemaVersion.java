@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
  * A Sling Model wrapping a {@code sch:SchemaVersion} node; holds the requirements a submission must fulfill.
@@ -87,16 +88,16 @@ public class SchemaVersion extends Entity
     }
 
     /**
-     * The identifier of the {@code wf:WorkflowVersion} driving submissions under this schema version.
-     * TODO: replace the return type with a {@code WorkflowVersion} model once Sling Models are written for the
-     * {@code wf:} node types.
+     * The version of the workflow driving submissions filed under this schema version: what a submission is put
+     * through once it exists, as against what this schema says a submission must contain.
      *
-     * @return an UUID, or {@code null} if not set
+     * @return a workflow version, or {@code null} if this schema version drives no workflow, or the reference
+     *         cannot be resolved
      */
     @Nullable
-    public String getWorkflow()
+    public WorkflowVersion getWorkflow()
     {
-        return this.workflow;
+        return this.getReference(this.workflow, WorkflowVersion.class);
     }
 
     /**

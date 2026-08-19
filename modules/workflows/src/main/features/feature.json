@@ -27,7 +27,6 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (wf:WorkflowsHomepage) /Workflows",
-        "create path (wf:WorkflowTypesHomepage) /WorkflowTypes",
         "create service user workflows \n set ACL for workflows \n allow jcr:all on / \n end"
       ]
     },

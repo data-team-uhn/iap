@@ -50,8 +50,8 @@
 
 //-----------------------------------------------------------------------------
 // A submission filed by a submitter against a specific schema version. The
-// workflow instances driving its lifecycle are attached through the
-// wf:WorkflowAttachable mixin's workflowInstances property.
+// workflow instances driving its lifecycle live inside it, in the wf:instances
+// child that the wf:WorkflowAttachable mixin autocreates.
 [sub:Submission] > iap:Entity, wf:WorkflowAttachable
   - sling:resourceType (STRING) = "sub/Submission" mandatory autocreated protected
 

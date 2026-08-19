@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "wf:ThrowingEventType",
+  "label": "Terminate End Event",
+  "description": "Ends the whole workflow at once, abandoning any other branch still in progress.",
+  "category": ["End Events"],
+  "priority": 20,
+  "xmlElement": "bpmn:endEvent",
+  "xmlChildElement": "bpmn:terminateEventDefinition",
+  "jcrNodeType": "wf:EndEvent",
+  "jcrProperties": "{\"terminate\": true}"
+}

@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:ActivityType",
+  "label": "User Task",
+  "description": "Work that a person must carry out. The workflow waits until the task is completed.",
+  "category": ["Activities"],
+  "priority": 0,
+  "xmlElement": "bpmn:userTask",
+  "jcrNodeType": "wf:Activity"
+}

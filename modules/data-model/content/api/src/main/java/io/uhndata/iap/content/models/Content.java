@@ -259,6 +259,30 @@ public class Content
     }
 
     /**
+     * Adapts the parent of the wrapped resource to the given model type, provided the parent is of the given
+     * resource type. Used to implement the "owner" accessors of the parts that are stored inside something else,
+     * e.g. {@code SequenceFlow.getSource()}.
+     *
+     * <p>The resource type check is not a nicety: adaptation is not a type filter at all. A model registered for
+     * one resource type will happily adapt a resource of an unrelated one — with a single implementation it is
+     * returned outright, and with several, a resource matching none of them is handed to whichever happens to
+     * come first rather than rejected. Either way, adapting an unrelated parent would quietly yield a model
+     * wrapping the wrong node rather than {@code null}.</p>
+     *
+     * @param resourceType the resource type (or one of its subtypes) the parent must have
+     * @param type the model class the parent is adapted to
+     * @param <T> the model type
+     * @return the adapted parent, or {@code null} if the wrapped resource has no parent, or its parent is of
+     *         another type
+     */
+    @Nullable
+    protected <T extends Content> T getParent(@NotNull final String resourceType, @NotNull final Class<T> type)
+    {
+        final Resource parent = this.resource.getParent();
+        return parent == null || !parent.isResourceType(resourceType) ? null : parent.adaptTo(type);
+    }
+
+    /**
      * Lists all the children of the wrapped resource, adapted to the given model type. Unlike
      * {@link #getChildren(String, Class)} this filters nothing, so it is the right tool for walking through
      * arbitrary content — e.g. searching a subtree — where the interesting nodes aren't known by their type.
@@ -282,9 +306,12 @@ public class Content
     }
 
     /**
-     * Adapts the wrapped resource's specific named child to the given model type. Unlike
-     * {@link #getChildren(String, Class)}, this does not need a resource type check: the child is already uniquely
-     * identified by name, its type being whatever the node type of the parent declares for that name.
+     * Adapts the wrapped resource's specific named child to the given model type, without checking what that child
+     * actually is. Only safe where the name determines the type — a node type declaring one named child, e.g.
+     * {@code bpmn.xml} — since adaptation is not a type filter on its own: a model registered for one resource type
+     * will happily adapt a resource of an unrelated one. Where the parent declares several residual children, as
+     * {@code wf:WorkflowInstance} does for its tokens, variables and tasks, a name says nothing about the type, and
+     * {@link #getChild(String, String, Class)} is the one to use.
      *
      * @param name the name of the child node to adapt, which may also be a path relative to this content, e.g.
      *            {@code form/age}
@@ -297,5 +324,29 @@ public class Content
     {
         final Resource child = this.resource.getChild(name);
         return child == null ? null : child.adaptTo(type);
+    }
+
+    /**
+     * Adapts the wrapped resource's specific named child to the given model type, provided that child is of the
+     * given resource type. This is the lookup to use wherever a node type declares more than one kind of residual
+     * child, so that a name alone does not say what will be found under it, e.g.
+     * {@code WorkflowInstance.getVariable(name)}, whose siblings include tokens and task instances.
+     *
+     * <p>The resource type check is what makes a miss report as a miss: adapting an unrelated child would otherwise
+     * hand back a model wrapping the wrong node, and a caller's {@code != null} test would take that for the thing
+     * it asked for.</p>
+     *
+     * @param name the name of the child node to adapt, which may also be a path relative to this content
+     * @param resourceType the resource type (or one of its subtypes) the child must have
+     * @param type the model class the child is adapted to
+     * @param <T> the model type
+     * @return the adapted child, or {@code null} if there is no such child, or it is of another type
+     */
+    @Nullable
+    public <T extends Content> T getChild(@NotNull final String name, @NotNull final String resourceType,
+        @NotNull final Class<T> type)
+    {
+        final Resource child = this.resource.getChild(name);
+        return child == null || !child.isResourceType(resourceType) ? null : child.adaptTo(type);
     }
 }

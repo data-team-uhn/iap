@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:CatchingEventType",
+  "label": "Start Event",
+  "description": "The entry point of a workflow. A new instance is created when this event is triggered.",
+  "category": ["Start Events"],
+  "priority": 0,
+  "xmlElement": "bpmn:startEvent",
+  "jcrNodeType": "wf:StartEvent"
+}

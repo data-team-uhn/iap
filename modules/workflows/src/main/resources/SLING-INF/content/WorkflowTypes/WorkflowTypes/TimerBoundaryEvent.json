@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:CatchingEventType",
+  "label": "Timer Boundary Event",
+  "description": "A deadline on a task. Fires if the work is not done in time, either cancelling it or raising a reminder alongside it.",
+  "category": ["Boundary Events"],
+  "priority": 10,
+  "xmlElement": "bpmn:boundaryEvent",
+  "xmlChildElement": "bpmn:timerEventDefinition",
+  "jcrNodeType": "wf:IntermediateCatchingEvent"
+}

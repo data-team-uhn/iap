@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:GatewayType",
+  "label": "Exclusive Gateway",
+  "description": "A fork where exactly one outgoing path is taken, the first whose condition holds.",
+  "category": ["Gateways"],
+  "priority": 0,
+  "xmlElement": "bpmn:exclusiveGateway",
+  "jcrNodeType": "wf:ExclusiveGateway"
+}
