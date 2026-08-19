@@ -73,7 +73,7 @@ public class TaskInstance extends Entity
     private String dueEventId;
 
     @ValueMapValue
-    private String[] offeredOutcomes;
+    private String[] outcomeOptions;
 
     @ValueMapValue
     private String[] performers;
@@ -188,7 +188,7 @@ public class TaskInstance extends Entity
     }
 
     /**
-     * The decisions this task may be completed with, as its {@link Activity#getOutcomes() defining activity}
+     * The decisions this task may be completed with, as its {@link Activity#getOutcomeOptions() defining activity}
      * offered them when the task was raised.
      *
      * <p>Copied onto the task rather than looked up, for the same reason the {@link #getLabel() label} is: a task is
@@ -198,9 +198,9 @@ public class TaskInstance extends Entity
      * @return the outcomes on offer, empty when completing this task is not a decision
      */
     @NotNull
-    public List<String> getOfferedOutcomes()
+    public List<String> getOutcomeOptions()
     {
-        return this.offeredOutcomes == null ? List.of() : List.of(this.offeredOutcomes);
+        return this.outcomeOptions == null ? List.of() : List.of(this.outcomeOptions);
     }
 
     /**

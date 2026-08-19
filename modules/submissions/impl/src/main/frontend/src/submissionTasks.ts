@@ -35,7 +35,7 @@ export interface SubmissionTask {
   label: string;
   // The decisions this task may be completed with. Empty means there is nothing to decide: the
   // task is done or it is not, which is what a "send this" step looks like.
-  outcomes: string[];
+  outcomeOptions: string[];
 }
 
 function strings(value: unknown): string[] {
@@ -54,7 +54,7 @@ function asTask(node: JsonNode): SubmissionTask | null {
   return {
     path,
     label: typeof node.label === "string" ? node.label : path.substring(path.lastIndexOf("/") + 1),
-    outcomes: strings(node.offeredOutcomes),
+    outcomeOptions: strings(node.outcomeOptions),
   };
 }
 
