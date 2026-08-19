@@ -49,6 +49,8 @@ import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.utils.UserIds;
+
 /**
  * A servlet that lists, in pages, the entities stored under an entity homepage. It is registered on
  * {@code iap/EntityHomepage} with the {@code paginate} selector, so, through the {@code sling:resourceSuperType}
@@ -159,11 +161,14 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             throw new RepositoryException("The resource resolver is not backed by a JCR session");
         }
         final Resource homepage = request.getResource();
+        // What `@me` stands for: the id the repository records, so that it matches values written earlier by the
+        // same person under a differently capitalised login
+        final String me = UserIds.canonical(request.getResourceResolver());
         final QueryBuilder builder = new QueryBuilder(getNodeType(homepage), homepage.getPath())
-            .withFilters(parseFilters(request, "field", session.getUserID()));
+            .withFilters(parseFilters(request, "field", me));
         for (final String suffix : getChildFilterSuffixes(request)) {
             builder.withChildFilters(request.getParameter("childType" + suffix),
-                parseFilters(request, "childField" + suffix, session.getUserID()));
+                parseFilters(request, "childField" + suffix, me));
         }
         final String statement = builder
             .withFullText(request.getParameter("filter"))

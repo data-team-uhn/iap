@@ -41,6 +41,13 @@
   </build>
 
   <dependencies>
+    <!-- Deciding whether the reader is the administrator means comparing the id the repository uses, not the name
+         the login was typed with; UserIds is where that difference is dealt with once -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- Nullability annotations for the exported API/SPI -->
     <dependency>
       <groupId>org.jetbrains</groupId>

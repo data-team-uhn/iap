@@ -34,6 +34,7 @@ import org.osgi.service.component.annotations.Reference;
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
 import io.uhndata.iap.metrics.api.MetricsManager;
+import io.uhndata.iap.utils.UserIds;
 
 /**
  * Serves all the metrics at {@code /Metrics.json} as a JSON object with a {@code metrics} array, each entry
@@ -59,7 +60,9 @@ public class MetricsEndpoint extends SlingJakartaSafeMethodsServlet
     {
         response.setCharacterEncoding("UTF-8");
         response.setContentType("application/json");
-        final boolean unprivileged = !("admin".equals(request.getRemoteUser()));
+        // The repository's user id, not the name as typed: signing in as "Admin" authenticates "admin", so
+        // comparing the spelling would show the administrator the redacted listing
+        final boolean unprivileged = !"admin".equals(UserIds.canonical(request.getResourceResolver()));
         try {
             final JsonArrayBuilder metrics = Json.createArrayBuilder();
             this.metricsManager.getMetrics().stream()
