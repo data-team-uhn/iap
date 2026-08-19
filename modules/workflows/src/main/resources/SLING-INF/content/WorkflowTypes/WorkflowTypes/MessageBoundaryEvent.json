@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:CatchingEventType",
+  "label": "Message Boundary Event",
+  "description": "Listens, for as long as a task is open, for a named message such as a withdrawal or a cancellation.",
+  "category": ["Boundary Events"],
+  "priority": 10,
+  "xmlElement": "bpmn:boundaryEvent",
+  "xmlChildElement": "bpmn:messageEventDefinition",
+  "jcrNodeType": "wf:IntermediateCatchingEvent"
+}

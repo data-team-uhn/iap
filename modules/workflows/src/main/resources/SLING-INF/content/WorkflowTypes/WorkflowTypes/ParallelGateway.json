@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:GatewayType",
+  "label": "Parallel Gateway",
+  "description": "A fork where every outgoing path is taken at once, or a join waiting for every incoming path.",
+  "category": ["Gateways"],
+  "priority": 0,
+  "xmlElement": "bpmn:parallelGateway",
+  "jcrNodeType": "wf:ParallelGateway"
+}

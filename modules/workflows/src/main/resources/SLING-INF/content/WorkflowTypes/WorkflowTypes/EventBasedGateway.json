@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:GatewayType",
+  "label": "Event Based Gateway",
+  "description": "A fork decided by whatever happens first rather than by data: the workflow waits, and the first of the events it leads to wins.",
+  "category": ["Gateways"],
+  "priority": 0,
+  "xmlElement": "bpmn:eventBasedGateway",
+  "jcrNodeType": "wf:EventBasedGateway"
+}

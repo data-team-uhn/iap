@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:CatchingEventType",
+  "label": "Intermediate Catch Event",
+  "description": "A point mid-process where the workflow waits for something to happen before continuing.",
+  "category": ["Intermediate Events"],
+  "priority": 0,
+  "xmlElement": "bpmn:intermediateCatchEvent",
+  "jcrNodeType": "wf:IntermediateCatchingEvent"
+}

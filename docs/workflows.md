@@ -113,10 +113,11 @@ parser once it exists:
 ### The vocabulary
 
 `/WorkflowTypes` is the translation table between BPMN and the repository. Each `wf:FlowNodeType` says
-that a given XML element means a given kind of node:
+that a given XML element means a given kind of node, and is shipped as a file of its own, named after the
+entry — `MessageStartEvent.json`:
 
 ```json
-"MessageStartEvent": {
+{
   "jcr:primaryType": "wf:CatchingEventType",
   "label": "Message Start Event",
   "category": ["Start Events"],

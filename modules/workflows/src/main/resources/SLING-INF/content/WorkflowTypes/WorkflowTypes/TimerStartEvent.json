@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:CatchingEventType",
+  "label": "Timer Start Event",
+  "description": "The entry point of a workflow that starts on a schedule rather than because someone asked.",
+  "category": ["Start Events"],
+  "priority": 10,
+  "xmlElement": "bpmn:startEvent",
+  "xmlChildElement": "bpmn:timerEventDefinition",
+  "jcrNodeType": "wf:StartEvent"
+}

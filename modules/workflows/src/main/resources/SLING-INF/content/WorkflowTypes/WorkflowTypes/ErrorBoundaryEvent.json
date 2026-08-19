@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:CatchingEventType",
+  "label": "Error Boundary Event",
+  "description": "Catches a failure of the task it is attached to, giving the workflow somewhere to go when the work cannot be completed.",
+  "category": ["Boundary Events"],
+  "priority": 10,
+  "xmlElement": "bpmn:boundaryEvent",
+  "xmlChildElement": "bpmn:errorEventDefinition",
+  "jcrNodeType": "wf:IntermediateCatchingEvent"
+}

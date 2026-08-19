@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "wf:CatchingEventType",
+  "label": "Message Start Event",
+  "description": "The entry point of a workflow, started by a named message rather than by an unqualified request.",
+  "category": ["Start Events"],
+  "priority": 10,
+  "xmlElement": "bpmn:startEvent",
+  "xmlChildElement": "bpmn:messageEventDefinition",
+  "jcrNodeType": "wf:StartEvent"
+}

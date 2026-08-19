@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:ThrowingEventType",
+  "label": "Intermediate Throw Event",
+  "description": "A point mid-process where the workflow announces that something happened, without pausing.",
+  "category": ["Intermediate Events"],
+  "priority": 0,
+  "xmlElement": "bpmn:intermediateThrowEvent",
+  "jcrNodeType": "wf:IntermediateThrowingEvent"
+}

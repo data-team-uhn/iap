@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "wf:ThrowingEventType",
+  "label": "End Event",
+  "description": "The exit point of a workflow branch. The instance completes once every branch has reached an end event.",
+  "category": ["End Events"],
+  "priority": 0,
+  "xmlElement": "bpmn:endEvent",
+  "jcrNodeType": "wf:EndEvent"
+}
