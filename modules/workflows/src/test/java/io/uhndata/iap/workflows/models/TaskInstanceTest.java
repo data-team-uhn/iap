@@ -30,8 +30,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import io.uhndata.iap.content.models.Content;
-
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -52,8 +50,6 @@ class TaskInstanceTest
     private static final String TASK_PATH = INSTANCE_PATH + "/task_1_1";
 
     private static final String VERSION_ID = "workflow-version-uuid";
-
-    private static final String FORM_ID = "form-uuid";
 
     private final SlingContext context = new SlingContext();
 
@@ -131,27 +127,8 @@ class TaskInstanceTest
         assertEquals(List.of(), task.getOfferedOutcomes());
         // Naming nobody admits nobody, the same way a definition that names no performers does
         assertEquals(List.of(), task.getPerformers());
-        assertNull(task.getForm());
         assertNull(task.getWorkflowInstance());
         assertNull(task.getDefinition());
-    }
-
-    @Test
-    void resolvesItsFormAsGenericContent()
-        throws RepositoryException
-    {
-        // Deliberately something from another module's namespace: the workflows module must not need to know
-        // what kind of thing a task's form is
-        this.context.create().resource("/Submissions/s1", TYPE, "sub/Submission");
-        WorkflowFixture.resolveReference(this.context, FORM_ID, "/Submissions/s1");
-        final Resource resource = this.context.create().resource(TASK_PATH, Map.of(
-            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "task_1", "label", "Approve",
-            "status", "created", "form", FORM_ID));
-
-        final Content form = resource.adaptTo(TaskInstance.class).getForm();
-
-        assertNotNull(form);
-        assertEquals("/Submissions/s1", form.getPath());
     }
 
     @Test

@@ -28,7 +28,6 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 
 /**
@@ -75,9 +74,6 @@ public class TaskInstance extends Entity
 
     @ValueMapValue
     private String[] performers;
-
-    @ValueMapValue
-    private String form;
 
     /**
      * The {@link FlowNode#getElementId() element identifier} of the {@link Activity} this task was raised from.
@@ -203,21 +199,6 @@ public class TaskInstance extends Entity
     public List<String> getPerformers()
     {
         return this.performers == null ? List.of() : List.of(this.performers);
-    }
-
-    /**
-     * The form to be filled in as part of this task, when there is one.
-     *
-     * <p>Returned as generic {@link Content} on purpose: a form belongs to whichever module raised the task, and
-     * having the workflows module know about those would make the dependency run the wrong way — everything
-     * depends on workflows, not the other way round. Callers who know what they asked for adapt it themselves.</p>
-     *
-     * @return the referenced content, or {@code null} if this task has no form or the reference cannot be resolved
-     */
-    @Nullable
-    public Content getForm()
-    {
-        return this.getReference(this.form, Content.class);
     }
 
     /**

@@ -161,9 +161,6 @@
   // against, exactly as offeredOutcomes describes rather than enforces.
   - performers (STRING) multiple
 
-  // Optional associated iap form
-  - form (REFERENCE)
-
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
