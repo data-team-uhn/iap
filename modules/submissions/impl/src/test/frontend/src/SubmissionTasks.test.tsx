@@ -114,7 +114,7 @@ describe("SubmissionTasks", () => {
     // An approval needs somewhere to say why, which belongs with the review screen rather than
     // being smuggled in as two more buttons here
     vi.stubGlobal("fetch", repository(waitingOn({
-      ...SEND, label: "Approve the request", offeredOutcomes: ["approved", "rejected"],
+      ...SEND, label: "Approve the request", outcomeOptions: ["approved", "rejected"],
     })));
 
     const { container } = render(<SubmissionTasks path={PATH} />);
