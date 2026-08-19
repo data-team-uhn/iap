@@ -43,7 +43,7 @@ const CONTAINER = {
       "sling:resourceType": "wf/TaskInstance",
       "label": "Say when you want to be away",
       "status": "created",
-      "offeredOutcomes": [],
+      "outcomeOptions": [],
     },
     "checkedBudget": {
       "@path": INSTANCES + "/timeOffRequest/checkedBudget",
@@ -56,7 +56,7 @@ const CONTAINER = {
       "sling:resourceType": "wf/TaskInstance",
       "label": "Approve the request",
       "status": "created",
-      "offeredOutcomes": ["approved", "rejected"],
+      "outcomeOptions": ["approved", "rejected"],
     },
   },
 };
@@ -81,8 +81,8 @@ describe("fetchOpenTasks", () => {
     expect(tasks.map(task => task.label))
       .toEqual(["Say when you want to be away", "Approve the request"]);
     expect(tasks[0].path).toBe(INSTANCES + "/timeOffRequest/fillIn");
-    expect(tasks[0].outcomes).toEqual([]);
-    expect(tasks[1].outcomes).toEqual(["approved", "rejected"]);
+    expect(tasks[0].outcomeOptions).toEqual([]);
+    expect(tasks[1].outcomeOptions).toEqual(["approved", "rejected"]);
   });
 
   it("reads a lone offered outcome, which arrives as a bare string rather than an array", async () => {
@@ -94,12 +94,12 @@ describe("fetchOpenTasks", () => {
           "sling:resourceType": "wf/TaskInstance",
           "label": "Acknowledge",
           "status": "created",
-          "offeredOutcomes": "acknowledged",
+          "outcomeOptions": "acknowledged",
         },
       },
     }));
 
-    expect((await fetchOpenTasks(PATH))[0].outcomes).toEqual(["acknowledged"]);
+    expect((await fetchOpenTasks(PATH))[0].outcomeOptions).toEqual(["acknowledged"]);
   });
 
   it("falls back to a task's node name when it carries no label", async () => {
@@ -139,7 +139,7 @@ describe("fetchOpenTasks", () => {
 });
 
 describe("completeTask", () => {
-  const TASK = { path: INSTANCES + "/timeOffRequest/fillIn", label: "Send it", outcomes: [] };
+  const TASK = { path: INSTANCES + "/timeOffRequest/fillIn", label: "Send it", outcomeOptions: [] };
 
   it("posts the completion to the task itself", async () => {
     const post = answering({});
@@ -157,7 +157,7 @@ describe("completeTask", () => {
   it("carries a decision when the task is one", async () => {
     const post = answering({});
 
-    await completeTask(post, { ...TASK, outcomes: ["approved", "rejected"] }, "approved");
+    await completeTask(post, { ...TASK, outcomeOptions: ["approved", "rejected"] }, "approved");
 
     expect(((post.mock.calls[0][1]?.body) as URLSearchParams).get("outcome")).toBe("approved");
   });
