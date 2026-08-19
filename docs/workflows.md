@@ -140,9 +140,9 @@ extension attributes wherever a version says its BPMN is authoritative, and set 
   allowed](#who-is-allowed-the-workflow-decides).
 - **`handler` on an activity** names the service task handler that performs it. An
   activity naming none is a user task, which waits for a person.
-- **`outcomes` on an activity** lists the decisions its task may be completed with,
-  which a gateway downstream routes on, so that a task list knows what to offer. An
-  empty list means there is nothing to decide, only something to do.
+- **`outcomeOptions` on an activity** lists the decisions its task may be completed
+  with, which a gateway downstream routes on, so that a task list knows what to offer.
+  An empty list means there is nothing to decide, only something to do.
 - **`hostTag` on an end event** places a tag on the host when a content workflow
   finishes there, retiring whatever tag the host carries in the same category. Elsewhere
   in a process, the `addTag` and `removeTag` service tasks do the same job.
@@ -207,7 +207,7 @@ along with it:
         ├── t1                      wf:WorkflowToken      currentNodeId
         ├── requestedDays           wf:Variable           dataType, longValue
         └── approve_1               wf:TaskInstance       taskDefinitionId, label, assignee, status,
-                                                          outcome, offeredOutcomes, performers
+                                                          outcome, outcomeOptions, performers
 ```
 
 A **token** is one branch of an execution and where it has got to. Tokens are the whole
@@ -221,7 +221,7 @@ what it is.
 A **task instance** is an entity rather than a part of the instance, because people look
 for tasks: "what is on my desk" is a query over task instances, not a walk of every
 running workflow. Its `status` says the task is over and its `outcome` says how;
-gateways route on the outcome. `offeredOutcomes` and `performers` are copied from the
+gateways route on the outcome. `outcomeOptions` and `performers` are copied from the
 defining activity when the task is raised, so it is decided on the terms it was raised
 with, and whoever owes the decision can see them without reading the definition. The
 copies describe rather than permit: what makes a completion lawful is still the
@@ -907,11 +907,11 @@ and carries the instance on. Who may complete it is decided by the `performers` 
 defining activity.
 
 **A user task says what it may be decided with.** The engine copies the activity's
-`outcomes` onto each task it raises, as `offeredOutcomes`, beside its label: a task is
-decided on the terms it was raised with, and whoever does it can read the task without
-reading the definition. A task offering none has nothing to decide. A plain "done" on a
-task that expected a decision would complete it with no outcome, and the next gateway
-would take its default arc.
+`outcomeOptions` onto each task it raises, under the same name, beside its label: a task
+is decided on the terms it was raised with, and whoever does it can read the task
+without reading the definition. A task offering none has nothing to decide. A plain
+"done" on a task that expected a decision would complete it with no outcome, and the
+next gateway would take its default arc.
 
 **A user task also says who it is waiting for.** The engine records the activity's
 `performers` onto each task it raises, with `@creator` already answered against the

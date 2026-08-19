@@ -9,6 +9,6 @@
   "properties": [
     "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
     "{https://iap.uhndata.io/bpmn}performers=performers[]",
-    "{https://iap.uhndata.io/bpmn}outcomes=outcomes[]"
+    "{https://iap.uhndata.io/bpmn}outcomeOptions=outcomeOptions[]"
   ]
 }
