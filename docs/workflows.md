@@ -835,7 +835,20 @@ bootstrapping: `/SystemWorkflows/saveAnswers` targets `sub/Submission` itself ra
 than a homepage, so filling a request in, a `POST` to `<submission>.save.json`, is a
 workflow event like any other. What a save is allowed to do — whose request it is, and
 whether it is still a draft — is decided by its handler rather than by the servlet that
-received the POST.
+received the POST. The definition runs `saveAnswers` (write the answers), then
+`validateAnswers` (put them past every registered `AnswerValidator`), then
+`markCompleteness` (record whether anything the schema still asks for is unanswered, as
+the `incomplete` tag). Each step can refuse, and a refusal on the way to the end event
+reverts the whole run — so a save that breaks a rule leaves nothing behind, and the tag
+is only ever written for answers that were accepted.
+
+That last step is why a control offering to send a request can refuse to: **whether a
+request is complete is recorded on it rather than worked out by whoever asks.** A
+required question that a condition hides is not missing, so completeness has to be judged
+against the resolved form by the same evaluator that decides what the form shows — done
+once, at save time, instead of by every reader. The tag is a system tag in its own
+`completeness` category: nobody can hand-place it, and it does not displace the lifecycle
+state.
 
 ## Content workflows: the part that persists
 
