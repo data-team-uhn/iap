@@ -241,6 +241,77 @@ class UserWorkflowTest
     }
 
     @Test
+    void remindsWithoutEndingTheWorkWhenTheTimerDoesNotInterrupt() throws Exception
+    {
+        // "Remind them but let them carry on": the approval stays on somebody's desk, and the reminder is a second
+        // branch beside it rather than what became of it
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("PT36H", "approvalSlow", null, false);
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE + "/approvalSlow/toEndapprovalSlow"));
+        this.context.create().resource(PROCESS + "/" + APPROVE + "/approvalSlow/toChase", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toChase", TARGET_REF, "chaseApprover"));
+        this.context.create().resource(PROCESS + "/chaseApprover", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "chaseApprover", "label", "Chase the approver",
+            "performers", new String[] {EngineFixture.REQUESTERS}));
+        this.context.create().resource(PROCESS + "/chaseApprover/toDecision", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "chaseToDecision", TARGET_REF, "decision"));
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        // The approval is untouched and there are now two things to do
+        assertEquals("created", read(TASK).get("status"));
+        assertEquals("created", read(HOST + "/wf:instances/timeOffRequest/chaseApprover").get("status"));
+        assertEquals("active", read(HOST + "/wf:instances/timeOffRequest").get("status"));
+        // Recorded as spent, and nothing is counting down any more, which is what stops the sweep delivering it again
+        assertArrayEquals(new String[] {"approvalSlow"}, (String[]) read(TASK).get("firedEvents"));
+        assertNull(read(TASK).get("dueDate"));
+        assertNull(read(TASK).get("dueEventId"));
+    }
+
+    @Test
+    void armsTheNextDeadlineOnceAReminderHasFired() throws Exception
+    {
+        // "Remind them after a day and a half, give up after five days": the second deadline is measured from when
+        // the task started, not from when the reminder went out
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("PT36H", "approvalSlow", null, false);
+        watchApprovalWith("P5D", "approvalOverdue", "expired");
+        final WorkflowEngine engine = started();
+        final Calendar started = (Calendar) read(TASK).get("startTime");
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        assertEquals("approvalOverdue", read(TASK).get("dueEventId"));
+        final Calendar due = (Calendar) read(TASK).get("dueDate");
+        final Calendar fromTheStart = (Calendar) started.clone();
+        fromTheStart.add(Calendar.DATE, 5);
+        assertEquals(fromTheStart.getTimeInMillis(), due.getTimeInMillis());
+
+        // And the later deadline still gives up on the task when it passes
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        assertEquals("cancelled", read(TASK).get("status"));
+        assertEquals(Set.of("expired"), hostTags());
+    }
+
+    @Test
+    void deliversAReminderOnlyOnce() throws Exception
+    {
+        // The sweep looks for tasks whose deadline has passed, and a task a non-interrupting event fired on is still
+        // open; nothing is counting down to it any more, so there is nothing left to deliver
+        createProcess(EngineFixture.REQUESTERS);
+        watchApprovalWith("PT36H", "approvalSlow", null, false);
+        final WorkflowEngine engine = started();
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT);
+
+        assertThrows(NoApplicableWorkflowException.class,
+            () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), TIMEOUT));
+        assertEquals("created", read(TASK).get("status"));
+    }
+
+    @Test
     void refusesADeadlineNothingIsCountingDownTo() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
@@ -286,14 +357,31 @@ class UserWorkflowTest
      */
     private void watchApprovalWith(final String duration, final String elementId, final String endTag)
     {
+        watchApprovalWith(duration, elementId, endTag, true);
+    }
+
+    /**
+     * Attaches a boundary timer to the approval task, leading to an end event of its own.
+     *
+     * @param duration how long the timer waits, as an ISO-8601 duration
+     * @param elementId the timer's element identifier
+     * @param endTag the tag the end event it leads to places on the host, or {@code null} for none
+     * @param interrupting whether firing gives up on the task, or leaves it running alongside
+     */
+    private void watchApprovalWith(final String duration, final String elementId, final String endTag,
+        final boolean interrupting)
+    {
         final String timer = PROCESS + "/" + APPROVE + "/" + elementId;
         this.context.create().resource(timer, Map.of(
             TYPE, IntermediateCatchingEvent.RESOURCE_TYPE, ELEMENT_ID, elementId,
-            "timerDuration", duration, "interrupting", true));
+            "timerDuration", duration, "interrupting", interrupting));
         this.context.create().resource(timer + "/toEnd" + elementId, Map.of(
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toEnd" + elementId, TARGET_REF, "end" + elementId));
-        this.context.create().resource(PROCESS + "/end" + elementId, Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end" + elementId, "hostTag", endTag));
+        // A branch that runs beside the work rather than instead of it says nothing about the host's state, so it
+        // gets no tag: passing null is how a caller says the end event is not a lifecycle step
+        this.context.create().resource(PROCESS + "/end" + elementId, endTag == null
+            ? Map.of(TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end" + elementId)
+            : Map.of(TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "end" + elementId, "hostTag", endTag));
     }
 
     /**
