@@ -896,6 +896,15 @@ REFERENCE.
 — a `POST` to `<submission>.save.json` — is a workflow event like any other. Whose
 request it is, and whether it is still a draft, is decided by its handler.
 
+The definition runs `saveAnswers` (write the answers), then `validateAnswers` (put them
+past every registered `AnswerValidator`), then `markCompleteness` (record whether
+anything the schema still asks for is unanswered, as the `incomplete` tag). Each step can
+refuse, and a refusal reverts the whole run, so the tag is only written for answers that
+were accepted. A required question that a condition hides is not missing. The tag is a
+system tag in its own `completeness` category, so nobody can place it by hand and it does
+not displace the lifecycle state. A control offering to send a request refuses while it
+is there.
+
 ## Content workflows: the part that persists
 
 A content workflow outlives the request, because the next thing to happen is a person

@@ -19,7 +19,7 @@
 import { useState } from "react";
 
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
-import { Button, Stack } from "@mui/material";
+import { Button, Stack, Tooltip } from "@mui/material";
 
 import { useNotice } from "@iap/frontend-commons/components/NoticeSnackbar";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
@@ -41,7 +41,13 @@ import { useSubmissionTasks } from "./useSubmissionTasks";
 // business, and a control they can see and not press says it just as plainly. The engine still
 // decides the act itself. And only tasks with nothing to decide: an approval needs somewhere to
 // say why, which belongs with the review screen rather than in two more buttons here.
-function SubmissionTasks({ path, onCompleted }: { path: string; onCompleted?: () => void }) {
+//
+// `blockedReason` says whether the request is ready to be sent at all, which the save workflow has
+// already recorded on the submission. The caller passes it, since it already holds the submission.
+function SubmissionTasks(
+  { path, blockedReason, onCompleted }:
+  { path: string; blockedReason?: string; onCompleted?: () => void },
+) {
   const { tasks, reload } = useSubmissionTasks(path);
   const doFetch = useAuthenticatedFetch();
   const notify = useNotice();
@@ -64,15 +70,19 @@ function SubmissionTasks({ path, onCompleted }: { path: string; onCompleted?: ()
   return (
     <Stack direction="row" spacing={1}>
       { offered.map(task => (
-        <Button
-          key={task.path}
-          variant="contained"
-          startIcon={<SendOutlinedIcon />}
-          disabled={busy}
-          onClick={() => complete(task)}
-        >
-          {task.label}
-        </Button>
+        // Wrapped, because a disabled button fires no events and so shows no tooltip of its own
+        <Tooltip key={task.path} title={blockedReason ?? ""}>
+          <span>
+            <Button
+              variant="contained"
+              startIcon={<SendOutlinedIcon />}
+              disabled={busy || blockedReason != undefined}
+              onClick={() => complete(task)}
+            >
+              {task.label}
+            </Button>
+          </span>
+        </Tooltip>
       )) }
     </Stack>
   );

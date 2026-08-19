@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { NoticeProvider } from "@iap/frontend-commons/components/NoticeSnackbar";
@@ -74,6 +74,24 @@ describe("SubmissionTasks", () => {
     expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
     // The container alone, its references left as paths, and the events the reader may send each task
     expect(fetchMock.mock.calls[0][0]).toBe(PATH + "/wf:instances.deep.simple.-dereference.events.json");
+  });
+
+  it("refuses to offer the step while the request is not ready to be sent", async () => {
+    // The one thing this control decides for itself, and it is not about who may act: whether there is
+    // anything left to answer, which the save workflow has already worked out
+    const fetchMock = repository(waitingOn(SEND));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionTasks path={PATH} blockedReason="Answer everything this request asks for." />);
+    const button = await screen.findByRole("button", { name: /Say when you want/ });
+
+    expect(button).toBeDisabled();
+    // The reason has to be reachable: a disabled button fires no events, so it hangs on the wrapper
+    fireEvent.mouseOver(button.parentElement!);
+    expect(await screen.findByRole("tooltip"))
+      .toHaveTextContent("Answer everything this request asks for.");
+    // And nothing was sent
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "POST")).toHaveLength(0);
   });
 
   it("completes the task and tells the page, which is what makes it a submit button", async () => {
