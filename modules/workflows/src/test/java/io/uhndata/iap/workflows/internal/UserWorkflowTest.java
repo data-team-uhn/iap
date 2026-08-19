@@ -652,11 +652,11 @@ class UserWorkflowTest
     void raisesTasksCarryingTheDecisionsTheirDefinitionOffers() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        onTheUserTask(Map.of("outcomes", new String[] {"approved", "rejected"}));
+        onTheUserTask(Map.of("outcomeOptions", new String[] {"approved", "rejected"}));
 
         started();
 
-        assertArrayEquals(new String[] {"approved", "rejected"}, (String[]) read(TASK).get("offeredOutcomes"));
+        assertArrayEquals(new String[] {"approved", "rejected"}, (String[]) read(TASK).get("outcomeOptions"));
     }
 
     @Test
@@ -666,7 +666,7 @@ class UserWorkflowTest
 
         started();
 
-        assertEquals(0, ((String[]) read(TASK).get("offeredOutcomes")).length);
+        assertEquals(0, ((String[]) read(TASK).get("outcomeOptions")).length);
     }
 
     @Test
@@ -904,7 +904,7 @@ class UserWorkflowTest
     {
         createProcess(EngineFixture.REQUESTERS);
         this.context.resourceResolver().getResource(PROCESS + "/" + APPROVE)
-            .adaptTo(ModifiableValueMap.class).put("outcomes", new String[] {"approved", "rejected"});
+            .adaptTo(ModifiableValueMap.class).put("outcomeOptions", new String[] {"approved", "rejected"});
         final WorkflowEngine engine = started();
 
         // A blank outcome reads as none, which would let the gateway route on an earlier task's decision
