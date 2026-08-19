@@ -17,8 +17,10 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.ArrayDeque;
 import java.util.Calendar;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,10 +41,7 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.FlowNode;
-import io.uhndata.iap.workflows.models.Gateway;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
-import io.uhndata.iap.workflows.models.SequenceFlow;
-import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -59,7 +58,9 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  * instance and resuming a parked one are the same walk from different starting points, which is why both live
  * here.</p>
  *
- * <p>One token at a time: parallel branches are a later slice, so a gateway picks exactly one way onwards.</p>
+ * <p>An instance holds as many tokens as it has branches in progress. A parallel gateway forks one into several
+ * and joins them back, so the walk is a queue of positions to advance rather than a single path, and the instance
+ * finishes when the last token is spent rather than when the first end event is reached.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -72,14 +73,23 @@ final class InstanceRunner
     /** The name of the container a {@code wf:WorkflowAttachable} host keeps its instances in. */
     static final String INSTANCES = "wf:instances";
 
-    /** How many nodes one delivery may pass through before the definition is declared broken. */
-    private static final int MAX_STEPS = 50;
+    /**
+     * How many nodes one delivery may pass through before the definition is declared broken. Counted across every
+     * branch of the delivery rather than along one path, since a fork multiplies the visits: it bounds the whole
+     * walk, which is what has to terminate.
+     */
+    private static final int MAX_STEPS = 200;
 
     private static final String TYPE = "jcr:primaryType";
 
     private static final String STATUS = "status";
 
     private static final String COMPLETED = "completed";
+
+    /** The status a task carries until it is completed or cancelled. */
+    private static final String OPEN = "created";
+
+    private static final String CANCELLED = "cancelled";
 
     private static final String CURRENT_NODE_ID = "currentNodeId";
 
@@ -93,7 +103,7 @@ final class InstanceRunner
 
     private final String actor;
 
-    private final ConditionEvaluator conditions;
+    private final FlowRouting routing;
 
     /**
      * Constructor.
@@ -109,7 +119,7 @@ final class InstanceRunner
         this.resolver = resolver;
         this.performer = performer;
         this.actor = actor;
-        this.conditions = conditions;
+        this.routing = new FlowRouting(conditions);
     }
 
     /**
@@ -124,15 +134,13 @@ final class InstanceRunner
     Resource start(final Resource host, final WorkflowVersion version)
         throws WorkflowException, PersistenceException
     {
-        final List<StartEvent> starts = version.getStartEvents();
+        final List<? extends FlowNode> starts = version.getStartEvents();
         if (starts.size() != 1) {
             throw new WorkflowDefinitionException("A workflow needs exactly one start event to be instantiated, but "
                 + version.getPath() + " has " + starts.size());
         }
         final Resource instance = createInstance(host, version);
-        final Resource token = this.resolver.create(instance, "token", Map.of(
-            TYPE, "wf:WorkflowToken", CURRENT_NODE_ID, starts.get(0).getElementId()));
-        run(instance, token, starts.get(0));
+        run(instance, createToken(instance, starts.get(0).getElementId()), starts.get(0));
         return instance;
     }
 
@@ -163,11 +171,18 @@ final class InstanceRunner
             setOutcome(instanceResource, outcome);
         }
 
-        run(instanceResource, token, advance(definition, instance));
+        // An activity has exactly one way out, so leaving it is unambiguous; if that way is a gateway, the walk
+        // forks there rather than here
+        run(instanceResource, token, this.routing.targets(definition, instance).get(0));
     }
 
     /**
-     * Walks the instance from a node until it has to stop: a user task to wait at, or an end event to finish on.
+     * Walks the instance from a node until every branch of it has to stop: a user task to wait at, a join still
+     * missing a branch, or an end event to spend the token on.
+     *
+     * <p>A queue rather than a loop along one path, because a fork turns one position into several and each has to
+     * be walked. The order they come out in does not matter: a join fires on the arrival that completes it,
+     * whichever that turns out to be, and the ones before it simply park.</p>
      *
      * @param instance the running instance
      * @param token the token being moved
@@ -178,133 +193,184 @@ final class InstanceRunner
     private void run(final Resource instance, final Resource token, final FlowNode from)
         throws WorkflowException, PersistenceException
     {
-        FlowNode node = from;
-        for (int step = 0; step < MAX_STEPS; step++) {
-            modifiable(token).put(CURRENT_NODE_ID, node.getElementId());
-            if (node.getHostTag() != null) {
-                // On arrival, and for every kind of node: what a host's state is depends on where its process has
-                // got to, so the state changes as the token does. A node the walk only passes through therefore
-                // leaves a state that lasts an instant, which is exactly right — the lasting ones are on the nodes
-                // execution stops at, and those are the ones anybody ever sees.
-                HostLifecycle.record(hostOf(instance), node);
+        final Deque<Step> pending = new ArrayDeque<>();
+        pending.add(new Step(token, from));
+        int budget = MAX_STEPS;
+        while (!pending.isEmpty()) {
+            if (budget-- <= 0) {
+                throw new WorkflowDefinitionException("The instance " + instance.getPath() + " did not settle within "
+                    + MAX_STEPS + " steps; its sequence flows probably form a cycle");
             }
-            if (node instanceof EndEvent) {
-                finish(instance, token);
-                return;
-            }
-            if (node instanceof Activity && ((Activity) node).getHandler() == null) {
-                // Nothing can perform it automatically, so it is a user task: park here and wait for a person
-                createTask(instance, (Activity) node);
-                return;
-            }
-            if (node instanceof Activity) {
-                this.performer.perform((Activity) node, instance);
-            } else if (!(node instanceof StartEvent) && !(node instanceof Gateway) && !fired(node)) {
-                throw new WorkflowDefinitionException("The engine cannot yet carry an instance through "
-                    + node.getPath());
-            }
-            node = advance(node, adapt(instance));
+            step(instance, pending.remove(), pending);
         }
-        throw new WorkflowDefinitionException("The instance " + instance.getPath() + " did not settle within "
-            + MAX_STEPS + " steps; its sequence flows probably form a cycle");
     }
 
     /**
-     * Whether the walk is standing on a boundary event because it has just fired, rather than having arrived at
-     * something it must wait for.
+     * Advances one token through the node it has reached, enqueuing wherever it goes next.
      *
-     * <p>Position is what tells the two apart, and it is enough: an event attached to an activity is never reached
-     * by an arc — nothing points at it — so the only way execution can be standing there is that the event
-     * happened, and what remains is to leave down its own arc. A free-standing catching event, by contrast, is
-     * reached by an arc and must wait, which is precisely what nothing can yet make it stop doing.</p>
-     *
-     * @param node the node the walk is standing on
-     * @return {@code true} if this is a boundary event that has fired
+     * @param instance the running instance
+     * @param step the token and the node it has reached
+     * @param pending the queue to add the positions this step leads to
+     * @throws WorkflowException when the definition cannot be run
+     * @throws PersistenceException when the instance cannot be written
      */
-    private static boolean fired(final FlowNode node)
+    private void step(final Resource instance, final Step step, final Deque<Step> pending)
+        throws WorkflowException, PersistenceException
     {
-        return node instanceof IntermediateCatchingEvent && ((IntermediateCatchingEvent) node).getActivity() != null;
+        final Resource token = step.token();
+        final FlowNode node = step.node();
+        modifiable(token).put(CURRENT_NODE_ID, node.getElementId());
+        if (node.getHostTag() != null) {
+            // On arrival, and for every kind of node: what a host's state is depends on where its process has
+            // got to, so the state changes as the token does. A node the walk only passes through therefore
+            // leaves a state that lasts an instant, which is exactly right — the lasting ones are on the nodes
+            // execution stops at, and those are the ones anybody ever sees.
+            HostLifecycle.record(hostOf(instance), node);
+        }
+        if (node instanceof EndEvent) {
+            spend(instance, token);
+            return;
+        }
+        if (node instanceof Activity && ((Activity) node).getHandler() == null) {
+            // Nothing can perform it automatically, so it is a user task: park here and wait for a person
+            createTask(instance, (Activity) node);
+            return;
+        }
+        if (node instanceof Activity) {
+            this.performer.perform((Activity) node, instance);
+        } else if (!this.routing.passable(node)) {
+            throw new WorkflowDefinitionException("The engine cannot yet carry an instance through "
+                + node.getPath());
+        }
+        if (!merged(instance, node, token)) {
+            // A join still waiting for another branch; this token stays on it
+            return;
+        }
+        fork(instance, token, node, pending);
     }
 
     /**
-     * Follows a node's outgoing arcs. Everything but a gateway has exactly one; a gateway picks between them.
+     * Whether a token standing on a join may leave it, merging the tokens it synchronises with when it may.
      *
+     * @param instance the running instance
+     * @param node the node the token is standing on
+     * @param token the token that arrived
+     * @return {@code true} if the token may carry on, {@code false} while a branch is still missing
+     * @throws PersistenceException when the merged tokens cannot be removed
+     */
+    private boolean merged(final Resource instance, final FlowNode node, final Resource token)
+        throws PersistenceException
+    {
+        if (!this.routing.synchronises(node)) {
+            return true;
+        }
+        final List<Resource> arrived = tokensAt(instance, node.getElementId());
+        if (arrived.size() < this.routing.branches(node)) {
+            return false;
+        }
+        // The branches are merged back into the one token that carries on; the others have arrived and are done
+        for (final Resource spent : arrived) {
+            if (!spent.getPath().equals(token.getPath())) {
+                this.resolver.delete(spent);
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Leaves a node down every arc it takes, moving the token onto the first and creating one for each of the rest.
+     *
+     * @param instance the running instance
+     * @param token the token leaving the node
      * @param node the node being left
-     * @param instance the running instance, consulted for what a gateway routes on
-     * @return the node the chosen arc leads to
-     * @throws WorkflowDefinitionException when there is no single resolvable way onwards
+     * @param pending the queue to add the resulting positions to
+     * @throws WorkflowException when there is no resolvable way onwards
+     * @throws PersistenceException when a token cannot be written
      */
-    private FlowNode advance(final FlowNode node, final WorkflowInstance instance)
-        throws WorkflowDefinitionException
+    private void fork(final Resource instance, final Resource token, final FlowNode node,
+        final Deque<Step> pending) throws WorkflowException, PersistenceException
     {
-        final List<SequenceFlow> flows = node.getOutgoingFlows();
-        final SequenceFlow chosen =
-            node instanceof Gateway ? choose((Gateway) node, flows, instance) : only(node, flows);
-        final FlowNode next = chosen.getTarget();
-        if (next == null) {
-            throw new WorkflowDefinitionException("The sequence flow " + chosen.getPath() + " points at "
-                + chosen.getTargetRef() + ", which does not exist in this workflow");
+        final List<FlowNode> targets = this.routing.targets(node, adapt(instance));
+        pending.add(new Step(token, targets.get(0)));
+        for (final FlowNode branch : targets.subList(1, targets.size())) {
+            pending.add(new Step(createToken(instance, branch.getElementId()), branch));
         }
-        return next;
     }
 
     /**
-     * The single way out of an ordinary node.
+     * One token's position: the token, and the node it is next to be advanced through.
      *
-     * @param node the node being left
-     * @param flows its outgoing arcs
-     * @return the only arc
-     * @throws WorkflowDefinitionException when there is not exactly one
+     * <p>The node is carried here rather than read back from the token, even though the token records it: a model
+     * adapted from a resource is cached on that resource, so a position written and then read back through the same
+     * resource answers with the one it had before. Carrying it is also simply what the queue is for.</p>
+     *
+     * @param token the token's resource
+     * @param node where it has got to
+     * @version $Id$
+     * @since 0.1.0
      */
-    private SequenceFlow only(final FlowNode node, final List<SequenceFlow> flows)
-        throws WorkflowDefinitionException
+    private record Step(Resource token, FlowNode node)
     {
-        if (flows.size() != 1) {
-            throw new WorkflowDefinitionException(node.getPath() + " has " + flows.size()
-                + " outgoing sequence flows instead of exactly one");
-        }
-        return flows.get(0);
     }
 
     /**
-     * Picks a gateway's outgoing arc: the first whose condition holds, or the one marked as the default when none
-     * does.
+     * The tokens resting on a node.
      *
-     * <p>The condition is the ordinary structured one, evaluated by the conditions module against the
-     * <em>instance</em> — so a guard reads what the execution knows, such as the {@code outcome} the last completed
-     * task recorded, through the {@code variable} operand source. An arc with no condition at all holds trivially,
-     * which is why the default arc is a separate flag rather than simply the unconditional one: a gateway needs a
-     * way to say "otherwise" that does not depend on where in the list it sits.</p>
-     *
-     * @param gateway the gateway being passed
-     * @param flows its outgoing arcs
-     * @param instance the running instance, which is what the conditions are asked about
-     * @return the arc to follow
-     * @throws WorkflowDefinitionException when nothing matches and there is no default
+     * @param instance the running instance
+     * @param elementId the node to look at
+     * @return their resources, in the order the instance holds them
      */
-    private SequenceFlow choose(final Gateway gateway, final List<SequenceFlow> flows,
-        final WorkflowInstance instance) throws WorkflowDefinitionException
+    private List<Resource> tokensAt(final Resource instance, final String elementId)
     {
-        return flows.stream()
-            .filter(flow -> flow.getCondition() != null
-                && this.conditions.isSatisfied(flow.getCondition(), instance))
-            .findFirst()
-            .or(() -> flows.stream().filter(SequenceFlow::isDefault).findFirst())
-            .orElseThrow(() -> new WorkflowDefinitionException("No outgoing sequence flow of " + gateway.getPath()
-                + " has a condition that holds for " + instance.getPath() + ", and none is marked as the default"));
+        return adapt(instance).getTokens().stream()
+            .filter(candidate -> elementId.equals(candidate.getCurrentNodeId()))
+            .map(candidate -> resourceOf(candidate.getPath()))
+            .toList();
     }
 
     /**
-     * Ends the instance: the token is spent and the instance is closed. What finishing this way meant to the host
-     * has already been recorded by the walk that arrived here, the same way it is for any other node.
+     * Creates a token resting on a node. Named freely rather than fixed, since an instance holds one per branch in
+     * progress and they are all alike.
+     *
+     * @param instance the running instance
+     * @param elementId the node it starts on
+     * @return the created token's resource
+     * @throws PersistenceException when it cannot be written
+     */
+    private Resource createToken(final Resource instance, final String elementId) throws PersistenceException
+    {
+        final String name = Objects.requireNonNullElse(NodeNameUtils.findFreeName(instance, "token"), "token");
+        return this.resolver.create(instance, name, Map.of(
+            TYPE, "wf:WorkflowToken", CURRENT_NODE_ID, elementId));
+    }
+
+    /**
+     * Spends a token on the end event it reached: that branch is over. The instance is closed only once the last
+     * token is gone, since an end event ends a branch rather than the process — a diagram with two of them, or one
+     * reached by two branches, is finished when nothing is left running.
+     *
+     * <p>What arriving here meant to the host has already been recorded by the walk, the same way it is for any
+     * other node.</p>
      *
      * @param instance the running instance
      * @param token the token that arrived
      * @throws PersistenceException when the instance cannot be written
      */
-    private void finish(final Resource instance, final Resource token) throws PersistenceException
+    private void spend(final Resource instance, final Resource token) throws PersistenceException
     {
         this.resolver.delete(token);
+        if (adapt(instance).getTokens().isEmpty()) {
+            close(instance);
+        }
+    }
+
+    /**
+     * Marks an instance as finished.
+     *
+     * @param instance the instance to close
+     */
+    private void close(final Resource instance)
+    {
         final ModifiableValueMap properties = modifiable(instance);
         properties.put(STATUS, COMPLETED);
         properties.put(END_TIME, Calendar.getInstance());
@@ -331,7 +397,7 @@ final class InstanceRunner
             // Recorded for the same reason, and resolved here because "@creator" is a question about this host
             // that nothing reading the task later is holding the host to ask
             "performers", PerformerCheck.resolve(hostOf(instance), activity.getPerformers()).toArray(String[]::new),
-            STATUS, "created",
+            STATUS, OPEN,
             START_TIME, Calendar.getInstance()));
         arm(activity, properties);
         this.resolver.create(instance, name, properties);
@@ -387,7 +453,7 @@ final class InstanceRunner
         final Resource token = tokenAt(instanceResource, definition.getElementId());
 
         final ModifiableValueMap properties = modifiable(resourceOf(task.getPath()));
-        properties.put(STATUS, "cancelled");
+        properties.put(STATUS, CANCELLED);
         properties.put(END_TIME, Calendar.getInstance());
         // Deliberately no assignee and no outcome: nobody did this, and nothing was decided. A gateway reading the
         // outcome downstream therefore sees whatever the last decision was, or nothing at all, which is why a
