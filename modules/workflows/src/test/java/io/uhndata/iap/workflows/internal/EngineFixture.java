@@ -281,6 +281,37 @@ public final class EngineFixture
     }
 
     /**
+     * The same target, seen through a resolver that reports the user's name as they typed it at login rather than
+     * as the repository resolved it. The divergence is real — a login resolves case-insensitively — and it is what
+     * separates a test that asserts the engine picks the right one from a test that only asserts it picks
+     * something.
+     *
+     * @param target a target built by {@link #createTarget(SlingContext, String)}, whose session is already
+     *            masked with the canonical id
+     * @param spelling what Sling should report the user id to be
+     * @return the target, disagreeing with itself about who is asking
+     */
+    static Resource typedAtLogin(final Resource target, final String spelling)
+    {
+        final ResourceResolver resolver = new ResourceResolverWrapper(target.getResourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return spelling;
+            }
+        };
+        return new ResourceWrapper(target)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return resolver;
+            }
+        };
+    }
+
+    /**
      * A resolver factory handing out the engine's service session, wrapped so that it can be asked who the
      * repository's users are. The mock repository has no user store at all, so without this every event would
      * fail as "the repository cannot be asked who its users are" rather than exercising the check.
