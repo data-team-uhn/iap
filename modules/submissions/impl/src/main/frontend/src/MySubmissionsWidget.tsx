@@ -30,9 +30,13 @@ import NewSubmissionDialog from "./NewSubmissionDialog";
 import SubmissionActions from "./SubmissionActions";
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
-// Only the submissions created by the current user; `@me` is resolved server-side. Deliberately
-// `createdBy` and not `jcr:createdBy`: submissions are written by the workflow engine's own service
-// user, so the JCR property names the engine, and the person it acted for is recorded separately.
+// Only the submissions created by the current user; `@me` is resolved server-side.
+//
+// `createdBy` and not `jcr:createdBy`: every submission is raised through the workflow engine, which
+// writes as its own service user, so the JCR property names the engine and the person it acted for is
+// recorded separately. And `jcr:createdBy` is not worth ORing in as a fallback either, which is the
+// tempting mistake: it could only match content a user's own session wrote directly, which the engine
+// exists to prevent, while seeded content carries `sling-jcr-content-loader` there and matches nobody.
 const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "createdBy", value: "@me" }];
 
 // One dashboard widget extension, as the dashboard hands it to the widget it renders.
