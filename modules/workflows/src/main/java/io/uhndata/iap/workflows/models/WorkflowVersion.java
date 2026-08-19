@@ -141,7 +141,7 @@ public class WorkflowVersion extends Entity
      * top-level nodes are listed; the boundary events attached to an {@link Activity} are reached through it.
      *
      * <p>A child carrying one of the abstract resource types is left out rather than guessed at — see
-     * {@link FlowNode#isConcrete}.</p>
+     * {@link ModelDispatch#isConcrete}.</p>
      *
      * @return a list of flow nodes, empty if this version has not been parsed
      */
@@ -149,7 +149,7 @@ public class WorkflowVersion extends Entity
     public List<FlowNode> getFlowNodes()
     {
         return this.getChildren(FlowNode.RESOURCE_TYPE, FlowNode.class).stream()
-            .filter(FlowNode::isConcrete)
+            .filter(ModelDispatch::isConcrete)
             .toList();
     }
 

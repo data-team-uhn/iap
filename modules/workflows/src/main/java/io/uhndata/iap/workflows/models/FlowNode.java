@@ -19,7 +19,6 @@ package io.uhndata.iap.workflows.models;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import org.apache.sling.api.resource.Resource;
@@ -50,20 +49,6 @@ public abstract class FlowNode extends EntityPart
 {
     /** The {@code sling:resourceType} of a {@code wf:FlowNode} node. */
     public static final String RESOURCE_TYPE = "wf/FlowNode";
-
-    /**
-     * The resource types of the abstract bases of this hierarchy. Each of them has a node under {@code /libs/wf} and
-     * must have one, since that is what the supertype chain of every concrete type is followed through; but each is
-     * also the {@code resourceType} of no model, and no node may carry one as its own, the node types behind them
-     * being {@code abstract}.
-     *
-     * <p>A resource carrying one anyway — which the residual {@code nt:unstructured} children accepted throughout
-     * the tree make possible — matches no model by resource type, and is then handed to whichever implementation
-     * happens to sort first rather than being rejected, silently arriving as an {@link Activity}. Leaving such a
-     * node out is the only answer that does not invent a meaning for it.</p>
-     */
-    private static final Set<String> ABSTRACT_RESOURCE_TYPES =
-        Set.of(RESOURCE_TYPE, Event.RESOURCE_TYPE, Gateway.RESOURCE_TYPE, IntermediateEvent.RESOURCE_TYPE);
 
     @ValueMapValue
     private String elementId;
@@ -203,22 +188,8 @@ public abstract class FlowNode extends EntityPart
     public List<FlowNode> getNestedNodes()
     {
         return this.getChildren(RESOURCE_TYPE, FlowNode.class).stream()
-            .filter(FlowNode::isConcrete)
+            .filter(ModelDispatch::isConcrete)
             .toList();
-    }
-
-    /**
-     * Whether a flow node is of a type some model actually stands for, rather than one of the
-     * {@link #ABSTRACT_RESOURCE_TYPES abstract bases}. Adapting is not a type filter on its own, and the resource
-     * type check that guards {@link #getChildren} only says the node is <em>a</em> flow node, not that the model it
-     * arrived as is the one its type calls for.
-     *
-     * @param node the flow node to check
-     * @return {@code true} if the node's own resource type is a concrete one
-     */
-    static boolean isConcrete(@NotNull final FlowNode node)
-    {
-        return !ABSTRACT_RESOURCE_TYPES.contains(node.getType());
     }
 
     /**

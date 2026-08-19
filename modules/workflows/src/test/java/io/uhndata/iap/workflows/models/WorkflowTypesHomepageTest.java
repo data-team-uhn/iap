@@ -31,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.autodoc.api.AutoDocumentable;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.SUPER_TYPE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -134,6 +135,36 @@ class WorkflowTypesHomepageTest
         assertEquals(3, homepage.getFlowNodeTypes().size());
         // The lookup by name has to agree with the listing, or an entry would be reachable one way but not the other
         assertNull(homepage.getFlowNodeType("Abstract"));
+    }
+
+    @Test
+    void ignoresAnEntryOfAnyOtherAbstractType()
+    {
+        // The check must not depend on knowing which types are abstract: a base added between wf:FlowNodeType and
+        // the concrete kinds is the resource type of no model either, and an entry carrying it would otherwise be
+        // mis-adapted just as silently
+        final Resource resource = this.createVocabulary();
+        this.context.create().resource(PATH + "/FutureBase", Map.of(
+            TYPE, "wf/EventType", "label", "Future base", "priority", 0L));
+        final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
+
+        assertEquals(3, homepage.getFlowNodeTypes().size());
+        assertNull(homepage.getFlowNodeType("FutureBase"));
+    }
+
+    @Test
+    void listsAnEntryOfAKindDerivedFromAConcreteOne()
+    {
+        // A deployment adding a node type under one of the concrete kinds, without a model of its own, gets that
+        // kind's model — which is the right one for it, so the entry belongs in the catalogue
+        final Resource resource = this.createVocabulary();
+        this.context.create().resource(PATH + "/Derived", Map.of(
+            TYPE, "wf/DerivedActivityType", SUPER_TYPE, ActivityType.RESOURCE_TYPE,
+            "label", "Derived", "priority", 0L, "xmlElement", "bpmn:userTask", "jcrNodeType", "wf:Activity"));
+        final WorkflowTypesHomepage homepage = resource.adaptTo(WorkflowTypesHomepage.class);
+
+        assertEquals(4, homepage.getFlowNodeTypes().size());
+        assertNotNull(homepage.getFlowNodeType("Derived"));
     }
 
     @Test
