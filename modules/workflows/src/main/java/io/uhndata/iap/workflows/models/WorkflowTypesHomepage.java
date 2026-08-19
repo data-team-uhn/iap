@@ -35,12 +35,9 @@ import io.uhndata.iap.entities.models.EntityHomepage;
  * A Sling Model wrapping a {@code wf:WorkflowTypesHomepage} node, the root container of the
  * {@code /WorkflowTypes} tree: the vocabulary of everything a workflow graph may be built out of.
  *
- * <p>It documents itself, so the catalogue is served at {@code /WorkflowTypes.doc.json} and
- * {@code /WorkflowTypes.doc.md}. Its heading comes from the {@code title} and {@code description} properties,
- * autocreated from the defaults declared by the {@code wf:WorkflowTypesHomepage} node type and editable by a
- * deployment wanting to reword it. The JSON form is not just prose: it is what the visual BPMN editor reads to build
- * its toolbars, grouped by the {@link FlowNodeType#getDocumentationCategories() categories} declared here, which
- * is why the shape of that output is a contract and not an implementation detail.</p>
+ * <p>It documents itself, and the JSON it serves is not just prose: it is what the visual BPMN editor reads to
+ * build its toolbars, grouped by the {@link FlowNodeType#getDocumentationCategories() categories} declared here,
+ * which is why the shape of that output is a contract and not an implementation detail.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -103,9 +100,8 @@ public class WorkflowTypesHomepage extends EntityHomepage implements AutoDocumen
     }
 
     /**
-     * The heading of the served catalogue. Autocreated by the node type, so the fallback is only reached by a node
-     * of another type carrying this one's resource type, or by a deployment that deleted rather than reworded the
-     * property — neither of which may take the catalogue down, since serving it is what the editor's toolbars need.
+     * The heading of the served catalogue, falling back on the node name rather than failing: a heading nobody set
+     * must not take down the catalogue the editor's toolbars are built from.
      *
      * @return the configured title, or the node name if none is set
      */

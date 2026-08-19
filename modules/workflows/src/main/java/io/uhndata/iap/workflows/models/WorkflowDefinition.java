@@ -29,8 +29,8 @@ import io.uhndata.iap.entities.models.Entity;
 
 /**
  * A Sling Model wrapping a {@code wf:WorkflowDefinition} node: a named process whose actual graph lives in its
- * {@link WorkflowVersion versions}. Mirrors the way a schema holds its versions, and, in the same way, what an
- * instance runs against is always a specific version rather than the definition itself.
+ * {@link WorkflowVersion versions}. What an instance runs against is always a specific version, never the
+ * definition itself.
  *
  * @version $Id$
  * @since 0.1.0
