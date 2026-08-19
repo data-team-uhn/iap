@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
 import java.util.Deque;
@@ -485,7 +486,7 @@ final class InstanceRunner
             "performers", PerformerCheck.resolve(hostOf(instance), activity.getPerformers()).toArray(String[]::new),
             STATUS, OPEN,
             START_TIME, Calendar.getInstance()));
-        arm(activity, properties);
+        arm(activity, (Calendar) properties.get(START_TIME), List.of(), properties);
         this.resolver.create(instance, name, properties);
     }
 
@@ -497,22 +498,31 @@ final class InstanceRunner
      * answer a different question — how long the wait is, not when it ends. It also puts the deadline where
      * anything looking for overdue work can see it without running the engine.</p>
      *
-     * <p>The earliest of several timers wins, since that is the one that will actually fire; the rest would have
-     * needed a token each anyway.</p>
+     * <p>The earliest timer that has not already fired wins, since that is the one that will actually fire next. A
+     * task can outlive one of its deadlines now that a non-interrupting event leaves it open, so which timers are
+     * spent is part of the answer, and the durations are measured from when the task started rather than from now:
+     * "remind them after three days, give up after five" means five days from the start, not from the reminder.</p>
      *
      * @param activity the user task being raised
+     * @param started when the task began waiting, which every deadline is measured from
+     * @param fired the events that have already fired and are not to be armed again
      * @param properties the task's properties, added to in place
      */
-    private static void arm(final Activity activity, final Map<String, Object> properties)
+    private static void arm(final Activity activity, final Calendar started, final List<String> fired,
+        final Map<String, Object> properties)
     {
         activity.getBoundaryEvents().stream()
-            .filter(event -> event.getTimerDuration() != null)
+            .filter(event -> event.getTimerDuration() != null && !fired.contains(event.getElementId()))
             .min(Comparator.comparing(IntermediateCatchingEvent::getTimerDuration))
-            .ifPresent(timer -> {
-                final Calendar due = Calendar.getInstance();
+            .ifPresentOrElse(timer -> {
+                final Calendar due = (Calendar) started.clone();
                 due.add(Calendar.SECOND, (int) Objects.requireNonNull(timer.getTimerDuration()).toSeconds());
                 properties.put("dueDate", due);
                 properties.put("dueEventId", timer.getElementId());
+            }, () -> {
+                // Nothing is counting down to it any more, which is what stops the sweep looking at it again
+                properties.remove("dueDate");
+                properties.remove("dueEventId");
             });
     }
 
@@ -520,8 +530,10 @@ final class InstanceRunner
      * Fires the boundary timer a task's deadline belongs to: the task is cancelled, and execution leaves down the
      * timer's own arc rather than the activity's.
      *
-     * <p>Only an interrupting timer can be fired this way, which for now is every timer: a non-interrupting one
-     * leaves the work in progress and starts a second path beside it, and an instance has one token.</p>
+     * <p>An interrupting timer gives up on the work: the task is cancelled and its own token leaves down the timer's
+     * arc. A non-interrupting one does not — the work carries on, and the timer's arc is a <em>second</em> branch
+     * beside it, with a token of its own. "Remind them after three days" and "give up after five" are different
+     * processes, and which one a diagram means is the only thing {@code interrupting} says.</p>
      *
      * @param task the task whose deadline has passed
      * @param timer the boundary event counting down to it
@@ -536,15 +548,23 @@ final class InstanceRunner
         final Activity definition = Objects.requireNonNull(task.getDefinition(),
             "A task is only expired once its definition has been found");
         final Resource instanceResource = resourceOf(instance.getPath());
-        final Resource token = tokenAt(instanceResource, definition.getElementId());
-
         final ModifiableValueMap properties = modifiable(resourceOf(task.getPath()));
-        properties.put(STATUS, CANCELLED);
-        properties.put(END_TIME, Calendar.getInstance());
-        // Deliberately no assignee and no outcome: nobody did this, and nothing was decided. A gateway reading the
-        // outcome downstream therefore sees whatever the last decision was, or nothing at all, which is why a
-        // process that wants to know it timed out routes from the timer's own arc rather than on an outcome.
-        run(instanceResource, token, timer);
+
+        if (timer.isInterrupting()) {
+            properties.put(STATUS, CANCELLED);
+            properties.put(END_TIME, Calendar.getInstance());
+            // Deliberately no assignee and no outcome: nobody did this, and nothing was decided. A gateway reading
+            // the outcome downstream therefore sees whatever the last decision was, or nothing at all, which is why
+            // a process that wants to know it timed out routes from the timer's own arc rather than on an outcome.
+            run(instanceResource, tokenAt(instanceResource, definition.getElementId()), timer);
+            return;
+        }
+        // The task keeps its own token and stays on somebody's desk; what the deadline starts is a branch beside it
+        final List<String> fired = new ArrayList<>(task.getFiredEvents());
+        fired.add(timer.getElementId());
+        properties.put("firedEvents", fired.toArray(String[]::new));
+        arm(definition, Objects.requireNonNullElseGet(task.getStartTime(), Calendar::getInstance), fired, properties);
+        run(instanceResource, createToken(instanceResource, timer.getElementId()), timer);
     }
 
     /**
