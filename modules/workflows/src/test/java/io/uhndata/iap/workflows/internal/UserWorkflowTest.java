@@ -577,13 +577,13 @@ class UserWorkflowTest
     void raisesTasksCarryingTheDecisionsTheirDefinitionOffers() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
-        onTheUserTask(Map.of("outcomes", new String[] {"approved", "rejected"}));
+        onTheUserTask(Map.of("outcomeOptions", new String[] {"approved", "rejected"}));
 
         started();
 
         // Copied onto the task, so that what it may be decided with can be read without reading the definition
         assertArrayEquals(new String[] {"approved", "rejected"},
-            (String[]) read(TASK).get("offeredOutcomes"));
+            (String[]) read(TASK).get("outcomeOptions"));
     }
 
     @Test
@@ -593,7 +593,7 @@ class UserWorkflowTest
 
         started();
 
-        assertEquals(0, ((String[]) read(TASK).get("offeredOutcomes")).length);
+        assertEquals(0, ((String[]) read(TASK).get("outcomeOptions")).length);
     }
 
     @Test

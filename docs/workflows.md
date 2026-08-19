@@ -112,7 +112,7 @@ Several things exist for the engine rather than for the diagram:
 - **`handler` on an activity** names the service task handler that performs it. An
   activity naming none is a user task: nothing can perform it automatically, so it waits
   for a person.
-- **`outcomes` on an activity** lists the decisions that person may complete the task
+- **`outcomeOptions` on an activity** lists the decisions that person may complete the task
   with — the values a gateway downstream then routes on. Declared because a task list has
   to know what to offer: the only other record of which outcomes exist is the
   `cond:condition` on some later gateway's arcs, which is where they are *consumed* rather
@@ -204,7 +204,7 @@ deleted along with it:
         ├── t1                      wf:WorkflowToken      currentNodeId
         ├── requestedDays           wf:Variable           dataType, longValue
         └── approve_1               wf:TaskInstance       taskDefinitionId, label, assignee, status,
-                                                          outcome, offeredOutcomes, performers
+                                                          outcome, outcomeOptions, performers
 ```
 
 A **token** is one branch of an execution and the single fact of where it has got to.
@@ -221,7 +221,7 @@ because a task is something people go looking for: "what is on my desk" should b
 query over these, not a walk of every running workflow. Its `outcome` is recorded
 separately from its `status` because the two answer different questions — the status
 says the task is over, the outcome says how, and the gateway downstream routes on the
-latter. The terms it is decided on — `offeredOutcomes` and `performers` — are copied
+latter. The terms it is decided on — `outcomeOptions` and `performers` — are copied
 onto it from its defining activity as it is raised, rather than looked up: a task is
 decided on the terms it was raised with rather than on terms the definition may have
 grown since, and whoever owes the decision can rarely read the definition at all. Those
@@ -561,14 +561,14 @@ the same `performers` mechanism as everywhere else, asked one step later — of 
 *defining activity* rather than of a start event. Seeing a task and being allowed to
 decide it are different questions, and this is where the second is answered.
 
-**A user task says what it may be decided with.** `outcomes` on the activity lists the
-decisions on offer, and the engine copies them onto each task it raises as
-`offeredOutcomes`. Copied rather than looked up, for the same reason the label is: a task
-is decided on the terms it was raised with, and whoever has to do it can read the task
-without being able to read the definition. A task that offers none is one there is
-*nothing* to decide about — it is done or it is not — and that distinction is what a task
-list needs, because a plain "done" button on a task that expected a decision would
-silently take the default arc of the gateway after it.
+**A user task says what it may be decided with.** `outcomeOptions` on the activity lists the
+decisions on offer, and the engine copies them onto each task it raises under the same
+name. Copied rather than looked up, for the same reason the label is: a task is decided
+on the terms it was raised with, and whoever has to do it can read the task without being
+able to read the definition. A task that offers none is one there is *nothing* to decide
+about — it is done or it is not — and that distinction is what a task list needs, because
+a plain "done" button on a task that expected a decision would silently take the default
+arc of the gateway after it.
 
 **A user task also says who it is waiting for.** The engine records the defining
 activity's `performers` onto each task it raises, and answers `@creator` against the host

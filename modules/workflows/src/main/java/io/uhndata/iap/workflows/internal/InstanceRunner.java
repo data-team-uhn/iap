@@ -482,7 +482,7 @@ final class InstanceRunner
         properties.put("label", Objects.requireNonNullElse(activity.getLabel(), activity.getElementId()));
         // Copied so the task states its own terms: whoever has to do it can read it without being able to read
         // the definition, and what it offers cannot change under them while it waits
-        properties.put("offeredOutcomes", activity.getOutcomes().toArray(String[]::new));
+        properties.put("outcomeOptions", activity.getOutcomeOptions().toArray(String[]::new));
         // Recorded for the same reason, and resolved here because "@creator" is a question about this host
         // that nothing reading the task later is holding the host to ask
         properties.put("performers",
