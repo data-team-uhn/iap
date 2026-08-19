@@ -67,7 +67,7 @@ import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 
-import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.JCR_PRIMARY_TYPE_PROPERTY;
 
 /**
  * Shared setup for the engine tests: the {@code /Workflows} homepage events are aimed at, builders for system
@@ -230,9 +230,40 @@ final class EngineFixture
      */
     static Resource createTarget(final SlingContext context, final String actor)
     {
-        final Resource homepage = context.create().resource("/Workflows", TYPE, WorkflowsHomepage.RESOURCE_TYPE);
+        final Resource homepage = context.create().resource("/Workflows", JCR_PRIMARY_TYPE_PROPERTY, WorkflowsHomepage.RESOURCE_TYPE);
         final ResourceResolver resolver = actingAs(homepage.getResourceResolver(), actor);
         return new ResourceWrapper(homepage)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return resolver;
+            }
+        };
+    }
+
+    /**
+     * The same target, seen through a resolver that reports the user's name as they typed it at login rather than
+     * as the repository resolved it. The divergence is real — a login resolves case-insensitively — and it is what
+     * separates a test that asserts the engine picks the right one from a test that only asserts it picks
+     * something.
+     *
+     * @param target a target built by {@link #createTarget(SlingContext, String)}, whose session is already
+     *            masked with the canonical id
+     * @param spelling what Sling should report the user id to be
+     * @return the target, disagreeing with itself about who is asking
+     */
+    static Resource typedAtLogin(final Resource target, final String spelling)
+    {
+        final ResourceResolver resolver = new ResourceResolverWrapper(target.getResourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return spelling;
+            }
+        };
+        return new ResourceWrapper(target)
         {
             @Override
             public ResourceResolver getResourceResolver()
@@ -331,11 +362,11 @@ final class EngineFixture
     {
         final Object primaryType = properties == null ? null : properties.get("jcr:primaryType");
         if (!(primaryType instanceof String) || !((String) primaryType).startsWith("wf:")
-            || properties.containsKey(TYPE)) {
+            || properties.containsKey(JCR_PRIMARY_TYPE_PROPERTY)) {
             return properties;
         }
         final Map<String, Object> stamped = new HashMap<>(properties);
-        stamped.put(TYPE, ((String) primaryType).replace(':', '/'));
+        stamped.put(JCR_PRIMARY_TYPE_PROPERTY, ((String) primaryType).replace(':', '/'));
         return stamped;
     }
 
@@ -462,15 +493,15 @@ final class EngineFixture
     static void createSystemWorkflow(final SlingContext context, final boolean definitionActive,
         final boolean versionActive, final String targetResourceType)
     {
-        context.create().resource(SystemWorkflowsHomepage.PATH, TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
+        context.create().resource(SystemWorkflowsHomepage.PATH, JCR_PRIMARY_TYPE_PROPERTY, SystemWorkflowsHomepage.RESOURCE_TYPE);
         context.create().resource(WORKFLOW, Map.of(
-            TYPE, WorkflowDefinition.RESOURCE_TYPE, "title", "Create a workflow", "active", definitionActive));
+            JCR_PRIMARY_TYPE_PROPERTY, WorkflowDefinition.RESOURCE_TYPE, "title", "Create a workflow", "active", definitionActive));
         if (targetResourceType == null) {
             context.create().resource(VERSION, Map.of(
-                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive));
+                JCR_PRIMARY_TYPE_PROPERTY, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive));
         } else {
             context.create().resource(VERSION, Map.of(
-                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive,
+                JCR_PRIMARY_TYPE_PROPERTY, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive,
                 "targetResourceType", targetResourceType));
         }
     }
@@ -486,16 +517,16 @@ final class EngineFixture
     static void createBootstrapGraph(final SlingContext context, final String... performers)
     {
         context.create().resource(VERSION + "/requested", Map.of(
-            TYPE, StartEvent.RESOURCE_TYPE, "elementId", "requested", "messageName", "create",
+            JCR_PRIMARY_TYPE_PROPERTY, StartEvent.RESOURCE_TYPE, "elementId", "requested", "messageName", "create",
             "performers", performers));
         context.create().resource(VERSION + "/requested/toCreate", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "toCreate", "targetRef", "create"));
+            JCR_PRIMARY_TYPE_PROPERTY, SequenceFlow.RESOURCE_TYPE, "elementId", "toCreate", "targetRef", "create"));
         context.create().resource(VERSION + "/create", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "create",
+            JCR_PRIMARY_TYPE_PROPERTY, Activity.RESOURCE_TYPE, "elementId", "create",
             "handler", CreateEntityHandler.HANDLER_NAME, "entityType", "wf:WorkflowDefinition"));
         context.create().resource(VERSION + "/create/toDone", Map.of(
-            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "toDone", "targetRef", "done"));
+            JCR_PRIMARY_TYPE_PROPERTY, SequenceFlow.RESOURCE_TYPE, "elementId", "toDone", "targetRef", "done"));
         context.create().resource(VERSION + "/done", Map.of(
-            TYPE, EndEvent.RESOURCE_TYPE, "elementId", "done"));
+            JCR_PRIMARY_TYPE_PROPERTY, EndEvent.RESOURCE_TYPE, "elementId", "done"));
     }
 }

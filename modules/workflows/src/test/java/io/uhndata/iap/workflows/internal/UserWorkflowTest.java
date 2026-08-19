@@ -20,6 +20,7 @@ package io.uhndata.iap.workflows.internal;
 import java.lang.reflect.Field;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -629,6 +630,22 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
+
+        assertEquals("completed", read(TASK).get("status"));
+    }
+
+    @Test
+    void admitsThemEvenWhenTheyTypedTheirNameDifferentlyAtLogin() throws Exception
+    {
+        // A login resolves case-insensitively, so the same person arrives as "demo-requester" one day and as
+        // "DEMO-REQUESTER" the next while the repository knows them as one user. @creator compares the actor
+        // against what was recorded when the host was raised, so an actor taken from the spelling would refuse
+        // the very person the task belongs to
+        createProcess(PerformerCheck.CREATOR);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(EngineFixture.typedAtLogin(as(TASK, EngineFixture.REQUESTER),
+            EngineFixture.REQUESTER.toUpperCase(Locale.ROOT)), APPROVED);
 
         assertEquals("completed", read(TASK).get("status"));
     }
