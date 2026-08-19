@@ -28,7 +28,6 @@ import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceWrapper;
-import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -611,14 +610,7 @@ class BranchingTest
     {
         this.context.resourceResolver().refresh();
         final Resource resource = this.context.resourceResolver().getResource(path);
-        final ResourceResolver resolver = new ResourceResolverWrapper(this.context.resourceResolver())
-        {
-            @Override
-            public String getUserID()
-            {
-                return actor;
-            }
-        };
+        final ResourceResolver resolver = EngineFixture.actingAs(this.context.resourceResolver(), actor);
         return new ResourceWrapper(resource)
         {
             @Override
