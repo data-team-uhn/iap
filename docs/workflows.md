@@ -112,10 +112,10 @@ Several things exist for the engine rather than for the diagram:
 - **`handler` on an activity** names the service task handler that performs it. An
   activity naming none is a user task: nothing can perform it automatically, so it waits
   for a person.
-- **`outcomes` on an activity** lists the decisions that person may complete the task
-  with — the values a gateway downstream then routes on. Declared because a task list has
-  to know what to offer. An empty list is a statement rather than a gap — this is a task
-  there is nothing to decide about, done or not done.
+- **`outcomeOptions` on an activity** lists the decisions that person may complete the
+  task with — the values a gateway downstream then routes on. Declared because a task
+  list has to know what to offer. An empty list is a statement rather than a gap — this
+  is a task there is nothing to decide about, done or not done.
 - **`hostTag` on a flow node** is the tag to place on the host when execution reaches
   that node: how a process says what being *here* means to the thing being processed,
   without needing a service task whose only job is to write it down. On any node rather
@@ -201,7 +201,7 @@ deleted along with it:
         ├── t1                      wf:WorkflowToken      currentNodeId
         ├── requestedDays           wf:Variable           dataType, longValue
         └── approve_1               wf:TaskInstance       taskDefinitionId, label, assignee, status,
-                                                          outcome, offeredOutcomes, performers
+                                                          outcome, outcomeOptions, performers
 ```
 
 A **token** is one branch of an execution and the single fact of where it has got to.
@@ -218,7 +218,7 @@ because a task is something people go looking for: "what is on my desk" should b
 query over these, not a walk of every running workflow. Its `outcome` is recorded
 separately from its `status` because the two answer different questions — the status
 says the task is over, the outcome says how, and the gateway downstream routes on the
-latter. The terms it is decided on — `offeredOutcomes` and `performers` — are copied
+latter. The terms it is decided on — `outcomeOptions` and `performers` — are copied
 onto it from its defining activity as it is raised, rather than looked up: a task is
 decided on the terms it was raised with rather than on terms the definition may have
 grown since, and whoever owes the decision can rarely read the definition at all. Those
@@ -606,12 +606,13 @@ the same `performers` mechanism as everywhere else, asked one step later — of 
 decide it are different questions, and this is where the second is answered.
 
 **A user task says what it may be decided with.** The engine copies the activity's
-`outcomes` onto each task it raises, as `offeredOutcomes`, for the same reason it copies
-the label: a task is decided on the terms it was raised with, and whoever has to do it
-can read the task without being able to read the definition. A task that offers none is
-one there is *nothing* to decide about, done or not done, and a task list needs that
-distinction: a plain "done" button on a task that expected a decision would complete it
-with no outcome, and the gateway after it would silently take its default arc.
+`outcomeOptions` onto each task it raises, under the same name, for the same reason it
+copies the label: a task is decided on the terms it was raised with, and whoever has to
+do it can read the task without being able to read the definition. A task that offers
+none is one there is *nothing* to decide about, done or not done, and a task list needs
+that distinction: a plain "done" button on a task that expected a decision would
+complete it with no outcome, and the gateway after it would silently take its default
+arc.
 
 **A user task also says who it is waiting for.** The engine records the activity's
 `performers` onto each task it raises, answering `@creator` against the host as it does,
