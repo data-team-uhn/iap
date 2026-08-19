@@ -17,12 +17,18 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.models.Gateway;
+import io.uhndata.iap.workflows.models.InclusiveGateway;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.ParallelGateway;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -73,29 +79,79 @@ final class FlowRouting
     }
 
     /**
-     * Whether a node is a join that holds tokens until every branch has arrived.
+     * Whether a node is a join that can hold a token until other branches arrive.
      *
-     * <p>Only a parallel gateway does. An exclusive merge is not a synchronisation point at all — each token that
-     * arrives passes straight through, which is what makes it the merge to use after a decision, exactly one branch
-     * of which was ever taken.</p>
+     * <p>A parallel and an inclusive gateway both do, by different rules — see {@link #releases}. An exclusive merge
+     * is not a synchronisation point at all: each token that arrives passes straight through, which is what makes it
+     * the merge to use after a decision, exactly one branch of which was ever taken.</p>
      *
      * @param node the node execution is standing on
-     * @return {@code true} if arriving there means waiting for the others
+     * @return {@code true} if arriving there may mean waiting for the others
      */
     boolean synchronises(final FlowNode node)
     {
-        return node instanceof ParallelGateway && node.getIncomingFlows().size() > 1;
+        return (node instanceof ParallelGateway || node instanceof InclusiveGateway)
+            && node.getIncomingFlows().size() > 1;
     }
 
     /**
-     * How many branches a join is waiting for, which is how many arcs lead into it.
+     * Whether a join has everything it was waiting for.
      *
-     * @param node the join
-     * @return the number of incoming arcs
+     * <p>A parallel join counts: it takes one token per incoming arc, because a parallel fork took every branch and
+     * every branch therefore owes it one. An inclusive join cannot count — its fork took only the branches that
+     * applied, and how many that was is not written anywhere — so it asks the question that actually matters
+     * instead: <em>can any branch still get here?</em> When none of the tokens elsewhere in the instance can reach
+     * it, whatever arrived is all that ever will, and the join releases.</p>
+     *
+     * <p>Asking about reachability rather than remembering the fork is what makes this survive the process being
+     * re-entered, a branch being cut short by a boundary event, or the instance being resumed days later by somebody
+     * else: the answer is read from the graph and the tokens on it, which is all there is to go on.</p>
+     *
+     * @param gateway the join a token is standing on
+     * @param arrived how many tokens are standing on it
+     * @param elsewhere where every other token in the instance has got to
+     * @return {@code true} if the join may release
      */
-    int branches(final FlowNode node)
+    boolean releases(final FlowNode gateway, final int arrived, final List<FlowNode> elsewhere)
     {
-        return node.getIncomingFlows().size();
+        if (gateway instanceof ParallelGateway) {
+            return arrived >= gateway.getIncomingFlows().size();
+        }
+        return elsewhere.stream().noneMatch(node -> canReach(node, gateway.getElementId()));
+    }
+
+    /**
+     * Whether execution standing on one node could still arrive at another by following the graph.
+     *
+     * <p>Boundary events count as ways onwards as well as sequence flows: a token waiting on a task can be taken
+     * away from it by a deadline, and where that leads is somewhere it can still get to. Erring towards "yes" is
+     * the safe direction — it makes an inclusive join wait when it might not have needed to, where erring the other
+     * way would release it while a branch was still coming and leave that branch's token stranded on a join
+     * nothing would look at again.</p>
+     *
+     * @param from where execution is
+     * @param targetId the element identifier being asked about
+     * @return {@code true} if the target is reachable from there
+     */
+    private static boolean canReach(final FlowNode from, final String targetId)
+    {
+        final Set<String> seen = new HashSet<>();
+        final Deque<FlowNode> frontier = new ArrayDeque<>();
+        frontier.add(from);
+        while (!frontier.isEmpty()) {
+            final FlowNode node = frontier.remove();
+            if (targetId.equals(node.getElementId())) {
+                return true;
+            }
+            if (seen.add(node.getElementId())) {
+                node.getOutgoingFlows().stream()
+                    .map(SequenceFlow::getTarget)
+                    .filter(Objects::nonNull)
+                    .forEach(frontier::add);
+                frontier.addAll(node.getNestedNodes());
+            }
+        }
+        return false;
     }
 
     /**
@@ -111,9 +167,14 @@ final class FlowRouting
         throws WorkflowDefinitionException
     {
         final List<SequenceFlow> flows = node.getOutgoingFlows();
-        final List<SequenceFlow> taken = node instanceof ParallelGateway
-            ? all((ParallelGateway) node, flows)
-            : List.of(node instanceof Gateway ? choose((Gateway) node, flows, instance) : only(node, flows));
+        final List<SequenceFlow> taken;
+        if (node instanceof ParallelGateway) {
+            taken = all((ParallelGateway) node, flows);
+        } else if (node instanceof InclusiveGateway) {
+            taken = some((InclusiveGateway) node, flows, instance);
+        } else {
+            taken = List.of(node instanceof Gateway ? choose((Gateway) node, flows, instance) : only(node, flows));
+        }
         for (final SequenceFlow flow : taken) {
             if (flow.getTarget() == null) {
                 throw new WorkflowDefinitionException("The sequence flow " + flow.getPath() + " points at "
@@ -146,6 +207,34 @@ final class FlowRouting
                 + " carries a condition, but a parallel gateway takes every branch regardless");
         }
         return flows;
+    }
+
+    /**
+     * The ways out of an inclusive gateway that apply: every arc whose condition holds, and every arc that carries
+     * no condition at all, since an arc that asks nothing is always taken.
+     *
+     * <p>Falls back on the default arc when nothing applies, the same way an exclusive gateway does — "otherwise"
+     * means the same thing whether one branch is being chosen or several.</p>
+     *
+     * @param gateway the gateway being left
+     * @param flows its outgoing arcs
+     * @param instance the running instance, which is what the conditions are asked about
+     * @return the arcs to follow, never empty
+     * @throws WorkflowDefinitionException when nothing applies and there is no default
+     */
+    private List<SequenceFlow> some(final InclusiveGateway gateway, final List<SequenceFlow> flows,
+        final WorkflowInstance instance) throws WorkflowDefinitionException
+    {
+        final List<SequenceFlow> applicable = flows.stream()
+            .filter(flow -> flow.getCondition() == null
+                || this.conditions.isSatisfied(flow.getCondition(), instance))
+            .toList();
+        if (!applicable.isEmpty()) {
+            return applicable;
+        }
+        return List.of(flows.stream().filter(SequenceFlow::isDefault).findFirst()
+            .orElseThrow(() -> new WorkflowDefinitionException("No outgoing sequence flow of the inclusive gateway "
+                + gateway.getPath() + " applies to " + instance.getPath() + ", and none is marked as the default")));
     }
 
     /**
