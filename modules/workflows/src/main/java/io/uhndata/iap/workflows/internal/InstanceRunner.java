@@ -251,7 +251,7 @@ final class InstanceRunner
             throw new WorkflowDefinitionException("The engine cannot yet carry an instance through "
                 + node.getPath());
         }
-        if (!merged(instance, node, token)) {
+        if (!merged(instance, node, token, pending)) {
             // A join still waiting for another branch; this token stays on it
             return true;
         }
@@ -265,11 +265,12 @@ final class InstanceRunner
      * @param instance the running instance
      * @param node the node the token is standing on
      * @param token the token that arrived
+     * @param pending the queue, which must not be left holding a token that has been merged away
      * @return {@code true} if the token may carry on, {@code false} while a branch is still missing
      * @throws PersistenceException when the merged tokens cannot be removed
      */
-    private boolean merged(final Resource instance, final FlowNode node, final Resource token)
-        throws PersistenceException
+    private boolean merged(final Resource instance, final FlowNode node, final Resource token,
+        final Deque<Step> pending) throws PersistenceException
     {
         if (!this.routing.synchronises(node)) {
             return true;
@@ -282,6 +283,10 @@ final class InstanceRunner
         for (final Resource spent : arrived) {
             if (!spent.getPath().equals(token.getPath())) {
                 this.resolver.delete(spent);
+                // A fork leading straight into its own join queues every branch before any of them is walked, so a
+                // token can be merged away while it is still waiting its turn. Leaving it queued would have the walk
+                // move a token that no longer exists, which a repository is entitled to refuse
+                pending.removeIf(queued -> queued.token().getPath().equals(spent.getPath()));
             }
         }
         return true;
