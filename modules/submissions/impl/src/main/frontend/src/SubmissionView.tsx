@@ -46,6 +46,17 @@ import SubmissionTasks from "./SubmissionTasks";
 // The extension that asks for the editor rather than the read-only page
 const EDIT = ".edit";
 
+// The tag the save workflow places when something the schema asks for has not been answered
+const INCOMPLETE = "incomplete";
+
+// Whether the request is still missing an answer, read from the submission this page already holds
+// rather than by asking for its form: the save workflow worked it out and recorded it.
+function isIncomplete(submission: JsonNode | undefined): boolean {
+  const tags = submission?.tags;
+  // A single-valued property is serialized as a bare string, not as a one-element array
+  return Array.isArray(tags) ? tags.includes(INCOMPLETE) : tags === INCOMPLETE;
+}
+
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) {
     return value.map(entry => formatValue(entry)).join(", ");
@@ -269,6 +280,9 @@ function SubmissionView() {
             looking at it rather than at the bottom of one of the two views. */}
         <SubmissionTasks
           path={path}
+          blockedReason={isIncomplete(submission)
+            ? "Answer everything this request asks for before sending it."
+            : undefined}
           onCompleted={() => {
             // Back to reading it: what was just done has usually made it read-only, and it is what
             // has changed that the person now wants to see

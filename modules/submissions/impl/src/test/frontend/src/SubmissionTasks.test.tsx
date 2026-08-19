@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -65,6 +65,24 @@ describe("SubmissionTasks", () => {
     // The task's label, not a word this component chose: a process that calls sending something
     // else says so here without a line of code changing
     expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
+  });
+
+  it("refuses to offer the step while the request is not ready to be sent", async () => {
+    // The one thing this control decides for itself, and it is not about who may act: whether there is
+    // anything left to answer, which the save workflow has already worked out
+    const fetchMock = repository(waitingOn(SEND));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<SubmissionTasks path={PATH} blockedReason="Answer everything this request asks for." />);
+    const button = await screen.findByRole("button", { name: /Say when you want/ });
+
+    expect(button).toBeDisabled();
+    // The reason has to be reachable: a disabled button fires no events, so it hangs on the wrapper
+    fireEvent.mouseOver(button.parentElement!);
+    expect(await screen.findByRole("tooltip"))
+      .toHaveTextContent("Answer everything this request asks for.");
+    // And nothing was sent
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method === "POST")).toHaveLength(0);
   });
 
   it("completes the task and tells the page, which is what makes it a submit button", async () => {
