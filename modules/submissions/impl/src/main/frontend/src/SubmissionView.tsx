@@ -63,6 +63,15 @@ function fileHref(path: unknown, name: string): string {
   return [...String(path).split("/"), name].map(encodeURIComponent).join("/");
 }
 
+// Who raised this submission. `createdBy` rather than `jcr:createdBy`, and for the same reason the
+// dashboard's "my submissions" filter selects on it: the engine writes every submission as its own
+// service user, so the JCR property credits the engine. It is still the fallback here, where the Java
+// model's own `getCreatedBy()` puts it — a page saying "Created by" and then nothing is worse than one
+// naming whoever did write it, which for seeded content is all there is to say.
+function createdBy(submission: JsonNode): unknown {
+  return submission.createdBy ?? submission["jcr:createdBy"];
+}
+
 // JCR dates are serialized as ISO 8601 strings; anything else is not a date
 function formatDate(value: unknown): string {
   return typeof value === "string" && value !== "" ? new Date(value).toLocaleString() : "";
@@ -342,7 +351,7 @@ function SubmissionView() {
         <Typography color="text.secondary">
           {schemaLabel(schemaVersion)}
           {submission["jcr:created"]
-            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(submission["jcr:createdBy"])}`
+            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(createdBy(submission))}`
             : ""}
           {submission["jcr:lastModified"] ? ` • Last modified ${formatDate(submission["jcr:lastModified"])}` : ""}
         </Typography>

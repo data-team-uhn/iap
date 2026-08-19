@@ -134,7 +134,11 @@ describe("MySubmissionsWidget", () => {
 
     const url = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
     expect(url.pathname).toBe("/Submissions.paginate.json");
-    expect(url.searchParams.getAll("fieldName")).toEqual(["jcr:createdBy"]);
+    // `createdBy` and not `jcr:createdBy`: the engine writes every submission as its own service user,
+    // so the JCR property names the engine on every row and this widget would list nothing. Nor is it
+    // worth ORing in as a fallback — it can only name a user who wrote content directly, which is what
+    // the engine exists to prevent
+    expect(url.searchParams.getAll("fieldName")).toEqual(["createdBy"]);
     expect(url.searchParams.getAll("fieldValue")).toEqual(["@me"]);
     // Newest activity first by default
     expect(url.searchParams.get("sortBy")).toBe("jcr:lastModified");
