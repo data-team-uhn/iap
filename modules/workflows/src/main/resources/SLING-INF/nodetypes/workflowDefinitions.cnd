@@ -337,7 +337,7 @@
   // would be completed with no decision at all and quietly take the default arc.
   // So a task that names no outcomes is one there is nothing to decide about —
   // it is done or it is not — and that is the difference a task list needs.
-  - outcomes (STRING) multiple
+  - outcomeOptions (STRING) multiple
 
   // Any events that can occur while this activity is active. Nesting them here is
   // what makes them boundary events; the same node type standing directly under

@@ -156,7 +156,7 @@
   // on terms the definition may have grown since, and the person doing it cannot
   // necessarily read the definition at all. A task offering none is one there is
   // nothing to decide about — it is done, or it is not.
-  - offeredOutcomes (STRING) multiple
+  - outcomeOptions (STRING) multiple
 
   // The principals who may complete this task, as its defining activity named
   // them when the task was raised, with "@creator" answered against the host so
@@ -164,7 +164,7 @@
   // me" is a question about tasks, answerable without reading the definitions —
   // which the person owing the decision cannot necessarily do. It decides
   // nothing: the definition remains the authority every completion is checked
-  // against, exactly as offeredOutcomes describes rather than enforces.
+  // against, exactly as outcomeOptions describes rather than enforces.
   - performers (STRING) multiple
 
   // The elementIds of the boundary events of this task that have already fired.
