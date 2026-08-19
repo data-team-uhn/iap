@@ -161,6 +161,16 @@
         // principal manager so ACLs can reference them. Must also be listed in the
         // SecurityProviderRegistration.requiredServicePids in oak/oak_base.json.
         "org.apache.jackrabbit.oak.spi.security.authentication.external.impl.principal.ExternalPrincipalConfiguration":{
+        },
+
+        // --- OIDC end-session servlet ---------------------------------------------------------
+        // After OidcLogoutAuthenticationHandler tears down the local session and steers the post-logout
+        // redirect here, this servlet bounces the browser to Keycloak's end_session endpoint (the
+        // front-channel URL, since the browser makes the call) so the provider's SSO session ends too.
+        "io.uhndata.iap.auth.oidc.impl.OidcEndSessionServlet":{
+            "endSessionEndpoint":"$[env:FRONTEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/logout",
+            "clientId":"$[env:KEYCLOAK_CLIENT_ID]",
+            "postLogoutRedirectUri":"$[env:IAP_PUBLIC_URL]/login"
         }
     },
 

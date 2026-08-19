@@ -25,11 +25,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 /**
- * Tests for {@link OidcLogoutAuthenticationHandler}: it must expire the configured session cookie
- * when Sling drops credentials on logout, and otherwise stay out of authentication.
+ * Tests for {@link OidcLogoutAuthenticationHandler}: on an OIDC session it expires the configured
+ * cookie and steers the post-logout redirect; otherwise it stays out of the way, and it never takes
+ * part in authentication.
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,30 +40,75 @@ public class OidcLogoutAuthenticationHandlerTest
 {
     private static final String COOKIE_NAME = "iap.oidc.session";
 
+    private static final String LOGOUT_PATH = "/oidc/logout";
+
+    private static final String RESOURCE_ATTR = "resource";
+
     private OidcLogoutAuthenticationHandler handler;
 
     @BeforeEach
     void setUp()
     {
-        final OidcLogoutConfiguration config = Mockito.mock(OidcLogoutConfiguration.class);
-        Mockito.when(config.cookieName()).thenReturn(COOKIE_NAME);
-        this.handler = new OidcLogoutAuthenticationHandler();
-        this.handler.activate(config);
+        this.handler = handlerWith(LOGOUT_PATH);
     }
 
     @Test
-    void dropCredentialsExpiresTheConfiguredCookie()
+    void dropCredentialsOnOidcSessionExpiresCookieAndSteersRedirect()
     {
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
         final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
-        this.handler.dropCredentials(Mockito.mock(HttpServletRequest.class), response);
+        Mockito.when(request.getCookies()).thenReturn(oidcCookies());
+
+        this.handler.dropCredentials(request, response);
 
         final ArgumentCaptor<Cookie> captor = ArgumentCaptor.forClass(Cookie.class);
         Mockito.verify(response).addCookie(captor.capture());
-        final Cookie cookie = captor.getValue();
-        Assertions.assertEquals(COOKIE_NAME, cookie.getName());
-        Assertions.assertEquals("", cookie.getValue());
-        Assertions.assertEquals("/", cookie.getPath());
-        Assertions.assertEquals(0, cookie.getMaxAge());
+        final Cookie expired = captor.getValue();
+        Assertions.assertEquals(COOKIE_NAME, expired.getName());
+        Assertions.assertEquals("", expired.getValue());
+        Assertions.assertEquals("/", expired.getPath());
+        Assertions.assertEquals(0, expired.getMaxAge());
+        Mockito.verify(request).setAttribute(RESOURCE_ATTR, LOGOUT_PATH);
+    }
+
+    @Test
+    void dropCredentialsIgnoresRequestWithoutTheSessionCookie()
+    {
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
+        Mockito.when(request.getCookies()).thenReturn(new Cookie[] { new Cookie("other", "x") });
+
+        this.handler.dropCredentials(request, response);
+
+        Mockito.verifyNoInteractions(response);
+        Mockito.verify(request, Mockito.never()).setAttribute(ArgumentMatchers.anyString(), ArgumentMatchers.any());
+    }
+
+    @Test
+    void dropCredentialsIgnoresRequestWithNoCookies()
+    {
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
+        Mockito.when(request.getCookies()).thenReturn(null);
+
+        this.handler.dropCredentials(request, response);
+
+        Mockito.verifyNoInteractions(response);
+        Mockito.verify(request, Mockito.never()).setAttribute(ArgumentMatchers.anyString(), ArgumentMatchers.any());
+    }
+
+    @Test
+    void dropCredentialsWithBlankPathExpiresCookieButDoesNotSteer()
+    {
+        final OidcLogoutAuthenticationHandler blankPath = handlerWith("");
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
+        Mockito.when(request.getCookies()).thenReturn(oidcCookies());
+
+        blankPath.dropCredentials(request, response);
+
+        Mockito.verify(response).addCookie(ArgumentMatchers.any());
+        Mockito.verify(request, Mockito.never()).setAttribute(ArgumentMatchers.anyString(), ArgumentMatchers.any());
     }
 
     @Test
@@ -72,5 +119,20 @@ public class OidcLogoutAuthenticationHandlerTest
         Assertions.assertNull(this.handler.extractCredentials(request, response));
         Assertions.assertFalse(this.handler.requestCredentials(request, response));
         Mockito.verifyNoInteractions(request, response);
+    }
+
+    private static OidcLogoutAuthenticationHandler handlerWith(final String postLogoutPath)
+    {
+        final OidcLogoutConfiguration config = Mockito.mock(OidcLogoutConfiguration.class);
+        Mockito.when(config.cookieName()).thenReturn(COOKIE_NAME);
+        Mockito.when(config.postLogoutPath()).thenReturn(postLogoutPath);
+        final OidcLogoutAuthenticationHandler built = new OidcLogoutAuthenticationHandler();
+        built.activate(config);
+        return built;
+    }
+
+    private static Cookie[] oidcCookies()
+    {
+        return new Cookie[] { new Cookie(COOKIE_NAME, "token") };
     }
 }

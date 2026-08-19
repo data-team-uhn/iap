@@ -82,6 +82,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
 
 REDIRECT_URI="${IAP_PUBLIC_URL%/}/system/sling/oauth/callback"
+# Where Keycloak returns the browser after an RP-initiated logout; must match the servlet's
+# post_logout_redirect_uri ($[env:IAP_PUBLIC_URL]/login) and be registered on the client.
+POST_LOGOUT_REDIRECT_URI="${IAP_PUBLIC_URL%/}/login"
 
 # ---- kcadm wrapper -------------------------------------------------------------
 # Runs a kcadm command, either via a local kcadm.sh (KC_CADM) or inside the
@@ -160,14 +163,16 @@ if [[ -z "$CID" ]]; then
         -s serviceAccountsEnabled=false \
         -s "redirectUris=[\"${REDIRECT_URI}\"]" \
         -s "webOrigins=[\"${IAP_PUBLIC_URL%/}\"]" \
+        -s 'attributes."post.logout.redirect.uris"='"${POST_LOGOUT_REDIRECT_URI}" \
         -s 'attributes."pkce.code.challenge.method"=S256' >/dev/null
     CID="$(client_uuid)"
     echo -e "${GREEN}created client '${CLIENT_ID}'${DEFAULT}"
 else
     kc update "clients/${CID}" -r "$REALM" \
         -s "redirectUris=[\"${REDIRECT_URI}\"]" \
-        -s "webOrigins=[\"${IAP_PUBLIC_URL%/}\"]" >/dev/null
-    echo -e "${BLUE}client '${CLIENT_ID}' already exists (redirect URI refreshed)${DEFAULT}"
+        -s "webOrigins=[\"${IAP_PUBLIC_URL%/}\"]" \
+        -s 'attributes."post.logout.redirect.uris"='"${POST_LOGOUT_REDIRECT_URI}" >/dev/null
+    echo -e "${BLUE}client '${CLIENT_ID}' already exists (redirect URIs refreshed)${DEFAULT}"
 fi
 
 # ---- realm-role -> groups claim mapper -----------------------------------------
