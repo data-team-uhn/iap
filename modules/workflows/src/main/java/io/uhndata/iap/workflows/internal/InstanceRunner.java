@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -182,8 +183,11 @@ final class InstanceRunner
      * missing a branch, or an end event to spend the token on.
      *
      * <p>A queue rather than a loop along one path, because a fork turns one position into several and each has to
-     * be walked. The order they come out in does not matter: a join fires on the arrival that completes it,
-     * whichever that turns out to be, and the ones before it simply park.</p>
+     * be walked. Once it empties, a join that could not release when its token arrived may be able to now — the
+     * other branches have moved as far as they can, and an inclusive join is waiting on what can still reach it
+     * rather than on a count — so the queue is refilled from the parked joins and drained again, until nothing can
+     * move at all. That fixed point is what stops the order the branches happen to be walked in from deciding
+     * whether the process gets stuck.</p>
      *
      * @param instance the running instance
      * @param token the token being moved
@@ -205,6 +209,9 @@ final class InstanceRunner
             if (!step(instance, pending.remove(), pending)) {
                 // The whole instance is over, so whatever else was queued has nowhere to go
                 return;
+            }
+            if (pending.isEmpty()) {
+                released(instance).ifPresent(pending::add);
             }
         }
     }
@@ -276,7 +283,7 @@ final class InstanceRunner
             return true;
         }
         final List<Resource> arrived = tokensAt(instance, node.getElementId());
-        if (arrived.size() < this.routing.branches(node)) {
+        if (!this.routing.releases(node, arrived.size(), elsewhere(instance, node.getElementId()))) {
             return false;
         }
         // The branches are merged back into the one token that carries on; the others have arrived and are done
@@ -290,6 +297,42 @@ final class InstanceRunner
             }
         }
         return true;
+    }
+
+    /**
+     * Where every token that is not standing on a given node has got to, which is what an inclusive join has to
+     * know: whatever cannot reach it is not something it is waiting for.
+     *
+     * @param instance the running instance
+     * @param elementId the node to leave out
+     * @return the nodes the other tokens are on, ignoring any whose node is no longer in the workflow
+     */
+    private List<FlowNode> elsewhere(final Resource instance, final String elementId)
+    {
+        return adapt(instance).getTokens().stream()
+            .filter(token -> !elementId.equals(token.getCurrentNodeId()))
+            .map(WorkflowToken::getCurrentNode)
+            .filter(Objects::nonNull)
+            .toList();
+    }
+
+    /**
+     * A join that can release now although it could not when its tokens arrived, because the branches that might
+     * have reached it have since gone elsewhere.
+     *
+     * @param instance the running instance
+     * @return a position to carry on from, or empty when nothing more can move
+     */
+    private Optional<Step> released(final Resource instance)
+    {
+        return adapt(instance).getTokens().stream()
+            .map(WorkflowToken::getCurrentNode)
+            .filter(Objects::nonNull)
+            .filter(this.routing::synchronises)
+            .filter(join -> this.routing.releases(join, tokensAt(instance, join.getElementId()).size(),
+                elsewhere(instance, join.getElementId())))
+            .findFirst()
+            .map(join -> new Step(tokensAt(instance, join.getElementId()).get(0), join));
     }
 
     /**

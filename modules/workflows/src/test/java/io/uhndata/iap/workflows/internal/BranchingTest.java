@@ -24,6 +24,7 @@ import java.util.Objects;
 
 import javax.jcr.Node;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceWrapper;
@@ -41,6 +42,8 @@ import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
+import io.uhndata.iap.workflows.models.ExclusiveGateway;
+import io.uhndata.iap.workflows.models.InclusiveGateway;
 import io.uhndata.iap.workflows.models.ParallelGateway;
 import io.uhndata.iap.workflows.models.SequenceFlow;
 import io.uhndata.iap.workflows.models.StartEvent;
@@ -56,7 +59,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests of a process that runs more than one branch at once: a gateway forks a token per branch, and the join holds
- * them until the branches it is waiting for have arrived.
+ * them until the branches it is waiting for have arrived — every one of them for a parallel join, whichever ones can
+ * still get there for an inclusive one.
  *
  * <p>Driven through the engine, like the rest of the runtime's tests, because what is being checked is what a
  * person sees — two tasks open at once, and a request that is not finished until both are done.</p>
@@ -161,21 +165,6 @@ class BranchingTest
     }
 
     @Test
-    void mergesAForkThatLeadsStraightIntoItsOwnJoin() throws Exception
-    {
-        // Both branches arrive at the join in the same walk, so the first to be advanced merges the second away while
-        // it is still queued to be advanced itself. Nothing is left to move it, and trying to would write to a node
-        // that is no longer there
-        forkStraightIntoJoin(ParallelGateway.RESOURCE_TYPE);
-
-        start();
-
-        assertEquals("completed", instance().getStatus());
-        assertEquals(0, instance().getTokens().size());
-        assertTrue(EngineFixture.tagsOf(this.context.resourceResolver().getResource(HOST)).contains("approved"));
-    }
-
-    @Test
     void endsTheWholeInstanceAtATerminateEndEvent() throws Exception
     {
         // "Withdrawn" is not "one branch finished": the other branch's work is moot, so its token goes and the task
@@ -238,6 +227,155 @@ class BranchingTest
         assertTrue(refusal.getMessage().contains("no outgoing sequence flow"), refusal.getMessage());
     }
 
+    @Test
+    void mergesAForkThatLeadsStraightIntoItsOwnJoin() throws Exception
+    {
+        // Both branches arrive at the join in the same walk, so the first to be advanced merges the second away while
+        // it is still queued to be advanced itself. Nothing is left to move it, and trying to would write to a node
+        // that is no longer there
+        forkStraightIntoJoin(ParallelGateway.RESOURCE_TYPE);
+
+        start();
+
+        assertEquals("completed", instance().getStatus());
+        assertEquals(0, instance().getTokens().size());
+        assertTrue(EngineFixture.tagsOf(this.context.resourceResolver().getResource(HOST)).contains("approved"));
+    }
+
+    @Test
+    void releasesAnInclusiveJoinWhenTheOtherBranchCannotReachIt() throws Exception
+    {
+        // A third branch is still running, but it cannot get to the join — its way out is an end event of its own — so
+        // the join is not waiting for it and releases what has arrived
+        forkStraightIntoJoin(InclusiveGateway.RESOURCE_TYPE);
+        this.context.create().resource(PROCESS + "/" + FORK + "/toAside", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toAside", TARGET_REF, "aside"));
+        this.context.create().resource(PROCESS + "/aside", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "aside", "label", "Note it in the file",
+            "performers", new String[] {EngineFixture.REQUESTERS}));
+        this.context.create().resource(PROCESS + "/aside/toNoted", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "asideToNoted", TARGET_REF, "noted"));
+        this.context.create().resource(PROCESS + "/noted", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "noted"));
+
+        start();
+
+        // The join let its token through, so the request is approved, while the branch that cannot reach it carries on
+        assertTrue(EngineFixture.tagsOf(this.context.resourceResolver().getResource(HOST)).contains("approved"));
+        assertEquals("active", instance().getStatus());
+        assertEquals(List.of("Note it in the file"), openTasks());
+        assertEquals(1, instance().getTokens().size());
+    }
+
+    @Test
+    void fallsBackOnTheDefaultArcWhenNoInclusiveBranchApplies() throws Exception
+    {
+        // Every arc asks for something, and nothing asked for holds: "otherwise" means the same for an inclusive
+        // gateway as for an exclusive one
+        inclusive();
+        outcomeIs(PROCESS + "/" + FORK + "/toApprove", "approved");
+        outcomeIs(PROCESS + "/" + FORK + "/toCover", "approved");
+        this.context.create().resource(PROCESS + "/" + FORK + "/toNoted", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toNoted", TARGET_REF, "noted", "isDefault", true));
+        outcomeIs(PROCESS + "/" + FORK + "/toNoted", "anything");
+        this.context.create().resource(PROCESS + "/noted", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "noted", "hostTag", "expired"));
+
+        start();
+
+        // Only the default was taken, so nothing is on anybody's desk and the instance is over
+        assertEquals("completed", instance().getStatus());
+        assertEquals(List.of(), openTasks());
+        assertTrue(EngineFixture.tagsOf(this.context.resourceResolver().getResource(HOST)).contains("expired"));
+    }
+
+    @Test
+    void takesOnlyTheInclusiveArcsThatApply() throws Exception
+    {
+        // One arc asks nothing and is always taken; the other asks for an outcome this instance has not recorded, so
+        // it is not. An inclusive gateway takes as many branches as apply, which here is one
+        inclusive();
+        outcomeIs(PROCESS + "/" + FORK + "/toCover", "approved");
+        start();
+
+        assertEquals(1, instance().getTokens().size());
+        assertEquals(List.of("Approve the request"), openTasks());
+    }
+
+    @Test
+    void holdsAnInclusiveJoinWhileABranchIsStillRunning() throws Exception
+    {
+        inclusive();
+        final WorkflowEngine engine = start();
+
+        engine.receiveEvent(as(INSTANCE + "/approve", EngineFixture.REQUESTER), DONE);
+
+        // The other task can still reach the join, so what has arrived is not yet all there is
+        assertEquals("active", instance().getStatus());
+        assertEquals(List.of("Book the cover"), openTasks());
+
+        engine.receiveEvent(as(INSTANCE + "/cover", EngineFixture.REQUESTER), DONE);
+
+        assertEquals("completed", instance().getStatus());
+        assertEquals(0, instance().getTokens().size());
+    }
+
+    @Test
+    void releasesAnInclusiveJoinOnceNoBranchCanStillReachIt() throws Exception
+    {
+        // The branch that could have reached the join went the other way instead. Nothing arrives at the join to
+        // notice that, so the walk has to look again once every branch has stopped moving — otherwise the token
+        // already sitting on the join waits for a branch that is never coming
+        this.context.create().resource("/Workflows/timeOffRequest", Map.of(
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+        this.context.create().resource(PROCESS, Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+        this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
+        this.context.create().resource(PROCESS + "/requestSubmitted/toFork", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toFork", TARGET_REF, FORK));
+        this.context.create().resource(PROCESS + "/" + FORK, Map.of(
+            TYPE, InclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, FORK));
+        this.context.create().resource(PROCESS + "/" + FORK + "/toJoin", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "forkToJoin", TARGET_REF, JOIN));
+        this.context.create().resource(PROCESS + "/" + FORK + "/toCheck", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toCheck", TARGET_REF, "check"));
+        // The second branch could reach the join, and does not: nothing has recorded an outcome, so it defaults
+        this.context.create().resource(PROCESS + "/check", Map.of(
+            TYPE, ExclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, "check"));
+        this.context.create().resource(PROCESS + "/check/toJoinLate", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "checkToJoin", TARGET_REF, JOIN));
+        outcomeIs(PROCESS + "/check/toJoinLate", "approved");
+        this.context.create().resource(PROCESS + "/check/toNoted", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toNoted", TARGET_REF, "noted", "isDefault", true));
+        this.context.create().resource(PROCESS + "/noted", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "noted"));
+        this.context.create().resource(PROCESS + "/" + JOIN, Map.of(
+            TYPE, InclusiveGateway.RESOURCE_TYPE, ELEMENT_ID, JOIN));
+        this.context.create().resource(PROCESS + "/" + JOIN + "/toApproved", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
+        this.context.create().resource(PROCESS + "/requestApproved", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
+
+        start();
+
+        assertEquals("completed", instance().getStatus());
+        assertEquals(0, instance().getTokens().size());
+    }
+
+    @Test
+    void refusesAnInclusiveGatewayWhereNothingAppliesAndThereIsNoDefault() throws Exception
+    {
+        inclusive();
+        outcomeIs(PROCESS + "/" + FORK + "/toApprove", "approved");
+        outcomeIs(PROCESS + "/" + FORK + "/toCover", "approved");
+
+        final WorkflowDefinitionException refusal =
+            assertThrows(WorkflowDefinitionException.class, this::start);
+
+        assertTrue(refusal.getMessage().contains("none is marked as the default"), refusal.getMessage());
+    }
+
     /**
      * Builds the smallest branching process there is: a gateway of the given kind whose two arcs both lead straight
      * into the join that merges them, and one end event after it.
@@ -266,6 +404,35 @@ class BranchingTest
             TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
         this.context.create().resource(PROCESS + "/requestApproved", Map.of(
             TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
+    }
+
+    /**
+     * Turns the branching process's two gateways from parallel into inclusive ones, leaving its shape alone.
+     */
+    private void inclusive()
+    {
+        createProcess();
+        for (final String gateway : List.of(FORK, JOIN)) {
+            Objects.requireNonNull(this.context.resourceResolver()
+                    .getResource(PROCESS + "/" + gateway).adaptTo(ModifiableValueMap.class))
+                .put(TYPE, InclusiveGateway.RESOURCE_TYPE);
+        }
+    }
+
+    /**
+     * Gives an arc the guard "the instance's outcome is this", the way a definition writes it.
+     *
+     * @param flowPath the arc to put the condition on
+     * @param outcome the outcome the arc is taken for
+     */
+    private void outcomeIs(final String flowPath, final String outcome)
+    {
+        this.context.create().resource(flowPath + "/cond:condition", Map.of(
+            TYPE, "cond/SingleCondition", "comparator", "equals"));
+        this.context.create().resource(flowPath + "/cond:condition/operandA", Map.of(
+            TYPE, "cond/ConditionOperand", "source", "variable", "value", "outcome"));
+        this.context.create().resource(flowPath + "/cond:condition/operandB", Map.of(
+            TYPE, "cond/ConditionOperand", "value", outcome));
     }
 
     /**
