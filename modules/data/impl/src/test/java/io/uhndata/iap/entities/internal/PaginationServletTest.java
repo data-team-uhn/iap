@@ -90,7 +90,11 @@ public class PaginationServletTest
         Mockito.when(this.request.getParameterMap()).thenReturn(this.parameters);
         Mockito.when(this.request.getResourceResolver()).thenReturn(this.resolver);
         Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(this.session);
+        // `@me` must resolve to the repository's user id, not the spelling typed at login: a login resolves
+        // case-insensitively, and only the first matches what was recorded earlier. The two disagree here so that
+        // reading the wrong one fails the `@me` tests instead of quietly matching
         Mockito.when(this.session.getUserID()).thenReturn("testUser");
+        Mockito.when(this.resolver.getUserID()).thenReturn("TestUSER");
         final Workspace workspace = Mockito.mock(Workspace.class);
         Mockito.when(this.session.getWorkspace()).thenReturn(workspace);
         Mockito.when(workspace.getQueryManager()).thenReturn(this.queryManager);

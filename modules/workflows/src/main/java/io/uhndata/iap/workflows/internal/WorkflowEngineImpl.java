@@ -34,6 +34,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -95,7 +96,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         // Taken from the incoming resource rather than passed in: the session that resolved it is the one that
         // authenticated, so it is the authority on who is asking
-        final String actor = target.getResourceResolver().getUserID();
+        // The repository's own id, not the name as typed: a login is resolved case-insensitively, so a user id
+        // taken from the resolver stops matching as soon as somebody types their name differently -- and this one
+        // is both stored as createdBy and compared by @creator
+        final String actor = UserIds.canonical(target.getResourceResolver());
         try (ResourceResolver serviceResolver =
             this.resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
             // Re-resolved through the engine's session: from here on the run is privileged, and the caller's own
