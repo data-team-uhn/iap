@@ -347,7 +347,7 @@ test.describe('the time off request demo', () => {
           timeOffRequest?: {
             status?: string;
             token?: { currentNodeId?: string };
-            fillIn?: { status?: string; label?: string; taskDefinitionId?: string; offeredOutcomes?: string[] };
+            fillIn?: { status?: string; label?: string; taskDefinitionId?: string; outcomeOptions?: string[] };
             approveRequest?: unknown;
           };
         };
@@ -368,7 +368,7 @@ test.describe('the time off request demo', () => {
       expect(submission.tags).toEqual([ 'draft' ]);
       // Nothing to decide: sending a request is not a choice between outcomes, which is what tells a task list
       // to offer one plain control rather than a decision
-      expect(instance?.fillIn?.offeredOutcomes).toEqual([]);
+      expect(instance?.fillIn?.outcomeOptions).toEqual([]);
     });
 
     test('refuses to let somebody else send a request they did not raise', async ({ request }) => {
@@ -400,7 +400,7 @@ test.describe('the time off request demo', () => {
           timeOffRequest?: {
             token?: { currentNodeId?: string };
             fillIn?: { status?: string; assignee?: string; outcome?: string };
-            approveRequest?: { status?: string; label?: string; offeredOutcomes?: string[] };
+            approveRequest?: { status?: string; label?: string; outcomeOptions?: string[] };
           };
         };
       };
@@ -414,7 +414,7 @@ test.describe('the time off request demo', () => {
       expect(instance?.token?.currentNodeId).toBe('approveRequest');
       expect(instance?.approveRequest?.status).toBe('created');
       expect(instance?.approveRequest?.label).toBe('Approve the request');
-      expect(instance?.approveRequest?.offeredOutcomes).toEqual([ 'approved', 'rejected' ]);
+      expect(instance?.approveRequest?.outcomeOptions).toEqual([ 'approved', 'rejected' ]);
       // And the request is now in the approver's hands, said by the state rather than by a flag: `submitted`
       // retired `draft`, because a lifecycle is a state and not an accumulation
       expect(submission.tags).toEqual([ 'submitted' ]);
