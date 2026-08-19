@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.internal;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
@@ -45,6 +47,7 @@ import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRe
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
@@ -291,17 +294,28 @@ class SubmissionFormServletTest
     }
 
     /**
-     * A request from a named person. The servlet asks the resolver who is reading, so that is what the identity
-     * has to come from.
+     * A request from a named person. The identity has to come from the repository's side of the session: a login
+     * resolves case-insensitively, so Sling reports the spelling that was typed while the repository reports the
+     * one it resolved it to, and only the second is an identity. The two are deliberately made to disagree here,
+     * so that a servlet reading the wrong one fails these tests rather than passing them by coincidence.
      */
     private MockSlingJakartaHttpServletRequest request(final Resource resource, final String reader)
     {
+        final Session masked = Mockito.mock(Session.class,
+            AdditionalAnswers.delegatesTo(this.context.resourceResolver().adaptTo(Session.class)));
+        Mockito.doReturn(reader).when(masked).getUserID();
         final ResourceResolver resolver = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
             public String getUserID()
             {
-                return reader;
+                return reader.toUpperCase(Locale.ROOT);
+            }
+
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return type == Session.class ? type.cast(masked) : super.adaptTo(type);
             }
         };
         final MockSlingJakartaHttpServletRequest request =

@@ -188,15 +188,82 @@ final class EngineFixture
     static Resource createTarget(final SlingContext context, final String actor)
     {
         final Resource homepage = context.create().resource("/Workflows", TYPE, WorkflowsHomepage.RESOURCE_TYPE);
-        final ResourceResolver resolver = new ResourceResolverWrapper(homepage.getResourceResolver())
+        final ResourceResolver resolver = actingAs(homepage.getResourceResolver(), actor);
+        return new ResourceWrapper(homepage)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return resolver;
+            }
+        };
+    }
+
+    /**
+     * A resolver reporting the given user, both the way Sling answers and the way the repository does.
+     *
+     * <p>Masking {@link ResourceResolver#getUserID()} alone is not enough, and the difference is the point: the
+     * platform takes a user id from the JCR session, because Sling's answer is the name as typed at login while
+     * the repository's is the canonical one — see {@code docs/upstream/sling-canonical-user-id.md}. A fixture
+     * that faked only Sling's answer would be faking the value production deliberately does not use.</p>
+     *
+     * <p>Where the context has no JCR session at all — a plain resource-resolver mock — there is nothing to mask
+     * and Sling's answer is all there is, which is exactly the fallback production takes.</p>
+     *
+     * @param delegate the resolver to wrap
+     * @param actor the user id it should report
+     * @return the wrapped resolver
+     */
+    static ResourceResolver actingAs(final ResourceResolver delegate, final String actor)
+    {
+        final Session real = delegate.adaptTo(Session.class);
+        final Session masked;
+        if (real == null) {
+            masked = null;
+        } else {
+            // Delegating rather than spying: the mock session is stateful, and everything the engine does with it
+            // has to reach the real one
+            masked = Mockito.mock(Session.class, AdditionalAnswers.delegatesTo(real));
+            Mockito.doReturn(actor).when(masked).getUserID();
+        }
+        return new ResourceResolverWrapper(delegate)
         {
             @Override
             public String getUserID()
             {
                 return actor;
             }
+
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return masked != null && type == Session.class ? type.cast(masked) : super.adaptTo(type);
+            }
         };
-        return new ResourceWrapper(homepage)
+    }
+
+    /**
+     * The same target, seen through a resolver that reports the user's name as they typed it at login rather than
+     * as the repository resolved it. The divergence is real — a login resolves case-insensitively — and it is what
+     * separates a test that asserts the engine picks the right one from a test that only asserts it picks
+     * something.
+     *
+     * @param target a target built by {@link #createTarget(SlingContext, String)}, whose session is already
+     *            masked with the canonical id
+     * @param spelling what Sling should report the user id to be
+     * @return the target, disagreeing with itself about who is asking
+     */
+    static Resource typedAtLogin(final Resource target, final String spelling)
+    {
+        final ResourceResolver resolver = new ResourceResolverWrapper(target.getResourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return spelling;
+            }
+        };
+        return new ResourceWrapper(target)
         {
             @Override
             public ResourceResolver getResourceResolver()
