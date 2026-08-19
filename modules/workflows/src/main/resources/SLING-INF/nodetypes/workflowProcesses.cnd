@@ -167,6 +167,13 @@
   // against, exactly as offeredOutcomes describes rather than enforces.
   - performers (STRING) multiple
 
+  // The elementIds of the boundary events of this task that have already fired.
+  // Only a non-interrupting one can fire and leave the task open behind it, so
+  // without this the sweep looking for passed deadlines would deliver the same
+  // one again on every pass. It also says which deadline dueDate now belongs to
+  // when a task is watched by several.
+  - firedEvents (STRING) multiple
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
