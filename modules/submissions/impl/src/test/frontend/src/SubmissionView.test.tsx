@@ -330,6 +330,24 @@ describe("SubmissionView", () => {
     expect(screen.getByText(/✓/)).toBeInTheDocument();
   });
 
+  it("credits whoever raised the submission, not the engine that wrote it", async () => {
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "workflows", "createdBy": "demo-requester" })));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByText(/by demo-requester/)).toBeInTheDocument();
+  });
+
+  it("falls back on who wrote it when nothing recorded who it was for", async () => {
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "sling-jcr-content-loader" })));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByText(/by sling-jcr-content-loader/)).toBeInTheDocument();
+  });
+
   it("displays attached documents with download links, and minimal submissions without extras", async () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch(BARE_SUBMISSION)));
 

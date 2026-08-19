@@ -66,6 +66,12 @@ function formatValue(value: unknown): string {
   return ["string", "number"].includes(typeof value) ? String(value) : "";
 }
 
+// Who raised this submission, as the engine recorded it. Seeded content has no `createdBy`, and naming
+// its writer beats naming nobody.
+function createdBy(submission: JsonNode): unknown {
+  return submission.createdBy ?? submission["jcr:createdBy"];
+}
+
 // JCR dates are serialized as ISO 8601 strings; anything else is not a date
 function formatDate(value: unknown): string {
   return typeof value === "string" && value !== "" ? new Date(value).toLocaleString() : "";
@@ -393,7 +399,7 @@ function SubmissionView() {
         <Typography variant="description">
           {schemaLabel(schemaVersion)}
           {submission["jcr:created"]
-            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(submission["jcr:createdBy"])}`
+            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(createdBy(submission))}`
             : ""}
           {submission["jcr:lastModified"] ? ` • Last modified ${formatDate(submission["jcr:lastModified"])}` : ""}
         </Typography>

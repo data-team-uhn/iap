@@ -133,7 +133,7 @@ describe("MySubmissionsWidget", () => {
 
     const url = new URL(String(fetchMock.mock.calls[0][0]), "http://localhost");
     expect(url.pathname).toBe("/Submissions.paginate.json");
-    expect(url.searchParams.getAll("fieldName")).toEqual(["jcr:createdBy"]);
+    expect(url.searchParams.getAll("fieldName")).toEqual(["createdBy"]);
     expect(url.searchParams.getAll("fieldValue")).toEqual(["@me"]);
     // Newest activity first by default
     expect(url.searchParams.get("sortBy")).toBe("jcr:lastModified");
