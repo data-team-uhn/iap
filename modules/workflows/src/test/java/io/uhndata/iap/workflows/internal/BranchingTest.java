@@ -55,8 +55,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests of a process that runs more than one branch at once: a parallel gateway forks a token per branch, and the
- * join holds them until every branch has arrived.
+ * Tests of a process that runs more than one branch at once: a gateway forks a token per branch, and the join holds
+ * them until the branches it is waiting for have arrived.
  *
  * <p>Driven through the engine, like the rest of the runtime's tests, because what is being checked is what a
  * person sees — two tasks open at once, and a request that is not finished until both are done.</p>
@@ -65,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class ParallelBranchesTest
+class BranchingTest
 {
     private static final String ELEMENT_ID = "elementId";
 
@@ -161,6 +161,21 @@ class ParallelBranchesTest
     }
 
     @Test
+    void mergesAForkThatLeadsStraightIntoItsOwnJoin() throws Exception
+    {
+        // Both branches arrive at the join in the same walk, so the first to be advanced merges the second away while
+        // it is still queued to be advanced itself. Nothing is left to move it, and trying to would write to a node
+        // that is no longer there
+        forkStraightIntoJoin(ParallelGateway.RESOURCE_TYPE);
+
+        start();
+
+        assertEquals("completed", instance().getStatus());
+        assertEquals(0, instance().getTokens().size());
+        assertTrue(EngineFixture.tagsOf(this.context.resourceResolver().getResource(HOST)).contains("approved"));
+    }
+
+    @Test
     void endsTheWholeInstanceAtATerminateEndEvent() throws Exception
     {
         // "Withdrawn" is not "one branch finished": the other branch's work is moot, so its token goes and the task
@@ -221,6 +236,36 @@ class ParallelBranchesTest
             assertThrows(WorkflowDefinitionException.class, this::start);
 
         assertTrue(refusal.getMessage().contains("no outgoing sequence flow"), refusal.getMessage());
+    }
+
+    /**
+     * Builds the smallest branching process there is: a gateway of the given kind whose two arcs both lead straight
+     * into the join that merges them, and one end event after it.
+     *
+     * @param gatewayType the resource type of the gateway to fork and join with
+     */
+    private void forkStraightIntoJoin(final String gatewayType)
+    {
+        this.context.create().resource("/Workflows/timeOffRequest", Map.of(
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+        this.context.create().resource(PROCESS, Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+        this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
+        this.context.create().resource(PROCESS + "/requestSubmitted/toFork", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toFork", TARGET_REF, FORK));
+        this.context.create().resource(PROCESS + "/" + FORK, Map.of(
+            TYPE, gatewayType, ELEMENT_ID, FORK));
+        this.context.create().resource(PROCESS + "/" + FORK + "/toJoinFirst", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toJoinFirst", TARGET_REF, JOIN));
+        this.context.create().resource(PROCESS + "/" + FORK + "/toJoinSecond", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toJoinSecond", TARGET_REF, JOIN));
+        this.context.create().resource(PROCESS + "/" + JOIN, Map.of(
+            TYPE, gatewayType, ELEMENT_ID, JOIN));
+        this.context.create().resource(PROCESS + "/" + JOIN + "/toApproved", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toApproved", TARGET_REF, "requestApproved"));
+        this.context.create().resource(PROCESS + "/requestApproved", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "requestApproved", "hostTag", "approved"));
     }
 
     /**
