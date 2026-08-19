@@ -44,6 +44,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.utils.UserIds;
 
 /**
  * The form a submitter fills in: what this submission's schema version asks of it, with the answers it already
@@ -103,7 +104,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             "A submission resource always reads as a submission");
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(form(submission, request.getResourceResolver().getUserID()).toString());
+        response.getWriter().write(
+            form(submission, UserIds.canonical(request.getResourceResolver())).toString());
     }
 
     /**
