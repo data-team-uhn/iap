@@ -20,17 +20,21 @@
 import logging
 import os
 
-from docling.datamodel.accelerator_options import AcceleratorOptions
-from docling.datamodel.pipeline_options import (
+# Before the docling imports below, deliberately. These pull in torch, which loads libgomp,
+# and libgomp reads OMP_NUM_THREADS once when it loads -- setting it afterwards is a no-op in
+# the process that set it. The container also sets both as ENV, so this only ever mattered
+# outside Docker: the CLI and local dev, where every worker then oversubscribed the machine.
+# Outer PDF parallelism is the ProcessPoolExecutor's job, so each process stays single-threaded.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("DOCLING_NUM_THREADS", "1")
+
+from docling.datamodel.accelerator_options import AcceleratorOptions  # noqa: E402
+from docling.datamodel.pipeline_options import (  # noqa: E402
     PdfPipelineOptions,
     TableFormerMode,
     TableStructureOptions,
 )
-from docling.datamodel.settings import settings
-
-# Limit per-process threading; outer PDF parallelism uses ProcessPoolExecutor.
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-os.environ.setdefault("DOCLING_NUM_THREADS", "1")
+from docling.datamodel.settings import settings  # noqa: E402
 
 
 class _SuppressTorchDtypeDeprecation(logging.Filter):
@@ -46,8 +50,10 @@ logging.getLogger("transformers").addFilter(_SuppressTorchDtypeDeprecation())
 # Keep conservative when also using ProcessPoolExecutor, otherwise memory can spike.
 settings.perf.doc_batch_concurrency = 1  # Number of docs processed in parallel
 settings.perf.page_batch_concurrency = 1  # Number of page batches processed in parallel
-settings.perf.page_batch_size = 1  # Number of pages Docling groups together internally for page-level processing
-settings.perf.elements_batch_size = 16  # Number of extracted elements are processed together internally
+# Pages Docling groups together internally for page-level processing.
+settings.perf.page_batch_size = 1
+# Extracted elements processed together internally.
+settings.perf.elements_batch_size = 16
 
 PDF_PIPELINE_OPTIONS = PdfPipelineOptions(
     do_ocr=False,

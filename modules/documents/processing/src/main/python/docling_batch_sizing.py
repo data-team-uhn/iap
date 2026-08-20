@@ -46,6 +46,14 @@ import psutil
 #   Estimated RAM (GB) per ProcessPool worker (full Docling model stack).
 GB_PER_WORKER = 2.0
 
+#   What this budget does NOT cover: the daemon's own process. Importing docling pulls in torch,
+#   which costs roughly 0.4 GB of RSS before a single page is converted (measured: 0.02 GB
+#   interpreter, 0.39 GB after the docling import, 0.44 GB after the DOCX pipeline is
+#   initialized — so the DOCX converter itself is a rounding error and torch is the whole of
+#   it). A container sized exactly to "N workers x GB_PER_WORKER" is therefore about that much
+#   short, which matters most at the small end: at one worker it is a fifth of the budget.
+#   RAM_TOTAL_HEADROOM below absorbs some of it, but not by design.
+
 #   Fraction of installed RAM treated as usable for worker budgeting (85%).
 RAM_TOTAL_HEADROOM = 0.85
 
@@ -96,6 +104,7 @@ def _read_first_line(path: str) -> str | None:
     except OSError:
         return None
 
+
 def read_cgroup_cpu_limit() -> float | None:
     """The container's CPU quota in cores, or ``None`` when unlimited or not containerised."""
     v2 = _read_first_line(_CGROUP_V2_CPU_MAX)
@@ -120,6 +129,7 @@ def read_cgroup_cpu_limit() -> float | None:
             return quota / period
     return None
 
+
 def read_cgroup_memory_limit_gb() -> float | None:
     """The container's memory ceiling in GB, or ``None`` when unlimited or not containerised."""
     for path in (_CGROUP_V2_MEMORY_MAX, _CGROUP_V1_MEMORY_LIMIT):
@@ -134,6 +144,7 @@ def read_cgroup_memory_limit_gb() -> float | None:
             return limit / (1024 ** 3)
     return None
 
+
 def _read_stat_field(path: str, field: str) -> int | None:
     """One ``<name> <value>`` field from a cgroup ``memory.stat``, or ``None``."""
     try:
@@ -145,6 +156,7 @@ def _read_stat_field(path: str, field: str) -> int | None:
     except (OSError, ValueError):
         return None
     return None
+
 
 def read_cgroup_memory_usage_gb() -> float | None:
     """The container's non-reclaimable memory use in GB, or ``None`` when not containerised.
@@ -170,6 +182,7 @@ def read_cgroup_memory_usage_gb() -> float | None:
         return max(0, usage - cache) / (1024 ** 3)
     return None
 
+
 def read_logical_core_count() -> int:
     """
     Read usable logical CPU count, honouring a container quota and CPU affinity.
@@ -188,6 +201,7 @@ def read_logical_core_count() -> int:
         return max(1, min(usable, math.ceil(limit)))
     return usable
 
+
 def read_physical_core_count() -> int:
     """
     For logs only: Read physical CPU core count, never reporting more than the usable logical count.
@@ -195,6 +209,7 @@ def read_physical_core_count() -> int:
     logical = read_logical_core_count()
     physical = psutil.cpu_count(logical=False) or max(1, logical // 2)
     return max(1, min(physical, logical))
+
 
 def read_total_ram_gb() -> float:
     """
@@ -204,6 +219,7 @@ def read_total_ram_gb() -> float:
     limit = read_cgroup_memory_limit_gb()
     total = psutil.virtual_memory().total / (1024 ** 3)
     return min(total, limit) if limit is not None else total
+
 
 def read_available_ram_gb() -> float:
     """
@@ -223,6 +239,7 @@ def read_available_ram_gb() -> float:
     headroom = limit if usage is None else limit - usage
     return max(0.0, min(available, headroom))
 
+
 def calc_ram_budget_gb(total_gb: float, available_gb: float) -> float:
     """
     Compute gigabytes of RAM safe for parallel Docling model loads.
@@ -237,6 +254,7 @@ def calc_ram_budget_gb(total_gb: float, available_gb: float) -> float:
         total_gb * RAM_TOTAL_HEADROOM,
         available_gb * RAM_AVAILABLE_HEADROOM,
     )
+
 
 def calc_max_workers_by_ram(ram_budget_gb: float) -> int:
     """
@@ -392,7 +410,8 @@ def print_parallelism_summary(
     log=print,
 ) -> None:
     """
-    Report startup snapshot and resolved per-parse parallelism values on start of each PDF conversion.
+    Report the startup snapshot and the resolved per-parse parallelism values at the start
+    of each PDF conversion.
 
     @param active_workers: how many workers this conversion will actually occupy, or ``None``
         when the pool is not ours to size. It only bounds anything on the path that creates its
