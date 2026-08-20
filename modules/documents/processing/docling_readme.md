@@ -1,0 +1,162 @@
+# Docling parsing
+
+Docling converts PDF or DOCX documents Markdown format.
+
+Main processor from `.pdf` and `.docx` to Markdown.
+
+- Source : https://github.com/docling-project/docling
+- Required version v2.115+
+
+**This module is expected to mostly be run from Docker in deployments,**
+**but we provide non-Docker installation instructions below for posterity.**
+
+## Runtime dependencies
+
+| Package                   | Why                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `docling`                 | Main processor: `.pdf` / `.doc` / `.docx` → `.md`; also drives hierarchical chunking |
+| `pypdf`                   | Page counting / PDF reading before batching; bookmark extraction                     |
+| `cryptography`            | pypdf AES support for signed / permission-restricted PDFs (empty user password)      |
+| `psutil`                  | Lets the batch-sizing script self-optimise workers to CPU/RAM                        |
+| `LibreOffice` (`soffice`) | DOC→DOCX, DOC→PDF, DOCX→PDF before Docling                                           |
+
+Test-only: `pytest`. `mvn -Ptests` runs the suite, so it needs these on the PATH:
+
+```
+pip install -r modules/documents/processing/requirements-test.txt
+```
+
+That file leaves `docling` out on purpose — it is a multi-GB install, and the tests that need
+it skip themselves when it is missing, so the rest of the suite still runs without it.
+
+---
+
+## Installation
+
+1. **Pre-req:** Python 3.10+ (the pipeline uses PEP 604 `X | None` annotations in
+   runtime-evaluated positions, which 3.9 cannot parse)
+2. Use a clean virtual environment so our dependencies stay isolated:
+
+   ```
+   python -m venv Docling_env
+   ```
+
+3. Activate the virtual environment:
+
+   ```
+   # Windows
+   Docling_env\Scripts\activate
+
+   # Linux / macOS
+   source Docling_env/bin/activate
+   ```
+
+4. Install the dependencies:
+
+   ```
+   pip install docling pypdf cryptography psutil
+   ```
+
+5. Set the threading environment variables (keeps per-process threads at 1 so the outer
+   `ProcessPoolExecutor` owns the parallelism):
+
+   ```
+   OMP_NUM_THREADS=1
+   DOCLING_NUM_THREADS=1
+   ```
+
+---
+
+## Docling daemon
+
+On start you get:
+
+- **N warm PDF worker processes** (heavy models, parallel page batches)
+- **1 warm DOCX converter** in the HTTP server process (lighter, single-threaded via
+  `docx_lock`)
+
+### Caller side
+
+- Nothing starts the daemon for you. Start it with Docker, or by hand for local work.
+- The caller **stages** the upload once under `/shared-docs/{uuid}/{fileName}`, then calls
+  `POST /parse?path=...`. Python writes all derived files.
+  The reply is a small summary (`ok`, `markdown_path`, `chunked`, `chunks_dir`, `logs`).
+
+### Manual HTTP daemon start (optional)
+
+```
+# Optional: only if the shared root is not /shared-docs
+# set IAP_SHARED_DOCS=C:\path\to\shared-docs
+
+python modules/documents/processing/src/main/python/docling_daemon.py --host 127.0.0.1 --port 18765
+```
+
+### Test endpoints
+
+- `GET  http://localhost:18765/health` — readiness probe: `{"status", "workers", "ready"}`.
+  Deliberately carries no filesystem paths, since it is the one endpoint with no credential.
+- `POST http://localhost:18765/parse?path=/shared-docs/.../proto.pdf&chunk=true` —
+  path under the shared root → summary JSON. LibreOffice prep + Docling + `write_chunk_files`.
+- `POST http://localhost:18765/shutdown` — graceful stop; **served only with
+  `--enable-shutdown`**, and answers 404 otherwise. A container is stopped with a signal, so the
+  endpoint is useful only when the caller owns the daemon process and is a denial-of-service
+  handle everywhere else.
+
+Paths outside `IAP_SHARED_DOCS` (default `/shared-docs`) are refused.
+
+`/parse` and `/shutdown` refuse any request carrying an `Origin` header. Nothing that
+legitimately drives this daemon is a web page, and loopback binding does not help there: the
+browser runs on the same host, and a `POST` with a simple content type needs no preflight, so any
+site the operator visits could otherwise spend the worker pool or stop the daemon.
+
+Setting **`IAP_DOCLING_TOKEN`** additionally requires `Authorization: Bearer <token>` on those two
+endpoints, so that reaching the port is not by itself authority to use it. `GET /health` stays
+open, so container probes need no credential.
+
+With no token set the port is the only boundary, and parsing is slow, which makes a reachable
+endpoint a cheap denial-of-service target. Two more ways to hold that line:
+
+- **The deployment** (`docker-compose.yml`) publishes the port as `127.0.0.1:18765:18765`, so only
+  this host can reach it. A bare `18765:18765` would bind every host interface, and Docker's
+  forwarding rules sit ahead of the host firewall, so it would be open to anyone who can route to
+  the host. A sibling service on the same Compose network reaches the daemon by service name
+  (`http://docling:18765`) without the published port, so drop the `ports:` block entirely if
+  nothing on the host needs to call it.
+- **A hand-run daemon** stays on loopback: keep the `--host 127.0.0.1` default when starting it
+  directly. The daemon prints a warning to stderr if you bind anything else.
+
+In a container the process itself still binds `0.0.0.0`, and that cannot be tightened: Docker
+forwards traffic to the container's `eth0`, not its loopback, so a daemon listening only on the
+container's loopback refuses every connection.
+
+### Configuration
+
+Environment:
+
+| Variable                                       | Default        | Purpose                                                                                                                        |
+| ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `IAP_SHARED_DOCS`                              | `/shared-docs` | Shared root. `?path=` is resolved against it, and paths outside it are refused                                                 |
+| `IAP_LIBREOFFICE_SOFFICE`                      | `soffice`      | LibreOffice executable                                                                                                         |
+| `IAP_DOCLING_TOKEN`                            | _unset_        | When set, `/parse` and `/shutdown` require `Authorization: Bearer <token>`. Unset, the port is the only boundary |
+| `IAP_MAX_INPUT_PAGES`                          | `1500`         | Largest PDF accepted, in pages; a bigger one is refused with 400 once it holds the single parse slot — counting pages means reading it. 0 disables the limit |
+| `IAP_MAX_INPUT_BYTES`                          | `67108864`     | Largest input accepted, in bytes, whatever its type — a `.docx` has no pages to count. 0 disables the limit |
+| `IAP_LIBREOFFICE_TIMEOUT_SECONDS`              | `300`          | Seconds one `soffice` run may take before its process group is killed. For a `.doc` the kill is a hard failure, so keep it in step with `IAP_MAX_INPUT_BYTES` |
+| `IAP_SHARED_DOCS_HOST`                         | `../shared-docs` | Compose only. Host directory bind-mounted at `/shared-docs`. **Create it first** — Docker creates a missing one as `root:root`, which the default `user: 1000:1000` cannot write to |
+| `IAP_DOCLING_UID` / `IAP_DOCLING_GID`          | `1000`         | Compose only. Who the container runs as; must own the host directory behind `/shared-docs` or the daemon cannot write its output |
+| `OMP_NUM_THREADS` / `DOCLING_NUM_THREADS`      | `1`            | Per-process thread caps, so the outer `ProcessPoolExecutor` owns the parallelism (set on import by `docling_config.py`)        |
+
+Daemon flags:
+
+| Flag           | Default                      | Purpose                        |
+| -------------- | ---------------------------- | ------------------------------ |
+| `--host`       | `127.0.0.1`                  | Bind address                   |
+| `--port`       | `18765`                      | Listen port                    |
+| `--workers N`  | auto, from cores + RAM budget | Parallel PDF worker processes  |
+| `--enable-shutdown` | off                     | Serve `POST /shutdown`; 404 otherwise |
+
+Per-request options go on the `/parse` query string: `chunk` (default true), `max_tokens`
+(2000) and `min_structure_tokens` (20000).
+
+Run the daemon yourself — in Docker for a real deployment, or by hand for local work (see
+[Manual daemon start](#manual-http-daemon-start-optional)). Docling is the only processor: if
+the daemon cannot be reached, or Docling fails, the parse fails. There is no fallback.
