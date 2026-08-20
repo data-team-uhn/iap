@@ -24,6 +24,20 @@ import pytest
 import libreoffice_convert as lo
 
 
+def _fake_soffice_argv(tmp_path, body: str) -> list[str]:
+    """A stand-in for the soffice argv: the interpreter plus an absolute script path.
+
+    Deliberately not ``python -c``: :func:`_run_soffice` refuses an argument that reads as an
+    option, which is the check that keeps a caller-derived filename from becoming a switch, so
+    a fake converter has to be invoked the way soffice itself is.
+    """
+    import sys
+
+    script = tmp_path / "fake_soffice.py"
+    script.write_text(body, encoding="utf-8")
+    return [sys.executable, str(script)]
+
+
 class TestPrepareOfficeDocument:
     def test_docx_pdf_failure_still_returns_docx(self, tmp_path, monkeypatch):
         docx = tmp_path / "report.docx"
@@ -180,22 +194,19 @@ class TestSofficeTimeout:
     long-lived daemon they accumulate.
     """
 
-    def test_a_timeout_kills_the_child_and_raises(self):
+    def test_a_timeout_kills_the_child_and_raises(self, tmp_path):
         import subprocess
-        import sys
         import time
 
         started = time.perf_counter()
         with pytest.raises(subprocess.TimeoutExpired):
-            lo._run_soffice([sys.executable, "-c", "import time; time.sleep(30)"], 1.0)
+            lo._run_soffice(_fake_soffice_argv(tmp_path, "import time; time.sleep(30)"), 1.0)
         # The child was killed and reaped rather than waited out.
         assert time.perf_counter() - started < 10
 
-    def test_a_normal_run_reports_output_and_status(self):
-        import sys
-
+    def test_a_normal_run_reports_output_and_status(self, tmp_path):
         done = lo._run_soffice(
-            [sys.executable, "-c", "print('hello'); raise SystemExit(3)"], 30
+            _fake_soffice_argv(tmp_path, "print('hello'); raise SystemExit(3)"), 30
         )
         assert done.returncode == 3
         assert "hello" in done.stdout
@@ -214,6 +225,73 @@ class TestSofficeTimeout:
             lo.convert(source, "docx", tmp_path)
 
 
+class TestArgumentsCannotBecomeSwitches:
+    """A value handed to soffice must not be readable as an option (CWE-88).
+
+    The document path reaches the argv from the caller's ``?path=`` query. It is absolute
+    because ``convert`` resolves it, and an absolute path can never be parsed as a switch --
+    but nothing said so where the process is started, and a relative name like "--convert-to"
+    would be swallowed as an option instead of converted.
+    """
+
+    def test_the_real_argv_is_accepted(self, tmp_path, monkeypatch):
+        # Held before the stub replaces the module attribute, so the guard below is the real
+        # one; calling lo._run_soffice here would just call the stub again.
+        real_run_soffice = lo._run_soffice
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk")
+        seen = {}
+
+        def record(command, timeout):
+            import subprocess
+
+            seen["command"] = command
+            # Where soffice would write: into --outdir, named after the staged input.
+            staged = Path(command[-1])
+            (staged.parent / f"{lo.STAGED_INPUT_STEM}.pdf").write_bytes(b"%PDF")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        monkeypatch.setattr(lo, "_run_soffice", record)
+        lo.convert(source, "pdf", tmp_path)
+        # What convert() builds passes the guard the real _run_soffice applies.
+        real_run_soffice(
+            _fake_soffice_argv(tmp_path, "raise SystemExit(0)") + seen["command"][1:], 30
+        )
+
+    @pytest.mark.parametrize("injected", [
+        "--convert-to=pdf:evil",          # the prefix form an exact match has to refuse
+        "-outdir=/etc",
+        "--headlessly",
+        "--nolockcheck",
+        "-h",
+    ])
+    def test_an_option_like_argument_is_refused(self, tmp_path, injected):
+        argv = _fake_soffice_argv(tmp_path, "raise SystemExit(0)")
+        with pytest.raises(ValueError, match="reads as an option"):
+            lo._run_soffice([*argv, injected], 30)
+
+    def test_the_switches_convert_builds_are_allowed(self, tmp_path):
+        argv = _fake_soffice_argv(tmp_path, "raise SystemExit(0)")
+        done = lo._run_soffice(
+            [
+                *argv,
+                "--headless",
+                f"-env:UserInstallation={tmp_path.as_uri()}",
+                "--convert-to",
+                "pdf:writer_pdf_Export",
+                "--outdir",
+                str(tmp_path),
+            ],
+            30,
+        )
+        assert done.returncode == 0
+
+    def test_a_plain_value_is_allowed(self, tmp_path):
+        # Conversion targets and paths carry no leading dash, so they are values, not options.
+        argv = _fake_soffice_argv(tmp_path, "raise SystemExit(0)")
+        assert lo._run_soffice([*argv, "docx", str(tmp_path / "a.docx")], 30).returncode == 0
+
+
 class TestReapIsBounded:
     """The wait after the kill cannot hang the daemon.
 
@@ -223,9 +301,8 @@ class TestReapIsBounded:
     still reported ready.
     """
 
-    def test_it_gives_up_on_a_child_that_survives_the_kill(self, monkeypatch):
+    def test_it_gives_up_on_a_child_that_survives_the_kill(self, monkeypatch, tmp_path):
         import subprocess
-        import sys
         import time
 
         # Neuter the kill so the child outlives it, standing in for a wedged soffice.bin.
@@ -234,14 +311,88 @@ class TestReapIsBounded:
 
         started = time.perf_counter()
         with pytest.raises(subprocess.TimeoutExpired):
-            lo._run_soffice([sys.executable, "-c", "import time; time.sleep(60)"], 1.0)
+            lo._run_soffice(_fake_soffice_argv(tmp_path, "import time; time.sleep(60)"), 1.0)
         elapsed = time.perf_counter() - started
         # The timeout still surfaces, and the reap does not wait out the child's 60s.
         assert elapsed < 15, f"post-kill wait took {elapsed:.1f}s"
 
-    def test_a_killable_child_is_still_reaped(self):
+    def test_a_killable_child_is_still_reaped(self, tmp_path):
         import subprocess
-        import sys
 
         with pytest.raises(subprocess.TimeoutExpired):
-            lo._run_soffice([sys.executable, "-c", "import time; time.sleep(60)"], 1.0)
+            lo._run_soffice(_fake_soffice_argv(tmp_path, "import time; time.sleep(60)"), 1.0)
+
+
+class TestNothingCallerDerivedReachesTheArgv:
+    """soffice is handed constants and temp paths, never the caller's filename.
+
+    The document path arrives from the caller's ``?path=`` query, and CodeQL's
+    py/command-line-injection follows it to the ``Popen``. A check on the argv did not satisfy
+    it -- and a check is weaker anyway. The document is staged under a fixed name instead, so
+    there is no caller-derived string on the command line to reason about.
+    """
+
+    def _run(self, tmp_path, monkeypatch, name, target="pdf"):
+        source = tmp_path / name
+        source.write_bytes(b"pk")
+        seen = {}
+
+        def record(command, timeout):
+            import subprocess
+
+            seen["command"] = command
+            staged = Path(command[-1])
+            extension = target.split(":", 1)[0]
+            (staged.parent / f"{lo.STAGED_INPUT_STEM}.{extension}").write_bytes(b"out")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        monkeypatch.setattr(lo, "_run_soffice", record)
+        produced = lo.convert(source, target, tmp_path)
+        return seen["command"], produced
+
+    def test_the_document_stem_is_absent_from_the_argv(self, tmp_path, monkeypatch):
+        command, _ = self._run(tmp_path, monkeypatch, "Secret Board Minutes 2026.docx")
+        joined = " ".join(command)
+        assert "Secret Board Minutes 2026" not in joined
+        assert lo.STAGED_INPUT_STEM in joined
+
+    def test_the_shared_docs_directory_is_absent_from_the_argv(self, tmp_path, monkeypatch):
+        # --outdir used to be the document's own directory, which is caller-derived too.
+        command, _ = self._run(tmp_path, monkeypatch, "report.docx")
+        assert str(tmp_path) not in " ".join(command)
+
+    def test_the_output_still_lands_under_the_callers_name(self, tmp_path, monkeypatch):
+        _, produced = self._run(tmp_path, monkeypatch, "report.docx")
+        assert produced == tmp_path / "report.pdf"
+        assert produced.is_file()
+
+    def test_the_extension_comes_from_the_allowlist(self, tmp_path, monkeypatch):
+        command, _ = self._run(tmp_path, monkeypatch, "report.DOCX")
+        # Normalised to the literal from INPUT_SUFFIXES, not the caller's spelling.
+        assert command[-1].endswith(f"{lo.STAGED_INPUT_STEM}.docx")
+
+    def test_an_unsupported_extension_is_refused(self, tmp_path):
+        source = tmp_path / "notes.odt"
+        source.write_bytes(b"odt")
+        with pytest.raises(RuntimeError, match="unsupported extension"):
+            lo.convert(source, "pdf", tmp_path)
+
+    def test_staging_falls_back_to_a_copy_without_symlinks(self, tmp_path, monkeypatch):
+        # Windows without the privilege, and any filesystem that refuses the link.
+        def no_symlink(*args, **kwargs):
+            raise OSError("symlinks unavailable")
+
+        monkeypatch.setattr(lo.os, "symlink", no_symlink)
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk-content")
+        work = tmp_path / "work"
+        work.mkdir()
+
+        staged = lo._stage_for_soffice(source, work)
+        assert staged.read_bytes() == b"pk-content"
+        assert not staged.is_symlink()
+
+    def test_the_work_directory_is_cleaned_up(self, tmp_path, monkeypatch):
+        command, _ = self._run(tmp_path, monkeypatch, "report.docx")
+        work_dir = Path(command[-1]).parent
+        assert not work_dir.exists()

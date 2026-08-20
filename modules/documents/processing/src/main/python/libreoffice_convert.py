@@ -29,12 +29,14 @@ from __future__ import annotations
 
 import os
 import signal
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
 import shared_docs
+from markdown_markers import INPUT_SUFFIXES
 
 # Name the Writer PDF filter explicitly rather than passing a bare "pdf", so the export
 # does not depend on which filter LibreOffice picks for the input it was handed.
@@ -77,6 +79,12 @@ def resolve_soffice_path() -> str:
 # reap. Short on purpose: this runs holding the daemon's only parse slot.
 REAP_TIMEOUT_SECONDS = 10
 
+# The only options this module builds. Matched exactly, not by prefix: "--convert-to" as a
+# prefix would also admit "--convert-to=pdf:evil", which is the shape an injected argument
+# takes. The profile switch is the one exception, since its value is a generated temp URI.
+FIXED_SWITCHES = frozenset({"--headless", "--convert-to", "--outdir"})
+PROFILE_SWITCH_PREFIX = "-env:UserInstallation=file://"
+
 
 def _kill_group(process: subprocess.Popen) -> None:
     """Kill the converter and every process it started."""
@@ -102,6 +110,22 @@ def _run_soffice(command: list[str], timeout: float) -> subprocess.CompletedProc
     @return: the finished process, as ``subprocess.run`` would report it
     @raise subprocess.TimeoutExpired: when the timeout was reached (group already killed)
     """
+    for argument in command[1:]:
+        # No caller-derived value may reach soffice looking like an option. The document path
+        # is absolute (``resolve()``), so it cannot today, and this is the check that keeps it
+        # that way: a relative name such as "--convert-to" would otherwise be swallowed as a
+        # switch rather than converted (CWE-88). The executable itself is operator
+        # configuration, not request data, so it is not covered here.
+        #
+        # Inline rather than a helper on purpose: a barrier guard only sanitizes the true
+        # branch in the same control-flow graph as the call it protects, the same reason the
+        # path checks sit at their syscalls in shared_docs.
+        if not argument.startswith("-"):
+            # A value: a document path, an output directory, or a conversion target.
+            continue
+        if argument in FIXED_SWITCHES or argument.startswith(PROFILE_SWITCH_PREFIX):
+            continue
+        raise ValueError(f"refusing a soffice argument that reads as an option: {argument!r}")
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
@@ -128,6 +152,63 @@ def _run_soffice(command: list[str], timeout: float) -> subprocess.CompletedProc
     return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
 
 
+# The name the document is staged under before soffice is called. soffice is only ever handed
+# this constant plus its own switches, so nothing derived from the caller's ?path= reaches the
+# command line at all -- which is what CodeQL's py/command-line-injection asks for, and what a
+# check on the argv could not give it.
+STAGED_INPUT_STEM = "document"
+
+
+def _move_into_place(produced: Path, expected: Path) -> None:
+    """Move the converted file out of the temp work directory to where the caller expects it.
+
+    ``shutil.move`` rather than ``os.replace``: the work directory is under the system temp
+    directory and the destination is on the shared docs volume, which are different
+    filesystems, and ``os.replace`` cannot cross devices.
+
+    The ``realpath`` check is inline here for the same reason the ones in ``shared_docs`` sit
+    at their syscalls -- a barrier guard only sanitizes the true branch in the same control
+    flow graph as the call it protects.
+
+    @param produced: the file soffice wrote, inside the work directory
+    @param expected: where it belongs, named after the caller's document
+    """
+    source = os.path.realpath(produced)
+    destination = os.path.realpath(expected)
+    if not source.startswith(os.path.splitdrive(source)[0] or os.sep):
+        raise ValueError(f"invalid path: {produced}")
+    if not destination.startswith(os.path.splitdrive(destination)[0] or os.sep):
+        raise ValueError(f"invalid path: {expected}")
+    shutil.move(source, destination)
+
+
+def _stage_for_soffice(source: Path, work_dir: Path) -> Path:
+    """Put ``source`` inside ``work_dir`` under a name built only from literals.
+
+    soffice picks its import filter from the extension, so the extension has to survive. It is
+    taken from :data:`INPUT_SUFFIXES` rather than copied off the caller's filename, so the
+    staged name is a constant either way.
+
+    A symlink keeps this free. Where symlinks are unavailable -- Windows without the privilege
+    -- the document is copied instead, which the input size ceiling keeps bounded.
+
+    @param source: the document to stage, already resolved inside the shared docs volume
+    @param work_dir: the temp directory to stage it into
+    @return: the staged path, under ``work_dir``
+    @raise RuntimeError: when the extension is not one this pipeline accepts
+    """
+    lowered = source.suffix.lower()
+    suffix = next((allowed for allowed in INPUT_SUFFIXES if allowed == lowered), None)
+    if suffix is None:
+        raise RuntimeError(f"LibreOffice cannot convert '{source.name}': unsupported extension")
+    staged = work_dir / (STAGED_INPUT_STEM + suffix)
+    try:
+        os.symlink(source.resolve(), staged)
+    except (OSError, NotImplementedError, AttributeError):
+        shutil.copyfile(source, staged)
+    return staged
+
+
 def convert(input_path: Path, target_format: str, output_dir: Path | None = None) -> Path:
     """Convert ``input_path`` with headless LibreOffice.
 
@@ -148,7 +229,9 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
     extension = target_format.split(":", 1)[0]
     expected = out_dir / f"{source.stem}.{extension}"
     profile_dir = Path(tempfile.mkdtemp(prefix="iap-lo-profile-"))
+    work_dir = Path(tempfile.mkdtemp(prefix="iap-lo-work-"))
     try:
+        staged = _stage_for_soffice(source, work_dir)
         command = [
             resolve_soffice_path(),
             "--headless",
@@ -156,8 +239,8 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
             "--convert-to",
             target_format,
             "--outdir",
-            str(out_dir.resolve()),
-            str(source.resolve()),
+            str(work_dir),
+            str(staged),
         ]
         try:
             completed = _run_soffice(command, conversion_timeout_seconds())
@@ -176,14 +259,19 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
                 f"LibreOffice conversion failed (exit {completed.returncode}) for "
                 f"'{source.name}': {detail.strip() or '(no output)'}"
             )
-        if not shared_docs.path_is_file(expected):
+        # soffice names its output after the staged input, so the result carries the staged
+        # stem and is moved to the name the caller expects.
+        produced = work_dir / f"{STAGED_INPUT_STEM}.{extension}"
+        if not shared_docs.path_is_file(produced):
             raise RuntimeError(
                 "LibreOffice reported success but produced no output for "
                 f"'{source.name}' (expected {expected.name})"
             )
+        _move_into_place(produced, expected)
         return expected
     finally:
         shared_docs.remove_tree(profile_dir, ignore_errors=True)
+        shared_docs.remove_tree(work_dir, ignore_errors=True)
 
 
 def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
