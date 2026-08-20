@@ -859,6 +859,26 @@ class BpmnXmlSyncEditorTest
         assertTrue(version.getChildNode(END_1).exists());
     }
 
+    /** A guard belongs to the arc that declares it, not to whatever an extension nested further down. */
+    @Test
+    void onlyADirectConditionExpressionChildCounts() throws Exception
+    {
+        final NodeState version = firstSave(
+            DEFS_OPEN
+            + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"start1\"/>\n"
+            + "    <bpmn:endEvent id=\"end1\"/>\n"
+            + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"end1\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + "        <bpmn:conditionExpression>${notMine}</bpmn:conditionExpression>\n"
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:sequenceFlow>\n"
+            + PROCESS_CLOSE
+            + DEFS_CLOSE);
+
+        assertFalse(version.getChildNode(START_1).getChildNode(FLOW_1).hasProperty("conditionExpression"));
+    }
+
     @Test
     void arrayValuedJcrDataIsIgnored() throws Exception
     {

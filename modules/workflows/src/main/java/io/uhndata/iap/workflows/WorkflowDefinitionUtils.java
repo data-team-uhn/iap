@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
 import javax.xml.XMLConstants;
@@ -576,12 +577,15 @@ public final class WorkflowDefinitionUtils
     private static boolean hasChildElement(final Element element, final String localName)
     {
         final NodeList children = element.getChildNodes();
-        for (int i = 0; i < children.getLength(); ++i) {
-            if (children.item(i) instanceof Element child && localName.equals(child.getLocalName())) {
-                return true;
-            }
-        }
-        return false;
+        return IntStream.range(0, children.getLength())
+            .mapToObj(children::item)
+            .anyMatch(child -> isBpmnElement(child, localName));
+    }
+
+    private static boolean isBpmnElement(final org.w3c.dom.Node node, final String localName)
+    {
+        return node instanceof Element element && BPMN_NS.equals(element.getNamespaceURI())
+            && localName.equals(element.getLocalName());
     }
 
     /**
@@ -688,12 +692,15 @@ public final class WorkflowDefinitionUtils
 
     private static String getConditionExpression(final Element sequenceFlow)
     {
-        final NodeList conditions = sequenceFlow.getElementsByTagNameNS(BPMN_NS, CONDITION_EXPRESSION_PROPERTY);
-        if (conditions.getLength() == 0) {
-            return null;
-        }
-        final String condition = conditions.item(0).getTextContent().trim();
-        return condition.isBlank() ? null : condition;
+        final NodeList children = sequenceFlow.getChildNodes();
+        // Only a direct child counts: a conditionExpression buried in extensionElements belongs to whatever
+        // extension put it there, not to this arc.
+        return IntStream.range(0, children.getLength())
+            .mapToObj(children::item)
+            .filter(child -> isBpmnElement(child, CONDITION_EXPRESSION_PROPERTY))
+            .findFirst()
+            .map(child -> child.getTextContent().trim())
+            .orElse(null);
     }
 
     /**
