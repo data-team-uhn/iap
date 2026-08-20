@@ -225,6 +225,9 @@ public class BpmnXmlSyncEditor extends DefaultEditor
         if (bpmnXml.length() == 0) {
             return;
         }
+        // RuntimeException is caught alongside the parser's own failures on purpose: a commit editor that throws
+        // aborts the entire commit, losing changes that have nothing to do with workflows, so a diagram or a
+        // vocabulary entry we cannot make sense of must never cost the user their save.
         try (InputStream contents = bpmnXml.getNewStream()) {
             final String hash = DigestUtils.sha256Hex(contents);
             if (hash.equals(this.workflowVersion.getString(PARSED_HASH_PROPERTY))) {
@@ -236,7 +239,7 @@ public class BpmnXmlSyncEditor extends DefaultEditor
             }
             this.workflowVersion.setProperty(PARSED_HASH_PROPERTY, hash);
             LOGGER.debug("Synced flow nodes for WorkflowVersion {}", this.workflowVersionPath);
-        } catch (final ParserConfigurationException | SAXException | IOException e) {
+        } catch (final ParserConfigurationException | SAXException | IOException | RuntimeException e) {
             LOGGER.error("Failed to parse bpmnXml at {}: {}", this.workflowVersionPath, e.getMessage(), e);
         }
     }
