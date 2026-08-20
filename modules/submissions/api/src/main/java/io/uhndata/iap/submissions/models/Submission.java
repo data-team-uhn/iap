@@ -205,7 +205,8 @@ public class Submission extends Entity
     /**
      * The requirements of this submission's schema version that haven't been fulfilled yet. A <em>required</em>
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
-     * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Requirements, sections and
+     * approved {@link Review}, or a {@code FormRequirement} with an unanswered <em>required</em> question. An
+     * optional question left blank fulfils it just as well. Requirements, sections and
      * questions whose condition doesn't currently hold for this submission don't apply, so they are never
      * reported as missing.
      *
@@ -248,8 +249,12 @@ public class Submission extends Entity
                 return reviewed != null && requirement.getPath().equals(reviewed.getPath());
             });
         }
-        // FormRequirement is the only other concrete requirement type today.
-        return this.getQuestionsOf((FormRequirement) requirement).stream().allMatch(this::isAnswered);
+        // FormRequirement is the only other concrete requirement type today. Only its *required* questions can
+        // leave it unfulfilled: an optional one is asked, not demanded, and a submission is not incomplete for
+        // declining to answer it. Without this filter `Question.required` would mean nothing at all
+        return this.getQuestionsOf((FormRequirement) requirement).stream()
+            .filter(Question::isRequired)
+            .allMatch(this::isAnswered);
     }
 
     /**
@@ -327,14 +332,19 @@ public class Submission extends Entity
 
     private boolean isAnswered(final Question question)
     {
-        return !this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).isEmpty();
+        // Blank counts as unanswered, not as answered. Clearing a field posts an empty value rather than removing
+        // the answer node, so the node stays behind holding nothing — and treating that as an answer would let a
+        // required question be satisfied by emptying it. `allMatch` over no values is true, which is the wanted
+        // reading for a question with no answer node at all
+        return !this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).stream()
+            .allMatch(String::isBlank);
     }
 
     /**
      * What has been answered, by the path of the question it answers.
      *
-     * <p>Used by fulfilment, to decide whether a form requirement is fulfilled, and by the extraction intake. One
-     * index, so the two cannot disagree on what counts as an answer.</p>
+     * <p>Used by fulfilment, to decide whether a form requirement is fulfilled, by the extraction intake, and to
+     * render a form. One index, so they cannot disagree on what counts as an answer.</p>
      *
      * <p>An answer whose question no longer resolves answers nothing being asked, and is left out. Where more than
      * one answer node addresses the same question — which only degenerate content produces — the one carrying a
