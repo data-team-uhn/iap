@@ -18,8 +18,10 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import jakarta.json.Json;
@@ -38,6 +40,7 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -143,6 +146,11 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
      * The event payload: every ordinary request parameter, single values as strings and repeated ones as string
      * arrays. Sling's own control parameters, {@code :}-prefixed, are the transport's business and stay out.
      *
+     * <p>An uploaded file is the one thing that does not become a string. Reading it as one would decode its bytes
+     * as text and corrupt anything that is not text, so it arrives as an {@link EventAttachment} for a handler that
+     * has somewhere to put it. Whether a given activity wants one is the handler's business; this only declines to
+     * destroy it on the way in.</p>
+     *
      * @param request the incoming request
      * @return the payload for the translated event
      */
@@ -150,11 +158,67 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     {
         return request.getRequestParameterMap().entrySet().stream()
             .filter(entry -> !entry.getKey().startsWith(":") && !"_charset_".equals(entry.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> {
-                final RequestParameter[] values = entry.getValue();
-                return values.length == 1 ? values[0].getString()
-                    : Arrays.stream(values).map(RequestParameter::getString).toArray(String[]::new);
-            }));
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> value(entry.getValue())));
+    }
+
+    /**
+     * What one parameter contributes to the payload: a file, a string, or an array of strings.
+     *
+     * <p>Package-visible so a test can drive it with a real file part: the mock request the other tests use
+     * turns everything it is given into a form field, so the one case worth pinning here is the one it cannot
+     * express.</p>
+     *
+     * @param values everything sent under one name
+     * @return the payload value
+     */
+    static Object value(final RequestParameter[] values)
+    {
+        if (values.length == 1 && !values[0].isFormField()) {
+            return new RequestParameterAttachment(values[0]);
+        }
+        return values.length == 1 ? values[0].getString()
+            : Arrays.stream(values).map(RequestParameter::getString).toArray(String[]::new);
+    }
+
+    /**
+     * A multipart part, offered to a handler as an attachment.
+     *
+     * <p>Holds the part rather than its bytes: Sling has already buffered it wherever it saw fit, and copying it
+     * into the heap to hand it over would double that for no reason — a handler writes it straight into the
+     * repository.</p>
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class RequestParameterAttachment implements EventAttachment
+    {
+        private final RequestParameter part;
+
+        RequestParameterAttachment(final RequestParameter part)
+        {
+            this.part = part;
+        }
+
+        @Override
+        public String getFileName()
+        {
+            return this.part.getFileName();
+        }
+
+        @Override
+        public String getMimeType()
+        {
+            return this.part.getContentType();
+        }
+
+        @Override
+        public InputStream openStream() throws IOException
+        {
+            // Sling declares this nullable, and the annotation is load-bearing rather than defensive: a part with
+            // nothing to read is a broken request rather than an empty file, since a zero-byte upload still has a
+            // stream. Asserted rather than branched on, so there is no path a test cannot reach
+            return Objects.requireNonNull(this.part.getInputStream(), "A file part always has content to read");
+        }
     }
 
     /**
