@@ -212,7 +212,9 @@ describe("SubmissionEditor", () => {
       await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
 
       // The selector names the event: a bare POST to a submission means `save`
-      const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument`);
+      // `.json` after the selector, because Sling would otherwise read `attachDocument` as the
+      // extension and the POST would mean `save`
+      const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
       expect(upload).toBeDefined();
       const init = upload![1] as RequestInit;
       expect(init.method).toBe("POST");
@@ -304,7 +306,7 @@ describe("SubmissionEditor", () => {
       // express: it always has a file to give
       fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [] } });
 
-      expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument`)).toBe(false);
+      expect(fetchMock.mock.calls.some(call => call[0].includes(".attachDocument"))).toBe(false);
     });
 
     it("cannot be attached to once the request is no longer the submitter's to change", async () => {
