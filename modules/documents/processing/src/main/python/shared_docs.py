@@ -28,11 +28,33 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from markdown_markers import INPUT_SUFFIXES
 
 DEFAULT_SHARED_DOCS = "/shared-docs"
+
+# Largest PDF the daemon will accept, in pages, and the variable that overrides it. One
+# conversion holds the only parse slot (MAX_CONCURRENT_PARSES), so an enormous document does
+# not just take a long time -- every other caller gets 503 until it finishes. The refusal is a
+# 400 the caller can act on, raised *after* the parse slot is taken (see
+# :func:`refuse_oversized_input`): counting pages means reading the document, so one that
+# arrives mid-conversion hears 503 busy first and 400 on retry. 0 or negative turns it off.
+PAGE_LIMIT_VARIABLE = "IAP_MAX_INPUT_PAGES"
+DEFAULT_MAX_INPUT_PAGES = 1500
+
+# The same ceiling by size, for every accepted type rather than PDFs only. A page count needs
+# pages to count, so a .doc/.docx walks straight past the page limit and can still render to an
+# arbitrarily long PDF in LibreOffice prep — the hole a caller could step through by changing
+# the extension. Bytes are the one measure every input has. 0 or negative turns the limit off.
+BYTE_LIMIT_VARIABLE = "IAP_MAX_INPUT_BYTES"
+# 64 MiB, not something larger: the ceilings have to describe a document the rest of the
+# pipeline can actually finish. One soffice run is killed at IAP_LIBREOFFICE_TIMEOUT_SECONDS
+# (300s), and for a .doc that kill is a hard failure — so admitting a file far bigger than
+# LibreOffice can render in that time would mark a document unparseable that was never given a
+# fair chance. Raise both together, or neither.
+DEFAULT_MAX_INPUT_BYTES = 64 * 1024 * 1024
 
 
 class ParseRequestError(ValueError):
@@ -52,6 +74,103 @@ def shared_docs_root() -> Path:
     return Path(configured).resolve()
 
 
+def positive_number_from_env(variable, default, cast=int, expected="an integer"):
+    """A positive numeric setting from the environment, or ``None`` when it is switched off.
+
+    Shared by every numeric knob the pipeline reads, so the "an unreadable value warns instead
+    of silently becoming the default" behaviour cannot drift between them: "150O" for "1500"
+    otherwise left the operator no way to tell their setting had been ignored.
+
+    @param variable: the environment variable to read
+    @param default: the value to use when it is unset or unreadable
+    @param cast: the parser for the value, ``int`` or ``float``
+    @param expected: what the value should have been, for the warning
+    @return: the value, or ``None`` when it is 0 or negative
+    """
+    configured = (os.environ.get(variable) or "").strip()
+    if configured:
+        try:
+            value = cast(configured)
+        except ValueError:
+            print(
+                f"WARNING: {variable}={configured!r} is not {expected}; using {default}",
+                file=sys.stderr,
+                flush=True,
+            )
+            value = default
+    else:
+        value = default
+    return value if value > 0 else None
+
+
+def _limit_from_env(variable: str, default: int) -> int | None:
+    """A page/byte ceiling from the environment; ``None`` means the ceiling is off."""
+    return positive_number_from_env(variable, default)
+
+
+def max_input_pages() -> int | None:
+    """The configured PDF page ceiling, or ``None`` when the limit is off."""
+    return _limit_from_env(PAGE_LIMIT_VARIABLE, DEFAULT_MAX_INPUT_PAGES)
+
+
+def max_input_bytes() -> int | None:
+    """The configured input size ceiling in bytes, or ``None`` when the limit is off."""
+    return _limit_from_env(BYTE_LIMIT_VARIABLE, DEFAULT_MAX_INPUT_BYTES)
+
+
+def refuse_oversized_input(path: Path) -> None:
+    """Reject a document bigger than the pipeline is sized for, by size and by page count.
+
+    Both ceilings exist because neither covers everything: bytes apply to every accepted type
+    but say little about how long a conversion will take, and pages say a great deal but only a
+    PDF has them to count.
+
+    @param path: the resolved input path
+    @raise ParseRequestError: when the document is over either ceiling
+    """
+    byte_limit = max_input_bytes()
+    if byte_limit is not None:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            size = None
+        if size is not None and size > byte_limit:
+            raise ParseRequestError(
+                f"document is {size:,} bytes, over the {byte_limit:,}-byte limit "
+                f"({BYTE_LIMIT_VARIABLE} raises or disables it)"
+            )
+    refuse_oversized_pdf(path)
+
+
+def refuse_oversized_pdf(path: Path) -> None:
+    """Reject a PDF with more pages than :func:`max_input_pages` allows.
+
+    Reads only the page tree, which is cheap next to the conversion it is protecting.
+    Deliberately fails open: an unreadable or non-PDF file is left to the converter, which
+    reports a real error for it. The ceiling is a resource guard, not a security boundary --
+    :func:`resolve_parse_path` is what keeps a caller inside the shared volume.
+
+    @param path: the resolved input path
+    @raise ParseRequestError: when the document is over the ceiling
+    """
+    limit = max_input_pages()
+    if limit is None or path.suffix.lower() != ".pdf":
+        return
+    try:
+        from pypdf import PdfReader
+        # Opened through a context manager: this runs on every /parse, and PdfReader holds the
+        # file until it is collected.
+        with open(path, "rb") as handle:
+            pages = len(PdfReader(handle).pages)
+    except Exception:  # noqa: BLE001 -- unreadable here means "let the converter say why"
+        return
+    if pages > limit:
+        raise ParseRequestError(
+            f"document has {pages} pages, over the {limit}-page limit "
+            f"({PAGE_LIMIT_VARIABLE} raises or disables it)"
+        )
+
+
 def resolve_parse_path(raw_path: str) -> Path:
     """Resolve and allowlist a caller-supplied document path under the shared docs root.
 
@@ -68,6 +187,20 @@ def resolve_parse_path(raw_path: str) -> Path:
     merely starts with the root ("/shared-docs-evil"), which ``startswith`` would accept.
     ``relative_to`` is kept as a third closed check.
 
+    ``parse_qs`` also decodes ``+`` as a space, so a file whose name really contains one has to
+    arrive percent-encoded (``report%2Bfinal.pdf``); sent literally it is looked for as
+    ``report final.pdf`` and reported missing.
+
+    Resolve-then-use, so there is a window between the checks here and the converter opening
+    the file: a symlink swapped in after this returns would be followed. Accepted rather than
+    closed, because exploiting it needs write access to the shared volume, and anyone who has
+    that can simply stage the file they want parsed.
+
+    Deliberately cheap — stat and string work only, no reading of the document. The size
+    ceilings are :func:`refuse_oversized_input`, which the caller applies once it holds the
+    parse slot: walking a PDF's page tree is real work, and doing it here let every concurrent
+    request do it at once on a container sized for one conversion.
+
     @param raw_path: absolute, already-decoded path from the ``path`` query parameter
     @return: resolved existing file path
     @raise ParseRequestError: when the path is empty, outside the shared root, or not a file
@@ -76,7 +209,14 @@ def resolve_parse_path(raw_path: str) -> Path:
     if not text:
         raise ParseRequestError("path query parameter is required")
     root = shared_docs_root()
-    resolved = os.path.realpath(text)
+    try:
+        resolved = os.path.realpath(text)
+    except ValueError as exc:
+        # A NUL byte in the path. On Linux ``realpath`` calls ``os.lstat``, which raises a bare
+        # ValueError for one, and ``posixpath.realpath`` catches only OSError — so it escaped
+        # before any ParseRequestError could be raised, and the handler reported a malformed
+        # request as a 500. A caller reading 5xx as "retry" would then retry it forever.
+        raise ParseRequestError(f"path is not a usable filename: {exc}") from None
     root_s = os.path.realpath(root)
     # realpath (PathNormalization) then startswith (SafeAccessCheck) is the pair
     # py/path-injection models. commonpath is not modeled; it rejects a sibling
@@ -110,6 +250,9 @@ def resolve_parse_path(raw_path: str) -> Path:
 def write_text(path: Path | str, text: str) -> None:
     """Write UTF-8 ``text`` to ``path`` after the CodeQL-visible path check.
 
+    This check is not a containment check and rejects nothing in practice -- the jail is
+    :func:`resolve_parse_path`. It exists only so the query sees a guard at the syscall.
+
     ``realpath`` + ``startswith`` must sit in this function, not a helper: CodeQL's
     ``SafeAccessCheck`` is a barrier-guard and only sanitizes the true branch in the
     same CFG as the ``open``. After ``realpath`` the path is absolute, so it starts
@@ -126,7 +269,10 @@ def write_text(path: Path | str, text: str) -> None:
 
 
 def replace_file(source: Path | str, dest: Path | str) -> None:
-    """``os.replace`` after the CodeQL-visible path check on both sides."""
+    """``os.replace`` after the CodeQL-visible path check on both sides.
+
+    See :func:`write_text` for why the check is inline and not a shared helper.
+    """
     src = os.path.realpath(source)
     dst = os.path.realpath(dest)
     src_root = os.path.splitdrive(src)[0] or os.sep
@@ -139,7 +285,7 @@ def replace_file(source: Path | str, dest: Path | str) -> None:
 
 
 def remove_file(path: Path | str, *, missing_ok: bool = True) -> None:
-    """Unlink ``path`` after the CodeQL-visible path check."""
+    """Unlink ``path`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
     root_marker = os.path.splitdrive(resolved)[0] or os.sep
     if not resolved.startswith(root_marker):
@@ -152,7 +298,7 @@ def remove_file(path: Path | str, *, missing_ok: bool = True) -> None:
 
 
 def remove_tree(path: Path | str, *, ignore_errors: bool = False) -> None:
-    """``shutil.rmtree`` after the CodeQL-visible path check."""
+    """``shutil.rmtree`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
     root_marker = os.path.splitdrive(resolved)[0] or os.sep
     if not resolved.startswith(root_marker):
@@ -161,7 +307,7 @@ def remove_tree(path: Path | str, *, ignore_errors: bool = False) -> None:
 
 
 def make_dirs(path: Path | str, *, exist_ok: bool = True) -> None:
-    """``os.makedirs`` after the CodeQL-visible path check."""
+    """``os.makedirs`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
     root_marker = os.path.splitdrive(resolved)[0] or os.sep
     if not resolved.startswith(root_marker):
@@ -170,7 +316,7 @@ def make_dirs(path: Path | str, *, exist_ok: bool = True) -> None:
 
 
 def path_exists(path: Path | str) -> bool:
-    """``os.path.exists`` after the CodeQL-visible path check."""
+    """``os.path.exists`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
     root_marker = os.path.splitdrive(resolved)[0] or os.sep
     if not resolved.startswith(root_marker):
@@ -179,7 +325,7 @@ def path_exists(path: Path | str) -> bool:
 
 
 def path_is_file(path: Path | str) -> bool:
-    """``os.path.isfile`` after the CodeQL-visible path check."""
+    """``os.path.isfile`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
     root_marker = os.path.splitdrive(resolved)[0] or os.sep
     if not resolved.startswith(root_marker):
