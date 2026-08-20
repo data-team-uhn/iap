@@ -55,6 +55,12 @@ test.describe('a story: asking for time off, and getting it', () => {
   const TOO_FAR = '2026-12-19';
 
   test('Priya asks for the last week of November, is told when it is too much, and sends it', async ({ page }) => {
+    // The whole story is one test rather than several, so the per-test budget has to stretch over
+    // three sign-ins, two sign-outs and an autosaving form. That fits inside the 30s default on a
+    // developer machine and does not on a two-core CI runner, where every step still passes and the
+    // clock simply runs out.
+    test.slow();
+
     const login = new LoginPage(page);
     const shell = new AppShell(page);
 
