@@ -22,10 +22,12 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import javax.xml.XMLConstants;
@@ -133,12 +135,34 @@ public final class WorkflowDefinitionUtils
 
     private static final String JCR_SUPERTYPES_PROPERTY = "jcr:supertypes";
 
+    /** The characters JCR reserves, and therefore forbids in a node name. */
+    private static final String INVALID_NAME_CHARACTERS = "/:[]|*";
+
+    /** Names JCR reads as path steps rather than as children. */
+    private static final Set<String> RELATIVE_PATH_NAMES = Set.of(".", "..");
+
     /** Built on first use and reused; see {@link #createFactory()} for why that matters and what it hardens. */
     private static DocumentBuilderFactory factory;
 
     private WorkflowDefinitionUtils()
     {
         // Utility class, no instances allowed
+    }
+
+    /**
+     * The invariants of a single parse: everything the per-element methods need that does not change from one element
+     * to the next, bundled together so the individual methods stay within the checkstyle parameter limit.
+     *
+     * @since 0.1.0
+     */
+    private record ParseContext(NodeBuilder workflowVersion, NodeState nodeTypesRoot, String author, String created,
+        String path, Set<String> claimedNames)
+    {
+        ParseContext(final NodeBuilder workflowVersion, final NodeState nodeTypesRoot, final String author,
+            final String created, final String path)
+        {
+            this(workflowVersion, nodeTypesRoot, author, created, path, new HashSet<>());
+        }
     }
 
     /**
@@ -169,6 +193,10 @@ public final class WorkflowDefinitionUtils
         if (process == null) {
             return;
         }
+        // One timestamp for the whole batch: every node in it was created by the same parse, and differing
+        // millisecond values would suggest otherwise.
+        final ParseContext context = new ParseContext(workflowVersion, nodeTypesRoot, author,
+            ISO8601.format(Calendar.getInstance()), workflowVersionPath);
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes = loadFlowNodeTypes(workflowTypesRoot);
         final Map<String, Element> elementsById = new LinkedHashMap<>();
         final List<Element> sequenceFlows = new ArrayList<>();
@@ -188,11 +216,11 @@ public final class WorkflowDefinitionUtils
                 continue;
             }
             elementsById.put(id, element);
-            createFlowNode(element, localName, id, flowNodeTypes, workflowVersion, nodeTypesRoot, author);
+            createFlowNode(element, localName, id, flowNodeTypes, context);
         }
 
         for (final Element sequenceFlow : sequenceFlows) {
-            createSequenceFlow(sequenceFlow, elementsById, workflowVersion, nodeTypesRoot, author);
+            createSequenceFlow(sequenceFlow, elementsById, context);
         }
     }
 
@@ -325,25 +353,80 @@ public final class WorkflowDefinitionUtils
     }
 
     private static void createFlowNode(final Element element, final String localName, final String id,
-        final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes, final NodeBuilder workflowVersion,
-        final NodeState nodeTypesRoot, final String author)
+        final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes, final ParseContext context)
     {
         final FlowNodeTypeInfo flowNodeType = matchFlowNodeType(element, flowNodeTypes.get(localName));
         if (flowNodeType == null) {
             LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}), skipping", localName, id);
             return;
         }
-        final NodeBuilder node = workflowVersion.child(id);
-        node.setProperty(JCR_PRIMARY_TYPE, flowNodeType.jcrNodeType(), Type.NAME);
-        node.setProperty(FLOW_NODE_TYPE_PROPERTY, flowNodeType.identifier(), Type.REFERENCE);
-        node.setProperty(ELEMENT_ID_PROPERTY, id);
-        final String name = element.getAttribute(NAME_ATTRIBUTE);
-        if (StringUtils.isNotBlank(name)) {
-            node.setProperty(LABEL_PROPERTY, name);
+        final NodeBuilder node = createNode(context.workflowVersion(), id, flowNodeType.jcrNodeType(), context);
+        if (node == null) {
+            return;
         }
-        applyJcrProperties(flowNodeType, node);
+        applyJcrProperties(flowNodeType, node, context);
         applyCopiedProperties(flowNodeType, element, node);
-        applySystemProperties(node, flowNodeType.jcrNodeType(), nodeTypesRoot, author);
+        applyIdentity(node, element, id, flowNodeType);
+        applySystemProperties(node, flowNodeType.jcrNodeType(), context);
+    }
+
+    /**
+     * Writes what identifies the node, last: the vocabulary supplies defaults, but the diagram is the authority on
+     * which element this is and what it is called, so no configured property may overwrite these.
+     */
+    private static void applyIdentity(final NodeBuilder node, final Element element, final String id,
+        final FlowNodeTypeInfo flowNodeType)
+    {
+        node.setProperty(ELEMENT_ID_PROPERTY, id);
+        node.setProperty(FLOW_NODE_TYPE_PROPERTY, flowNodeType.identifier(), Type.REFERENCE);
+        setIfNotBlank(node, LABEL_PROPERTY, element.getAttribute(NAME_ATTRIBUTE));
+    }
+
+    /**
+     * Creates a node for a parsed element and claims its name. Returns {@code null} rather than a node when the
+     * element's {@code id} cannot be used as a JCR node name, when it names a child that already exists for another
+     * reason — {@code bpmn.xml} above all, which {@code NodeBuilder.child} would hand back for this parse to retype
+     * and the next one to delete — or when a previous element in the same diagram already claimed it, since
+     * {@code child} would otherwise merge the two into one node carrying properties of both.
+     */
+    private static NodeBuilder createNode(final NodeBuilder parent, final String id, final String nodeType,
+        final ParseContext context)
+    {
+        if (!isValidName(id)) {
+            LOGGER.warn("BPMN element id {} in {} is not usable as a JCR node name, skipping", id, context.path());
+            return null;
+        }
+        if (!context.claimedNames().add(id)) {
+            LOGGER.warn("BPMN element id {} in {} is used more than once, skipping the later element", id,
+                context.path());
+            return null;
+        }
+        if (parent.hasChildNode(id) && !isFlowNodeOrSequenceFlow(parent.getChildNode(id), context.nodeTypesRoot())) {
+            LOGGER.warn("BPMN element id {} in {} collides with an existing non-flow-node child, skipping", id,
+                context.path());
+            return null;
+        }
+        final NodeBuilder node = parent.child(id);
+        node.setProperty(JCR_PRIMARY_TYPE, nodeType, Type.NAME);
+        return node;
+    }
+
+    /**
+     * Whether {@code name} can be stored as a JCR node name. Oak's own name validation never sees nodes an editor
+     * adds to the commit's builder, so an unusable name would otherwise be persisted unaddressable, or abort the
+     * whole commit from inside {@code NodeBuilder.child}.
+     */
+    private static boolean isValidName(final String name)
+    {
+        return name.equals(name.trim()) && !RELATIVE_PATH_NAMES.contains(name)
+            && name.chars().noneMatch(c -> INVALID_NAME_CHARACTERS.indexOf(c) >= 0);
+    }
+
+    private static void setIfNotBlank(final NodeBuilder node, final String name, final String value)
+    {
+        if (StringUtils.isNotBlank(value)) {
+            node.setProperty(name, value);
+        }
     }
 
     /**
@@ -355,12 +438,12 @@ public final class WorkflowDefinitionUtils
      * {@code workflowDefinitions.cnd}.
      */
     private static void applySystemProperties(final NodeBuilder node, final String primaryType,
-        final NodeState nodeTypesRoot, final String author)
+        final ParseContext context)
     {
-        node.setProperty(JCR_CREATED_PROPERTY, ISO8601.format(Calendar.getInstance()), Type.DATE);
-        node.setProperty(JCR_CREATED_BY_PROPERTY, author);
+        node.setProperty(JCR_CREATED_PROPERTY, context.created(), Type.DATE);
+        node.setProperty(JCR_CREATED_BY_PROPERTY, context.author());
         node.setProperty(SLING_RESOURCE_TYPE_PROPERTY, toResourceType(primaryType));
-        final String supertype = directSupertype(primaryType, nodeTypesRoot);
+        final String supertype = directSupertype(primaryType, context.nodeTypesRoot());
         if (supertype != null) {
             node.setProperty(SLING_RESOURCE_SUPER_TYPE_PROPERTY, toResourceType(supertype));
         }
@@ -419,7 +502,8 @@ public final class WorkflowDefinitionUtils
      * Sets the literal property values configured in the FlowNodeType's {@code jcrProperties}, a lightweight
      * {@code {name: value, ...}} map (unquoted keys, boolean/numeric/quoted-or-bare-string values).
      */
-    private static void applyJcrProperties(final FlowNodeTypeInfo flowNodeType, final NodeBuilder node)
+    private static void applyJcrProperties(final FlowNodeTypeInfo flowNodeType, final NodeBuilder node,
+        final ParseContext context)
     {
         final String raw = flowNodeType.jcrProperties();
         if (raw == null) {
@@ -482,7 +566,7 @@ public final class WorkflowDefinitionUtils
     }
 
     private static void createSequenceFlow(final Element element, final Map<String, Element> elementsById,
-        final NodeBuilder workflowVersion, final NodeState nodeTypesRoot, final String author)
+        final ParseContext context)
     {
         final String id = element.getAttribute(ID_ATTRIBUTE);
         final String sourceRef = element.getAttribute("sourceRef");
@@ -491,28 +575,24 @@ public final class WorkflowDefinitionUtils
             LOGGER.warn("SequenceFlow {} is missing sourceRef or targetRef, skipping", id);
             return;
         }
-        if (!workflowVersion.hasChildNode(sourceRef)) {
+        if (!context.workflowVersion().hasChildNode(sourceRef)) {
             LOGGER.warn("SequenceFlow {} references unknown source node {}, skipping", id, sourceRef);
             return;
         }
-        final NodeBuilder sourceNode = workflowVersion.getChildNode(sourceRef);
-        final NodeBuilder flow = sourceNode.child(id);
-        flow.setProperty(JCR_PRIMARY_TYPE, SEQUENCE_FLOW_NODETYPE, Type.NAME);
+        final NodeBuilder source = context.workflowVersion().getChildNode(sourceRef);
+        final NodeBuilder flow = createNode(source, id, SEQUENCE_FLOW_NODETYPE, context);
+        if (flow == null) {
+            return;
+        }
         flow.setProperty(ELEMENT_ID_PROPERTY, id);
         flow.setProperty(TARGET_REF_PROPERTY, targetRef);
-        final String name = element.getAttribute(NAME_ATTRIBUTE);
-        if (StringUtils.isNotBlank(name)) {
-            flow.setProperty(LABEL_PROPERTY, name);
-        }
-        final String condition = getConditionExpression(element);
-        if (condition != null) {
-            flow.setProperty(CONDITION_EXPRESSION_PROPERTY, condition);
-        }
-        final Element source = elementsById.get(sourceRef);
-        if (source != null && id.equals(source.getAttribute("default"))) {
+        setIfNotBlank(flow, LABEL_PROPERTY, element.getAttribute(NAME_ATTRIBUTE));
+        setIfNotBlank(flow, CONDITION_EXPRESSION_PROPERTY, getConditionExpression(element));
+        final Element sourceElement = elementsById.get(sourceRef);
+        if (sourceElement != null && id.equals(sourceElement.getAttribute("default"))) {
             flow.setProperty("isDefault", true);
         }
-        applySystemProperties(flow, SEQUENCE_FLOW_NODETYPE, nodeTypesRoot, author);
+        applySystemProperties(flow, SEQUENCE_FLOW_NODETYPE, context);
     }
 
     private static String getConditionExpression(final Element sequenceFlow)

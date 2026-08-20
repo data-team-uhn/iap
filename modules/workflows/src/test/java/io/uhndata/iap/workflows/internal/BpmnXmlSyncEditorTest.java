@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -154,6 +155,8 @@ class BpmnXmlSyncEditorTest
     private final String endEventTypeId = UUID.randomUUID().toString();
 
     private final String messageIntermediateCatchEventTypeId = UUID.randomUUID().toString();
+
+    private final String timerBoundaryEventTypeId = UUID.randomUUID().toString();
 
     /**
      * Builds the repository state before any {@code bpmn.xml} is saved: {@code /WorkflowTypes} fully configured,
@@ -379,6 +382,10 @@ class BpmnXmlSyncEditorTest
         assertEquals("alice", flow1.getProperty("jcr:createdBy").getValue(Type.STRING));
         assertEquals("wf/SequenceFlow", flow1.getProperty("sling:resourceType").getValue(Type.STRING));
         assertEquals("iap/EntityPart", flow1.getProperty(RESOURCE_SUPER_TYPE).getValue(Type.STRING));
+
+        // One timestamp for the whole batch, so that the nodes of a single parse cannot be told apart by age.
+        assertEquals(start.getProperty("jcr:created").getValue(Type.DATE),
+            flow1.getProperty("jcr:created").getValue(Type.DATE));
     }
 
     @Test
@@ -621,7 +628,11 @@ class BpmnXmlSyncEditorTest
         assertEquals(true, task.getProperty("catching").getValue(Type.BOOLEAN));
         assertEquals(3L, task.getProperty("weight").getValue(Type.LONG));
         assertEquals(1.5, task.getProperty("ratio").getValue(Type.DOUBLE));
-        assertEquals("ok", task.getProperty("label").getValue(Type.STRING));
+        // The vocabulary supplies a label, but the diagram is the authority on what an element is called, so the
+        // element's own name wins -- as it does over any other configured property that names part of its identity.
+        assertEquals("Review", task.getProperty("label").getValue(Type.STRING));
+        assertEquals(TASK_1, task.getProperty("elementId").getValue(Type.STRING));
+        assertEquals(this.userTaskTypeId, task.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
         assertFalse(task.hasProperty("missingAttr"));
 
         // An element with no id, and one with a completely unconfigured type, are both skipped.
@@ -648,6 +659,77 @@ class BpmnXmlSyncEditorTest
         assertFalse(task.getChildNode("flowBad").exists());
         assertFalse(start.getChildNode("flowNoTarget").exists());
         assertFalse(task.getChildNode("flowUnknown").exists());
+    }
+
+    /**
+     * The node name is the BPMN id, and not every id can be one. Oak's own name validation never sees nodes an
+     * editor adds to the builder, so an unusable name would otherwise be stored unaddressable — or, for an id that
+     * happens to name an existing child, would retype that child, and {@code bpmn.xml} is the child that matters:
+     * the next reparse would then delete the diagram it was derived from.
+     */
+    @Test
+    void elementIdsThatCannotBeNodeNamesAreSkipped() throws Exception
+    {
+        final NodeState version = firstSave(
+            DEFS_OPEN
+            + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"a/b\"/>\n"
+            + "    <bpmn:startEvent id=\"ns:foo\"/>\n"
+            + "    <bpmn:startEvent id=\"a[1]\"/>\n"
+            + "    <bpmn:startEvent id=\"a|b\"/>\n"
+            + "    <bpmn:startEvent id=\"a*b\"/>\n"
+            + "    <bpmn:startEvent id=\" leading\"/>\n"
+            + "    <bpmn:startEvent id=\".\"/>\n"
+            + "    <bpmn:startEvent id=\"..\"/>\n"
+            + "    <bpmn:startEvent id=\"bpmn.xml\"/>\n"
+            + "    <bpmn:endEvent id=\"good\"/>\n"
+            + "    <bpmn:sequenceFlow id=\"a/flow\" sourceRef=\"good\" targetRef=\"good\"/>\n"
+            + PROCESS_CLOSE
+            + DEFS_CLOSE);
+
+        // The diagram itself survives, still a file rather than a start event.
+        assertEquals("nt:file", version.getChildNode(BPMN_XML).getProperty(PRIMARY_TYPE).getValue(Type.NAME));
+        assertTrue(version.getChildNode(BPMN_XML).getChildNode(JCR_CONTENT).hasProperty(JCR_DATA));
+
+        final List<String> names = new ArrayList<>();
+        version.getChildNodeNames().forEach(names::add);
+        assertEquals(List.of(BPMN_XML, "good"), names);
+
+        final NodeState good = version.getChildNode("good");
+        assertTrue(good.exists());
+        assertEquals(0, good.getChildNodeCount(Long.MAX_VALUE));
+    }
+
+    /**
+     * BPMN ids are unique within a document, but nothing enforces that, and {@code NodeBuilder.child} hands back the
+     * node the first element already populated — merging two elements into one that carries the primary type of the
+     * second and properties of both. The later element is dropped instead.
+     */
+    @Test
+    void elementsReusingAnEarlierIdAreSkipped() throws Exception
+    {
+        final NodeBuilder root = richBase();
+        flowNodeType(root.child("WorkflowTypes"), "TimerBoundaryEvent", this.timerBoundaryEventTypeId,
+            "bpmn:boundaryEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+
+        final NodeState version = firstSave(root,
+            DEFS_OPEN
+            + PROCESS_OPEN
+            + "    <bpmn:userTask id=\"dup\" name=\"TheTask\"/>\n"
+            + "    <bpmn:startEvent id=\"dup\" name=\"TheEvent\"/>\n"
+            + "    <bpmn:boundaryEvent id=\"dup\" attachedToRef=\"dup\">\n"
+            + "      <bpmn:timerEventDefinition/>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + "    <bpmn:sequenceFlow id=\"dup\" sourceRef=\"dup\" targetRef=\"dup\"/>\n"
+            + PROCESS_CLOSE
+            + DEFS_CLOSE);
+
+        // The first element to claim the id keeps it, with none of the later ones' type or properties mixed in.
+        final NodeState dup = version.getChildNode("dup");
+        assertEquals("wf:Activity", dup.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
+        assertEquals("TheTask", dup.getProperty("label").getValue(Type.STRING));
+        assertEquals(this.userTaskTypeId, dup.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals(0, dup.getChildNodeCount(Long.MAX_VALUE));
     }
 
     @Test
