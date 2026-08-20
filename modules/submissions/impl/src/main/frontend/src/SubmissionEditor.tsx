@@ -21,7 +21,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Box, CircularProgress, Divider, Paper, Stack, Typography } from "@mui/material";
 
 import AnswerField, { type SaveState } from "./AnswerField";
+import DocumentUpload from "./DocumentUpload";
 import {
+  DOCUMENT_REQUIREMENT,
   FORM_REQUIREMENT,
   type FormItem,
   type FormQuestion,
@@ -76,14 +78,16 @@ function Items({ items, disabled, states, onAnswered }: {
   );
 }
 
-// One requirement. A requirement that holds no questions — a document to provide, an approval to
-// obtain — is still shown: it is something the submitter has to do, and leaving it out would say
-// the request asks less than it does.
-function Requirement({ requirement, disabled, states, onAnswered }: {
+// One requirement. A requirement that holds no questions is still shown, and where it can be
+// answered it is answered here: a document is uploaded, and an approval is somebody else's step and
+// so says only that it is waiting on them.
+function Requirement({ path, requirement, disabled, states, onAnswered, onAttached }: {
+  path: string;
   requirement: FormRequirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onAttached: () => void;
 }) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
@@ -94,11 +98,18 @@ function Requirement({ requirement, disabled, states, onAnswered }: {
       <Divider sx={{ my: 2 }} />
       { requirement.type === FORM_REQUIREMENT && requirement.items
         ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
-        : (
-          <Typography variant="body2" color="text.secondary">
-            This part of the request cannot be completed here yet.
-          </Typography>
-        ) }
+        : requirement.type === DOCUMENT_REQUIREMENT
+          ? <DocumentUpload
+            path={path}
+            requirement={requirement}
+            disabled={disabled}
+            onAttached={onAttached}
+          />
+          : (
+            <Typography variant="body2" color="text.secondary">
+              This part of the request is somebody else&apos;s step, and cannot be completed here.
+            </Typography>
+          ) }
     </Paper>
   );
 }
@@ -164,10 +175,18 @@ function SubmissionEditor({ path }: { path: string }) {
       { form.requirements.map(requirement => (
         <Requirement
           key={requirement.name}
+          path={path}
           requirement={requirement}
           disabled={!form.editable}
           states={states}
           onAnswered={answered}
+          // The form again, because what it asks can change with what was just attached: a
+          // requirement that is now answered, and a request that is no longer incomplete
+          onAttached={() => {
+            const token = latest.current + 1;
+            latest.current = token;
+            reload(token).catch((e: unknown) => setError(message(e)));
+          }}
         />
       )) }
       { form.requirements.length === 0 && (

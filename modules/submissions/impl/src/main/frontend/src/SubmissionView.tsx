@@ -40,6 +40,7 @@ import TagChip from "@iap/tags/TagChip";
 
 import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
 import SubmissionEditor from "./SubmissionEditor";
+import { DOCUMENT_REQUIREMENT, type FormRequirement, type SubmissionForm, fetchForm } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
 
@@ -49,13 +50,22 @@ const EDIT = ".edit";
 // The tag the save workflow places when something the schema asks for has not been answered
 const INCOMPLETE = "incomplete";
 
+
+// A single-valued property is serialized as a bare string, not as a one-element array.
+function asList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return (value as unknown[]).filter((entry): entry is string => typeof entry === "string");
+  }
+  return typeof value === "string" ? [value] : [];
+}
+
 // Whether the request is still missing an answer, read from the submission this page already holds
 // rather than by asking for its form: the save workflow worked it out and recorded it.
 function isIncomplete(submission: JsonNode | undefined): boolean {
-  const tags = submission?.tags;
-  // A single-valued property is serialized as a bare string, not as a one-element array
-  return Array.isArray(tags) ? tags.includes(INCOMPLETE) : tags === INCOMPLETE;
+  return asList(submission?.tags).includes(INCOMPLETE);
 }
+
+
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) {
@@ -142,30 +152,97 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   );
 }
 
-// The documents attached to the submission, with download links for their files.
-function Documents({ documents }: { documents: JsonNode[] }) {
+// One attached document: what it is called and links to download whatever files it holds.
+function Attachment({ document, named }: { document: JsonNode; named: boolean }) {
+  const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
+  const files = Object.entries(document)
+    .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+  // A reference is serialized with whatever the referenced node holds, and a requirement need not
+  // carry a label. Worth saying only where the grouping does not already say it, and only where
+  // there is something to say: `fulfills "undefined"` is worse than nothing at all.
+  const fulfills = named && typeof requirement?.label === "string" ? requirement.label : undefined;
   return (
-    <Stack spacing={2}>
-      {documents.map((document, index) => {
-        const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
-        const files = Object.entries(document)
-          .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+    <Box>
+      <Typography variant="subtitle2">
+        {String(document.title ?? document["@name"])}
+        {fulfills ? ` — fulfills "${fulfills}"` : ""}
+      </Typography>
+      {document.description
+        ? <Typography color="text.secondary">{formatValue(document.description)}</Typography>
+        : null}
+      <Stack>
+        {files.map(([name]) =>
+          <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
+      </Stack>
+    </Box>
+  );
+}
+
+// What the schema asks for and what has been attached against it. Reading only: a document is
+// attached while the request is being filled in, which is what the editor is, so this is the page
+// that says where things stand rather than a second way to change them.
+//
+// The requirements come from the form projection rather than from the submission this page already
+// holds, because a document requirement can be conditional: the demo asks for a doctor's note only
+// for sick leave, and conditions are resolved on the server by design. Reading them off the schema
+// instead would list a doctor's note on a holiday request.
+function Documents({ path, documents }: { path: string; documents: JsonNode[] }) {
+  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    // A projection that cannot be read leaves the section showing what is attached and saying
+    // nothing about what was asked, which is the half that can still be trusted
+    fetchForm(path).then(
+      next => {
+        if (!cancelled) {
+          setForm(next);
+        }
+      },
+      () => {
+        if (!cancelled) {
+          setForm(undefined);
+        }
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
+  const requirements = (form?.requirements ?? [])
+    .filter(requirement => requirement.type === DOCUMENT_REQUIREMENT);
+  const fulfilling = (requirement: FormRequirement) => documents.filter(document =>
+    isNode(document.fulfills) && document.fulfills["@name"] === requirement.name);
+  // Anything whose requirement does not currently apply, is gone from the schema, or that never named
+  // one: still somebody's evidence, so shown rather than silently dropped
+  const claimed = new Set(requirements.flatMap(requirement =>
+    fulfilling(requirement).map(document => document["@path"])));
+  const unattributed = documents.filter(document => !claimed.has(document["@path"]));
+
+  if (requirements.length === 0 && documents.length === 0) {
+    return <Typography color="text.secondary">This request asks for no documents</Typography>;
+  }
+
+  return (
+    <Stack spacing={2} divider={<Divider />}>
+      {requirements.map(requirement => {
+        const attached = fulfilling(requirement);
         return (
-          <Box key={"document-" + index}>
-            <Typography variant="subtitle2">
-              {String(document.title ?? document["@name"])}
-              {requirement ? ` — fulfills "${String(requirement.label)}"` : ""}
-            </Typography>
-            {document.description
-              ? <Typography color="text.secondary">{formatValue(document.description)}</Typography>
+          <Stack key={requirement.name} spacing={1}>
+            <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+            {requirement.description
+              ? <Typography color="text.secondary">{requirement.description}</Typography>
               : null}
-            <Stack>
-              {files.map(([name]) =>
-                <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
-            </Stack>
-          </Box>
+            {attached.length > 0
+              ? attached.map((document, position) =>
+                <Attachment key={"attached-" + position} document={document} named={false} />)
+              : <Typography color="text.secondary">Nothing attached yet</Typography>}
+          </Stack>
         );
       })}
+      {unattributed.map((document, index) =>
+        <Attachment key={"other-" + index} document={document} named />)}
     </Stack>
   );
 }
@@ -348,11 +425,6 @@ function SubmissionView() {
   const documents = childrenOfType(submission, "sub/Document");
   const reviews = childrenOfType(submission, "sub/Review");
   const forms = schemaVersion ? childrenOfType(schemaVersion, "sch/FormRequirement") : [];
-  const documentRequirements = schemaVersion ? childrenOfType(schemaVersion, "sch/DocumentRequirement") : [];
-  const missingDocuments = "No documents attached yet"
-    + (documentRequirements.length > 0
-      ? `; expected: ${documentRequirements.map(requirement => String(requirement.label)).join(", ")}`
-      : "");
 
   return (
     <Stack spacing={2}>
@@ -380,9 +452,7 @@ function SubmissionView() {
         </Section>
       ))}
       <Section title="Documents">
-        {documents.length > 0
-          ? <Documents documents={documents} />
-          : <Typography color="text.secondary">{missingDocuments}</Typography>}
+        <Documents path={path} documents={documents} />
       </Section>
       <Section title="Reviews">
         {reviews.length > 0
