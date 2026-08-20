@@ -267,6 +267,8 @@ const WAITING = {
       "status": "created",
       "label": "Send it",
       "outcomeOptions": [] as string[],
+      // The server saying this step waits for whoever is reading
+      "@mine": true,
     },
   },
 };
@@ -490,6 +492,7 @@ describe("SubmissionView", () => {
           "sling:resourceType": "wf/TaskInstance",
           "label": "Say when you want to be away",
           "status": "created",
+          "@mine": true,
         },
       },
     };
