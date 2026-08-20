@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import jakarta.json.Json;
 import jakarta.json.JsonException;
@@ -112,29 +111,30 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
         throws IOException
     {
         if (this.expectedAuthorization == null) {
-            writeError(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+            JsonResponse.error(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                 "Callback authentication is not configured");
             return;
         }
         if (!isAuthorized(request.getHeader("Authorization"))) {
-            writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid callback token");
+            JsonResponse.error(response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid callback token");
             return;
         }
         final JsonObject outcome;
         try (JsonReader reader = Json.createReader(request.getReader())) {
             outcome = reader.readObject();
         } catch (final JsonException | ClassCastException e) {
-            writeError(response, HttpServletResponse.SC_BAD_REQUEST, "The request body is not a JSON object");
+            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "The request body is not a JSON object");
             return;
         }
         final String jobId = outcome.getString(ParseJob.JSON_JOB_ID, null);
-        if (jobId == null || !isJobId(jobId)) {
-            writeError(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
+        if (jobId == null || !ParseJob.isJobId(jobId)) {
+            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
             return;
         }
         final String markdown = outcome.getString("markdown_path", null);
         if (outcome.getBoolean("ok", false) && markdown == null) {
-            writeError(response, HttpServletResponse.SC_BAD_REQUEST, "A successful outcome needs a markdown_path");
+            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST,
+                "A successful outcome needs a markdown_path");
             return;
         }
         record(jobId, outcome, markdown, response);
@@ -152,11 +152,11 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     private void record(final String jobId, final JsonObject outcome, final String markdown,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        try (ResourceResolver resolver = openServiceResolver()) {
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
             final ModifiableValueMap properties = jobNode == null ? null : jobNode.adaptTo(ModifiableValueMap.class);
             if (properties == null || !jobId.equals(properties.get(ParseJob.PN_JOB_ID, String.class))) {
-                writeError(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
+                JsonResponse.error(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
                 return;
             }
             // An outcome replaces whatever the node said before, so the properties belonging to the other outcome
@@ -183,17 +183,17 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             properties.put(ParseJob.PN_STATUS, status);
             properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
             resolver.commit();
-            writeJson(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
+            JsonResponse.write(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
                 .add(ParseJob.JSON_JOB_ID, jobId)
                 .add(ParseJob.PN_STATUS, status)
                 .build());
         } catch (final LoginException e) {
             LOGGER.error("Cannot access the parse jobs storage: {}", e.getMessage(), e);
-            writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The parse jobs storage is not accessible");
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
-            writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The outcome could not be recorded");
         }
     }
@@ -223,46 +223,4 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
         return System.getenv(name);
     }
 
-    /**
-     * Check that a caller-supplied job identifier is one {@link ParseServlet} could have issued.
-     *
-     * @param jobId the identifier to check
-     * @return {@code true} if the identifier is a well-formed UUID
-     */
-    private static boolean isJobId(final String jobId)
-    {
-        try {
-            UUID.fromString(jobId);
-            return true;
-        } catch (final IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Open a new session as the parse jobs service user.
-     *
-     * @return a service resource resolver, closed by the caller
-     * @throws LoginException if the service user is not available
-     */
-    private ResourceResolver openServiceResolver() throws LoginException
-    {
-        return this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, ParseJob.SUBSERVICE));
-    }
-
-    private static void writeJson(final SlingJakartaHttpServletResponse response, final int status,
-        final JsonObject body) throws IOException
-    {
-        response.setStatus(status);
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType("application/json");
-        response.getWriter().print(body.toString());
-    }
-
-    private static void writeError(final SlingJakartaHttpServletResponse response, final int status,
-        final String message) throws IOException
-    {
-        writeJson(response, status, Json.createObjectBuilder().add(ParseJob.PN_ERROR, message).build());
-    }
 }

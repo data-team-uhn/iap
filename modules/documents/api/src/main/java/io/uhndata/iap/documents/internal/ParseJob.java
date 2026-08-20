@@ -17,6 +17,13 @@
  */
 package io.uhndata.iap.documents.internal;
 
+import java.util.Map;
+import java.util.UUID;
+
+import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+
 /**
  * The vocabulary of a document parse job. A job is one node under {@link #JOBS_PATH}, named by its identifier,
  * created when a parse is requested and updated as the parse progresses, so that its state can be polled at any
@@ -90,7 +97,7 @@ final class ParseJob
 
     private ParseJob()
     {
-        // Constants only
+        // Constants and helpers only
     }
 
     /**
@@ -102,5 +109,36 @@ final class ParseJob
     static String nodePath(final String jobId)
     {
         return JOBS_PATH + "/" + jobId;
+    }
+
+    /**
+     * Open the repository session that every access to the job nodes goes through. Kept here with
+     * {@link #SUBSERVICE} so that the servlets and the job consumer cannot drift apart on which service user they
+     * ask for.
+     *
+     * @param resolverFactory the factory to ask for the {@link #SUBSERVICE} session
+     * @return a resolver the caller is responsible for closing
+     * @throws LoginException if the subservice is not configured, so no session can be opened
+     */
+    static ResourceResolver openResolver(final ResourceResolverFactory resolverFactory) throws LoginException
+    {
+        return resolverFactory.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE));
+    }
+
+    /**
+     * Whether a caller-supplied string is shaped like a job identifier, which is always a random UUID. Anything
+     * else is refused before it is used to build a node path.
+     *
+     * @param jobId the identifier to check, never {@code null}
+     * @return {@code true} if the identifier is a well-formed UUID
+     */
+    static boolean isJobId(final String jobId)
+    {
+        try {
+            UUID.fromString(jobId);
+            return true;
+        } catch (final IllegalArgumentException e) {
+            return false;
+        }
     }
 }
