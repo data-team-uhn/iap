@@ -18,7 +18,6 @@
 package io.uhndata.iap.entities.internal;
 
 import java.io.IOException;
-import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -30,7 +29,6 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -42,7 +40,6 @@ import jakarta.json.JsonObject;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.servlet.Servlet;
 
-import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
@@ -174,7 +171,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         // What `@me` stands for: the id the repository records, so that it matches values written earlier by the
         // same person under a differently capitalised login
         final String me = UserIds.canonical(request.getResourceResolver());
-        final List<String> principals = principalsOf(session);
+        final List<String> principals = UserIds.principalsOf(session);
         final QueryBuilder builder = new QueryBuilder(getNodeType(homepage), homepage.getPath())
             .withFilters(parseFilters(request, "field", me, principals));
         for (final String suffix : getChildFilterSuffixes(request)) {
@@ -296,28 +293,6 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         final String orGroup = group == null ? MY_PRINCIPALS + index : group;
         return principals.stream()
             .map(principal -> new Filter(name, comparator, principal, orGroup))
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Everything the requesting session acts as: its own user plus every principal it is bound to.
-     *
-     * <p>Read from the bound principals rather than from group memberships looked up through {@code UserManager},
-     * for the reason the deletion vetoes record: with dynamic membership an identity provider's roles arrive as
-     * principals with no local group node behind them, so a membership lookup would report that a session belongs
-     * to nothing.</p>
-     *
-     * @param session the requesting session
-     * @return the principal names, with the user's own id first; never empty
-     * @throws RepositoryException if the session cannot say what it is bound to
-     */
-    private List<String> principalsOf(final Session session) throws RepositoryException
-    {
-        final Stream<String> bound = session instanceof JackrabbitSession
-            ? ((JackrabbitSession) session).getBoundPrincipals().stream().map(Principal::getName)
-            : Stream.empty();
-        return Stream.concat(Stream.ofNullable(session.getUserID()), bound)
-            .distinct()
             .collect(Collectors.toList());
     }
 
