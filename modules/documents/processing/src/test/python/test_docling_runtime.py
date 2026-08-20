@@ -31,9 +31,10 @@ request guards were moved to :mod:`daemon_http` for exactly that reason; see
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import CancelledError, ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from http import HTTPStatus
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlencode
 
@@ -43,6 +44,7 @@ pytest.importorskip("docling", reason="docling not installed; conversion plumbin
 
 import docling_daemon as daemon  # noqa: E402 -- must follow the importorskip guard
 import docling_pdf_parser as pdf_parser  # noqa: E402
+import parse_callbacks  # noqa: E402
 from docling_pdf_parser import _abandon_batches  # noqa: E402
 
 
@@ -750,3 +752,219 @@ class TestParseFailureStatuses:
         broken = self._run(monkeypatch, tmp_path, self._broken_pool)
         shutdown = self._run(monkeypatch, tmp_path, self._shutdown)
         assert broken.header_value("status") != shutdown.header_value("status")
+
+
+def _parse_only_state(slots=daemon.MAX_CONCURRENT_PARSES):
+    """A DaemonState carrying only the background-parse machinery, no Docling pools.
+
+    ``DaemonState.__init__`` builds a process pool and loads models, which is exactly what
+    these tests are here to avoid; the scheduling and draining they exercise touch none of
+    it.
+    """
+    state = object.__new__(daemon.DaemonState)
+    state.parse_executor = ThreadPoolExecutor(max_workers=slots, thread_name_prefix="parse")
+    state.pending_parses = {}
+    state.pending_lock = threading.Lock()
+    state.shutdown_requested = False
+    state.pdf_executor_broken = False
+    # A background parse takes this for the conversion itself, so that it cannot run
+    # alongside a synchronous one
+    state.parse_slots = threading.BoundedSemaphore(slots)
+    return state
+
+
+class TestAsyncParseAcceptance:
+    """The callback-delivered /parse variant: validation, configuration gating, the 202."""
+
+    @pytest.fixture
+    def configured(self, monkeypatch):
+        monkeypatch.setenv(parse_callbacks.URL_ENVIRONMENT_VARIABLE, "http://iap:8080/cb")
+        monkeypatch.setenv(parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE, "the-jwt")
+
+    def test_overlong_job_id_is_rejected(self):
+        with pytest.raises(daemon.ParseRequestError, match="long"):
+            daemon.DoclingDaemonHandler._accept_async_parse(
+                _FakeHandler(b""), "x" * 201, Path("doc.pdf"), True, {})
+
+    def test_missing_token_refuses_asynchronous_parsing(self, monkeypatch):
+        monkeypatch.setenv(parse_callbacks.URL_ENVIRONMENT_VARIABLE, "http://iap:8080/cb")
+        monkeypatch.delenv(parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
+
+        status, body = daemon.DoclingDaemonHandler._accept_async_parse(
+            _FakeHandler(b""), "86a4c102", Path("doc.pdf"), True, {})
+
+        assert status == HTTPStatus.SERVICE_UNAVAILABLE
+        assert parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE in body["error"]
+
+    def test_missing_callback_url_refuses_asynchronous_parsing(self, monkeypatch):
+        monkeypatch.delenv(parse_callbacks.URL_ENVIRONMENT_VARIABLE, raising=False)
+        monkeypatch.setenv(parse_callbacks.TOKEN_ENVIRONMENT_VARIABLE, "the-jwt")
+        status, body = daemon.DoclingDaemonHandler._accept_async_parse(
+            _FakeHandler(b""), "86a4c102", Path("doc.pdf"), True, {})
+
+        assert status == HTTPStatus.SERVICE_UNAVAILABLE
+        assert parse_callbacks.URL_ENVIRONMENT_VARIABLE in body["error"]
+
+    def test_accepted_parse_uses_the_configured_callback(self, monkeypatch, configured):
+        state = _parse_only_state()
+        monkeypatch.setattr(daemon, "_STATE", state)
+        calls = []
+        started = threading.Event()
+
+        def record(job_id, callback_url, token, input_path, *, chunk, max_tokens,
+                   min_structure_tokens):
+            calls.append((job_id, callback_url, token, input_path, chunk, max_tokens,
+                          min_structure_tokens))
+            started.set()
+
+        monkeypatch.setattr(daemon, "_parse_and_call_back", record)
+        handler = _FakeHandler(b"")
+
+        try:
+            reply = daemon.DoclingDaemonHandler._accept_async_parse(
+                handler, "86a4c102", Path("doc.pdf"), False, {"max_tokens": 500})
+
+            assert reply == (HTTPStatus.ACCEPTED, {"job_id": "86a4c102", "status": "queued"})
+            assert started.wait(5), "the background parse never started"
+        finally:
+            state.parse_executor.shutdown(wait=True)
+        # The destination comes from the daemon's environment, not from the request
+        assert calls == [("86a4c102", "http://iap:8080/cb", "the-jwt", Path("doc.pdf"), False,
+                          500, daemon.DEFAULT_MIN_STRUCTURE_TOKENS)]
+
+    def test_a_shutting_down_daemon_refuses_the_parse(self, monkeypatch, configured):
+        state = _parse_only_state()
+        state.shutdown_requested = True
+        monkeypatch.setattr(daemon, "_STATE", state)
+        status, body = daemon.DoclingDaemonHandler._accept_async_parse(
+            _FakeHandler(b""), "86a4c102", Path("doc.pdf"), True, {})
+
+        assert status == HTTPStatus.SERVICE_UNAVAILABLE
+        assert body["error"] == "daemon shutting down"
+
+
+class TestBackgroundParseScheduling:
+    """Accepted parses are bounded, and a shutdown still answers for every one of them."""
+
+    def test_a_background_parse_and_a_synchronous_one_cannot_overlap(self, monkeypatch):
+        # The two paths arrived from different branches with a limit each, so the pool ran
+        # one background parse and the handler allowed one synchronous parse — two
+        # conversions against a RAM budget calculated for one. Both take the same slot now.
+        state = _parse_only_state()
+        monkeypatch.setattr(daemon, "_STATE", state)
+        running = threading.Event()
+        release = threading.Event()
+
+        def slow(*args, **kwargs):
+            running.set()
+            assert release.wait(5)
+            return {"ok": True}
+
+        monkeypatch.setattr(daemon, "_run_parse", slow)
+        monkeypatch.setattr(parse_callbacks, "deliver", lambda *a, **k: None)
+        worker = threading.Thread(
+            target=daemon._parse_and_call_back,
+            args=("job", "http://iap/cb", "the-jwt", Path("a.pdf")),
+            kwargs={"chunk": True, "max_tokens": 2000, "min_structure_tokens": 20000},
+        )
+        worker.start()
+        try:
+            assert running.wait(5), "the background parse never started"
+            # This is what the synchronous handler tries before converting
+            assert not state.parse_slots.acquire(blocking=False)
+        finally:
+            release.set()
+            worker.join(10)
+        assert state.parse_slots.acquire(blocking=False)
+
+    def test_parses_run_one_at_a_time(self, monkeypatch):
+        state = _parse_only_state()
+        started = threading.Semaphore(0)
+        release = threading.Event()
+        running = []
+
+        def slow(job_id, callback_url, token, input_path, **options):
+            running.append(job_id)
+            started.release()
+            release.wait(5)
+
+        monkeypatch.setattr(daemon, "_parse_and_call_back", slow)
+        try:
+            for index in range(3):
+                state.submit_parse(f"job-{index}", "http://iap/cb", "the-jwt", Path("a.pdf"))
+
+            assert started.acquire(timeout=5)
+            # MAX_CONCURRENT_PARSES is 1, so the other two queue instead of each taking a
+            # thread and a share of the RAM the PDF pool was sized for
+            assert running == ["job-0"]
+            assert len(state.pending_parses) == 3
+        finally:
+            release.set()
+            state.parse_executor.shutdown(wait=True)
+
+    def test_a_finished_parse_is_forgotten(self, monkeypatch):
+        state = _parse_only_state()
+        monkeypatch.setattr(daemon, "_parse_and_call_back", lambda *args, **kwargs: None)
+
+        state.submit_parse("job", "http://iap/cb", "the-jwt", Path("a.pdf"))
+        state.parse_executor.shutdown(wait=True)
+
+        assert state.pending_parses == {}
+
+    def test_a_shutdown_fails_the_parses_that_never_started(self, monkeypatch):
+        state = _parse_only_state()
+        started = threading.Event()
+        release = threading.Event()
+        delivered = []
+
+        def slow(job_id, callback_url, token, input_path, **options):
+            started.set()
+            release.wait(5)
+
+        monkeypatch.setattr(daemon, "_parse_and_call_back", slow)
+        monkeypatch.setattr(parse_callbacks, "deliver",
+                            lambda url, payload, **kwargs: delivered.append((url, payload)))
+        try:
+            state.submit_parse("running", "http://iap/cb", "the-jwt", Path("a.pdf"))
+            state.submit_parse("queued", "http://iap/cb", "the-jwt", Path("b.pdf"))
+            assert started.wait(5)
+
+            state.drain_parses(timeout=0.2)
+
+            # The queued one never ran and never will, so its caller is told instead of
+            # being left polling an active job forever
+            assert [payload["job_id"] for _url, payload in delivered] == ["queued"]
+            assert delivered[0][1]["ok"] is False
+            assert "shut down" in delivered[0][1]["error"]
+            assert state.shutdown_requested is True
+        finally:
+            release.set()
+            state.parse_executor.shutdown(wait=True)
+
+    def test_no_new_parse_is_accepted_once_shutting_down(self):
+        state = _parse_only_state()
+        state.shutdown_requested = True
+
+        with pytest.raises(RuntimeError, match="shutting down"):
+            state.submit_parse("job", "http://iap/cb", "the-jwt", Path("a.pdf"))
+
+    def test_a_cancelled_conversion_still_calls_back(self, monkeypatch):
+        # Closing the PDF pool under a running parse raises CancelledError, which is a
+        # BaseException: a plain "except Exception" would let the parse die silently
+        def cancelled(*args, **kwargs):
+            raise CancelledError()
+
+        delivered = []
+        state = _parse_only_state()
+        monkeypatch.setattr(daemon, "_STATE", state)
+        monkeypatch.setattr(daemon, "_run_parse", cancelled)
+        monkeypatch.setattr(parse_callbacks, "deliver",
+                            lambda url, payload, **kwargs: delivered.append(payload))
+
+        daemon._parse_and_call_back(
+            "job", "http://iap/cb", "the-jwt", Path("a.pdf"),
+            chunk=True, max_tokens=2000, min_structure_tokens=20000)
+
+        assert delivered == [{"job_id": "job", "ok": False, "error": "CancelledError"}]
+        # The slot is handed back even when the conversion blew up
+        assert state.parse_slots.acquire(blocking=False)
