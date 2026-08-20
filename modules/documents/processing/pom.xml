@@ -44,6 +44,9 @@
           <inputExcludes combine.children="append">
             <exclude>**/__pycache__/**</exclude>
             <exclude>pytest.ini</exclude>
+            <exclude>ruff.toml</exclude>
+            <exclude>.dockerignore</exclude>
+            <exclude>.maven-dockerignore</exclude>
           </inputExcludes>
         </configuration>
       </plugin>
@@ -55,6 +58,26 @@
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
         <executions>
+          <execution>
+            <!-- Lint before the tests: a duplicate import or an unused name is cheaper to
+                 hear about than a test failure, and nothing else in the build checks Python. -->
+            <id>lint-parsing-python</id>
+            <phase>test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <skip>${skipTests}</skip>
+              <executable>${python.executable}</executable>
+              <workingDirectory>${project.basedir}</workingDirectory>
+              <arguments>
+                <argument>-m</argument>
+                <argument>ruff</argument>
+                <argument>check</argument>
+                <argument>src</argument>
+              </arguments>
+            </configuration>
+          </execution>
           <execution>
             <id>run-parsing-python-tests</id>
             <phase>test</phase>
