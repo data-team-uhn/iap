@@ -98,20 +98,21 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     }
 
     /**
-     * Refuses a save that is not the submitter's own, or that comes too late.
+     * Refuses a change that is not the submitter's own, or that comes too late: an answer saved, or a document
+     * attached.
      *
      * @param submission the submission being edited
      * @param actor the user whose action this is
      * @throws NotAuthorizedException when somebody else is editing it
      * @throws InvalidStateException when it is no longer a draft
      */
-    private void checkMayEdit(final Submission submission, final String actor)
+    static void checkMayEdit(final Submission submission, final String actor)
         throws NotAuthorizedException, InvalidStateException
     {
         // getCreatedBy prefers what the engine recorded over jcr:createdBy, which names the engine's own service
         // user for everything it writes
         if (!actor.equals(submission.getCreatedBy())) {
-            throw new NotAuthorizedException("Only the person who raised a request may answer it");
+            throw new NotAuthorizedException("Only the person who raised a request may change it");
         }
         if (!submission.isDraft()) {
             throw new InvalidStateException("This request has been submitted and can no longer be changed");
