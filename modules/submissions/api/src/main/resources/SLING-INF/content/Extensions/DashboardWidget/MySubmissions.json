@@ -9,5 +9,6 @@
   // The widget draws its own header, so that the action for raising a submission can sit on the
   // title's line rather than floating above the table. It still takes the title and subtitle from
   // this node, so they are declared in exactly one place.
-  "ext:widgetHideHeader": true
+  "ext:widgetHideHeader": true,
+  "ext:personas": ["submitter"]
 }
