@@ -62,6 +62,9 @@ final class TaskCompletion
     /** The payload entry carrying the person's decision. */
     static final String OUTCOME_PARAMETER = "outcome";
 
+    /** What the person deciding said about it, alongside the decision itself. */
+    static final String OUTCOME_NOTE = "outcomeNote";
+
     /** The event a passed deadline delivers. */
     static final String TIMEOUT_EVENT = "timeout";
 
@@ -140,7 +143,7 @@ final class TaskCompletion
                 + String.join(", ", definition.getOutcomeOptions()));
         }
         new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
-            .complete(task, outcome);
+            .complete(task, outcome, Payloads.text(event, OUTCOME_NOTE));
     }
 
     /**
