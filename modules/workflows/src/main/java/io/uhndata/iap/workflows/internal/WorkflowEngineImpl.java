@@ -233,12 +233,14 @@ public class WorkflowEngineImpl implements WorkflowEngine
         FlowNode node = start;
         for (int step = 0; step < InstanceRunner.MAX_STEPS; step++) {
             if (node instanceof EndEvent) {
-                recordActor(resolver, variables, actor);
                 return variables;
             }
             if (node instanceof Activity) {
                 dispatcher.perform((Activity) node, new WorkflowTaskContextImpl(target, event, (Activity) node,
                     variables, actor, dispatcher, depth));
+                // As soon as there is something to record it on, not at the end event: a later activity in the same
+                // walk may start a workflow on what this one created, and @creator there reads this property
+                recordActor(resolver, variables, actor);
             } else if (!(node instanceof StartEvent) || step > 0) {
                 // A system workflow cannot contain this node: there is no persisted instance whose token
                 // could rest here
@@ -290,7 +292,12 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /**
      * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
      * {@code jcr:createdBy} names the service user. Nothing else would remember the human, and both the audit
-     * trail and every "things I raised" listing need it.
+     * trail and every "things I raised" listing need it, and so does {@code @creator}.
+     *
+     * <p>Called after every activity rather than once at the end, because it is read within the same walk:
+     * {@code createSubmission} creates the submission and a later activity starts its workflow, which answers
+     * {@code @creator} against this property as it raises the first task. Repeating it costs a property write in a
+     * commit that is already open.</p>
      *
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created

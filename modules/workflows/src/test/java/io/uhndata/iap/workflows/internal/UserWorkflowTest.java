@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -99,6 +100,11 @@ class UserWorkflowTest
     private static final WorkflowEvent START = new WorkflowEvent("start", Map.of());
 
     private static final WorkflowEvent TIMEOUT = new WorkflowEvent("timeout", Map.of());
+
+    private static final WorkflowEvent RAISE = new WorkflowEvent("raise", Map.of());
+
+    /** Where the system workflow raising a submission and starting its process puts it. */
+    private static final String RAISED = "/Submissions/raised";
 
     private static final WorkflowEvent APPROVED =
         new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved"));
@@ -542,6 +548,37 @@ class UserWorkflowTest
     }
 
     /**
+     * A system workflow in the shape of {@code createSubmission}: aimed at the submissions homepage, one activity
+     * raises a submission and the next puts it under its process, in the same walk.
+     */
+    private void createRaisingWorkflow()
+    {
+        final String version = "/SystemWorkflows/raise/v1";
+        this.context.create().resource("/SystemWorkflows", TYPE, "wf/SystemWorkflowsHomepage");
+        this.context.create().resource("/SystemWorkflows/raise", Map.of(
+            TYPE, "wf/WorkflowDefinition", "title", "Raise a submission", "active", true));
+        this.context.create().resource(version, Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true,
+            "targetResourceType", "sub/SubmissionsHomepage"));
+        this.context.create().resource(version + "/requested", Map.of(
+            TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requested", "messageName", "raise",
+            "performers", new String[] {EngineFixture.REQUESTERS}));
+        this.context.create().resource(version + "/requested/toRaise", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toRaise", TARGET_REF, "raise"));
+        this.context.create().resource(version + "/raise", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "raise", HANDLER, "raise"));
+        this.context.create().resource(version + "/raise/toStart", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toStart", TARGET_REF, "start"));
+        this.context.create().resource(version + "/start", Map.of(
+            TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "start", HANDLER, "startWorkflow",
+            "workflowFrom", "workflow"));
+        this.context.create().resource(version + "/start/toDone", Map.of(
+            TYPE, SequenceFlow.RESOURCE_TYPE, ELEMENT_ID, "toDone", TARGET_REF, "done"));
+        this.context.create().resource(version + "/done", Map.of(
+            TYPE, EndEvent.RESOURCE_TYPE, ELEMENT_ID, "done"));
+    }
+
+    /**
      * Writes a real REFERENCE, which is the only kind the runtime will follow.
      *
      * @param from the resource holding the reference
@@ -632,6 +669,26 @@ class UserWorkflowTest
         started();
 
         assertArrayEquals(new String[] {EngineFixture.REQUESTER}, (String[]) read(TASK).get("performers"));
+    }
+
+    @Test
+    void answersCreatorAgainstAHostRaisedEarlierInTheSameWalk() throws Exception
+    {
+        // createSubmission's shape: one activity raises the host and the next puts it under its process, in one
+        // walk, so the process asks @creator about a host the engine raised a moment ago
+        createProcess("@creator");
+        createRaisingWorkflow();
+        this.context.resourceResolver().commit();
+        final WorkflowEngineImpl engine = new WorkflowEngineImpl();
+        inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
+        inject(engine, "handlers", List.of(new RaisingHandler(), new StartWorkflowHandler()));
+        inject(engine, "conditionEvaluator", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
+
+        engine.receiveEvent(as("/Submissions", EngineFixture.REQUESTER), RAISE);
+
+        assertArrayEquals(new String[] {EngineFixture.REQUESTER},
+            (String[]) read(RAISED + "/wf:instances/timeOffRequest/" + APPROVE).get("performers"));
     }
 
     @Test
@@ -1029,6 +1086,33 @@ class UserWorkflowTest
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         assertNull(this.context.resourceResolver().getResource(HOST + "/wf:instances/timeOffRequest"));
+    }
+
+    /**
+     * Raises a submission under the homepage it is aimed at, pointing it at the process, as {@code createSubmission}
+     * does, and says so the way a handler that creates something does.
+     */
+    private static final class RaisingHandler implements ServiceTaskHandler
+    {
+        @Override
+        public String getName()
+        {
+            return "raise";
+        }
+
+        @Override
+        public void execute(final WorkflowTaskContext taskContext) throws PersistenceException
+        {
+            final ResourceResolver resolver = taskContext.getResourceResolver();
+            final Resource raised = resolver.create(taskContext.getTarget(), "raised", Map.of(TYPE, "sub/Submission"));
+            resolver.create(raised, "wf:instances", Map.of(TYPE, "wf/WorkflowInstances"));
+            try {
+                raised.adaptTo(Node.class).setProperty("workflow", resolver.getResource(PROCESS).adaptTo(Node.class));
+            } catch (final RepositoryException e) {
+                throw new PersistenceException(e.getMessage(), e);
+            }
+            taskContext.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, raised.getPath());
+        }
     }
 
     /**
