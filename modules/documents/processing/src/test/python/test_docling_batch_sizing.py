@@ -77,7 +77,8 @@ class TestBatchPages:
         assert bs.calc_batch_pages(-5, 4) == 1
 
     def test_capped_at_max(self):
-        # 1000 pages, 2 workers -> target 16 chunks -> ceil(1000/16)=63, capped at bs.MAX_BATCH_PAGES.
+        # 1000 pages, 2 workers -> target 16 chunks -> ceil(1000/16)=63, capped at
+        # bs.MAX_BATCH_PAGES.
         assert bs.calc_batch_pages(1000, 2) == bs.MAX_BATCH_PAGES
 
     def test_small_document_uses_one_page_batches(self):

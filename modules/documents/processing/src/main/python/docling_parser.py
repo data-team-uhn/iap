@@ -82,14 +82,14 @@ def main() -> None:
             min_structure_tokens=args.min_structure_tokens,
             pdf_workers=args.workers,
             pdf_batch_pages=args.batch_pages,
+            # Streamed as it happens; the accumulated summary["logs"] is the
+            # same text, so printing that too said everything twice.
             log=lambda message: print(message, flush=True),
         )
     except Exception as exc:
         print(f"Parse failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    if summary.get("logs"):
-        print(summary["logs"], flush=True)
     print(f"\nSaved to {summary['markdown_path']}")
     if summary.get("chunked"):
         print(f"Chunks in {summary['chunks_dir']}")
