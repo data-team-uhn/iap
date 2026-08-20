@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.stream.StreamSupport;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -62,6 +63,8 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     private static final String WORKFLOWS_ROOT_NAME = "Workflows";
 
     private static final String WORKFLOW_VERSION_TYPE = "wf:WorkflowVersion";
+
+    private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
     private static final String BPMN_XML_FILE_NAME = "bpmn.xml";
 
@@ -263,9 +266,22 @@ public class BpmnXmlSyncEditor extends DefaultEditor
         }
     }
 
-    private static boolean isWorkflowVersion(final NodeBuilder node)
+    /**
+     * Whether this node is a workflow version, accepting subtypes: the node types in
+     * {@code workflowDefinitions.cnd} are meant to be extended, and a subtype whose diagram is silently never parsed
+     * would be the least visible way to fail.
+     */
+    private boolean isWorkflowVersion(final NodeBuilder node)
     {
-        final PropertyState primaryType = node.getNodeState().getProperty(JCR_PRIMARY_TYPE_PROPERTY);
-        return primaryType != null && WORKFLOW_VERSION_TYPE.equals(primaryType.getValue(Type.NAME));
+        final String type = node.getName(JCR_PRIMARY_TYPE_PROPERTY);
+        if (type == null) {
+            return false;
+        }
+        if (WORKFLOW_VERSION_TYPE.equals(type)) {
+            return true;
+        }
+        return StreamSupport.stream(this.context.nodeTypesRoot().getChildNode(type)
+            .getNames(SUPERTYPES_PROPERTY).spliterator(), false)
+            .anyMatch(WORKFLOW_VERSION_TYPE::equals);
     }
 }

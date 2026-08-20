@@ -998,4 +998,26 @@ class BpmnXmlSyncEditorTest
         assertTrue(gwEmptySuper.exists());
         assertFalse(gwEmptySuper.hasProperty(RESOURCE_SUPER_TYPE));
     }
+
+    /**
+     * The workflow node types are meant to be extended, and a subtype whose diagram is silently never parsed would
+     * be the least visible way for that extensibility to fail.
+     */
+    @Test
+    void subtypesOfWorkflowVersionAreSyncedToo() throws Exception
+    {
+        final NodeBuilder root = base();
+        root.child("jcr:system").child("jcr:nodeTypes").child("x:ApprovalVersion")
+            .setProperty("rep:supertypes", List.of("wf:WorkflowVersion", "iap:Entity"), Type.NAMES);
+        version(root).setProperty(PRIMARY_TYPE, "x:ApprovalVersion", Type.NAME);
+        // Siblings that are not versions are walked past: one with an unrelated type, one with none at all.
+        descend(root, WORKFLOWS_PATH, DEFINITION_NAME, "notAVersion")
+            .setProperty(PRIMARY_TYPE, "nt:unstructured", Type.NAME);
+        descend(root, WORKFLOWS_PATH, DEFINITION_NAME, "noTypeAtAll").setProperty("something", "else");
+
+        final NodeState version = firstSave(root, START_EVENT_XML);
+
+        assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertTrue(version.getChildNode(START_1).exists());
+    }
 }
