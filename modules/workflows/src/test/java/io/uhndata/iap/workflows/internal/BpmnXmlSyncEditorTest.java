@@ -666,6 +666,65 @@ class BpmnXmlSyncEditorTest
     }
 
     /**
+     * Where a catching event is stored is the whole of what makes it a boundary event, so an event carrying an
+     * {@code attachedToRef} belongs inside the activity it names — not beside it, where nothing would tell it apart
+     * from a free-standing mid-process catch.
+     */
+    @Test
+    void boundaryEventsAreStoredInsideTheActivityTheyWatch() throws Exception
+    {
+        final NodeBuilder root = richBase();
+        flowNodeType(root.child("WorkflowTypes"), "TimerBoundaryEvent", this.timerBoundaryEventTypeId,
+            "bpmn:boundaryEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+
+        final NodeState version = firstSave(root,
+            DEFS_OPEN
+            + PROCESS_OPEN
+            + "    <bpmn:userTask id=\"task1\" name=\"Review\"/>\n"
+            + "    <bpmn:userTask id=\"task2\" name=\"Escalate\"/>\n"
+            + "    <bpmn:boundaryEvent id=\"deadline\" attachedToRef=\"task1\" cancelActivity=\"true\">\n"
+            + "      <bpmn:timerEventDefinition/>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + "    <bpmn:boundaryEvent id=\"reminder\" attachedToRef=\"task2\" cancelActivity=\"false\">\n"
+            + "      <bpmn:timerEventDefinition/>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + "    <bpmn:boundaryEvent id=\"defaulted\" attachedToRef=\"task2\">\n"
+            + "      <bpmn:timerEventDefinition/>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + "    <bpmn:boundaryEvent id=\"orphan\" attachedToRef=\"ghost\">\n"
+            + "      <bpmn:timerEventDefinition/>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + "    <bpmn:boundaryEvent id=\"unattached\">\n"
+            + "      <bpmn:timerEventDefinition/>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + "    <bpmn:boundaryEvent id=\"unconfigured\" attachedToRef=\"task1\">\n"
+            + "      <bpmn:signalEventDefinition/>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + PROCESS_CLOSE
+            + DEFS_CLOSE);
+
+        final NodeState task1 = version.getChildNode(TASK_1);
+        final NodeState deadline = task1.getChildNode("deadline");
+        assertTrue(deadline.exists());
+        assertEquals("wf:IntermediateCatchingEvent", deadline.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
+        assertEquals(this.timerBoundaryEventTypeId, deadline.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        assertEquals("deadline", deadline.getProperty("elementId").getValue(Type.STRING));
+        assertEquals("wf/IntermediateEvent", deadline.getProperty(RESOURCE_SUPER_TYPE).getValue(Type.STRING));
+        assertEquals(true, deadline.getProperty(INTERRUPTING).getValue(Type.BOOLEAN));
+
+        final NodeState task2 = version.getChildNode("task2");
+        assertEquals(false, task2.getChildNode("reminder").getProperty(INTERRUPTING).getValue(Type.BOOLEAN));
+        // No cancelActivity attribute leaves the node type's own default in place rather than guessing.
+        assertFalse(task2.getChildNode("defaulted").hasProperty(INTERRUPTING));
+
+        // Never stored beside the activity, whatever goes wrong.
+        assertFalse(version.getChildNode("deadline").exists());
+        assertFalse(version.getChildNode("orphan").exists());
+        assertFalse(version.getChildNode("unattached").exists());
+        assertFalse(task1.getChildNode("unconfigured").exists());
+    }
+
+    /**
      * The node name is the BPMN id, and not every id can be one. Oak's own name validation never sees nodes an
      * editor adds to the builder, so an unusable name would otherwise be stored unaddressable — or, for an id that
      * happens to name an existing child, would retype that child, and {@code bpmn.xml} is the child that matters:

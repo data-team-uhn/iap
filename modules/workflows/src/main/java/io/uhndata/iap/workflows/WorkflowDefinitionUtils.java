@@ -70,10 +70,13 @@ import org.xml.sax.SAXException;
  * event), the one with the highest {@code priority} whose {@code xmlChildElement} requirement (if any) is
  * satisfied by the element is used.</p>
  *
- * <p>{@code bpmn:sequenceFlow} elements are handled separately, in a second pass after every other flow node has
- * been created, and are stored as {@code wf:SequenceFlow} children of their source flow node. Diagram-only
- * elements ({@code bpmndi:*}) are never visited, since only the children of the {@code bpmn:process} element are
- * traversed.</p>
+ * <p>Two BPMN elements say where they are stored rather than being stored where they are written, so they are
+ * handled in a second pass once every other flow node exists: a {@code bpmn:sequenceFlow} becomes a
+ * {@code wf:SequenceFlow} child of the flow node its {@code sourceRef} names, and a {@code bpmn:boundaryEvent}
+ * becomes a child of the activity its {@code attachedToRef} names — which, per
+ * {@code workflowDefinitions.cnd}, is the whole of what makes it a boundary event rather than a free-standing
+ * mid-process catch. Diagram-only elements ({@code bpmndi:*}) are never visited, since only the children of the
+ * {@code bpmn:process} element are traversed.</p>
  *
  * <p>Written against the Oak {@link NodeBuilder} of an in-progress commit, which is why the properties the JCR
  * layer would autocreate are set explicitly here; see {@code applySystemProperties}.</p>
@@ -91,6 +94,8 @@ public final class WorkflowDefinitionUtils
 
     private static final String SEQUENCE_FLOW_ELEMENT = "sequenceFlow";
 
+    private static final String BOUNDARY_EVENT_ELEMENT = "boundaryEvent";
+
     private static final String SEQUENCE_FLOW_NODETYPE = "wf:SequenceFlow";
 
     private static final String FLOW_NODE_NODETYPE = "wf:FlowNode";
@@ -98,6 +103,12 @@ public final class WorkflowDefinitionUtils
     private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
 
     private static final String NAME_ATTRIBUTE = "name";
+
+    private static final String ATTACHED_TO_REF_ATTRIBUTE = "attachedToRef";
+
+    private static final String CANCEL_ACTIVITY_ATTRIBUTE = "cancelActivity";
+
+    private static final String INTERRUPTING_PROPERTY = "interrupting";
 
     private static final String LABEL_PROPERTY = "label";
 
@@ -202,6 +213,7 @@ public final class WorkflowDefinitionUtils
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes = loadFlowNodeTypes(workflowTypesRoot);
         final Map<String, Element> elementsById = new LinkedHashMap<>();
         final List<Element> sequenceFlows = new ArrayList<>();
+        final List<Element> boundaryEvents = new ArrayList<>();
 
         final NodeList children = process.getChildNodes();
         for (int i = 0; i < children.getLength(); ++i) {
@@ -218,9 +230,18 @@ public final class WorkflowDefinitionUtils
                 continue;
             }
             elementsById.put(id, element);
+            if (BOUNDARY_EVENT_ELEMENT.equals(localName)) {
+                boundaryEvents.add(element);
+                continue;
+            }
             createFlowNode(element, localName, id, flowNodeTypes, context);
         }
 
+        // Both of these are stored relative to a node named by one of their attributes, so they can only be placed
+        // once every node that may be named is in the tree.
+        for (final Element boundaryEvent : boundaryEvents) {
+            createBoundaryEvent(boundaryEvent, flowNodeTypes, context);
+        }
         for (final Element sequenceFlow : sequenceFlows) {
             createSequenceFlow(sequenceFlow, elementsById, context);
         }
@@ -381,6 +402,50 @@ public final class WorkflowDefinitionUtils
         node.setProperty(ELEMENT_ID_PROPERTY, id);
         node.setProperty(FLOW_NODE_TYPE_PROPERTY, flowNodeType.identifier(), Type.REFERENCE);
         setIfNotBlank(node, LABEL_PROPERTY, element.getAttribute(NAME_ATTRIBUTE));
+    }
+
+    /**
+     * Stores a {@code bpmn:boundaryEvent} as a child of the activity its {@code attachedToRef} names. Where the event
+     * is stored is the only thing that distinguishes a boundary event from a free-standing mid-process catch, so an
+     * event whose {@code attachedToRef} is missing or names a node that was not created is dropped rather than
+     * silently demoted to the other kind.
+     */
+    private static void createBoundaryEvent(final Element element,
+        final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes, final ParseContext context)
+    {
+        final String id = element.getAttribute(ID_ATTRIBUTE);
+        final String attachedToRef = element.getAttribute(ATTACHED_TO_REF_ATTRIBUTE);
+        if (StringUtils.isBlank(attachedToRef)) {
+            LOGGER.warn("BoundaryEvent {} in {} has no attachedToRef, skipping", id, context.path());
+            return;
+        }
+        // Only a node this parse produced will do: any other existing child of the version, bpmn.xml above all,
+        // would take a child no later reparse could ever reclaim.
+        if (!context.claimedNames().contains(attachedToRef)) {
+            LOGGER.warn("BoundaryEvent {} in {} is attached to unknown node {}, skipping", id, context.path(),
+                attachedToRef);
+            return;
+        }
+        final FlowNodeTypeInfo flowNodeType =
+            matchFlowNodeType(element, BOUNDARY_EVENT_ELEMENT, flowNodeTypes.get(BOUNDARY_EVENT_ELEMENT));
+        if (flowNodeType == null) {
+            return;
+        }
+        final NodeBuilder activity = context.workflowVersion().getChildNode(attachedToRef);
+        final NodeBuilder node = createNode(activity, id, flowNodeType.jcrNodeType(), context);
+        if (node == null) {
+            return;
+        }
+        applyJcrProperties(flowNodeType, node, context);
+        applyCopiedProperties(flowNodeType, element, node);
+        applyIdentity(node, element, id, flowNodeType);
+        // The BPMN attribute and the JCR property share both name-in-spirit and default (true), so an absent
+        // attribute correctly leaves the node type's own default in place.
+        final String cancelActivity = element.getAttribute(CANCEL_ACTIVITY_ATTRIBUTE);
+        if (StringUtils.isNotBlank(cancelActivity)) {
+            node.setProperty(INTERRUPTING_PROPERTY, Boolean.parseBoolean(cancelActivity));
+        }
+        applySystemProperties(node, flowNodeType.jcrNodeType(), context);
     }
 
     /**
