@@ -6,5 +6,6 @@
   "iap:extensionRenderURL": "asset:iap-submissions.MySubmissionsWidget.js",
   "iap:defaultOrder": 1,
   "iap:widgetWidth": "full",
-  "iap:widgetHideHeader": true
+  "iap:widgetHideHeader": true,
+  "iap:personas": ["submitter"]
 }
