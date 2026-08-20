@@ -567,6 +567,48 @@ class BpmnXmlSyncEditorTest
         assertFalse(version.getChildNode(END_1).exists());
     }
 
+    /**
+     * The source can also disappear without the file node going with it: the content node holding the bytes may be
+     * removed, or the bytes themselves. Either way the derived graph describes something that no longer exists, and
+     * leaving the hash behind would make re-uploading the original content a no-op.
+     */
+    @Test
+    void deletingTheContentNodeClearsFlowNodesAndParsedHash() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+
+        final NodeBuilder after = synced.builder();
+        version(after).getChildNode(BPMN_XML).getChildNode(JCR_CONTENT).remove();
+        // A version child other than bpmn.xml going away says nothing about the diagram, so it clears nothing.
+        version(after).child("unrelated").setProperty("x", 1L);
+        final NodeState withUnrelated = process(synced, after);
+
+        final NodeBuilder second = withUnrelated.builder();
+        version(second).getChildNode("unrelated").remove();
+
+        final NodeState version = version(process(withUnrelated, second));
+
+        assertFalse(version.hasProperty(HASH_PROPERTY));
+        assertFalse(version.getChildNode(START_1).exists());
+    }
+
+    @Test
+    void deletingJcrDataClearsFlowNodesAndParsedHash() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+
+        final NodeBuilder after = synced.builder();
+        final NodeBuilder content = version(after).getChildNode(BPMN_XML).getChildNode(JCR_CONTENT);
+        content.removeProperty(JCR_DATA);
+        // Removing an unrelated property at the same stage must not clear anything on its own.
+        content.removeProperty("jcr:mimeType");
+
+        final NodeState version = version(process(synced, after));
+
+        assertFalse(version.hasProperty(HASH_PROPERTY));
+        assertFalse(version.getChildNode(START_1).exists());
+    }
+
     @Test
     void reparsingPreservesChildrenThatAreNotFlowNodesOrSequenceFlows() throws Exception
     {

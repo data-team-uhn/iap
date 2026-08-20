@@ -159,10 +159,12 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     @Override
     public Editor childNodeDeleted(final String name, final NodeState before)
     {
-        if (this.stage == Stage.WORKFLOW_VERSION && BPMN_XML_FILE_NAME.equals(name)) {
-            WorkflowDefinitionUtils.clear(this.workflowVersion, this.context.nodeTypesRoot());
-            this.workflowVersion.removeProperty(PARSED_HASH_PROPERTY);
-            LOGGER.debug("Cleared flow nodes for WorkflowVersion {}: bpmn.xml was deleted", this.workflowVersionPath);
+        // The source can go away either as the whole file or as just the content node holding its bytes; both leave
+        // the derived children describing something that no longer exists.
+        final boolean sourceGone = this.stage == Stage.WORKFLOW_VERSION && BPMN_XML_FILE_NAME.equals(name)
+            || this.stage == Stage.BPMN_XML_FILE && JCR_CONTENT_NODE_NAME.equals(name);
+        if (sourceGone) {
+            clearFlowNodes("bpmn.xml was deleted");
         }
         return null;
     }
@@ -180,7 +182,8 @@ public class BpmnXmlSyncEditor extends DefaultEditor
                 ? descend(name, Stage.BPMN_XML_FILE, this.workflowVersion, this.workflowVersionPath) : null;
             case BPMN_XML_FILE -> JCR_CONTENT_NODE_NAME.equals(name)
                 ? descend(name, Stage.JCR_CONTENT, this.workflowVersion, this.workflowVersionPath) : null;
-            default -> null;
+            // Enumerated rather than defaulted, so that a new stage has to say what its children are.
+            case JCR_CONTENT -> null;
         };
     }
 
@@ -208,11 +211,27 @@ public class BpmnXmlSyncEditor extends DefaultEditor
         handleProperty(after);
     }
 
+    @Override
+    public void propertyDeleted(final PropertyState before)
+    {
+        // Losing the bytes is losing the source, even though the file node itself survives.
+        if (this.stage == Stage.JCR_CONTENT && JCR_DATA_PROPERTY.equals(before.getName())) {
+            clearFlowNodes("its bpmn.xml jcr:data was deleted");
+        }
+    }
+
     private void handleProperty(final PropertyState property)
     {
         if (this.stage == Stage.JCR_CONTENT && JCR_DATA_PROPERTY.equals(property.getName()) && !property.isArray()) {
             syncIfNeeded(property.getValue(Type.BINARY));
         }
+    }
+
+    private void clearFlowNodes(final String reason)
+    {
+        WorkflowDefinitionUtils.clear(this.workflowVersion, this.context.nodeTypesRoot());
+        this.workflowVersion.removeProperty(PARSED_HASH_PROPERTY);
+        LOGGER.debug("Cleared flow nodes for WorkflowVersion {}: {}", this.workflowVersionPath, reason);
     }
 
     /**
