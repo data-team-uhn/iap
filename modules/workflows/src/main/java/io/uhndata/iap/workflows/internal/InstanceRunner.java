@@ -72,8 +72,14 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
  */
 final class InstanceRunner
 {
-    /** The variable a completed task's outcome is recorded under. Gateways route on it. */
+    /** The variable a completed task's outcome is recorded under, and that gateways route on. */
     static final String OUTCOME_VARIABLE = "outcome";
+
+    /** Where what the deciding person said about their decision is kept, on the task alone. */
+    private static final String OUTCOME_NOTE = "outcomeNote";
+
+    /** The name of the container a {@code wf:WorkflowAttachable} host keeps its instances in. */
+    static final String INSTANCES = "wf:instances";
 
     /**
      * How many nodes one delivery may pass through before the definition is declared broken. Far above anything a
@@ -157,7 +163,8 @@ final class InstanceRunner
      * @throws WorkflowException when the definition cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
-    void complete(final TaskInstance task, final String outcome) throws WorkflowException, PersistenceException
+    void complete(final TaskInstance task, final String outcome, final String note)
+        throws WorkflowException, PersistenceException
     {
         final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
             "A task always lives inside its instance");
@@ -174,6 +181,11 @@ final class InstanceRunner
         if (outcome != null) {
             properties.put(OUTCOME_VARIABLE, outcome);
             setOutcome(instanceResource, outcome);
+        }
+        // Blank is nothing said, not something said emptily: a form posts an untouched field as "", and a task
+        // carrying an empty note would read as a decision somebody explained badly rather than not at all
+        if (note != null && !note.isBlank()) {
+            properties.put(OUTCOME_NOTE, note);
         }
 
         // An activity has exactly one way out, so leaving it is unambiguous; if that way is a gateway, the walk
