@@ -7,5 +7,7 @@ docker-compose.yml
 *.md
 
 # Note: also ignore the pytest suite cache
+.pytest_cache/
+.coverage
 **/__pycache__
 **/*.pyc

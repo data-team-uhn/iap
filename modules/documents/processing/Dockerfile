@@ -24,12 +24,33 @@
 # or, without Maven:
 #   docker build -t iap/docling:latest modules/documents/processing
 #
-# Run (shared docs mounted; publish only to loopback):
+# Run (shared docs mounted; publish only to loopback). On Linux, --user has to name whoever
+# owns the host directory behind /shared-docs ("id -u:id -g"): the image's own user is 10001,
+# and a bind mount arrives with the host's ownership on top of the image layer, so without it
+# the daemon cannot write {stem}.md and Chunks/ back. It does not matter on Docker Desktop.
+# An overridden uid has no /etc/passwd entry, so Docker sets HOME=/, which is not writable --
+# hence -e HOME=/tmp, the same thing docker-compose.yml does. --init gives the container a
+# reaper at PID 1: without one, a soffice.bin that outlives its launcher reparents to the
+# Python daemon, which never wait()s, and the zombies accumulate. --stop-timeout matches
+# docker-compose.yml's stop_grace_period: the daemon closes its listener and lets an
+# in-flight conversion finish, and a PDF near IAP_MAX_INPUT_PAGES can still be converting
+# well past five minutes — SIGKILL in that window is the case the drain exists to avoid.
 #   docker run --rm -p 127.0.0.1:18765:18765 \
+#     --init --user "$(id -u):$(id -g)" -e HOME=/tmp --stop-timeout 900 \
 #     -v /path/to/shared-docs:/shared-docs \
 #     --cpus=4 --memory=8g iap/docling:latest
 
-FROM python:3.13-slim AS base
+# Pinned by digest, for the reason requirements.txt gives for pinning the Python packages:
+# the layer below bakes model weights, CI never builds this image, and a floating tag lets the
+# same commit produce materially different images. The tag moved with every CPython patch
+# release and every rebuild of the base layer. Re-pin deliberately; the tag stays for
+# readability.
+#
+# What this does *not* freeze: the apt packages installed below. `apt-get install` resolves
+# against Debian's archive at build time, so LibreOffice, the JRE and the imaging libraries
+# still float even with the base image fixed. Freezing those means pinning versions in the
+# install list, or a snapshot.debian.org source.
+FROM python:3.13-slim@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a AS base
 
 # Docling's PDF pipeline needs native imaging/OpenMP; LibreOffice handles DOC/DOCX→PDF/DOCX.
 RUN apt-get update \
@@ -68,6 +89,15 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
+# The user comes before the weights, and the weights are downloaded as that user. A later
+# "chown -R /opt/models" would rewrite the ownership of every model file, and a metadata change
+# is enough to copy a file into the new layer, so the multi-GB weights ended up stored twice in
+# the image. Owning them from the start costs nothing: these are empty directories here.
+RUN mkdir -p /opt/models /shared-docs \
+    && useradd --create-home --uid 10001 docling \
+    && chown docling:docling /app /opt/models /shared-docs
+USER docling
+
 # Bake the model weights into the image. Without this the first conversion tries to reach
 # huggingface.co and fails on any host with no egress or with TLS interception — the container
 # would start healthy and then fail every real request. Downloading at build time also makes
@@ -75,16 +105,19 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 RUN python -c "import os; from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path(os.environ['DOCLING_ARTIFACTS_PATH']))" \
     && find /opt/models -type d -name '.locks' -prune -exec rm -rf {} +
 
-# Now that we have the models downloaded, we can turn HF offline
+# Now that we have the models downloaded, we can turn HF offline.
+#
+# HF_HOME moves somewhere writable for the rest of the container's life. /opt/models is
+# owned by uid 10001 at mode 0755, so an overridden --user (which is how a bind mount is
+# made writable — see the run example above) cannot write under it, and the HF stack does
+# create lock files there, which is why the download step prunes .locks. Nothing needs the
+# baked cache at runtime: the weights come from DOCLING_ARTIFACTS_PATH, and both the PDF
+# and DOCX paths were verified to convert with HF_HOME moved.
 ENV TRANSFORMERS_OFFLINE=1 \
-    HF_HUB_OFFLINE=1
+    HF_HUB_OFFLINE=1 \
+    HF_HOME=/tmp/hf
 
-COPY src/main/python/ /app/
-
-RUN mkdir -p /shared-docs \
-    && useradd --create-home --uid 10001 docling \
-    && chown -R docling:docling /app /opt/models /shared-docs
-USER docling
+COPY --chown=docling:docling src/main/python/ /app/
 
 EXPOSE 18765
 
