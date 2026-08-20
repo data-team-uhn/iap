@@ -26,6 +26,10 @@ import { type JsonNode, childrenOfType } from "./jsonNode";
 export const WORKFLOW_INSTANCE = "wf/WorkflowInstance";
 export const TASK_INSTANCE = "wf/TaskInstance";
 
+// The same thing as a JCR node type, which is what a query filters on: resource types are
+// slash-separated and node types colon-separated, and only the second can appear in a query.
+export const TASK_INSTANCE_NODE_TYPE = "wf:TaskInstance";
+
 // The status a task carries until somebody completes it
 const OPEN = "created";
 
@@ -87,10 +91,16 @@ export async function completeTask(
   post: (url: string, init?: RequestInit) => Promise<Response>,
   task: SubmissionTask,
   outcome?: string,
+  note?: string,
 ): Promise<void> {
   const body = new URLSearchParams();
   if (outcome) {
     body.append("outcome", outcome);
+  }
+  // Sent only when there is something to send: the engine treats a blank note as nothing said, and
+  // posting one anyway would have every decision carry an empty explanation
+  if (note?.trim()) {
+    body.append("outcomeNote", note);
   }
   const response = await post(task.path, { method: "POST", body });
   if (!response.ok) {
