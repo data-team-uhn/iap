@@ -142,6 +142,51 @@ def refuse_oversized_input(path: Path) -> None:
     refuse_oversized_pdf(path)
 
 
+def open_pdf_reader(source):
+    """A pypdf reader, unlocking empty-password AES encryption when that is all that is set.
+
+    Signed and permission-restricted PDFs are often AES-encrypted with an empty user
+    password. pypdf needs the ``cryptography`` package for AES; without it, reading the
+    page tree raises ``DependencyError``. That is a server-side gap (the image should
+    ship the extra), so it stays a ``ValueError`` — a 500 the caller may retry after
+    the image is rebuilt. A PDF that still needs a real password after ``decrypt("")``
+    will not parse on retry either, so that case is a :class:`ParseRequestError`.
+
+    ``source`` is a binary file handle or anything else ``PdfReader`` accepts. Fake
+    readers used in tests are not passed through here.
+
+    @param source: an open binary PDF stream (or a path ``PdfReader`` can open)
+    @return: a reader whose page tree can be walked
+    @raise ParseRequestError: when the PDF needs a non-empty password
+    @raise ValueError: when AES support is missing, or pypdf cannot open the file
+    """
+    from pypdf import PdfReader
+    from pypdf.errors import DependencyError
+
+    try:
+        reader = PdfReader(source)
+        if reader.is_encrypted:
+            try:
+                # is_encrypted stays True after a successful decrypt; the return value
+                # is what tells user/owner password from "still locked" (0).
+                unlocked = reader.decrypt("")
+            except DependencyError:
+                raise
+            except Exception as exc:
+                raise ParseRequestError(
+                    "PDF is encrypted and did not open with an empty password"
+                ) from exc
+            if not unlocked:
+                raise ParseRequestError(
+                    "PDF is encrypted and did not open with an empty password"
+                )
+        return reader
+    except DependencyError as exc:
+        raise ValueError(
+            "PDF uses AES encryption; cryptography>=3.1 is required to read it"
+        ) from exc
+
+
 def refuse_oversized_pdf(path: Path) -> None:
     """Reject a PDF with more pages than :func:`max_input_pages` allows.
 
@@ -149,19 +194,22 @@ def refuse_oversized_pdf(path: Path) -> None:
     Deliberately fails open: an unreadable or non-PDF file is left to the converter, which
     reports a real error for it. The ceiling is a resource guard, not a security boundary --
     :func:`resolve_parse_path` is what keeps a caller inside the shared volume.
+    :class:`ParseRequestError` from :func:`open_pdf_reader` is re-raised: a passworded PDF
+    is not "unreadable" in that fail-open sense, and retrying it will not help.
 
     @param path: the resolved input path
-    @raise ParseRequestError: when the document is over the ceiling
+    @raise ParseRequestError: when the document is over the ceiling, or password-locked
     """
     limit = max_input_pages()
     if limit is None or path.suffix.lower() != ".pdf":
         return
     try:
-        from pypdf import PdfReader
         # Opened through a context manager: this runs on every /parse, and PdfReader holds the
         # file until it is collected.
         with open(path, "rb") as handle:
-            pages = len(PdfReader(handle).pages)
+            pages = len(open_pdf_reader(handle).pages)
+    except ParseRequestError:
+        raise
     except Exception:  # noqa: BLE001 -- unreadable here means "let the converter say why"
         return
     if pages > limit:
