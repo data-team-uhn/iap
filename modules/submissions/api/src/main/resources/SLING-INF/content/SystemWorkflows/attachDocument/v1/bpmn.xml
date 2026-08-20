@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="attachDocumentDefinitions"
+                  targetNamespace="https://iap.uhndata.io/systemWorkflows/attachDocument">
+  <bpmn:message id="attachDocumentMessage" name="attachDocument" />
+  <bpmn:process id="attachDocument" name="Attach a document to a submission" isExecutable="true">
+    <bpmn:startEvent id="requested" name="File uploaded">
+      <bpmn:messageEventDefinition id="attachRequested" messageRef="attachDocumentMessage" />
+      <bpmn:outgoing>toAttach</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toAttach" sourceRef="requested" targetRef="attach" />
+    <bpmn:serviceTask id="attach" name="Store the document">
+      <bpmn:incoming>toAttach</bpmn:incoming>
+      <bpmn:outgoing>toMark</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toMark" sourceRef="attach" targetRef="mark" />
+    <bpmn:serviceTask id="mark" name="Record whether anything is still missing">
+      <bpmn:incoming>toMark</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDone" sourceRef="mark" targetRef="done" />
+    <bpmn:endEvent id="done" name="Document attached">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="attachDocumentDiagram">
+    <bpmndi:BPMNPlane id="attachDocumentPlane" bpmnElement="attachDocument">
+      <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="141" y="223" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="attachShape" bpmnElement="attach">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markShape" bpmnElement="mark">
+        <dc:Bounds x="410" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
+        <dc:Bounds x="570" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="547" y="223" width="83" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toAttachEdge" bpmnElement="toAttach">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toMarkEdge" bpmnElement="toMark">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="410" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="510" y="198" />
+        <di:waypoint x="570" y="198" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
