@@ -36,12 +36,19 @@ from typing import NamedTuple
 
 from markdown_markers import PAGE_MARKER, PAGE_MARKER_LINE
 
-_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+# Everything that is not a letter or a digit *in any script*. The ASCII-only
+# ``[^a-z0-9]+`` it replaced silently erased whole titles: a CJK or Cyrillic heading
+# normalized to "" and so became invisible to page verification, cut keys and
+# running-header detection. ``\W`` with re.UNICODE keeps them, and dropping "_" as well
+# keeps the key to letters and digits only. Both sides of every comparison go through
+# this one function, so ASCII titles key exactly as before.
+_NON_ALNUM = re.compile(r"[\W_]+", re.UNICODE)
 
 
 def normalize_title(text: str) -> str:
-    """A comparison key for a heading/title: casefolded, alphanumerics only. So ``"## 1.0
-    Background:"`` and a bookmark ``"1.0 Background"`` both key to ``"10background"``."""
+    """A comparison key for a heading/title: casefolded, letters and digits only, in any
+    script. So ``"## 1.0 Background:"`` and a bookmark ``"1.0 Background"`` both key to
+    ``"10background"``."""
     return _NON_ALNUM.sub("", text.casefold())
 
 
@@ -52,8 +59,9 @@ def build_lines_catalog(lines: list[str]) -> list[tuple[int, int, str]]:
     (0 before the first). Marker lines and empty/keyless lines are skipped. Every other
     lookup in this module is built on this scan.
 
-    Answers the question for each real content line, which PDF page it belongs to (from those page markers).
-    positions list is later used to verify bookmarks and find headings without re-scanning the whole file.
+    Answers, for each real content line, which PDF page it belongs to (from those page
+    markers). The positions list is used later to verify bookmarks and find headings
+    without re-scanning the whole file.
 
     @param lines: document already split on newlines
     @return: one tuple per keyed line, in document order
@@ -128,6 +136,7 @@ def verify_bookmarks(
     records: list[dict],
     markdown: str,
     positions: list[tuple[int, int, str]],
+    toc_range: tuple[int, int] | None = None,
 ) -> list[dict]:
     """Check each record's page against ``markdown`` and fix off-by-one pages.
 
@@ -136,9 +145,16 @@ def verify_bookmarks(
     Skips records with no page/title. Unpaged docs (no ``<!-- page: N -->``) are unchanged.
     Always returns new dicts.
 
+    ``toc_range`` lines are not evidence. Every record's title appears in the printed TOC, so
+    counting them let the TOC confirm its own page: the page was rewritten to the TOC's and
+    left trusted, and :func:`resolve_record_line` excludes the TOC range, so the record could
+    never resolve. Marking it unverified lets it find its real heading instead.
+
     @param records: outline records (``title``, ``level``, ``page``)
     @param markdown: Markdown with page markers
     @param positions: precomputed :func:`build_lines_catalog` for ``markdown``
+    @param toc_range: inclusive ``(first, last)`` line range of the printed TOC, whose lines
+        are not evidence of anything; ``None`` when the document has no detected TOC
     @return: corrected records
     """
     # Cheap necessary condition: an unpaged document (DOCX) never needs the page map.
@@ -146,6 +162,12 @@ def verify_bookmarks(
     # to be confirmed below — but a miss is conclusive.
     if not PAGE_MARKER.search(markdown):
         return [dict(record) for record in records]
+
+    if toc_range is not None:
+        first, last = toc_range
+        positions = [
+            position for position in positions if not first <= position[0] <= last
+        ]
 
     pages = pages_from_positions(positions)
     if not any(page_no > 0 for page_no in pages):

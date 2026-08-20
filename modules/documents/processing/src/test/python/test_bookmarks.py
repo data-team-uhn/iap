@@ -189,3 +189,60 @@ class TestResolveRecordLine:
     def test_unpaged_document_ignores_the_claimed_page(self):
         index = bookmarks.build_line_index(_catalog("## Intro\nbody"))
         assert bookmarks.resolve_record_line(index, {"title": "Intro", "page": 99}) == 0
+
+
+class TestTheTocIsNotItsOwnEvidence:
+    """A record's page cannot be confirmed by the printed TOC entry that names it.
+
+    Regression: every record's title appears in the TOC by definition, so counting those
+    lines let the TOC confirm a page it says nothing about. A record whose page landed within
+    the off-by-one window of the TOC's own page was "found" there and rewritten to it, then
+    left trusted -- and :func:`resolve_record_line` honours a trusted page while excluding the
+    TOC range, so the record could never resolve to anything. Marking it unverified instead
+    lets it search the whole document and find its real heading. Printed-TOC records make this
+    routine: their page is the number printed in the entry, offset from the PDF page index by
+    whatever unnumbered front matter comes first.
+    """
+
+    # Printed TOC on PDF page 2 says "Background ... 3"; the real heading is on PDF page 5.
+    MD = "\n".join([
+        "<!-- page: 1 -->", "Title Page", "",
+        "<!-- page: 2 -->", "TABLE OF CONTENTS", "Background", "Methods", "",
+        "<!-- page: 3 -->", "Sponsor and funding details.", "",
+        "<!-- page: 4 -->", "Signature page.", "",
+        "<!-- page: 5 -->", "Background", "Body text about the study.", "",
+    ])
+    TOC_RANGE = (4, 6)
+    REAL_HEADING_LINE = 15
+
+    def _positions(self):
+        return bookmarks.build_lines_catalog(self.MD.split("\n"))
+
+    def test_the_page_is_not_rewritten_to_the_tocs_own_page(self):
+        record = {"title": "Background", "page": 3}
+        out = bookmarks.verify_bookmarks([record], self.MD, self._positions(), self.TOC_RANGE)[0]
+        assert out["page"] == 3
+        assert out["verified"] is False
+
+    def test_the_record_then_resolves_to_the_real_heading(self):
+        record = {"title": "Background", "page": 3}
+        positions = self._positions()
+        out = bookmarks.verify_bookmarks([record], self.MD, positions, self.TOC_RANGE)[0]
+        index = bookmarks.build_line_index(positions)
+        resolved = bookmarks.resolve_record_line(
+            index, out, exclude=frozenset(range(self.TOC_RANGE[0], self.TOC_RANGE[1] + 1))
+        )
+        assert resolved == self.REAL_HEADING_LINE
+
+    def test_a_page_confirmed_outside_the_toc_is_still_trusted(self):
+        # The off-by-one correction must keep working on real body evidence.
+        record = {"title": "Background", "page": 4}
+        out = bookmarks.verify_bookmarks([record], self.MD, self._positions(), self.TOC_RANGE)[0]
+        assert out["page"] == 5
+        assert "verified" not in out
+
+    def test_no_toc_range_keeps_the_previous_behaviour(self):
+        # Callers without a detected TOC pass nothing and are unaffected.
+        record = {"title": "Background", "page": 3}
+        out = bookmarks.verify_bookmarks([record], self.MD, self._positions())[0]
+        assert out["page"] == 2
