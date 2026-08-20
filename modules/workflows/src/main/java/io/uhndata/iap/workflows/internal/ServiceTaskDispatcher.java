@@ -104,12 +104,14 @@ final class ServiceTaskDispatcher
         FlowNode node = start;
         for (int step = 0; step < WorkflowEngineImpl.MAX_STEPS; step++) {
             if (node instanceof EndEvent) {
-                recordActor(resolver, variables, actor);
                 return variables;
             }
             if (node instanceof Activity) {
                 perform((Activity) node, new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor,
                     this, depth));
+                // After every activity, not at the end event: a later activity in this walk may start a workflow on
+                // what this one created, and @creator there reads this property
+                recordActor(resolver, variables, actor);
             } else if (!(node instanceof StartEvent) || step > 0) {
                 // A system workflow cannot contain this node: there is no persisted instance whose token
                 // could rest here
@@ -125,7 +127,7 @@ final class ServiceTaskDispatcher
     /**
      * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
      * {@code jcr:createdBy} names the service user. Nothing else would remember the human, and both the audit
-     * trail and every "things I raised" listing need it.
+     * trail and every "things I raised" listing need it, and so does {@code @creator}.
      *
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created
