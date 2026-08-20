@@ -28,12 +28,23 @@ import contextlib
 import threading
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
+
+# Before the docling import below, like every other module that pulls it in: importing
+# docling loads torch and libgomp, and docling_config sets OMP_NUM_THREADS first.
+import docling_config  # noqa: F401 — apply shared Docling settings on import
 
 from docling.document_converter import DocumentConverter
 
 import shared_docs
-from chunker import DEFAULT_MAX_TOKENS, CHUNKS_DIRNAME, clear_prior_outputs, write_chunk_files
+from chunker import (
+    CHUNKS_DIRNAME,
+    DEFAULT_MAX_TOKENS,
+    write_atomically,
+    write_chunk_files,
+    write_unchunked_outline,
+)
 from docling_docx_parser import convert_docx_to_markdown
 from docling_pdf_parser import convert_pdf_to_markdown
 from libreoffice_convert import prepare_office_document
@@ -60,7 +71,8 @@ def parse_document(
     """LibreOffice prep, Docling convert, then write ``{stem}.md`` + ``Chunks/`` beside the source.
 
     @param input_path: absolute path to the staged ``.pdf`` / ``.docx`` / ``.doc``
-    @param chunk: when False, write the ``.md`` only and clear any stale ``Chunks/``
+    @param chunk: when False, write ``Chunks/outline.json`` recording ``chunked: false`` and
+        no chunk files
     @param max_tokens: chunk budget
     @param min_structure_tokens: leave the document unchunked below this size
     @param pdf_executor: warm PDF pool (daemon); ``None`` lets Docling size its own pool
@@ -119,14 +131,18 @@ def parse_document(
     output_md = source.with_suffix(".md")
 
     if not chunk:
-        clear_prior_outputs(output_md)
+        # Same two things on disk as every other path, and in the same order: the outline
+        # first, the .md last. The .md is the commit marker (see chunker.write_chunk_files),
+        # so writing it first would leave Markdown with no outline beside it if this failed
+        # in between — the one state the invariant exists to rule out.
         shared_docs.make_dirs(output_md.parent)
-        shared_docs.write_text(output_md, markdown)
+        chunks_dir_path = write_unchunked_outline(output_md, filename, markdown)
+        write_atomically(output_md, markdown)
         return {
             "ok": True,
             "markdown_path": str(output_md.resolve()),
             "chunked": False,
-            "chunks_dir": None,
+            "chunks_dir": str(chunks_dir_path.resolve()),
             "logs": "\n".join(logs),
             "filename": filename,
         }

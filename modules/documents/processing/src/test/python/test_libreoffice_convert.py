@@ -61,11 +61,47 @@ class TestPrepareOfficeDocument:
             raise RuntimeError("docx convert failed")
 
         monkeypatch.setattr(lo, "convert", boom)
-        try:
+        with pytest.raises(RuntimeError, match="docx convert failed"):
             lo.prepare_office_document(source)
-            assert False, "expected RuntimeError"
-        except RuntimeError as exc:
-            assert "docx convert failed" in str(exc)
+
+    def test_the_doc_sibling_pdf_is_rendered_from_the_docx(self, tmp_path, monkeypatch):
+        # Which *input* each conversion gets, not just which target format. The sibling PDF
+        # supplies the bookmarks and page numbers for the document Docling parses, which is the
+        # .docx — rendering it from the original .doc went through a second, independent filter
+        # path, so the pagination the bookmarks referred to was not guaranteed to be the
+        # pagination verify_bookmarks checks them against. No test distinguished the two.
+        source = tmp_path / "legacy.doc"
+        source.write_bytes(b"doc")
+        docx = tmp_path / "legacy.docx"
+        calls: list[tuple[str, str]] = []
+
+        def fake_convert(input_path, target_format, output_dir=None):
+            calls.append((Path(input_path).name, target_format))
+            if target_format == "docx":
+                docx.write_bytes(b"pk")
+                return docx
+            out = Path(output_dir or Path(input_path).parent) / f"{Path(input_path).stem}.pdf"
+            out.write_bytes(b"%PDF")
+            return out
+
+        monkeypatch.setattr(lo, "convert", fake_convert)
+        assert lo.prepare_office_document(source) == docx
+        assert calls == [("legacy.doc", "docx"), ("legacy.docx", lo._PDF_CONVERT_TO)], calls
+
+    def test_the_docx_sibling_pdf_comes_from_the_docx_itself(self, tmp_path, monkeypatch):
+        docx = tmp_path / "report.docx"
+        docx.write_bytes(b"pk")
+        calls: list[tuple[str, str]] = []
+
+        def fake_convert(input_path, target_format, output_dir=None):
+            calls.append((Path(input_path).name, target_format))
+            out = Path(output_dir or Path(input_path).parent) / f"{Path(input_path).stem}.pdf"
+            out.write_bytes(b"%PDF")
+            return out
+
+        monkeypatch.setattr(lo, "convert", fake_convert)
+        assert lo.prepare_office_document(docx) == docx
+        assert calls == [("report.docx", lo._PDF_CONVERT_TO)]
 
     def test_doc_pdf_failure_still_returns_docx(self, tmp_path, monkeypatch):
         source = tmp_path / "legacy.doc"
@@ -99,14 +135,14 @@ class TestConvertRequiresOutput:
     def _soffice(self, monkeypatch, *, writes):
         import subprocess
 
-        def fake_run(command, **kwargs):
+        def fake_run(command, timeout):
             if writes:
                 outdir = Path(command[command.index("--outdir") + 1])
                 source = Path(command[-1])
                 (outdir / f"{source.stem}.docx").write_bytes(b"FRESH")
             return subprocess.CompletedProcess(command, 0, "", "")
 
-        monkeypatch.setattr(lo.subprocess, "run", fake_run)
+        monkeypatch.setattr(lo, "_run_soffice", fake_run)
 
     def test_a_silent_failure_is_still_an_error(self, monkeypatch, tmp_path):
         source = tmp_path / "legacy.doc"
@@ -136,3 +172,76 @@ class TestConvertRequiresOutput:
         assert [p.name for p in tmp_path.iterdir() if p.name.startswith("iap-lo-")] == []
 
 
+class TestSofficeTimeout:
+    """A conversion that outstays its welcome takes its children with it.
+
+    ``soffice`` is a launcher that starts ``soffice.bin``, and ``subprocess.run``'s timeout
+    only kills the launcher, so the real converter was orphaned. Harmless for the CLI; in a
+    long-lived daemon they accumulate.
+    """
+
+    def test_a_timeout_kills_the_child_and_raises(self):
+        import subprocess
+        import sys
+        import time
+
+        started = time.perf_counter()
+        with pytest.raises(subprocess.TimeoutExpired):
+            lo._run_soffice([sys.executable, "-c", "import time; time.sleep(30)"], 1.0)
+        # The child was killed and reaped rather than waited out.
+        assert time.perf_counter() - started < 10
+
+    def test_a_normal_run_reports_output_and_status(self):
+        import sys
+
+        done = lo._run_soffice(
+            [sys.executable, "-c", "print('hello'); raise SystemExit(3)"], 30
+        )
+        assert done.returncode == 3
+        assert "hello" in done.stdout
+
+    def test_the_timeout_becomes_a_runtime_error(self, monkeypatch, tmp_path):
+        import subprocess
+
+        source = tmp_path / "legacy.doc"
+        source.write_bytes(b"doc")
+
+        def slow(command, timeout):
+            raise subprocess.TimeoutExpired(command, timeout)
+
+        monkeypatch.setattr(lo, "_run_soffice", slow)
+        with pytest.raises(RuntimeError, match="timed out"):
+            lo.convert(source, "docx", tmp_path)
+
+
+class TestReapIsBounded:
+    """The wait after the kill cannot hang the daemon.
+
+    The kill is followed by a communicate() to collect the corpse, and that used to be
+    unbounded. It runs holding the daemon's only parse slot, so a child already gone from the
+    group — or wedged uninterruptible — left /parse answering 503 busy forever while /health
+    still reported ready.
+    """
+
+    def test_it_gives_up_on_a_child_that_survives_the_kill(self, monkeypatch):
+        import subprocess
+        import sys
+        import time
+
+        # Neuter the kill so the child outlives it, standing in for a wedged soffice.bin.
+        monkeypatch.setattr(lo, "_kill_group", lambda process: None)
+        monkeypatch.setattr(lo, "REAP_TIMEOUT_SECONDS", 2)
+
+        started = time.perf_counter()
+        with pytest.raises(subprocess.TimeoutExpired):
+            lo._run_soffice([sys.executable, "-c", "import time; time.sleep(60)"], 1.0)
+        elapsed = time.perf_counter() - started
+        # The timeout still surfaces, and the reap does not wait out the child's 60s.
+        assert elapsed < 15, f"post-kill wait took {elapsed:.1f}s"
+
+    def test_a_killable_child_is_still_reaped(self):
+        import subprocess
+        import sys
+
+        with pytest.raises(subprocess.TimeoutExpired):
+            lo._run_soffice([sys.executable, "-c", "import time; time.sleep(60)"], 1.0)
