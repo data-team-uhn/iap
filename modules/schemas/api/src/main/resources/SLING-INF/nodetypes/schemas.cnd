@@ -146,6 +146,11 @@
 // A single question the submitter must answer.
 // Referenceable so that submission answers can point back to it.
 [sch:Question] > sch:FormItem, mix:referenceable
+  // The answer options are offered in the order they are declared, and only an
+  // orderable type keeps that order: without this, Oak returns the children in
+  // an order of its own and the offered answers reshuffle between reads.
+  orderable
+
   - sling:resourceType (STRING) = "sch/Question" mandatory autocreated protected
 
   // The question text shown to the submitter
@@ -167,8 +172,34 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
+  // The answers this question offers. A question declaring none is answered
+  // freely, in whatever its dataType accepts; one declaring options is answered
+  // only with their values, which is what lets a condition compare against an
+  // agreed value instead of against whatever the submitter typed.
+  + * (sch:AnswerOption)
+
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One of the answers a question offers.
+//
+// The value is the durable half: it is what an answer stores and what a
+// condition compares against, so renaming one changes the meaning of every
+// answer already recorded with it. The label is only what the submitter reads
+// and can be reworded, or translated, without touching anything else.
+[sch:AnswerOption] > iap:EntityPart
+  - sling:resourceType (STRING) = "sch/AnswerOption" mandatory autocreated protected
+
+  // What an answer picking this option stores
+  - value (STRING) mandatory
+
+  // What the submitter reads; the value itself when left out
+  - label (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
 
 //-----------------------------------------------------------------------------
 // Abstract base for anything a submission must fulfill: a set of questions

@@ -17,11 +17,12 @@
  */
 
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
 import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
-import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 // A submission as returned by the `deep` serialization: children nested, references expanded
 const DEEP_SUBMISSION = {
@@ -228,12 +229,53 @@ const BARE_SUBMISSION = {
   },
 };
 
+// The form projection as the SubmissionFormServlet would serve it, asking nothing: enough to tell
+// the editor apart from the read-only page without restating what the editor's own tests cover.
+const EMPTY_FORM = {
+  path: "/Submissions/demo-1",
+  title: "Test my drug",
+  editable: true,
+  requirements: [],
+};
+
+// Answers the tag definitions, the deep serialization and the form projection alike, so that a test
+// can move between the page's two modes the way a reader does.
+function bothModes(submission: unknown = DEEP_SUBMISSION) {
+  const otherwise = tagAwareFetch(submission);
+  return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+    ? Promise.resolve({ ok: true, json: () => Promise.resolve(EMPTY_FORM) } as unknown as Response)
+    : otherwise(url));
+}
+
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <SubmissionView />
     </MemoryRouter>
   );
+}
+
+// The container SubmissionTasks asks for, holding one open step. Without it the page has no send
+// control at all, and a test about whether sending is offered would assert nothing.
+const WAITING = {
+  timeOffRequest: {
+    "sling:resourceType": "wf/WorkflowInstance",
+    "@path": "/Submissions/demo-1/wf:instances/timeOffRequest",
+    "fillIn": {
+      "sling:resourceType": "wf/TaskInstance",
+      "@path": "/Submissions/demo-1/wf:instances/timeOffRequest/fillIn",
+      "status": "created",
+      "label": "Send it",
+      "outcomeOptions": [] as string[],
+    },
+  },
+};
+
+// The page's own fetch plus that container, so the send control is really on the page
+function servingWithSendStep(submission: unknown) {
+  return vi.fn((url: string) => url.includes("wf:instances")
+    ? jsonResponse(WAITING)
+    : tagAwareFetch(submission)(url));
 }
 
 describe("SubmissionView", () => {
@@ -255,7 +297,9 @@ describe("SubmissionView", () => {
     expect(screen.getByText(/by admin/)).toBeInTheDocument();
 
     // The submission itself was fetched with the deep serialization
-    expect(fetchMock.mock.calls[0][0]).toBe("/Submissions/demo-1.deep.json");
+    // Among the page's requests, not necessarily its first: the header asks what the request is
+    // waiting for, and a child's effect runs before its parent's
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
 
     // The form requirement, its section, and its questions, with and without answers
     expect(screen.getByText("Basic information")).toBeInTheDocument();
@@ -298,6 +342,44 @@ describe("SubmissionView", () => {
     expect(screen.getByText("on Study protocol")).toBeInTheDocument();
     expect(screen.getByText(/Formatting fixed/)).toBeInTheDocument();
     expect(screen.getByText(/✓/)).toBeInTheDocument();
+  });
+
+  it("offers to send a request once nothing it asks for is missing", async () => {
+    vi.stubGlobal("fetch", servingWithSendStep(DEEP_SUBMISSION));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeEnabled();
+  });
+
+  it("will not offer to send one that is still missing an answer", async () => {
+    // The save workflow placed the tag, so the page knows without asking for the form
+    vi.stubGlobal("fetch", servingWithSendStep({ ...DEEP_SUBMISSION, "tags": ["draft", "incomplete"] }));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeDisabled();
+  });
+
+  it("credits whoever raised the submission, not the engine that wrote it", async () => {
+    // Every submission is written by the engine's service user, so jcr:createdBy names the engine; the
+    // person it acted for is recorded as createdBy, and that is who the page has to say created it
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "workflows", "createdBy": "demo-requester" })));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByText(/by demo-requester/)).toBeInTheDocument();
+  });
+
+  it("falls back on who wrote it when nothing recorded who it was for", async () => {
+    // Seeded content has no createdBy at all, and naming its writer is more use than naming nobody
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "sling-jcr-content-loader" })));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByText(/by sling-jcr-content-loader/)).toBeInTheDocument();
   });
 
   it("displays attached documents with download links, and minimal submissions without extras", async () => {
@@ -382,7 +464,7 @@ describe("SubmissionView", () => {
     renderAt("/Submissions/demo-1.html");
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0][0]).toBe("/Submissions/demo-1.deep.json");
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
   });
 
   it("reports inaccessible submissions", async () => {
@@ -393,5 +475,129 @@ describe("SubmissionView", () => {
 
     // The shared vocabulary for a status, rather than wording this view invented for itself
     expect(await screen.findByText(/It could not be found on the server/)).toBeInTheDocument();
+  });
+
+  // The page's own share of the submit button: offering it in both modes, and doing the right
+  // thing once it has been pressed
+  describe("what the request is waiting for", () => {
+    // The submission's own workflow, parked on a step with nothing to decide
+    const WAITING = {
+      timeOffRequest: {
+        "@path": "/Submissions/demo-1/wf:instances/timeOffRequest",
+        "sling:resourceType": "wf/WorkflowInstance",
+        "fillIn": {
+          "@path": "/Submissions/demo-1/wf:instances/timeOffRequest/fillIn",
+          "sling:resourceType": "wf/TaskInstance",
+          "label": "Say when you want to be away",
+          "status": "created",
+        },
+      },
+    };
+
+    // The page as it really answers: its own serialization, the form projection, the tag
+    // definitions, and — once the step has been completed — a workflow with nothing left waiting
+    function withATaskWaiting() {
+      const otherwise = bothModes();
+      let done = false;
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
+        if (init?.method === "POST") {
+          done = true;
+          return Promise.resolve({ url, ok: true, json: () => Promise.resolve({}) } as unknown as Response);
+        }
+        if (url.includes("wf:instances")) {
+          return Promise.resolve(
+            { url, ok: true, json: () => Promise.resolve(done ? {} : WAITING) } as unknown as Response);
+        }
+        return otherwise(url).then(response => ({ ...response, url }));
+      });
+    }
+
+    it("offers the waiting step while filling the request in, not only while reading it", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting());
+
+      renderAt("/Submissions/demo-1.edit");
+
+      expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
+    });
+
+    it("goes back to reading the request once the step is done, and reads it again", async () => {
+      const fetchMock = withATaskWaiting();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1.edit");
+
+      await user.click(await screen.findByRole("button", { name: /Say when you want to be away/ }));
+
+      // Sending it has usually made it read-only, and what has changed is what the person now
+      // wants to see — so the page shows it rather than leaving them in an editor that will refuse.
+      // Asserted in the order it happens: the page changes mode straight away, and only then has
+      // to read the submission again before it can show anything.
+      expect(await screen.findByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Say when you want/ })).toBeNull();
+    });
+  });
+
+  describe("switching between reading and filling in", () => {
+    it("opens the editor, which asks the server what the form is", async () => {
+      const fetchMock = bothModes();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1");
+      await screen.findByText("Test my drug");
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+
+      expect(await screen.findByText("This request asks nothing yet.")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.form.json");
+    });
+
+    // The editor used to be a dead end: reachable only from a listing, with nothing on it leading
+    // anywhere. Going back also re-reads, since the editor saves as it goes.
+    it("comes back out of the editor, reading the submission afresh", async () => {
+      const fetchMock = bothModes();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1.edit");
+      await screen.findByText("This request asks nothing yet.");
+
+      await user.click(screen.getByRole("button", { name: "View" }));
+
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
+    });
+
+    it("says which of the two is showing", async () => {
+      vi.stubGlobal("fetch", bothModes());
+      renderAt("/Submissions/demo-1.edit");
+
+      expect(await screen.findByRole("button", { name: "Edit", pressed: true })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "View", pressed: false })).toBeInTheDocument();
+    });
+
+    // An exclusive toggle group reports a deselection as null; there is no third mode to land in
+    it("stays where it is when the mode already showing is chosen again", async () => {
+      vi.stubGlobal("fetch", bothModes());
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1");
+      await screen.findByText("Test my drug");
+
+      await user.click(screen.getByRole("button", { name: "View" }));
+
+      expect(screen.getByText("Test my drug")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
+    });
+
+    // The states with nothing to show are the ones somebody most needs a way out of
+    it("keeps the way out of a submission that cannot be loaded", async () => {
+      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
+        () => Promise.resolve({ ok: false, status: 403 } as unknown as Response)));
+
+      renderAt("/Submissions/secret");
+
+      expect(await screen.findByText(/You do not have permission to do this/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Back to the dashboard/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    });
   });
 });

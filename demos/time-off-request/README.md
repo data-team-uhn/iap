@@ -15,20 +15,48 @@ mvn clean install
 
 | Path                        | What                                                                     |
 |-----------------------------|--------------------------------------------------------------------------|
-| `/Schemas/timeOffRequest`   | What a requester fills in — currently one required date question         |
-| `/Workflows/timeOffRequest` | The process, as BPMN: submitted → approve → approved or refused          |
+| `/Schemas/timeOffRequest`   | What a requester fills in — duration, dates, absence type, and a doctor's note when the absence is sick leave |
+| `/Workflows/timeOffRequest` | The process, as BPMN: submitted → budget looked up → approve → approved or refused |
+| `TimeOffBudgetHandler`      | The demo's own Java, plugged into the engine's service-task extension point |
 | `demo-requester`            | Asks for the day off. Member of `time-off-requesters`                    |
 | `demo-approver`             | Decides. Member of `time-off-approvers`, which the schema routes approval to |
 
 Passwords match the usernames. That is fine precisely because this only ever runs behind `--demo` or the
 demo integration-test suite; a real deployment installs none of it.
 
-## The engine does not exist yet
+## What runs
 
-So today this defines the process without executing it. That is still worth having: it is the target the
-engine gets built against, and `integration-tests/src/test/e2e/specs/demo/` already asserts that the
-schema, the workflow and the accounts are installed and correct. As the engine lands, the tests that raise
-a request and approve it belong in that same suite, and this file should stop making this excuse.
+The whole process, end to end, and `specs/demo/` walks through exactly this:
+
+1. **`demo-requester` raises a request** — `POST /Submissions` with a `title` and this schema's version
+   path. They hold no repository rights whatsoever; the bootstrap's start event names `everyone` as a
+   performer, so the engine vets the schema version, creates the submission in its `draft` state and writes
+   it on their behalf. The same user POSTing to `/Workflows` is refused with a 403, because that definition
+   names `iap-administrators` instead — the two answers differ only in what the workflows say.
+2. **The request goes under its workflow immediately**, because the schema version names one. On its way
+   the walk passes a service task that looks up how many days the requester has left and records them on
+   the request — the demo's own code, reached through the engine's handler extension point, since nothing
+   about counting time off belongs in the platform. It then parks: a `wf:WorkflowInstance` appears inside
+   the submission with a token on `fillIn`, the task the requester now owes.
+3. **Filling the request in is that task**, performed by `@creator` — this request's own requester, which no
+   group could name — and tagged `draft`, so the request is editable for exactly as long as the token rests
+   there. Answers are saved one at a time as they are given, and the demo's budget rule refuses a save that
+   would ask for more days than the lookup in step 2 found.
+4. **`demo-requester` sends it** — `POST` to the `fillIn` task, with no outcome, because there is nothing to
+   decide: it is finished or it is not. That is the whole of what a submit button does. The walk carries on
+   to `approveRequest`, raises the approver's task, and the tag on that task moves the request to
+   `submitted` — after which the save workflow refuses further answers, without being told anything new.
+   Somebody else POSTing to `fillIn` is refused with a 403, the approver included.
+5. **Reading follows from the same declarations**: starting the instance granted read to the requester and
+   to `time-off-approvers`. A request `demo-requester` neither raised nor approves stays invisible to them.
+6. **`demo-approver` decides** — `POST` to the task with `outcome=approved` or `rejected`, which are the
+   outcomes that task declares. The gateway routes on the outcome, the end event it reaches says what that
+   means to the submission, and its state becomes `approved` or `rejected`. The requester, who can see the
+   task, is refused a 403 if they try to decide it themselves.
+
+What the demo does *not* yet show: the boundary event and the reminder-after-two-days shape, since nothing
+delivers timers yet; and the flow nodes here are hand-written to mirror the diagram, because the BPMN
+parser that would generate them does not exist.
 
 The schema version does point at its workflow version, so the two halves are already joined.
 
@@ -56,15 +84,38 @@ Conventions worth keeping if you add to this:
 
 ## Where it is going
 
-The feature list this grows into, each item chosen because it forces a platform capability into existence:
+The feature list this grows into, each item chosen because it forces a platform capability into existence.
+Done so far: the questions and their display conditions, the conditional doctor's note, and the budget
+lookup as the first project-supplied handler. What is left:
 
-- More questions, with display conditions — half day or full day, start and end dates, absence type.
-- An approver looked up automatically rather than named by hand.
-- A doctor's note required only when the absence is sick leave, and validated by AI.
-- Requests over 30 days needing a second approval; a check against an external time-off budget service.
-- Unapproved requests flagged after two days; email on creation, approval and staleness.
-- Raising a request by email as well as through the UI.
+- An approver looked up automatically rather than named by hand. **Needs a decision first**: `performers`
+  is a property of the definition's flow node, shared by every instance of it, so "this requester's
+  supervisor" cannot be expressed today — it needs either instance variables feeding performer resolution
+  or a resolver extension point.
+- Validating the doctor's note against the reason given for the absence. Waiting on the language-model
+  module being built separately; `sch:DocumentRequirement.aiCheckPrompt` is where the instruction will go,
+  and is deliberately left unset until something reads it.
+- Requests over 30 days needing a second approval. **Partly unblocked**: an arc now carries a real
+  `cond:condition`, evaluated by the conditions module, and this workflow's gateway already routes on one.
+  What is still missing is a way to read the *request's answers* from it: a guard is asked of the running
+  instance, so the `variable` operand source reaches what the execution knows and nothing yet reaches the
+  submission the instance is attached to.
+- Unapproved requests flagged after five days. **Built**: the approval task is watched by an interrupting
+  boundary timer, so a request nobody decides on ends as `expired` rather than waiting forever. What is
+  still missing is the *reminder* shape — telling somebody without ending the request — which needs a
+  second token beside the first.
+- Email on creation, approval and staleness. **Blocked**: nothing wires the notification module to workflow
+  events yet.
+- Raising a request by email as well as through the UI. The engine's entry point is already
+  channel-agnostic; what is missing is something that turns an arriving mail into an event.
+
+Two things the demo is still waiting on from the platform rather than from itself: the BPMN parser, since
+the flow nodes here are hand-written to mirror the diagram and both have to be edited together; and
+answer options on `sch:Question`, which has `dataType` but no way to declare that "absence type" is one of
+three values — so the questions that ought to be choices are text, and their display conditions compare
+against strings the schema cannot constrain.
 
 The budget-check service is meant to stay specific to this demo. It exists to prove that a project can
 bring its own Java code, and each item above should identify an extension point the core needs to expose
-rather than becoming a core feature itself.
+rather than becoming a core feature itself. Its answers are canned for the same reason: a demo that
+required a human resources system to run would prove nothing about the platform.

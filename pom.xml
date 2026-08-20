@@ -2092,11 +2092,18 @@
               <!-- Loaded reflectively at test runtime by the Sling Models implementation, never imported -->
               <ignoredUnusedDeclaredDependency>javax.annotation:javax.annotation-api</ignoredUnusedDeclaredDependency>
               <ignoredUnusedDeclaredDependency>io.uhndata.iap:iap-data-model-content-api</ignoredUnusedDeclaredDependency>
+              <!-- Both hierarchy roots belong in this list as well as in the one below: with tests compiled
+                   they read as used only by tests, and with tests skipped they read as unused outright, so a
+                   build that skips tests needs the same reconciliation -->
+              <ignoredUnusedDeclaredDependency>io.uhndata.iap:iap-data-model-entities-api</ignoredUnusedDeclaredDependency>
             </ignoredUnusedDeclaredDependencies>
             <ignoredNonTestScopedDependencies>
               <!-- Models extending Entity inherit from Content without referencing it directly in main code,
                    but it is still needed on the main compile classpath to resolve the class hierarchy -->
               <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-model-content-api</ignoredNonTestScopedDependency>
+              <!-- The same one level up: code handling a Submission inherits Entity's members without naming
+                   Entity, so javac needs it even though only the tests reference it in bytecode -->
+              <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-model-entities-api</ignoredNonTestScopedDependency>
             </ignoredNonTestScopedDependencies>
           </configuration>
         </plugin>

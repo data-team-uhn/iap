@@ -100,6 +100,32 @@ and run by default (`-Dplaywright.browsers="chromium firefox"` to widen it, as a
 multiply both the download and the system packages for very little extra signal on an internal
 application.
 
+## Story tests
+
+Most specs check one thing. A **story test** does what a person does: signs in, works through a whole
+piece of business to its end, and signs out — one narrative, in order, on one page. They live in
+`specs/<suite>/stories/` and are named `<subject>.story.spec.ts`.
+
+They earn their cost by catching what no single-purpose spec can: the seams. Every step here already
+works on its own, and the story is the only thing that asks whether they fit — whether what one step
+leaves behind is what the next one needs, and whether a person can actually get from each to the next
+without being told a path that only a test knows.
+
+**Write the story first, in prose, and let it become the test.** A story test opens with the whole
+narrative as a comment, in plain language, naming people rather than fixtures. The steps that the
+platform can perform are written underneath as `test.step`s, in the story's own words; the steps it
+cannot are left as prose, saying **what capability each one waits on**. So the file is a working test
+and an honest account of what is still missing, and it is the same document either way — as each gap
+is filled, its paragraph turns into steps and the prose gets shorter.
+
+Two consequences worth knowing:
+
+- **Order matters, so they are serial.** `test.describe.configure({ mode: 'serial' })`: each step
+  depends on what the last one left behind, which is the opposite of how ordinary specs are written.
+- **A story is not the place to assert everything.** It follows the path a person takes and checks that
+  each step lands; the exhaustive cases belong in the suite beside it. When a story and a spec would
+  assert the same thing, the story asserts that it *happened*, and the spec asserts what it *means*.
+
 ## Writing tests
 
 - **Specs live under `specs/<suite>/`**, and only run against that suite's instance. Everything shared —

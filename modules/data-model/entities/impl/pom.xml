@@ -30,9 +30,22 @@
   <name>IAP - Data model - Base Entity and EntityHomepage nodetypes - Implementation</name>
 
   <dependencies>
+    <!-- The `@me` filter value has to resolve to the id the repository uses, not the one the login was typed
+         with; UserIds is where that difference is dealt with once -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <!-- What a session acts as, for the `@myPrincipals` filter value: bound principals cover an identity
+         provider's roles, which have no local group node to look a membership up in -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-jackrabbit-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>

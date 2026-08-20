@@ -20,6 +20,8 @@ package io.uhndata.iap.utils.internal;
 
 import java.util.List;
 
+import javax.jcr.Session;
+
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceMetadata;
@@ -46,25 +48,31 @@ public class DenyScriptsSlingPostProcessorTest
 
     private ResourceResolver resolver;
 
+    private Session session;
+
     @BeforeEach
     public void setup()
     {
         this.processor = new DenyScriptsSlingPostProcessor();
         this.request = Mockito.mock(SlingJakartaHttpServletRequest.class);
         this.resolver = Mockito.mock(ResourceResolver.class);
+        this.session = Mockito.mock(Session.class);
         Mockito.when(this.request.getResourceResolver()).thenReturn(this.resolver);
+        Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(this.session);
     }
 
     @Test
     public void testAdminIsAllowedToUploadScripts()
         throws Exception
     {
-        Mockito.when(this.request.getRemoteUser()).thenReturn("admin");
+        // Who the repository says is asking, not the spelling they typed: a login resolves case-insensitively,
+        // and the exemption belongs to the account rather than to a capitalisation of its name
+        Mockito.when(this.session.getUserID()).thenReturn("admin");
 
-        // Even with a script modification present, the admin bypasses the check without touching the resolver
+        // Even with a script modification present, the admin bypasses the check without inspecting the upload
         this.processor.process(this.request, List.of(mockModification()));
 
-        Mockito.verifyNoInteractions(this.resolver);
+        Mockito.verify(this.resolver, Mockito.never()).getResource(Mockito.anyString());
     }
 
     @Test
@@ -100,7 +108,7 @@ public class DenyScriptsSlingPostProcessorTest
     public void testMissingResourceIsSkipped()
         throws Exception
     {
-        Mockito.when(this.request.getRemoteUser()).thenReturn("user");
+        Mockito.when(this.session.getUserID()).thenReturn("user");
         Mockito.when(this.resolver.getResource(PATH)).thenReturn(null);
 
         Assertions.assertDoesNotThrow(() -> this.processor.process(this.request, List.of(mockModification())));
@@ -123,7 +131,7 @@ public class DenyScriptsSlingPostProcessorTest
 
     private void mockResourceWithContentType(final String contentType)
     {
-        Mockito.when(this.request.getRemoteUser()).thenReturn("user");
+        Mockito.when(this.session.getUserID()).thenReturn("user");
         final Resource resource = Mockito.mock(Resource.class);
         final ResourceMetadata metadata = new ResourceMetadata();
         if (contentType != null) {

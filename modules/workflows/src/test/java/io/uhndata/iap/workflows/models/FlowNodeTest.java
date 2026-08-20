@@ -229,11 +229,12 @@ class FlowNodeTest
             TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_n"));
         final Resource deciding = this.context.create().resource(VERSION_PATH + "/task_d", Map.of(
             TYPE, Activity.RESOURCE_TYPE, ELEMENT_ID, "task_d",
-            "outcomes", new String[] {"approved", "rejected"}));
+            "outcomeOptions", new String[] {"approved", "rejected"}));
 
         // Offering nothing is a statement, not a gap: this is a task there is nothing to decide about
-        assertEquals(List.of(), ((Activity) plain.adaptTo(FlowNode.class)).getOutcomes());
-        assertEquals(List.of("approved", "rejected"), ((Activity) deciding.adaptTo(FlowNode.class)).getOutcomes());
+        assertEquals(List.of(), ((Activity) plain.adaptTo(FlowNode.class)).getOutcomeOptions());
+        assertEquals(List.of("approved", "rejected"),
+            ((Activity) deciding.adaptTo(FlowNode.class)).getOutcomeOptions());
     }
 
     @Test

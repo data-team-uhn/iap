@@ -19,6 +19,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <iap = 'https://iap.uhndata.io/'>
+<cond = 'https://iap.uhndata.io/cond/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 
 //-----------------------------------------------------------------------------
@@ -292,6 +293,18 @@
   // second token can reach.
   - interrupting (BOOLEAN) = true autocreated
 
+  // How long this event waits before firing, as an ISO-8601 duration such as
+  // P5D or PT48H, which is what makes it a timer: an event with one is fired by
+  // the clock, and an event without one waits for something to be delivered to
+  // it. Relative rather than absolute because it is a definition, shared by every
+  // instance -- when the waiting starts is a fact about the run, and is recorded
+  // on the task the event watches.
+  //
+  // The BPMN counterpart lives in a nested timeEventDefinition element rather
+  // than in an attribute, so the parser will have to reach into the element to
+  // fill this in; the vocabulary can only copy attributes across.
+  - timerDuration (STRING)
+
 //-----------------------------------------------------------------------------
 // A throwing event occurring mid-process.
 [wf:IntermediateThrowingEvent] > wf:IntermediateEvent
@@ -324,7 +337,7 @@
   // would be completed with no decision at all and quietly take the default arc.
   // So a task that names no outcomes is one there is nothing to decide about —
   // it is done or it is not — and that is the difference a task list needs.
-  - outcomes (STRING) multiple
+  - outcomeOptions (STRING) multiple
 
   // Any events that can occur while this activity is active. Nesting them here is
   // what makes them boundary events; the same node type standing directly under
@@ -372,7 +385,7 @@
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
 // Stored as a child node of the source flow node.
-[wf:SequenceFlow] > iap:EntityPart
+[wf:SequenceFlow] > iap:EntityPart, cond:Conditionable
   - sling:resourceType (STRING) = "wf/SequenceFlow" mandatory autocreated protected
 
   // Stable BPMN element identifier
@@ -384,11 +397,11 @@
   // Optional label shown on the arc
   - label (STRING)
 
-  // Guard condition evaluated for exclusive/inclusive gateways.
-  // TODO: replace this raw expression with the structured conditions mechanism
-  // (the cond:Conditionable mixin plus a cond:condition child), the same way
-  // schema items express their conditions, once the conditions module lands.
-  - conditionExpression (STRING)
+  // The guard a gateway evaluates before taking this arc is the cond:condition
+  // child the cond:Conditionable supertype brings, the same way schema items
+  // express theirs. An arc with none is unconditional, which for a gateway means
+  // it is taken as soon as it is considered - so ordering, and the default arc,
+  // are what keep such an arc from swallowing every decision.
 
   // When true, this is the default outgoing flow of its source gateway
   - isDefault (BOOLEAN)

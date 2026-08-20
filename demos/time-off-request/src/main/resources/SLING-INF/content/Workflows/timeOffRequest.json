@@ -2,11 +2,138 @@
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Time off request",
   "active": true,
-  "systemWorkflow": false,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
     "active": true,
-    "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built."
+    "description": "Someone asks for time off; a service task looks up what they have left, they fill the request in and send it, and their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. Filling in is a task like any other, performed by @creator - the person who raised this particular request, which no group can name - and it is what holds the request in draft: while its token rests there the request is editable, and sending it is completing it, which is the same act as an approver deciding. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element, hand-written only because the BPMN parser does not exist yet - once it does, it generates exactly this. Two places where the two forms differ deliberately: hostTag and outcomeOptions, which say what being at a node means to the submission and what may be decided there, are the kind of plain attributes the parser will be able to carry across; and the service task's handler names the code that performs it, where BPMN would carry an implementation attribute.",
+    "requestSubmitted": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requestSubmitted",
+      "label": "Request submitted",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toBudget": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toBudget",
+        "targetRef": "checkBudget"
+      }
+    },
+    "checkBudget": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "checkBudget",
+      "label": "Check the time off budget",
+      "handler": "checkTimeOffBudget",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFillIn": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFillIn",
+        "targetRef": "fillIn"
+      }
+    },
+    "fillIn": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "fillIn",
+      "label": "Say when you want to be away",
+      "performers": [
+        "@creator"
+      ],
+      "hostTag": "draft",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toApproval": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproval",
+        "targetRef": "approveRequest"
+      }
+    },
+    "approveRequest": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "approveRequest",
+      "label": "Approve the request",
+      "performers": [
+        "time-off-approvers"
+      ],
+      "hostTag": "submitted",
+      "outcomeOptions": [
+        "approved",
+        "rejected"
+      ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toDecision": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDecision",
+        "targetRef": "decision"
+      },
+      // Stored inside the activity it watches, which is what makes it a boundary event: it listens only for as
+      // long as this task is open, and the engine starts its clock when the task is raised. Interrupting, so the
+      // deadline passing cancels the task rather than starting a second path beside it - "remind them but let
+      // them carry on" needs two tokens, which this engine does not have yet.
+      "approvalOverdue": {
+        "jcr:primaryType": "wf:IntermediateCatchingEvent",
+        "elementId": "approvalOverdue",
+        "label": "Not decided in time",
+        "timerDuration": "P5D",
+        "interrupting": true,
+        "jcr:reference:flowNodeType": "/WorkflowTypes/TimerBoundaryEvent",
+        "toExpired": {
+          "jcr:primaryType": "wf:SequenceFlow",
+          "elementId": "toExpired",
+          "targetRef": "requestExpired"
+        }
+      }
+    },
+    "decision": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "decision",
+      "label": "Approved?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toApproved": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproved",
+        "targetRef": "requestApproved",
+        // The same structured condition mechanism a schema item uses to say when it applies, asked here of the
+        // running instance: the `variable` operand source reads what the execution knows, and what it knows at
+        // this point is the outcome the approver recorded when they completed their task.
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "variable",
+            "value": [ "outcome" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "approved" ]
+          }
+        }
+      },
+      "toRejected": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejected",
+        "targetRef": "requestRejected",
+        "isDefault": true
+      }
+    },
+    "requestApproved": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestApproved",
+      "label": "Time off approved",
+      "hostTag": "approved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "requestRejected": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestRejected",
+      "label": "Time off refused",
+      "hostTag": "rejected",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "requestExpired": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestExpired",
+      "label": "Nobody decided in time",
+      "hostTag": "expired",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
   }
 }

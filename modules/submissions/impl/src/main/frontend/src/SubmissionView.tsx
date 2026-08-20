@@ -18,28 +18,43 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 
-import { Alert, Box, Divider, Link, Paper, Stack, Typography } from "@mui/material";
-import { Link as RouterLink, useLocation } from "react-router";
+import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import {
+  Alert,
+  Box,
+  Divider,
+  Link,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography
+} from "@mui/material";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
+import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
+import SubmissionEditor from "./SubmissionEditor";
 import { schemaLabel } from "./submissionGrid";
+import SubmissionTasks from "./SubmissionTasks";
 
-// A serialized JCR node: its properties, plus its children as nested objects.
-type JsonNode = Record<string, unknown>;
+// The extension that asks for the editor rather than the read-only page
+const EDIT = ".edit";
 
-function isNode(value: unknown): value is JsonNode {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+// The tag the save workflow places when something the schema asks for has not been answered
+const INCOMPLETE = "incomplete";
 
-// The children of a serialized node having the given resource type, in their storage order.
-function childrenOfType(node: JsonNode, resourceType: string): JsonNode[] {
-  return Object.values(node)
-    .filter(isNode)
-    .filter(child => child["sling:resourceType"] === resourceType);
+// Whether the request is still missing an answer, read from the submission this page already holds
+// rather than by asking for its form: the save workflow worked it out and recorded it.
+function isIncomplete(submission: JsonNode | undefined): boolean {
+  const tags = submission?.tags;
+  // A single-valued property is serialized as a bare string, not as a one-element array
+  return Array.isArray(tags) ? tags.includes(INCOMPLETE) : tags === INCOMPLETE;
 }
 
 function formatValue(value: unknown): string {
@@ -57,6 +72,15 @@ function formatValue(value: unknown): string {
 // names containing #, ? or % survive as path characters instead of being parsed as syntax
 function fileHref(path: unknown, name: string): string {
   return [...String(path).split("/"), name].map(encodeURIComponent).join("/");
+}
+
+// Who raised this submission. `createdBy` rather than `jcr:createdBy`, and for the same reason the
+// dashboard's "my submissions" filter selects on it: the engine writes every submission as its own
+// service user, so the JCR property credits the engine. It is still the fallback here, where the Java
+// model's own `getCreatedBy()` puts it — a page saying "Created by" and then nothing is worse than one
+// naming whoever did write it, which for seeded content is all there is to say.
+function createdBy(submission: JsonNode): unknown {
+  return submission.createdBy ?? submission["jcr:createdBy"];
 }
 
 // JCR dates are serialized as ISO 8601 strings; anything else is not a date
@@ -189,8 +213,14 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
 // documents and the reviews. Editing is deliberately out of scope for now.
 function SubmissionView() {
   const location = useLocation();
-  // The page URL is the submission's repository path (a trailing .html is tolerated)
-  const path = location.pathname.replace(/\.html$/, "");
+  const navigate = useNavigate();
+  // The page URL is the submission's repository path (a trailing .html is tolerated). A trailing
+  // `.edit` asks for the editor: which view of a submission is shown is addressed the way every
+  // other view here is, by extension rather than by a query parameter, and the server serves the
+  // same shell for it.
+  const address = location.pathname.replace(/\.html$/, "");
+  const editing = address.endsWith(EDIT);
+  const path = editing ? address.slice(0, -EDIT.length) : address;
   const [submission, setSubmission] = useState<JsonNode>();
   const [error, setError] = useState<string>();
   // Loading is derived, not toggled inside the fetch effect: the view is loading until the
@@ -198,8 +228,16 @@ function SubmissionView() {
   const [loadedPath, setLoadedPath] = useState<string>();
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
+  // Bumped when something else on the page changes the submission, so that the fetch below runs
+  // again for a path it has already loaded — which is the one thing its own dependencies cannot say
+  const [reloads, setReloads] = useState(0);
 
+  // Reading depends on the mode as well as the path, and not only so that leaving the editor fetches
+  // at all: the editor saves as it goes, so whatever it changed is what coming back here should show.
   useEffect(() => {
+    if (editing) {
+      return undefined;
+    }
     let cancelled = false;
     fetchUtil(`${path}.deep.json`)
       .then(response => {
@@ -227,13 +265,82 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path, fetchUtil]);
+  }, [path, fetchUtil, editing, reloads]);
 
+  // Reading and filling in are two modes of the same page, so the way between them belongs to the
+  // page rather than to either mode — and it is rendered whatever the page is doing, because the
+  // states with nothing to show are exactly the ones somebody needs a way out of. Before this, the
+  // editor was reachable only from a listing and, once open, offered no way back at all.
+  const header = (
+    <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+      <Link component={RouterLink} to="/">← Back to the dashboard</Link>
+      <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+        {/* Whatever the process is waiting for, offered where the page's other actions are and in
+            both modes. Sending a request is a step of its workflow, so it belongs beside the way of
+            looking at it rather than at the bottom of one of the two views. */}
+        <SubmissionTasks
+          path={path}
+          blockedReason={isIncomplete(submission)
+            ? "Answer everything this request asks for before sending it."
+            : undefined}
+          onCompleted={() => {
+            // Back to reading it: what was just done has usually made it read-only, and it is what
+            // has changed that the person now wants to see
+            setReloads(current => current + 1);
+            void navigate(path);
+          }}
+        />
+        <ToggleButtonGroup
+          exclusive
+          value={editing ? "edit" : "view"}
+          // An exclusive group reports null when the selected button is clicked again. That is a
+          // deselection, and there is no third mode to land in, so it leaves the page as it is.
+          onChange={(_event, next: string | null) => {
+            if (next) {
+              void navigate(next === "edit" ? `${path}${EDIT}` : path);
+            }
+          }}
+          aria-label="How to show this submission"
+        >
+          <ToggleButton value="view">
+            <VisibilityIcon fontSize="small" sx={{ mr: 0.5 }} />
+            View
+          </ToggleButton>
+          {/* Offered to whoever is looking. Whether it can actually be edited is the server's answer,
+              given by the form it serves, and the editor says so plainly when it may not be — the same
+              rule the listing's Edit action follows. */}
+          <ToggleButton value="edit">
+            <EditIcon fontSize="small" sx={{ mr: 0.5 }} />
+            Edit
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Stack>
+    </Stack>
+  );
+
+  if (editing) {
+    return (
+      <Stack spacing={2}>
+        {header}
+        <SubmissionEditor path={path} />
+      </Stack>
+    );
+  }
   if (loading) {
-    return <LoadingOverlay open />;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <LoadingOverlay open />
+      </Stack>
+    );
   }
   if (error || !submission) {
-    return <Alert severity="error">{error ?? "This submission cannot be displayed"}</Alert>;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <Alert severity="error">{error ?? "This submission cannot be displayed"}</Alert>
+      </Stack>
+    );
   }
 
   const schemaVersion = isNode(submission.schemaVersion) ? submission.schemaVersion : undefined;
@@ -249,16 +356,16 @@ function SubmissionView() {
 
   return (
     <Stack spacing={2}>
+      {header}
       <Box>
-        <Link component={RouterLink} to="/">← Back to the dashboard</Link>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "center", mt: 1 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>
           <TagChip tags={submission.tags} category="lifecycle" />
         </Stack>
         <Typography color="text.secondary">
           {schemaLabel(schemaVersion)}
           {submission["jcr:created"]
-            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(submission["jcr:createdBy"])}`
+            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(createdBy(submission))}`
             : ""}
           {submission["jcr:lastModified"] ? ` • Last modified ${formatDate(submission["jcr:lastModified"])}` : ""}
         </Typography>

@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-   Copyright 2026 DATA @ UHN. See the NOTICE file
-   distributed with this work for additional information
-   regarding copyright ownership.
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+      http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 -->
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
@@ -25,14 +25,32 @@
                   targetNamespace="https://iap.uhndata.io/demos/timeOffRequest">
   <bpmn:process id="timeOffRequest" name="Time off request" isExecutable="true">
     <bpmn:startEvent id="requestSubmitted" name="Request submitted">
-      <bpmn:outgoing>toApproval</bpmn:outgoing>
+      <bpmn:outgoing>toBudget</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="toApproval" sourceRef="requestSubmitted" targetRef="approveRequest" />
+    <bpmn:sequenceFlow id="toBudget" sourceRef="requestSubmitted" targetRef="checkBudget" />
+    <bpmn:serviceTask id="checkBudget" name="Check the time off budget">
+      <bpmn:incoming>toBudget</bpmn:incoming>
+      <bpmn:outgoing>toFillIn</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toFillIn" sourceRef="checkBudget" targetRef="fillIn" />
+    <bpmn:userTask id="fillIn" name="Say when you want to be away">
+      <bpmn:incoming>toFillIn</bpmn:incoming>
+      <bpmn:outgoing>toApproval</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toApproval" sourceRef="fillIn" targetRef="approveRequest" />
     <bpmn:userTask id="approveRequest" name="Approve the request">
       <bpmn:incoming>toApproval</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toDecision" sourceRef="approveRequest" targetRef="decision" />
+    <bpmn:boundaryEvent id="approvalOverdue" name="Not decided in time" attachedToRef="approveRequest"
+        cancelActivity="true">
+      <bpmn:outgoing>toExpired</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P5D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="toExpired" sourceRef="approvalOverdue" targetRef="requestExpired" />
     <bpmn:exclusiveGateway id="decision" name="Approved?" default="toRejected">
       <bpmn:incoming>toDecision</bpmn:incoming>
       <bpmn:outgoing>toApproved</bpmn:outgoing>
@@ -48,6 +66,9 @@
     <bpmn:endEvent id="requestRejected" name="Time off refused">
       <bpmn:incoming>toRejected</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:endEvent id="requestExpired" name="Nobody decided in time">
+      <bpmn:incoming>toExpired</bpmn:incoming>
+    </bpmn:endEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="timeOffRequestDiagram">
     <bpmndi:BPMNPlane id="timeOffRequestPlane" bpmnElement="timeOffRequest">
@@ -57,44 +78,74 @@
           <dc:Bounds x="139" y="223" width="79" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
+      <bpmndi:BPMNShape id="checkBudgetShape" bpmnElement="checkBudget">
         <dc:Bounds x="250" y="158" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
-        <dc:Bounds x="405" y="173" width="50" height="50" />
+      <bpmndi:BPMNShape id="fillInShape" bpmnElement="fillIn">
+        <dc:Bounds x="400" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approveRequestShape" bpmnElement="approveRequest">
+        <dc:Bounds x="550" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approvalOverdueShape" bpmnElement="approvalOverdue">
+        <dc:Bounds x="582" y="220" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="404" y="143" width="53" height="14" />
+          <dc:Bounds x="560" y="263" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="requestExpiredShape" bpmnElement="requestExpired">
+        <dc:Bounds x="582" y="380" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="556" y="423" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
+        <dc:Bounds x="705" y="173" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="704" y="143" width="53" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestApprovedShape" bpmnElement="requestApproved">
-        <dc:Bounds x="522" y="100" width="36" height="36" />
+        <dc:Bounds x="822" y="100" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="500" y="143" width="81" height="14" />
+          <dc:Bounds x="800" y="143" width="81" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestRejectedShape" bpmnElement="requestRejected">
-        <dc:Bounds x="522" y="260" width="36" height="36" />
+        <dc:Bounds x="822" y="260" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="502" y="303" width="77" height="14" />
+          <dc:Bounds x="802" y="303" width="77" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
+      <bpmndi:BPMNEdge id="toExpiredEdge" bpmnElement="toExpired">
+        <di:waypoint x="600" y="256" />
+        <di:waypoint x="600" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toBudgetEdge" bpmnElement="toBudget">
         <di:waypoint x="196" y="198" />
         <di:waypoint x="250" y="198" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+      <bpmndi:BPMNEdge id="toFillInEdge" bpmnElement="toFillIn">
         <di:waypoint x="350" y="198" />
-        <di:waypoint x="405" y="198" />
+        <di:waypoint x="400" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toApprovalEdge" bpmnElement="toApproval">
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+        <di:waypoint x="650" y="198" />
+        <di:waypoint x="705" y="198" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
-        <di:waypoint x="430" y="173" />
-        <di:waypoint x="430" y="118" />
-        <di:waypoint x="522" y="118" />
+        <di:waypoint x="730" y="173" />
+        <di:waypoint x="730" y="118" />
+        <di:waypoint x="822" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
-        <di:waypoint x="430" y="223" />
-        <di:waypoint x="430" y="278" />
-        <di:waypoint x="522" y="278" />
+        <di:waypoint x="730" y="223" />
+        <di:waypoint x="730" y="278" />
+        <di:waypoint x="822" y="278" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

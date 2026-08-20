@@ -1,9 +1,11 @@
 {
   "jcr:primaryType": "iap:Extension",
   "iap:extensionPointId": "iap/dashboard/widget",
-  "iap:extensionName": "Submissions",
+  "iap:extensionName": "My Submissions",
   "iap:subtitle": "The submissions you created",
   "iap:extensionRenderURL": "asset:iap-submissions.MySubmissionsWidget.js",
   "iap:defaultOrder": 1,
-  "iap:widgetWidth": "full"
+  "iap:widgetWidth": "full",
+  "iap:widgetHideHeader": true,
+  "iap:personas": ["submitter"]
 }

@@ -70,10 +70,19 @@ public class TaskInstance extends Entity
     private String outcome;
 
     @ValueMapValue
-    private String[] offeredOutcomes;
+    private String outcomeNote;
+
+    @ValueMapValue
+    private String dueEventId;
+
+    @ValueMapValue
+    private String[] outcomeOptions;
 
     @ValueMapValue
     private String[] performers;
+
+    @ValueMapValue
+    private String[] firedEvents;
 
     /**
      * The {@link FlowNode#getElementId() element identifier} of the {@link Activity} this task was raised from.
@@ -169,7 +178,35 @@ public class TaskInstance extends Entity
     }
 
     /**
-     * The decisions this task may be completed with, as its {@link Activity#getOutcomes() defining activity}
+     * What whoever completed this task said about their decision.
+     *
+     * <p>Nothing routes on it — the {@link #getOutcome() outcome} is what a gateway reads — which is the point:
+     * a refusal usually has to say why and an approval may carry a condition, and none of that is expressible as
+     * one of the outcomes on offer.</p>
+     *
+     * @return what they said, or {@code null} if they said nothing or the task is not yet done
+     */
+    @Nullable
+    public String getOutcomeNote()
+    {
+        return this.outcomeNote;
+    }
+
+    /**
+     * The boundary event whose timer set this task's {@link #getDueDate() deadline}, named by its element
+     * identifier. Recorded because an activity may be watched by several events, and what happens when the
+     * deadline passes is where execution goes next — read from the definition rather than guessed at.
+     *
+     * @return an element identifier, or {@code null} when nothing is counting down to this task
+     */
+    @Nullable
+    public String getDueEventId()
+    {
+        return this.dueEventId;
+    }
+
+    /**
+     * The decisions this task may be completed with, as its {@link Activity#getOutcomeOptions() defining activity}
      * offered them when the task was raised.
      *
      * <p>Copied onto the task rather than looked up, for the same reason the {@link #getLabel() label} is: a task is
@@ -179,9 +216,9 @@ public class TaskInstance extends Entity
      * @return the outcomes on offer, empty when completing this task is not a decision
      */
     @NotNull
-    public List<String> getOfferedOutcomes()
+    public List<String> getOutcomeOptions()
     {
-        return this.offeredOutcomes == null ? List.of() : List.of(this.offeredOutcomes);
+        return this.outcomeOptions == null ? List.of() : List.of(this.outcomeOptions);
     }
 
     /**
@@ -199,6 +236,22 @@ public class TaskInstance extends Entity
     public List<String> getPerformers()
     {
         return this.performers == null ? List.of() : List.of(this.performers);
+    }
+
+    /**
+     * The boundary events watching this task that have already fired, named by their
+     * {@link FlowNode#getElementId() element identifiers}.
+     *
+     * <p>Only a non-interrupting event can fire and leave the task open behind it, which is what makes this needed:
+     * the deadline that has passed would otherwise be delivered again on every sweep, and a task watched by several
+     * events would have no way to say which of them {@link #getDueDate() its deadline} now belongs to.</p>
+     *
+     * @return the identifiers of the events that have fired, empty for a task nothing has happened to yet
+     */
+    @NotNull
+    public List<String> getFiredEvents()
+    {
+        return this.firedEvents == null ? List.of() : List.of(this.firedEvents);
     }
 
     /**
