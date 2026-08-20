@@ -596,6 +596,11 @@ test.describe('the time off request demo', () => {
   });
 
   test('asks what the answers make relevant, with nothing to press to save', async ({ page }) => {
+    // Over the 30s default: three saved answers, each a workflow event followed by a re-read of the form, and
+    // it runs beside the upload test below, which raises a request of its own. It reached its last assertion at
+    // 31.3s when that sibling was added — the same clock, not a regression, and error-context.md showed every
+    // target satisfied. Widened rather than trimmed, because what it covers is the whole condition loop.
+    test.slow();
     // The demo's whole point, exercised the way it is met: the questions on screen depend on the answers
     // already given, and *the server* decides which ones apply. Nothing in the browser evaluates a
     // condition — an answer is saved as soon as it is finished, the form is read again, and what comes
@@ -696,10 +701,21 @@ test.describe('the time off request demo', () => {
     const document = documents[0];
     expect(document.title).toBe('note.pdf');
     expect(document.fulfills).toBeTruthy();
+    // The `files` processor is on by default and flattens an nt:file into a download descriptor rather than
+    // descending into it, which would put the raw binary in the JSON: the type and size come up onto the file
+    // node, and jcr:content becomes the path that streams it. So this is where the mime type lives.
     const file = document['note.pdf'] as Record<string, unknown> | undefined;
     expect(file?.['jcr:primaryType']).toBe('nt:file');
-    expect((file?.['jcr:content'] as Record<string, unknown> | undefined)?.['jcr:mimeType'])
-      .toBe('application/pdf');
+    expect(file?.['jcr:mimeType']).toBe('application/pdf');
+    expect(file?.size).toBeGreaterThan(0);
+
+    // And it comes back out: the path that descriptor names streams the bytes that went in, which is the only
+    // assertion that proves the upload was stored rather than merely recorded
+    // The very URL the page's download link builds, which is the document's path and the file's name
+    const download = await request.get(`${document['@path'] as string}/note.pdf`, { headers: asRequester });
+    expect(download.ok()).toBeTruthy();
+    expect(download.headers()['content-type']).toContain('application/pdf');
+    expect(await download.text()).toBe('%PDF-1.4 a note from the doctor');
 
     // The reading page groups it under the requirement it answers, and offers it back for download
     await page.goto(raised);
