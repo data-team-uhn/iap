@@ -377,12 +377,10 @@ class TestNothingCallerDerivedReachesTheArgv:
         with pytest.raises(RuntimeError, match="unsupported extension"):
             lo.convert(source, "pdf", tmp_path)
 
-    def test_staging_falls_back_to_a_copy_without_symlinks(self, tmp_path, monkeypatch):
-        # Windows without the privilege, and any filesystem that refuses the link.
-        def no_symlink(*args, **kwargs):
-            raise OSError("symlinks unavailable")
-
-        monkeypatch.setattr(lo.os, "symlink", no_symlink)
+    def test_staging_is_always_a_copy(self, tmp_path):
+        # Never a symlink, even where the platform would allow one: otherwise the container
+        # takes the link path and every test takes the copy path, so the branch that runs in
+        # production is the one nothing exercises.
         source = tmp_path / "report.docx"
         source.write_bytes(b"pk-content")
         work = tmp_path / "work"
@@ -391,8 +389,151 @@ class TestNothingCallerDerivedReachesTheArgv:
         staged = lo._stage_for_soffice(source, work)
         assert staged.read_bytes() == b"pk-content"
         assert not staged.is_symlink()
+        assert staged.parent == work
+
+    def test_the_caller_document_is_left_alone(self, tmp_path, monkeypatch):
+        # soffice is handed the copy, so nothing it does can reach the original.
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk-content")
+        work = tmp_path / "work"
+        work.mkdir()
+
+        staged = lo._stage_for_soffice(source, work)
+        staged.write_bytes(b"soffice scribbled here")
+        assert source.read_bytes() == b"pk-content"
+
+    def test_the_work_directory_goes_even_when_the_conversion_fails(self, tmp_path, monkeypatch):
+        # The finally in convert(): a crashed soffice leaves its lock and temp files in the
+        # work directory, and the work directory does not outlive the call.
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk")
+        seen = {}
+
+        def crash(command, timeout):
+            import subprocess
+
+            seen["work_dir"] = Path(command[-1]).parent
+            (seen["work_dir"] / ".~lock.document.docx#").write_bytes(b"lock")
+            return subprocess.CompletedProcess(command, 77, "", "boom")
+
+        monkeypatch.setattr(lo, "_run_soffice", crash)
+        with pytest.raises(RuntimeError, match="exit 77"):
+            lo.convert(source, "pdf", tmp_path)
+
+        assert not seen["work_dir"].exists()
+        assert list(tmp_path.glob(".~lock*")) == []
 
     def test_the_work_directory_is_cleaned_up(self, tmp_path, monkeypatch):
         command, _ = self._run(tmp_path, monkeypatch, "report.docx")
         work_dir = Path(command[-1]).parent
         assert not work_dir.exists()
+
+
+class TestNothingIsLeftInTemp:
+    """However a conversion ends, no staging directory outlives the call.
+
+    Everything soffice touches lives under one ``iap-lo-*`` directory in the system temp
+    directory, including the copy of the caller's document. A failed conversion must not leave
+    that copy behind, so this watches the real temp directory rather than the staged paths.
+    """
+
+    def _temp_entries(self):
+        import tempfile
+
+        return set(Path(tempfile.gettempdir()).glob("iap-lo-*"))
+
+    def _convert_expecting_failure(self, tmp_path, monkeypatch, run_soffice, match):
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk")
+        monkeypatch.setattr(lo, "_run_soffice", run_soffice)
+        before = self._temp_entries()
+        with pytest.raises(RuntimeError, match=match):
+            lo.convert(source, "pdf", tmp_path)
+        assert self._temp_entries() == before, "a staging directory survived the failure"
+
+    def test_nothing_survives_a_nonzero_exit(self, tmp_path, monkeypatch):
+        def failing(command, timeout):
+            import subprocess
+
+            # soffice leaves its own droppings behind before dying.
+            work = Path(command[-1]).parent
+            (work / ".~lock.document.docx#").write_bytes(b"lock")
+            (work / "half-written.pdf").write_bytes(b"partial")
+            return subprocess.CompletedProcess(command, 77, "", "boom")
+
+        self._convert_expecting_failure(tmp_path, monkeypatch, failing, "exit 77")
+
+    def test_nothing_survives_a_timeout(self, tmp_path, monkeypatch):
+        def timing_out(command, timeout):
+            import subprocess
+
+            (Path(command[-1]).parent / "wedged.tmp").write_bytes(b"x")
+            raise subprocess.TimeoutExpired(command, timeout)
+
+        self._convert_expecting_failure(tmp_path, monkeypatch, timing_out, "timed out")
+
+    def test_nothing_survives_a_missing_soffice(self, tmp_path, monkeypatch):
+        def missing(command, timeout):
+            raise FileNotFoundError(command[0])
+
+        self._convert_expecting_failure(tmp_path, monkeypatch, missing, "not found")
+
+    def test_nothing_survives_a_silent_failure(self, tmp_path, monkeypatch):
+        def produces_nothing(command, timeout):
+            import subprocess
+
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        self._convert_expecting_failure(
+            tmp_path, monkeypatch, produces_nothing, "produced no output"
+        )
+
+    def test_nothing_survives_an_unsupported_extension(self, tmp_path):
+        source = tmp_path / "notes.odt"
+        source.write_bytes(b"odt")
+        before = self._temp_entries()
+        with pytest.raises(RuntimeError, match="unsupported extension"):
+            lo.convert(source, "pdf", tmp_path)
+        assert self._temp_entries() == before
+
+    def test_nothing_survives_a_successful_conversion_either(self, tmp_path, monkeypatch):
+        def works(command, timeout):
+            import subprocess
+
+            (Path(command[-1]).parent / f"{lo.STAGED_INPUT_STEM}.pdf").write_bytes(b"%PDF")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk")
+        monkeypatch.setattr(lo, "_run_soffice", works)
+        before = self._temp_entries()
+        lo.convert(source, "pdf", tmp_path)
+        assert self._temp_entries() == before
+
+    def test_a_cleanup_that_cannot_finish_is_reported(self, tmp_path, monkeypatch, capsys):
+        # Silence here would leave a copy of the document in temp with nothing said about it.
+        # lo.shutil is the shutil module itself, so this neuters rmtree everywhere; the real
+        # one is held first, for this test to clean up with once it is done.
+        real_rmtree = lo.shutil.rmtree
+        monkeypatch.setattr(lo.shutil, "rmtree", lambda *a, **k: None)
+
+        def works(command, timeout):
+            import subprocess
+
+            (Path(command[-1]).parent / f"{lo.STAGED_INPUT_STEM}.pdf").write_bytes(b"%PDF")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk")
+        monkeypatch.setattr(lo, "_run_soffice", works)
+        lo.convert(source, "pdf", tmp_path)
+
+        warning = capsys.readouterr().err
+        assert "could not remove the LibreOffice staging directory" in warning
+        assert "still holds a copy of the document" in warning
+        # Left behind by the stubbed rmtree, so clean it up with the real one rather than
+        # leaking a copy of the document out of the test.
+        import tempfile
+
+        for leftover in Path(tempfile.gettempdir()).glob("iap-lo-*"):
+            real_rmtree(leftover, ignore_errors=True)
