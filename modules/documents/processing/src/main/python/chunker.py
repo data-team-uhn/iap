@@ -90,7 +90,8 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable, NamedTuple
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 import shared_docs
 from bookmarks import (
@@ -98,6 +99,7 @@ from bookmarks import (
     normalize_title,
     resolve_record_line,
 )
+from docling_batch_sizing import positive_int
 from heading_numbering import numbering_depth
 from markdown_markers import (
     HEADING,
@@ -136,10 +138,12 @@ OUTLINE_NAME = "outline.json"
 # Name of the folder, beside a document's .md, holding its chunk files, catalog and outline.
 CHUNKS_DIRNAME = "Chunks"
 
-# ``unchunkedReason`` recorded when a document was deliberately left whole because it is below
-# ``min_structure_tokens``. This is the only unchunked state: a parse that never reaches the
-# chunker fails on the Java side instead of writing Markdown without a chunk tree.
+# The two ``unchunkedReason`` values. Either way ``Chunks/outline.json`` is written with
+# ``chunked: false``, so a reader has one shape to handle and the reason to tell them apart. A
+# parse that never reaches the chunker at all fails instead of writing Markdown without an
+# outline beside it.
 UNCHUNKED_BELOW_THRESHOLD = "below_min_structure_tokens"
+UNCHUNKED_NOT_REQUESTED = "chunking_not_requested"
 
 # A line recurring at least this many times across the document is page furniture (a running
 # header or footer), never a heading — see :func:`repeated_lines`. Three rather than two so a
@@ -757,13 +761,30 @@ def _write_json(path: Path, data: object) -> None:
     )
 
 
-def clear_prior_outputs(output_file: Path) -> None:
-    """Remove a previous convert's ``Chunks/`` folder beside ``output_file``, so a
-    reconvert cannot reuse stale ranges or chunk files.
+def write_unchunked_outline(output_file: Path, filename: str, markdown: str) -> Path:
+    """Write ``Chunks/outline.json`` for a document that was never offered to the chunker.
+
+    ``?chunk=false`` skips detection on purpose, so there is no TOC to record — but leaving no
+    outline at all meant the two unchunked paths put different things on disk, and every reader
+    had to handle both. The keys match what :func:`build_chunk_tree` records when the size gate
+    skips chunking; only the reason differs.
+
+    @param output_file: path of the ``.md`` the outline sits beside
+    @param filename: original upload name, recorded as ``fileId``
+    @param markdown: the document, for its token count
+    @return: the ``Chunks/`` directory
     """
     chunks_dir = output_file.parent / CHUNKS_DIRNAME
-    if shared_docs.path_exists(chunks_dir):
-        shared_docs.remove_tree(chunks_dir)
+    shared_docs.make_dirs(chunks_dir)
+    _write_json(chunks_dir / OUTLINE_NAME, {
+        "toc_source": "none",
+        "toc": [],
+        "tokens": count_tokens(markdown),
+        "chunked": False,
+        "fileId": filename,
+        "unchunkedReason": UNCHUNKED_NOT_REQUESTED,
+    })
+    return chunks_dir
 
 
 def _record_cut_keys(
@@ -803,7 +824,7 @@ class ChunkingSummary(NamedTuple):
     logs: str
 
 
-def _write_atomically(path: Path, text: str) -> None:
+def write_atomically(path: Path, text: str) -> None:
     """Write ``text`` to ``path`` via a temporary file and a rename.
 
     A direct ``write_text`` truncates first, so an interrupted write leaves a half-written
@@ -832,8 +853,6 @@ def _stage_chunks(chunks_dir: Path, tree: dict[str, Any]) -> Path:
     @return: the staging directory, ready to be swapped in
     """
     staging = chunks_dir.with_name(f"{chunks_dir.name}.new-{os.getpid()}")
-    if shared_docs.path_exists(staging):
-        shared_docs.remove_tree(staging)
     shared_docs.make_dirs(staging)
     try:
         _write_json(staging / OUTLINE_NAME, tree["outline"])
@@ -917,7 +936,7 @@ def write_chunk_files(
     # the same document, which a reconvert fixes — the other order would leave new Markdown
     # next to chunks of a different revision.
     _swap_into_place(staging, chunks_dir)
-    _write_atomically(output_file, tree["markdown"])
+    write_atomically(output_file, tree["markdown"])
 
     if not tree["chunked"]:
         tokens = count_tokens(tree["markdown"])
@@ -1038,8 +1057,10 @@ def build_chunk_tree(
     first_number = 0 if (top_chunks and top_chunks[0]["number"] == 0) else 1
     preamble_text = top_chunks[0]["text"] if first_number == 0 else ""
     split_level = boundary_level if boundary_level is not None else 0
-    # Size gate already returned above when derive_outline skipped the index.
-    assert line_index is not None
+    if line_index is None:
+        # The size gate returns above when derive_outline skips the index, so this cannot
+        # happen. A real check rather than an assert, which -O strips out.
+        raise RuntimeError("no line index for a document that passed the size gate")
     cut_keys = _record_cut_keys(toc_records, md_lines, toc_range, line_index)
 
     def add(name: str, text: str, heading: list[str], is_appendix: bool) -> None:
@@ -1147,13 +1168,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--max-tokens",
-        type=int,
+        type=positive_int,
         default=DEFAULT_MAX_TOKENS,
         help=f"Maximum tokens per chunk file (default: {DEFAULT_MAX_TOKENS})",
     )
     parser.add_argument(
         "--min-structure-tokens",
-        type=int,
+        type=positive_int,
         default=DEFAULT_MIN_STRUCTURE_TOKENS,
         help=(
             "Skip chunking when document tokens (len//4) are below this "

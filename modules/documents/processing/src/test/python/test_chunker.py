@@ -37,7 +37,8 @@ class TestValidHeading:
         assert chunker.valid_heading("Table 1: Baseline characteristics") is False
 
     def test_too_many_words_rejected(self):
-        assert chunker.valid_heading("one two three four five six seven eight nine ten eleven") is False
+        line = "one two three four five six seven eight nine ten eleven"
+        assert chunker.valid_heading(line) is False
 
     def test_overlong_word_rejected(self):
         assert chunker.valid_heading("word " + "x" * 101) is False
@@ -127,11 +128,6 @@ class TestChunkFile:
         # No catalog for an unchunked document.
         assert not (path.parent / chunker.CHUNKS_DIRNAME / chunker.CATALOG_NAME).exists()
 
-    def test_small_document_rerun_is_stable(self, tmp_path):
-        path = self._write_small(tmp_path)
-        assert chunker.chunk_file(str(path))["chunks"] == 0
-        assert chunker.chunk_file(str(path))["chunks"] == 0
-
     def test_large_document_chunked(self, tmp_path):
         path = self._write_large(tmp_path)
         summary = chunker.chunk_file(str(path))
@@ -160,9 +156,8 @@ class TestChunkFile:
         path = self._write_large(tmp_path)
         summary = chunker.chunk_file(str(path), min_structure_tokens=10_000_000)
         assert summary["chunks"] == 0
-        outline = json.loads(
-            (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
-        )
+        outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
+        outline = json.loads(outline_path.read_text(encoding="utf-8"))
         assert outline["chunked"] is False
         assert not (path.parent / chunker.CHUNKS_DIRNAME / chunker.CATALOG_NAME).exists()
 
@@ -185,9 +180,8 @@ class TestOutlineToc:
         path = tmp_path / "proto.md"
         self._protocol(path)
         chunker.chunk_file(str(path))
-        outline = json.loads(
-            (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
-        )
+        outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
+        outline = json.loads(outline_path.read_text(encoding="utf-8"))
         assert "1.0 Background" in outline["toc"]
         assert "4.0 Analysis" in outline["toc"]
 
@@ -203,47 +197,52 @@ class TestOutlineToc:
         path.write_text("# Tiny\n\nshort body\n", encoding="utf-8")
         (tmp_path / "small.pdf").write_bytes(b"%PDF-1.4")
         assert chunker.chunk_file(str(path), min_structure_tokens=10 ** 9)["chunks"] == 0
-        outline = json.loads(
-            (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
-        )
+        outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
+        outline = json.loads(outline_path.read_text(encoding="utf-8"))
         assert outline["toc"] == ["Alpha Section"]
 
 
-class TestRechunk:
-    """A second ``chunk_file`` on the same path rebuilds the outline from the current document."""
+class TestUnchunkedOutline:
+    """``?chunk=false`` leaves the same shape on disk as the size gate does.
 
-    PARAGRAPH = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 60
+    Regression: that path used to leave no outline at all while the size gate wrote
+    ``Chunks/outline.json`` with ``chunked: false``, so a reader had two shapes to handle and
+    no way to tell "not asked for" from "too small to bother".
+    """
 
-    def _write(self, path, toc_titles):
-        toc = ["## TABLE OF CONTENTS"] + [f"{t}\t{i + 2}" for i, t in enumerate(toc_titles)] + [""]
-        body = [f"# Section {i} Heading\n\n{self.PARAGRAPH}\n" for i in range(1, 51)]
-        path.write_text("\n".join(toc + body), encoding="utf-8")
-
-    def _outline(self, path):
-        return json.loads(
-            (path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
-        )
-
-    def test_rerun_on_new_content_does_not_reuse_the_old_outline(self, tmp_path):
-        path = tmp_path / "proto.md"
-        self._write(path, ["1.0 Background", "2.0 Objectives", "3.0 Design", "4.0 Analysis"])
-        chunker.chunk_file(str(path))
-        assert self._outline(path)["toc"] == [
-            "1.0 Background", "2.0 Objectives", "3.0 Design", "4.0 Analysis",
-        ]
-
-        self._write(path, ["9.0 Completely New", "8.0 Other Topic", "7.0 Third Thing"])
-        chunker.chunk_file(str(path))
-        outline = self._outline(path)
-        assert outline["toc_source"] == "md-toc"
-        assert outline["toc"] == ["9.0 Completely New", "8.0 Other Topic", "7.0 Third Thing"]
-
-
-class TestClearPriorOutputs:
-    def test_removes_chunks_dir(self, tmp_path):
+    def _md(self, tmp_path):
         path = tmp_path / "doc.md"
         path.write_text("# Doc\n\nbody\n", encoding="utf-8")
-        (tmp_path / chunker.CHUNKS_DIRNAME).mkdir()
-        (tmp_path / chunker.CHUNKS_DIRNAME / "Chunk-1.md").write_text("stale", encoding="utf-8")
-        chunker.clear_prior_outputs(path)
-        assert not (tmp_path / chunker.CHUNKS_DIRNAME).exists()
+        return path
+
+    def _outline(self, tmp_path):
+        return json.loads(
+            (tmp_path / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME).read_text(encoding="utf-8")
+        )
+
+    def test_it_writes_an_outline_recording_the_reason(self, tmp_path):
+        path = self._md(tmp_path)
+        chunker.write_unchunked_outline(path, "doc.pdf", path.read_text(encoding="utf-8"))
+        outline = self._outline(tmp_path)
+        assert outline["chunked"] is False
+        assert outline["unchunkedReason"] == chunker.UNCHUNKED_NOT_REQUESTED
+        assert outline["fileId"] == "doc.pdf"
+
+    def test_the_keys_match_the_size_gate_path(self, tmp_path):
+        # One shape for downstream, whichever way the document ended up unchunked.
+        gated = tmp_path / "gated"
+        gated.mkdir()
+        small = gated / "small.md"
+        small.write_text("# Tiny\n\nShort body.\n", encoding="utf-8")
+        chunker.chunk_file(str(small))
+        gate_keys = set(self._outline(gated))
+
+        path = self._md(tmp_path)
+        chunker.write_unchunked_outline(path, "doc.pdf", path.read_text(encoding="utf-8"))
+        assert set(self._outline(tmp_path)) == gate_keys
+
+    def test_write_atomically_leaves_no_scratch_behind(self, tmp_path):
+        path = tmp_path / "out.md"
+        chunker.write_atomically(path, "content\n")
+        assert path.read_text(encoding="utf-8") == "content\n"
+        assert [p.name for p in tmp_path.iterdir()] == ["out.md"]

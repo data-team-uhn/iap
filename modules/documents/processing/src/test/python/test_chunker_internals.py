@@ -267,7 +267,8 @@ class TestNoHeadingOnlyChunkFiles:
             md, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
         )
         return [(entry["file"], len(chunk["text"]))
-                for entry, chunk in zip(tree["catalog"]["chunks"], tree["chunks"])]
+                for entry, chunk in zip(tree["catalog"]["chunks"], tree["chunks"],
+                                        strict=True)]
 
     def test_heading_stays_with_an_over_budget_table(self, tmp_path):
         # One row of ten cells is ~20 tokens, so 130 rows clears the 2000-token budget.
@@ -630,7 +631,10 @@ class TestRecordCutKeys:
 class TestSubchunkBlocksRecordTier:
     def test_splits_at_resolved_record_lines(self):
         text = "## 5 Analysis\n\nlead\n\nData Sharing\n\nalpha\n\nGenomic Data\n\nbeta"
-        keys = frozenset({chunker.normalize_title("Data Sharing"), chunker.normalize_title("Genomic Data")})
+        keys = frozenset({
+            chunker.normalize_title("Data Sharing"),
+            chunker.normalize_title("Genomic Data"),
+        })
         blocks = chunker._subchunk_blocks(text, boundary_level=2, cut_keys=keys)
         assert len(blocks) == 3
         assert blocks[1].startswith("Data Sharing")
