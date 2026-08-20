@@ -32,6 +32,8 @@ import org.apache.sling.commons.messaging.mail.MessageBuilder;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Sends one fixed email to whoever asks, so that an administrator can tell whether the mail configuration of an
@@ -50,6 +52,8 @@ import org.osgi.service.component.annotations.Reference;
 public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
 {
     private static final long serialVersionUID = -3886647765025375822L;
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(EmailTestEndpoint.class);
 
     private static final String SUBJECT = "IAP test message";
 
@@ -93,8 +97,11 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
             response.setStatus(HttpServletResponse.SC_OK);
             out.write("Email prepared for sending");
         } catch (final MessagingException e) {
+            // The mail server's own words go to the log, not into the response: they routinely name the relay, its
+            // port and the account the instance authenticates with, and this endpoint answers over the network.
+            LOGGER.error("The email test endpoint could not send its message: {}", e.getMessage(), e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            out.write("Could not send the message: " + e.getMessage());
+            out.write("Could not send the message. The reason is in the instance log.");
         }
     }
 }

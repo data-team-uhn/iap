@@ -133,7 +133,9 @@ than an email with no body at all.
 `GET /content.emailtest.html?fromEmail=…&fromName=…&toEmail=…&toName=…` (add `isHtml=true` for a
 rich-text one) sends one fixed message, so an administrator can tell whether the SMTP configuration
 of an instance works without waiting for the platform to have a reason to write to somebody. It is
-**restricted to `admin`**, since it mails an arbitrary address.
+**restricted to `admin`**, since it mails an arbitrary address. When sending fails it answers that it
+failed and nothing more — **what the mail server said is in the instance log**, because that text
+routinely names the relay, its port and the account the instance authenticates with.
 
 SMTP settings come from the module's feature configuration — host, port, credentials — with the
 password decrypted through Sling's crypto service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD`

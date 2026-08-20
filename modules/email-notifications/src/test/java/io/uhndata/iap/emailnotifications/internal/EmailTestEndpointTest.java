@@ -37,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.RETURNS_SELF;
@@ -132,16 +133,24 @@ class EmailTestEndpointTest
         verify(this.message).html(anyString());
     }
 
+    /**
+     * The caller is told that it failed and where to look, but not what the mail server said: that text names the
+     * relay, its port and the account the instance authenticates with.
+     */
     @Test
-    void aRefusedMessageIsReportedRatherThanHidden() throws IOException, MessagingException
+    void aRefusedMessageIsReportedWithoutQuotingTheMailServer() throws IOException, MessagingException
     {
-        when(this.message.build()).thenThrow(new MessagingException("no such mailbox"));
+        when(this.message.build())
+            .thenThrow(new MessagingException("relay smtp.internal:587 rejected user svc-iap: bad credentials"));
         final MockSlingJakartaHttpServletResponse response = response();
 
         this.endpoint.doGet(request("admin", parameters(null)), response);
 
         assertEquals(500, response.getStatus());
-        assertTrue(response.getOutputAsString().contains("no such mailbox"));
+        final String body = response.getOutputAsString();
+        assertTrue(body.contains("Could not send the message"));
+        assertFalse(body.contains("smtp.internal"));
+        assertFalse(body.contains("svc-iap"));
     }
 
     private Map<String, Object> parameters(final String isHtml)
