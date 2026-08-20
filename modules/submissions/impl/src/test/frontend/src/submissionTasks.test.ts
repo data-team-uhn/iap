@@ -44,6 +44,9 @@ const CONTAINER = {
       "label": "Say when you want to be away",
       "status": "created",
       "outcomeOptions": [],
+      // The server saying this one waits for whoever is reading. Every task below that a reader is
+      // meant to be offered carries it; a task without it is somebody else's
+      "@mine": true,
     },
     "checkedBudget": {
       "@path": INSTANCES + "/timeOffRequest/checkedBudget",
@@ -57,6 +60,7 @@ const CONTAINER = {
       "label": "Approve the request",
       "status": "created",
       "outcomeOptions": ["approved", "rejected"],
+      "@mine": true,
     },
   },
 };
@@ -95,6 +99,7 @@ describe("fetchOpenTasks", () => {
           "label": "Acknowledge",
           "status": "created",
           "outcomeOptions": "acknowledged",
+          "@mine": true,
         },
       },
     }));
@@ -106,11 +111,45 @@ describe("fetchOpenTasks", () => {
     vi.stubGlobal("fetch", answering({
       "i": {
         "sling:resourceType": "wf/WorkflowInstance",
-        "t": { "@path": INSTANCES + "/i/nameless", "sling:resourceType": "wf/TaskInstance", "status": "created" },
+        "t": {
+          "@path": INSTANCES + "/i/nameless", "sling:resourceType": "wf/TaskInstance",
+          "status": "created", "@mine": true,
+        },
       },
     }));
 
     expect((await fetchOpenTasks(PATH))[0].label).toBe("nameless");
+  });
+
+  it("skips a task that is not the reader's to do", async () => {
+    // Dropped here rather than downstream, so nothing can render a decision that belongs to somebody
+    // else — its label discloses what they may do just as plainly as its buttons would
+    vi.stubGlobal("fetch", answering({
+      "i": {
+        "sling:resourceType": "wf/WorkflowInstance",
+        "t": {
+          "@path": INSTANCES + "/i/theirs", "sling:resourceType": "wf/TaskInstance",
+          "label": "Approve the request", "status": "created", "@mine": false,
+        },
+      },
+    }));
+
+    expect(await fetchOpenTasks(PATH)).toEqual([]);
+  });
+
+  it("skips a task the server said nothing about", async () => {
+    // Fail closed: absent is not permission
+    vi.stubGlobal("fetch", answering({
+      "i": {
+        "sling:resourceType": "wf/WorkflowInstance",
+        "t": {
+          "@path": INSTANCES + "/i/unmarked", "sling:resourceType": "wf/TaskInstance",
+          "label": "Approve the request", "status": "created",
+        },
+      },
+    }));
+
+    expect(await fetchOpenTasks(PATH)).toEqual([]);
   });
 
   it("skips a task the server would not say where to find", async () => {

@@ -33,6 +33,11 @@ export const TASK_INSTANCE_NODE_TYPE = "wf:TaskInstance";
 // The status a task carries until somebody completes it
 const OPEN = "created";
 
+// Whether the task waits for whoever is asking. Computed by the server rather than stored, because it
+// is a different answer per reader: performers name principals, groups included, and a browser is not
+// told what it belongs to.
+const MINE = "@mine";
+
 // One thing a person still has to do on a submission.
 export interface SubmissionTask {
   path: string;
@@ -52,7 +57,11 @@ function strings(value: unknown): string[] {
 
 function asTask(node: JsonNode): SubmissionTask | null {
   const path = node["@path"];
-  if (typeof path !== "string" || node.status !== OPEN) {
+  // A task that is not the reader's is dropped here rather than rendered and disabled, so nothing
+  // downstream can disclose it: what a reviewer may do with a request is not a submitter's business,
+  // and a greyed-out "Approve" would say it just as plainly as an enabled one. The server decides —
+  // hiding is presentation, and the engine still refuses the act itself.
+  if (typeof path !== "string" || node.status !== OPEN || node[MINE] !== true) {
     return null;
   }
   return {

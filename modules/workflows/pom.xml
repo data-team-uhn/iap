@@ -67,6 +67,12 @@
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The JSON processor SPI, for saying whether a task waits for whoever is reading it -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-serialization-json</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- Nullability annotations for the exported API -->
     <dependency>
       <groupId>org.jetbrains</groupId>
