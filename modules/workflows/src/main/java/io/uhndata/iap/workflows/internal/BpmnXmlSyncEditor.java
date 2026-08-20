@@ -39,18 +39,29 @@ import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
 
 /**
  * A commit editor that keeps a {@code wf:WorkflowVersion}'s {@code wf:FlowNode}/{@code wf:SequenceFlow} children in
- * sync with its {@code bpmn.xml} file, replacing what used to be an asynchronous {@code ResourceChangeListener}
- * running in a second, independently-opened session.
+ * sync with its {@code bpmn.xml} file, so that saving a diagram is all it takes to update the graph the engine runs.
+ *
+ * <p>
+ * Deriving the children inside the same commit, rather than from a listener reacting to it afterwards, is what makes
+ * the two impossible to observe out of step: no reader ever sees a version whose {@code bpmn.xml} and flow nodes
+ * disagree, and no second session has to be opened to write them.
+ * </p>
  *
  * <p>
  * {@code wf:WorkflowVersion} extends {@code iap:Entity}, which is {@code mix:versionable}, and neither the
  * {@code bpmn.xml} nor the {@code wf:FlowNode} child item definitions override the default on-parent-version
- * behavior in {@code workflowDefinitions.cnd}. That means Oak's own built-in version enforcement already refuses
- * any commit that changes {@code bpmn.xml} while the node is checked in — so whichever commit actually reaches this
- * editor with new {@code bpmn.xml} content must, by construction, already be happening while the node is checked
- * out. This editor can therefore add/replace the derived children directly on the same {@link NodeBuilder}, in the
- * same commit, without ever calling checkout/checkin itself: whatever checked-out window let the caller write
- * {@code bpmn.xml} at all is the same window this editor's write rides along in.
+ * behavior in {@code workflowDefinitions.cnd}. Oak's version enforcement runs as its own commit hook, ahead of the
+ * hook this editor is composed into, so it has already accepted the {@code bpmn.xml} change by the time this editor
+ * runs — meaning the commit is, by construction, happening while the node is checked out. This editor can therefore
+ * add/replace the derived children directly on the same {@link NodeBuilder}, in the same commit, without ever
+ * calling checkout/checkin itself.
+ * </p>
+ *
+ * <p>
+ * The same ordering has a consequence worth knowing: Oak drives every editor in one hook from a single diff of the
+ * commit's before/after states, so nodes this editor writes into the builder are not seen by the validators sharing
+ * that hook. The derived children are therefore not node-type or name validated, which is why
+ * {@link WorkflowDefinitionUtils} checks the names and configured types it writes itself.
  * </p>
  *
  * @version $Id$
