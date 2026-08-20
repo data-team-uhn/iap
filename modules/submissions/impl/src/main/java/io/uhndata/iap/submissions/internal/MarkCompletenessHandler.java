@@ -17,14 +17,16 @@
  */
 package io.uhndata.iap.submissions.internal;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -59,8 +61,11 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
     /** The tag saying that something the submission is asked for has not been answered. */
     public static final String INCOMPLETE = "incomplete";
 
-    @Reference
-    private ConditionEvaluator conditions;
+    /**
+     * The requirement kinds a submission's own author fulfils. Approvals are deliberately absent: somebody else
+     * grants those, later, so counting them would leave every submission permanently short of one.
+     */
+    private static final Set<String> SUBMITTER_SUPPLIES = Set.of("sch/FormRequirement", "sch/DocumentRequirement");
 
     @Override
     public String getName()
@@ -77,13 +82,38 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
         // Every resource adapts to Taggable — the mixin decides what may be tagged, not the model
         final Taggable taggable = Objects.requireNonNull(target.adaptTo(Taggable.class),
             "Any resource can be read as taggable content");
-        if (new FormCompleteness(this.conditions).isIncomplete(submission)) {
+        if (!missing(submission).isEmpty()) {
             taggable.tag(INCOMPLETE, true);
         } else {
             // Unconditionally, rather than only when it is there: untag answers "make sure it is not carried", and
             // the alternative is reading the tag first to decide whether to remove it
             taggable.untag(INCOMPLETE, true);
         }
+    }
+
+    /**
+     * What this submission is still missing, of the things its own author can supply.
+     *
+     * <p>Filtering by kind matters and is not tidiness. An {@code ApprovalRequirement} is fulfilled by somebody
+     * else, later — so a submission is <em>always</em> missing one while its author is still writing it, and a tag
+     * computed over every requirement kind would never come off.</p>
+     *
+     * <p>Which kinds those are is a property of who fulfils them, not of where the process has got to, which is
+     * why it is a constant here rather than workflow configuration. This tag is not what blocks anything: whether
+     * a step may be taken is the step's own answer, and it says so itself. This only reports, so that a listing can
+     * show which drafts still want something without reading each one's process.</p>
+     *
+     * <p>Whether a requirement is fulfilled at all is the model's answer, not this handler's — documents,
+     * approvals and forms each mean something different by it, and {@code Submission} is where that lives.</p>
+     *
+     * @param submission the submission to judge
+     * @return the requirements its author can still supply and has not, empty when none are outstanding
+     */
+    private List<Requirement> missing(final Submission submission)
+    {
+        return submission.getMissingRequirements().stream()
+            .filter(requirement -> SUBMITTER_SUPPLIES.contains(requirement.getType()))
+            .collect(Collectors.toList());
     }
 
     /**

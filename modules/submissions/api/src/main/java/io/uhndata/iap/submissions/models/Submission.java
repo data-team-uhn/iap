@@ -18,7 +18,9 @@
 package io.uhndata.iap.submissions.models;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -188,7 +190,8 @@ public class Submission extends Entity
     /**
      * The requirements of this submission's schema version that haven't been fulfilled yet: a
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
-     * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Requirements, sections and
+     * approved {@link Review}, or a {@code FormRequirement} with an unanswered <em>required</em> question. An
+     * optional question left blank fulfils it just as well. Requirements, sections and
      * questions whose condition doesn't currently hold for this submission don't apply, so they are never
      * reported as missing.
      *
@@ -227,8 +230,12 @@ public class Submission extends Entity
                 return reviewed != null && requirement.getPath().equals(reviewed.getPath());
             });
         }
-        // FormRequirement is the only other concrete requirement type today.
-        return this.getQuestionsOf((FormRequirement) requirement).stream().allMatch(this::isAnswered);
+        // FormRequirement is the only other concrete requirement type today. Only its *required* questions can
+        // leave it unfulfilled: an optional one is asked, not demanded, and a submission is not incomplete for
+        // declining to answer it. Without this filter `Question.required` would mean nothing at all
+        return this.getQuestionsOf((FormRequirement) requirement).stream()
+            .filter(Question::isRequired)
+            .allMatch(this::isAnswered);
     }
 
     private List<Question> getQuestionsOf(final FormRequirement form)
@@ -255,14 +262,48 @@ public class Submission extends Entity
 
     private boolean isAnswered(final Question question)
     {
-        return this.getAnswers().stream().anyMatch(answer -> {
-            final Question answered = answer.getQuestion();
-            if (answered == null || !question.getPath().equals(answered.getPath())) {
-                return false;
+        // Blank counts as unanswered, not as answered. Clearing a field posts an empty value rather than removing
+        // the answer node, so the node stays behind holding nothing — and treating that as an answer would let a
+        // required question be satisfied by emptying it. `allMatch` over no values is true, which is the wanted
+        // reading for a question with no answer node at all
+        return !this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).stream()
+            .allMatch(String::isBlank);
+    }
+
+    /**
+     * What has been answered, by the path of the question it answers.
+     *
+     * <p>One index, because two readers need it and they must not disagree: this is what decides whether a form
+     * requirement is fulfilled, and it is also what a form is rendered from. Two implementations of "counts as an
+     * answer" would let a form show a value that the decision to accept the submission did not count, or refuse a
+     * submission over a question the reader can see filled in.</p>
+     *
+     * <p>An answer whose question no longer resolves answers nothing being asked, and is left out. Where more than
+     * one answer node addresses the same question — which only degenerate content produces — the one carrying a
+     * value wins, so the index agrees with the plain reading that the question <em>has</em> been answered.</p>
+     *
+     * @return the values given, by question path; empty for a submission nobody has answered
+     */
+    @NotNull
+    public Map<String, List<String>> getAnswersByQuestion()
+    {
+        // A loop rather than a stream: the question has to be read once into a local — asking twice around a null
+        // check is what makes a @Nullable accessor look safe to dereference — and the collision rule below reads
+        // more plainly here than as a merge function
+        final Map<String, List<String>> byQuestion = new HashMap<>();
+        for (final Answer answer : this.getAnswers()) {
+            final Question question = answer.getQuestion();
+            if (question == null) {
+                continue;
             }
-            // Only read once the question matched: every call resolves the reference and copies the value array
-            final String[] value = answer.getValue();
-            return value != null && value.length > 0;
-        });
+            // The value is nullable and List.of would throw on a null array: an answer node carrying no value at
+            // all is permitted by the node type, and it means the same as one carrying nothing
+            final List<String> value = List.of(Objects.requireNonNullElse(answer.getValue(), new String[0]));
+            final List<String> known = byQuestion.get(question.getPath());
+            if (known == null || known.isEmpty()) {
+                byQuestion.put(question.getPath(), value);
+            }
+        }
+        return byQuestion;
     }
 }

@@ -117,9 +117,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      */
     private JsonObject form(final Submission submission, final String reader)
     {
-        // Shared with FormCompleteness, which judges the same answers: two indexes that disagreed about
-        // what counts as an answer would have the form and the decision to accept it disagree too
-        final Map<String, List<String>> answers = FormCompleteness.answersByQuestion(submission);
+        // The submission's own index, which is also what decides whether its form requirements are fulfilled:
+        // two indexes that disagreed about what counts as an answer would have the form and the decision to
+        // accept it disagree too
+        final Map<String, List<String>> answers = submission.getAnswersByQuestion();
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         submission.getSchemaVersion().getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
