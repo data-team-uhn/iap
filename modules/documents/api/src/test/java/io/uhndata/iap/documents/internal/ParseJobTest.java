@@ -18,11 +18,21 @@
 package io.uhndata.iap.documents.internal;
 
 import java.lang.reflect.Constructor;
+import java.util.Map;
+import java.util.UUID;
 
+import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ParseJob}.
@@ -36,6 +46,40 @@ class ParseJobTest
     void nodePathAppendsTheIdentifierToTheJobsRoot()
     {
         assertEquals("/var/documents/jobs/86a4c102", ParseJob.nodePath("86a4c102"));
+    }
+
+    @Test
+    void isJobIdAcceptsARandomUuid()
+    {
+        assertTrue(ParseJob.isJobId(UUID.randomUUID().toString()));
+    }
+
+    @Test
+    void isJobIdRejectsAnythingElse()
+    {
+        // What a caller can send instead: a truncated identifier, a traversal attempt, nothing at all
+        assertFalse(ParseJob.isJobId("86a4c102"));
+        assertFalse(ParseJob.isJobId("../../etc/passwd"));
+        assertFalse(ParseJob.isJobId(""));
+    }
+
+    @Test
+    void openResolverAsksForTheParseJobsSubservice() throws Exception
+    {
+        final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
+        final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(resolver);
+
+        assertSame(resolver, ParseJob.openResolver(factory));
+        // The subservice name is the whole point of having this in one place
+        Mockito.verify(factory)
+            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, ParseJob.SUBSERVICE));
+    }
+
+    @Test
+    void openResolverPropagatesAMissingServiceUser()
+    {
+        assertThrows(LoginException.class, () -> ParseJob.openResolver(new TestResolverFactory(null)));
     }
 
     @Test
