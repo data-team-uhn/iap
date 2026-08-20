@@ -52,6 +52,9 @@ final class TaskCompletion
     /** The payload entry carrying the person's decision. */
     static final String OUTCOME_PARAMETER = "outcome";
 
+    /** What the person deciding said about it, alongside the decision itself. */
+    static final String OUTCOME_NOTE = "outcomeNote";
+
     /** The domain event a passed deadline delivers, which the clock fires and no user can. */
     static final String TIMEOUT_EVENT = "timeout";
 
@@ -101,9 +104,11 @@ final class TaskCompletion
         PerformerCheck.verify(resolver, InstanceRunner.hostOf(Objects.requireNonNull(taskResource.getParent(),
             "A task always lives inside its instance")), definition, actor);
 
-        final Object outcome = event.get(OUTCOME_PARAMETER);
+        final Object outcome = event.get(OUTCOME_VARIABLE);
+        final Object note = event.get(OUTCOME_NOTE);
         new InstanceRunner(resolver, performer, actor, conditions)
-            .complete(task, outcome instanceof String ? (String) outcome : null);
+            .complete(task, outcome instanceof String ? (String) outcome : null,
+                note instanceof String ? (String) note : null);
     }
 
     /**
