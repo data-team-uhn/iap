@@ -31,6 +31,7 @@ import os
 import signal
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -182,6 +183,27 @@ def _move_into_place(produced: Path, expected: Path) -> None:
     shutil.move(source, destination)
 
 
+def _discard_staging(staging_root: Path) -> None:
+    """Remove the staging directory, and say so if any of it survives.
+
+    Everything soffice is given or writes lives in here, including the copy of the caller's
+    document, so nothing may outlive the call -- least of all when the conversion failed.
+    ``ignore_errors`` on its own would leave that copy in the system temp directory and report
+    nothing, so what is left is checked for and named. It is not raised: that would replace
+    whatever went wrong in the conversion with a cleanup error.
+
+    @param staging_root: the directory to remove
+    """
+    shutil.rmtree(staging_root, ignore_errors=True)
+    if staging_root.exists():
+        print(
+            f"WARNING: could not remove the LibreOffice staging directory {staging_root}; "
+            "it still holds a copy of the document",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
 def _stage_for_soffice(source: Path, work_dir: Path) -> Path:
     """Put ``source`` inside ``work_dir`` under a name built only from literals.
 
@@ -189,8 +211,18 @@ def _stage_for_soffice(source: Path, work_dir: Path) -> Path:
     taken from :data:`INPUT_SUFFIXES` rather than copied off the caller's filename, so the
     staged name is a constant either way.
 
-    A symlink keeps this free. Where symlinks are unavailable -- Windows without the privilege
-    -- the document is copied instead, which the input size ceiling keeps bounded.
+    Always a copy, never a symlink. A symlink would be free, but ``os.symlink`` only works
+    where the platform allows one: the container would take the link and every test would take
+    the copy, leaving the branch that actually runs in production the one nothing exercises.
+
+    It buys nothing else. soffice was measured not to touch the input in ``--convert-to``
+    mode -- the source directory can be read-only and the file comes back with the same hash,
+    mtime and inode -- so the copy is not protecting the caller's document from anything
+    soffice does today.
+
+    The cost is one copy per conversion, bounded by the input ceiling
+    (:data:`shared_docs.BYTE_LIMIT_VARIABLE`, 64 MiB by default) and immaterial next to
+    LibreOffice starting up. A ``.doc`` pays it twice, once per conversion.
 
     @param source: the document to stage, already resolved inside the shared docs volume
     @param work_dir: the temp directory to stage it into
@@ -202,10 +234,7 @@ def _stage_for_soffice(source: Path, work_dir: Path) -> Path:
     if suffix is None:
         raise RuntimeError(f"LibreOffice cannot convert '{source.name}': unsupported extension")
     staged = work_dir / (STAGED_INPUT_STEM + suffix)
-    try:
-        os.symlink(source.resolve(), staged)
-    except (OSError, NotImplementedError, AttributeError):
-        shutil.copyfile(source, staged)
+    shutil.copyfile(source, staged)
     return staged
 
 
@@ -228,9 +257,14 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
 
     extension = target_format.split(":", 1)[0]
     expected = out_dir / f"{source.stem}.{extension}"
-    profile_dir = Path(tempfile.mkdtemp(prefix="iap-lo-profile-"))
-    work_dir = Path(tempfile.mkdtemp(prefix="iap-lo-work-"))
+    # One directory for the whole run, created before the try so the finally always has
+    # something to remove, and holding both subdirectories so there is no window in which a
+    # second mkdtemp could fail and orphan the first.
+    staging_root = Path(tempfile.mkdtemp(prefix="iap-lo-"))
     try:
+        work_dir = staging_root / "work"
+        profile_dir = staging_root / "profile"
+        shared_docs.make_dirs(work_dir)
         staged = _stage_for_soffice(source, work_dir)
         command = [
             resolve_soffice_path(),
@@ -270,8 +304,7 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
         _move_into_place(produced, expected)
         return expected
     finally:
-        shared_docs.remove_tree(profile_dir, ignore_errors=True)
-        shared_docs.remove_tree(work_dir, ignore_errors=True)
+        _discard_staging(staging_root)
 
 
 def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
