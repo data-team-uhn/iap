@@ -30,28 +30,47 @@ from __future__ import annotations
 from pathlib import Path, PurePath
 
 
+# Deepest outline nesting worth walking. A PDF's outline is caller-supplied and one
+# recursion deep per level, so an absurdly nested one would otherwise exhaust the stack.
+MAX_OUTLINE_DEPTH = 32
+
+
+def _records_from(reader) -> list[dict]:
+    """Flatten one reader's outline into records."""
+    records: list[dict] = []
+    _flatten(reader, reader.outline, 1, records)
+    return records
+
+
 def extract_bookmarks(source) -> list[dict]:
     """Flatten a PDF's bookmark outline into ordered ``{title, level, page}`` records.
 
     ``source`` is a path (opened with pypdf) or an already-constructed reader (duck-typed:
     anything exposing ``outline`` and ``get_destination_page_number``). Returns ``[]`` when
     the PDF has no bookmarks or cannot be read.
+
+    One ``try`` around both paths, deliberately: the flattening used to sit inside it for a
+    path and outside it for a duck-typed reader, so a reader whose ``outline`` was not iterable
+    failed open on one and escaped as a 500 on the other. ``RecursionError`` is a
+    ``RuntimeError``, so a crafted outline nested past :data:`MAX_OUTLINE_DEPTH` and the
+    interpreter's limit is covered here too rather than needing its own arm.
     """
     try:
         if isinstance(source, (str, Path, PurePath)):
             from pypdf import PdfReader
-            reader = PdfReader(str(source))
-        else:
-            reader = source
-        raw = reader.outline
+            # The outline is flattened into plain dicts, so the handle is only needed here.
+            with open(source, "rb") as handle:
+                return _records_from(PdfReader(handle))
+        return _records_from(source)
     except Exception:  # noqa: BLE001 -- any reader/parse failure means "no usable outline"
         return []
-    records: list[dict] = []
-    _flatten(reader, raw, 1, records)
-    return records
 
 
 def _flatten(reader, items, level: int, out: list[dict]) -> None:
+    """Walk a (nested) outline into flat records, one recursion per nesting level."""
+    if level > MAX_OUTLINE_DEPTH:
+        # Deeper than any real document's outline, so the rest is not worth a stack frame.
+        return
     for item in items:
         if isinstance(item, list):
             _flatten(reader, item, level + 1, out)
