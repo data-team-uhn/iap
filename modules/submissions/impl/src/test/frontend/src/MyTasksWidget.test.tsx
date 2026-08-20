@@ -19,32 +19,34 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
-import MyReviewQueueWidget from "@iap/submissions/MyReviewQueueWidget";
+import MyTasksWidget from "@iap/submissions/MyTasksWidget";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
 
-describe("MyReviewQueueWidget", () => {
+describe("MyTasksWidget", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     // The definitions are cached for the page's lifetime, which outlives a test
     clearTagDefinitionsCache();
   });
 
-  it("asks for submissions with an open review assigned to the current user", async () => {
+  it("asks for the requests with an open task naming what the reader acts as", async () => {
     const page = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
     const fetchMock = vi.fn<(url: string) => Promise<Response>>(() => Promise.resolve(
       { ok: true, url: "", json: () => Promise.resolve(page) } as unknown as Response));
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<MyReviewQueueWidget />, { wrapper: MemoryRouter });
+    render(<MyTasksWidget />, { wrapper: MemoryRouter });
 
-    expect(await screen.findByText("No submissions to review")).toBeInTheDocument();
+    expect(await screen.findByText("Nothing is waiting for you")).toBeInTheDocument();
 
     const url = new URL(fetchMock.mock.calls[0][0], "http://localhost");
     expect(url.pathname).toBe("/Submissions.paginate.json");
-    expect(url.searchParams.get("childType")).toBe("sub:Review");
-    // "no final decision yet" is expressed on the review's tags: none of them may be a decision
-    expect(url.searchParams.getAll("childFieldName")).toEqual(["reviewer", "tags", "tags"]);
-    expect(url.searchParams.getAll("childFieldComparator")).toEqual(["=", "<>", "<>"]);
-    expect(url.searchParams.getAll("childFieldValue")).toEqual(["@me", "approved", "rejected"]);
+    // Tasks, not reviews: a review is what a task produces, and asking about tasks asks about
+    // everything a person can owe at once
+    expect(url.searchParams.get("childType")).toBe("wf:TaskInstance");
+    expect(url.searchParams.getAll("childFieldName")).toEqual(["performers", "status"]);
+    // `@myPrincipals`, not `@me`: performers names principals, so being in the group that owes the
+    // decision has to count. The expansion is the server's, which is why nothing here builds it
+    expect(url.searchParams.getAll("childFieldValue")).toEqual(["@myPrincipals", "created"]);
   });
 });
