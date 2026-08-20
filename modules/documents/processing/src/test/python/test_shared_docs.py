@@ -278,6 +278,50 @@ class TestPageCeiling:
             shared_docs.refuse_oversized_input(self._pdf(tmp_path, 4))
 
 
+class TestOpenPdfReader:
+    """AES-encrypted PDFs with an empty user password must still be readable.
+
+    That is the usual shape of a signed / permission-restricted PDF; without
+    ``cryptography``, pypdf raises DependencyError when walking the page tree.
+    """
+
+    def _encrypted(self, tmp_path, password: str, name: str = "enc.pdf"):
+        pytest.importorskip("cryptography")
+        from pypdf import PdfWriter
+
+        path = tmp_path / name
+        writer = PdfWriter()
+        writer.add_blank_page(width=72, height=72)
+        writer.encrypt(password, algorithm="AES-256")
+        with open(path, "wb") as handle:
+            writer.write(handle)
+        return path
+
+    def test_empty_password_aes_is_readable(self, tmp_path):
+        path = self._encrypted(tmp_path, "")
+        with open(path, "rb") as handle:
+            reader = shared_docs.open_pdf_reader(handle)
+            assert len(reader.pages) == 1
+
+    def test_a_real_password_is_a_request_error(self, tmp_path):
+        path = self._encrypted(tmp_path, "secret")
+        with open(path, "rb") as handle:
+            with pytest.raises(shared_docs.ParseRequestError, match="encrypted"):
+                shared_docs.open_pdf_reader(handle)
+
+    def test_page_ceiling_counts_empty_password_aes(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "1")
+        path = self._encrypted(tmp_path, "", name="locked.pdf")
+        # One page, at the ceiling — must not fail open and skip the count.
+        shared_docs.refuse_oversized_pdf(path)
+
+    def test_page_ceiling_refuses_a_passworded_pdf(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "10")
+        path = self._encrypted(tmp_path, "secret", name="locked.pdf")
+        with pytest.raises(shared_docs.ParseRequestError, match="encrypted"):
+            shared_docs.refuse_oversized_pdf(path)
+
+
 class TestByteCeiling:
     """The page ceiling needs pages, so a .doc/.docx walked straight past it and could still
     render to an arbitrarily long PDF. Bytes are the one measure every accepted type has."""

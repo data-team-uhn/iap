@@ -16,6 +16,7 @@ Main processor from `.pdf` and `.docx` to Markdown.
 | ------------------------- | ------------------------------------------------------------------------------------ |
 | `docling`                 | Main processor: `.pdf` / `.doc` / `.docx` → `.md`; also drives hierarchical chunking |
 | `pypdf`                   | Page counting / PDF reading before batching; bookmark extraction                     |
+| `cryptography`            | pypdf AES support for signed / permission-restricted PDFs (empty user password)      |
 | `psutil`                  | Lets the batch-sizing script self-optimise workers to CPU/RAM                        |
 | `LibreOffice` (`soffice`) | DOC→DOCX, DOC→PDF, DOCX→PDF before Docling                                           |
 
@@ -53,7 +54,7 @@ it skip themselves when it is missing, so the rest of the suite still runs witho
 4. Install the dependencies:
 
    ```
-   pip install docling pypdf psutil
+   pip install docling pypdf cryptography psutil
    ```
 
 5. Set the threading environment variables (keeps per-process threads at 1 so the outer

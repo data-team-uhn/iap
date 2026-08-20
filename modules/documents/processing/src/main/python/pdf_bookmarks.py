@@ -57,10 +57,10 @@ def extract_bookmarks(source) -> list[dict]:
     """
     try:
         if isinstance(source, (str, Path, PurePath)):
-            from pypdf import PdfReader
+            from shared_docs import open_pdf_reader
             # The outline is flattened into plain dicts, so the handle is only needed here.
             with open(source, "rb") as handle:
-                return _records_from(PdfReader(handle))
+                return _records_from(open_pdf_reader(handle))
         return _records_from(source)
     except Exception:  # noqa: BLE001 -- any reader/parse failure means "no usable outline"
         return []
