@@ -76,14 +76,18 @@ test.describe('a story: asking for time off, and getting it', () => {
       await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
       await dialog.getByLabel(/Title/).fill('The last week of November');
       await dialog.getByRole('button', { name: 'Create' }).click();
-      await expect(page.getByText('The last week of November')).toBeVisible();
-      // The dashboard she came from lists requests with an Edit control per row, so the view she is
-      // on has to be the request itself before anything is pressed on it
-      await expect(page.getByRole('grid')).toHaveCount(0);
+      // The heading, not the text: the dashboard she came from lists the request too, so a bare text
+      // match is satisfied without her having left it
+      await expect(page.getByRole('heading', { name: 'The last week of November' })).toBeVisible();
     });
 
     await test.step('she fills it in, and the form asks for more as she does', async () => {
-      await page.getByRole('button', { name: 'Edit' }).click();
+      // Scoped to the request's own View/Edit switch. The dashboard lists requests with an Edit
+      // control per row, and waiting for those to go is not a guard: they are equally absent while
+      // the listings are still loading, so the wait passes and the click lands among them once they
+      // arrive. Naming the switch cannot be raced.
+      await page.getByRole('group', { name: 'How to show this submission' })
+        .getByRole('button', { name: 'Edit' }).click();
 
       // The return date is not asked for until the answer makes it relevant
       await expect(page.getByLabel(/Which day are you back/)).toHaveCount(0);
@@ -139,7 +143,8 @@ test.describe('a story: asking for time off, and getting it', () => {
     await test.step('and it will not take any more answers', async () => {
       // Not a courtesy: the same rule refuses a save, so what the editor says and what the server
       // does cannot come apart
-      await page.getByRole('button', { name: 'Edit' }).click();
+      await page.getByRole('group', { name: 'How to show this submission' })
+        .getByRole('button', { name: 'Edit' }).click();
 
       await expect(page.getByText(/can no longer be changed/)).toBeVisible();
     });
