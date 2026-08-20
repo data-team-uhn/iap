@@ -518,8 +518,10 @@ public class EmailTemplate
             throws RepositoryException, IOException
         {
             final Session session = template.getSession();
-            final String[] html = { readCommon(session, HTML_BODY_HEADER), "", readCommon(session, HTML_BODY_FOOTER) };
-            final String[] text = { readCommon(session, TEXT_BODY_HEADER), "", readCommon(session, TEXT_BODY_FOOTER) };
+            final String[] html = { readCommon(session, HTML_BODY_HEADER), null,
+                readCommon(session, HTML_BODY_FOOTER) };
+            final String[] text = { readCommon(session, TEXT_BODY_HEADER), null,
+                readCommon(session, TEXT_BODY_FOOTER) };
             final NodeIterator children = template.getNodes();
             while (children.hasNext()) {
                 final Node child = children.nextNode();
@@ -533,8 +535,24 @@ public class EmailTemplate
                     default -> addIfFile(child, resolver);
                 }
             }
-            withHtmlTemplate(String.join("", html));
-            withTextTemplate(String.join("", text));
+            withHtmlTemplate(wrapBody(html));
+            withTextTemplate(wrapBody(text));
+        }
+
+        /**
+         * Wraps a stored body in its header and footer, or reports that the template has no such part at all. A
+         * header and a footer are wrapped <em>around</em> a body, so on their own they do not make one: a template
+         * carrying no {@code bodyTemplate} of a kind has no part of that kind, which is what lets
+         * {@link EmailUtils#sendTextEmail} refuse to send an HTML-only template as a plain text email with nothing
+         * in it but the shared decoration.
+         *
+         * @param parts the header, the body and the footer, in that order, the body {@code null} if the template
+         *            does not carry one
+         * @return the three joined together, or {@code null} if there is no body to wrap
+         */
+        private static String wrapBody(final String[] parts)
+        {
+            return parts[1] == null ? null : String.join("", parts);
         }
 
         private void addIfFile(final Node child, final ResourceResolver resolver)

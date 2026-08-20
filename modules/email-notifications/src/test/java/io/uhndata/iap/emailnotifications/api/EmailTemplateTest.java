@@ -226,12 +226,43 @@ class EmailTemplateTest
         addFile(template, EmailTemplate.HTML_BODY_FOOTER, "<ownFooter/>");
         addFile(template, EmailTemplate.TEXT_BODY_HEADER, "own ");
         addFile(template, EmailTemplate.TEXT_BODY_FOOTER, " ownFooter");
+        addFile(template, EmailTemplate.HTML_TEMPLATE_NODE, "<body/>");
+        addFile(template, EmailTemplate.TEXT_TEMPLATE_NODE, "body");
         session.save();
 
         final EmailTemplate read = EmailTemplate.builder(template, this.context.resourceResolver()).build();
 
-        assertEquals("<own/><ownFooter/>", read.getHtmlTemplate());
-        assertEquals("own  ownFooter", read.getTextTemplate());
+        assertEquals("<own/><body/><ownFooter/>", read.getHtmlTemplate());
+        assertEquals("own body ownFooter", read.getTextTemplate());
+    }
+
+    /**
+     * The reason a body part is {@code null} rather than an empty string when the template does not carry one: a
+     * header and a footer are decoration around a body, and sending them with nothing between is exactly the "email
+     * with no body at all" that {@link EmailUtils#sendTextEmail} promises to refuse.
+     */
+    @Test
+    void aTemplateHasNoPartOfAKindItCarriesNoBodyFor() throws Exception
+    {
+        final Session session = this.context.resourceResolver().adaptTo(Session.class);
+        final Node common = createPath(session, EmailTemplate.COMMON_TEMPLATES_PATH);
+        addFile(common, EmailTemplate.TEXT_BODY_HEADER, "== ");
+        addFile(common, EmailTemplate.TEXT_BODY_FOOTER, " ==");
+
+        final Node template = session.getRootNode().addNode("template", "nt:unstructured");
+        template.setProperty(EmailTemplate.SENDER_ADDRESS_PROPERTY, "noreply@example.invalid");
+        template.setProperty(EmailTemplate.SUBJECT_PROPERTY, "Hello");
+        addFile(template, EmailTemplate.HTML_TEMPLATE_NODE, "<body/>");
+        session.save();
+
+        final EmailTemplate read = EmailTemplate.builder(template, this.context.resourceResolver()).build();
+
+        assertEquals("<body/>", read.getHtmlTemplate());
+        assertNull(read.getTextTemplate());
+
+        // And it survives into the email, which is what makes EmailUtils' refusal reachable
+        final Email email = read.getEmailBuilder(Map.of()).withRecipient("a@example.invalid", null).build();
+        assertNull(email.getTextBody());
     }
 
     @Test
@@ -247,9 +278,14 @@ class EmailTemplateTest
 
         final EmailTemplate read = EmailTemplate.builder(template, this.context.resourceResolver()).build();
 
-        assertEquals("", read.getHtmlTemplate());
-        assertEquals("", read.getTextTemplate());
+        // No body of either kind, so no part of either kind; the email built from it cannot be sent, and says so
+        assertNull(read.getHtmlTemplate());
+        assertNull(read.getTextTemplate());
         assertTrue(read.getInlineAttachments().isEmpty());
+        assertEquals("The email has neither an HTML nor a plain text body",
+            assertThrows(IllegalStateException.class,
+                () -> read.getEmailBuilder(Map.of()).withRecipient("a@example.invalid", null).build())
+                .getMessage());
     }
 
     @Test

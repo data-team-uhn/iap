@@ -106,7 +106,10 @@ body:
 
 Headers, footers and attachments shared by every email live under **`/libs/iap/mailTemplates/`**. A
 template picks up the shared headers and footers automatically, overrides them by carrying its own,
-and asks for a shared attachment by setting an `includeAttachment_<file name>` property.
+and asks for a shared attachment by setting an `includeAttachment_<file name>` property. A header and
+a footer only ever wrap a body, so they do not make one on their own: a template that carries no
+`bodyTemplate.txt` has no plain text part at all, even where a shared plain text header and footer
+exist, and the same goes for HTML.
 
 ### Sending one
 
