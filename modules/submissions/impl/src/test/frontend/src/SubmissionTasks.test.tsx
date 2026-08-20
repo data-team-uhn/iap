@@ -41,6 +41,9 @@ const SEND = {
   "@path": TASK,
   "label": "Say when you want to be away",
   "status": "created",
+  // What the server says about the reader, not about the task: these fixtures are all tasks the
+  // person looking may act on
+  "@mine": true,
 };
 
 // The same task, carrying the decisions its definition offered it: what an approver meets
@@ -200,6 +203,29 @@ describe("SubmissionTasks", () => {
     render(<SubmissionTasks path={PATH} blockedReason="Some questions are unanswered" />);
 
     expect(await screen.findByRole("button", { name: "Approved" })).toBeEnabled();
+  });
+
+  it("says nothing at all about a decision that is somebody else's", async () => {
+    // Not disabled, not greyed out, absent: naming a reviewer's decision to a submitter discloses
+    // what they may do with the request whether or not the control can be pressed
+    vi.stubGlobal("fetch", repository(waitingOn({ ...DECISION, "@mine": false })));
+
+    render(<SubmissionTasks path={PATH} />);
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(screen.queryByText("Approve the request")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approved" })).toBeNull();
+  });
+
+  it("offers nothing when a task says nothing about whose it is", async () => {
+    // Fail closed: a task the server did not vouch for is not offered. Absent is not permission
+    const { "@mine": _mine, ...unmarked } = DECISION;
+    vi.stubGlobal("fetch", repository(waitingOn(unmarked)));
+
+    render(<SubmissionTasks path={PATH} />);
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(screen.queryByText("Approve the request")).toBeNull();
   });
 
   it("offers nothing when nothing is waiting", async () => {
