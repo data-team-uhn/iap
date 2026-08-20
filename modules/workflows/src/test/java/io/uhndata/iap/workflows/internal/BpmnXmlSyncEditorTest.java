@@ -54,25 +54,57 @@ class BpmnXmlSyncEditorTest
 
     private static final String VERSION_NAME = "1.0";
 
-    private static final String START_EVENT_XML =
+    private static final String BPMN_XML = "bpmn.xml";
+
+    private static final String JCR_DATA = "jcr:data";
+
+    private static final String JCR_CONTENT = "jcr:content";
+
+    private static final String START_1 = "start1";
+
+    private static final String TASK_1 = "task1";
+
+    private static final String END_1 = "end1";
+
+    private static final String FLOW_1 = "flow1";
+
+    private static final String FLOW_2 = "flow2";
+
+    private static final String ONLY_START = "onlyStart";
+
+    private static final String FLOW_NODE_TYPE = "flowNodeType";
+
+    private static final String INTERRUPTING = "interrupting";
+
+    private static final String RESOURCE_SUPER_TYPE = "sling:resourceSuperType";
+
+    private static final String PROCESS_OPEN = "  <bpmn:process id=\"process1\">\n";
+
+    private static final String PROCESS_CLOSE = "  </bpmn:process>\n";
+
+    private static final String DEFS_OPEN =
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        + "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"defs1\">\n"
-        + "  <bpmn:process id=\"process1\">\n"
+        + "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"defs1\">\n";
+
+    private static final String DEFS_CLOSE = "</bpmn:definitions>\n";
+
+    private static final String START_EVENT_XML =
+        DEFS_OPEN
+        + PROCESS_OPEN
         + "    <bpmn:startEvent id=\"start1\" name=\"Start\"/>\n"
         + "    <bpmn:userTask id=\"task1\" name=\"Review\"/>\n"
         + "    <bpmn:endEvent id=\"end1\" name=\"End\"/>\n"
         + "    <bpmn:sequenceFlow id=\"flow1\" sourceRef=\"start1\" targetRef=\"task1\"/>\n"
         + "    <bpmn:sequenceFlow id=\"flow2\" sourceRef=\"task1\" targetRef=\"end1\"/>\n"
-        + "  </bpmn:process>\n"
-        + "</bpmn:definitions>\n";
+        + PROCESS_CLOSE
+        + DEFS_CLOSE;
 
     private static final String REPARSED_XML =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        + "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"defs1\">\n"
-        + "  <bpmn:process id=\"process1\">\n"
+        DEFS_OPEN
+        + PROCESS_OPEN
         + "    <bpmn:startEvent id=\"onlyStart\" name=\"Only\"/>\n"
-        + "  </bpmn:process>\n"
-        + "</bpmn:definitions>\n";
+        + PROCESS_CLOSE
+        + DEFS_CLOSE;
 
     private static final String NO_PROCESS_XML =
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -85,9 +117,8 @@ class BpmnXmlSyncEditorTest
      * application, and every {@code SequenceFlow} branch (missing refs, unknown source, name, condition, default).
      */
     private static final String RICH_XML =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        + "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"defs1\">\n"
-        + "  <bpmn:process id=\"process1\">\n"
+        DEFS_OPEN
+        + PROCESS_OPEN
         + "    <other:note xmlns:other=\"urn:test\">hi</other:note>\n"
         + "    <bpmn:startEvent name=\"NoId\"/>\n"
         + "    <bpmn:startEvent id=\"start1\" name=\"Start\"/>\n"
@@ -111,8 +142,8 @@ class BpmnXmlSyncEditorTest
         + "    <bpmn:sequenceFlow id=\"flowBad\" targetRef=\"end1\"/>\n"
         + "    <bpmn:sequenceFlow id=\"flowNoTarget\" sourceRef=\"start1\"/>\n"
         + "    <bpmn:sequenceFlow id=\"flowUnknown\" sourceRef=\"ghost\" targetRef=\"end1\"/>\n"
-        + "  </bpmn:process>\n"
-        + "</bpmn:definitions>\n";
+        + PROCESS_CLOSE
+        + DEFS_CLOSE;
 
     private final String startEventTypeId = UUID.randomUUID().toString();
 
@@ -158,6 +189,8 @@ class BpmnXmlSyncEditorTest
             .setProperty("rep:supertypes", List.of("wf:Gateway", "wf:FlowNode"), Type.NAMES)
             .setProperty("jcr:supertypes", List.of("wf:Gateway"), Type.NAMES);
         nodeTypes.child("wf:SequenceFlow").setProperty("jcr:supertypes", List.of("iap:EntityPart"), Type.NAMES);
+        // nt:file is registered without any supertype naming a flow node, so bpmn.xml survives a reparse.
+        nodeTypes.child("nt:file").setProperty("rep:supertypes", List.of("nt:hierarchyNode"), Type.NAMES);
 
         descend(root, WORKFLOWS_PATH, DEFINITION_NAME).setProperty(PRIMARY_TYPE, "wf:WorkflowDefinition", Type.NAME);
         final NodeBuilder version = version(root);
@@ -181,8 +214,9 @@ class BpmnXmlSyncEditorTest
             "bpmn:intermediateCatchEvent", "bpmn:messageEventDefinition", "wf:IntermediateCatchingEvent", 10);
         // Collected but never matched by any element in RICH_XML: exercises an xmlElement with no namespace
         // prefix, and a candidate with no configured priority at all.
-        types.child("Incomplete").setProperty(PRIMARY_TYPE, "wf:FlowNodeType", Type.NAME);
-        types.child("Incomplete").setProperty("xmlElement", "gateway");
+        final NodeBuilder incomplete = types.child("Incomplete");
+        incomplete.setProperty(PRIMARY_TYPE, "wf:FlowNodeType", Type.NAME);
+        incomplete.setProperty("xmlElement", "gateway");
 
         final NodeBuilder userTask = types.getChildNode("UserTask");
         userTask.setProperty("jcrProperties",
@@ -208,13 +242,19 @@ class BpmnXmlSyncEditorTest
         }
     }
 
+    private NodeBuilder bpmnContent(final NodeBuilder root)
+    {
+        final NodeBuilder file = version(root).child(BPMN_XML);
+        file.setProperty(PRIMARY_TYPE, "nt:file", Type.NAME);
+        final NodeBuilder content = file.child(JCR_CONTENT);
+        content.setProperty(PRIMARY_TYPE, "nt:resource", Type.NAME);
+        return content;
+    }
+
     private void setBpmnXml(final NodeBuilder root, final String xml)
     {
-        final NodeBuilder file = version(root).child("bpmn.xml");
-        file.setProperty(PRIMARY_TYPE, "nt:file", Type.NAME);
-        final NodeBuilder content = file.child("jcr:content");
-        content.setProperty(PRIMARY_TYPE, "nt:resource", Type.NAME);
-        content.setProperty("jcr:data", xml);
+        final NodeBuilder content = bpmnContent(root);
+        content.setProperty(JCR_DATA, xml);
         // An unrelated sibling property under jcr:content, to exercise the editor ignoring anything that isn't
         // jcr:data itself.
         content.setProperty("jcr:mimeType", "application/xml");
@@ -272,40 +312,49 @@ class BpmnXmlSyncEditorTest
         return root;
     }
 
+    /** Saves {@code xml} onto a freshly built {@code base}, and returns the resulting version node state. */
+    private NodeState firstSave(final NodeBuilder base, final String xml) throws CommitFailedException
+    {
+        final NodeState before = base.getNodeState();
+        final NodeBuilder after = before.builder();
+        setBpmnXml(after, xml);
+        return version(process(before, after));
+    }
+
+    private NodeState firstSave(final String xml) throws CommitFailedException
+    {
+        return firstSave(base(), xml);
+    }
+
     @Test
     void parsesNewBpmnXmlIntoFlowNodes() throws Exception
     {
-        final NodeState before = base().getNodeState();
-        final NodeBuilder after = before.builder();
-        setBpmnXml(after, START_EVENT_XML);
-
-        final NodeState result = process(before, after);
-        final NodeState version = version(result);
+        final NodeState version = firstSave(START_EVENT_XML);
 
         assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
 
-        final NodeState start = version.getChildNode("start1");
+        final NodeState start = version.getChildNode(START_1);
         assertTrue(start.exists());
         assertEquals("wf:StartEvent", start.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
         assertEquals("start1", start.getProperty("elementId").getValue(Type.STRING));
         assertEquals("Start", start.getProperty("label").getValue(Type.STRING));
-        assertEquals(this.startEventTypeId, start.getProperty("flowNodeType").getValue(Type.REFERENCE));
+        assertEquals(this.startEventTypeId, start.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
-        final NodeState task = version.getChildNode("task1");
+        final NodeState task = version.getChildNode(TASK_1);
         assertTrue(task.exists());
         assertEquals("wf:Activity", task.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
-        assertEquals(this.userTaskTypeId, task.getProperty("flowNodeType").getValue(Type.REFERENCE));
+        assertEquals(this.userTaskTypeId, task.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
-        final NodeState end = version.getChildNode("end1");
+        final NodeState end = version.getChildNode(END_1);
         assertTrue(end.exists());
         assertEquals("wf:EndEvent", end.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
 
-        final NodeState flow1 = start.getChildNode("flow1");
+        final NodeState flow1 = start.getChildNode(FLOW_1);
         assertTrue(flow1.exists());
         assertEquals("wf:SequenceFlow", flow1.getProperty(PRIMARY_TYPE).getValue(Type.NAME));
         assertEquals("task1", flow1.getProperty("targetRef").getValue(Type.STRING));
 
-        final NodeState flow2 = task.getChildNode("flow2");
+        final NodeState flow2 = task.getChildNode(FLOW_2);
         assertTrue(flow2.exists());
         assertEquals("end1", flow2.getProperty("targetRef").getValue(Type.STRING));
     }
@@ -318,29 +367,24 @@ class BpmnXmlSyncEditorTest
         setBpmnXml(after, START_EVENT_XML);
 
         final NodeState result = process(before, after, new CommitInfo("session1", "alice"));
-        final NodeState start = version(result).getChildNode("start1");
+        final NodeState start = version(result).getChildNode(START_1);
 
         assertTrue(start.hasProperty("jcr:created"));
         assertEquals("alice", start.getProperty("jcr:createdBy").getValue(Type.STRING));
         assertEquals("wf/StartEvent", start.getProperty("sling:resourceType").getValue(Type.STRING));
-        assertEquals("wf/Event", start.getProperty("sling:resourceSuperType").getValue(Type.STRING));
+        assertEquals("wf/Event", start.getProperty(RESOURCE_SUPER_TYPE).getValue(Type.STRING));
 
-        final NodeState flow1 = start.getChildNode("flow1");
+        final NodeState flow1 = start.getChildNode(FLOW_1);
         assertTrue(flow1.hasProperty("jcr:created"));
         assertEquals("alice", flow1.getProperty("jcr:createdBy").getValue(Type.STRING));
         assertEquals("wf/SequenceFlow", flow1.getProperty("sling:resourceType").getValue(Type.STRING));
-        assertEquals("iap/EntityPart", flow1.getProperty("sling:resourceSuperType").getValue(Type.STRING));
+        assertEquals("iap/EntityPart", flow1.getProperty(RESOURCE_SUPER_TYPE).getValue(Type.STRING));
     }
 
     @Test
     void parsedFlowNodesFallBackToOakUnknownCreatedByWithNoCommitUser() throws Exception
     {
-        final NodeState before = base().getNodeState();
-        final NodeBuilder after = before.builder();
-        setBpmnXml(after, START_EVENT_XML);
-
-        final NodeState result = process(before, after);
-        final NodeState start = version(result).getChildNode("start1");
+        final NodeState start = firstSave(START_EVENT_XML).getChildNode(START_1);
 
         assertEquals(CommitInfo.OAK_UNKNOWN, start.getProperty("jcr:createdBy").getValue(Type.STRING));
     }
@@ -366,15 +410,15 @@ class BpmnXmlSyncEditorTest
         // Exercise the editor's descent into unrelated siblings at every stage: none of these should ever
         // trigger a reparse, and the JCR_CONTENT-stage editor has no children of interest at all.
         version(after).child("extraFlowNode");
-        version(after).getChildNode("bpmn.xml").child("extraUnderFile");
-        version(after).getChildNode("bpmn.xml").getChildNode("jcr:content").child("extraUnderContent");
+        version(after).getChildNode(BPMN_XML).child("extraUnderFile");
+        version(after).getChildNode(BPMN_XML).getChildNode(JCR_CONTENT).child("extraUnderContent");
 
         final NodeState result = process(synced, after);
         final NodeState before = version(synced);
         final NodeState afterState = version(result);
         assertEquals(before.getProperty(HASH_PROPERTY).getValue(Type.STRING),
             afterState.getProperty(HASH_PROPERTY).getValue(Type.STRING));
-        assertTrue(afterState.getChildNode("start1").exists());
+        assertTrue(afterState.getChildNode(START_1).exists());
         assertTrue(afterState.getChildNode("extraFlowNode").exists());
     }
 
@@ -390,9 +434,9 @@ class BpmnXmlSyncEditorTest
         final NodeState version = version(result);
 
         assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
-        assertTrue(version.getChildNode("start1").exists());
-        assertTrue(version.getChildNode("task1").exists());
-        assertTrue(version.getChildNode("end1").exists());
+        assertTrue(version.getChildNode(START_1).exists());
+        assertTrue(version.getChildNode(TASK_1).exists());
+        assertTrue(version.getChildNode(END_1).exists());
     }
 
     @Test
@@ -409,23 +453,18 @@ class BpmnXmlSyncEditorTest
         final NodeState afterState = version(result);
         assertEquals(before.getProperty(HASH_PROPERTY).getValue(Type.STRING),
             afterState.getProperty(HASH_PROPERTY).getValue(Type.STRING));
-        assertTrue(afterState.getChildNode("start1").exists());
+        assertTrue(afterState.getChildNode(START_1).exists());
         assertFalse(before.hasProperty("description"));
         assertTrue(afterState.hasProperty("description"));
     }
 
     @Test
-    void blankBpmnXmlIsIgnored() throws Exception
+    void emptyBpmnXmlIsIgnored() throws Exception
     {
-        final NodeState before = base().getNodeState();
-        final NodeBuilder after = before.builder();
-        setBpmnXml(after, "   ");
-
-        final NodeState result = process(before, after);
-        final NodeState version = version(result);
+        final NodeState version = firstSave("");
 
         assertFalse(version.hasProperty(HASH_PROPERTY));
-        assertFalse(version.getChildNode("start1").exists());
+        assertFalse(version.getChildNode(START_1).exists());
     }
 
     @Test
@@ -439,7 +478,7 @@ class BpmnXmlSyncEditorTest
         final NodeState result = process(before, after);
         final NodeState version = version(result);
 
-        assertFalse(version.getChildNode("start1").exists());
+        assertFalse(version.getChildNode(START_1).exists());
     }
 
     @Test
@@ -453,10 +492,12 @@ class BpmnXmlSyncEditorTest
         final NodeState result = process(synced, after);
         final NodeState version = version(result);
 
-        assertFalse(version.getChildNode("start1").exists());
-        assertFalse(version.getChildNode("task1").exists());
-        assertFalse(version.getChildNode("end1").exists());
-        assertTrue(version.getChildNode("onlyStart").exists());
+        assertFalse(version.getChildNode(START_1).exists());
+        assertFalse(version.getChildNode(TASK_1).exists());
+        assertFalse(version.getChildNode(END_1).exists());
+        assertTrue(version.getChildNode(ONLY_START).exists());
+        // The source file is not a flow node, so clearing must leave it alone.
+        assertTrue(version.getChildNode(BPMN_XML).exists());
     }
 
     @Test
@@ -465,16 +506,16 @@ class BpmnXmlSyncEditorTest
         final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
 
         final NodeBuilder after = synced.builder();
-        version(after).getChildNode("bpmn.xml").remove();
+        version(after).getChildNode(BPMN_XML).remove();
 
         final NodeState result = process(synced, after);
         final NodeState version = version(result);
 
         assertFalse(version.hasProperty(HASH_PROPERTY));
-        assertFalse(version.getChildNode("bpmn.xml").exists());
-        assertFalse(version.getChildNode("start1").exists());
-        assertFalse(version.getChildNode("task1").exists());
-        assertFalse(version.getChildNode("end1").exists());
+        assertFalse(version.getChildNode(BPMN_XML).exists());
+        assertFalse(version.getChildNode(START_1).exists());
+        assertFalse(version.getChildNode(TASK_1).exists());
+        assertFalse(version.getChildNode(END_1).exists());
     }
 
     @Test
@@ -489,47 +530,37 @@ class BpmnXmlSyncEditorTest
         final NodeState result = process(synced, after);
         final NodeState version = version(result);
 
-        assertFalse(version.getChildNode("start1").exists());
-        assertTrue(version.getChildNode("onlyStart").exists());
+        assertFalse(version.getChildNode(START_1).exists());
+        assertTrue(version.getChildNode(ONLY_START).exists());
         assertTrue(version.getChildNode("extension").exists());
     }
 
     @Test
     void bpmnXmlWithoutAProcessElementParsesToNoFlowNodes() throws Exception
     {
-        final NodeState before = base().getNodeState();
-        final NodeBuilder after = before.builder();
-        setBpmnXml(after, NO_PROCESS_XML);
-
-        final NodeState result = process(before, after);
-        final NodeState version = version(result);
+        final NodeState version = firstSave(NO_PROCESS_XML);
 
         assertEquals(sha256(NO_PROCESS_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
-        assertFalse(version.getChildNode("start1").exists());
+        assertFalse(version.getChildNode(START_1).exists());
     }
 
     @Test
     void richBpmnXmlExercisesEveryMatchingAndPropertyBranch() throws Exception
     {
-        final NodeState before = richBase().getNodeState();
-        final NodeBuilder after = before.builder();
-        setBpmnXml(after, RICH_XML);
-
-        final NodeState result = process(before, after);
-        final NodeState version = version(result);
+        final NodeState version = firstSave(richBase(), RICH_XML);
 
         // Plain start event: the message-requiring candidate doesn't match, falls back to the plain one.
-        final NodeState start = version.getChildNode("start1");
+        final NodeState start = version.getChildNode(START_1);
         assertTrue(start.exists());
-        assertEquals(this.startEventTypeId, start.getProperty("flowNodeType").getValue(Type.REFERENCE));
+        assertEquals(this.startEventTypeId, start.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
         // Start event with a message child: the higher-priority message candidate matches.
         final NodeState msgStart = version.getChildNode("msgStart1");
         assertTrue(msgStart.exists());
-        assertEquals(this.messageStartEventTypeId, msgStart.getProperty("flowNodeType").getValue(Type.REFERENCE));
+        assertEquals(this.messageStartEventTypeId, msgStart.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
         // Copied/renamed attributes and literal jcrProperties.
-        final NodeState task = version.getChildNode("task1");
+        final NodeState task = version.getChildNode(TASK_1);
         assertTrue(task.exists());
         assertEquals("7", task.getProperty("priority").getValue(Type.STRING));
         assertEquals("mgr", task.getProperty("assignee").getValue(Type.STRING));
@@ -552,11 +583,11 @@ class BpmnXmlSyncEditorTest
 
         // SequenceFlow branches: name, blank condition expression, condition expression, isDefault, missing
         // target, missing source, unknown source.
-        final NodeState flow1 = start.getChildNode("flow1");
+        final NodeState flow1 = start.getChildNode(FLOW_1);
         assertEquals("Proceed", flow1.getProperty("label").getValue(Type.STRING));
         assertFalse(flow1.hasProperty("conditionExpression"));
 
-        final NodeState flow2 = task.getChildNode("flow2");
+        final NodeState flow2 = task.getChildNode(FLOW_2);
         assertEquals("${approved}", flow2.getProperty("conditionExpression").getValue(Type.STRING));
         assertEquals(true, flow2.getProperty("isDefault").getValue(Type.BOOLEAN));
 
@@ -570,17 +601,13 @@ class BpmnXmlSyncEditorTest
     {
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
-        final NodeBuilder file = version(after).child("bpmn.xml");
-        file.setProperty(PRIMARY_TYPE, "nt:file", Type.NAME);
-        final NodeBuilder content = file.child("jcr:content");
-        content.setProperty(PRIMARY_TYPE, "nt:resource", Type.NAME);
-        content.setProperty("jcr:data", List.of(START_EVENT_XML), Type.STRINGS);
+        bpmnContent(after).setProperty(JCR_DATA, List.of(START_EVENT_XML), Type.STRINGS);
 
         final NodeState result = process(before, after);
         final NodeState version = version(result);
 
         assertFalse(version.hasProperty(HASH_PROPERTY));
-        assertFalse(version.getChildNode("start1").exists());
+        assertFalse(version.getChildNode(START_1).exists());
     }
 
     /**
@@ -606,7 +633,7 @@ class BpmnXmlSyncEditorTest
         assertTrue(version.getChildNode("noPrimaryTypeAtAll").exists());
         assertFalse(version.getChildNode("bareFlowNode").exists());
         assertFalse(version.getChildNode("bareSequenceFlow").exists());
-        assertTrue(version.getChildNode("onlyStart").exists());
+        assertTrue(version.getChildNode(ONLY_START).exists());
     }
 
     /**
@@ -627,29 +654,21 @@ class BpmnXmlSyncEditorTest
         root.child("jcr:system").child("jcr:nodeTypes").child("wf:EmptySupertypeType")
             .setProperty("jcr:supertypes", List.of(), Type.NAMES);
 
-        final String xml =
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-            + "<bpmn:definitions xmlns:bpmn=\"http://www.omg.org/spec/BPMN/20100524/MODEL\" id=\"defs1\">\n"
-            + "  <bpmn:process id=\"process1\">\n"
+        final NodeState version = firstSave(root,
+            DEFS_OPEN
+            + PROCESS_OPEN
             + "    <bpmn:exclusiveGateway id=\"gwNoSuper\"/>\n"
             + "    <bpmn:parallelGateway id=\"gwEmptySuper\"/>\n"
-            + "  </bpmn:process>\n"
-            + "</bpmn:definitions>\n";
-
-        final NodeState before = root.getNodeState();
-        final NodeBuilder after = before.builder();
-        setBpmnXml(after, xml);
-
-        final NodeState result = process(before, after);
-        final NodeState version = version(result);
+            + PROCESS_CLOSE
+            + DEFS_CLOSE);
 
         final NodeState gwNoSuper = version.getChildNode("gwNoSuper");
         assertTrue(gwNoSuper.exists());
         assertEquals("wf/NoSupertypeType", gwNoSuper.getProperty("sling:resourceType").getValue(Type.STRING));
-        assertFalse(gwNoSuper.hasProperty("sling:resourceSuperType"));
+        assertFalse(gwNoSuper.hasProperty(RESOURCE_SUPER_TYPE));
 
         final NodeState gwEmptySuper = version.getChildNode("gwEmptySuper");
         assertTrue(gwEmptySuper.exists());
-        assertFalse(gwEmptySuper.hasProperty("sling:resourceSuperType"));
+        assertFalse(gwEmptySuper.hasProperty(RESOURCE_SUPER_TYPE));
     }
 }
