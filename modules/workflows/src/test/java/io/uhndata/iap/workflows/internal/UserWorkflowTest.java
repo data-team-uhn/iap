@@ -58,6 +58,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -646,6 +647,36 @@ class UserWorkflowTest
             EngineFixture.REQUESTER.toUpperCase(Locale.ROOT)), APPROVED);
 
         assertEquals("completed", read(TASK).get("status"));
+    }
+
+    @Test
+    void recordsWhatTheDecidingPersonSaidAboutTheirDecision() throws Exception
+    {
+        // The outcome says which way it went; the note says why, which no outcome on offer can express. Nothing
+        // routes on it, which is exactly why it has to be written down rather than remembered
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
+            Map.of(TaskCompletion.OUTCOME, "approved", TaskCompletion.OUTCOME_NOTE, "Cover arranged with Dev")));
+
+        assertEquals("approved", read(TASK).get("outcome"));
+        assertEquals("Cover arranged with Dev", read(TASK).get("outcomeNote"));
+    }
+
+    @Test
+    void treatsAnEmptyNoteAsNothingSaid() throws Exception
+    {
+        // An untouched form field posts as "", and a task carrying an empty note would read as a decision
+        // somebody explained badly rather than one they did not explain at all
+        createProcess(EngineFixture.REQUESTERS);
+        final WorkflowEngine engine = started();
+
+        engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
+            Map.of(TaskCompletion.OUTCOME, "approved", TaskCompletion.OUTCOME_NOTE, "   ")));
+
+        assertEquals("approved", read(TASK).get("outcome"));
+        assertFalse(read(TASK).containsKey("outcomeNote"));
     }
 
     @Test
