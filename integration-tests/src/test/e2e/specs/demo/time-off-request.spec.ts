@@ -651,10 +651,11 @@ test.describe('the time off request demo', () => {
     await dialog.getByRole('button', { name: 'Create' }).click();
     await expect(page).toHaveURL(FILED_URL);
 
-    // The dashboard's own listings have an Edit control per row, so waiting for the URL is not enough
-    // to know which page a click will land on: the route changes before the view it came from is gone
-    await expect(page.getByRole('grid')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Edit' }).click();
+    // Scoped to the request's own View/Edit switch: the dashboard's listings have an Edit control per
+    // row, and neither the URL nor the absence of those listings settles where a click lands — the
+    // route changes before the old view is gone, and the listings are absent while still loading
+    await page.getByRole('group', { name: 'How to show this submission' })
+      .getByRole('button', { name: 'Edit' }).click();
     await expect(page).toHaveURL(/\.edit$/);
 
     // Each of these is accepted: until both ends of the span are given there is no number to compare, and a
