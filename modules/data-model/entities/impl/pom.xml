@@ -41,6 +41,12 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
+    <!-- What a session acts as, for the `@myPrincipals` filter value: bound principals cover an identity
+         provider's roles, which have no local group node to look a membership up in -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-jackrabbit-api</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.servlets.annotations</artifactId>
