@@ -355,9 +355,8 @@ public final class WorkflowDefinitionUtils
     private static void createFlowNode(final Element element, final String localName, final String id,
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes, final ParseContext context)
     {
-        final FlowNodeTypeInfo flowNodeType = matchFlowNodeType(element, flowNodeTypes.get(localName));
+        final FlowNodeTypeInfo flowNodeType = matchFlowNodeType(element, localName, flowNodeTypes.get(localName));
         if (flowNodeType == null) {
-            LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}), skipping", localName, id);
             return;
         }
         final NodeBuilder node = createNode(context.workflowVersion(), id, flowNodeType.jcrNodeType(), context);
@@ -473,18 +472,25 @@ public final class WorkflowDefinitionUtils
      * {@code xmlChildElement} only matches when the element has a direct child of that name; a candidate without
      * one always matches.
      */
-    private static FlowNodeTypeInfo matchFlowNodeType(final Element element, final List<FlowNodeTypeInfo> candidates)
+    private static FlowNodeTypeInfo matchFlowNodeType(final Element element, final String localName,
+        final List<FlowNodeTypeInfo> candidates)
     {
         if (candidates == null) {
+            LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}), skipping", localName,
+                element.getAttribute(ID_ATTRIBUTE));
             return null;
         }
-        for (final FlowNodeTypeInfo candidate : candidates) {
-            final String requiredChild = candidate.xmlChildElement();
-            if (requiredChild == null || hasChildElement(element, localName(requiredChild))) {
-                return candidate;
-            }
+        final FlowNodeTypeInfo match = candidates.stream()
+            .filter(candidate -> candidate.xmlChildElement() == null
+                || hasChildElement(element, candidate.xmlChildElement()))
+            .findFirst()
+            .orElse(null);
+        if (match == null) {
+            LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}), skipping", localName,
+                element.getAttribute(ID_ATTRIBUTE));
+            return null;
         }
-        return null;
+        return match;
     }
 
     private static boolean hasChildElement(final Element element, final String localName)
