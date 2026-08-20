@@ -18,6 +18,7 @@
 package io.uhndata.iap.search.internal;
 
 import java.io.IOException;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -26,6 +27,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -37,6 +40,7 @@ import jakarta.json.JsonObject;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.servlet.Servlet;
 
+import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
