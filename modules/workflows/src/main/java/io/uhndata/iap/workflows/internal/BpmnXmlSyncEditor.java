@@ -18,12 +18,12 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
 
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.commit.DefaultEditor;
@@ -211,22 +211,29 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     private void handleProperty(final PropertyState property)
     {
         if (this.stage == Stage.JCR_CONTENT && JCR_DATA_PROPERTY.equals(property.getName()) && !property.isArray()) {
-            syncIfNeeded(property.getValue(Type.STRING));
+            syncIfNeeded(property.getValue(Type.BINARY));
         }
     }
 
-    private void syncIfNeeded(final String bpmnXml)
+    /**
+     * Reparses the diagram unless the stored hash says the stored graph already came from these exact bytes. The
+     * hash is taken from the blob's stream rather than a decoded string so that a multi-megabyte diagram is never
+     * held in memory whole just to find out nothing changed.
+     */
+    private void syncIfNeeded(final Blob bpmnXml)
     {
-        if (StringUtils.isBlank(bpmnXml)) {
+        if (bpmnXml.length() == 0) {
             return;
         }
-        final String hash = sha256(bpmnXml);
-        if (hash.equals(getStoredHash())) {
-            return;
-        }
-        try {
-            WorkflowDefinitionUtils.parse(bpmnXml, this.workflowVersion, this.context.workflowTypesRoot(),
-                this.context.nodeTypesRoot(), this.context.author(), this.workflowVersionPath);
+        try (InputStream contents = bpmnXml.getNewStream()) {
+            final String hash = DigestUtils.sha256Hex(contents);
+            if (hash.equals(this.workflowVersion.getString(PARSED_HASH_PROPERTY))) {
+                return;
+            }
+            try (InputStream reread = bpmnXml.getNewStream()) {
+                WorkflowDefinitionUtils.parse(reread, this.workflowVersion, this.context.workflowTypesRoot(),
+                    this.context.nodeTypesRoot(), this.context.author(), this.workflowVersionPath);
+            }
             this.workflowVersion.setProperty(PARSED_HASH_PROPERTY, hash);
             LOGGER.debug("Synced flow nodes for WorkflowVersion {}", this.workflowVersionPath);
         } catch (final ParserConfigurationException | SAXException | IOException e) {
@@ -234,20 +241,9 @@ public class BpmnXmlSyncEditor extends DefaultEditor
         }
     }
 
-    private String getStoredHash()
-    {
-        final PropertyState property = this.workflowVersion.getNodeState().getProperty(PARSED_HASH_PROPERTY);
-        return property == null ? null : property.getValue(Type.STRING);
-    }
-
     private static boolean isWorkflowVersion(final NodeBuilder node)
     {
         final PropertyState primaryType = node.getNodeState().getProperty(JCR_PRIMARY_TYPE_PROPERTY);
         return primaryType != null && WORKFLOW_VERSION_TYPE.equals(primaryType.getValue(Type.NAME));
-    }
-
-    private static String sha256(final String input)
-    {
-        return DigestUtils.sha256Hex(input.getBytes(StandardCharsets.UTF_8));
     }
 }

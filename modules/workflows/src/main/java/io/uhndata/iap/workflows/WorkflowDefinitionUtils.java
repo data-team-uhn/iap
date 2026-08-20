@@ -18,7 +18,7 @@
 package io.uhndata.iap.workflows;
 
 import java.io.IOException;
-import java.io.StringReader;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
@@ -159,9 +159,9 @@ public final class WorkflowDefinitionUtils
      * @throws SAXException if the BPMN XML is not well-formed
      * @throws IOException if the BPMN XML could not be read
      */
-    public static void parse(final String bpmnXml, final NodeBuilder workflowVersion,
-        final NodeState workflowTypesRoot, final NodeState nodeTypesRoot, final String author,
-        final String workflowVersionPath)
+    public static void parse(@NotNull final InputStream bpmnXml, @NotNull final NodeBuilder workflowVersion,
+        @NotNull final NodeState workflowTypesRoot, @NotNull final NodeState nodeTypesRoot,
+        @NotNull final String author, @NotNull final String workflowVersionPath)
         throws ParserConfigurationException, SAXException, IOException
     {
         final Element process = getProcessElement(bpmnXml, workflowVersionPath);
@@ -215,7 +215,7 @@ public final class WorkflowDefinitionUtils
             .forEach(NodeBuilder::remove);
     }
 
-    private static Element getProcessElement(final String bpmnXml, final String workflowVersionPath)
+    private static Element getProcessElement(final InputStream bpmnXml, final String workflowVersionPath)
         throws ParserConfigurationException, SAXException, IOException
     {
         final Document document = parseXml(bpmnXml);
@@ -259,7 +259,7 @@ public final class WorkflowDefinitionUtils
      * declaration and any byte order mark are honoured by the parser instead of being pre-empted by a fixed UTF-8
      * decode — a UTF-8 BOM read as a character is a fatal "content not allowed in prolog".
      */
-    private static Document parseXml(final String bpmnXml)
+    private static Document parseXml(final InputStream bpmnXml)
         throws ParserConfigurationException, SAXException, IOException
     {
         final DocumentBuilder builder;
@@ -270,7 +270,7 @@ public final class WorkflowDefinitionUtils
             }
             builder = factory.newDocumentBuilder();
         }
-        return builder.parse(new InputSource(new StringReader(bpmnXml)));
+        return builder.parse(new InputSource(bpmnXml));
     }
 
     private static boolean isFlowNodeOrSequenceFlow(final NodeBuilder node, final NodeState nodeTypesRoot)

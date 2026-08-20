@@ -460,6 +460,21 @@ class BpmnXmlSyncEditorTest
         assertTrue(version.getChildNode(START_1).exists());
     }
 
+    /**
+     * In a real repository {@code jcr:data} is a binary, whose bytes may start with a UTF-8 byte order mark. Reading
+     * them as a string first and handing the parser characters makes that mark "content in prolog" and the whole
+     * diagram unparseable, so the bytes go to the parser untouched.
+     */
+    @Test
+    void bpmnXmlWithAByteOrderMarkIsParsed() throws Exception
+    {
+        final String withBom = "﻿" + START_EVENT_XML;
+        final NodeState version = firstSave(withBom);
+
+        assertEquals(sha256(withBom), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertTrue(version.getChildNode(START_1).exists());
+    }
+
     @Test
     void unrelatedPropertyChangeDoesNotTriggerReparse() throws Exception
     {
