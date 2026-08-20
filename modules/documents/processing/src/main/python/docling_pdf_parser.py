@@ -35,8 +35,6 @@ from time import perf_counter
 import docling_config  # noqa: F401 — apply shared Docling settings on import
 from docling_config import PDF_PIPELINE_OPTIONS
 
-from pypdf import PdfReader
-
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
@@ -47,6 +45,7 @@ from docling_batch_sizing import (
     calc_workers,
     print_parallelism_summary,
 )
+from shared_docs import open_pdf_reader
 from docling_error_detection import (
     DOCLING_PIPELINE_LOGGER,
     DoclingLogCollector,
@@ -224,7 +223,7 @@ def convert_pdf_to_markdown(
     # Scoped to the page count, which is all that is needed here: the workers each open the
     # document themselves, and this one would otherwise stay open for the whole conversion.
     with open(input_path, "rb") as handle:
-        total_pages = len(PdfReader(handle).pages)
+        total_pages = len(open_pdf_reader(handle).pages)
 
     workers_override = workers is not None
     batch_pages_override = batch_pages is not None
