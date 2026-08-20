@@ -110,15 +110,15 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
     {
         final String path = request.getParameter(ParseJob.PN_PATH);
         if (path == null || path.isBlank()) {
-            writeError(response, HttpServletResponse.SC_BAD_REQUEST, "path parameter is required");
+            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "path parameter is required");
             return;
         }
         final boolean chunk = isChunkRequested(request.getParameter(ParseJob.PN_CHUNK));
         final String jobId = UUID.randomUUID().toString();
-        try (ResourceResolver resolver = openServiceResolver()) {
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobsRoot = resolver.getResource(ParseJob.JOBS_PATH);
             if (jobsRoot == null) {
-                writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "The parse jobs storage is not initialized");
                 return;
             }
@@ -135,7 +135,7 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
             final Job job = this.jobManager.addJob(ParseJob.TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
             if (job == null) {
                 markUnqueueable(resolver, jobNode);
-                writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "The parse job could not be queued");
                 return;
             }
@@ -143,16 +143,16 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
             // Built from the constant servlet path, never from the request, so nothing
             // attacker-controlled can steer where this points (CodeQL: unvalidated-url-redirection)
             response.setHeader("Location", PATH + "?" + JOB_ID_KEY + "=" + jobId);
-            writeJson(response, HttpServletResponse.SC_ACCEPTED, Json.createObjectBuilder()
+            JsonResponse.write(response, HttpServletResponse.SC_ACCEPTED, Json.createObjectBuilder()
                 .add(JOB_ID_KEY, jobId)
                 .add(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED)
                 .build());
         } catch (final LoginException e) {
             LOGGER.error(LOG_INACCESSIBLE, e.getMessage(), e);
-            writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE);
+            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE);
         } catch (final PersistenceException e) {
             LOGGER.error("Cannot record parse job {}: {}", jobId, e.getMessage(), e);
-            writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The parse job could not be recorded");
         }
     }
@@ -163,24 +163,24 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
     {
         final String jobId = request.getParameter(JOB_ID_KEY);
         if (jobId == null || jobId.isBlank()) {
-            writeError(response, HttpServletResponse.SC_BAD_REQUEST, "job_id parameter is required");
+            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "job_id parameter is required");
             return;
         }
-        if (!isJobId(jobId)) {
-            writeError(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
+        if (!ParseJob.isJobId(jobId)) {
+            JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "job_id must be a UUID");
             return;
         }
-        try (ResourceResolver resolver = openServiceResolver()) {
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
             final ValueMap properties = jobNode == null ? null : jobNode.getValueMap();
             if (properties == null || !jobId.equals(properties.get(ParseJob.PN_JOB_ID, String.class))) {
-                writeError(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
+                JsonResponse.error(response, HttpServletResponse.SC_NOT_FOUND, "No such job: " + jobId);
                 return;
             }
-            writeJson(response, HttpServletResponse.SC_OK, toJson(jobId, properties));
+            JsonResponse.write(response, HttpServletResponse.SC_OK, toJson(jobId, properties));
         } catch (final LoginException e) {
             LOGGER.error(LOG_INACCESSIBLE, e.getMessage(), e);
-            writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE);
+            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE);
         }
     }
 
@@ -213,18 +213,6 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Open a new session as the parse jobs service user.
-     *
-     * @return a service resource resolver, closed by the caller
-     * @throws LoginException if the service user is not available
-     */
-    private ResourceResolver openServiceResolver() throws LoginException
-    {
-        return this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, ParseJob.SUBSERVICE));
-    }
-
-    /**
      * Interpret the {@code chunk} parameter the same way the daemon does: chunking is on unless explicitly refused.
      *
      * @param raw the raw parameter value, may be {@code null} when not sent
@@ -233,23 +221,6 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
     private static boolean isChunkRequested(final String raw)
     {
         return raw == null || !FALSE_WORDS.contains(raw.toLowerCase(Locale.ROOT));
-    }
-
-    /**
-     * Check that a caller-supplied job identifier is one this servlet could have issued, so that it can be safely
-     * appended to the jobs path.
-     *
-     * @param jobId the identifier to check
-     * @return {@code true} if the identifier is a well-formed UUID
-     */
-    private static boolean isJobId(final String jobId)
-    {
-        try {
-            UUID.fromString(jobId);
-            return true;
-        } catch (final IllegalArgumentException e) {
-            return false;
-        }
     }
 
     /**
@@ -275,18 +246,4 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
         }
     }
 
-    private static void writeJson(final SlingJakartaHttpServletResponse response, final int status,
-        final JsonObject body) throws IOException
-    {
-        response.setStatus(status);
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType("application/json");
-        response.getWriter().print(body.toString());
-    }
-
-    private static void writeError(final SlingJakartaHttpServletResponse response, final int status,
-        final String message) throws IOException
-    {
-        writeJson(response, status, Json.createObjectBuilder().add(ParseJob.PN_ERROR, message).build());
-    }
 }

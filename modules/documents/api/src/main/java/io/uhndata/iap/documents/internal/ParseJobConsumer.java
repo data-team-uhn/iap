@@ -174,7 +174,7 @@ public class ParseJobConsumer implements JobConsumer
     {
         final String path;
         final boolean chunk;
-        try (ResourceResolver resolver = openServiceResolver()) {
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
             if (jobNode == null) {
                 LOGGER.warn("Dropping parse job {}: its job node is gone", jobId);
@@ -356,7 +356,7 @@ public class ParseJobConsumer implements JobConsumer
     private void fail(final String jobId, final String message)
     {
         LOGGER.warn("Parse job {} failed: {}", jobId, message);
-        try (ResourceResolver resolver = openServiceResolver()) {
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
             if (jobNode == null) {
                 LOGGER.error("Cannot record the outcome of parse job {}: its job node is gone", jobId);
@@ -389,18 +389,6 @@ public class ParseJobConsumer implements JobConsumer
         }
         changes.accept(editable);
         resolver.commit();
-    }
-
-    /**
-     * Open a new session as the parse jobs service user.
-     *
-     * @return a service resource resolver, closed by the caller
-     * @throws LoginException if the service user is not available
-     */
-    private ResourceResolver openServiceResolver() throws LoginException
-    {
-        return this.resolverFactory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, ParseJob.SUBSERVICE));
     }
 
     /**
