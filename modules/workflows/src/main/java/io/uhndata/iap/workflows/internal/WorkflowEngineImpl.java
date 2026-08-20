@@ -184,13 +184,16 @@ public class WorkflowEngineImpl implements WorkflowEngine
             FlowNode node = start;
             for (int step = 0; step < MAX_STEPS; step++) {
                 if (node instanceof EndEvent) {
-                    recordActor(resolver, variables, actor);
                     resolver.commit();
                     return new WorkflowResult(variables);
                 }
                 if (node instanceof Activity) {
                     perform((Activity) node,
                         new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor));
+                    // As soon as there is something to record it on, not at the end event: a later activity in the
+                    // same walk may raise a task whose performers name `@creator`, and resolving that reads exactly
+                    // this property. Recording it last left such a task admitting nobody
+                    recordActor(resolver, variables, actor);
                 } else if (!(node instanceof StartEvent) || step > 0) {
                     // Not somewhere execution can pass straight through, so a system workflow cannot contain it:
                     // there is no persisted instance whose token could rest here
@@ -213,7 +216,14 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /**
      * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
      * {@code jcr:createdBy} names the service user and nothing in the repository would otherwise remember the
-     * human — which both the audit trail and every "things I raised" listing depend on.
+     * human — which the audit trail, every "things I raised" listing, and {@code @creator} all depend on.
+     *
+     * <p>Called after every activity rather than once at the end, because it is read <em>within</em> the same walk:
+     * {@code createSubmission} creates the submission and a later activity starts its workflow, which resolves
+     * {@code @creator} against this property as it raises the first task. Writing it at the end event left that
+     * task's recorded performers empty — the definition still admitted the right person, so completing the task
+     * worked and nothing noticed until something read the copy. Idempotent, so repeating it costs a property
+     * write in a commit that is already open.</p>
      *
      * @param resolver the engine's session, still uncommitted
      * @param variables the execution's variables, consulted for what was created
