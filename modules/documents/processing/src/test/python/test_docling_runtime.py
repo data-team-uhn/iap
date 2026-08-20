@@ -20,7 +20,12 @@
 The ``docling_*`` conversion modules import the heavy ``docling`` package, so the whole file
 skips when it is not installed — the rest of the suite still runs anywhere. What is covered
 here is the plumbing around Docling rather than Docling itself: shared-docs path allowlisting,
-body draining, health reporting, and the batch-abandon path that runs when a page batch fails.
+health reporting, the parse-slot semaphore, and the batch-abandon path that runs when a page
+batch fails.
+
+Because this file skips in CI, nothing that can be tested without Docling belongs here. The
+request guards were moved to :mod:`daemon_http` for exactly that reason; see
+``test_daemon_http.py``. What remains are the tests that genuinely need the daemon.
 """
 
 import sys
@@ -123,50 +128,10 @@ class TestAbandonBatches:
         assert messages == []
 
 
-class TestDrainRequestBody:
-    """Leftover request bodies must be drained or the connection closed."""
-
-    def test_drains_the_whole_body(self):
-        handler = _FakeHandler(b"x" * 5000)
-        daemon._drain_request_body(handler)
-        assert handler.unread == 0
-        assert handler.close_connection is False
-
-    def test_no_content_length_is_a_noop(self):
-        handler = _FakeHandler(b"abc")
-        del handler.headers["Content-Length"]
-        daemon._drain_request_body(handler)
-        assert handler.unread == 3
-        assert handler.close_connection is False
-
-    def test_bad_content_length_closes_the_connection(self):
-        handler = _FakeHandler(b"abc", headers={"Content-Length": "not-a-number"})
-        daemon._drain_request_body(handler)
-        assert handler.close_connection is True
-
-    def test_negative_content_length_closes_the_connection(self):
-        handler = _FakeHandler(b"abc", headers={"Content-Length": "-5"})
-        daemon._drain_request_body(handler)
-        assert handler.unread == 3
-        assert handler.close_connection is True
-
-    def test_chunked_body_closes_the_connection(self):
-        handler = _FakeHandler(b"3\r\nabc\r\n0\r\n\r\n")
-        handler.headers["Transfer-Encoding"] = "chunked"
-        daemon._drain_request_body(handler)
-        assert handler.close_connection is True
-
-    def test_stops_at_a_short_body(self):
-        handler = _FakeHandler(b"abc", content_length=10_000)
-        daemon._drain_request_body(handler)
-        assert handler.unread == 0
-        assert handler.close_connection is True
-
-    def test_oversized_declared_length_closes_the_connection(self):
-        handler = _FakeHandler(b"x" * 100, content_length=2 * 1024 * 1024)
-        daemon._drain_request_body(handler)
-        assert handler.unread == 100
-        assert handler.close_connection is True
+# The body drain, the bearer-token comparison and the JSON reply helper moved to
+# daemon_http.py, and their tests to test_daemon_http.py, so they run in CI too -- this
+# module skips itself wherever Docling is absent. The end-to-end guard tests below stay
+# here, because they go through do_POST and need the handler.
 
 
 class TestResolveParsePath:
@@ -498,6 +463,23 @@ class TestMutatingEndpointsAreGuarded:
         assert right.header_value("status") == HTTPStatus.OK
         assert stopped == [True]
 
+    def test_a_non_ascii_token_header_is_refused_not_a_crash(self, monkeypatch):
+        # Regression: http.server decodes request headers as latin-1, and
+        # hmac.compare_digest refuses to compare strings holding non-ASCII characters. One
+        # 0xFF byte therefore raised TypeError, and the check runs before the handler's
+        # try/except, so the request died with a traceback and no reply at all — reachable by
+        # anyone who can open the port, precisely when a token is configured.
+        monkeypatch.setattr(daemon, "_SHUTDOWN_ENABLED", True)
+        monkeypatch.setenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, "s3cret")
+        monkeypatch.setattr(daemon, "_request_shutdown", lambda: None)
+
+        for header in (b"Bearer \xff".decode("latin-1"),
+                       b"Bearer s3cre\xff".decode("latin-1"),
+                       b"\xc3\xa9".decode("latin-1")):
+            handler = self._handler("/shutdown", headers={"Authorization": header})
+            daemon.DoclingDaemonHandler.do_POST(handler)
+            assert handler.header_value("status") == HTTPStatus.UNAUTHORIZED, repr(header)
+
     def test_health_needs_no_credential(self, monkeypatch):
         monkeypatch.setenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, "s3cret")
         self._ready(monkeypatch)
@@ -554,8 +536,21 @@ class TestRunPdfChunksBrokenPool:
 
         monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", explode)
         with ThreadPoolExecutor(max_workers=1) as pool:
-            with pytest.raises(RuntimeError, match="One or more page batches failed"):
+            with pytest.raises(RuntimeError, match="Page batch conversion failed"):
                 pdf_parser._run_pdf_chunks([("doc.pdf", 1, 2)], pool, log=lambda _m: None)
+
+    def test_the_failure_carries_the_reason_and_the_pages(self, monkeypatch):
+        # The daemon's reply is only str(exc), so a bare "a batch failed" left whoever polls
+        # the job nothing to act on and no choice but to read the container log.
+        def explode(_chunk):
+            raise RuntimeError("page 3 is broken")
+
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", explode)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(RuntimeError) as raised:
+                pdf_parser._run_pdf_chunks([("doc.pdf", 1, 2)], pool, log=lambda _m: None)
+        assert "page 3 is broken" in str(raised.value)
+        assert "pages 1-2" in str(raised.value)
 
 
 class TestBrokenPoolShutsDown:
@@ -600,3 +595,158 @@ class TestPathBasedParseContract:
     def test_no_parse_output_dir_argument(self):
         parser_source = daemon.parse_args.__code__.co_consts
         assert not any(isinstance(c, str) and "parse-output-dir" in c for c in parser_source)
+
+
+class TestShutdownDrain:
+    """server_close() has to actually wait for an in-flight request.
+
+    Regression: ``ThreadingHTTPServer`` sets ``daemon_threads = True``, and
+    ``socketserver._Threads.append`` returns early for a daemon thread — so no request thread
+    was ever tracked and ``server_close()``'s join joined an empty list. It returned in 0.00s
+    with a conversion still running, which made the whole shutdown ordering in ``main()`` a
+    no-op: the pool was torn down under the conversion, its queued page batches cancelled, and
+    the process exited before the caller heard anything. Nothing covered this.
+    """
+
+    def _slow_handler(self, seconds, started, finished):
+        class Slow(daemon.DoclingDaemonHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                started.set()
+                time.sleep(seconds)
+                finished.set()
+                body = b'{"ok":true}'
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        return Slow
+
+    def test_the_server_does_not_use_daemon_threads(self):
+        # The one attribute the whole drain depends on.
+        assert daemon.DrainingHTTPServer.daemon_threads is False
+
+    def test_server_close_waits_for_a_request_in_flight(self):
+        import socket
+
+        started = threading.Event()
+        finished = threading.Event()
+        server = daemon.DrainingHTTPServer(
+            ("127.0.0.1", 0), self._slow_handler(2.0, started, finished)
+        )
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        port = server.server_address[1]
+
+        replies = []
+
+        def call():
+            sock = socket.create_connection(("127.0.0.1", port))
+            sock.settimeout(15)
+            sock.sendall(b"GET /health HTTP/1.1\r\nHost: x\r\n\r\n")
+            try:
+                replies.append(sock.recv(64))
+            finally:
+                sock.close()
+
+        caller = threading.Thread(target=call)
+        caller.start()
+        # Wait for the handler to *start*, not merely to not have finished: without this the
+        # shutdown could land before the request thread existed, leaving nothing to join and
+        # making the assertion below pass or fail on timing rather than on behaviour.
+        assert started.wait(10), "the request never reached the handler"
+        assert not finished.is_set(), "the handler finished before the drain was tested"
+
+        server.shutdown()
+        started = time.perf_counter()
+        server.server_close()
+        waited = time.perf_counter() - started
+        caller.join(15)
+
+        assert finished.is_set(), "server_close returned before the handler finished"
+        assert waited > 0.5, f"server_close returned in {waited:.2f}s without draining"
+        assert replies and replies[0].startswith(b"HTTP/1.1 200"), replies
+
+
+class TestParseFailureStatuses:
+    """The three ways a parse can fail have to stay distinguishable to the caller.
+
+    ``_run_parse`` answers ``BrokenProcessPool`` by flagging the pool *and* calling
+    ``_request_shutdown()``, so ``shutdown_requested`` is set for a dead pool too. A
+    shutdown-only check therefore reported an OOM-killed worker as "daemon shutting down
+    mid-parse" — the wrong cause, and indistinguishable from a plain SIGTERM, while
+    ``_health_status()`` still said ``pdf_pool_broken``. Nothing covered ``_handle_parse`` for
+    any of these; ``TestBrokenPoolShutsDown`` calls ``_run_parse`` directly.
+    """
+
+    def _handler(self, path):
+        handler = _FakeHandler(b"")
+        del handler.headers["Content-Length"]
+        handler.path = path
+        return handler
+
+    def _state(self, monkeypatch):
+        state = SimpleNamespace(
+            shutdown_requested=False,
+            pdf_executor_broken=False,
+            worker_count=1,
+            parse_slots=threading.BoundedSemaphore(1),
+        )
+        state.is_ready = lambda: True
+        monkeypatch.setattr(daemon, "_STATE", state)
+        monkeypatch.setattr(daemon, "_SERVER", None)
+        return state
+
+    def _staged(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
+        monkeypatch.delenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
+        pdf = tmp_path / "doc.pdf"
+        pdf.write_bytes(b"%PDF")
+        return pdf
+
+    def _run(self, monkeypatch, tmp_path, failure):
+        state = self._state(monkeypatch)
+        pdf = self._staged(monkeypatch, tmp_path)
+        monkeypatch.setattr(daemon, "_run_parse", lambda *a, **k: failure(state))
+        handler = self._handler(f"/parse?path={pdf}")
+        daemon.DoclingDaemonHandler._handle_parse(handler)
+        return handler
+
+    def _broken_pool(self, state):
+        # Exactly what _run_parse does for a BrokenProcessPool.
+        state.pdf_executor_broken = True
+        state.shutdown_requested = True
+        raise RuntimeError("PDF worker pool is broken; restart the daemon")
+
+    def _shutdown(self, state):
+        state.shutdown_requested = True
+        raise RuntimeError("batch cancelled")
+
+    def _bad_document(self, _state):
+        raise ValueError("invalid xref table")
+
+    def test_a_broken_pool_is_a_500_naming_the_pool(self, monkeypatch, tmp_path):
+        handler = self._run(monkeypatch, tmp_path, self._broken_pool)
+        assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert b"worker pool is broken" in handler.written
+        assert b"shutting down mid-parse" not in handler.written
+
+    def test_a_graceful_shutdown_is_a_retryable_503(self, monkeypatch, tmp_path):
+        handler = self._run(monkeypatch, tmp_path, self._shutdown)
+        assert handler.header_value("status") == HTTPStatus.SERVICE_UNAVAILABLE
+        assert b"retry this document" in handler.written
+
+    def test_a_bad_document_is_a_500_naming_the_document_error(self, monkeypatch, tmp_path):
+        handler = self._run(monkeypatch, tmp_path, self._bad_document)
+        assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert b"invalid xref table" in handler.written
+
+    def test_the_three_outcomes_are_not_conflated(self, monkeypatch, tmp_path):
+        # The property that regressed: a dead pool and a SIGTERM must not look the same.
+        broken = self._run(monkeypatch, tmp_path, self._broken_pool)
+        shutdown = self._run(monkeypatch, tmp_path, self._shutdown)
+        assert broken.header_value("status") != shutdown.header_value("status")
