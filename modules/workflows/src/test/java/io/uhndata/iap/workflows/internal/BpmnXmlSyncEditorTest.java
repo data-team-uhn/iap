@@ -128,7 +128,7 @@ class BpmnXmlSyncEditorTest
         + "      <bpmn:messageEventDefinition/>\n"
         + "    </bpmn:startEvent>\n"
         + "    <bpmn:userTask id=\"task1\" name=\"Review\" priority=\"7\" assigneeExpression=\"mgr\"\n"
-        + "        default=\"flow2\"/>\n"
+        + "        async=\"TRUE\" default=\"flow2\"/>\n"
         + "    <bpmn:intermediateCatchEvent id=\"ice1\">\n"
         + "      <bpmn:timerEventDefinition/>\n"
         + "    </bpmn:intermediateCatchEvent>\n"
@@ -230,7 +230,8 @@ class BpmnXmlSyncEditorTest
             "{\"catching\": true, \"weight\": 3, \"ratio\": 1.5, \"label\": \"ok\", \"code\": \"007\","
                 + " \"cancelled\": false, \"unset\": null}");
         userTask.setProperty("properties",
-            List.of("priority", "assigneeExpression=assignee", "missingAttr=ignored"), Type.STRINGS);
+            List.of("priority", "assigneeExpression=assignee", "async=asynchronous", "missingAttr=ignored"),
+            Type.STRINGS);
         types.getChildNode("EndEvent").setProperty("jcrProperties", "{}");
         return root;
     }
@@ -630,6 +631,7 @@ class BpmnXmlSyncEditorTest
         assertTrue(task.exists());
         assertEquals("7", task.getProperty("priority").getValue(Type.STRING));
         assertEquals("mgr", task.getProperty("assignee").getValue(Type.STRING));
+        assertEquals(true, task.getProperty("asynchronous").getValue(Type.BOOLEAN));
         assertEquals(true, task.getProperty("catching").getValue(Type.BOOLEAN));
         assertEquals(false, task.getProperty("cancelled").getValue(Type.BOOLEAN));
         assertEquals(3L, task.getProperty("weight").getValue(Type.LONG));

@@ -637,18 +637,25 @@ public final class WorkflowDefinitionUtils
     /**
      * Copies XML attributes onto JCR properties as configured in the FlowNodeType's {@code properties} list. Each
      * entry is either a plain name copied as-is ({@code priority}), or an {@code xmlAttribute=jcrProperty} pair to
-     * rename it in the process ({@code assigneeExpression=assignee}).
+     * rename it in the process ({@code assigneeExpression=assignee}). {@code true}/{@code false} are stored as
+     * booleans so that a mapping onto one of the BOOLEAN properties {@code workflowDefinitions.cnd} declares lands
+     * with the declared type rather than as a string.
      */
     private static void applyCopiedProperties(final FlowNodeTypeInfo flowNodeType, final Element element,
         final NodeBuilder node)
     {
         for (final String rule : flowNodeType.properties()) {
-            final int separator = rule.indexOf('=');
-            final String xmlAttribute = separator < 0 ? rule : rule.substring(0, separator);
-            final String jcrProperty = separator < 0 ? rule : rule.substring(separator + 1);
-            final String value = element.getAttribute(xmlAttribute.trim());
-            if (StringUtils.isNotBlank(value)) {
-                node.setProperty(jcrProperty.trim(), value);
+            final String[] parts = rule.split("=", 2);
+            final String xmlAttribute = parts[0].trim();
+            final String jcrProperty = parts[parts.length - 1].trim();
+            final String value = element.getAttribute(xmlAttribute);
+            if (StringUtils.isBlank(value)) {
+                continue;
+            }
+            if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
+                node.setProperty(jcrProperty, Boolean.parseBoolean(value));
+            } else {
+                node.setProperty(jcrProperty, value);
             }
         }
     }
