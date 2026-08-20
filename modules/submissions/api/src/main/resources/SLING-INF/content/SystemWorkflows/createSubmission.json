@@ -25,6 +25,18 @@
       "label": "Create the submission",
       "handler": "createSubmission",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
       "toStart": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toStart",
