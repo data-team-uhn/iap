@@ -18,6 +18,7 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -30,6 +31,7 @@ import jakarta.servlet.Servlet;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
@@ -38,11 +40,13 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
+import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.utils.UserIds;
 
@@ -156,8 +160,58 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         if (requirement instanceof FormRequirement) {
             json.add(ITEMS, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
                 submission, answers));
+        } else if (requirement instanceof DocumentRequirement) {
+            describe((DocumentRequirement) requirement, submission, json);
         }
         return json;
+    }
+
+    /**
+     * What a document requirement adds: which types it takes, the blank to start from if it offers one, and what
+     * has already been attached for it.
+     *
+     * <p>All three are here because an upload control cannot be drawn without them, and this projection is the
+     * only place that says which requirements currently apply — reading them off the schema instead would mean a
+     * control offering to answer something this submission is not being asked.</p>
+     *
+     * @param requirement the requirement being described
+     * @param submission the submission it is being resolved against
+     * @param json the requirement's JSON, added to in place
+     */
+    private void describe(final DocumentRequirement requirement, final Submission submission,
+        final JsonObjectBuilder json)
+    {
+        final JsonArrayBuilder accepted = Json.createArrayBuilder();
+        // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
+        // empty — so the key is always there and it is the emptiness that carries the meaning
+        Arrays.stream(Objects.requireNonNullElse(requirement.getAcceptedFileTypes(), new String[0]))
+            .forEach(accepted::add);
+        json.add("acceptedFileTypes", accepted);
+        final Resource template = requirement.getTemplate();
+        if (template != null) {
+            json.add("template", template.getPath());
+        }
+        // Named rather than counted, so that a form reopened later says which document is there. Without this an
+        // upload control looks the same before and after, and the way to check would be to leave the page
+        final JsonArrayBuilder attached = Json.createArrayBuilder();
+        submission.getDocuments().stream()
+            .filter(document -> fulfills(document, requirement))
+            .map(document -> Objects.toString(document.getTitle(), document.getName()))
+            .forEach(attached::add);
+        json.add("attached", attached);
+    }
+
+    /**
+     * Whether one document was attached in answer to one requirement.
+     *
+     * @param document the attached document
+     * @param requirement the requirement in question
+     * @return {@code true} if the document says it fulfills that requirement
+     */
+    private boolean fulfills(final Document document, final Requirement requirement)
+    {
+        final Requirement fulfilled = document.getFulfills();
+        return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
     }
 
     /**

@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.internal;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -33,6 +34,7 @@ import javax.jcr.Session;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 import jakarta.json.JsonObject;
+import jakarta.json.JsonString;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -63,6 +65,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -119,7 +122,7 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, AnswerOption.class, Answer.class, Submission.class);
+            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -151,6 +154,12 @@ class SubmissionFormServletTest
             TYPE, AnswerOption.RESOURCE_TYPE, "value", "multiple-days"));
         this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
+        // The same kind of requirement, but saying what it takes and offering a blank to start from
+        this.context.create().resource(VERSION_PATH + "/signedForm", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Signed form",
+            "acceptedFileTypes", new String[] {"application/pdf", "image/png"}));
+        this.context.create().resource(VERSION_PATH + "/signedForm/template", Map.of(
+            "jcr:primaryType", "nt:file"));
 
         this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
@@ -214,6 +223,7 @@ class SubmissionFormServletTest
     void leavesOutAWholeRequirementThatDoesNotApply() throws IOException
     {
         this.hidden.add("doctorsNote");
+        this.hidden.add("signedForm");
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
     }
@@ -228,6 +238,75 @@ class SubmissionFormServletTest
         assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
         assertEquals("Doctor's note", note.getString("label"));
         assertFalse(note.containsKey("items"));
+        // Restricted to nothing in particular, said as an empty list rather than by omission: a reader has to be
+        // able to tell "takes anything" from "the server did not say"
+        assertTrue(note.getJsonArray("acceptedFileTypes").isEmpty());
+        assertFalse(note.containsKey("template"));
+        assertTrue(note.getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void namesWhatHasAlreadyBeenAttachedForARequirement() throws IOException
+    {
+        // Named rather than counted, so that a form reopened later says which document is there: an upload control
+        // that looks the same before and after leaves the only way to check outside the page
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d1", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "note.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+
+        assertEquals(List.of("note.pdf"), requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached")
+            .stream()
+            .map(value -> ((JsonString) value).getString())
+            .collect(Collectors.toList()));
+    }
+
+    @Test
+    void fallsBackOnANameForAnUntitledAttachment() throws IOException
+    {
+        // A document created by something other than the attach workflow may carry no title at all, and a form
+        // saying "Attached: " with nothing after it reads as broken rather than as untitled
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d2", Map.of(
+            TYPE, Document.RESOURCE_TYPE));
+        reference(document.getPath(), VERSION_PATH + "/doctorsNote", "fulfills");
+
+        assertEquals(List.of("d2"), requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").stream()
+            .map(value -> ((JsonString) value).getString())
+            .collect(Collectors.toList()));
+    }
+
+    @Test
+    void leavesOutADocumentAttachedForSomeOtherRequirement() throws IOException
+    {
+        // The reference is what ties a document to a requirement, not being a child of the same submission
+        final Resource document = this.context.create().resource(SUBMISSION_PATH + "/d3", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "form.pdf"));
+        reference(document.getPath(), VERSION_PATH + "/signedForm", "fulfills");
+
+        assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
+        assertFalse(requirement(form(REQUESTER), "signedForm").getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void leavesOutADocumentThatFulfillsNothing() throws IOException
+    {
+        // A document with no reference at all: whatever it is, it is not the answer to this requirement
+        this.context.create().resource(SUBMISSION_PATH + "/d4", Map.of(
+            TYPE, Document.RESOURCE_TYPE, "title", "stray.pdf"));
+
+        assertTrue(requirement(form(REQUESTER), "doctorsNote").getJsonArray("attached").isEmpty());
+    }
+
+    @Test
+    void saysWhatADocumentRequirementTakesAndWhatItOffersToStartFrom() throws IOException
+    {
+        // Both are here because an upload control cannot be drawn without them, and this projection is the only
+        // place that says which requirements currently apply
+        final JsonObject signed = requirement(form(REQUESTER), "signedForm");
+
+        assertEquals(List.of("application/pdf", "image/png"), signed.getJsonArray("acceptedFileTypes").stream()
+            .map(value -> ((JsonString) value).getString())
+            .collect(Collectors.toList()));
+        assertEquals(VERSION_PATH + "/signedForm/template", signed.getString("template"));
     }
 
     @Test
