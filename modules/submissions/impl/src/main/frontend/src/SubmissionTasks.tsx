@@ -53,11 +53,11 @@ function label(outcome: string): string {
 // condition. The note is optional because requiring one would make "Approved, nothing to add" into a
 // sentence somebody has to invent.
 //
-// Offered to whoever is looking, like the Edit control beside it: whether this person may actually
-// complete the task is the definition's answer, given by the engine when they press it, and the
-// refusal appears here in the engine's own words. A workflow's performers can name groups and
-// group membership, which a page cannot evaluate — so a page that tried to decide this for itself
-// would be guessing, and would sometimes hide a control from somebody entitled to use it.
+// Only what this person may actually do. Which tasks those are is the server's answer, carried on each
+// one as it is serialized: performers name principals, groups included, and a page cannot evaluate
+// membership — so it is told rather than left to guess. What is not theirs never reaches here, label
+// included, because naming a reviewer's decision to a submitter discloses it whether or not the
+// control is pressable. The engine still refuses the act itself; this only decides what is shown.
 //
 // `blockedReason` is the one thing a page may decide, and it is not about *who* may act: it is about
 // whether the request is ready to be sent at all, which the save workflow has already worked out and
