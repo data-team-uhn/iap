@@ -56,6 +56,9 @@ final class TaskCompletion
     /** The payload entry carrying the person's decision. */
     static final String OUTCOME_PARAMETER = "outcome";
 
+    /** What the person deciding said about it, alongside the decision itself. */
+    static final String OUTCOME_NOTE = "outcomeNote";
+
     /** The domain event a passed deadline delivers, which the clock fires and no user can. */
     static final String TIMEOUT_EVENT = "timeout";
 
@@ -130,7 +133,8 @@ final class TaskCompletion
             throw new InvalidPayloadException("Completing " + task.getPath() + " takes one of its outcomes: "
                 + String.join(", ", definition.getOutcomes()));
         }
-        new InstanceRunner(resolver, performer, actor, conditions).complete(task, outcome);
+        new InstanceRunner(resolver, performer, actor, conditions)
+            .complete(task, outcome, Payloads.text(event, OUTCOME_NOTE));
     }
 
     /**

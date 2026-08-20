@@ -70,6 +70,9 @@ public class TaskInstance extends Entity
     private String outcome;
 
     @ValueMapValue
+    private String outcomeNote;
+
+    @ValueMapValue
     private String dueEventId;
 
     @ValueMapValue
@@ -172,6 +175,21 @@ public class TaskInstance extends Entity
     public String getOutcome()
     {
         return this.outcome;
+    }
+
+    /**
+     * What whoever completed this task said about their decision.
+     *
+     * <p>Nothing routes on it — the {@link #getOutcome() outcome} is what a gateway reads — which is the point:
+     * a refusal usually has to say why and an approval may carry a condition, and none of that is expressible as
+     * one of the outcomes on offer.</p>
+     *
+     * @return what they said, or {@code null} if they said nothing or the task is not yet done
+     */
+    @Nullable
+    public String getOutcomeNote()
+    {
+        return this.outcomeNote;
     }
 
     /**
