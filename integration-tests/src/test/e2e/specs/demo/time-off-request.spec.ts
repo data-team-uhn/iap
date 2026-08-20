@@ -644,6 +644,66 @@ test.describe('the time off request demo', () => {
     await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
   });
 
+  test('attaches the doctor\'s note the request asks for', async ({ page, request }) => {
+    // The one requirement in the demo answered with a file rather than with words, and the only place the whole
+    // path can be seen at once: a user with no write access anywhere uploads a document, the engine authorizes
+    // it as an event, a handler decides what may be attached and stores it, and what the submitter is then shown
+    // is what the server says is there rather than what this page hoped.
+    test.slow();
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('Three days unwell');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+    const raised = new URL(page.url()).pathname;
+
+    // Sick leave is what makes the note apply at all, and that is the server's decision: the control cannot
+    // appear before the answer asking for it has been saved and the form read back
+    await page.goto(`${raised}.edit`);
+    await page.getByRole('radio', { name: 'Sick leave' }).check();
+    const attach = page.getByLabel(/Attach a file for "Doctor's note"/);
+    await expect(attach).toBeVisible();
+    // The types the requirement declares, passed to the file dialog. A hint and not a check — the refusal that
+    // matters is the handler's.
+    await expect(attach).toHaveAttribute('accept', 'application/pdf,image/jpeg,image/png');
+
+    await attach.setInputFiles({
+      name: 'note.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 a note from the doctor'),
+    });
+
+    // What the server says is attached, read back through the form projection rather than remembered here
+    await expect(page.getByText('Attached: note.pdf')).toBeVisible();
+
+    // And what it actually stored: a document of its own, saying which requirement it answers, holding the file
+    // as an nt:file with the type the upload declared. None of which the submitter could have written.
+    const response = await request.get(`${raised}.deep.-dereference.infinity.json`, { headers: asRequester });
+    expect(response.ok()).toBeTruthy();
+    const submission = (await response.json()) as Record<string, unknown>;
+    const documents = Object.values(submission).filter((child): child is Record<string, unknown> =>
+      typeof child === 'object' && child !== null
+      && (child as Record<string, unknown>)['sling:resourceType'] === 'sub/Document');
+    expect(documents).toHaveLength(1);
+    const document = documents[0];
+    expect(document.title).toBe('note.pdf');
+    expect(document.fulfills).toBeTruthy();
+    const file = document['note.pdf'] as Record<string, unknown> | undefined;
+    expect(file?.['jcr:primaryType']).toBe('nt:file');
+    expect((file?.['jcr:content'] as Record<string, unknown> | undefined)?.['jcr:mimeType'])
+      .toBe('application/pdf');
+
+    // The reading page groups it under the requirement it answers, and offers it back for download
+    await page.goto(raised);
+    await expect(page.getByRole('heading', { name: 'Doctor\'s note' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'note.pdf' })).toBeVisible();
+  });
+
   test('refuses a request for more time off than the requester has left', async ({ page }) => {
     // A rule about what the answers may *say*, rather than about who may write them, and the only place the
     // whole path can be seen at once: the save is carried out, a validator reads the request as the save would
