@@ -139,8 +139,12 @@ the operator's browser cannot drive them. Set `IAP_DOCLING_TOKEN` to require a b
 of that; `GET /health` stays open for probes. Otherwise the port is what keeps the daemon private.
 `modules/documents/processing/docker-compose.yml` publishes it as
 `127.0.0.1:18765:18765` — bound to loopback on the host, reachable from the host for local work but
-not from the network. Inside a Compose network IAP can also reach it by service name at
-`http://docling:18765`. If you change that mapping, keep the `127.0.0.1:` prefix.
+not from the network. If you change that mapping, keep the `127.0.0.1:` prefix.
+
+`http://docling:18765` — reaching it by service name — works only when IAP is a service in the
+same Compose project. The daemon's own `docker-compose.yml` defines just the `docling` service
+and no network of its own, so it is not enough on its own; add IAP to that project (or the
+daemon to IAP's) and Compose's default network resolves the name.
 
 `POST /parse` is **path-based**, not an upload. The caller stages the document on the volume shared
 with the daemon (`IAP_SHARED_DOCS`, `/shared-docs` in the image) and passes its path:
