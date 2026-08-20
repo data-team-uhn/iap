@@ -632,10 +632,13 @@ test.describe('the time off request demo', () => {
     await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
 
     // The same mechanism one level up: a whole requirement, appearing because of an answer given to a
-    // question in another one
-    await expect(page.getByText('Doctor\'s note')).toHaveCount(0);
+    // question in another one. Scoped to the heading because the requirement now also carries a control
+    // naming it, and an unscoped match would be two elements — a strict-mode violation rather than a
+    // failed assertion.
+    const note = page.getByRole('heading', { name: 'Doctor\'s note' });
+    await expect(note).toHaveCount(0);
     await page.getByRole('radio', { name: 'Sick leave' }).check();
-    await expect(page.getByText('Doctor\'s note')).toBeVisible();
+    await expect(note).toBeVisible();
 
     // Stored rather than remembered: a reload asks the server again, and the answers are the ones the
     // engine wrote — as a user with no write access anywhere, through a workflow that authorized them
