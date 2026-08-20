@@ -36,6 +36,11 @@ services:
       context: .
       dockerfile: Dockerfile
     image: iap/docling:latest
+    # A reaper at PID 1. libreoffice_convert starts soffice in its own session so a
+    # timeout can kill the whole group; if the launcher exits while soffice.bin lives on,
+    # soffice.bin reparents to PID 1 — the Python daemon, which never wait()s — and
+    # zombies accumulate over the container's life.
+    init: true
     user: "${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}"
     environment:
       IAP_SHARED_DOCS: /shared-docs
@@ -43,6 +48,23 @@ services:
       # so reaching the port is not by itself authority to use it. Left empty the published
       # loopback binding below is the only boundary, which is fine for local work.
       IAP_DOCLING_TOKEN: ${IAP_DOCLING_TOKEN:-}
+      # The port below is published to 127.0.0.1 only, which the daemon cannot see from inside
+      # (it must bind 0.0.0.0 for Docker to forward at all). Saying so here keeps its
+      # "bound to 0.0.0.0 with no token" warning for configurations that have not done this.
+      IAP_DOCLING_TRUSTED_NETWORK: ${IAP_DOCLING_TRUSTED_NETWORK:-1}
+      # Largest PDF accepted, in pages. One conversion holds the only parse slot, so an
+      # enormous document does not just take a long time — every other caller gets 503 until it
+      # finishes. The 400 comes *after* the slot is taken, because counting pages means reading
+      # the document: one that arrives mid-conversion is told 503 busy first, and 400 on retry.
+      # 0 disables the limit.
+      IAP_MAX_INPUT_PAGES: ${IAP_MAX_INPUT_PAGES:-1500}
+      # Listed, not inherited: Compose passes nothing that is not named here, so setting these
+      # in .env or the shell had no effect and the container kept the Python defaults.
+      IAP_MAX_INPUT_BYTES: ${IAP_MAX_INPUT_BYTES:-67108864}
+      # Per soffice *run*, not per document: a .doc does two (to .docx, then the sibling .pdf),
+      # so prep can take twice this. Both together still sit well inside stop_grace_period, and
+      # for a .doc the kill is a hard failure, so it has to be long enough for what we admit.
+      IAP_LIBREOFFICE_TIMEOUT_SECONDS: ${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}
       # An overridden uid has no passwd entry, so HOME would be unset. Point it somewhere
       # writable for any library that still wants a home directory. LibreOffice does not
       # need it (libreoffice_convert passes its own -env:UserInstallation temp profile).
@@ -54,6 +76,17 @@ services:
         limits:
           cpus: "4"
           memory: 8G
+    # The daemon answers SIGTERM by closing the listener first, so a conversion already running
+    # finishes and replies instead of having its page batches cancelled under it — a cancelled
+    # batch is indistinguishable from a corrupt document to the caller. That drain needs longer
+    # than Docker's default 10s grace, or SIGKILL lands in the middle of it and the design has
+    # no effect. Sized against the admission ceilings rather than guessed: a PDF near
+    # IAP_MAX_INPUT_PAGES can convert for a good while, and at 5m Docker went back to
+    # SIGKILLing exactly the case this exists for. A parse cut short here still answers 503
+    # "retry this document" rather than looking like a corrupt file, so the cost of the bound
+    # being too low is a retry, not a wrong verdict — but lower IAP_MAX_INPUT_PAGES if you
+    # shorten this.
+    stop_grace_period: 15m
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18765/health"]
       interval: 30s

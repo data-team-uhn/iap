@@ -74,3 +74,11 @@ samlKeystore.p12
 /Utilities/FormImport/*.csv
 /Utilities/FormImport/*.json
 /Utilities/FormImport/*.xml
+
+# Python test byproducts (modules/documents/processing)
+.coverage
+.pytest_cache/
+__pycache__/
+
+# Shared staging volume the Docling compose file bind-mounts
+/modules/documents/shared-docs/
