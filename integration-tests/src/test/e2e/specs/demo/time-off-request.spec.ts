@@ -651,6 +651,9 @@ test.describe('the time off request demo', () => {
     await dialog.getByRole('button', { name: 'Create' }).click();
     await expect(page).toHaveURL(FILED_URL);
 
+    // The dashboard's own listings have an Edit control per row, so waiting for the URL is not enough
+    // to know which page a click will land on: the route changes before the view it came from is gone
+    await expect(page.getByRole('grid')).toHaveCount(0);
     await page.getByRole('button', { name: 'Edit' }).click();
     await expect(page).toHaveURL(/\.edit$/);
 
