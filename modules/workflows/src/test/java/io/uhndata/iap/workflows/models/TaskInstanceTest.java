@@ -79,6 +79,7 @@ class TaskInstanceTest
             Map.entry("endTime", this.started),
             Map.entry("dueDate", this.started),
             Map.entry("outcome", "approved"),
+            Map.entry("outcomeNote", "Cover arranged with the rest of the team"),
             Map.entry("outcomeOptions", new String[] {"approved", "rejected"}),
             Map.entry("performers", new String[] {"time-off-approvers"}),
             Map.entry("dueEventId", "approvalOverdue"),
@@ -94,6 +95,7 @@ class TaskInstanceTest
         assertEquals(this.started, task.getEndTime());
         assertEquals(this.started, task.getDueDate());
         assertEquals("approved", task.getOutcome());
+        assertEquals("Cover arranged with the rest of the team", task.getOutcomeNote());
         assertEquals(List.of("approved", "rejected"), task.getOutcomeOptions());
         assertEquals(List.of("time-off-approvers"), task.getPerformers());
         assertEquals("approvalOverdue", task.getDueEventId());
@@ -127,6 +129,7 @@ class TaskInstanceTest
         assertNull(task.getEndTime());
         assertNull(task.getDueDate());
         assertNull(task.getOutcome());
+        assertNull(task.getOutcomeNote());
         // A task offering nothing is one there is nothing to decide about: it is done, or it is not
         assertEquals(List.of(), task.getOutcomeOptions());
         // Naming nobody admits nobody, the same way a definition that names no performers does
