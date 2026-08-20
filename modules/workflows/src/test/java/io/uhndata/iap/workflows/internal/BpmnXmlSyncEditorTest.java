@@ -736,6 +736,43 @@ class BpmnXmlSyncEditorTest
         assertEquals(0, dup.getChildNodeCount(Long.MAX_VALUE));
     }
 
+    /**
+     * {@code /WorkflowTypes} accepts residual children and properties, so a half-authored entry can carry an
+     * {@code xmlElement} without the {@code jcrNodeType} or the identity a stored node needs. Writing a null into
+     * Oak throws, and an exception out of a commit editor aborts the whole commit — so such an entry has to be
+     * recognized and skipped instead.
+     */
+    @Test
+    void incompleteFlowNodeTypesAreSkippedWithoutFailingTheCommit() throws Exception
+    {
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        // Matches, but names no node type to create.
+        final NodeBuilder noType = types.child("NoNodeType");
+        noType.setProperty(PRIMARY_TYPE, "wf:FlowNodeType", Type.NAME);
+        noType.setProperty("jcr:uuid", UUID.randomUUID().toString());
+        noType.setProperty("xmlElement", "bpmn:parallelGateway");
+        // Matches and names a node type, but is not referenceable, so nothing could point at it.
+        final NodeBuilder noUuid = types.child("NoUuid");
+        noUuid.setProperty(PRIMARY_TYPE, "wf:FlowNodeType", Type.NAME);
+        noUuid.setProperty("xmlElement", "bpmn:inclusiveGateway");
+        noUuid.setProperty("jcrNodeType", "wf:InclusiveGateway");
+
+        final NodeState version = firstSave(root,
+            DEFS_OPEN
+            + PROCESS_OPEN
+            + "    <bpmn:parallelGateway id=\"gwNoType\"/>\n"
+            + "    <bpmn:inclusiveGateway id=\"gwNoUuid\"/>\n"
+            + "    <bpmn:startEvent id=\"start1\"/>\n"
+            + PROCESS_CLOSE
+            + DEFS_CLOSE);
+
+        assertFalse(version.getChildNode("gwNoType").exists());
+        assertFalse(version.getChildNode("gwNoUuid").exists());
+        // The rest of the diagram still parses, and the commit still succeeds.
+        assertTrue(version.getChildNode(START_1).exists());
+    }
+
     @Test
     void arrayValuedJcrDataIsIgnored() throws Exception
     {

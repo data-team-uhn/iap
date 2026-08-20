@@ -62,7 +62,9 @@ import org.xml.sax.SAXException;
  * XML attributes to copy over ({@code properties}). Adding support for a new BPMN element, or a more specific
  * variant of an existing one, only requires adding a new {@code wf:FlowNodeType} node, no code changes. Candidates
  * are discovered by walking the {@code /WorkflowTypes} subtree for any node carrying an {@code xmlElement}
- * property, which only {@code wf:FlowNodeType} instances do.</p>
+ * property; a candidate missing the {@code jcrNodeType} or the identity that a stored node needs is reported and
+ * skipped, since the residual child and property definitions in {@code workflowTypes.cnd} let any node under
+ * {@code /WorkflowTypes} carry an {@code xmlElement}, including a half-authored one.</p>
  *
  * <p>When several configured types match the same XML element (e.g. a plain start event versus a message start
  * event), the one with the highest {@code priority} whose {@code xmlChildElement} requirement (if any) is
@@ -470,7 +472,8 @@ public final class WorkflowDefinitionUtils
      * Picks the most specific {@code wf:FlowNodeType} matching the given element out of the candidates that match
      * its {@code xmlElement}, already sorted from highest to lowest priority. A candidate with an
      * {@code xmlChildElement} only matches when the element has a direct child of that name; a candidate without
-     * one always matches.
+     * one always matches. Candidates that could not produce a valid node are skipped, so one half-authored
+     * vocabulary entry cannot break every save.
      */
     private static FlowNodeTypeInfo matchFlowNodeType(final Element element, final String localName,
         final List<FlowNodeTypeInfo> candidates)
@@ -488,6 +491,11 @@ public final class WorkflowDefinitionUtils
         if (match == null) {
             LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}), skipping", localName,
                 element.getAttribute(ID_ATTRIBUTE));
+            return null;
+        }
+        if (StringUtils.isBlank(match.jcrNodeType()) || StringUtils.isBlank(match.identifier())) {
+            LOGGER.warn("FlowNodeType matching BPMN element <{}> declares no jcrNodeType or is not referenceable,"
+                + " skipping element {}", localName, element.getAttribute(ID_ATTRIBUTE));
             return null;
         }
         return match;
