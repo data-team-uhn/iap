@@ -42,6 +42,22 @@ export class AppShell {
   }
 
   /**
+   * Puts on a different persona, the way a person does: through the control in the app bar that says
+   * which one is on.
+   *
+   * The menu is a radio group rather than a list of commands, so the item is located as one — which
+   * also means this breaks if the switcher stops telling a screen reader which hat is currently worn.
+   *
+   * @param persona the label of the persona to wear, e.g. `Reviewer`
+   */
+  async actAs(persona: string): Promise<void> {
+    await this.page.getByRole('button', { name: /^Acting as .*Change persona$/ }).click();
+    await this.page.getByRole('menuitemradio', { name: persona }).click();
+    await expect(this.page.getByRole('button', { name: new RegExp(`^Acting as ${persona}\\.`) }))
+      .toBeVisible();
+  }
+
+  /**
    * Who the shell says is signed in, which is the account control's own name for itself.
    *
    * Located as an account naming *somebody* rather than as the account control, so that the wait is
