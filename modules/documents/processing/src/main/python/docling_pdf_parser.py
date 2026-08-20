@@ -24,12 +24,13 @@ Each worker process loads the converter once via _init_worker(); page batches ar
 
 import gc
 import logging
+import multiprocessing
 import os
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from time import perf_counter
-from typing import Callable
 
 import docling_config  # noqa: F401 — apply shared Docling settings on import
 from docling_config import PDF_PIPELINE_OPTIONS
@@ -71,6 +72,20 @@ def build_pdf_converter() -> DocumentConverter:
 _converter: DocumentConverter | None = None
 
 
+def worker_context() -> multiprocessing.context.BaseContext:
+    """The start method the PDF pool must use: spawn, never fork.
+
+    Importing this module pulls in Docling, and so torch and libgomp, before any pool is
+    built. Forking a process that has already loaded an OpenMP runtime is not safe -- it is a
+    classic source of the worker hangs and BrokenProcessPool failures the code around here
+    works hard to detect. Fork is the default on Linux, which is where this runs.
+
+    :func:`_init_worker` rebuilds the converter in every worker anyway, so spawn costs one
+    interpreter start per worker and nothing else; the warm-up pass absorbs it.
+    """
+    return multiprocessing.get_context("spawn")
+
+
 def _init_worker() -> None:
     """Load the DocumentConverter exactly once per worker process."""
     global _converter
@@ -110,7 +125,9 @@ def _run_pdf_chunks(
 ) -> list[tuple[int, int, str, str, int, float, str | None]]:
     """Submit page batches to executor and collect results in page order."""
     completed_results: list[tuple[int, int, str, str, int, float, str | None]] = []
-    had_failure = False
+    # The first batch failure, kept as its message: the daemon's HTTP reply carries only
+    # str(exc), so a bare "a batch failed" left the caller nothing to act on.
+    had_failure: str | None = None
 
     future_to_chunk = {
         executor.submit(parse_pdf_chunk, chunk): chunk
@@ -145,7 +162,7 @@ def _run_pdf_chunks(
 
         r_start, r_end, status, _md, md_len, elapsed, error = result
         if error:
-            had_failure = True
+            had_failure = f"pages {r_start}-{r_end}: {error}"
             log(f"FAILED pages {r_start}-{r_end}: {error}")
             _abandon_batches(future_to_chunk, log=log)
             break
@@ -155,7 +172,7 @@ def _run_pdf_chunks(
         )
 
     if had_failure:
-        raise RuntimeError("One or more page batches failed.")
+        raise RuntimeError(f"Page batch conversion failed ({had_failure})")
 
     completed_results.sort(key=lambda item: item[0])
     return completed_results
@@ -204,8 +221,10 @@ def convert_pdf_to_markdown(
     """
     log_fn = log if log is not None else print
 
-    reader = PdfReader(str(input_path))
-    total_pages = len(reader.pages)
+    # Scoped to the page count, which is all that is needed here: the workers each open the
+    # document themselves, and this one would otherwise stay open for the whole conversion.
+    with open(input_path, "rb") as handle:
+        total_pages = len(PdfReader(handle).pages)
 
     workers_override = workers is not None
     batch_pages_override = batch_pages is not None
@@ -243,7 +262,11 @@ def convert_pdf_to_markdown(
     t0 = perf_counter()
 
     if executor is None:
-        with ProcessPoolExecutor(max_workers=active_workers, initializer=_init_worker) as pool:
+        with ProcessPoolExecutor(
+            max_workers=active_workers,
+            initializer=_init_worker,
+            mp_context=worker_context(),
+        ) as pool:
             completed_results = _run_pdf_chunks(chunks, pool, log=log_fn)
     else:
         completed_results = _run_pdf_chunks(chunks, executor, log=log_fn)
@@ -270,6 +293,8 @@ def convert_pdf_to_markdown(
     return markdown_content
 
 
+# Budget for warming *all* the workers, not each one — see :func:`warm_pdf_workers`. Kept
+# under the 180s HEALTHCHECK start_period so a slow start is still a healthy start.
 WORKER_WARMUP_TIMEOUT_SECONDS = 120
 
 
@@ -292,11 +317,18 @@ def warm_pdf_workers(
     @param worker_count: how many worker processes the pool was sized for
     @param log: optional line logger for partial coverage
     @raise RuntimeError: if any warm-up task reports an uninitialized converter
+    @raise concurrent.futures.TimeoutError: if the whole warm-up outlasts
+        :data:`WORKER_WARMUP_TIMEOUT_SECONDS`
     """
     futures = [executor.submit(_warm_worker) for _ in range(worker_count)]
     warmed: set[int] = set()
+    # One deadline for the whole warm-up. Giving each future its own made the worst case
+    # worker_count x the timeout, which for any real worker count runs past the 180s
+    # start_period the Dockerfile and compose both set — the health check would fail the
+    # container while it was still legitimately starting.
+    deadline = perf_counter() + WORKER_WARMUP_TIMEOUT_SECONDS
     for future in futures:
-        pid = future.result(timeout=WORKER_WARMUP_TIMEOUT_SECONDS)
+        pid = future.result(timeout=max(0.0, deadline - perf_counter()))
         if not pid:
             raise RuntimeError("PDF worker warm-up failed: converter not initialized")
         warmed.add(pid)
@@ -307,7 +339,9 @@ def warm_pdf_workers(
         )
 
 
-def parse_pdf_chunk(args: tuple[str, int, int]) -> tuple[int, int, str, str, int, float, str | None]:
+def parse_pdf_chunk(
+    args: tuple[str, int, int],
+) -> tuple[int, int, str, str, int, float, str | None]:
     """
     Parse one page-range batch in a separate process.
     Reuses the per-process converter loaded by _init_worker().
@@ -315,7 +349,6 @@ def parse_pdf_chunk(args: tuple[str, int, int]) -> tuple[int, int, str, str, int
     Returns:
         start_page, end_page, status, markdown, markdown_length, elapsed_seconds, error
     """
-    global _converter
     input_file, start_page, end_page = args
     chunk_start = perf_counter()
 
