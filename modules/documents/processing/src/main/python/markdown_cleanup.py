@@ -35,6 +35,7 @@ MIN_RUN_LENGTH = 25
 _LINE_NUMBER = re.compile(r"^\d+$")
 _IMAGE_PLACEHOLDER = re.compile(r"^\s*<!--\s*image\s*-->\s*$")
 
+
 def _is_consecutive(values: list[int]) -> bool:
     """Return True when values form a +1 sequence."""
     if len(values) < 2:
@@ -126,8 +127,13 @@ def source_file_basename(source_file: str) -> str:
     Upload names may originate on an operating system other than the one running this code.
     Normalize Windows separators before handing the value to :class:`Path`, so a Windows path
     received by the Linux daemon cannot leak its directory components into generated metadata.
+
+    Whitespace is collapsed as well, because the result goes into the one-line
+    ``<!-- source_file: ... -->`` header: ``Path("a\nb.pdf").name`` keeps the newline, and a
+    staged filename carrying one split that comment and injected a second Markdown line.
     """
-    return Path(source_file.replace("\\", "/")).name
+    name = Path(source_file.replace("\\", "/")).name
+    return " ".join(name.split())
 
 
 def resolve_source_file_name(input_path: Path, source_file: str | None = None) -> str:

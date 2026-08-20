@@ -132,7 +132,7 @@ _TOC_LABEL_DECORATED = re.compile(
     re.IGNORECASE,
 )
 
-# The bare phrase alone, undecorated — only accepted by toc_label_line when isolated
+# The bare phrase alone, undecorated — only accepted by toc_label_lines when isolated
 # by blank-line neighbors (see the module docstring's step 1).
 _TOC_LABEL_BARE = re.compile(r"^table\s+of\s+contents$", re.IGNORECASE)
 
@@ -145,6 +145,17 @@ _TOC_LABEL_BARE = re.compile(r"^table\s+of\s+contents$", re.IGNORECASE)
 # :func:`is_page_numbered_entry` do that for you. A leading ``\s*`` here used to compete
 # with the ``.+?`` title for the same run of spaces, so an indented line cost cubic time —
 # 400 spaces then one word took most of a second, and the document is caller input.
+#
+# The ``(?<![\s.…·])`` is the same hazard one level in: the title and the leader run competed
+# for the same dots, so leaders with no page number after them cost quadratic time — 4k of
+# them took 1.5s. Stripping does not help here, because dot leaders survive a strip.
+#
+# The ``(?=\S)`` on the section number's gap is the third and last of these. That ``\s+`` and
+# the title and the ``\s{2,}`` separator could all claim one interior run of spaces, so a line
+# like "a" + 8000 spaces + "b" cost about a second, and 20 of them in one document cost ten.
+# The word limit does not help — that is two words — and nothing collapses intra-line runs
+# before the scan, so a PDF text layer can carry them straight in. Requiring the gap to end on
+# a non-space leaves it one place to stop.
 TOC_ENTRY_PATTERN = re.compile(
     r"""
     ^
@@ -156,9 +167,10 @@ TOC_ENTRY_PATTERN = re.compile(
         (?:\d+|[A-Za-z])
         (?:\.\d+)*
         [.)]?
-        \s+
+        \s+(?=\S)                       # ...whose gap ends at the title, see below
     )?
     .+?                                 # Section title
+    (?<![\s.…·])                        # ...which cannot end on a separator character
     (?:
         \t+                             # Tab before page number
         |
@@ -242,25 +254,29 @@ def _is_toc_header_line(stripped: str) -> bool:
     return _TOC_LABEL_DECORATED.match(stripped) is not None
 
 
-def toc_label_line(lines: list[str]) -> int | None:
-    """Find the *first* "table of contents" / "contents" label line: decorated (with ``#``
-    and/or ``*``), or the bare phrase "table of contents" alone, isolated by blank-line
-    neighbors (or start/end of document).
+def toc_label_lines(lines: list[str]):
+    """Yield every "table of contents" / "contents" label line, in document order: decorated
+    (with ``#`` and/or ``*``), or the bare phrase "table of contents" alone, isolated by
+    blank-line neighbors (or start/end of document).
 
-    Used by :func:`_detect_toc` to locate the TOC label before the full block scan
-    (density / table-flatten) can run.
+    Every one of them, not just the first, because "Contents" is not a reserved word. A
+    protocol that lists what is in a shipment or kit under that heading (the case
+    :func:`_confirm_table_toc` exists to reject) puts a decoy ahead of the real TOC, and
+    stopping at the first candidate meant the decoy failed confirmation and the real TOC below
+    it was never looked at -- losing ``toc``, ``backmatterLine`` and every record cut-key.
+    :func:`_detect_toc` tries each in turn and keeps the first that confirms.
     """
     n = len(lines)
     for index, line in enumerate(lines):
         stripped = line.strip()
         if _is_toc_header_line(stripped):
-            return index
+            yield index
+            continue
         if _TOC_LABEL_BARE.match(stripped):
             prev_blank = index == 0 or lines[index - 1].strip() == ""
             next_blank = index + 1 >= n or lines[index + 1].strip() == ""
             if prev_blank and next_blank:
-                return index
-    return None
+                yield index
 
 
 def _is_markdown_table_line(line: str) -> bool:
@@ -312,21 +328,35 @@ def _flatten_table_block(block_lines: list[str]) -> list[str]:
     return flattened
 
 
+# Blank lines allowed between a TOC label and the table under it before the table is taken to
+# be something else entirely.
+MAX_BLANK_LINES_BEFORE_TABLE = 4
+
+
 def _find_table_start_near(lines: list[str], label_index: int) -> int | None:
-    """Whether a Markdown table starts within the 2 lines after the label."""
-    for offset in (1, 2):
-        index = label_index + offset
-        if index >= len(lines):
-            return None
+    """The first line of a Markdown table under the label, or ``None``.
+
+    Skips blank lines up to :data:`MAX_BLANK_LINES_BEFORE_TABLE` rather than looking at exactly
+    two offsets: two blank lines between the label and the table used to end the search, and
+    falling through to the plain-line path could not recover it — ``is_toc_entry_line`` rejects
+    anything starting with ``|``, so a table row never confirms there. The label was quietly
+    dropped and a real table TOC lost with it.
+    """
+    index = label_index + 1
+    blanks = 0
+    while index < len(lines) and blanks <= MAX_BLANK_LINES_BEFORE_TABLE:
         stripped = lines[index].strip()
         if stripped == "":
+            blanks += 1
+            index += 1
             continue
         return index if _is_markdown_table_line(lines[index]) else None
     return None
 
 
 def _confirm_plain_toc(lines: list[str], label_index: int) -> bool:
-    """Whether at least MIN_DENSITY_MATCHES of the next DENSITY_WINDOW non-empty lines after the label
+    """Whether at least MIN_DENSITY_MATCHES of the next DENSITY_WINDOW non-empty lines after
+    the label
     look like TOC entries."""
     checked = 0
     matches = 0
@@ -342,6 +372,23 @@ def _confirm_plain_toc(lines: list[str], label_index: int) -> bool:
     return matches >= MIN_DENSITY_MATCHES
 
 
+# Header-row words that name a page column, and ones that name a quantity/dose column. The
+# flattened header survives as the block's first line ("Section Page", "Item Qty"), and it is a
+# far better discriminator than the row values: a kit table whose Qty column happens to run
+# 1, 2, 3 is indistinguishable from a four-entry TOC of pages 1-4 by the numbers alone.
+_PAGE_COLUMN_WORDS = frozenset({"page", "pages", "pg"})
+_QUANTITY_COLUMN_WORDS = frozenset({
+    "qty", "quantity", "quantities", "dose", "doses", "dosage",
+    "amount", "count", "unit", "units", "volume", "lot", "strength",
+})
+
+
+def _names_a_quantity_column(header: str) -> bool:
+    """Whether a flattened header row names a quantity column and no page column."""
+    words = {word.strip(":|").casefold() for word in header.split()}
+    return bool(words & _QUANTITY_COLUMN_WORDS) and not (words & _PAGE_COLUMN_WORDS)
+
+
 def _confirm_table_toc(flattened: list[str]) -> bool:
     """Whether a flattened table under a "Contents" label really is a table of contents.
 
@@ -351,16 +398,31 @@ def _confirm_table_toc(flattened: list[str]) -> bool:
     duplicate cells removed — and protocols do have "Contents" sections listing what is in a
     shipment or kit, which are data tables, not outlines.
 
-    A TOC row ends in a page number, and a TOC's pages do not run backwards. A quantity or
-    dose column usually does. ``is_toc_entry_line`` alone is not enough here: flattening
-    joins cells with a single space, which its patterns do not accept as a separator.
+    Two checks, because neither is enough alone. The header row settles it when it names its
+    columns: a page column says TOC, a quantity/dose column with no page column says data
+    table. Failing that, a TOC row ends in a page number and a TOC's pages do not run
+    backwards, while a quantity column often does.
+
+    ``is_toc_entry_line`` alone is not enough here: flattening joins cells with a single space,
+    which its patterns do not accept as a separator.
+
+    The residual case is a data table with no header *and* a non-decreasing quantity column —
+    ``1, 2, 3`` reads exactly like pages 1 to 3, and nothing in the numbers can separate them.
     """
     pages: list[int] = []
     rows = 0
+    header_checked = False
     for line in flattened:
         stripped = line.strip()
         if stripped == "" or PAGE_MARKER_LINE.match(stripped):
             continue
+        if not header_checked:
+            # The first substantive line is the header, if the table has one. It still counts
+            # as a row and still goes through the checks below -- "Section Page" yields no page
+            # and is not an entry, so it contributes nothing but its share of DENSITY_WINDOW.
+            header_checked = True
+            if _names_a_quantity_column(stripped):
+                return False
         rows += 1
         page = _entry_to_record(stripped)["page"]
         if page is not None:
@@ -373,7 +435,8 @@ def _confirm_table_toc(flattened: list[str]) -> bool:
             break
     if len(pages) < MIN_DENSITY_MATCHES:
         return False
-    return all(earlier <= later for earlier, later in zip(pages, pages[1:]))
+    # Ragged on purpose: pairing each page with its successor leaves the last one out.
+    return all(earlier <= later for earlier, later in zip(pages, pages[1:], strict=False))
 
 
 def _is_flattened_toc_entry(text: str) -> bool:
@@ -401,6 +464,31 @@ def _skip_to_next_content(lines: list[str], index: int) -> int:
     return index
 
 
+def _marker_past_run(lines: list[str], start: int) -> int | None:
+    """The index of a page marker reachable from ``start`` across nothing but page furniture.
+
+    The mirror of :func:`_resume_after_page_break`: a running footer sits before the marker and
+    routinely overruns :data:`MAX_LEADING_WORDS_FOR_CONTINUATION`. Gives up at a real heading,
+    so body text still ends the block.
+
+    @param lines: the document's lines
+    @param start: the first index to look at
+    @return: the page marker's index, or ``None`` when none is reachable
+    """
+    index = start
+    for _ in range(MAX_HEADER_LINES_AFTER_PAGE_BREAK + 1):
+        index = _skip_to_next_content(lines, index)
+        if index >= len(lines):
+            return None
+        stripped = lines[index].strip()
+        if PAGE_MARKER_LINE.match(stripped):
+            return index
+        if HEADING.match(stripped):
+            return None
+        index += 1
+    return None
+
+
 def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], int, int | None]:
     """Within one page (or the whole document, if unpaged), collect contiguous
     ``is_of_type``-matching lines from ``start``, tolerating blank lines and a short
@@ -410,19 +498,26 @@ def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], in
 
     Tolerated lines are only ever kept when a later match absorbs them; a trailing run of
     them belongs to whatever follows the block, so every exit rolls the boundary back past
-    it. Doing that on some exits but not others deletes those lines outright: they sit
-    outside ``collected`` yet inside the replaced range.
+    it. Doing that on some exits but not others deletes those lines outright: they sit outside
+    ``collected`` yet inside the replaced range. So ``collected`` always equals
+    ``lines[start:boundary]``, which is what makes the block safe to splice over that span.
+
+    Absorbing a tolerated run takes a *page-numbered* match; a page-less one is equally a bold
+    body heading, so it ends the block instead (see :func:`_trim_trailing_pageless`).
 
     @param is_of_type: predicate classifying a raw line as part of the block
         (e.g. _is_markdown_table_line or is_toc_entry_line)
     @return: (collected_lines, boundary, marker); ``boundary`` is the position in lines at
         which the block ends (exclusive), never counting a trailing tolerated run;
-        ``marker`` is the index of the page marker that ended the block, or ``None`` when
-        it ended at body text or end of document
+        ``marker`` is the index of the page marker that ended the block, or ``None`` when it
+        ended at body text or end of document. A run that overruns the word tolerance still
+        reports a marker sitting just past it (:func:`_marker_past_run`), so a TOC page whose
+        footer blows the budget still gets its continuation probe
     """
     collected: list[str] = []
     pending: list[str] = []
     pending_words = 0
+    pending_prose = False
     index = start
     n = len(lines)
     while index < n:
@@ -431,10 +526,16 @@ def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], in
         if PAGE_MARKER_LINE.match(stripped):
             return collected, index - len(pending), index
         if is_of_type(line):
+            if pending_prose and not is_page_numbered_entry(line):
+                # Only a page-numbered entry may reach back over prose. A page-less one is
+                # equally a bold body heading, and letting it absorb prose made the block hop
+                # a paragraph and swallow the next heading too.
+                return collected, index - len(pending), None
             collected.extend(pending)
             collected.append(line)
             pending = []
             pending_words = 0
+            pending_prose = False
             index += 1
             continue
         if stripped == "":
@@ -455,8 +556,13 @@ def _scan_block(lines: list[str], start: int, is_of_type) -> tuple[list[str], in
             continue
         pending_words += len(stripped.split())
         if pending_words > MAX_LEADING_WORDS_FOR_CONTINUATION:
-            return collected, index - len(pending), None
+            # Out of tolerance, but a marker may sit just past the run. A running footer lands
+            # in this budget and overruns it on its own, and without reporting the marker the
+            # continuation probe never ran: a TOC with a footer was truncated at page one,
+            # losing References/Appendix and ``backmatterLine`` with it.
+            return collected, index - len(pending), _marker_past_run(lines, index)
         pending.append(line)
+        pending_prose = True
         index += 1
     return collected, index - len(pending), None
 
@@ -489,13 +595,58 @@ def _resume_after_page_break(lines: list[str], start: int, is_of_type) -> int | 
     return None
 
 
+def _trim_trailing_pageless(
+    collected: list[str], boundary: int, is_of_type
+) -> tuple[list[str], int]:
+    """Give a trailing run of page-less entries back to the body.
+
+    A page-less numbered entry (:data:`TOC_OUTLINE_ENTRY_PATTERN`) is also exactly what a bold
+    body heading looks like, so position decides: one trailing a block that otherwise carries
+    page numbers is the first body heading. Left in, it lost the ``**``
+    :func:`chunker._standout_heading` needs, and ``tocEndLine`` covered real body lines.
+
+    A block with no page numbers anywhere is a real page-less TOC, so it is kept; one *between*
+    numbered entries is not trailing, so it stays too. ``boundary`` moves back with the trim so
+    the lines return to the document rather than being deleted.
+
+    @param collected: the region's lines, equal to ``lines[start:boundary]``
+    @param boundary: the region's exclusive end in the original document
+    @param is_of_type: the region predicate (see :func:`_scan_block`)
+    @return: ``(collected, boundary)``, trimmed when a trailing page-less run was found
+    """
+    if not any(is_page_numbered_entry(line) for line in collected):
+        return collected, boundary
+
+    end = len(collected)
+    saw_pageless_entry = False
+    while end > 0:
+        line = collected[end - 1]
+        stripped = line.strip()
+        if is_page_numbered_entry(line):
+            break
+        if stripped == "" or PAGE_MARKER_LINE.match(stripped):
+            # Blank lines and the page marker ride along with the run they trail
+            end -= 1
+            continue
+        if is_of_type(line):
+            saw_pageless_entry = True
+            end -= 1
+            continue
+        break
+
+    if not saw_pageless_entry:
+        return collected, boundary
+    return collected[:end], boundary - (len(collected) - end)
+
+
 def _scan_region(lines: list[str], start: int, is_of_type) -> tuple[list[str], int]:
     """Collect an ``is_of_type`` region, continuing across ``<!-- page: N -->`` boundaries for
     as long as the region resumes on the next page (see :func:`_resume_after_page_break`)
-    and no label re-appears first. Page markers that fall *between* continued TOC pages are
-    kept inside the collected block (not dropped); running header/footer lines between them
-    are not. A page marker with no continuation after it stays outside the block, along with
-    any tolerated lines leading up to it.
+    and no label re-appears first. Everything between one page's block and the line the next
+    resumes on is kept — tolerated run, marker, and furniture — because the block is spliced
+    over that whole span and anything left out is deleted. Furniture is filtered at the harvest
+    instead. A page marker with no continuation stays outside the block, along with any
+    tolerated lines leading up to it.
     Degrades to a single :func:`_scan_block` call when the document has no page markers
     (DOCX), since no marker is then ever reported — one implementation covers both the table
     path and the plain-line path, and both paged and unpaged documents.
@@ -514,15 +665,17 @@ def _scan_region(lines: list[str], start: int, is_of_type) -> tuple[list[str], i
         block, boundary, marker = _scan_block(lines, index, is_of_type)
         all_collected.extend(block)
         if marker is None:
-            return all_collected, boundary
+            return _trim_trailing_pageless(all_collected, boundary, is_of_type)
         resume = _resume_after_page_break(lines, marker + 1, is_of_type)
         if resume is None:
             # Nothing continues the region, so the block ends before the tolerated run that
             # leads up to the marker; those lines are ordinary content again
-            return all_collected, boundary
-        # The region continues on the next page — keep the intervening marker inside it and
-        # scan on from where it resumed. ``resume > index`` always, so this terminates.
-        all_collected.append(lines[marker])
+            return _trim_trailing_pageless(all_collected, boundary, is_of_type)
+        # Everything up to the resuming line is now interior to the block: the tolerated run,
+        # the marker, and the furniture after it. Collecting only the marker deleted the rest,
+        # since :func:`_detect_toc` replaces the whole span. They are kept as lines, not
+        # entries — the harvest re-tests each one. ``resume > index``, so this terminates.
+        all_collected.extend(lines[boundary:resume])
         index = resume
 
 
@@ -546,6 +699,36 @@ def _clean_toc_line(line: str) -> str:
     return line.replace("*", "").replace("#", "").strip()
 
 
+def _confirm_labelled_block(lines: list[str], label_index: int):
+    """Scan and confirm the TOC block under one candidate label.
+
+    @param lines: the document's lines
+    @param label_index: the candidate label's line
+    @return: ``(block_lines, boundary, is_entry)``, or ``None`` when this label does not head
+        a real TOC -- not fatal, because :func:`_detect_toc` moves on to the next candidate
+    """
+    table_start = _find_table_start_near(lines, label_index)
+    if table_start is not None:
+        raw_block, boundary = _scan_region(lines, table_start, _is_markdown_table_line)
+        block_lines = _flatten_table_block(raw_block)
+        if not _confirm_table_toc(block_lines):
+            return None
+        # Flattening joins cells with a single space, which none of ``is_toc_entry_line``'s
+        # separators accept, so it alone would harvest nothing from a table TOC that was
+        # nevertheless just confirmed as one — and the document has already been rewritten
+        # by then. Recognise a row the same way :func:`_confirm_table_toc` does.
+        is_entry = _is_flattened_toc_entry
+    else:
+        if not _confirm_plain_toc(lines, label_index):
+            return None
+        block_lines, boundary = _scan_region(lines, label_index + 1, is_toc_entry_line)
+        is_entry = is_toc_entry_line
+
+    if not block_lines:
+        return None
+    return block_lines, boundary, is_entry
+
+
 def _detect_toc(md: str) -> tuple[str, dict]:
     """Detect the document's TOC and clean it in place, returning the outline fields it
     yields rather than writing them anywhere.
@@ -566,37 +749,20 @@ def _detect_toc(md: str) -> tuple[str, dict]:
         return "", {}
 
     lines = md.split("\n")
-    label_index = toc_label_line(lines)
-    if label_index is None:
-        return md, {}
-
-    table_start = _find_table_start_near(lines, label_index)
-    if table_start is not None:
-        raw_block, boundary = _scan_region(lines, table_start, _is_markdown_table_line)
-        block_lines = _flatten_table_block(raw_block)
-        if not _confirm_table_toc(block_lines):
-            return md, {}
-        # Flattening joins cells with a single space, which none of ``is_toc_entry_line``'s
-        # separators accept, so it alone would harvest nothing from a table TOC that was
-        # nevertheless just confirmed as one — and the document has already been rewritten
-        # by then. Recognise a row the same way :func:`_confirm_table_toc` does.
-        is_entry = _is_flattened_toc_entry
+    # Every candidate label, not just the first: one that fails confirmation is a decoy (a
+    # "Contents" section listing a kit's contents, say) and the real TOC may be below it.
+    for label_index in toc_label_lines(lines):
+        confirmed = _confirm_labelled_block(lines, label_index)
+        if confirmed is not None:
+            block_lines, boundary, is_entry = confirmed
+            break
     else:
-        if not _confirm_plain_toc(lines, label_index):
-            return md, {}
-        block_lines, boundary = _scan_region(lines, label_index + 1, is_toc_entry_line)
-        is_entry = is_toc_entry_line
-
-    if not block_lines:
         return md, {}
 
-    # The label is normalized to a level-2 ATX heading rather than stripped bare. Removing its
-    # markers entirely left a plain line that :func:`toc_label_line` no longer recognises, so
-    # cleaning the TOC destroyed its own detectability — a second pass over an already-cleaned
-    # document found no label and reported no outline at all. Rewriting it as "## <text>" keeps it
-    # detectable *and* tidies what Docling emits, which is often an invalid run of '#' (11 of them
-    # on one real protocol). It never becomes a chunk boundary: :func:`chunker.valid_heading`
-    # rejects any heading starting with "Table ".
+    # Normalized to a level-2 ATX heading rather than stripped bare, which tidies what
+    # Docling emits — often an invalid run of '#' (11 of them on one real protocol). It
+    # never becomes a chunk boundary: :func:`chunker.valid_heading` rejects any heading
+    # starting with "Table ".
     label_line = f"## {_clean_toc_line(lines[label_index])}".rstrip()
     body_text = _block_cleanup("\n".join(block_lines))
     body_lines: list[str] = []
@@ -617,9 +783,10 @@ def _detect_toc(md: str) -> tuple[str, dict]:
     cleaned = ([label_line] if label_line else []) + body_lines
     # Replace the original TOC span with the cleaned block; leave surrounding lines as-is.
     rebuilt = lines[:label_index] + cleaned + lines[boundary:]
+    # No trailing newline is appended. The join already restores whatever the input had (a
+    # document ending in one splits to a final ""), and adding one only when a TOC was found
+    # made ``tokens`` differ by a character between the two paths for the same document.
     result = "\n".join(rebuilt)
-    if not result.endswith("\n"):
-        result += "\n"
 
     # Entry lines only — label / page markers / interstitial noise stay out of ``toc``.
     # Match against pre-block-cleanup text so tab/leader separators still satisfy
@@ -750,10 +917,12 @@ def backmatter_from_records(
     index: LineIndex,
     toc_range: tuple[int, int] | None = None,
 ) -> int | None:
-    """Get the body line index of the first Reference/Appendix record that resolves to a unique line,
+    """Get the body line index of the first Reference/Appendix record that resolves to a
+    unique line,
     or ``None`` -- the outline-based replacement for the heuristic body scan.
 
-    ``toc_range`` must be passed whenever it is known to avoid, because it can be styled as headings.
+    ``toc_range`` must be passed whenever it is known, because a TOC entry can be styled
+    like a heading.
 
     @param records: the document's outline records, in order
     @param index: precomputed :func:`bookmarks.build_line_index` for the document
@@ -818,7 +987,7 @@ def derive_outline(
     line_index = build_line_index(positions)
 
     if bookmarks:
-        toc_records = verify_bookmarks(bookmarks, md_file, positions)
+        toc_records = verify_bookmarks(bookmarks, md_file, positions, toc_range)
         toc_source = "pdf-bookmarks"
     else:
         # Only this path harvests a printed TOC; the source it ends up reporting depends on
@@ -827,6 +996,7 @@ def derive_outline(
             _records_from_toc_strings(toc_summary.get("toc", [])),
             md_file,
             positions,
+            toc_range,
         )
         toc_source = "md-toc" if toc_records else "none"
 

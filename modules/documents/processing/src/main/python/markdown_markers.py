@@ -43,21 +43,32 @@ def page_marker_pattern(number: str) -> str:
     return rf"<!-- page: {number} -->"
 
 
+# The page-number sub-patterns, named rather than written inline below. A backslash inside an
+# f-string *expression* is only legal from Python 3.12 (PEP 701), and this package supports
+# 3.10, so writing them inside the f-strings below meant this module did not even parse there.
+# Naming them moves the backslash out of the expression.
+_PAGE_NUMBER_CAPTURED = r"(\d+)"
+_PAGE_NUMBER_PLAIN = r"\d+"
+
 # A page marker anywhere in a string, page number captured. Use with ``finditer`` to
 # collect the pages a block of text refers to.
-PAGE_MARKER = re.compile(page_marker_pattern(r"(\d+)"), re.IGNORECASE)
+PAGE_MARKER = re.compile(page_marker_pattern(_PAGE_NUMBER_CAPTURED), re.IGNORECASE)
 
 # A page marker alone on its own line, page number captured. The marker's own spacing is
 # exact (see :func:`page_marker_pattern`); the ``\s*`` here is only line-level slack for
 # indentation or a stray carriage return, and matches whether or not the caller stripped the
 # line first.
-PAGE_MARKER_LINE = re.compile(rf"^\s*{page_marker_pattern(r'(\d+)')}\s*$", re.IGNORECASE)
+PAGE_MARKER_LINE = re.compile(
+    rf"^\s*{page_marker_pattern(_PAGE_NUMBER_CAPTURED)}\s*$", re.IGNORECASE
+)
 
 # A page marker on its own line *including* the newlines around it, as a single capturing
 # group, for ``re.split``. The page number is intentionally NOT captured: ``re.split``
 # returns every group, and a second group would break the caller's stride-2 walk over the
 # split parts.
-PAGE_MARKER_SPLIT = re.compile(rf"(\n{page_marker_pattern(r'\d+')}\n)", re.IGNORECASE)
+PAGE_MARKER_SPLIT = re.compile(
+    rf"(\n{page_marker_pattern(_PAGE_NUMBER_PLAIN)}\n)", re.IGNORECASE
+)
 
 # A horizontal-rule line ("---", "-----", ...).
 RULE_LINE = re.compile(r"^-{3,}$")
