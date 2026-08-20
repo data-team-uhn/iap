@@ -29,6 +29,10 @@ export const TASK_INSTANCE = "wf/TaskInstance";
 // The event that completes a task
 export const COMPLETE = "complete";
 
+// The same thing as a JCR node type, which is what a query filters on: resource types are
+// slash-separated and node types colon-separated, and only the second can appear in a query.
+export const TASK_INSTANCE_NODE_TYPE = "wf:TaskInstance";
+
 // The status a task carries until somebody completes it
 const OPEN = "created";
 
@@ -71,4 +75,17 @@ export function tasksFrom(container: JsonNode): SubmissionTask[] {
     .flatMap(instance => childrenOfType(instance, TASK_INSTANCE))
     .map(asTask)
     .filter((task): task is SubmissionTask => task !== null);
+}
+
+// What completing a task sends: the decision, if any, and the note only when there is something in
+// it, since the engine treats a blank note as nothing said.
+export function completionParams(outcome?: string, note?: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (outcome) {
+    params.outcome = outcome;
+  }
+  if (note?.trim()) {
+    params.outcomeNote = note;
+  }
+  return params;
 }
