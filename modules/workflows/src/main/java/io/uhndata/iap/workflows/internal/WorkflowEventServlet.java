@@ -32,6 +32,7 @@ import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.request.RequestDispatcherOptions;
 import org.apache.sling.api.request.RequestParameter;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +61,10 @@ import io.uhndata.iap.workflows.models.TaskInstance;
  * system workflows target. The one exception is the {@code .import} extension, forwarded untouched to the Sling POST
  * servlet, so that an administrator can still import content.</p>
  *
+ * <p>The event a POST means is the target's, unless a selector names one: {@code POST <path>.attachDocument} sends
+ * that message instead of the default. Nothing is registered per message — the definitions decide which messages
+ * exist, and a message nothing is waiting for is a 409.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -68,8 +73,14 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     /** The domain event a POST to a workflow-managed homepage translates to. */
     public static final String CREATE_EVENT = "create";
 
+    /** The domain event a POST to an entity that is editable through a workflow translates to. */
+    public static final String SAVE_EVENT = "save";
+
     /** The extension that bypasses the engine, for the Sling POST servlet. */
     static final String IMPORT_EXTENSION = "import";
+
+    /** Named rather than imported, so this servlet does not depend on the submissions module. */
+    private static final String SUBMISSION_RESOURCE_TYPE = "sub/Submission";
 
     /** The resource type for the default Sling POST servlet. */
     private static final String SLING_DEFAULT_TYPE = "sling/servlet/default";
@@ -133,7 +144,15 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
 
     /**
      * Which domain event a POST means: the one a selector names, otherwise the target's default. Posting to a
-     * homepage asks for something to be created, posting to a user task says it has been decided.
+     * homepage asks for something to be created, posting to a user task says it has been decided, and posting to
+     * an entity changes that one.
+     *
+     * <p>A selector names the event outright, which is how anything beyond those defaults is reached: an entity has
+     * one obvious thing that happens to it and any number of less obvious ones, and there is no reading of the URL
+     * that tells {@code save} from {@code attachDocument}. Naming it costs nothing in safety, because a client
+     * naming an event has never been what decides whether it happens: the engine answers 409 when no start event is
+     * waiting for that message and 403 when this user is not among its performers, exactly as it does for the
+     * defaults.</p>
      *
      * @param request the incoming request
      * @return the domain event name
@@ -144,8 +163,15 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         if (named != null && !named.isEmpty()) {
             return named;
         }
-        return request.getResource().isResourceType(TaskInstance.RESOURCE_TYPE)
-            ? TaskCompletion.COMPLETE_EVENT : CREATE_EVENT;
+        final Resource target = request.getResource();
+        if (target.isResourceType(TaskInstance.RESOURCE_TYPE)) {
+            return TaskCompletion.COMPLETE_EVENT;
+        }
+        // Posting to an entity rather than to the homepage that holds them means changing that one, not making
+        // another. Which is as far as the default needs to go: the other things one might do to a submission —
+        // send it for review, withdraw it — are steps of its own workflow, so they arrive as user tasks and are
+        // already told apart above.
+        return target.isResourceType(SUBMISSION_RESOURCE_TYPE) ? SAVE_EVENT : CREATE_EVENT;
     }
 
     /**

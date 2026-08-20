@@ -192,6 +192,46 @@ class WorkflowEventServletTest
     }
 
     @Test
+    void letsASelectorNameTheEventInstead() throws WorkflowException, IOException, ServletException
+    {
+        // An entity has one obvious thing that happens to it and any number of less obvious ones, and no reading of
+        // the URL tells `save` from `attachDocument`. Naming it changes nothing about who may fire it: the engine
+        // still answers 409 when nothing is waiting for that message
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource submission = this.context.create().resource(
+            "/Submissions/ab/cd/ef/0a1b2c3d-1111-1111-1111-111111111111", WorkflowFixture.TYPE, "sub/Submission");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("requirement", "doctorsNote"));
+        request.setResource(submission);
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("attachDocument");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals("attachDocument", sent.getValue().getName());
+        assertEquals("doctorsNote", sent.getValue().get("requirement"));
+    }
+
+    @Test
+    void ignoresAnEmptySelectorRatherThanSendingAnEventWithNoName() throws WorkflowException, IOException,
+        ServletException
+    {
+        // Sling reports "no selectors" as an empty string in some paths and as null in others, and an event named
+        // "" would be a 409 blaming the definitions for a URL quirk
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("title", "My cool workflow"));
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals(WorkflowEventServlet.CREATE_EVENT, sent.getValue().getName());
+    }
+
+    @Test
     void forwardsAnImportToTheSlingPostServlet() throws Exception
     {
         final RequestDispatcher dispatcher = Mockito.mock(RequestDispatcher.class);
