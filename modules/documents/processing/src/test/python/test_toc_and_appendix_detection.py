@@ -21,10 +21,25 @@ TOC cleanup, Reference/Appendix heading detection, the size gate, and derive_out
 The outline is derived by derive_outline, which writes nothing and returns
 ``(document, updates, records, line_index)``."""
 
+import re
 import time
 
+import pytest
+from collections import Counter
+
+import chunker
 import toc_and_appendix_detection as tad
 from bookmarks import build_line_index, build_lines_catalog
+
+
+def _content_keys(text):
+    """Alphanumerics per non-blank line, so leader/emphasis/whitespace cleanup does not
+    register as a change but a deleted line does."""
+    return Counter(
+        key
+        for key in (re.sub(r"[^0-9a-z]", "", line.lower()) for line in text.splitlines())
+        if key
+    )
 
 
 def _derive(md, markdown_path=None, min_structure_tokens=1):
@@ -94,6 +109,69 @@ class TestEntryPatternsStayLinear:
             elapsed = time.perf_counter() - start
             assert elapsed < 0.5, f"{size} spaces took {elapsed:.2f}s"
 
+    def test_a_runaway_leader_run_is_cheap(self):
+        # The same hazard one level in, and stripping does not help: leading spaces are
+        # stripped away, dot leaders are not. The title and the leader run competed for the
+        # same dots, so a line whose leaders ran on with no page number at the end (the number
+        # wrapped to the next line) cost quadratic time — 4k of leaders took 1.5s, and
+        # is_page_numbered_entry applies no length limit of its own.
+        for size in (4_000, 40_000):
+            line = "Appendix B Consent Form" + "." * size
+            start = time.perf_counter()
+            tad.is_page_numbered_entry(line)
+            elapsed = time.perf_counter() - start
+            assert elapsed < 0.5, f"{size} leaders took {elapsed:.2f}s"
+
+    def test_a_runaway_leader_run_is_cheap_end_to_end(self):
+        document = "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 Background\t3", "2.0 Methods\t5", "3.0 Analysis\t7",
+            "Appendix B Consent Form" + "." * 40_000,
+            "4.0 Results\t9", "", "# 1.0 Background", "Body prose here.",
+        ])
+        start = time.perf_counter()
+        tad._detect_toc(document)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 1.0, f"took {elapsed:.2f}s"
+
+    def test_an_interior_whitespace_run_is_cheap(self):
+        # The third of these: the section number's trailing gap, the title and the \\s{2,}
+        # separator could all claim one interior run. Note the shape — the pathology needs a
+        # section number the prefix group can match, so "a" + spaces bites where
+        # "Section" + spaces does not, and the word limit sees only two words either way.
+        for size in (4_000, 40_000):
+            line = "a" + " " * size + "b"
+            start = time.perf_counter()
+            tad.is_toc_entry_line(line)
+            elapsed = time.perf_counter() - start
+            assert elapsed < 0.5, f"{size} interior spaces took {elapsed:.2f}s"
+
+    def test_interior_whitespace_runs_are_cheap_end_to_end(self):
+        # Nothing collapses intra-line whitespace before the scan (_block_cleanup runs after
+        # it), so a PDF text layer can carry these in and they land inside the single parse slot.
+        document = "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 Background\t3", "2.0 Methods\t5", "3.0 Analysis\t7",
+            *["a" + " " * 6_000 + "b" for _ in range(20)],
+            "", "# 1.0 Background", "Body prose here.",
+        ])
+        start = time.perf_counter()
+        tad._detect_toc(document)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 2.0, f"took {elapsed:.2f}s"
+
+    def test_a_numbered_entry_keeps_its_gap(self):
+        # The (?=\\S) must not break the ordinary "number, gap, title" shape.
+        assert tad.is_toc_entry_line("1.0 General Information\t3") is True
+        assert tad.is_toc_entry_line("A. Consent - iv") is True
+        assert tad.is_toc_entry_line("1.2.3 Deep Section\t14") is True
+        assert tad.is_toc_entry_line("(2) Objectives  7") is True
+
+    def test_leaders_are_still_read_as_a_separator(self):
+        assert tad.is_toc_entry_line("Schema.......4") is True
+        assert tad.is_toc_entry_line("Study Design....12") is True
+        assert tad.is_page_numbered_entry("Appendix B Consent Form" + "." * 200 + "42") is True
+
     def test_indented_entries_are_still_recognised(self):
         assert tad.is_toc_entry_line("    Introduction - 3") is True
         assert tad.is_toc_entry_line("\t1.0 Background\t9") is True
@@ -101,23 +179,29 @@ class TestEntryPatternsStayLinear:
         assert tad.is_toc_entry_line("   Not an entry at all") is False
 
 
-class TestTocLabelLine:
+class TestTocLabelLines:
+    """Which lines count as a TOC label. ``_detect_toc`` tries each one it yields, in order."""
+
+    def _first(self, lines):
+        return next(tad.toc_label_lines(lines), None)
+
     def test_decorated_atx_label(self):
         lines = ["# Protocol", "", "## Table of Contents", "", "Intro\t1"]
-        assert tad.toc_label_line(lines) == 2
+        assert self._first(lines) == 2
 
     def test_bold_contents_label(self):
         lines = ["**Contents**", "Intro\t1"]
-        assert tad.toc_label_line(lines) == 0
+        assert self._first(lines) == 0
 
     def test_bare_label_requires_isolation(self):
         isolated = ["", "table of contents", ""]
-        assert tad.toc_label_line(isolated) == 1
+        assert self._first(isolated) == 1
         not_isolated = ["preamble text", "table of contents", "more text"]
-        assert tad.toc_label_line(not_isolated) is None
+        assert self._first(not_isolated) is None
 
     def test_absent_label(self):
-        assert tad.toc_label_line(["# Title", "", "Body"]) is None
+        assert self._first(["# Title", "", "Body"]) is None
+        assert list(tad.toc_label_lines(["# Title", "", "Body"])) == []
 
 
 class TestMarkAndCleanupToc:
@@ -187,16 +271,24 @@ class TestMarkTocAndAppendix:
 
 class TestEntryToRecord:
     def test_dash_page_and_level(self):
-        assert tad._entry_to_record("1.0 Background - 9") == {"title": "1.0 Background", "level": 1, "page": 9}
+        assert tad._entry_to_record("1.0 Background - 9") == {
+            "title": "1.0 Background", "level": 1, "page": 9,
+        }
 
     def test_tab_collapsed_single_space(self):
-        assert tad._entry_to_record("Introduction 1") == {"title": "Introduction", "level": None, "page": 1}
+        assert tad._entry_to_record("Introduction 1") == {
+            "title": "Introduction", "level": None, "page": 1,
+        }
 
     def test_roman_page(self):
-        assert tad._entry_to_record("Abbreviations - v") == {"title": "Abbreviations", "level": None, "page": 5}
+        assert tad._entry_to_record("Abbreviations - v") == {
+            "title": "Abbreviations", "level": None, "page": 5,
+        }
 
     def test_no_page_keeps_level(self):
-        assert tad._entry_to_record("2.0 Introduction") == {"title": "2.0 Introduction", "level": 1, "page": None}
+        assert tad._entry_to_record("2.0 Introduction") == {
+            "title": "2.0 Introduction", "level": 1, "page": None,
+        }
 
     def test_section_letters_are_not_roman_pages(self):
         # A trailing section letter is not a roman page: "Appendix C" is the whole title,
@@ -273,6 +365,54 @@ class TestTableTocConfirmation:
         result, fields = tad._detect_toc(doc)
         assert fields == {}
         assert result == doc
+
+    def test_a_kit_table_with_an_increasing_quantity_column_is_left_alone(self):
+        # The ordering check alone could not see this: a Qty column running 1, 2, 3, 4 reads
+        # exactly like pages 1 to 4, so the table was flattened in place — separator row
+        # dropped, cells merged — and its rows harvested as TOC entries. The header names the
+        # column, which is what settles it.
+        rows = (
+            "| Item | Qty |\n"
+            "| --- | --- |\n"
+            "| Study drug vial | 1 |\n"
+            "| Diluent ampoule | 2 |\n"
+            "| Syringe 10 mL | 3 |\n"
+            "| Alcohol swab | 4 |\n"
+        )
+        doc = self._doc(rows)
+        result, fields = tad._detect_toc(doc)
+        assert fields == {}
+        assert result == doc
+
+    @pytest.mark.parametrize("column", ["Qty", "Quantity", "Dose", "Amount", "Units", "Volume"])
+    def test_any_quantity_column_name_protects_the_table(self, column):
+        rows = (
+            f"| Item | {column} |\n"
+            "| --- | --- |\n"
+            "| Study drug vial | 1 |\n"
+            "| Diluent ampoule | 2 |\n"
+            "| Syringe 10 mL | 3 |\n"
+        )
+        doc = self._doc(rows)
+        assert tad._detect_toc(doc) == (doc, {})
+
+    def test_a_page_column_still_wins_over_a_quantity_word(self):
+        # "Number of pages" names both; the page column is the one that decides.
+        rows = (
+            "| Section | Page count |\n"
+            "| --- | --- |\n"
+            "| 1.0 Introduction | 3 |\n"
+            "| 2.0 Objectives | 5 |\n"
+            "| 3.0 Study Design | 8 |\n"
+        )
+        fields = tad._detect_toc(self._doc(rows))[1]
+        assert "1.0 Introduction 3" in fields["toc"]
+
+    def test_the_header_check_on_its_own(self):
+        assert tad._names_a_quantity_column("Item Qty") is True
+        assert tad._names_a_quantity_column("Section Page") is False
+        assert tad._names_a_quantity_column("Section Page count") is False
+        assert tad._names_a_quantity_column("Item Description") is False
 
     def test_too_few_rows_is_not_a_toc(self):
         rows = "| Item | Page |\n| --- | --- |\n| Only one | 3 |\n"
@@ -424,6 +564,246 @@ class TestTolerated_LinesBeforeAnEndingPageMarker:
     def test_nothing_is_lost_when_there_is_no_tolerated_run(self):
         document = tad._detect_toc(self._doc([]))[0]
         assert "Body prose starts here" in document
+
+
+class TestDecoyContentsLabel:
+    """A "Contents" label that is not a TOC must not stop the search.
+
+    Regression: ``_detect_toc`` took the first label it found and gave up if
+    confirmation failed. Protocols list what is in a shipment or kit under exactly that
+    heading -- the case ``_confirm_table_toc`` exists to reject -- so a decoy above the real
+    TOC lost ``toc``, ``backmatterLine`` and every record cut-key at once.
+    """
+
+    REAL = ["## TABLE OF CONTENTS", "1.0 Background\t3", "2.0 Methods\t5",
+            "3.0 Analysis\t7", "4.0 Results\t9", "5.0 References\t11", ""]
+    DECOY = ["**Contents**", "", "This kit contains three vials of study drug and one diluent.", ""]
+    TAIL = ["# 1.0 Background", "Body prose here."]
+
+    def _entries(self, lines):
+        return tad._detect_toc("\n".join(lines + self.TAIL))[1].get("toc", [])
+
+    def test_a_decoy_before_the_real_toc_is_skipped(self):
+        assert len(self._entries(self.DECOY + self.REAL)) == 5
+
+    def test_several_decoys_are_skipped(self):
+        assert len(self._entries(self.DECOY + self.DECOY + self.REAL)) == 5
+
+    def test_the_real_toc_still_wins_when_it_comes_first(self):
+        assert len(self._entries(self.REAL + self.DECOY)) == 5
+
+    def test_a_document_with_only_a_decoy_reports_no_toc(self):
+        assert self._entries(self.DECOY) == []
+
+    def test_the_decoy_text_is_never_deleted(self):
+        for lines in (self.DECOY + self.REAL, self.REAL + self.DECOY, self.DECOY):
+            document = tad._detect_toc("\n".join(lines + self.TAIL))[0]
+            assert "This kit contains three vials" in document
+
+    def test_toc_label_lines_yields_every_candidate(self):
+        lines = self.DECOY + self.REAL
+        assert list(tad.toc_label_lines(lines)) == [0, 4]
+
+
+class TestPagelessEntriesDoNotReachIntoTheBody:
+    """A numbered entry with no page number is only an entry where the TOC really is.
+
+    ``TOC_OUTLINE_ENTRY_PATTERN`` accepts a page-less numbered entry, which is what a
+    page-less TOC looks like -- and equally what a body heading looks like once Docling has
+    demoted it to bold text. Regression: the block ran straight on into the body, cleaned the
+    heading like an entry (losing the ``**`` that ``chunker._standout_heading`` needs to
+    recover it at all), harvested it into ``toc``, and stretched ``tocEndLine`` over real body
+    lines, which then excluded them from chunk cut-point resolution.
+    """
+
+    BODY = ["**13.0 Funding**", "", "The study is funded by a peer reviewed operating grant.", ""]
+
+    def _doc(self, body):
+        return "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 Background\t3", "2.0 Methods\t5", "3.0 Analysis\t7", "",
+            *body,
+        ])
+
+    def test_the_bold_heading_keeps_its_markers(self):
+        document = tad._detect_toc(self._doc(self.BODY))[0]
+        assert "**13.0 Funding**" in document
+
+    def test_it_is_not_harvested_as_an_entry(self):
+        entries = tad._detect_toc(self._doc(self.BODY))[1]["toc"]
+        assert entries == ["1.0 Background 3", "2.0 Methods 5", "3.0 Analysis 7"]
+
+    def test_the_toc_range_stops_before_it(self):
+        document, fields = tad._detect_toc(self._doc(self.BODY))
+        heading = document.split("\n").index("**13.0 Funding**")
+        assert fields["tocEndLine"] < heading
+
+    def test_the_chunker_can_still_recover_it_as_a_heading(self):
+        lines = tad._detect_toc(self._doc(self.BODY))[0].split("\n")
+        index = lines.index("**13.0 Funding**")
+        assert chunker._standout_heading(lines, index) == "13.0 Funding"
+
+    def test_a_pageless_entry_cannot_bridge_prose_to_a_second_heading(self):
+        # The prose tolerance is for dividers between groups of entries. Letting a page-less
+        # entry reach back over it let the block hop a paragraph and swallow the next heading.
+        body = ["**13.0 Funding**", "",
+                "The study is funded by a peer reviewed operating grant.", "",
+                "**14.0 Publication**", "", "Results will be published in a journal.", ""]
+        document, fields = tad._detect_toc(self._doc(body))
+        assert "**13.0 Funding**" in document
+        assert "**14.0 Publication**" in document
+        assert fields["toc"] == ["1.0 Background 3", "2.0 Methods 5", "3.0 Analysis 7"]
+
+    def test_a_wholly_pageless_toc_is_still_harvested(self):
+        # No page numbers anywhere means the page-less reading is the only one available.
+        document = "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 **Study Team, Disclosures**", "2.0 **Introduction**",
+            "3.0 **Objectives**", "4.0 **Study Design**", "",
+            "# 1.0 Study Team", "Body prose here.",
+        ])
+        assert tad._detect_toc(document)[1]["toc"] == [
+            "1.0 Study Team, Disclosures", "2.0 Introduction",
+            "3.0 Objectives", "4.0 Study Design",
+        ]
+
+    def test_a_pageless_entry_between_numbered_ones_is_kept(self):
+        # Only a *trailing* run is suspect; one surrounded by page-numbered entries is real.
+        document = "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 Background\t3", "2.0 **Methods**", "3.0 Analysis\t7", "",
+            "# 1.0 Background", "Body prose here.",
+        ])
+        assert tad._detect_toc(document)[1]["toc"] == [
+            "1.0 Background 3", "2.0 Methods", "3.0 Analysis 7",
+        ]
+
+
+class TestRunningFooterBeforeAPageMarker:
+    """A footer between the last entry of a TOC page and that page's marker.
+
+    ``_resume_after_page_break`` skips a running *header* regardless of length, but a running
+    *footer* is on the other side of the marker, so it fell into the prose tolerance instead --
+    and a real one overruns it on its own. Regression: ``_scan_block`` then reported no marker,
+    the continuation probe never ran, and the TOC was truncated at page one, taking
+    References/Appendix and therefore ``backmatterLine`` with it.
+    """
+
+    FOOTER = "REB Protocol 24-5450 Version 3.0 dated 12 March 2026 Confidential Page 1 of 48"
+
+    def _doc(self, tail):
+        return "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 Background\t3", "2.0 Methods\t5", "3.0 Analysis\t7",
+            *tail,
+            "<!-- page: 2 -->",
+            "4.0 Results\t9", "5.0 References\t11", "",
+            "# 1.0 Background", "Body prose here.",
+        ])
+
+    def test_the_footer_does_not_truncate_the_toc(self):
+        assert len(self.FOOTER.split()) > tad.MAX_LEADING_WORDS_FOR_CONTINUATION
+        entries = tad._detect_toc(self._doc([self.FOOTER]))[1]["toc"]
+        assert entries == tad._detect_toc(self._doc([]))[1]["toc"]
+        assert any("References" in entry for entry in entries)
+
+    def test_the_footer_is_not_harvested_as_an_entry(self):
+        entries = tad._detect_toc(self._doc([self.FOOTER]))[1]["toc"]
+        assert not any("Confidential" in entry for entry in entries)
+
+    def test_the_footer_text_is_not_deleted(self):
+        document = tad._detect_toc(self._doc([self.FOOTER]))[0]
+        assert "Confidential Page 1 of 48" in document
+
+    PROSE = ("The study examines outcomes across the enrolled cohort of adult patients "
+             "recruited at three participating hospital sites over two years.")
+
+    def _doc_after_break(self, after_marker):
+        return "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 Background\t3", "2.0 Methods\t5", "3.0 Analysis\t7",
+            self.PROSE,
+            "<!-- page: 2 -->",
+            *after_marker,
+        ])
+
+    def test_the_look_ahead_does_not_continue_on_its_own(self):
+        # Reaching a marker only earns the block a continuation *probe*. What follows the
+        # break still decides, so a long run with nothing entry-like after it ends the block.
+        for after in (["More body prose follows here and continues."],
+                      ["## 4.0 Results", "Body."],
+                      ["**4.0 Results**", "", "More body prose follows here."]):
+            entries = tad._detect_toc(self._doc_after_break(after))[1]["toc"]
+            assert entries == ["1.0 Background 3", "2.0 Methods 5", "3.0 Analysis 7"], after
+
+    def test_page_numbered_entries_after_the_break_do_continue_it(self):
+        # The counterpart: a TOC that ends, gives way to real prose, and then resumes with
+        # *page-numbered* entries after a page break is not a shape real documents take —
+        # those entries are the same TOC, and the run before the marker was page furniture.
+        entries = tad._detect_toc(
+            self._doc_after_break(["4.0 Results\t9", "5.0 References\t11"])
+        )[1]["toc"]
+        assert any("References" in entry for entry in entries)
+
+    def test_the_run_before_the_marker_is_never_deleted(self):
+        for after in (["4.0 Results\t9"], ["More body prose follows here."], ["## 4.0 Results"]):
+            document = tad._detect_toc(self._doc_after_break(after))[0]
+            assert self.PROSE in document, after
+
+    def test_backmatter_survives_the_footer(self):
+        document = "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 Background\t3", "2.0 Methods\t5", self.FOOTER,
+            "<!-- page: 2 -->",
+            "5.0 References\t11", "", "<!-- page: 3 -->",
+            "1.0 Background", "Body prose here.", "", "5.0 References", "Smith et al. 2024.",
+        ])
+        fields = tad.derive_outline(document, None, min_structure_tokens=0)[1]
+        assert fields.get("backmatterLine") is not None
+
+
+class TestContentBeforeAContinuedPageMarker:
+    """The sibling of ``TestTolerated_LinesBeforeAnEndingPageMarker``, for the page marker a
+    TOC continues *across*.
+
+    Regression: that path collected only the marker itself, so the tolerated run leading up to
+    it -- and the page furniture after it -- sat outside the collected block yet inside the
+    range the cleaned block replaced, and were deleted from the document. The whole span the
+    block replaces has to be collected; the harvest re-tests every line, so furniture still
+    never becomes an entry.
+    """
+
+    def _doc(self, tail):
+        return "\n".join([
+            "## TABLE OF CONTENTS",
+            "1.0 Background\t3", "2.0 Methods\t5", "3.0 Analysis\t7",
+            *tail,
+            "<!-- page: 2 -->",
+            "Protocol 24-5450 Version 3.0 Confidential Page 2 of 48",
+            "4.0 Results\t9", "5.0 References\t11", "",
+            "# 1.0 Background", "Body prose here.",
+        ])
+
+    def test_the_content_line_is_not_deleted(self):
+        document = tad._detect_toc(self._doc(["SEE THE SPONSOR MANUAL FOR DETAILS"]))[0]
+        assert "SEE THE SPONSOR MANUAL FOR DETAILS" in document
+
+    def test_the_running_header_is_not_deleted_either(self):
+        document = tad._detect_toc(self._doc([]))[0]
+        assert "Confidential Page 2 of 48" in document
+
+    def test_neither_is_harvested_as_an_entry(self):
+        entries = tad._detect_toc(self._doc(["SEE THE SPONSOR MANUAL FOR DETAILS"]))[1]["toc"]
+        assert not any("SPONSOR" in entry or "Confidential" in entry for entry in entries)
+
+    def test_the_toc_still_continues_across_the_break(self):
+        entries = tad._detect_toc(self._doc(["SEE THE SPONSOR MANUAL FOR DETAILS"]))[1]["toc"]
+        assert any("References" in entry for entry in entries)
+
+    def test_no_content_is_lost_from_the_document(self):
+        source = self._doc(["SEE THE SPONSOR MANUAL FOR DETAILS"])
+        document = tad._detect_toc(source)[0]
+        assert _content_keys(source) - _content_keys(document) == Counter()
 
 
 class TestTableTocEntryHarvest:
