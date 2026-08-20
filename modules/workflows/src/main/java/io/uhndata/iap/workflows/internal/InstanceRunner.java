@@ -75,9 +75,6 @@ final class InstanceRunner
     /** The variable a completed task's outcome is recorded under, and that gateways route on. */
     static final String OUTCOME_VARIABLE = "outcome";
 
-    /** Where what the deciding person said about their decision is kept, on the task alone. */
-    private static final String OUTCOME_NOTE = "outcomeNote";
-
     /** The name of the container a {@code wf:WorkflowAttachable} host keeps its instances in. */
     static final String INSTANCES = "wf:instances";
 
