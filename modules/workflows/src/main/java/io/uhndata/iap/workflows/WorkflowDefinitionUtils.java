@@ -33,12 +33,12 @@ import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
-import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.util.ISO8601;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -48,8 +48,8 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
 /**
- * Parses BPMN 2.0 XML into {@code wf:FlowNode} child nodes of a {@code wf:WorkflowVersion} node, directly against
- * the Oak {@link NodeBuilder} of an in-progress commit.
+ * Turns the BPMN 2.0 diagram stored on a {@code wf:WorkflowVersion} into the {@code wf:FlowNode} graph the workflow
+ * engine executes, so that the engine reads plain JCR nodes rather than re-reading XML.
  *
  * <p>The mapping from BPMN elements to JCR node types is fully data-driven: every {@code wf:FlowNodeType} node
  * configured under {@code /WorkflowTypes} (see {@code workflowTypes.cnd}) declares which XML element it matches
@@ -68,6 +68,9 @@ import org.xml.sax.SAXException;
  * been created, and are stored as {@code wf:SequenceFlow} children of their source flow node. Diagram-only
  * elements ({@code bpmndi:*}) are never visited, since only the children of the {@code bpmn:process} element are
  * traversed.</p>
+ *
+ * <p>Written against the Oak {@link NodeBuilder} of an in-progress commit, which is why the properties the JCR
+ * layer would autocreate are set explicitly here; see {@code applySystemProperties}.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -157,7 +160,7 @@ public final class WorkflowDefinitionUtils
         throws ParserConfigurationException, SAXException, IOException
     {
         final Element process = getProcessElement(bpmnXml, workflowVersionPath);
-        clearFlowNodes(workflowVersion, nodeTypesRoot);
+        clear(workflowVersion, nodeTypesRoot);
         if (process == null) {
             return;
         }
@@ -190,15 +193,21 @@ public final class WorkflowDefinitionUtils
 
     /**
      * Removes the {@code wf:FlowNode}/{@code wf:SequenceFlow} children of {@code workflowVersion} without parsing
-     * any replacement, for when the {@code bpmn.xml} they were derived from is deleted outright.
+     * any replacement, for when the {@code bpmn.xml} they were derived from is deleted outright. {@code bpmn.xml}
+     * and any other kind of child a {@code wf:WorkflowVersion} may be extended with are left untouched.
      *
      * @param workflowVersion the {@code wf:WorkflowVersion} node builder to remove the parsed flow nodes from
      * @param nodeTypesRoot the {@code /jcr:system/jcr:nodeTypes} node state, used to recognize previously parsed
      *            {@code wf:FlowNode}/{@code wf:SequenceFlow} children (including subtypes)
      */
-    public static void clear(final NodeBuilder workflowVersion, final NodeState nodeTypesRoot)
+    public static void clear(@NotNull final NodeBuilder workflowVersion, @NotNull final NodeState nodeTypesRoot)
     {
-        clearFlowNodes(workflowVersion, nodeTypesRoot);
+        StreamSupport.stream(workflowVersion.getChildNodeNames().spliterator(), false)
+            .map(workflowVersion::getChildNode)
+            .filter(child -> isFlowNodeOrSequenceFlow(child, nodeTypesRoot))
+            // Collected before removing: the child name view above is live.
+            .toList()
+            .forEach(NodeBuilder::remove);
     }
 
     private static Element getProcessElement(final String bpmnXml, final String workflowVersionPath)
@@ -224,47 +233,19 @@ public final class WorkflowDefinitionUtils
         return factory.newDocumentBuilder().parse(new InputSource(new StringReader(bpmnXml)));
     }
 
-    /**
-     * Removes every child of {@code workflowVersion} that is a previously parsed {@code wf:FlowNode} or
-     * {@code wf:SequenceFlow} (including subtypes of either). {@code bpmn.xml} and any other kind of child a
-     * {@code wf:WorkflowVersion} may be extended with are left untouched.
-     */
-    private static void clearFlowNodes(final NodeBuilder workflowVersion, final NodeState nodeTypesRoot)
-    {
-        final List<String> names = new ArrayList<>();
-        workflowVersion.getChildNodeNames().forEach(names::add);
-        for (final String name : names) {
-            final NodeBuilder child = workflowVersion.getChildNode(name);
-            if (isFlowNodeOrSequenceFlow(child, nodeTypesRoot)) {
-                child.remove();
-            }
-        }
-    }
-
     private static boolean isFlowNodeOrSequenceFlow(final NodeBuilder node, final NodeState nodeTypesRoot)
     {
-        final PropertyState primaryType = node.getProperty(JCR_PRIMARY_TYPE);
-        if (primaryType == null) {
+        final String type = node.getName(JCR_PRIMARY_TYPE);
+        if (type == null) {
             return false;
         }
-        final String type = primaryType.getValue(Type.NAME);
-        return isOrExtends(type, FLOW_NODE_NODETYPE, nodeTypesRoot)
-            || isOrExtends(type, SEQUENCE_FLOW_NODETYPE, nodeTypesRoot);
-    }
-
-    /**
-     * Checks whether {@code type} is {@code ancestor} itself, or one of its subtypes, by consulting
-     * {@code rep:supertypes}, the transitively-expanded supertype list Oak materializes for each registered node
-     * type under {@code /jcr:system/jcr:nodeTypes}.
-     */
-    private static boolean isOrExtends(final String type, final String ancestor, final NodeState nodeTypesRoot)
-    {
-        if (ancestor.equals(type)) {
+        if (FLOW_NODE_NODETYPE.equals(type) || SEQUENCE_FLOW_NODETYPE.equals(type)) {
             return true;
         }
-        final PropertyState supertypes = nodeTypesRoot.getChildNode(type).getProperty(SUPERTYPES_PROPERTY);
-        return supertypes != null && StreamSupport.stream(supertypes.getValue(Type.NAMES).spliterator(), false)
-            .anyMatch(ancestor::equals);
+        // One registry lookup covers both questions: rep:supertypes is the transitively-expanded supertype list Oak
+        // materializes for each registered node type under /jcr:system/jcr:nodeTypes.
+        return StreamSupport.stream(nodeTypesRoot.getChildNode(type).getNames(SUPERTYPES_PROPERTY).spliterator(), false)
+            .anyMatch(supertype -> FLOW_NODE_NODETYPE.equals(supertype) || SEQUENCE_FLOW_NODETYPE.equals(supertype));
     }
 
     /**
@@ -277,17 +258,16 @@ public final class WorkflowDefinitionUtils
         final Map<String, List<FlowNodeTypeInfo>> result = new LinkedHashMap<>();
         collectFlowNodeTypes(workflowTypesRoot, result);
         for (final List<FlowNodeTypeInfo> candidates : result.values()) {
-            candidates.sort(Comparator.comparingLong(FlowNodeTypeInfo::getPriority).reversed());
+            candidates.sort(Comparator.comparingLong(FlowNodeTypeInfo::priority).reversed());
         }
         return result;
     }
 
     private static void collectFlowNodeTypes(final NodeState node, final Map<String, List<FlowNodeTypeInfo>> result)
     {
-        final PropertyState xmlElement = node.getProperty(XML_ELEMENT_PROPERTY);
+        final String xmlElement = node.getString(XML_ELEMENT_PROPERTY);
         if (xmlElement != null) {
-            final String localName = localName(xmlElement.getValue(Type.STRING));
-            result.computeIfAbsent(localName, k -> new ArrayList<>()).add(FlowNodeTypeInfo.from(node));
+            result.computeIfAbsent(localName(xmlElement), k -> new ArrayList<>()).add(FlowNodeTypeInfo.from(node));
         }
         for (final ChildNodeEntry child : node.getChildNodeEntries()) {
             collectFlowNodeTypes(child.getNodeState(), result);
@@ -310,8 +290,8 @@ public final class WorkflowDefinitionUtils
             return;
         }
         final NodeBuilder node = workflowVersion.child(id);
-        node.setProperty(JCR_PRIMARY_TYPE, flowNodeType.getJcrNodeType(), Type.NAME);
-        node.setProperty(FLOW_NODE_TYPE_PROPERTY, flowNodeType.getIdentifier(), Type.REFERENCE);
+        node.setProperty(JCR_PRIMARY_TYPE, flowNodeType.jcrNodeType(), Type.NAME);
+        node.setProperty(FLOW_NODE_TYPE_PROPERTY, flowNodeType.identifier(), Type.REFERENCE);
         node.setProperty(ELEMENT_ID_PROPERTY, id);
         final String name = element.getAttribute(NAME_ATTRIBUTE);
         if (StringUtils.isNotBlank(name)) {
@@ -319,7 +299,7 @@ public final class WorkflowDefinitionUtils
         }
         applyJcrProperties(flowNodeType, node);
         applyCopiedProperties(flowNodeType, element, node);
-        applySystemProperties(node, flowNodeType.getJcrNodeType(), nodeTypesRoot, author);
+        applySystemProperties(node, flowNodeType.jcrNodeType(), nodeTypesRoot, author);
     }
 
     /**
@@ -355,11 +335,8 @@ public final class WorkflowDefinitionUtils
      */
     private static String directSupertype(final String type, final NodeState nodeTypesRoot)
     {
-        final PropertyState supertypes = nodeTypesRoot.getChildNode(type).getProperty(JCR_SUPERTYPES_PROPERTY);
-        if (supertypes == null) {
-            return null;
-        }
-        final Iterator<String> values = supertypes.getValue(Type.NAMES).iterator();
+        final Iterator<String> values =
+            nodeTypesRoot.getChildNode(type).getNames(JCR_SUPERTYPES_PROPERTY).iterator();
         return values.hasNext() ? values.next() : null;
     }
 
@@ -375,7 +352,7 @@ public final class WorkflowDefinitionUtils
             return null;
         }
         for (final FlowNodeTypeInfo candidate : candidates) {
-            final String requiredChild = candidate.getXmlChildElement();
+            final String requiredChild = candidate.xmlChildElement();
             if (requiredChild == null || hasChildElement(element, localName(requiredChild))) {
                 return candidate;
             }
@@ -400,7 +377,7 @@ public final class WorkflowDefinitionUtils
      */
     private static void applyJcrProperties(final FlowNodeTypeInfo flowNodeType, final NodeBuilder node)
     {
-        final String raw = flowNodeType.getJcrProperties();
+        final String raw = flowNodeType.jcrProperties();
         if (raw == null) {
             return;
         }
@@ -449,7 +426,7 @@ public final class WorkflowDefinitionUtils
     private static void applyCopiedProperties(final FlowNodeTypeInfo flowNodeType, final Element element,
         final NodeBuilder node)
     {
-        for (final String rule : flowNodeType.getProperties()) {
+        for (final String rule : flowNodeType.properties()) {
             final int separator = rule.indexOf('=');
             final String xmlAttribute = separator < 0 ? rule : rule.substring(0, separator);
             final String jcrProperty = separator < 0 ? rule : rule.substring(separator + 1);
@@ -510,88 +487,15 @@ public final class WorkflowDefinitionUtils
      *
      * @since 0.1.0
      */
-    private static final class FlowNodeTypeInfo
+    private record FlowNodeTypeInfo(String identifier, String jcrNodeType, String xmlChildElement,
+        String jcrProperties, Iterable<String> properties, long priority)
     {
-        private final String identifier;
-
-        private final String jcrNodeType;
-
-        private final String xmlChildElement;
-
-        private final String jcrProperties;
-
-        private final List<String> properties;
-
-        private final long priority;
-
-        private FlowNodeTypeInfo(final String identifier, final String jcrNodeType, final String xmlChildElement,
-            final String jcrProperties, final List<String> properties, final long priority)
-        {
-            this.identifier = identifier;
-            this.jcrNodeType = jcrNodeType;
-            this.xmlChildElement = xmlChildElement;
-            this.jcrProperties = jcrProperties;
-            this.properties = properties;
-            this.priority = priority;
-        }
-
         static FlowNodeTypeInfo from(final NodeState node)
         {
-            return new FlowNodeTypeInfo(getString(node, JCR_UUID), getString(node, JCR_NODE_TYPE_PROPERTY),
-                getString(node, XML_CHILD_ELEMENT_PROPERTY), getString(node, JCR_PROPERTIES_PROPERTY),
-                getStrings(node, PROPERTIES_PROPERTY), getLong(node, PRIORITY_PROPERTY));
-        }
-
-        private static String getString(final NodeState node, final String name)
-        {
-            final PropertyState property = node.getProperty(name);
-            return property == null ? null : property.getValue(Type.STRING);
-        }
-
-        private static long getLong(final NodeState node, final String name)
-        {
-            final PropertyState property = node.getProperty(name);
-            return property == null ? 0 : property.getValue(Type.LONG);
-        }
-
-        private static List<String> getStrings(final NodeState node, final String name)
-        {
-            final PropertyState property = node.getProperty(name);
-            final List<String> result = new ArrayList<>();
-            if (property != null) {
-                property.getValue(Type.STRINGS).forEach(result::add);
-            }
-            return result;
-        }
-
-        String getIdentifier()
-        {
-            return this.identifier;
-        }
-
-        String getJcrNodeType()
-        {
-            return this.jcrNodeType;
-        }
-
-        String getXmlChildElement()
-        {
-            return this.xmlChildElement;
-        }
-
-        String getJcrProperties()
-        {
-            return this.jcrProperties;
-        }
-
-        List<String> getProperties()
-        {
-            return this.properties;
-        }
-
-        long getPriority()
-        {
-            return this.priority;
+            final String childElement = node.getString(XML_CHILD_ELEMENT_PROPERTY);
+            return new FlowNodeTypeInfo(node.getString(JCR_UUID), node.getString(JCR_NODE_TYPE_PROPERTY),
+                childElement == null ? null : localName(childElement), node.getString(JCR_PROPERTIES_PROPERTY),
+                node.getStrings(PROPERTIES_PROPERTY), node.getLong(PRIORITY_PROPERTY));
         }
     }
 }
