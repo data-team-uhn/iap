@@ -226,8 +226,10 @@ test.describe('the time off request demo', () => {
     expect(submission['jcr:primaryType']).toBe('sub:Submission');
     expect(submission.title).toBe('A very sunny Friday');
     // The lifecycle is a tag rather than a property, so nothing autocreates it: the handler that raises the
-    // submission is what puts it in the starting state
-    expect(submission.tags).toEqual([ 'draft' ]);
+    // submission is what puts it in the starting state. `incomplete` is there from the same moment and for the
+    // same reason — a request nobody has answered yet is missing what it asks for, and until something says so
+    // the absence of the tag reads as "nothing missing", which is what let an empty request be sent
+    expect(submission.tags).toEqual([ 'draft', 'incomplete' ]);
     // The stored identifier became a real REFERENCE: the serializer can only embed what actually resolves
     expect(submission.schemaVersion?.['@path']).toBe('/Schemas/timeOffRequest/v1');
   });
@@ -365,7 +367,7 @@ test.describe('the time off request demo', () => {
       expect(instance?.approveRequest).toBeUndefined();
       // And the state the request is in is the state of the task it is waiting at, placed by the engine when the
       // token arrived there rather than written by the handler that created it
-      expect(submission.tags).toEqual([ 'draft' ]);
+      expect(submission.tags).toEqual([ 'draft', 'incomplete' ]);
       // Nothing to decide: sending a request is not a choice between outcomes, which is what tells a task list
       // to offer one plain control rather than a decision
       expect(instance?.fillIn?.outcomeOptions).toEqual([]);
@@ -416,8 +418,13 @@ test.describe('the time off request demo', () => {
       expect(instance?.approveRequest?.label).toBe('Approve the request');
       expect(instance?.approveRequest?.outcomeOptions).toEqual([ 'approved', 'rejected' ]);
       // And the request is now in the approver's hands, said by the state rather than by a flag: `submitted`
-      // retired `draft`, because a lifecycle is a state and not an accumulation
-      expect(submission.tags).toEqual([ 'submitted' ]);
+      // retired `draft`, because a lifecycle is a state and not an accumulation. `incomplete` survives it, and
+      // both halves of that are deliberate: the tag is in the `completeness` category rather than `lifecycle`, so
+      // placing a lifecycle state does not clear it — and this request was never answered. The editor would not
+      // have offered to send it, but completeness is enforced in the UI only: the engine has no guard on
+      // completing a send task, which is what this HTTP-level test walks straight past. When a gateway guard can
+      // read the host, this assertion is the one that should change
+      expect(submission.tags).toEqual([ 'incomplete', 'submitted' ]);
     });
 
     test('will not take any more answers once the request has been sent', async ({ request }) => {
@@ -491,9 +498,11 @@ test.describe('the time off request demo', () => {
         };
       };
 
-      // The end event the gateway routed to said what finishing that way means to the submission. Only the one
-      // tag: placing a lifecycle state retires the state it replaces, so the draft it started in is gone
-      expect(submission.tags).toEqual([ 'approved' ]);
+      // The end event the gateway routed to said what finishing that way means to the submission. The draft it
+      // started in is gone, because placing a lifecycle state retires the state it replaces — while `incomplete`
+      // stays, for the reason the send step above spells out: this request was never answered, and the tag is not
+      // in the lifecycle category
+      expect(submission.tags).toEqual([ 'incomplete', 'approved' ]);
       const instance = submission['wf:instances']?.timeOffRequest;
       // Asserted before the token check below, which a missing instance would otherwise satisfy vacuously
       expect(instance).toBeTruthy();
@@ -548,7 +557,8 @@ test.describe('the time off request demo', () => {
       const response = await request.get(`${path}.json`, {
         headers: asApprover,
       });
-      expect(((await response.json()) as { tags?: string[] }).tags).toEqual([ 'rejected' ]);
+      // Its own request, raised and sent unanswered like the one above, so it carries `incomplete` too
+      expect(((await response.json()) as { tags?: string[] }).tags).toEqual([ 'incomplete', 'rejected' ]);
     });
 
     test('keeps the system workflows out of sight', async ({ request }) => {

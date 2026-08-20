@@ -138,6 +138,12 @@ test.describe('a story: asking for time off, and getting it', () => {
       await expect(page.getByText('Submitted')).toBeVisible();
       await expect(page.getByRole('button', { name: 'View', pressed: true })).toBeVisible();
       await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toHaveCount(0);
+
+      // And she is not shown what her approver may do with it. The decision waiting now names his
+      // team, not her — so it is absent rather than refused: a control she could see and not press
+      // would tell her the same thing about somebody else's part in this
+      await expect(page.getByText('Approve the request')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Approved' })).toHaveCount(0);
     });
 
     await test.step('and it will not take any more answers', async () => {
