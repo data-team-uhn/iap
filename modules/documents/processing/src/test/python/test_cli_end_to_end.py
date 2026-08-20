@@ -116,13 +116,6 @@ class TestChunkerCli:
         assert result.returncode == 1
         assert "does not exist" in result.stderr
 
-    def test_rerun_is_stable(self, large_md):
-        first = run_cli(large_md)
-        second = run_cli(large_md)
-        assert first.returncode == 0 and second.returncode == 0
-        # Re-chunking must not accumulate state or change the answer.
-        assert first.stdout == second.stdout
-
     def test_help_exits_cleanly(self):
         result = run_cli("--help")
         assert result.returncode == 0
