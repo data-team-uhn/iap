@@ -24,7 +24,9 @@ import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import AnswerField, { type SaveState } from "./AnswerField";
+import DocumentUpload from "./DocumentUpload";
 import {
+  DOCUMENT_REQUIREMENT,
   type FormItem,
   type FormQuestion,
   type Requirement,
@@ -79,24 +81,35 @@ function Items({ items, disabled, states, onAnswered }: {
   );
 }
 
-// One requirement. One that holds no questions, a document to provide or an approval to obtain, is
-// still shown. It is something the submitter has to do, and leaving it out would say the request
-// asks less than it does.
-function RequirementPanel({ requirement, disabled, states, onAnswered }: {
+// One requirement. A requirement that holds no questions is still shown, and where it can be
+// answered it is answered here: a document is uploaded, and an approval is somebody else's step and
+// so says only that it is waiting on them.
+function RequirementPanel({ path, requirement, disabled, states, onAnswered, onAttached }: {
+  path: string;
   requirement: Requirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onAttached: () => void;
 }) {
   return (
     <Panel title={requirement.label || requirement.name} subtitle={requirement.description}>
       { isFormRequirement(requirement)
         ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
-        : (
-          <Typography variant="placeholder">
-            This part of the request cannot be completed here yet.
-          </Typography>
-        ) }
+        : requirement.type === DOCUMENT_REQUIREMENT
+          ? (
+            <DocumentUpload
+              path={path}
+              requirement={requirement}
+              disabled={disabled}
+              onAttached={onAttached}
+            />
+          )
+          : (
+            <Typography variant="placeholder">
+              This part of the request is somebody else&apos;s step, and cannot be completed here.
+            </Typography>
+          ) }
     </Panel>
   );
 }
@@ -169,10 +182,18 @@ function SubmissionEditor({ path }: { path: string }) {
       { form.requirements.map(requirement => (
         <RequirementPanel
           key={requirement.name}
+          path={path}
           requirement={requirement}
           disabled={!form.editable}
           states={states}
           onAnswered={answered}
+          // The form again, because what it asks can change with what was just attached: a
+          // requirement that is now answered, and a request that is no longer incomplete
+          onAttached={() => {
+            const token = latestFormRead.current + 1;
+            latestFormRead.current = token;
+            reload(token).catch((e: unknown) => setError(message(e)));
+          }}
         />
       )) }
       { form.requirements.length === 0 && (
