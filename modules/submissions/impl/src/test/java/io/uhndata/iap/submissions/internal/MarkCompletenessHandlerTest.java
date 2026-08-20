@@ -45,6 +45,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -80,6 +81,9 @@ class MarkCompletenessHandlerTest
 
     private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aRequest";
 
+    /** The attachment fulfilling the schema's document requirement. */
+    private static final String NOTE = "note";
+
     /** Where the create workflow's own event lands, which is not a submission. */
     private static final String HOMEPAGE_PATH = "/Submissions";
 
@@ -107,12 +111,14 @@ class MarkCompletenessHandlerTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Section.class, Question.class,
-            Answer.class, Submission.class);
+            Answer.class, Document.class, Submission.class);
         Tagging.enable(this.context);
+        // Registered as a service rather than injected into the handler: which requirements apply is the
+        // submission model's question now, and the model asks for the evaluator through @OSGiService
         final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
-        inject(evaluator);
+        this.context.registerService(ConditionEvaluator.class, evaluator);
 
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
@@ -129,7 +135,8 @@ class MarkCompletenessHandlerTest
             TYPE, Section.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "title", "Why"));
         this.context.create().resource(VERSION_PATH + "/" + REASON, Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Why?", "required", true));
-        // Nothing a submitter can answer, so it never makes a request incomplete
+        // A document is something its author supplies too, so an unfulfilled one holds the tag on just as an
+        // unanswered question does. Fulfilled here, so that the tests below are about the questions they name
         this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
             TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Doctor's note"));
 
@@ -137,6 +144,8 @@ class MarkCompletenessHandlerTest
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
             "tags", new String[] {"draft", MarkCompletenessHandler.INCOMPLETE}));
         reference(SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
+        this.context.create().resource(SUBMISSION_PATH + "/" + NOTE, Map.of(TYPE, Document.RESOURCE_TYPE));
+        reference(SUBMISSION_PATH + "/" + NOTE, VERSION_PATH + "/doctorsNote", "fulfills");
     }
 
     @Test
@@ -258,6 +267,21 @@ class MarkCompletenessHandlerTest
         assertTrue(refusal.getMessage().contains(MISSING_PATH));
     }
 
+    @Test
+    void holdsTheTagOnWhileADocumentTheSchemaAsksForIsMissing() throws Exception
+    {
+        // The other half of what an author supplies. Everything askable is answered here, so the questions cannot
+        // be what is holding it — only the missing attachment can
+        answer(START_DATE, "2026-11-23");
+        answer(REASON, "A break");
+        this.context.resourceResolver().delete(
+            Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH + "/" + NOTE)));
+
+        this.handler.execute(context());
+
+        assertTrue(tags().contains(MarkCompletenessHandler.INCOMPLETE));
+    }
+
     private Set<String> tags()
     {
         return Set.of(Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH))
@@ -350,11 +374,4 @@ class MarkCompletenessHandlerTest
         };
     }
 
-    private void inject(final ConditionEvaluator evaluator) throws ReflectiveOperationException
-    {
-        // The house idiom for a component under unit test: DS metadata only exists in the packaged bundle
-        final var field = MarkCompletenessHandler.class.getDeclaredField("conditions");
-        field.setAccessible(true);
-        field.set(this.handler, evaluator);
-    }
 }
