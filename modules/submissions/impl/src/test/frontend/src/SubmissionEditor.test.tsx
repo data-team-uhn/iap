@@ -30,6 +30,8 @@ import "@iap/submissions/answers/NumberAnswer";
 import "@iap/submissions/answers/TextAnswer";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import {
+  DOCUMENT_REQUIREMENT,
+  type DocumentRequirement,
   FORM_REQUIREMENT,
   type FormItem,
   type FormRequirement,
@@ -158,15 +160,177 @@ describe("SubmissionEditor", () => {
   });
 
   it("shows a requirement that holds no questions, rather than dropping it", async () => {
-    // A document or an approval is still something the submitter has to do
+    // An approval is still something the request waits on, and leaving it out would say the request
+    // asks less than it does. It is somebody else's step, so it is only reported.
     vi.stubGlobal("fetch", serving(form({
-      requirements: [ { name: "doctorsNote", type: "sch/DocumentRequirement", label: "Doctor's note" } ],
+      requirements: [ { name: "approval", type: "sch/ApprovalRequirement", label: "Approval" } ],
     })));
 
     render(<SubmissionEditor path={PATH} />);
 
-    expect(await screen.findByText("Doctor's note")).toBeInTheDocument();
-    expect(screen.getByText(/cannot be completed here yet/)).toBeInTheDocument();
+    expect(await screen.findByText("Approval")).toBeInTheDocument();
+    expect(screen.getByText(/somebody else's step/)).toBeInTheDocument();
+  });
+
+  describe("answering a document requirement", () => {
+    const NOTE: DocumentRequirement = {
+      name: "doctorsNote",
+      type: DOCUMENT_REQUIREMENT,
+      label: "Doctor's note",
+      description: "A note covering the days you were unwell.",
+      acceptedFileTypes: [ "application/pdf", "image/png" ],
+      template: "/Schemas/timeOffRequest/v1/doctorsNote/template",
+      attached: [],
+    };
+
+    function asked(note: Partial<DocumentRequirement> = {}, overrides: Partial<SubmissionForm> = {}) {
+      return form({ requirements: [ { ...NOTE, ...note } ], ...overrides });
+    }
+
+    function pick(name = "note.pdf", type = "application/pdf") {
+      return new File([ "%PDF" ], name, { type });
+    }
+
+    it("offers to attach a file, with the types it takes and the blank to start from", async () => {
+      vi.stubGlobal("fetch", serving(asked()));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      const input = await screen.findByLabelText(/Attach a file for "Doctor's note"/);
+      expect(input).toHaveAttribute("accept", "application/pdf,image/png");
+      expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Download the blank form" }))
+        .toHaveAttribute("href", "/Schemas/timeOffRequest/v1/doctorsNote/template");
+    });
+
+    it("says nothing about types or blanks where the requirement offers none", async () => {
+      vi.stubGlobal("fetch", serving(asked({ acceptedFileTypes: [], template: undefined })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByLabelText(/Attach a file/)).not.toHaveAttribute("accept");
+      expect(screen.queryByRole("link", { name: "Download the blank form" })).toBeNull();
+    });
+
+    it("names what is already there, so a form reopened later does not look untouched", async () => {
+      vi.stubGlobal("fetch", serving(asked({ attached: [ "note.pdf" ] })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("Attached: note.pdf")).toBeInTheDocument();
+      expect(screen.queryByText("Nothing attached yet")).toBeNull();
+    });
+
+    it("posts the file as an event on the submission, then reads the form again", async () => {
+      const fetchMock = serving(asked(), asked({ attached: [ "note.pdf" ] }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      const upload = fetchMock.mock.calls.find(call => call[0] === `${PATH}.attachDocument.json`);
+      expect(upload).toBeDefined();
+      const init = upload![1] as RequestInit;
+      expect(init.method).toBe("POST");
+      const body = init.body as FormData;
+      expect(body.get("requirement")).toBe("doctorsNote");
+      expect((body.get("file") as File).name).toBe("note.pdf");
+      // No Content-Type of our own: only the browser knows the multipart boundary it generated
+      expect(init.headers).toBeUndefined();
+      // What the server now says is attached, rather than what this page hoped
+      expect(await screen.findByText("Attached: note.pdf")).toBeInTheDocument();
+    });
+
+    it("says why the engine refused a file, in the engine's own words", async () => {
+      // The requirement takes anything, because `userEvent.upload` enforces `accept` as a real file
+      // dialog does. A type the control advertised as unacceptable would never reach the server.
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? json({ error: "A image/gif is not accepted here" }, { ok: false, status: 400 })
+          : json(asked({ acceptedFileTypes: [] }))));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick("scan.gif", "image/gif"));
+
+      expect(await screen.findByText("A image/gif is not accepted here")).toBeInTheDocument();
+    });
+
+    it("falls back on its own words when the refusal carries none", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? Promise.resolve({
+            ok: false,
+            status: 502,
+            url: "",
+            json: () => Promise.reject(new Error("not json")),
+          } as unknown as Response)
+          : json(asked())));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      expect(await screen.findByText(/This file could not be attached \(502\)/)).toBeInTheDocument();
+    });
+
+    it("reports an upload that never reached the server", async () => {
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) =>
+        options?.method === "POST"
+          ? Promise.reject("the network went away")
+          : json(asked())));
+
+      render(<SubmissionEditor path={PATH} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      expect(await screen.findByText("the network went away")).toBeInTheDocument();
+    });
+
+    it("lets a refusal be dismissed and the same file tried again", async () => {
+      let refuse = true;
+      vi.stubGlobal("fetch", vi.fn((url: string, options?: { method?: string }) => {
+        if (options?.method === "POST") {
+          const answer = refuse
+            ? json({ error: "The server was busy" }, { ok: false, status: 503 })
+            : json({});
+          refuse = false;
+          return answer;
+        }
+        return json(asked());
+      }));
+
+      render(<SubmissionEditor path={PATH} />);
+      const input = await screen.findByLabelText(/Attach a file/);
+      await userEvent.upload(input, pick());
+      await screen.findByText("The server was busy");
+      // Cleared after each pick, so that the same file counts as a change and can be retried. A test
+      // environment fires the change whatever the value, which is why this is asserted outright.
+      expect(input).toHaveValue("");
+      await userEvent.click(screen.getByRole("button", { name: /Close/ }));
+
+      await userEvent.upload(input, pick());
+
+      await waitFor(() => expect(screen.queryByText("The server was busy")).toBeNull());
+    });
+
+    it("does nothing when the file dialog was dismissed without a choice", async () => {
+      const fetchMock = serving(asked());
+      vi.stubGlobal("fetch", fetchMock);
+
+      render(<SubmissionEditor path={PATH} />);
+      // What a cancelled dialog looks like to the change handler, which `userEvent.upload` cannot
+      // express: it always has a file to give
+      fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [] } });
+
+      expect(fetchMock.mock.calls.some(call => call[0] === `${PATH}.attachDocument.json`)).toBe(false);
+    });
+
+    it("cannot be attached to once the request is no longer the submitter's to change", async () => {
+      // The same field that disables the questions, so the control cannot outlive the permission
+      vi.stubGlobal("fetch", serving(asked({}, { editable: false })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByLabelText(/Attach a file/)).toBeDisabled();
+    });
   });
 
   it("draws a section as its own block, with its questions inside", async () => {

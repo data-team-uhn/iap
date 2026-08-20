@@ -39,6 +39,7 @@ import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requ
 import TagChip from "@iap/tags/TagChip";
 
 import SubmissionEditor from "./SubmissionEditor";
+import { type DocumentRequirement, type SubmissionForm, fetchForm, isDocumentRequirement } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 
 // The extension that asks for the editor rather than the read-only page
@@ -123,30 +124,84 @@ function FormItems({ container, answers, level }: { container: JsonNode; answers
   );
 }
 
-// The documents attached to the submission, with download links for their files.
-function Documents({ documents }: { documents: JsonNode[] }) {
+// One attached document: what it is called and links to download whatever files it holds.
+function Attachment({ document, named }: { document: JsonNode; named: boolean }) {
+  const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
+  const files = Object.entries(document)
+    .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+  // A reference is serialized with whatever the referenced node holds, and a requirement need not
+  // carry a label. Worth saying only where the grouping does not already say it, and only where
+  // there is something to say: `fulfills "undefined"` is worse than nothing at all.
+  const fulfills = named && typeof requirement?.label === "string" ? requirement.label : undefined;
   return (
-    <Stack spacing={2}>
-      {documents.map((document, index) => {
-        const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
-        const files = Object.entries(document)
-          .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+    <Box>
+      <Typography variant="subtitle2">
+        {String(document.title ?? document["@name"])}
+        {fulfills ? ` — fulfills "${fulfills}"` : ""}
+      </Typography>
+      {document.description
+        ? <Typography variant="description">{formatValue(document.description)}</Typography>
+        : null}
+      <Stack>
+        {files.map(([name]) =>
+          <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
+      </Stack>
+    </Box>
+  );
+}
+
+// What the schema asks for and what has been attached against it. Reading only: a document is
+// attached while the request is being filled in, which is what the editor is for, so this page says
+// where things stand rather than offering a second way to change them.
+//
+// The requirements come from the form projection rather than from the submission this page already
+// holds, because a document requirement can be conditional, and conditions are resolved on the
+// server by design. Reading them off the schema instead would list documents this request was never
+// asked for.
+function Documents({ path, documents }: { path: string; documents: JsonNode[] }) {
+  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
+  const doFetch = useAuthenticatedFetch();
+
+  // The page rebuilds this section for each request it shows, so a projection can only ever land on
+  // the request it was asked for
+  useEffect(() => {
+    // A projection that cannot be read leaves the section showing what is attached and saying
+    // nothing about what was asked, which is the half that can still be trusted
+    fetchForm(doFetch, path).then(setForm, () => undefined);
+  }, [doFetch, path]);
+
+  const requirements = (form?.requirements ?? []).filter(isDocumentRequirement);
+  const fulfilling = (requirement: DocumentRequirement) => documents.filter(document =>
+    isNode(document.fulfills) && document.fulfills["@name"] === requirement.name);
+  // Anything whose requirement does not currently apply, is gone from the schema, or that never named
+  // one: still somebody's evidence, so shown rather than silently dropped
+  const claimed = new Set(requirements.flatMap(requirement =>
+    fulfilling(requirement).map(document => document["@path"])));
+  const unattributed = documents.filter(document => !claimed.has(document["@path"]));
+
+  if (requirements.length === 0 && documents.length === 0) {
+    return <Typography variant="placeholder">This request asks for no documents</Typography>;
+  }
+
+  return (
+    <Stack spacing={2} divider={<Divider />}>
+      {requirements.map(requirement => {
+        const attached = fulfilling(requirement);
         return (
-          <Box key={"document-" + index}>
-            <Typography variant="subtitle2">
-              {String(document.title ?? document["@name"])}
-              {requirement ? ` — fulfills "${String(requirement.label)}"` : ""}
-            </Typography>
-            {document.description
-              ? <Typography variant="description">{formatValue(document.description)}</Typography>
+          <Stack key={requirement.name} spacing={1}>
+            <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+            {requirement.description
+              ? <Typography variant="description">{requirement.description}</Typography>
               : null}
-            <Stack>
-              {files.map(([name]) =>
-                <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
-            </Stack>
-          </Box>
+            {attached.length > 0
+              ? attached.map((document, position) =>
+                <Attachment key={"attached-" + position} document={document} named={false} />)
+              : <Typography variant="placeholder">Nothing attached yet</Typography>}
+          </Stack>
         );
       })}
+      {unattributed.map((document, index) =>
+        <Attachment key={"other-" + index} document={document} named />)}
     </Stack>
   );
 }
@@ -310,11 +365,6 @@ function SubmissionView() {
   const documents = childrenOfType(submission, "sub/Document");
   const reviews = childrenOfType(submission, "sub/Review");
   const forms = schemaVersion ? childrenOfType(schemaVersion, "sch/FormRequirement") : [];
-  const documentRequirements = schemaVersion ? childrenOfType(schemaVersion, "sch/DocumentRequirement") : [];
-  const missingDocuments = "No documents attached yet"
-    + (documentRequirements.length > 0
-      ? `; expected: ${documentRequirements.map(requirement => String(requirement.label)).join(", ")}`
-      : "");
 
   return (
     <Stack spacing={2}>
@@ -342,9 +392,7 @@ function SubmissionView() {
         </Panel>
       ))}
       <Panel title="Documents">
-        {documents.length > 0
-          ? <Documents documents={documents} />
-          : <Typography variant="placeholder">{missingDocuments}</Typography>}
+        <Documents path={path} documents={documents} />
       </Panel>
       <Panel title="Reviews">
         {reviews.length > 0
