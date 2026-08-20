@@ -54,6 +54,11 @@
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- What a session acts as, which UserIds asks Jackrabbit's own session for -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-jackrabbit-api</artifactId>
+    </dependency>
     <!-- Nullability annotations for the exported API/SPI -->
     <dependency>
       <groupId>org.jetbrains</groupId>
