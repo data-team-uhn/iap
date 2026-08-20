@@ -833,7 +833,8 @@ system tag while the submission lacks anything its author has to supply, and rem
 once nothing is missing. What is missing is `Submission.getMissingRequirements()`: the
 form as its conditions resolve, a question counting as answered once it holds
 `minAnswers` non-blank values. An approval never counts, because somebody else gives it.
-The create workflow runs the same step, so a new submission is tagged from the start.
+The create and attach workflows run the same step, so a new submission is tagged from
+the start.
 
 ## Content workflows: the part that persists
 
