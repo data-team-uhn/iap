@@ -92,7 +92,8 @@ python modules/documents/processing/src/main/python/docling_daemon.py --host 127
 
 ### Test endpoints
 
-- `GET  http://localhost:18765/health` — readiness probe (includes `shared_docs` root).
+- `GET  http://localhost:18765/health` — readiness probe: `{"status", "workers", "ready"}`.
+  Deliberately carries no filesystem paths, since it is the one endpoint with no credential.
 - `POST http://localhost:18765/parse?path=/shared-docs/.../proto.pdf&chunk=true` —
   path under the shared root → summary JSON. LibreOffice prep + Docling + `write_chunk_files`.
 - `POST http://localhost:18765/shutdown` — graceful stop; **served only with
@@ -111,7 +112,7 @@ Setting **`IAP_DOCLING_TOKEN`** additionally requires `Authorization: Bearer <to
 endpoints, so that reaching the port is not by itself authority to use it. `GET /health` stays
 open, so container probes need no credential.
 
-Beyond that the daemon has **no authentication**, and parsing is slow, which makes a reachable
+With no token set the port is the only boundary, and parsing is slow, which makes a reachable
 endpoint a cheap denial-of-service target. Two more ways to hold that line:
 
 - **The deployment** (`docker-compose.yml`) publishes the port as `127.0.0.1:18765:18765`, so only
@@ -135,6 +136,11 @@ Environment:
 | ---------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `IAP_SHARED_DOCS`                              | `/shared-docs` | Shared root. `?path=` is resolved against it, and paths outside it are refused                                                 |
 | `IAP_LIBREOFFICE_SOFFICE`                      | `soffice`      | LibreOffice executable                                                                                                         |
+| `IAP_DOCLING_TOKEN`                            | _unset_        | When set, `/parse` and `/shutdown` require `Authorization: Bearer <token>`. Unset, the port is the only boundary |
+| `IAP_MAX_INPUT_PAGES`                          | `1500`         | Largest PDF accepted, in pages; a bigger one is refused with 400 once it holds the single parse slot — counting pages means reading it. 0 disables the limit |
+| `IAP_MAX_INPUT_BYTES`                          | `67108864`     | Largest input accepted, in bytes, whatever its type — a `.docx` has no pages to count. 0 disables the limit |
+| `IAP_LIBREOFFICE_TIMEOUT_SECONDS`              | `300`          | Seconds one `soffice` run may take before its process group is killed. For a `.doc` the kill is a hard failure, so keep it in step with `IAP_MAX_INPUT_BYTES` |
+| `IAP_SHARED_DOCS_HOST`                         | `../shared-docs` | Compose only. Host directory bind-mounted at `/shared-docs`. **Create it first** — Docker creates a missing one as `root:root`, which the default `user: 1000:1000` cannot write to |
 | `IAP_DOCLING_UID` / `IAP_DOCLING_GID`          | `1000`         | Compose only. Who the container runs as; must own the host directory behind `/shared-docs` or the daemon cannot write its output |
 | `OMP_NUM_THREADS` / `DOCLING_NUM_THREADS`      | `1`            | Per-process thread caps, so the outer `ProcessPoolExecutor` owns the parallelism (set on import by `docling_config.py`)        |
 
@@ -145,6 +151,7 @@ Daemon flags:
 | `--host`       | `127.0.0.1`                  | Bind address                   |
 | `--port`       | `18765`                      | Listen port                    |
 | `--workers N`  | auto, from cores + RAM budget | Parallel PDF worker processes  |
+| `--enable-shutdown` | off                     | Serve `POST /shutdown`; 404 otherwise |
 
 Per-request options go on the `/parse` query string: `chunk` (default true), `max_tokens`
 (2000) and `min_structure_tokens` (20000).
