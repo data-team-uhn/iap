@@ -17,10 +17,12 @@
  */
 package io.uhndata.iap.workflows.internal;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Map;
 
+import org.apache.sling.api.request.RequestParameter;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -45,6 +48,7 @@ import io.uhndata.iap.workflows.models.WorkflowFixture;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -212,6 +216,37 @@ class WorkflowEventServletTest
 
         assertTrue(response.getOutputAsString().contains(failure.getMessage()));
         return response.getStatus();
+    }
+
+    @Test
+    void offersAnUploadedFileAsAnAttachmentRatherThanAsText()
+        throws IOException
+    {
+        // Reading a file as a string decodes its bytes as text, which corrupts anything that is not text — the
+        // same mistake as taking a JCR binary through a reader. A part that is not a form field is left alone
+        final RequestParameter part = Mockito.mock(RequestParameter.class);
+        Mockito.when(part.isFormField()).thenReturn(false);
+        Mockito.when(part.getFileName()).thenReturn("note.pdf");
+        Mockito.when(part.getContentType()).thenReturn("application/pdf");
+        Mockito.when(part.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[] { 0x25, 0x50 }));
+
+        final Object value = WorkflowEventServlet.value(new RequestParameter[] { part });
+
+        assertInstanceOf(EventAttachment.class, value);
+        final EventAttachment attachment = (EventAttachment) value;
+        assertEquals("note.pdf", attachment.getFileName());
+        assertEquals("application/pdf", attachment.getMimeType());
+        assertArrayEquals(new byte[] { 0x25, 0x50 }, attachment.openStream().readAllBytes());
+    }
+
+    @Test
+    void stillOffersAnOrdinaryFieldAsText()
+    {
+        final RequestParameter field = Mockito.mock(RequestParameter.class);
+        Mockito.when(field.isFormField()).thenReturn(true);
+        Mockito.when(field.getString()).thenReturn("a wedding");
+
+        assertEquals("a wedding", WorkflowEventServlet.value(new RequestParameter[] { field }));
     }
 
     private MockSlingJakartaHttpServletRequest request(final Map<String, Object> parameters)
