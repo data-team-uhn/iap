@@ -170,8 +170,10 @@ callers:
 - `chunk_file(<stem>.md)` — re-chunk an already-parsed `.md`, including `python chunker.py <file>`.
 
 There is one `Chunks/` per folder, and writing it replaces whatever is there. That is safe
-because a parse gets a directory of its own: the caller stages each upload under
-`/shared-docs/{uuid}/`, so a second document never shares a folder with the first.
+because the caller owns the directory's lifecycle: each upload is staged under
+`/shared-docs/{uuid}/` on its own, and once a parse finishes the caller reads the outputs out
+and wipes the directory. **No parse ever meets files left by an earlier one**, so nothing here
+checks for them — see "Staleness" below.
 
 ---
 
@@ -231,10 +233,10 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
 ```
 <answerDir>/
     <stem>.md                 # the parsed Markdown (written by write_chunk_files)
-    <stem>.pdf                # the staged source, or a copy of the LibreOffice rendition
-                              # saved here only when the name was free
+    <stem>.pdf                # the staged source, or the LibreOffice rendition, which is
+                              # written unconditionally -- nothing checks the name first
     Chunks/
-        outline.json          # ALWAYS written: fileId, tokens, chunked, toc_source, toc (+ unchunkedReason when below the gate)
+        outline.json          # ALWAYS written: fileId, tokens, chunked, toc_source, toc (+ unchunkedReason whenever chunked is false)
         catalog.json          # only when chunked: one slim entry per Chunk-*.md
         Chunk-0.md            # content before the first boundary heading (if any)
         Chunk-1.md
@@ -244,10 +246,18 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
 
 Outline records stay in memory and reach disk only as titles in `Chunks/outline.json`.
 
-`clear_prior_outputs(output_file)` deletes the whole `Chunks/` tree. `write_chunk_files`
-replaces `Chunks/`;
-`parse_document` with `chunk=false` writes the `.md` and then calls `clear_prior_outputs` so a
-prior run's chunks cannot linger. Staleness is handled by **wipe-and-redo**, not versioning.
+### Staleness
+
+There is none to handle. A parse starts from a directory holding one staged upload and nothing
+else: the caller reads every output into its own storage as soon as the parse finishes, then
+wipes the directory. So this code neither defends against a previous parse's leftovers nor
+cleans them up — it only ever writes its own outputs, and `write_chunk_files` replaces
+`Chunks/` wholesale when the `chunk_file` CLI re-chunks a document in place.
+
+`parse_document` with `chunk=false` writes `Chunks/outline.json` with
+`unchunkedReason: chunking_not_requested` **and then** the `.md`, in that order — the `.md` is
+the commit marker, so writing it first would leave Markdown with no outline beside it. Both
+unchunked paths leave the same shape on disk.
 
 **Publication is all-or-nothing.** The chunk tree is written into `Chunks.new-<pid>/` and
 moved into place with a rename, and the `.md` goes through a temporary file of its own — so a
@@ -289,4 +299,8 @@ Both modes share `chunker.py`, so the outline + chunk logic is identical.
 | `DEFAULT_MAX_TOKENS` | 2000 | Target max tokens per chunk file before an over-budget piece is split |
 | `MIN_TAIL_TOKENS` | 500 | A text-only tail smaller than this is folded back into the previous part |
 | `MAX_HEADING_WORDS` / `MAX_WORD_CHARS` / `MIN_HEADING_CHARS` | 10 / 100 / 5 | Heading-validity filters (reject run-ons, garbage, `Table …` captions) |
+| `DEFAULT_MAX_INPUT_PAGES` | 1500 | Largest PDF accepted; over it is a 400, raised *after* the parse slot is taken (counting pages means reading the document). Override with `IAP_MAX_INPUT_PAGES`, 0 to disable |
+| `DEFAULT_MAX_INPUT_BYTES` | 64 MiB | The same ceiling by size, for every accepted type — a `.docx` has no pages to count. Override with `IAP_MAX_INPUT_BYTES` |
+| `DEFAULT_CONVERSION_TIMEOUT_SECONDS` | 300 | Seconds one `soffice` run may take before its process group is killed. Override with `IAP_LIBREOFFICE_TIMEOUT_SECONDS`. Per soffice *run*: a `.doc` does two (to `.docx`, then the sibling `.pdf`), so prep can take twice this. Sized for the byte ceiling above, and both runs together still sit well inside the container's `stop_grace_period` |
+| `MAX_OUTLINE_DEPTH` | 32 | Deepest PDF outline nesting walked, so a crafted one cannot exhaust the stack |
 | `DEFAULT_PORT` | 18765 | Daemon HTTP port |
