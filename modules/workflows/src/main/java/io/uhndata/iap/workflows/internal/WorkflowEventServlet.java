@@ -64,6 +64,10 @@ import io.uhndata.iap.workflows.models.WorkflowsHomepage;
  * workflow-managed ones for that homepage. As more homepages come under workflow control, they are added to the
  * {@code resourceTypes} here.</p>
  *
+ * <p>The event a POST means is the target's, unless a selector names one: {@code POST <path>.attachDocument} sends
+ * that message instead of the default. Nothing is registered per message — the definitions decide which messages
+ * exist, and a message nothing is waiting for is a 409.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -122,23 +126,34 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * Which domain event a POST means, decided by what it was aimed at: posting to a homepage asks for something
-     * to be created, posting to a user task says it has been decided. The servlet stays dumb — it names the event
-     * and hands it over; what happens next is the definitions' business.
+     * Which domain event a POST means, decided by what it was aimed at: posting to a homepage asks for something to
+     * be created, posting to a user task says it has been decided, and posting to an entity changes that one. The
+     * servlet stays dumb — it names the event and hands it over; what happens next is the definitions' business.
+     *
+     * <p>A selector names the event outright, which is how anything beyond those defaults is reached: an entity has
+     * one obvious thing that happens to it and any number of less obvious ones, and there is no reading of the URL
+     * that tells {@code save} from {@code attachDocument}. Naming it costs nothing in safety, because a client
+     * naming an event has never been what decides whether it happens: the engine answers 409 when no start event is
+     * waiting for that message and 403 when this user is not among its performers, exactly as it does for the
+     * defaults.</p>
      *
      * @param request the incoming request
      * @return the domain event name
      */
     private String eventName(final SlingJakartaHttpServletRequest request)
     {
+        final String named = request.getRequestPathInfo().getSelectorString();
+        if (named != null && !named.isEmpty()) {
+            return named;
+        }
         final Resource target = request.getResource();
         if (target.isResourceType(TaskInstance.RESOURCE_TYPE)) {
             return TaskCompletion.COMPLETE_EVENT;
         }
         // Posting to an entity rather than to the homepage that holds them means changing that one, not making
-        // another. Which is as far as the distinction needs to go for now: the other things one might do to a
-        // submission — send it for review, withdraw it — are steps of its own workflow, so they arrive as user
-        // tasks and are already told apart above.
+        // another. Which is as far as the default needs to go: the other things one might do to a submission —
+        // send it for review, withdraw it — are steps of its own workflow, so they arrive as user tasks and are
+        // already told apart above.
         return target.isResourceType(SUBMISSION_RESOURCE_TYPE) ? SAVE_EVENT : CREATE_EVENT;
     }
 
