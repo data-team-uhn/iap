@@ -46,12 +46,15 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
+import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -76,6 +79,12 @@ class MarkCompletenessHandlerTest
     private static final String VERSION_PATH = "/Schemas/timeOffRequest/v1";
 
     private static final String SUBMISSION_PATH = "/Submissions/ab/cd/ef/aRequest";
+
+    /** Where the create workflow's own event lands, which is not a submission. */
+    private static final String HOMEPAGE_PATH = "/Submissions";
+
+    /** A recorded path with nothing at it. */
+    private static final String MISSING_PATH = "/Submissions/ab/cd/ef/gone";
 
     private static final String REQUESTER = "demo-requester";
 
@@ -221,6 +230,34 @@ class MarkCompletenessHandlerTest
      *
      * @return its tag names
      */
+    @Test
+    void judgesWhatTheCreateWorkflowJustMadeRatherThanItsOwnTarget() throws Exception
+    {
+        // The create workflow posts to the homepage, so the target here is deliberately something that is not a
+        // submission at all: were the handler to read it instead of the recorded path, this would fail outright
+        // rather than quietly agree
+        final Resource homepage = this.context.create().resource(HOMEPAGE_PATH,
+            Map.of(TYPE, "sub/SubmissionsHomepage"));
+        answer(START_DATE, "2026-11-23");
+        answer(REASON, "A break");
+
+        this.handler.execute(context(homepage, SUBMISSION_PATH));
+
+        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE));
+    }
+
+    @Test
+    void refusesWhenTheRecordedPathLeadsNowhere()
+    {
+        final Resource homepage = this.context.create().resource(HOMEPAGE_PATH,
+            Map.of(TYPE, "sub/SubmissionsHomepage"));
+
+        final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(context(homepage, MISSING_PATH)));
+
+        assertTrue(refusal.getMessage().contains(MISSING_PATH));
+    }
+
     private Set<String> tags()
     {
         return Set.of(Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH))
@@ -254,8 +291,18 @@ class MarkCompletenessHandlerTest
 
     private WorkflowTaskContext context()
     {
-        final Resource target = Objects.requireNonNull(
-            this.context.resourceResolver().getResource(SUBMISSION_PATH));
+        return context(Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH)), null);
+    }
+
+    /**
+     * A context for a task acting on what an earlier activity created rather than on its own target.
+     *
+     * @param target the event's target, which for the create workflow is the homepage
+     * @param createdPath the path recorded as created, or {@code null} when the target is itself the subject
+     * @return the context to hand the handler
+     */
+    private WorkflowTaskContext context(final Resource target, final String createdPath)
+    {
         final ResourceResolver resolver = this.context.resourceResolver();
         return new WorkflowTaskContext()
         {
@@ -292,7 +339,7 @@ class MarkCompletenessHandlerTest
             @Override
             public Object getVariable(final String name)
             {
-                return null;
+                return WorkflowResult.CREATED_PATH.equals(name) ? createdPath : null;
             }
 
             @Override

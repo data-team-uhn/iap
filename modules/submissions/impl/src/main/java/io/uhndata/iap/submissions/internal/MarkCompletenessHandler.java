@@ -27,7 +27,9 @@ import org.osgi.service.component.annotations.Reference;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
+import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
@@ -69,9 +71,9 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final Resource target = context.getTarget();
+        final Resource target = subject(context);
         final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
-            "The save workflow only applies to submissions");
+            "This task only applies to submissions");
         // Every resource adapts to Taggable — the mixin decides what may be tagged, not the model
         final Taggable taggable = Objects.requireNonNull(target.adaptTo(Taggable.class),
             "Any resource can be read as taggable content");
@@ -82,5 +84,36 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
             // the alternative is reading the tag first to decide whether to remove it
             taggable.untag(INCOMPLETE, true);
         }
+    }
+
+    /**
+     * The submission this task is marking: what a previous activity created, or failing that the event's own target.
+     *
+     * <p>The save workflow posts to the submission itself, so the target <em>is</em> the subject. The create
+     * workflow posts to the homepage and only then has a submission, which it records as
+     * {@link WorkflowResult#CREATED_PATH} — so the same handler serves both, and a new submission is tagged from
+     * birth rather than from its first save. That distinction matters: until something writes the tag, its absence
+     * is indistinguishable from being complete, and a control offering to send the request reads that absence as
+     * permission.</p>
+     *
+     * <p>The same rule, in the same shape, is what {@code WorkflowStarter} uses to find the entity to attach a
+     * workflow to. It is asked twice now and belongs on {@link WorkflowTaskContext} rather than in each handler;
+     * moving it there is an SPI change and is deliberately not smuggled in here.</p>
+     *
+     * @param context the executing task's context
+     * @return the resource to judge
+     * @throws WorkflowDefinitionException when a path was recorded but leads nowhere
+     */
+    private static Resource subject(final WorkflowTaskContext context) throws WorkflowDefinitionException
+    {
+        final Object created = context.getVariable(WorkflowResult.CREATED_PATH);
+        if (!(created instanceof String)) {
+            return context.getTarget();
+        }
+        final Resource subject = context.getResourceResolver().getResource((String) created);
+        if (subject == null) {
+            throw new WorkflowDefinitionException("Nothing was created at " + created + " to judge");
+        }
+        return subject;
     }
 }
