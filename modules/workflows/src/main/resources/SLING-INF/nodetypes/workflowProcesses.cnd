@@ -150,6 +150,13 @@
   // Value recorded at completion; used for downstream gateway routing
   - outcome (STRING)
 
+  // What whoever completed the task said about their decision, kept beside the
+  // outcome it explains. Deciding is not choosing a value: a refusal usually has
+  // to say why, and an approval may carry a condition. This is the part of the
+  // decision the process does not interpret -- nothing routes on it -- which is
+  // exactly why it has to be recorded rather than left to be remembered.
+  - outcomeNote (STRING)
+
   // The decisions this task may be completed with, copied from its defining
   // activity when the task was raised. Copied rather than looked up, for the same
   // reason the label is: a task is decided on the terms it was raised with, not

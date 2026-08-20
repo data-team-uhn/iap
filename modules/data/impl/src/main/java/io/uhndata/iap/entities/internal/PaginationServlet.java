@@ -18,6 +18,7 @@
 package io.uhndata.iap.entities.internal;
 
 import java.io.IOException;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -28,6 +29,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -39,6 +42,7 @@ import jakarta.json.JsonObject;
 import jakarta.json.stream.JsonGenerator;
 import jakarta.servlet.Servlet;
 
+import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
@@ -104,6 +108,12 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PaginationServlet.class);
 
+    /** The filter value standing for whoever is asking. */
+    private static final String ME = "@me";
+
+    /** The filter value standing for everything they act as, expanded into an OR over those principals. */
+    private static final String MY_PRINCIPALS = "@myPrincipals";
+
     /** The number of entities returned when no {@code limit} is requested. */
     private static final long DEFAULT_LIMIT = 10;
 
@@ -164,11 +174,12 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         // What `@me` stands for: the id the repository records, so that it matches values written earlier by the
         // same person under a differently capitalised login
         final String me = UserIds.canonical(request.getResourceResolver());
+        final List<String> principals = principalsOf(session);
         final QueryBuilder builder = new QueryBuilder(getNodeType(homepage), homepage.getPath())
-            .withFilters(parseFilters(request, "field", me));
+            .withFilters(parseFilters(request, "field", me, principals));
         for (final String suffix : getChildFilterSuffixes(request)) {
             builder.withChildFilters(request.getParameter("childType" + suffix),
-                parseFilters(request, "childField" + suffix, me));
+                parseFilters(request, "childField" + suffix, me, principals));
         }
         final String statement = builder
             .withFullText(request.getParameter("filter"))
@@ -226,11 +237,13 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * @param prefix the parameter name prefix, {@code field} for conditions on the entity itself, {@code childField}
      *            for conditions on a descendant node
      * @param currentUser the id of the user making the request, replacing the special value {@code @me}
+     * @param principals everything the requesting session acts as, which the special value {@code @myPrincipals}
+     *            expands into
      * @return a list of filters, empty if no filters with the given prefix are present in the request
      * @throws IllegalArgumentException if the names, comparators, values and groups don't come in complete tuples
      */
     private List<Filter> parseFilters(final SlingJakartaHttpServletRequest request, final String prefix,
-        final String currentUser)
+        final String currentUser, final List<String> principals)
     {
         final String[] names = request.getParameterValues(prefix + "Name");
         if (names == null) {
@@ -245,11 +258,67 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         }
         final List<Filter> result = new ArrayList<>(names.length);
         for (int i = 0; i < names.length; ++i) {
-            final String value = "@me".equals(values[i]) ? currentUser : values[i];
+            final String comparator = comparators == null ? "=" : comparators[i];
             final String group = groups == null || groups[i].isEmpty() ? null : groups[i];
-            result.add(new Filter(names[i], comparators == null ? "=" : comparators[i], value, group));
+            if (MY_PRINCIPALS.equals(values[i])) {
+                result.addAll(principalFilters(names[i], comparator, group, principals, i));
+            } else {
+                final String value = ME.equals(values[i]) ? currentUser : values[i];
+                result.add(new Filter(names[i], comparator, value, group));
+            }
         }
         return result;
+    }
+
+    /**
+     * Expands {@code @myPrincipals} into one condition per principal, ORed together.
+     *
+     * <p>What it is for: a property naming who may act — a task's {@code performers} — holds principals rather
+     * than user ids, so "waiting for me" is not one comparison but "any of the things I act as". Expanded here
+     * rather than sent by the client, because a client would have to be told its own group memberships to build
+     * it, and because the answer belongs to the session rather than to the request.</p>
+     *
+     * <p>A session that acts as nothing gets one condition on its own user id, not none: dropping the filter
+     * would widen the query to everything, which is the opposite of what asking for one's own work means.</p>
+     *
+     * @param name the property to compare
+     * @param comparator the comparator to use for each condition
+     * @param group the group the caller put this filter in, or {@code null} to let the expansion have its own
+     * @param principals everything the requesting session acts as
+     * @param index the filter's position, used to name a group of its own so that two expansions do not merge
+     * @return the filters to OR together, never empty
+     */
+    private List<Filter> principalFilters(final String name, final String comparator, final String group,
+        final List<String> principals, final int index)
+    {
+        // Its own group, so the OR stands on its own; a caller who named a group is honoured, so an expansion can
+        // still be ORed together with a condition of the caller's own
+        final String orGroup = group == null ? MY_PRINCIPALS + index : group;
+        return principals.stream()
+            .map(principal -> new Filter(name, comparator, principal, orGroup))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Everything the requesting session acts as: its own user plus every principal it is bound to.
+     *
+     * <p>Read from the bound principals rather than from group memberships looked up through {@code UserManager},
+     * for the reason the deletion vetoes record: with dynamic membership an identity provider's roles arrive as
+     * principals with no local group node behind them, so a membership lookup would report that a session belongs
+     * to nothing.</p>
+     *
+     * @param session the requesting session
+     * @return the principal names, with the user's own id first; never empty
+     * @throws RepositoryException if the session cannot say what it is bound to
+     */
+    private List<String> principalsOf(final Session session) throws RepositoryException
+    {
+        final Stream<String> bound = session instanceof JackrabbitSession
+            ? ((JackrabbitSession) session).getBoundPrincipals().stream().map(Principal::getName)
+            : Stream.empty();
+        return Stream.concat(Stream.ofNullable(session.getUserID()), bound)
+            .distinct()
+            .collect(Collectors.toList());
     }
 
     /**
