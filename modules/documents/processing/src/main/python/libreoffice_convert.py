@@ -42,6 +42,12 @@ from markdown_markers import INPUT_SUFFIXES
 # Name the Writer PDF filter explicitly rather than passing a bare "pdf", so the export
 # does not depend on which filter LibreOffice picks for the input it was handed.
 _PDF_CONVERT_TO = "pdf:writer_pdf_Export"
+_ODT_CONVERT_TO = "odt"
+
+# What soffice may be handed. The pipeline's own inputs, plus the ODT that the sibling PDF
+# fallback goes through: a tuple of literals either way, so the staged name is never built
+# from a caller-supplied string (see :func:`_stage_for_soffice`).
+STAGEABLE_SUFFIXES = (*INPUT_SUFFIXES, ".odt")
 
 # How long one soffice run may take before its process group is killed. Overridable because
 # every other budget in the pipeline is (workers, batch pages, the input ceilings, the token
@@ -88,12 +94,19 @@ PROFILE_SWITCH_PREFIX = "-env:UserInstallation=file://"
 
 
 def _kill_group(process: subprocess.Popen) -> None:
-    """Kill the converter and every process it started."""
+    """Kill the converter and every process it started.
+
+    The group is the point: soffice is a launcher, so killing only the process it started
+    leaves the real converter running (see :func:`_run_soffice`).
+    """
     try:
         if os.name == "posix":
             os.killpg(os.getpgid(process.pid), signal.SIGKILL)
             return
     except OSError:
+        # No group to signal: getpgid raises once the launcher is reaped, and killpg raises
+        # if the group is gone. Either way the single-process kill below is the fallback, and
+        # it tolerates an already-dead child -- Popen.kill suppresses ProcessLookupError.
         pass
     process.kill()
 
@@ -208,7 +221,7 @@ def _stage_for_soffice(source: Path, work_dir: Path) -> Path:
     """Put ``source`` inside ``work_dir`` under a name built only from literals.
 
     soffice picks its import filter from the extension, so the extension has to survive. It is
-    taken from :data:`INPUT_SUFFIXES` rather than copied off the caller's filename, so the
+    taken from :data:`STAGEABLE_SUFFIXES` rather than copied off the caller's filename, so the
     staged name is a constant either way.
 
     Always a copy, never a symlink. A symlink would be free, but ``os.symlink`` only works
@@ -230,7 +243,7 @@ def _stage_for_soffice(source: Path, work_dir: Path) -> Path:
     @raise RuntimeError: when the extension is not one this pipeline accepts
     """
     lowered = source.suffix.lower()
-    suffix = next((allowed for allowed in INPUT_SUFFIXES if allowed == lowered), None)
+    suffix = next((allowed for allowed in STAGEABLE_SUFFIXES if allowed == lowered), None)
     if suffix is None:
         raise RuntimeError(f"LibreOffice cannot convert '{source.name}': unsupported extension")
     staged = work_dir / (STAGED_INPUT_STEM + suffix)
@@ -307,21 +320,60 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
         _discard_staging(staging_root)
 
 
+def _sibling_pdf_via_odt(source: Path) -> None:
+    """Render the sibling PDF through LibreOffice's own format instead of directly.
+
+    A second attempt for documents the direct Word-to-PDF filter cannot export: the import
+    filter and the PDF export disagree about some documents, and going through ODT re-writes
+    the document with LibreOffice's own model in between, which is often enough for the export
+    to succeed.
+
+    The ODT is an intermediate and nothing reads it, so it is made in a temp directory and
+    discarded; only the PDF lands beside the source.
+
+    @param source: the document to render, the same one the direct attempt used
+    @raise RuntimeError: when either leg fails, as :func:`convert` reports it
+    """
+    staging = Path(tempfile.mkdtemp(prefix="iap-lo-odt-"))
+    try:
+        intermediate = convert(source, _ODT_CONVERT_TO, staging)
+        convert(intermediate, _PDF_CONVERT_TO, source.parent)
+    finally:
+        _discard_staging(staging)
+
+
 def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
     """Best-effort sibling PDF for later bookmark extraction.
 
     Docling parses the ``.docx`` either way; a missing PDF only means
     ``toc_source`` falls back to the printed TOC (or none).
+
+    Two attempts: straight to PDF, then through ODT (see :func:`_sibling_pdf_via_odt`). Both
+    start from the same document, so the pagination the bookmarks refer to stays the pagination
+    of what Docling parses. The detour is still a second filter path, so it can paginate
+    differently -- ``verify_bookmarks`` is what catches that, marking records it cannot line up
+    against the page markers rather than trusting them.
     """
     try:
         convert(source, _PDF_CONVERT_TO, source.parent)
-    except (RuntimeError, FileNotFoundError, OSError) as exc:
-        message = (
-            f"LibreOffice PDF conversion failed for '{source.name}'; "
-            f"continuing without sibling PDF (bookmarks unavailable): {exc}"
-        )
+        return
+    except (RuntimeError, FileNotFoundError, OSError) as direct_failure:
         if log is not None:
-            log(message)
+            log(
+                f"LibreOffice PDF conversion failed for '{source.name}' ({direct_failure}); "
+                "retrying through ODT"
+            )
+        first = direct_failure
+
+    try:
+        _sibling_pdf_via_odt(source)
+    except (RuntimeError, FileNotFoundError, OSError) as odt_failure:
+        if log is not None:
+            log(
+                f"LibreOffice PDF conversion failed for '{source.name}' both directly and "
+                f"through ODT; continuing without sibling PDF (bookmarks unavailable): "
+                f"direct: {first}; via ODT: {odt_failure}"
+            )
 
 
 def prepare_office_document(input_path: Path, *, log: LogFn | None = None) -> Path:
