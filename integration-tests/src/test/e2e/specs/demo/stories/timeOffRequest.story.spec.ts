@@ -36,10 +36,10 @@ import { LoginPage } from '../../../pages/login.page';
  *
  * ---
  *
- * Everything above is the story. The steps below are it, as far as the platform can currently tell
- * it; the rest stays here as prose, and each part turns into steps as the capability it waits on
- * arrives. What is missing is named where it is missing, so this file is also the honest list of
- * what the demo still cannot do end to end.
+ * Everything above is the story, and all of it is told below now: raised, decided, and seen to have
+ * been decided. Where a part of it waits on a capability the platform does not have yet, it stays
+ * here as prose and is named where it is missing, so this file doubles as the honest list of what the
+ * demo cannot yet do end to end.
  */
 test.describe('a story: asking for time off, and getting it', () => {
   // One story, told in order: each step depends on what the last one left behind, so they share a
@@ -71,6 +71,9 @@ test.describe('a story: asking for time off, and getting it', () => {
       await dialog.getByLabel(/Title/).fill('The last week of November');
       await dialog.getByRole('button', { name: 'Create' }).click();
       await expect(page.getByText('The last week of November')).toBeVisible();
+      // The dashboard she came from lists requests with an Edit control per row, so the view she is
+      // on has to be the request itself before anything is pressed on it
+      await expect(page.getByRole('grid')).toHaveCount(0);
     });
 
     await test.step('she fills it in, and the form asks for more as she does', async () => {
@@ -139,25 +142,50 @@ test.describe('a story: asking for time off, and getting it', () => {
       await shell.signOut();
     });
 
-    // ---------------------------------------------------------------------------------------------
-    // THE REST OF THE STORY, still prose because the platform cannot yet tell it:
-    //
-    //   Her approver signs in, finds the request waiting for a decision, reads what she asked for,
-    //   and approves it.
-    //
-    // Waiting on: anywhere for an approver to *see* a decision they owe, and to make it. The engine
-    // routes the task and authorizes the decision — `carries the request through to approval when
-    // the approver decides`, in the suite beside this one, drives exactly that over HTTP — and the
-    // task now says what it may be decided with, so the missing part is a screen: a list of the
-    // tasks assigned to whoever is signed in, a view of the request behind one, and a control per
-    // offered outcome. The submission page deliberately offers nothing for a task carrying
-    // decisions, because approving is not a button — it is a decision with a reason.
-    //
-    //   He signs out. Priya signs back in and sees that her time off was approved.
-    //
-    // Waiting on: the step above. This one is already built — the page draws the lifecycle tag, as
-    // the `Submitted` assertion above shows — so it becomes two lines the moment something can set
-    // `approved`.
-    // ---------------------------------------------------------------------------------------------
+    // The request as Priya left it, which the approver has to be able to find without being told
+    // where it is
+    const REQUEST = 'The last week of November';
+
+    await test.step('her approver signs in and finds it waiting for him', async () => {
+      await login.signInAs('demo-approver', 'demo-approver');
+      expect(await shell.signedInAs()).toBe('demo-approver');
+
+      // Found in the list of what is waiting for him rather than by being handed the address: the
+      // request's approval names his team as its performers, and that alone is what puts it there
+      await expect(page.getByRole('row', { name: new RegExp(REQUEST) })).toBeVisible();
+    });
+
+    await test.step('he reads what she asked for, and approves it', async () => {
+      await page.getByRole('row', { name: new RegExp(REQUEST) }).getByText(REQUEST).click();
+      await expect(page.getByText(REQUEST)).toBeVisible();
+
+      // What he may decide it with comes from the definition, offered under the task's own name
+      await expect(page.getByText('Approve the request')).toBeVisible();
+      await page.getByRole('button', { name: 'Approved' }).click();
+
+      // Deciding is not pressing a button: this is where the decision says why
+      await page.getByLabel('Note').fill('Cover arranged with the rest of the team');
+      await page.getByRole('button', { name: 'Record decision' }).click();
+
+      // The end event the gateway routed to said what approving means to the request, so the page
+      // says it too — and there is nothing left for him to decide
+      await expect(page.getByText('Approved')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Approved' })).toHaveCount(0);
+    });
+
+    await test.step('he signs out', async () => {
+      await shell.signOut();
+    });
+
+    await test.step('Priya signs back in and sees that her time off was approved', async () => {
+      await login.signInAs('demo-requester', 'demo-requester');
+      expect(await shell.signedInAs()).toBe('demo-requester');
+
+      await page.getByRole('row', { name: new RegExp(REQUEST) }).getByText(REQUEST).click();
+
+      await expect(page.getByText('Approved')).toBeVisible();
+      // And nothing is waiting for her either: the process is over
+      await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toHaveCount(0);
+    });
   });
 });
