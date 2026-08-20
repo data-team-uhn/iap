@@ -415,6 +415,19 @@ class BpmnXmlSyncEditorTest
     }
 
     @Test
+    void commitsThatLeaveTheWorkflowsTreeAloneChangeNothing() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+
+        final NodeBuilder after = synced.builder();
+        after.child("Elsewhere").setProperty("touched", true);
+
+        final NodeState result = process(synced, after);
+        assertTrue(result.getChildNode("Elsewhere").hasProperty("touched"));
+        assertEquals(version(synced), version(result));
+    }
+
+    @Test
     void unrelatedSiblingAdditionsDoNotTriggerReparse() throws Exception
     {
         final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));

@@ -62,6 +62,12 @@ public class BpmnXmlSyncEditor extends DefaultEditor
 
     private static final String WORKFLOWS_ROOT_NAME = "Workflows";
 
+    private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
+
+    private static final String JCR_SYSTEM_NODE_NAME = "jcr:system";
+
+    private static final String JCR_NODE_TYPES_NODE_NAME = "jcr:nodeTypes";
+
     private static final String WORKFLOW_VERSION_TYPE = "wf:WorkflowVersion";
 
     private static final String SUPERTYPES_PROPERTY = "rep:supertypes";
@@ -100,11 +106,23 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      * which node it descends into, bundled together so the per-instance constructor stays within the checkstyle
      * parameter limit.
      *
+     * <p>The two roots are derived from the committed state on demand rather than passed in already resolved: this
+     * editor is created for every commit in the repository, and only the few that reach a workflow version ever need
+     * them.</p>
+     *
      * @since 0.1.0
      */
-    private record CommitContext(NodeState workflowTypesRoot, NodeState nodeTypesRoot, String author)
+    private record CommitContext(NodeState after, String author)
     {
-        // No additional members.
+        NodeState workflowTypesRoot()
+        {
+            return this.after.getChildNode(WORKFLOW_TYPES_ROOT_NAME);
+        }
+
+        NodeState nodeTypesRoot()
+        {
+            return this.after.getChildNode(JCR_SYSTEM_NODE_NAME).getChildNode(JCR_NODE_TYPES_NODE_NAME);
+        }
     }
 
     private final Stage stage;
@@ -123,17 +141,15 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      * Constructor for the repository root, receiving the whole commit.
      *
      * @param root the root node builder
-     * @param workflowTypesRoot the {@code /WorkflowTypes} node state to discover {@code wf:FlowNodeType} candidates
-     *            from
-     * @param nodeTypesRoot the {@code /jcr:system/jcr:nodeTypes} node state, used to recognize previously parsed
-     *            flow nodes (including subtypes) when clearing them for a reparse
+     * @param after the committed root node state, which {@code /WorkflowTypes} (the {@code wf:FlowNodeType}
+     *            vocabulary) and {@code /jcr:system/jcr:nodeTypes} (used to recognize workflow versions and
+     *            previously parsed flow nodes, including subtypes of either) are read from
      * @param author the id of the user who made this commit, recorded as {@code jcr:createdBy} on newly parsed
      *            flow nodes/sequence flows
      */
-    public BpmnXmlSyncEditor(final NodeBuilder root, final NodeState workflowTypesRoot, final NodeState nodeTypesRoot,
-        final String author)
+    public BpmnXmlSyncEditor(final NodeBuilder root, final NodeState after, final String author)
     {
-        this(Stage.ROOT, root, "/", new CommitContext(workflowTypesRoot, nodeTypesRoot, author), null, null);
+        this(Stage.ROOT, root, "/", new CommitContext(after, author), null, null);
     }
 
     private BpmnXmlSyncEditor(final Stage stage, final NodeBuilder node, final String path,

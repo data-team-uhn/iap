@@ -25,7 +25,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.osgi.service.component.annotations.Component;
 
 /**
- * Provides a {@link BpmnXmlSyncEditor} for every commit.
+ * Provides a {@link BpmnXmlSyncEditor} for the commits that touch {@code /Workflows}.
  *
  * @version $Id$
  * @since 0.1.0
@@ -33,13 +33,13 @@ import org.osgi.service.component.annotations.Component;
 @Component
 public class BpmnXmlSyncEditorProvider implements EditorProvider
 {
-    private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
-
     @Override
     public Editor getRootEditor(final NodeState before, final NodeState after, final NodeBuilder builder,
         final CommitInfo info)
     {
-        return new BpmnXmlSyncEditor(builder, after.getChildNode(WORKFLOW_TYPES_ROOT_NAME),
-            after.getChildNode("jcr:system").getChildNode("jcr:nodeTypes"), info.getUserId());
+        // Every commit in the repository comes through here, and the overwhelming majority touch nothing under
+        // /Workflows, so the roots this editor needs are passed as the committed state to look them up in rather than
+        // resolved here: Oak only descends into children that actually changed, so a commit elsewhere never asks.
+        return new BpmnXmlSyncEditor(builder, after, info.getUserId());
     }
 }
