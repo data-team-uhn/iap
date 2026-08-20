@@ -372,8 +372,8 @@ class TestNothingCallerDerivedReachesTheArgv:
         assert command[-1].endswith(f"{lo.STAGED_INPUT_STEM}.docx")
 
     def test_an_unsupported_extension_is_refused(self, tmp_path):
-        source = tmp_path / "notes.odt"
-        source.write_bytes(b"odt")
+        source = tmp_path / "notes.rtf"
+        source.write_bytes(b"rtf")
         with pytest.raises(RuntimeError, match="unsupported extension"):
             lo.convert(source, "pdf", tmp_path)
 
@@ -489,8 +489,8 @@ class TestNothingIsLeftInTemp:
         )
 
     def test_nothing_survives_an_unsupported_extension(self, tmp_path):
-        source = tmp_path / "notes.odt"
-        source.write_bytes(b"odt")
+        source = tmp_path / "notes.rtf"
+        source.write_bytes(b"rtf")
         before = self._temp_entries()
         with pytest.raises(RuntimeError, match="unsupported extension"):
             lo.convert(source, "pdf", tmp_path)
@@ -537,3 +537,134 @@ class TestNothingIsLeftInTemp:
 
         for leftover in Path(tempfile.gettempdir()).glob("iap-lo-*"):
             real_rmtree(leftover, ignore_errors=True)
+
+
+class TestSiblingPdfFallsBackThroughOdt:
+    """When the direct Word-to-PDF export fails, try again through ODT.
+
+    The sibling PDF is what supplies bookmarks and page numbers, so losing it costs
+    ``toc_source``. Some documents the import filter reads fine cannot be exported straight to
+    PDF, and re-writing them as ODT in between is often enough for the export to work.
+    """
+
+    def _soffice(self, tmp_path, monkeypatch, fails):
+        """Stub soffice, failing the conversions named in ``fails`` by target format."""
+        attempts = []
+
+        def run(command, timeout):
+            import subprocess
+
+            target = command[command.index("--convert-to") + 1]
+            attempts.append(target)
+            if target in fails:
+                return subprocess.CompletedProcess(command, 1, "", f"cannot export {target}")
+            staged = Path(command[-1])
+            extension = target.split(":", 1)[0]
+            (staged.parent / f"{lo.STAGED_INPUT_STEM}.{extension}").write_bytes(b"out")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        monkeypatch.setattr(lo, "_run_soffice", run)
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk")
+        return source, attempts
+
+    def _temp_entries(self):
+        import tempfile
+
+        return set(Path(tempfile.gettempdir()).glob("iap-lo-*"))
+
+    def test_a_working_direct_export_does_not_use_the_fallback(self, tmp_path, monkeypatch):
+        source, attempts = self._soffice(tmp_path, monkeypatch, fails=())
+        lo._convert_sibling_pdf(source)
+        assert attempts == [lo._PDF_CONVERT_TO]
+        assert (tmp_path / "report.pdf").is_file()
+
+    def test_a_failed_direct_export_retries_through_odt(self, tmp_path, monkeypatch):
+        source, attempts = self._soffice(tmp_path, monkeypatch, fails=(lo._PDF_CONVERT_TO,))
+        logged = []
+
+        # The PDF leg fails only when asked for it directly; from the ODT it succeeds.
+        def run(command, timeout):
+            import subprocess
+
+            target = command[command.index("--convert-to") + 1]
+            attempts.append(target)
+            staged = Path(command[-1])
+            if target == lo._PDF_CONVERT_TO and staged.suffix == ".docx":
+                return subprocess.CompletedProcess(command, 1, "", "cannot export")
+            extension = target.split(":", 1)[0]
+            (staged.parent / f"{lo.STAGED_INPUT_STEM}.{extension}").write_bytes(b"out")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        monkeypatch.setattr(lo, "_run_soffice", run)
+        attempts.clear()
+        lo._convert_sibling_pdf(source, logged.append)
+
+        assert attempts == [lo._PDF_CONVERT_TO, lo._ODT_CONVERT_TO, lo._PDF_CONVERT_TO]
+        assert (tmp_path / "report.pdf").is_file(), "the fallback did not produce the PDF"
+        assert any("retrying through ODT" in line for line in logged)
+
+    def test_the_intermediate_odt_is_not_left_beside_the_document(self, tmp_path, monkeypatch):
+        source, attempts = self._soffice(tmp_path, monkeypatch, fails=())
+
+        def run(command, timeout):
+            import subprocess
+
+            target = command[command.index("--convert-to") + 1]
+            staged = Path(command[-1])
+            if target == lo._PDF_CONVERT_TO and staged.suffix == ".docx":
+                return subprocess.CompletedProcess(command, 1, "", "cannot export")
+            extension = target.split(":", 1)[0]
+            (staged.parent / f"{lo.STAGED_INPUT_STEM}.{extension}").write_bytes(b"out")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        monkeypatch.setattr(lo, "_run_soffice", run)
+        before = self._temp_entries()
+        lo._convert_sibling_pdf(source)
+
+        assert list(tmp_path.glob("*.odt")) == [], "the ODT was left in the shared docs tree"
+        assert self._temp_entries() == before, "the ODT staging directory survived"
+
+    def test_both_routes_failing_stays_soft(self, tmp_path, monkeypatch):
+        source, attempts = self._soffice(
+            tmp_path, monkeypatch, fails=(lo._PDF_CONVERT_TO, lo._ODT_CONVERT_TO)
+        )
+        logged = []
+        before = self._temp_entries()
+
+        # No exception: Docling still parses the Word document, just without bookmarks.
+        lo._convert_sibling_pdf(source, logged.append)
+
+        assert not (tmp_path / "report.pdf").exists()
+        assert any("both directly and through ODT" in line for line in logged)
+        assert any("bookmarks unavailable" in line for line in logged)
+        assert self._temp_entries() == before
+
+    def test_a_doc_still_renders_its_pdf_from_the_docx(self, tmp_path, monkeypatch):
+        # The pagination the bookmarks refer to has to be the .docx's, so both attempts start
+        # from the converted .docx rather than the original .doc.
+        staged_inputs = []
+
+        def run(command, timeout):
+            import subprocess
+
+            target = command[command.index("--convert-to") + 1]
+            staged = Path(command[-1])
+            staged_inputs.append((target, staged.suffix))
+            if target == lo._PDF_CONVERT_TO and staged.suffix == ".docx":
+                return subprocess.CompletedProcess(command, 1, "", "cannot export")
+            extension = target.split(":", 1)[0]
+            (staged.parent / f"{lo.STAGED_INPUT_STEM}.{extension}").write_bytes(b"out")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        monkeypatch.setattr(lo, "_run_soffice", run)
+        source = tmp_path / "legacy.doc"
+        source.write_bytes(b"doc")
+        assert lo.prepare_office_document(source) == tmp_path / "legacy.docx"
+        # .doc -> .docx, then .docx -> pdf (fails), then .docx -> odt, then .odt -> pdf.
+        assert staged_inputs == [
+            ("docx", ".doc"),
+            (lo._PDF_CONVERT_TO, ".docx"),
+            (lo._ODT_CONVERT_TO, ".docx"),
+            (lo._PDF_CONVERT_TO, ".odt"),
+        ]
