@@ -24,5 +24,6 @@
 pytest
 psutil
 pypdf
+cryptography
 # Lint, run in the same Maven phase as the tests (see pom.xml, ruff.toml).
 ruff

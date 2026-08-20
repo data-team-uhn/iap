@@ -34,4 +34,8 @@
 # image's own platform, since several of these ship platform-specific wheels.
 docling==2.120.1
 pypdf==6.16.1
+# pypdf's AES crypt provider. Signed / permission-restricted PDFs are often AES-encrypted
+# with an empty user password; without this, reading the page tree raises
+# DependencyError: cryptography>=3.1 is required for AES algorithm.
+cryptography==46.0.7
 psutil==7.2.2
