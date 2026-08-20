@@ -115,7 +115,8 @@ class BpmnXmlSyncEditorTest
      * Exercises: two candidates for the same element (priority ordering, matching with and without the required
      * child), an element type with no configured candidate at all, an element type whose only candidate's required
      * child is missing, an element missing its {@code id}, a non-BPMN-namespaced child, literal/copied property
-     * application, and every {@code SequenceFlow} branch (missing refs, unknown source, name, condition, default).
+     * application, and every {@code SequenceFlow} branch (missing refs, unknown source, unknown target, name,
+     * condition, default).
      */
     private static final String RICH_XML =
         DEFS_OPEN
@@ -143,6 +144,7 @@ class BpmnXmlSyncEditorTest
         + "    <bpmn:sequenceFlow id=\"flowBad\" targetRef=\"end1\"/>\n"
         + "    <bpmn:sequenceFlow id=\"flowNoTarget\" sourceRef=\"start1\"/>\n"
         + "    <bpmn:sequenceFlow id=\"flowUnknown\" sourceRef=\"ghost\" targetRef=\"end1\"/>\n"
+        + "    <bpmn:sequenceFlow id=\"flowGhostTarget\" sourceRef=\"start1\" targetRef=\"ghost\"/>\n"
         + PROCESS_CLOSE
         + DEFS_CLOSE;
 
@@ -647,7 +649,7 @@ class BpmnXmlSyncEditorTest
         assertFalse(end2.hasProperty("label"));
 
         // SequenceFlow branches: name, blank condition expression, condition expression, isDefault, missing
-        // target, missing source, unknown source.
+        // target, missing source, unknown source, unknown target.
         final NodeState flow1 = start.getChildNode(FLOW_1);
         assertEquals("Proceed", flow1.getProperty("label").getValue(Type.STRING));
         assertFalse(flow1.hasProperty("conditionExpression"));
@@ -659,6 +661,8 @@ class BpmnXmlSyncEditorTest
         assertFalse(task.getChildNode("flowBad").exists());
         assertFalse(start.getChildNode("flowNoTarget").exists());
         assertFalse(task.getChildNode("flowUnknown").exists());
+        // An arc whose target was never created would be one the engine cannot follow.
+        assertFalse(start.getChildNode("flowGhostTarget").exists());
     }
 
     /**

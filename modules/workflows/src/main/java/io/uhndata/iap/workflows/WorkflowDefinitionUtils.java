@@ -575,8 +575,15 @@ public final class WorkflowDefinitionUtils
             LOGGER.warn("SequenceFlow {} is missing sourceRef or targetRef, skipping", id);
             return;
         }
-        if (!context.workflowVersion().hasChildNode(sourceRef)) {
+        // Both ends must name a node this parse produced: an arc stored under some other existing child of the
+        // version could never be reclaimed by a reparse, and one pointing at a node that does not exist is an arc
+        // the engine cannot follow, which the mandatory targetRef promises it never has to.
+        if (!context.claimedNames().contains(sourceRef)) {
             LOGGER.warn("SequenceFlow {} references unknown source node {}, skipping", id, sourceRef);
+            return;
+        }
+        if (!context.claimedNames().contains(targetRef)) {
+            LOGGER.warn("SequenceFlow {} references unknown target node {}, skipping", id, targetRef);
             return;
         }
         final NodeBuilder source = context.workflowVersion().getChildNode(sourceRef);
