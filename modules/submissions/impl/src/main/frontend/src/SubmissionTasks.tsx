@@ -18,8 +18,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import GavelIcon from "@mui/icons-material/Gavel";
 import SendIcon from "@mui/icons-material/Send";
-import { Alert, Button, Stack, Tooltip } from "@mui/material";
+import {
+  Alert, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Stack,
+  TextField, Tooltip, Typography,
+} from "@mui/material";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
@@ -29,6 +33,13 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+// An outcome as a person reads it. The values come from the definition, in whatever words it chose,
+// so this only fixes the capitalisation — inventing a phrasing per outcome would mean holding a list
+// of them here, which is the definition's business and not this page's.
+function label(outcome: string): string {
+  return outcome.charAt(0).toUpperCase() + outcome.substring(1);
+}
+
 // What a submission is waiting for, offered as the controls that answer it.
 //
 // The submit button is one of these rather than a thing of its own, because submitting is not a
@@ -36,9 +47,11 @@ function message(error: unknown): string {
 // completes theirs. What the button says is the task's own label, so a process that calls this
 // step something else says so here without a line of code changing.
 //
-// Only tasks with nothing to decide are offered yet. A task that carries decisions — an approval,
-// with its approve and reject — needs somewhere to say *why*, and that belongs with the task list
-// and the review screen rather than being smuggled in as two more buttons here.
+// A task that carries decisions is offered as one control per outcome, each opening a dialog rather
+// than deciding on the spot. Not a confirmation step: it is where the decision says *why*, which no
+// outcome on offer can express — a refusal usually has to give a reason and an approval may carry a
+// condition. The note is optional because requiring one would make "Approved, nothing to add" into a
+// sentence somebody has to invent.
 //
 // Offered to whoever is looking, like the Edit control beside it: whether this person may actually
 // complete the task is the definition's answer, given by the engine when they press it, and the
@@ -49,7 +62,10 @@ function message(error: unknown): string {
 // `blockedReason` is the one thing a page may decide, and it is not about *who* may act: it is about
 // whether the request is ready to be sent at all, which the save workflow has already worked out and
 // recorded on the submission. Given rather than read here so that this control keeps fetching only
-// what a task list needs — the caller already holds the submission.
+// what a task list needs — the caller already holds the submission. It holds back the steps that
+// *send* the request and nothing else: whether it was complete enough to send is settled by the time
+// somebody is deciding on it, and an approver blocked by the requester's unanswered question would be
+// stuck with no way to act.
 function SubmissionTasks(
   { path, blockedReason, onCompleted }:
   { path: string; blockedReason?: string; onCompleted?: () => void },
@@ -58,6 +74,8 @@ function SubmissionTasks(
   const [ tasks, setTasks ] = useState<SubmissionTask[]>([]);
   const [ error, setError ] = useState<string>();
   const [ busy, setBusy ] = useState(false);
+  const [ deciding, setDeciding ] = useState<{ task: SubmissionTask; outcome: string }>();
+  const [ note, setNote ] = useState("");
 
   // Failing to read this is quiet, and quiet in the same way wherever it happens: not being able to
   // tell what a request is waiting for means offering nothing, which is what an empty list already
@@ -69,24 +87,40 @@ function SubmissionTasks(
     void load();
   }, [ load ]);
 
-  const complete = (task: SubmissionTask) => {
+  const complete = (task: SubmissionTask, outcome?: string, note?: string) => {
     setBusy(true);
     setError(undefined);
-    completeTask(authenticatedFetch, task)
+    completeTask(authenticatedFetch, task, outcome, note)
       .then(() => load())
       .then(() => onCompleted?.())
       .catch((e: unknown) => setError(message(e)))
       .finally(() => setBusy(false));
   };
 
-  const offered = tasks.filter(task => task.outcomeOptions.length === 0);
-  if (offered.length === 0 && !error) {
+  // Closing forgets what was typed, whichever way it closes: a note is about the decision it was
+  // written for, and one abandoned here reappearing under the next decision would be somebody's
+  // reason attached to something they did not say it about
+  const close = () => {
+    setDeciding(undefined);
+    setNote("");
+  };
+
+  const decide = () => {
+    if (deciding) {
+      complete(deciding.task, deciding.outcome, note);
+    }
+    close();
+  };
+
+  const steps = tasks.filter(task => task.outcomeOptions.length === 0);
+  const decisions = tasks.filter(task => task.outcomeOptions.length > 0);
+  if (steps.length === 0 && decisions.length === 0 && !error) {
     return null;
   }
 
   return (
     <Stack spacing={1}>
-      { offered.map(task => (
+      { steps.map(task => (
         // Wrapped, because a disabled button fires no events and so shows no tooltip of its own: the
         // reason has to hang on something that is still listening
         <Tooltip key={task.path} title={blockedReason ?? ""}>
@@ -102,7 +136,49 @@ function SubmissionTasks(
           </span>
         </Tooltip>
       )) }
+      { decisions.map(task => (
+        <Stack key={task.path} spacing={1}>
+          {/* The task says what is being decided; the buttons say what it may be decided with. Named
+              by the definition, so a process whose outcomes are `endorsed` and `returned` reads that
+              way here without a line of code changing. */}
+          <Typography variant="subtitle2">{task.label}</Typography>
+          <Stack direction="row" spacing={1}>
+            { task.outcomeOptions.map(outcome => (
+              <Button
+                key={outcome}
+                variant="contained"
+                startIcon={<GavelIcon />}
+                disabled={busy}
+                onClick={() => setDeciding({ task, outcome })}
+              >
+                {label(outcome)}
+              </Button>
+            )) }
+          </Stack>
+        </Stack>
+      )) }
       { error && <Alert severity="error" onClose={() => setError(undefined)}>{error}</Alert> }
+      <Dialog open={deciding != undefined} onClose={close} fullWidth>
+        <DialogTitle>{deciding?.task.label}</DialogTitle>
+        <DialogContent>
+          <DialogContentText gutterBottom>
+            {`Recording: ${label(deciding?.outcome ?? "")}`}
+          </DialogContentText>
+          <TextField
+            label="Note"
+            helperText="Anything the decision should be remembered with. Optional."
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            multiline
+            minRows={3}
+            fullWidth
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={close}>Cancel</Button>
+          <Button variant="contained" onClick={decide}>Record decision</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
