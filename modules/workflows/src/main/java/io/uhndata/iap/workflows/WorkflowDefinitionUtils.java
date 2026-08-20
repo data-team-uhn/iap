@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -131,6 +133,9 @@ public final class WorkflowDefinitionUtils
 
     private static final String JCR_SUPERTYPES_PROPERTY = "jcr:supertypes";
 
+    /** Built on first use and reused; see {@link #createFactory()} for why that matters and what it hardens. */
+    private static DocumentBuilderFactory factory;
+
     private WorkflowDefinitionUtils()
     {
         // Utility class, no instances allowed
@@ -222,15 +227,50 @@ public final class WorkflowDefinitionUtils
         return (Element) processes.item(0);
     }
 
+    /**
+     * Builds the parser factory. Built once and reused, because {@link DocumentBuilderFactory#newInstance()} performs
+     * a {@code ServiceLoader} lookup through the thread context classloader, which under OSGi can scan across bundles
+     * and costs more than the parse itself — on a path that runs inside a commit.
+     *
+     * <p>{@code disallow-doctype-decl} is the load-bearing hardening: {@code bpmn.xml} is content anyone allowed to
+     * edit a workflow can write, and without it a {@code <!DOCTYPE ... SYSTEM "http://...">} makes the server fetch
+     * that URL on every save, with no timeout, from inside the commit. Refusing DOCTYPE outright also rules out
+     * entity expansion, so no separate expansion limits are needed. Entity references are deliberately left
+     * expanding: with no DOCTYPE there are none, and turning expansion off would silently blank out the text content
+     * of any element that used one — losing, for instance, a sequence flow's guard condition.</p>
+     */
+    private static DocumentBuilderFactory createFactory() throws ParserConfigurationException
+    {
+        final DocumentBuilderFactory result = DocumentBuilderFactory.newInstance();
+        result.setNamespaceAware(true);
+        result.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        result.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        result.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        result.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        result.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        result.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        result.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        result.setXIncludeAware(false);
+        return result;
+    }
+
+    /**
+     * Parses from the raw bytes rather than a decoded string, so that the document's own {@code encoding}
+     * declaration and any byte order mark are honoured by the parser instead of being pre-empted by a fixed UTF-8
+     * decode — a UTF-8 BOM read as a character is a fatal "content not allowed in prolog".
+     */
     private static Document parseXml(final String bpmnXml)
         throws ParserConfigurationException, SAXException, IOException
     {
-        final DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        factory.setExpandEntityReferences(false);
-        return factory.newDocumentBuilder().parse(new InputSource(new StringReader(bpmnXml)));
+        final DocumentBuilder builder;
+        // Neither the factory nor a builder is thread safe, and commits are concurrent.
+        synchronized (WorkflowDefinitionUtils.class) {
+            if (factory == null) {
+                factory = createFactory();
+            }
+            builder = factory.newDocumentBuilder();
+        }
+        return builder.parse(new InputSource(new StringReader(bpmnXml)));
     }
 
     private static boolean isFlowNodeOrSequenceFlow(final NodeBuilder node, final NodeState nodeTypesRoot)

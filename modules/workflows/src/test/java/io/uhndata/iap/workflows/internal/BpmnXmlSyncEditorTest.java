@@ -439,6 +439,27 @@ class BpmnXmlSyncEditorTest
         assertTrue(version.getChildNode(END_1).exists());
     }
 
+    /**
+     * A {@code bpmn.xml} is content anyone who may edit a workflow can write, so a DOCTYPE must never be honoured:
+     * an external one would have the server fetch a URL of the author's choosing, with no timeout, from inside the
+     * commit. The document is rejected outright instead, which the editor treats like any other malformed source.
+     */
+    @Test
+    void bpmnXmlDeclaringADoctypeIsRejectedWithoutFetchingIt() throws Exception
+    {
+        final NodeState synced = process(EmptyNodeState.EMPTY_NODE, withBpmnXml(START_EVENT_XML));
+
+        final NodeBuilder after = synced.builder();
+        setBpmnXml(after,
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<!DOCTYPE bpmn:definitions SYSTEM \"http://127.0.0.1:1/never-fetched.dtd\">\n"
+            + START_EVENT_XML.substring(START_EVENT_XML.indexOf("<bpmn:definitions")));
+
+        final NodeState version = version(process(synced, after));
+        assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertTrue(version.getChildNode(START_1).exists());
+    }
+
     @Test
     void unrelatedPropertyChangeDoesNotTriggerReparse() throws Exception
     {
