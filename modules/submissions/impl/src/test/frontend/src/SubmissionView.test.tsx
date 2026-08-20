@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
@@ -328,9 +328,9 @@ describe("SubmissionView", () => {
     expect(screen.getByText("Fax")).toBeInTheDocument();
     expect(screen.getByText("ExtraForm")).toBeInTheDocument();
 
-    // No documents attached, but the schema says one is expected
-    expect(screen.getByText(/No documents attached yet/)).toBeInTheDocument();
-    expect(screen.getByText(/expected: Study protocol/)).toBeInTheDocument();
+    // The documents section asks the server what this request is being asked for, which this
+    // fixture does not answer; what it asks for is its own group of tests
+    expect(screen.getByText("This request asks for no documents")).toBeInTheDocument();
 
     // The review with its threaded comment ("jdoe" appears as reviewer and as comment author);
     // its state is a review-category tag chip
@@ -357,6 +357,16 @@ describe("SubmissionView", () => {
   it("will not offer to send one that is still missing an answer", async () => {
     // The save workflow placed the tag, so the page knows without asking for the form
     vi.stubGlobal("fetch", servingWithSendStep({ ...DEEP_SUBMISSION, "tags": ["draft", "incomplete"] }));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeDisabled();
+  });
+
+  it("reads a lone tag written as a bare string", async () => {
+    // A single-valued property is serialized as a string, not as a one-element array, so a request
+    // whose only tag is `incomplete` would otherwise read as having no tags at all
+    vi.stubGlobal("fetch", servingWithSendStep({ ...DEEP_SUBMISSION, "tags": "incomplete" }));
 
     renderAt("/Submissions/demo-1");
 
@@ -538,6 +548,167 @@ describe("SubmissionView", () => {
       expect(await screen.findByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
       expect(await screen.findByText("Test my drug")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Say when you want/ })).toBeNull();
+    });
+  });
+
+  describe("the documents section", () => {
+    // Reading only: a document is attached while the request is being filled in, which is the
+    // editor's job. What this page owes is an accurate account of where things stand.
+    const DRAFT_SUBMISSION = { ...DEEP_SUBMISSION, tags: ["draft"] };
+
+    const PROTOCOL = {
+      name: "Protocol",
+      type: "sch/DocumentRequirement",
+      label: "Study protocol",
+      description: "The full protocol, signed",
+      acceptedFileTypes: ["application/pdf"],
+      attached: [] as string[],
+    };
+
+    function serving(form: unknown, submission: unknown = DRAFT_SUBMISSION) {
+      const otherwise = tagAwareFetch(submission);
+      return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+        ? Promise.resolve({ ok: true, json: () => Promise.resolve(form) } as unknown as Response)
+        : otherwise(url));
+    }
+
+    function projection(requirements: unknown[] = [PROTOCOL]) {
+      return { path: "/Submissions/demo-1", title: "Test my drug", editable: true, requirements };
+    }
+
+    it("lists what the request is being asked for, and says nothing answers it yet", async () => {
+      // From the projection rather than from the schema this page already holds: a document
+      // requirement can be conditional, and conditions are resolved on the server
+      vi.stubGlobal("fetch", serving(projection()));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(screen.getByText("The full protocol, signed")).toBeInTheDocument();
+      expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
+    });
+
+    it("never offers to attach one, whoever is reading", async () => {
+      // Attaching belongs to the editor, so there is only ever one control for it
+      vi.stubGlobal("fetch", serving(projection()));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
+    });
+
+    it("names a requirement by its node name when it carries no label", async () => {
+      vi.stubGlobal("fetch", serving(projection([{ ...PROTOCOL, label: "" }])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Protocol" })).toBeInTheDocument();
+    });
+
+    it("shows a requirement that says nothing beyond its name", async () => {
+      vi.stubGlobal("fetch", serving(projection([
+        { name: "Protocol", type: "sch/DocumentRequirement", label: "Study protocol" }
+      ])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(screen.queryByText("The full protocol, signed")).toBeNull();
+    });
+
+    it("groups an attached document under the requirement it answers", async () => {
+      const answered = {
+        ...DRAFT_SUBMISSION,
+        d1: {
+          "@path": "/Submissions/demo-1/d1",
+          "@name": "d1",
+          "sling:resourceType": "sub/Document",
+          "title": "protocol.pdf",
+          "fulfills": { "@path": "/Schemas/ClinicalTrial/1.0/Protocol", "@name": "Protocol" },
+          "protocol.pdf": {
+            "@path": "/Submissions/demo-1/d1/protocol.pdf",
+            "@name": "protocol.pdf",
+            "jcr:primaryType": "nt:file",
+          },
+        },
+      };
+      vi.stubGlobal("fetch", serving(projection(), answered));
+
+      renderAt("/Submissions/demo-1");
+
+      // The requirement first: what is attached comes from the submission and what it answers comes
+      // from the projection, so the grouping is only settled once both have arrived
+      expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "protocol.pdf" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText("Nothing attached yet")).toBeNull());
+      // The grouping already says which requirement it answers, so the document does not repeat it
+      expect(screen.queryByText(/fulfills/)).toBeNull();
+    });
+
+    it("still shows a document whose requirement no longer applies", async () => {
+      // A doctor's note attached while the absence was sick leave, and then changed to a holiday: the
+      // requirement is gone from the projection but the file is still somebody's evidence
+      const answered = {
+        ...DRAFT_SUBMISSION,
+        d1: {
+          "@path": "/Submissions/demo-1/d1",
+          "@name": "d1",
+          "sling:resourceType": "sub/Document",
+          "title": "note.pdf",
+          "fulfills": { "@path": "/Schemas/ClinicalTrial/1.0/Protocol", "@name": "Protocol" },
+        },
+      };
+      vi.stubGlobal("fetch", serving(projection([]), answered));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("note.pdf")).toBeInTheDocument();
+    });
+
+    it("says so when a request asks for no documents and holds none", async () => {
+      vi.stubGlobal("fetch", serving(projection([])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("This request asks for no documents")).toBeInTheDocument();
+    });
+
+    it("says nothing about what was asked when the projection cannot be read", async () => {
+      // The half that can still be trusted: what is attached comes from the submission itself
+      const otherwise = tagAwareFetch(DRAFT_SUBMISSION);
+      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+        ? Promise.reject(new Error("no projection"))
+        : otherwise(url)));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(screen.getByText("This request asks for no documents")).toBeInTheDocument();
+    });
+
+    it("drops a projection that arrives after the page is gone", async () => {
+      // Nothing to assert but the absence of a warning: setting state on an unmounted component is
+      // what the cancelled flag exists to prevent, and React reports it on the console
+      let deliver: (form: unknown) => void = () => undefined;
+      const otherwise = tagAwareFetch(DRAFT_SUBMISSION);
+      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+        ? new Promise<Response>(resolve => {
+          deliver = form => resolve({ ok: true, json: () => Promise.resolve(form) } as unknown as Response);
+        })
+        : otherwise(url)));
+      const complain = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      const view = renderAt("/Submissions/demo-1");
+      await screen.findByText("Test my drug");
+      view.unmount();
+      await act(async () => {
+        deliver(projection());
+        await Promise.resolve();
+      });
+
+      expect(complain).not.toHaveBeenCalled();
+      complain.mockRestore();
     });
   });
 

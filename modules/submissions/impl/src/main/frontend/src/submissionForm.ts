@@ -26,6 +26,7 @@
 // The resource types the projection reports. It names the schema's own types rather than a
 // vocabulary of its own, so a requirement kind added later arrives here without a release.
 export const FORM_REQUIREMENT = "sch/FormRequirement";
+export const DOCUMENT_REQUIREMENT = "sch/DocumentRequirement";
 export const SECTION = "sch/Section";
 export const QUESTION = "sch/Question";
 
@@ -71,6 +72,14 @@ export interface FormRequirement {
   description?: string;
   // Present only for requirements that hold questions; a document or an approval has none
   items?: FormItem[];
+  // Present only for document requirements. Empty means no restriction, which is why the key is
+  // there at all: a reader has to tell "takes anything" from "takes nothing".
+  acceptedFileTypes?: string[];
+  // A blank to start from, where the requirement offers one
+  template?: string;
+  // What has been attached for a document requirement already, by title. Present so that reopening
+  // the form shows a document that is there rather than an empty control implying it is not.
+  attached?: string[];
 }
 
 export interface SubmissionForm {
@@ -108,5 +117,22 @@ export async function saveAnswer(path: string, question: string, values: string[
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This answer could not be saved (${response.status})`);
+  }
+}
+
+// Attaches a file to the requirement it answers, as an `attachDocument` event on the submission —
+// uploading is a workflow step for the same reason answering is, so what may be attached and until
+// when is the handler's answer rather than a permission on the folder.
+//
+// `FormData` rather than a query string, and deliberately without a `Content-Type`: the browser has
+// to set it, because only it knows the multipart boundary it just generated.
+export async function attachDocument(path: string, requirement: string, file: File): Promise<void> {
+  const body = new FormData();
+  body.append("requirement", requirement);
+  body.append("file", file);
+  const response = await fetch(`${path}.attachDocument`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
   }
 }
