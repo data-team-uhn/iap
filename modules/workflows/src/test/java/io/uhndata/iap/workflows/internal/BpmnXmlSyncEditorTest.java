@@ -224,8 +224,11 @@ class BpmnXmlSyncEditorTest
         incomplete.setProperty("xmlElement", "gateway");
 
         final NodeBuilder userTask = types.getChildNode("UserTask");
+        // The shipped vocabulary stores jcrProperties as JSON, so that is what the parser has to read: quoted keys,
+        // and values whose JSON type decides the JCR type rather than the shape of their text.
         userTask.setProperty("jcrProperties",
-            "{catching: true, weight: 3, ratio: 1.5, label: ok, junk, : ignored, cancelled: false}");
+            "{\"catching\": true, \"weight\": 3, \"ratio\": 1.5, \"label\": \"ok\", \"code\": \"007\","
+                + " \"cancelled\": false, \"unset\": null}");
         userTask.setProperty("properties",
             List.of("priority", "assigneeExpression=assignee", "missingAttr=ignored"), Type.STRINGS);
         types.getChildNode("EndEvent").setProperty("jcrProperties", "{}");
@@ -622,12 +625,13 @@ class BpmnXmlSyncEditorTest
         assertTrue(msgStart.exists());
         assertEquals(this.messageStartEventTypeId, msgStart.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
 
-        // Copied/renamed attributes and literal jcrProperties.
+        // Copied/renamed attributes and the JSON jcrProperties, whose value types carry over as they are.
         final NodeState task = version.getChildNode(TASK_1);
         assertTrue(task.exists());
         assertEquals("7", task.getProperty("priority").getValue(Type.STRING));
         assertEquals("mgr", task.getProperty("assignee").getValue(Type.STRING));
         assertEquals(true, task.getProperty("catching").getValue(Type.BOOLEAN));
+        assertEquals(false, task.getProperty("cancelled").getValue(Type.BOOLEAN));
         assertEquals(3L, task.getProperty("weight").getValue(Type.LONG));
         assertEquals(1.5, task.getProperty("ratio").getValue(Type.DOUBLE));
         // The vocabulary supplies a label, but the diagram is the authority on what an element is called, so the
@@ -635,6 +639,10 @@ class BpmnXmlSyncEditorTest
         assertEquals("Review", task.getProperty("label").getValue(Type.STRING));
         assertEquals(TASK_1, task.getProperty("elementId").getValue(Type.STRING));
         assertEquals(this.userTaskTypeId, task.getProperty(FLOW_NODE_TYPE).getValue(Type.REFERENCE));
+        // A quoted JSON value stays a string, even when its text would parse as a number.
+        assertEquals("007", task.getProperty("code").getValue(Type.STRING));
+        // A JSON null has no JCR equivalent to store, so it is reported and skipped.
+        assertFalse(task.hasProperty("unset"));
         assertFalse(task.hasProperty("missingAttr"));
 
         // An element with no id, and one with a completely unconfigured type, are both skipped.
@@ -830,6 +838,25 @@ class BpmnXmlSyncEditorTest
         assertFalse(version.getChildNode("gwNoUuid").exists());
         // The rest of the diagram still parses, and the commit still succeeds.
         assertTrue(version.getChildNode(START_1).exists());
+    }
+
+    /**
+     * {@code jcrProperties} is a JSON object, and the vocabulary is content: a malformed one must cost only its own
+     * properties, not the parse and not the commit.
+     */
+    @Test
+    void unparseableJcrPropertiesAreIgnored() throws Exception
+    {
+        final NodeBuilder root = base();
+        root.child("WorkflowTypes").getChildNode("StartEvent").setProperty("jcrProperties", "{not json");
+        root.child("WorkflowTypes").getChildNode("EndEvent").setProperty("jcrProperties", "[1, 2]");
+
+        final NodeState version = firstSave(root, START_EVENT_XML);
+
+        final NodeState start = version.getChildNode(START_1);
+        assertTrue(start.exists());
+        assertEquals("Start", start.getProperty("label").getValue(Type.STRING));
+        assertTrue(version.getChildNode(END_1).exists());
     }
 
     @Test

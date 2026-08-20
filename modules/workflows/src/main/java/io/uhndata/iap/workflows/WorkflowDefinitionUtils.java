@@ -19,6 +19,7 @@ package io.uhndata.iap.workflows;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
@@ -35,8 +36,14 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import jakarta.json.Json;
+import jakarta.json.JsonNumber;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
+import jakarta.json.JsonString;
+import jakarta.json.JsonValue;
+
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -578,50 +585,48 @@ public final class WorkflowDefinitionUtils
     }
 
     /**
-     * Sets the literal property values configured in the FlowNodeType's {@code jcrProperties}, a lightweight
-     * {@code {name: value, ...}} map (unquoted keys, boolean/numeric/quoted-or-bare-string values).
+     * Sets the fixed property values configured in the FlowNodeType's {@code jcrProperties}, a JSON object as
+     * {@code workflowTypes.cnd} declares it and as {@code FlowNodeType.getJcrProperties()} reads it. The JSON types
+     * carry over: a boolean stays a boolean, an integral number a long, and a quoted value stays a string even when
+     * it looks numeric.
      */
     private static void applyJcrProperties(final FlowNodeTypeInfo flowNodeType, final NodeBuilder node,
         final ParseContext context)
     {
         final String raw = flowNodeType.jcrProperties();
-        if (raw == null) {
+        if (StringUtils.isBlank(raw)) {
             return;
         }
-        for (final Map.Entry<String, String> property : parseLiteralMap(raw).entrySet()) {
-            setTypedProperty(node, property.getKey(), property.getValue());
+        final JsonObject properties;
+        try (JsonReader reader = Json.createReader(new StringReader(raw))) {
+            properties = reader.readObject();
+        } catch (final RuntimeException e) {
+            // A malformed vocabulary entry must not take the whole parse — or the commit — down with it.
+            LOGGER.warn("FlowNodeType {} in {} declares jcrProperties that are not a JSON object, ignoring them",
+                flowNodeType.identifier(), context.path());
+            return;
+        }
+        properties.forEach((name, value) -> setJsonProperty(node, name, value));
+    }
+
+    private static void setJsonProperty(final NodeBuilder node, final String name, final JsonValue value)
+    {
+        switch (value.getValueType()) {
+            case TRUE -> node.setProperty(name, true);
+            case FALSE -> node.setProperty(name, false);
+            case NUMBER -> setNumberProperty(node, name, (JsonNumber) value);
+            case STRING -> node.setProperty(name, ((JsonString) value).getString());
+            default -> LOGGER.warn("Ignoring jcrProperties entry {}, {} values are not supported", name,
+                value.getValueType());
         }
     }
 
-    private static Map<String, String> parseLiteralMap(final String raw)
+    private static void setNumberProperty(final NodeBuilder node, final String name, final JsonNumber value)
     {
-        final Map<String, String> result = new LinkedHashMap<>();
-        final String trimmed = StringUtils.strip(raw.trim(), "{}");
-        if (StringUtils.isBlank(trimmed)) {
-            return result;
-        }
-        for (final String pair : trimmed.split(",")) {
-            final int colon = pair.indexOf(':');
-            if (colon < 0) {
-                continue;
-            }
-            final String key = pair.substring(0, colon).trim();
-            final String value = StringUtils.strip(pair.substring(colon + 1).trim(), "\"'");
-            if (StringUtils.isNotBlank(key)) {
-                result.put(key, value);
-            }
-        }
-        return result;
-    }
-
-    private static void setTypedProperty(final NodeBuilder node, final String name, final String value)
-    {
-        if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
-            node.setProperty(name, Boolean.parseBoolean(value));
-        } else if (NumberUtils.isParsable(value)) {
-            node.setProperty(name, value.contains(".") ? Double.parseDouble(value) : Long.parseLong(value));
+        if (value.isIntegral()) {
+            node.setProperty(name, value.longValue());
         } else {
-            node.setProperty(name, value);
+            node.setProperty(name, value.doubleValue());
         }
     }
 
