@@ -23,8 +23,8 @@ import java.io.StringWriter;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -507,7 +507,6 @@ public class PaginationServletTest
         Mockito.verify(this.response, Mockito.atLeastOnce()).setStatus(expectedStatus);
         Assertions.assertTrue(getResponseJson().containsKey("error"));
     }
-
 
     @Test
     public void myPrincipalsExpandsIntoAnOrOverEverythingTheSessionActsAs() throws Exception
