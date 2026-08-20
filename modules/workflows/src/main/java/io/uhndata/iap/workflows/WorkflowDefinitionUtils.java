@@ -224,6 +224,10 @@ public final class WorkflowDefinitionUtils
             LOGGER.warn("No <bpmn:process> element found in bpmnXml at {}", workflowVersionPath);
             return null;
         }
+        if (processes.getLength() > 1) {
+            LOGGER.warn("bpmnXml at {} declares {} <bpmn:process> elements, only the first one is parsed",
+                workflowVersionPath, processes.getLength());
+        }
         return (Element) processes.item(0);
     }
 

@@ -580,6 +580,24 @@ class BpmnXmlSyncEditorTest
         assertFalse(version.getChildNode(START_1).exists());
     }
 
+    /** A collaboration declares one process per participant; only the first is parsed, and that is reported. */
+    @Test
+    void bpmnXmlWithSeveralProcessElementsParsesOnlyTheFirst() throws Exception
+    {
+        final NodeState version = firstSave(
+            DEFS_OPEN
+            + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"first\"/>\n"
+            + PROCESS_CLOSE
+            + "  <bpmn:process id=\"process2\">\n"
+            + "    <bpmn:startEvent id=\"second\"/>\n"
+            + PROCESS_CLOSE
+            + DEFS_CLOSE);
+
+        assertTrue(version.getChildNode("first").exists());
+        assertFalse(version.getChildNode("second").exists());
+    }
+
     @Test
     void richBpmnXmlExercisesEveryMatchingAndPropertyBranch() throws Exception
     {
