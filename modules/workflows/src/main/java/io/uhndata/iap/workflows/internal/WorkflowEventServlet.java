@@ -60,9 +60,14 @@ import io.uhndata.iap.workflows.models.WorkflowsHomepage;
  * <p>Binding this servlet to a resource type is what replaces direct-CRUD semantics with workflow-managed ones
  * for it. Adding a type to {@code resourceTypes} is how something comes under workflow control.</p>
  *
- * <p>The event a POST means is the target's, unless a selector names one: {@code POST <path>.attachDocument} sends
- * that message instead of the default. Nothing is registered per message — the definitions decide which messages
- * exist, and a message nothing is waiting for is a 409.</p>
+ * <p>The event a POST means is the target's, unless a selector names one:
+ * {@code POST <path>.attachDocument.json} sends that message instead of the default. Nothing is registered per
+ * message — the definitions decide which messages exist, and a message nothing is waiting for is a 409.</p>
+ *
+ * <p><strong>The extension is not optional.</strong> Sling reads the last dot-separated token of a URL as the
+ * extension, so {@code <path>.attachDocument} names no selector at all: the POST falls through to the target's
+ * default event, succeeds at being the wrong thing, and comes back as a refusal from whichever handler that
+ * default reached — which reads as the named event being broken rather than as never having been asked for.</p>
  *
  * @version $Id$
  * @since 0.1.0

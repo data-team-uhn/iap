@@ -124,13 +124,17 @@ export async function saveAnswer(path: string, question: string, values: string[
 // uploading is a workflow step for the same reason answering is, so what may be attached and until
 // when is the handler's answer rather than a permission on the folder.
 //
+// The event is named by a *selector*, which is why `.json` follows it: in `<path>.attachDocument`
+// Sling reads the last dot-separated token as the extension, so the event name would arrive as a
+// format and the POST would mean `save` instead. `.json` is also what comes back.
+//
 // `FormData` rather than a query string, and deliberately without a `Content-Type`: the browser has
 // to set it, because only it knows the multipart boundary it just generated.
 export async function attachDocument(path: string, requirement: string, file: File): Promise<void> {
   const body = new FormData();
   body.append("requirement", requirement);
   body.append("file", file);
-  const response = await fetch(`${path}.attachDocument`, { method: "POST", body });
+  const response = await fetch(`${path}.attachDocument.json`, { method: "POST", body });
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
