@@ -31,7 +31,7 @@
       <bpmn:outgoing>toCreate</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" iap:handler="createEntity" name="Create the workflow">
+    <bpmn:serviceTask id="create" iap:entityType="wf:WorkflowDefinition" iap:handler="createEntity" name="Create the workflow">
       <bpmn:incoming>toCreate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
