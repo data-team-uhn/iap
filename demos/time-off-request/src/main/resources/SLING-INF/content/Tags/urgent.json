@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "iap:TagDefinition",
+  "label": "Urgent",
+  "description": "The time off asked for starts today or tomorrow, so whoever has to decide this has hours rather than days.",
+  "category": ["priority"],
+  "targetResourceTypes": ["sub/Submission"],
+  "system": true,
+  "color": "#8a1f5a",
+  "icon": "PriorityHighOutlined",
+  "order": 40
+}
