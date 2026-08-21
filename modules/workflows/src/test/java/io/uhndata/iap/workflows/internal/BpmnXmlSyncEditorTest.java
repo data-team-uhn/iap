@@ -54,6 +54,8 @@ class BpmnXmlSyncEditorTest
 
     private static final String HANDLER = "handler";
 
+    private static final String IAP_NS = "https://iap.uhndata.io/bpmn";
+
     private static final String WORKFLOWS_PATH = "Workflows";
 
     private static final String DEFINITION_NAME = "Approval";
@@ -169,6 +171,62 @@ class BpmnXmlSyncEditorTest
      * Builds the repository state before any {@code bpmn.xml} is saved: {@code /WorkflowTypes} fully configured,
      * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
      */
+    @Test
+    void carriesAnExtensionAttributeAcrossByNamespace() throws Exception
+    {
+        // BPMN says nothing about which code a service task runs, so `handler` arrives as an extension attribute.
+        // The vocabulary names it by namespace, which is what this proves lands.
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
+        types.child("ServiceTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}handler=handler"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, DEFS_OPEN.replace("<bpmn:definitions",
+            "<bpmn:definitions xmlns:iap=\"" + IAP_NS + "\"") + PROCESS_OPEN
+            + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" iap:handler=\"checkBudget\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("checkBudget", after.getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    @Test
+    void carriesItAcrossWhateverPrefixTheFileChose() throws Exception
+    {
+        // The whole reason the rule names a namespace rather than a prefix. A diagram editor is free to
+        // renormalise `iap:` to anything on save, and a prefix-matched lookup would silently stop carrying the
+        // handler across — leaving a service task that runs nothing and a workflow that looks right.
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
+        types.child("ServiceTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}handler=handler"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, DEFS_OPEN.replace("<bpmn:definitions",
+            "<bpmn:definitions xmlns:ns7=\"" + IAP_NS + "\"") + PROCESS_OPEN
+            + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" ns7:handler=\"checkBudget\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("checkBudget", after.getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    @Test
+    void ignoresARuleThatOpensANamespaceAndNeverClosesIt() throws Exception
+    {
+        // A malformed vocabulary entry should cost one property, not throw inside somebody's commit
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
+        types.child("ServiceTask").setProperty("properties", List.of("{unclosed=handler"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" handler=\"checkBudget\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertTrue(after.getChildNode(TASK_1).exists(), "the node itself should still be derived");
+        assertNull(after.getChildNode(TASK_1).getString(HANDLER));
+    }
+
     @Test
     void leavesAloneAVersionWhoseDiagramDoesNotOwnItsFlowNodes() throws Exception
     {
