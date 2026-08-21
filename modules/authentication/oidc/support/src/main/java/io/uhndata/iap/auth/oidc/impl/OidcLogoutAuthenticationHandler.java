@@ -108,6 +108,7 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         expired.setPath("/");
         expired.setMaxAge(0);
         expired.setHttpOnly(true);
+        expired.setSecure(request.isSecure());
         response.addCookie(expired);
 
         // dropCredentials cannot issue the cross-host redirect to the provider itself: Sling runs
