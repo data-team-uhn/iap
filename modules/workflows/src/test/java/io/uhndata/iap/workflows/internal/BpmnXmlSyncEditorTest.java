@@ -57,6 +57,8 @@ class BpmnXmlSyncEditorTest
 
     private static final String IAP_NS = "https://iap.uhndata.io/bpmn";
 
+    private static final String SV_NS = "http://www.jcp.org/jcr/sv/1.0";
+
     private static final String WORKFLOWS_PATH = "Workflows";
 
     private static final String DEFINITION_NAME = "Approval";
@@ -174,6 +176,162 @@ class BpmnXmlSyncEditorTest
      * Builds the repository state before any {@code bpmn.xml} is saved: {@code /WorkflowTypes} fully configured,
      * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
      */
+    @Test
+    void buildsASubtreeFromASystemViewExtension() throws Exception
+    {
+        // Some of what a flow node holds is a subtree rather than a value: a condition is a cond:SingleCondition
+        // with operand children. BPMN's extensionElements is the sanctioned place, and JCR's own System View is
+        // the serialization, because it says the node names, the types and the multiplicity outright.
+        final NodeState after = firstSave(base(), svCondition("sv:"));
+
+        final NodeState flow = after.getChildNode(START_1).getChildNode(FLOW_1);
+        final NodeState condition = flow.getChildNode("cond:condition");
+        assertTrue(condition.exists(), "the condition subtree should hang off the arc");
+        assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
+        assertEquals("equals", condition.getString("comparator"));
+        // Set from the type, since a NodeBuilder autocreates nothing
+        assertEquals("cond/SingleCondition", condition.getString("sling:resourceType"));
+
+        final NodeState operandA = condition.getChildNode("operandA");
+        assertEquals("cond:ConditionOperand", operandA.getName(PRIMARY_TYPE));
+        assertEquals("variable", operandA.getString("source"));
+        assertTrue(operandA.getProperty("value").isArray(), "the operand's value is multiple in the node type");
+        assertEquals(List.of("outcome"), operandA.getProperty("value").getValue(Type.STRINGS));
+    }
+
+    @Test
+    void buildsTheSameSubtreeAfterADiagramEditorHasSavedIt() throws Exception
+    {
+        // MEASURED, not defensive: bpmn-moddle keeps a foreign element's namespace but flattens its attribute
+        // prefixes, so a diagram the editor has written back says name="..." where the hand-written one said
+        // sv:name="...". Insisting on the namespace would read the authored file and silently lose every
+        // condition in a saved one — the arc would still be derived, just unconditional.
+        final NodeState after = firstSave(base(), svCondition(""));
+
+        final NodeState condition =
+            after.getChildNode(START_1).getChildNode(FLOW_1).getChildNode("cond:condition");
+        assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
+        assertEquals("equals", condition.getString("comparator"));
+        assertEquals(List.of("outcome"),
+            condition.getChildNode("operandA").getProperty("value").getValue(Type.STRINGS));
+    }
+
+    @Test
+    void skipsASystemViewNodeWithNoName() throws Exception
+    {
+        // Nameless, so there is nowhere to put it. The flow node it hangs off is still derived: a malformed
+        // extension costs its own subtree and nothing else.
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "        </sv:node>\n"));
+
+        assertTrue(after.getChildNode(START_1).exists());
+        assertEquals(0, after.getChildNode(START_1).getChildNodeCount(1));
+    }
+
+    @Test
+    void ignoresASystemViewPropertyWithNoName() throws Exception
+    {
+        // The node is still built and its other properties still set: one unusable entry is not a reason to lose
+        // a condition that otherwise says what it means
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property><sv:value>nowhere</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"comparator\"><sv:value>equals</sv:value></sv:property>\n"
+            + "        </sv:node>\n"));
+
+        final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
+        assertEquals("equals", condition.getString("comparator"));
+    }
+
+    @Test
+    void leavesASystemViewPropertyWithNoValueUnset() throws Exception
+    {
+        // Distinct from a property set to the empty string: the diagram said nothing, so the node type's own
+        // default stands rather than being overwritten with nothing
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"comparator\" />\n"
+            + "        </sv:node>\n"));
+
+        assertFalse(after.getChildNode(START_1).getChildNode("cond:condition").hasProperty("comparator"));
+    }
+
+    @Test
+    void storesANameTypedPropertyAsAName() throws Exception
+    {
+        // Single and multiple alike: a NAME is not a string that happens to look like one, and a condition
+        // referring to a node type or a property by name needs the type it was declared with
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"one\" sv:type=\"Name\"><sv:value>nt:file</sv:value>"
+            + "</sv:property>\n"
+            + "          <sv:property sv:name=\"many\" sv:type=\"Name\" sv:multiple=\"true\">"
+            + "<sv:value>nt:file</sv:value><sv:value>nt:folder</sv:value></sv:property>\n"
+            + "        </sv:node>\n"));
+
+        final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
+        assertEquals(Type.NAME, condition.getProperty("one").getType());
+        assertEquals("nt:file", condition.getName("one"));
+        assertEquals(Type.NAMES, condition.getProperty("many").getType());
+        assertEquals(List.of("nt:file", "nt:folder"), condition.getProperty("many").getValue(Type.NAMES));
+    }
+
+    @Test
+    void skipsASystemViewNodeThatSaysNothingAboutWhatItIs() throws Exception
+    {
+        // A node with no jcr:primaryType cannot be created at all — Oak needs the type up front — and guessing
+        // one would put a node of the wrong kind where the engine expects a condition
+        final NodeState after = firstSave(base(), DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"comparator\"><sv:value>equals</sv:value></sv:property>\n"
+            + "        </sv:node>\n"
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertTrue(after.getChildNode(START_1).exists(), "the flow node itself is still derived");
+        assertFalse(after.getChildNode(START_1).getChildNode("cond:condition").exists());
+    }
+
+    @Test
+    void readsTheTypesASystemViewPropertyDeclares() throws Exception
+    {
+        final NodeState after = firstSave(base(), DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:ConditionGroup</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"requireAll\" sv:type=\"Boolean\">"
+            + "<sv:value>true</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"weight\" sv:type=\"Long\"><sv:value>3</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"ratio\" sv:type=\"Double\">"
+            + "<sv:value>1.5</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"untyped\"><sv:value>plain</sv:value></sv:property>\n"
+            + "        </sv:node>\n"
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
+        assertEquals(true, condition.getProperty("requireAll").getValue(Type.BOOLEAN));
+        assertEquals(3L, condition.getProperty("weight").getValue(Type.LONG));
+        assertEquals(1.5, condition.getProperty("ratio").getValue(Type.DOUBLE));
+        // An absent sv:type is a string, so a subtree need not restate the obvious
+        assertEquals("plain", condition.getString("untyped"));
+    }
+
     @Test
     void resolvesAMessageEventToTheNameACallerWouldSend() throws Exception
     {
@@ -393,6 +551,51 @@ class BpmnXmlSyncEditorTest
 
         assertEquals("checkBudget",
             version(process(before, after)).getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    /** A lone start event whose {@code extensionElements} holds exactly {@code body}. */
+    private String svExtension(final String body)
+    {
+        return DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + body
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE;
+    }
+
+    /**
+     * A start event whose outgoing arc carries a condition as JCR System View, with {@code prefix} either
+     * {@code "sv:"} as a document is authored or {@code ""} as a diagram editor writes it back.
+     */
+    private String svCondition(final String prefix)
+    {
+        return DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:outgoing>" + FLOW_1 + "</bpmn:outgoing>\n"
+            + "    </bpmn:startEvent>\n"
+            + "    <bpmn:sequenceFlow id=\"" + FLOW_1 + "\" sourceRef=\"" + START_1 + "\" targetRef=\""
+            + END_1 + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + "        <sv:node " + prefix + "name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property " + prefix + "name=\"jcr:primaryType\" " + prefix + "type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property " + prefix + "name=\"comparator\"><sv:value>equals</sv:value>"
+            + "</sv:property>\n"
+            + "          <sv:node " + prefix + "name=\"operandA\">\n"
+            + "            <sv:property " + prefix + "name=\"jcr:primaryType\" " + prefix + "type=\"Name\">"
+            + "<sv:value>cond:ConditionOperand</sv:value></sv:property>\n"
+            + "            <sv:property " + prefix + "name=\"source\"><sv:value>variable</sv:value>"
+            + "</sv:property>\n"
+            + "            <sv:property " + prefix + "name=\"value\" " + prefix + "multiple=\"true\">"
+            + "<sv:value>outcome</sv:value></sv:property>\n"
+            + "          </sv:node>\n"
+            + "        </sv:node>\n"
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:sequenceFlow>\n"
+            + "    <bpmn:endEvent id=\"" + END_1 + "\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE;
     }
 
     /** {@link #DEFS_OPEN} with the IAP extension namespace declared, which extension attributes need. */
