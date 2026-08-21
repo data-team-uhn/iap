@@ -54,6 +54,7 @@ function MyTasksWidget() {
       childFilter={WAITING_FOR_ME}
       emptyMessage="Nothing is waiting for you"
       noResultsMessage="No matching requests"
+      searchLabel="Search what is waiting for you"
     />
   );
 }
