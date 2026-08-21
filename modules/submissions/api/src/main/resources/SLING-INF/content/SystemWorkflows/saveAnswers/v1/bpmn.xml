@@ -21,6 +21,7 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
                   id="saveAnswersDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/saveAnswers">
   <bpmn:message id="saveMessage" name="save" />
@@ -30,17 +31,17 @@
       <bpmn:outgoing>toSave</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toSave" sourceRef="requested" targetRef="save" />
-    <bpmn:serviceTask id="save" name="Record the answers">
+    <bpmn:serviceTask id="save" iap:handler="saveAnswers" name="Record the answers">
       <bpmn:incoming>toSave</bpmn:incoming>
       <bpmn:outgoing>toValidate</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toValidate" sourceRef="save" targetRef="validate" />
-    <bpmn:serviceTask id="validate" name="Check what the answers say">
+    <bpmn:serviceTask id="validate" iap:handler="validateAnswers" name="Check what the answers say">
       <bpmn:incoming>toValidate</bpmn:incoming>
       <bpmn:outgoing>toMark</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toMark" sourceRef="validate" targetRef="mark" />
-    <bpmn:serviceTask id="mark" name="Record whether anything is still missing">
+    <bpmn:serviceTask id="mark" iap:handler="markCompleteness" name="Record whether anything is still missing">
       <bpmn:incoming>toMark</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
