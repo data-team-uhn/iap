@@ -148,7 +148,7 @@ done
 
 # ---- confidential client -------------------------------------------------------
 # Look up the client's internal id; create it if absent. PKCE (S256) is enforced
-# to match pkceEnabled=true in core/oidc.json.
+# to match pkceEnabled=true in the OIDC support feature.
 client_uuid() {
     kc get clients -r "$REALM" -q "clientId=${CLIENT_ID}" --fields id --format csv --noquotes 2>/dev/null | tr -d '\r' | head -n1
 }

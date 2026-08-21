@@ -40,6 +40,7 @@ services:
     tty: true                 # -t
     environment:
       OAK_FILESYSTEM: "true"
+      KEYCLOAK_ENABLED: "true"
       BACKEND_KEYCLOAK_REALM_URL: ${BACKEND_KEYCLOAK_REALM_URL}
       FRONTEND_KEYCLOAK_REALM_URL: ${FRONTEND_KEYCLOAK_REALM_URL}
       KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-iap-sling}

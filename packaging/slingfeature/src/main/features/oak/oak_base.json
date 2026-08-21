@@ -217,9 +217,11 @@
                 "org.apache.jackrabbit.oak.security.authorization.restriction.RestrictionProviderImpl",
                 "org.apache.jackrabbit.oak.security.user.UserAuthenticationFactoryImpl",
                 "org.apache.jackrabbit.oak.spi.security.authorization.principalbased.impl.PrincipalBasedAuthorizationConfiguration",
-                // External principals from Keycloak/OIDC (dynamic membership). The matching
-                // ExternalPrincipalConfiguration is configured in core/oidc.json; listing it here
-                // makes the SecurityProvider wait for it and include it in the principal manager.
+                // External principals from Keycloak/OIDC (dynamic membership). oak-auth-external
+                // (shipped above) registers ExternalPrincipalConfiguration unconditionally, so this
+                // requirement is satisfied on every instance -- including those without the opt-in
+                // OIDC support feature, which only adds that config's (default) properties. Listing
+                // it here makes the SecurityProvider include it in the principal manager.
                 "org.apache.jackrabbit.oak.spi.security.authentication.external.impl.principal.ExternalPrincipalConfiguration"
             ]
         },
