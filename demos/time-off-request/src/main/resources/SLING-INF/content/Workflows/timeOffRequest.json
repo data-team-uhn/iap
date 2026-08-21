@@ -10,7 +10,7 @@
     // stay here as the initial content that installs the workflow; a reparse produces the same tree.
     "bpmnAuthoritative": true,
     "active": true,
-    "description": "Someone asks for time off; a service task looks up what they have left, they fill the request in and send it, and their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. Filling in is a task like any other, performed by @creator - the person who raised this particular request, which no group can name - and it is what holds the request in draft: while its token rests there the request is editable, and sending it is completing it, which is the same act as an approver deciding. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element, hand-written only because the BPMN parser does not exist yet - once it does, it generates exactly this. Two places where the two forms differ deliberately: hostTag and outcomeOptions, which say what being at a node means to the submission and what may be decided there, are the kind of plain attributes the parser will be able to carry across; and the service task's handler names the code that performs it, where BPMN would carry an implementation attribute.",
+    "description": "Someone asks for time off; a service task looks up what they have left, they fill the request in and send it, and their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. Filling in is a task like any other, performed by @creator - the person who raised this particular request, which no group can name - and it is what holds the request in draft: while its token rests there the request is editable, and sending it is completing it, which is the same act as an approver deciding. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element - and the parser now produces exactly them, which is what `bpmnAuthoritative` above says. They stay here because initial content is what installs the workflow in the first place; the editor reparses the diagram and replaces them with the same tree. Nothing the nodes hold is missing from the diagram any more: what a handler is called, what being at a node means to the submission, who may perform it and what they may decide are all extension attributes in the IAP namespace, and a condition is a System View subtree in the arc's extensionElements. Keep the two in step - a flow node changed here and not there is a change the next reparse throws away.",
     "requestSubmitted": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requestSubmitted",
@@ -71,6 +71,24 @@
       // long as this task is open, and the engine starts its clock when the task is raised. Interrupting, so the
       // deadline passing cancels the task rather than starting a second path beside it - "remind them but let
       // them carry on" needs two tokens, which this engine does not have yet.
+      "approvalReminder": {
+        "jcr:primaryType": "wf:IntermediateCatchingEvent",
+        "elementId": "approvalReminder",
+        "label": "Waiting too long",
+        "timerDuration": "P2D",
+        // The whole difference between the two deadlines on this task. This one leaves the task open: the request
+        // is marked overdue and stays on the desk it was already on, and the token that fires here is a second
+        // branch beside the one still waiting. `overdue` is in its own tag category for the same reason - it is
+        // not a lifecycle state, so it must not retire `submitted`; the request is still submitted, just late.
+        "interrupting": false,
+        "hostTag": "overdue",
+        "jcr:reference:flowNodeType": "/WorkflowTypes/TimerBoundaryEvent",
+        "toReminded": {
+          "jcr:primaryType": "wf:SequenceFlow",
+          "elementId": "toReminded",
+          "targetRef": "reminded"
+        }
+      },
       "approvalOverdue": {
         "jcr:primaryType": "wf:IntermediateCatchingEvent",
         "elementId": "approvalOverdue",
@@ -130,6 +148,14 @@
       "elementId": "requestRejected",
       "label": "Time off refused",
       "hostTag": "rejected",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "reminded": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "reminded",
+      "label": "Reminder sent",
+      // No hostTag deliberately: reaching here says nothing further about the request, and a tag in the same
+      // category as `overdue` would retire the one the reminder just placed.
       "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
     },
     "requestExpired": {
