@@ -22,7 +22,15 @@ import { AppShell } from '../../../pages/appShell.page';
 import { LoginPage } from '../../../pages/login.page';
 
 /**
- * THE STORY: asking for time off, and getting it.
+ * THE STORIES: two ways a request goes through, told end to end.
+ *
+ * The first is the ordinary one — asked for, decided, seen to have been decided. The second is the
+ * one that cannot be answered with words: a request that asks for a document, which is a different
+ * kind of incompleteness and a different way of becoming ready to send.
+ *
+ * ---
+ *
+ * STORY ONE: asking for time off, and getting it.
  *
  * Priya needs the last week of November away. She signs in, raises a time off request, and fills it
  * in: several days rather than a half or a full one, the days she means to be away, and what kind of
@@ -205,4 +213,118 @@ test.describe('a story: asking for time off, and getting it', () => {
       await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toHaveCount(0);
     });
   });
+});
+
+
+/**
+ * STORY TWO: being off sick, and having to prove it.
+ *
+ * Priya was unwell for a day. She raises a request and answers everything the form asks — and saying
+ * that it was sick leave makes the request ask for one more thing, which no answer can supply: a note
+ * from her doctor. While it is missing the request is not ready, and the control that would send it
+ * says so by refusing.
+ *
+ * She attaches the note. That is the last thing the request was waiting for, so it becomes ready and
+ * she sends it.
+ *
+ * ---
+ *
+ * Why this is a story and not another spec: each step is only true because of what the one before it
+ * left behind. The note is asked for because of an answer; the request is unready because the note is
+ * missing; the request becomes ready because the note arrives; and sending becomes possible because
+ * the request is ready. Every one of those is decided on the server, and nothing but the whole
+ * sequence shows them agreeing.
+ */
+test.describe('a story: being off sick, and having to prove it', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  const SICK_DAY = '2026-09-14';
+
+  const REQUEST = 'A day off sick';
+
+  test('Priya cannot send her sick day until the doctor\'s note is attached, and then she can',
+    async ({ page }) => {
+      // One sign-in and an autosaving form, but each answer is a workflow event followed by a re-read
+      // and the upload is another: comfortably inside the default on a developer machine and not on a
+      // two-core runner
+      test.slow();
+
+      const login = new LoginPage(page);
+      const shell = new AppShell(page);
+
+      await test.step('she signs in', async () => {
+        await login.open();
+        await login.signInAs('demo-requester', 'demo-requester');
+        expect(await shell.signedInAs()).toBe('demo-requester');
+      });
+
+      await test.step('she raises a request for the day she was unwell', async () => {
+        await page.getByRole('button', { name: 'New submission' }).click();
+        const dialog = page.getByRole('dialog');
+        await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+        await dialog.getByLabel(/Title/).fill(REQUEST);
+        await dialog.getByRole('button', { name: 'Create' }).click();
+        await expect(page.getByRole('heading', { name: REQUEST })).toBeVisible();
+      });
+
+      await test.step('she answers everything the form asks', async () => {
+        await page.getByRole('group', { name: 'How to show this submission' })
+          .getByRole('button', { name: 'Edit' }).click();
+
+        // A full day, so the return date never becomes relevant and the only thing left outstanding
+        // is the one this story is about
+        await page.getByRole('radio', { name: 'Full day' }).check();
+        const start = page.getByLabel(/Which day does your time off start/);
+        await start.fill(SICK_DAY);
+        await start.blur();
+        await expect(page.getByText('Saved')).toHaveCount(2);
+      });
+
+      await test.step('saying it was sick leave asks for something no answer can supply', async () => {
+        // Not hidden until now — absent. The requirement applies only to a sick absence, and that is
+        // decided where the condition lives, so it arrives with the form that comes back
+        await expect(page.getByRole('heading', { name: 'Doctor\'s note' })).toHaveCount(0);
+
+        await page.getByRole('radio', { name: 'Sick leave' }).check();
+
+        await expect(page.getByRole('heading', { name: 'Doctor\'s note' })).toBeVisible();
+        await expect(page.getByText('Nothing attached yet')).toBeVisible();
+      });
+
+      await test.step('and the request will not be sent while it is missing', async () => {
+        // Every question is answered, so what makes the request unready is the document alone. The
+        // control refuses rather than disappearing: this *is* her step, and she is being told what it
+        // still needs, not that it belongs to somebody else
+        await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toBeDisabled();
+      });
+
+      await test.step('she attaches the note', async () => {
+        await page.getByLabel(/Attach a file for "Doctor's note"/).setInputFiles({
+          name: 'sick-note.pdf',
+          mimeType: 'application/pdf',
+          buffer: Buffer.from('%PDF-1.4 unfit for work on the 14th'),
+        });
+
+        // What the server says is there, not what the browser just sent
+        await expect(page.getByText('Attached: sick-note.pdf')).toBeVisible();
+      });
+
+      await test.step('which was the last thing it was waiting for, so now she can send it', async () => {
+        // The attach re-ran the same completeness check a save does, so the request stopped being
+        // incomplete — and the control reads that rather than working it out again
+        await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toBeEnabled();
+
+        await page.getByRole('button', { name: /Say when you want to be away/ }).click();
+
+        await expect(page.getByText('Submitted')).toBeVisible();
+        await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toHaveCount(0);
+      });
+
+      await test.step('and the note is on the request for whoever decides it', async () => {
+        // Where a reader looks rather than where she put it: the reading page groups what is attached
+        // under the requirement it answers, and offers it back
+        await expect(page.getByRole('heading', { name: 'Doctor\'s note' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'sick-note.pdf' })).toBeVisible();
+      });
+    });
 });
