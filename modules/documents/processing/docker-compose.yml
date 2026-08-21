@@ -65,6 +65,11 @@ services:
       # so prep can take twice this. Both together still sit well inside stop_grace_period, and
       # for a .doc the kill is a hard failure, so it has to be long enough for what we admit.
       IAP_LIBREOFFICE_TIMEOUT_SECONDS: ${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}
+      # Per Docling conversion, which is one page batch, not the whole document. Docling
+      # checks it between batches and stops with PARTIAL_SUCCESS, which the parser treats as
+      # a failure, so a runaway document fails its batch instead of holding the only parse
+      # slot. It bounds a slow conversion, not one wedged inside a single page. 0 disables it.
+      IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS: ${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}
       # An overridden uid has no passwd entry, so HOME would be unset. Point it somewhere
       # writable for any library that still wants a home directory. LibreOffice does not
       # need it (libreoffice_convert passes its own -env:UserInstallation temp profile).
