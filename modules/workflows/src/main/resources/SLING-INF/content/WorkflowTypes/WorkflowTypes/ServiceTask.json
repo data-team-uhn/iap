@@ -5,5 +5,6 @@
   "category": ["Activities"],
   "priority": 0,
   "xmlElement": "bpmn:serviceTask",
-  "jcrNodeType": "wf:Activity"
+  "jcrNodeType": "wf:Activity",
+  "properties": [ "{https://iap.uhndata.io/bpmn}handler=handler", "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
 }
