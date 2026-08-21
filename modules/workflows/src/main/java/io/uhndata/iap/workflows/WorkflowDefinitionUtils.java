@@ -704,6 +704,13 @@ public final class WorkflowDefinitionUtils
      * rename it in the process ({@code assigneeExpression=assignee}). {@code true}/{@code false} are stored as
      * booleans so that a mapping onto one of the BOOLEAN properties {@code workflowDefinitions.cnd} declares lands
      * with the declared type rather than as a string.
+     *
+     * <p>An attribute outside BPMN's own vocabulary is named by namespace rather than by prefix:
+     * <code>{https://iap.uhndata.io/bpmn}handler=handler</code>. BPMN carries nothing that says which code a
+     * service task runs or what reaching a node means to the thing being decided, so those arrive as extension
+     * attributes — and a prefix is the file's choice, not the schema's. A diagram editor that renormalises
+     * {@code iap:} to {@code ns0:} on save would otherwise silently stop carrying them, which is the same class of
+     * quiet loss this whole translation is trying not to have.</p>
      */
     private static void applyCopiedProperties(final FlowNodeTypeInfo flowNodeType, final Element element,
         final NodeBuilder node)
@@ -712,7 +719,7 @@ public final class WorkflowDefinitionUtils
             final String[] parts = rule.split("=", 2);
             final String xmlAttribute = parts[0].trim();
             final String jcrProperty = parts[parts.length - 1].trim();
-            final String value = element.getAttribute(xmlAttribute);
+            final String value = attributeValue(element, xmlAttribute);
             if (StringUtils.isBlank(value)) {
                 continue;
             }
@@ -722,6 +729,26 @@ public final class WorkflowDefinitionUtils
                 node.setProperty(jcrProperty, value);
             }
         }
+    }
+
+    /**
+     * One attribute's value, by namespace where the rule gives one and by plain name otherwise.
+     *
+     * @param element the XML element being read
+     * @param name either {@code local} or <code>{namespaceUri}local</code>
+     * @return the attribute's value, or the empty string when the element does not carry it
+     */
+    private static String attributeValue(final Element element, final String name)
+    {
+        if (name.startsWith("{")) {
+            final int end = name.indexOf('}');
+            // A rule that opens a namespace and never closes it names nothing; treated as a plain name so that a
+            // malformed vocabulary entry drops one property rather than throwing inside a commit
+            if (end > 0) {
+                return element.getAttributeNS(name.substring(1, end), name.substring(end + 1));
+            }
+        }
+        return element.getAttribute(name);
     }
 
     private static void createSequenceFlow(final Element element, final Map<String, Element> elementsById,
