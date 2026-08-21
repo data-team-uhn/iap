@@ -124,13 +124,13 @@ def _escape_comment(value: str) -> str:
 def source_file_basename(source_file: str) -> str:
     """Return the final component of a client-supplied file name.
 
-    Upload names may originate on an operating system other than the one running this code.
-    Normalize Windows separators before handing the value to :class:`Path`, so a Windows path
-    received by the Linux daemon cannot leak its directory components into generated metadata.
+    Upload names can come from another operating system, so normalize Windows separators before
+    :class:`Path` sees them -- otherwise a Windows path reaching the Linux daemon leaks its
+    directory components into the metadata.
 
-    Whitespace is collapsed as well, because the result goes into the one-line
-    ``<!-- source_file: ... -->`` header: ``Path("a\nb.pdf").name`` keeps the newline, and a
-    staged filename carrying one split that comment and injected a second Markdown line.
+    Whitespace is collapsed because the result goes in the one-line
+    ``<!-- source_file: ... -->`` header. ``Path`` keeps a newline in a name, and one there split
+    the comment and injected a second Markdown line.
     """
     name = Path(source_file.replace("\\", "/")).name
     return " ".join(name.split())

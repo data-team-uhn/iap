@@ -16,13 +16,13 @@
 #
 
 """
-Extract a PDF's embedded bookmark outline into :mod:`bookmarks` records.
+Extract a PDF's embedded bookmark outline.
 
-Uses ``pypdf`` (already a parser dependency) rather than PyMuPDF. ``reader.outline`` is a
-nested list -- a child group follows its parent as a sub-list -- flattened here into ordered
+Uses ``pypdf``, already a parser dependency. ``reader.outline`` is a nested list -- a child
+group follows its parent as a sub-list -- flattened here into ordered
 ``{"title", "level", "page"}`` records with 1-based pages. ``pypdf`` is imported lazily so
-importing this module (e.g. in tests using a fake reader, or in the chunker for a document
-with no sibling PDF) does not require it.
+importing this module does not need it: tests use a fake reader, and the chunker gets here for
+documents with no sibling PDF.
 """
 
 from __future__ import annotations
@@ -49,11 +49,10 @@ def extract_bookmarks(source) -> list[dict]:
     anything exposing ``outline`` and ``get_destination_page_number``). Returns ``[]`` when
     the PDF has no bookmarks or cannot be read.
 
-    One ``try`` around both paths, deliberately: the flattening used to sit inside it for a
-    path and outside it for a duck-typed reader, so a reader whose ``outline`` was not iterable
-    failed open on one and escaped as a 500 on the other. ``RecursionError`` is a
-    ``RuntimeError``, so a crafted outline nested past :data:`MAX_OUTLINE_DEPTH` and the
-    interpreter's limit is covered here too rather than needing its own arm.
+    Keep one ``try`` around both paths. With the flattening inside it for a path and outside it
+    for a reader, a reader whose ``outline`` was not iterable failed open on one and escaped as
+    a 500 on the other. ``RecursionError`` is a ``RuntimeError``, so an outline nested past
+    :data:`MAX_OUTLINE_DEPTH` is covered here too.
     """
     try:
         if isinstance(source, (str, Path, PurePath)):

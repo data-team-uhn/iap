@@ -18,9 +18,8 @@
 """
 Split an already-produced Markdown document into per-chunk files by top level headings.
 
-Given the final Markdown that :mod:`docling_pdf_parser` / :mod:`docling_docx_parser`
-writes for a document, this module lays out a browsable chunk folder beside that ``.md``
-file::
+Takes the final Markdown that :mod:`docling_pdf_parser` / :mod:`docling_docx_parser` writes and
+lays out a chunk folder beside that ``.md``::
 
     protocol.md
     Chunks/
@@ -28,20 +27,16 @@ file::
         outline.json
         Chunk-0.md        (everything before the first level-1 heading, if any)
         Chunk-1.md
-        Chunk-2.1.md      (a chunk larger than the token budget, split into parts)
+        Chunk-2.1.md      (a chunk over the token budget, split into parts)
         Chunk-2.2.md
 
-Content before the first boundary heading, if any, becomes the start of ``Chunk-0``.
+Consecutive top-level sections are joined in document order until they fill
+:data:`DEFAULT_MAX_TOKENS`, then written as one chunk file. A chunk still over budget is split
+into ``Chunk-<n>.<k>`` parts by sub-headings, then by blank lines. A text-only tail part under
+:data:`MIN_TAIL_TOKENS` is folded back into the part before it rather than cut off, even if that
+pushes it over budget.
 
-Consecutive top-level sections are united in document order until they fill
-:data:`DEFAULT_MAX_TOKENS`, then written as one chunk file. A united (or single) section
-still larger than the budget is split into ``Chunk-<n>.<k>`` parts by sub-headings (a level
-deeper than the top) and then paragraph (blank-line) boundaries. A text-only tail part
-smaller than :data:`MIN_TAIL_TOKENS` is not cut off — it is folded back into the preceding
-part even if that pushes it over the budget.
-
-
-All chunks are summarised in ``catalog.json``
+Every chunk is listed in ``catalog.json``::
 
     [
       {
@@ -54,20 +49,18 @@ All chunks are summarised in ``catalog.json``
       }, ...
     ]
 
-``chunk_id`` is the chunk's own file name. ``summary`` and ``rubric_tags`` are always left
-empty here so they can be filled in later.
-``pages`` lists the <!-- page: N --> numbers referenced within a chunk (from the
-``<!-- page: N -->`` markers the PDF parser emits); it is empty for DOCX.
-``length`` is the character count of the chunk file's content.
+``chunk_id`` is the chunk's own file name. ``summary`` and ``rubric_tags`` stay empty here, to
+be filled in later. ``pages`` are the ``<!-- page: N -->`` numbers inside the chunk, empty for
+DOCX. ``length`` is the chunk content's character count.
 
-Token counts come from :func:`markdown_markers.count_tokens`, a cheap character-based
-heuristic (``len(text) // 4``); no ML tokenizer is loaded.
+Token counts come from :func:`markdown_markers.count_tokens`, a character-based heuristic
+(``len(text) // 4``). No ML tokenizer is loaded.
 
 Entry points:
 
-* :func:`build_chunk_tree` — analyse Markdown into a chunk tree (may read a sibling ``.pdf``
-  for bookmarks); writes nothing.
-* :func:`write_chunk_files` — sole disk writer of ``{stem}.md`` + ``Chunks/``. Called by
+* :func:`build_chunk_tree` -- analyse Markdown into a chunk tree, reading a sibling ``.pdf`` for
+  bookmarks if there is one. Writes nothing.
+* :func:`write_chunk_files` -- the only disk writer of ``{stem}.md`` + ``Chunks/``. Called by
   :func:`parse_document.parse_document` and :func:`chunk_file`.
 """
 
@@ -122,10 +115,8 @@ OUTLINE_NAME = "outline.json"
 # Name of the folder, beside a document's .md, holding its chunk files, catalog and outline.
 CHUNKS_DIRNAME = "Chunks"
 
-# The two ``unchunkedReason`` values. Either way ``Chunks/outline.json`` is written with
-# ``chunked: false``, so a reader has one shape to handle and the reason to tell them apart. A
-# parse that never reaches the chunker at all fails instead of writing Markdown without an
-# outline beside it.
+# The two ``unchunkedReason`` values. Either way ``outline.json`` is written with
+# ``chunked: false``, so a reader gets one shape plus the reason.
 UNCHUNKED_BELOW_THRESHOLD = "below_min_structure_tokens"
 UNCHUNKED_NOT_REQUESTED = "chunking_not_requested"
 
@@ -223,18 +214,17 @@ def _pages_in(text: str) -> list[int]:
 def _split_into_top_chunks(lines: list[str], boundary_level: int | None) -> list[dict]:
     """Split the document at its shallowest heading level.
 
-    The chunk boundary is the shallowest heading level present in the document: level-1
-    (``#``) when the document has any, otherwise the first (topmost) heading level it does
-    have. A document with no headings at all is returned as a single ``number == 0`` chunk.
+    The boundary is the shallowest heading level in the document: ``#`` if it has any,
+    otherwise the topmost level it does have. A document with no headings comes back as one
+    ``number == 0`` chunk.
 
     @param lines: the main-content Markdown already split on newlines
-    @param boundary_level: the document's shallowest ATX heading level, or ``None`` when it
-        has none at all — computed once by the caller (:func:`write_chunk_files`) via
-        :func:`_min_heading_level`
-    @return: chunks in document order, each ``{"number", "text"}``; content before the first
-        boundary heading (if any) is chunk ``number == 0``, and the remaining chunks are
-        numbered from 1. Each chunk's own heading line stays at the head of its ``text``;
-        catalog labels are derived later by :func:`_part_heading`, per emitted part.
+    @param boundary_level: the shallowest ATX heading level, or ``None`` for none at all --
+        computed once by :func:`write_chunk_files` via :func:`_min_heading_level`
+    @return: chunks in document order, each ``{"number", "text"}``. Content before the first
+        boundary heading is chunk ``number == 0``, the rest are numbered from 1. Each chunk
+        keeps its own heading line at the head of its ``text``; :func:`_part_heading` derives
+        catalog labels later, per emitted part.
     """
     if boundary_level is None:
         text = "\n".join(lines).strip()
@@ -272,11 +262,9 @@ def _subchunk_blocks(chunk_text: str, boundary_level: int) -> list[str]:
     The first block holds the chunk's own boundary heading and any lead-in text before the
     first sub-heading; each subsequent block is one sub-chunk.
 
-    An ATX sub-heading is the only boundary. There used to be two fallbacks for sections
-    Docling left without one -- outline-record cut points, and bold/ALL-CAPS lines with a
-    numeric prefix -- but a line with no structural marker of its own was too often emphasis
-    or shouting inside a paragraph, so nothing but ``#`` counts. With no sub-heading the whole
-    text is a single block, and :func:`_split_by_paragraphs` takes it from there.
+    An ATX ``#`` sub-heading is the only boundary. Do not add fallbacks for bold or ALL-CAPS
+    lines: they were tried and matched emphasis inside paragraphs far too often. With no
+    sub-heading the whole text is one block and :func:`_split_by_paragraphs` takes over.
     """
     lines = chunk_text.split("\n")
     sub_level = _min_heading_level(lines, deeper_than=boundary_level)
@@ -388,22 +376,20 @@ def _is_standalone_heading(block: str) -> bool:
 def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
     """Unite consecutive blocks into parts as large as the budget allows.
 
-    When the next block is a stand-alone heading (heading line, no body text), look ahead
-    one more block: only keep merging into the current part if ``current + heading +
-    following`` still fits. If not, flush the current part and start a new merge from
-    that stand-alone heading. A new part that is still only a stand-alone heading never
-    flushes alone — it always takes at least the following block (even over budget; the
-    oversized splitter handles that later).
+    When the next block is a stand-alone heading (heading line, no body), look ahead one more
+    block and only keep merging if ``current + heading + following`` still fits. If not, flush
+    and start a new merge from that heading. A part that is still only a heading never flushes
+    alone -- it always takes the following block, even over budget, and the oversized splitter
+    deals with it later.
 
-    Trailing ``<!-- page: N -->`` markers are never left at the end of a flushed part — they
-    move onto the start of the next part.
+    A flushed part never ends on a ``<!-- page: N -->`` marker; trailing markers move to the
+    start of the next part.
     """
     parts: list[str] = []
-    # The part under construction is kept as unjoined pieces plus the length it would have
-    # once joined. Building ``current + "\n\n" + block`` just to measure it copied the whole
-    # accumulated part on every block — and on every lookahead, which is always discarded —
-    # making packing quadratic in the number of sections. tokens_for_length measures the
-    # concatenation without doing it, and is exactly what count_tokens would have returned.
+    # Keep the part being built as unjoined pieces plus the length it would have once joined.
+    # Actually joining it just to measure copies the whole part on every block and every
+    # discarded lookahead, which makes packing quadratic. tokens_for_length gives the same
+    # answer without building the string.
     pieces: list[str] = []
     length = 0
     index = 0
@@ -467,11 +453,9 @@ def _split_oversized(
 ) -> list[str]:
     """Split an over-budget chunk into parts.
 
-    Sub-headings (the shallowest heading level deeper than ``boundary_level``) are honoured
-    first: consecutive sub-chunks are united up to the budget. If the chunk has no
-    sub-headings, or a united part is still over budget, that piece is split at paragraph
-    boundaries.
-    (see :func:`_subchunk_blocks`).
+    Sub-headings (the shallowest level deeper than ``boundary_level``) come first: consecutive
+    sub-chunks are joined up to the budget. A chunk with no sub-headings, or a joined part still
+    over budget, is split at paragraph boundaries instead.
     """
     blocks = _subchunk_blocks(chunk_text, boundary_level)
     packed = _split_by_paragraphs(chunk_text, max_tokens) if len(blocks) <= 1 \
@@ -499,22 +483,17 @@ def _is_heading_only(part: str) -> bool:
 def _merge_heading_only_parts(parts: list[str]) -> list[str]:
     """Fold a part that is only a heading into a neighbour, so no chunk file is a bare title.
 
-    Two paths produce one. :func:`_split_by_paragraphs` flushes the heading alone whenever the
-    section's body is a single over-budget paragraph — routine for a schedule-of-assessments
-    table, which Docling emits as consecutive ``|`` lines with no blank line, hence one
-    paragraph. And :func:`_pack_blocks` guards its stand-alone-heading lookahead with
-    ``index + 1 < n``, so a document ending on a bare heading (an empty final section) leaves
-    it as the last part.
+    Two paths produce one: :func:`_split_by_paragraphs` flushes a heading alone when the body
+    is one over-budget paragraph (common for a big table, which Docling emits as ``|`` lines
+    with no blank line), and :func:`_pack_blocks` leaves a trailing bare heading as the last
+    part because its lookahead stops at ``index + 1 < n``.
 
-    The direction has to vary: a heading takes the part *after* it, which is the rule
-    :func:`_pack_blocks` already applies to blocks, but a trailing heading has nothing to take
-    and folds *backwards* instead. :func:`_merge_small_text_tails` cannot do this — it only
-    merges backwards, and it refuses any part carrying a heading.
+    The direction has to vary -- a heading takes the part after it, but a trailing heading has
+    nothing to take and folds backwards. :func:`_merge_small_text_tails` cannot cover this: it
+    only merges backwards and refuses any part with a heading.
 
-    Merging can push a part over ``max_tokens``. That is the existing trade in
-    :func:`_pack_blocks` ("pull the next block in even over budget") and it is the better one:
-    a 29-byte chunk carries no content for the summarizer, and splitting a heading from its
-    table leaves the table identified only by an inherited label.
+    Merging can push a part over ``max_tokens``, on purpose. A bare-title chunk gives the
+    summarizer nothing, and a table split from its heading is left with an inherited label.
     """
     merged: list[str] = []
     for part in parts:
@@ -546,12 +525,8 @@ def _merge_small_text_tails(parts: list[str], min_tokens: int) -> list[str]:
     return merged
 
 
-# Everything that is not a letter or a digit *in any script*. The ASCII-only
-# ``[^a-z0-9]+`` it replaced silently erased whole titles: a CJK or Cyrillic heading
-# normalized to "" and so became invisible to running-header detection. ``\W`` with
-# re.UNICODE keeps them, and dropping "_" as well keeps the key to letters and digits only.
-# Both sides of every comparison go through this one function, so ASCII titles key exactly
-# as before.
+# Everything that is not a letter or digit in any script. Do not narrow this to ``[^a-z0-9]+``:
+# that normalized a CJK or Cyrillic heading to "", hiding it from running-header detection.
 _NON_ALNUM = re.compile(r"[\W_]+", re.UNICODE)
 
 
@@ -567,11 +542,9 @@ def repeated_lines(lines: list[str], min_occurrences: int = MIN_RUNNING_HEADER_P
     """Normalized keys of lines that recur at least ``min_occurrences`` times in the document —
     running headers and footers.
 
-    Recurrence is the signal that separates the two, because nothing else does: a running header
-    like ``CONFIDENTIAL`` sits immediately after a ``<!-- page: N -->`` marker with a blank line
-    after it, which is exactly as *isolated* as a genuine stand-out heading at the top of a page.
-    Rejecting anything adjacent to a page marker would throw the real headings away with it; a real
-    heading appears once, a running header appears on every page.
+    Recurrence is the only signal that works here. A running header like ``CONFIDENTIAL`` sits
+    right after a ``<!-- page: N -->`` marker, exactly as isolated as a real heading at the top
+    of a page, so position cannot tell them apart. Count can: a real heading appears once.
 
     @param lines: the document's lines
     @param min_occurrences: how many times a line must recur to count as furniture
@@ -593,11 +566,10 @@ def _part_heading(
 ) -> list[str]:
     """Derive the heading array for one chunk file part in the order they appear.
 
-    Collects ATX headings and any bold or isolated ALL-CAPS stand-out lines.
-    Each candidate must pass :func:`valid_heading` (rejects too short, too long, or too many words).
-    A part with no heading of its own copies the heading array of previous chunk.
-    ``[`` :data:`DEFAULT_HEADING` ``]`` is used only when the
-    beginning heading is missing and there is no preceding entry to copy from.
+    Collects ATX headings within one level of the part's first one, so a sub-sub-section does
+    not clutter the label. Each must pass :func:`valid_heading`. A part with no heading of its
+    own copies the previous chunk's array; :data:`DEFAULT_HEADING` is the last resort, when
+    there is no previous entry either.
 
     @param part_text: the emitted chunk part
     @param previous_heading: the preceding catalog entry's heading array, when there is one
@@ -630,12 +602,11 @@ def _preamble_heading(
 ) -> list[str]:
     """Heading array for the part that carries the document preamble.
 
-    The preamble is the content before the first boundary heading, so it has no heading of
-    its own and is labelled :data:`DEFAULT_HEADING`. But :func:`_pack_blocks` merges it with
-    as many following top-level sections as the budget allows, and labelling that whole
-    merged part ``DEFAULT_HEADING`` dropped every one of those sections' headings from the
-    catalog — a short document came out as one untitled blob. Keep the label, then add the
-    real headings that were merged in after it.
+    The preamble sits before the first boundary heading, so it has none of its own and gets
+    :data:`DEFAULT_HEADING`. But :func:`_pack_blocks` merges following sections into it, and
+    labelling the whole merged part ``DEFAULT_HEADING`` dropped their headings from the catalog
+    -- a short document came out as one untitled blob. So keep the label and append the real
+    headings merged in after it.
 
     @param part_text: the emitted chunk part
     @param preamble_text: the preamble chunk's text, to tell "preamble only" from "merged"
@@ -667,10 +638,9 @@ def _write_json(path: Path, data: object) -> None:
 def write_unchunked_outline(output_file: Path, markdown: str) -> Path:
     """Write ``Chunks/outline.json`` for a document that was never offered to the chunker.
 
-    ``?chunk=false`` skips detection on purpose, so there is no TOC to record — but leaving no
-    outline at all meant the two unchunked paths put different things on disk, and every reader
-    had to handle both. The keys match what :func:`build_chunk_tree` records when the size gate
-    skips chunking; only the reason differs.
+    ``?chunk=false`` skips detection on purpose, so there is no TOC to record. The outline is
+    still written so both unchunked paths leave the same shape on disk -- same keys as
+    :func:`build_chunk_tree` writes when the size gate skips chunking, only the reason differs.
 
     @param output_file: path of the ``.md`` the outline sits beside
     @param markdown: the document, for its token count
@@ -718,9 +688,8 @@ def write_atomically(path: Path, text: str) -> None:
 def _stage_chunks(chunks_dir: Path, tree: dict[str, Any]) -> Path:
     """Write the whole chunk tree into a staging directory beside its final home.
 
-    Building in place meant deleting the previous tree and then creating files one by one,
-    so any failure in the middle left a half-written set that is indistinguishable from a
-    complete one. Everything is written here first and moved into place in one step.
+    Building in place would delete the old tree first, so a failure part way through leaves a
+    half-written set that looks complete. Write everything here, then move it in one step.
 
     @param chunks_dir: where the tree will end up
     @param tree: the built chunk tree
@@ -779,9 +748,8 @@ def write_chunk_files(
     Sole disk writer for parse outputs (:func:`parse_document.parse_document` and
     :func:`chunk_file`). ``markdown_content`` must already be cleaned.
 
-    Always writes ``Chunks/outline.json``. If the document is below
-    ``min_structure_tokens``, chunking is skipped (outline only). Otherwise the body is
-    split by headings up to ``max_tokens``, with References/Appendix as one final chunk.
+    Always writes ``Chunks/outline.json``. A document below ``min_structure_tokens`` gets the
+    outline only. Otherwise the body is split by headings up to ``max_tokens``.
 
     @param markdown_content: cleaned Markdown
     @param output_file: path of the ``.md`` to write
@@ -801,11 +769,9 @@ def write_chunk_files(
     chunk_count = len(tree["chunks"])
 
     staging = _stage_chunks(chunks_dir, tree)
-    # Chunks first, Markdown last. Neither rename can be made atomic with the other, so the
-    # .md is the commit marker: seeing the new one guarantees the chunks beside it are
-    # already the new set. A crash in between leaves the previous .md next to newer chunks of
-    # the same document, which a reconvert fixes — the other order would leave new Markdown
-    # next to chunks of a different revision.
+    # Chunks first, Markdown last. The two renames cannot be one atomic step, so the .md is the
+    # commit marker: if it is the new one, the chunks beside it are the new set too. The other
+    # order would pair new Markdown with chunks from a different revision.
     _swap_into_place(staging, chunks_dir)
     write_atomically(output_file, tree["markdown"])
 
@@ -867,9 +833,8 @@ def build_chunk_tree(
         if pdf_file.is_file():
             toc_records = extract_bookmarks(pdf_file)
 
-    # The size gate is the pipeline's single binary routing decision, recorded as ``chunked``
-    # in the outline — which is always produced, even when chunking is skipped, so downstream
-    # routing has a uniform answer.
+    # The size gate is the one routing decision, recorded as ``chunked``. The outline is written
+    # either way so downstream always has the same shape to read.
     tokens = count_tokens(md_file)
     to_be_chunked = tokens >= min_structure_tokens
     outline = {
@@ -880,7 +845,7 @@ def build_chunk_tree(
     }
 
     if not to_be_chunked:
-        # Say *why* it is unchunked (deliberate send-it-whole below the size gate).
+        # Below the size gate, so it is sent whole on purpose.
         outline["unchunkedReason"] = UNCHUNKED_BELOW_THRESHOLD
         return {
             "markdown": md_file,
@@ -891,8 +856,7 @@ def build_chunk_tree(
             "records": toc_records,
         }
 
-    # One shared split of the full document, reused by every detection pass below
-    # instead of each re-splitting the same (potentially large) document on "\n".
+    # Split once and share it; every pass below would otherwise re-split the whole document.
     md_lines = md_file.split("\n")
     # Page furniture, identified once for the whole document: a per-part view cannot tell a
     # running header from a heading, because within one page each appears exactly once.
@@ -907,13 +871,11 @@ def build_chunk_tree(
     # those united parts that are still over budget (a single oversized section).
     top_chunks = _split_into_top_chunks(md_lines, boundary_level)
     top_texts = [chunk["text"] for chunk in top_chunks if chunk["text"]]
-    # _pack_blocks already ends with _move_trailing_page_markers, so nothing more is needed
-    # here; a second pass only re-walked and re-split every packed part to find nothing.
+    # _pack_blocks already ends with _move_trailing_page_markers; a second pass finds nothing.
     packed = _pack_blocks(top_texts, max_tokens) if top_texts else []
-    # Fold heading-only packed chunks into a sibling before anything is numbered. Doing it
-    # only per packed chunk further down cannot catch a top-level section that has a heading
-    # and no body: it arrives as a single part, so there is no neighbour inside that call to
-    # fold into and it becomes a chunk file holding nothing but a title.
+    # Fold heading-only chunks into a sibling before anything is numbered. Doing it per packed
+    # chunk lower down misses a section with a heading and no body: it arrives alone, so there
+    # is no neighbour in that call and it ends up a chunk file holding only a title.
     packed = _merge_heading_only_parts(packed)
     # Prefer Chunk-0 when the document has a leading preamble; otherwise start at 1.
     first_number = 0 if (top_chunks and top_chunks[0]["number"] == 0) else 1
@@ -923,8 +885,6 @@ def build_chunk_tree(
     def add(name: str, text: str, heading: list[str]) -> None:
         chunks.append({"file": name, "text": text})
         catalog_chunks.append({
-            # The chunk's file name is its id: it was recorded twice, once as a sequence
-            # number and once as "file", and the two had to be read together to find a chunk.
             "chunk_id": name,
             "headings": heading,
             "summary": "",

@@ -46,13 +46,10 @@ import psutil
 #   Estimated RAM (GB) per ProcessPool worker (full Docling model stack).
 GB_PER_WORKER = 2.0
 
-#   What this budget does NOT cover: the daemon's own process. Importing docling pulls in torch,
-#   which costs roughly 0.4 GB of RSS before a single page is converted (measured: 0.02 GB
-#   interpreter, 0.39 GB after the docling import, 0.44 GB after the DOCX pipeline is
-#   initialized — so the DOCX converter itself is a rounding error and torch is the whole of
-#   it). A container sized exactly to "N workers x GB_PER_WORKER" is therefore about that much
-#   short, which matters most at the small end: at one worker it is a fifth of the budget.
-#   RAM_TOTAL_HEADROOM below absorbs some of it, but not by design.
+#   This does not cover the daemon's own process: importing docling pulls in torch, ~0.4 GB of
+#   RSS before any page is converted. So a container sized to exactly "N workers x
+#   GB_PER_WORKER" is that much short, worst at one worker. RAM_TOTAL_HEADROOM below happens to
+#   absorb some of it, but was not chosen for that.
 
 #   Fraction of installed RAM treated as usable for worker budgeting (85%).
 RAM_TOTAL_HEADROOM = 0.85
@@ -225,11 +222,10 @@ def read_available_ram_gb() -> float:
     """
     Read free RAM in gigabytes now, honouring the container's memory ceiling.
 
-    psutil reports the *host's* free memory inside a container. Capping that by the cgroup
-    limit was not enough on its own: it returned the whole limit however much the container
-    had already used, so the reading never moved. :func:`refresh_default_max_workers` then
-    recomputed the same budget every call, and ``calc_ram_budget_gb`` could never reach its
-    tight-memory branch. What is actually free is the limit minus current usage.
+    psutil reports the host's free memory inside a container, so the cgroup limit has to be
+    subtracted from usage, not just used as a cap. Capping alone returned the whole limit no
+    matter how much was already used, so the reading never moved and ``calc_ram_budget_gb``
+    never reached its tight-memory branch.
     """
     available = psutil.virtual_memory().available / (1024 ** 3)
     limit = read_cgroup_memory_limit_gb()
@@ -347,12 +343,10 @@ def calc_workers(workers_override: int | None = None) -> int:
     Clamped to at least 1: ``ProcessPoolExecutor(max_workers=0)`` raises, so a bad
     override must not reach it even if it bypassed :func:`positive_int`.
 
-    Free RAM is refreshed either way. An override decides the worker count but says nothing
-    about the module-level RAM figures, which :func:`print_parallelism_summary` reports and
-    operators size containers from: returning early left them at whatever was measured on
-    import. In the daemon that meant every conversion logging the boot-time snapshot, since
-    each parse passes the already-resolved worker count and so always takes the override
-    path.
+    Free RAM is refreshed either way. An override sets the worker count but says nothing about
+    the module-level RAM figures that :func:`print_parallelism_summary` reports and operators
+    size containers from. Returning early left those at the boot-time snapshot, which in the
+    daemon is every conversion, since each parse passes an already-resolved worker count.
     """
     refreshed = refresh_default_max_workers()
     if workers_override is not None:
@@ -413,13 +407,11 @@ def print_parallelism_summary(
     Report the startup snapshot and the resolved per-parse parallelism values at the start
     of each PDF conversion.
 
-    @param active_workers: how many workers this conversion will actually occupy, or ``None``
-        when the pool is not ours to size. It only bounds anything on the path that creates its
-        own ProcessPoolExecutor; in daemon mode the pool is shared and pre-warmed at whatever
-        size the daemon chose, so reporting a number here claimed a limit that was not applied.
-    @param log: line sink; defaults to ``print``. The daemon passes its per-request
-        collector, so the summary reaches the caller's ``logs`` instead of only the
-        daemon's own stdout.
+    @param active_workers: how many workers this conversion will occupy, or ``None`` when the
+        pool is not ours to size -- in daemon mode it is shared and pre-warmed, so a number here
+        would claim a limit that is not applied
+    @param log: line sink, ``print`` by default. The daemon passes its per-request collector so
+        the summary reaches the caller's ``logs``, not just the daemon's stdout.
     """
     ram_line = (
         f"{TOTAL_RAM_GB:.0f} GB total, {AVAILABLE_RAM_GB:.1f} GB available "

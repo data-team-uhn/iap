@@ -77,6 +77,9 @@ def resolve_soffice_path() -> str:
 # reap. Short on purpose: this runs holding the daemon's only parse slot.
 REAP_TIMEOUT_SECONDS = 10
 
+# The only option-looking arguments soffice may be handed. Checked in :func:`_run_soffice` so
+# nothing derived from a caller's filename can arrive as a switch. Match FIXED_SWITCHES
+# exactly, never by prefix: "--convert-to=pdf:evil" passes a prefix test.
 FIXED_SWITCHES = frozenset({"--headless", "--convert-to", "--outdir"})
 PROFILE_SWITCH_PREFIX = "-env:UserInstallation=file://"
 
@@ -212,9 +215,8 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
 
     extension = target_format.split(":", 1)[0]
     expected = out_dir / f"{source.stem}.{extension}"
-    # One directory for the whole run, created before the try so the finally always has
-    # something to remove, and holding both subdirectories so there is no window in which a
-    # second mkdtemp could fail and orphan the first.
+    # One directory for the whole run, created before the try so finally always has something
+    # to remove, and holding both subdirectories so a second mkdtemp cannot orphan the first.
     staging_root = Path(tempfile.mkdtemp(prefix="iap-lo-"))
     try:
         work_dir = staging_root / "work"

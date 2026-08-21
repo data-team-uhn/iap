@@ -17,10 +17,9 @@
 
 """The shared-docs allowlist: the boundary between a caller-supplied path and the disk.
 
-Split out of :mod:`docling_daemon` so it can be imported, and tested, without Docling. The
-daemon pulls in the whole model stack, so its test module skips itself wherever Docling is
-not installed — including CI. That is the wrong place for the one check standing between
-``POST /parse?path=`` and the rest of the filesystem, so it lives here instead and
+Kept out of :mod:`docling_daemon` so it stays importable, and testable, without Docling. The
+daemon's test module skips itself wherever Docling is missing, including CI -- the wrong place
+for the one check standing between ``POST /parse?path=`` and the rest of the filesystem.
 ``test_shared_docs.py`` runs everywhere.
 """
 
@@ -35,25 +34,20 @@ from markdown_markers import INPUT_SUFFIXES
 
 DEFAULT_SHARED_DOCS = "/shared-docs"
 
-# Largest PDF the daemon will accept, in pages, and the variable that overrides it. One
-# conversion holds the only parse slot (MAX_CONCURRENT_PARSES), so an enormous document does
-# not just take a long time -- every other caller gets 503 until it finishes. The refusal is a
-# 400 the caller can act on, raised *after* the parse slot is taken (see
-# :func:`refuse_oversized_input`): counting pages means reading the document, so one that
-# arrives mid-conversion hears 503 busy first and 400 on retry. 0 or negative turns it off.
+# Largest PDF the daemon accepts, in pages, plus its override variable. One conversion holds
+# the only parse slot, so an enormous document makes every other caller wait on a 503. The
+# refusal is a 400, raised after the slot is taken because counting pages means reading the
+# document -- so one arriving mid-conversion hears 503 first and 400 on retry. 0 turns it off.
 PAGE_LIMIT_VARIABLE = "IAP_MAX_INPUT_PAGES"
 DEFAULT_MAX_INPUT_PAGES = 1500
 
-# The same ceiling by size, for every accepted type rather than PDFs only. A page count needs
-# pages to count, so a .doc/.docx walks straight past the page limit and can still render to an
-# arbitrarily long PDF in LibreOffice prep — the hole a caller could step through by changing
-# the extension. Bytes are the one measure every input has. 0 or negative turns the limit off.
+# The same ceiling by size, covering every accepted type. Only a PDF has pages to count, so a
+# .doc/.docx walks past the page limit and can still render to an arbitrarily long PDF -- a hole
+# a caller opens just by changing the extension. Bytes are the one measure every input has.
 BYTE_LIMIT_VARIABLE = "IAP_MAX_INPUT_BYTES"
-# 64 MiB, not something larger: the ceilings have to describe a document the rest of the
-# pipeline can actually finish. One soffice run is killed at IAP_LIBREOFFICE_TIMEOUT_SECONDS
-# (300s), and for a .doc that kill is a hard failure — so admitting a file far bigger than
-# LibreOffice can render in that time would mark a document unparseable that was never given a
-# fair chance. Raise both together, or neither.
+# 64 MiB, not more: soffice is killed at IAP_LIBREOFFICE_TIMEOUT_SECONDS (300s) and for a .doc
+# that kill is a hard failure, so a file bigger than LibreOffice can render in that time gets
+# marked unparseable without a fair chance. Raise both limits together, or neither.
 DEFAULT_MAX_INPUT_BYTES = 64 * 1024 * 1024
 
 
@@ -77,9 +71,8 @@ def shared_docs_root() -> Path:
 def positive_number_from_env(variable, default, cast=int, expected="an integer"):
     """A positive numeric setting from the environment, or ``None`` when it is switched off.
 
-    Shared by every numeric knob the pipeline reads, so the "an unreadable value warns instead
-    of silently becoming the default" behaviour cannot drift between them: "150O" for "1500"
-    otherwise left the operator no way to tell their setting had been ignored.
+    Shared by every numeric knob so they all warn on an unreadable value instead of silently
+    using the default -- a typo like "150O" for "1500" gave the operator no sign it was ignored.
 
     @param variable: the environment variable to read
     @param default: the value to use when it is unset or unreadable
@@ -121,9 +114,8 @@ def max_input_bytes() -> int | None:
 def refuse_oversized_input(path: Path) -> None:
     """Reject a document bigger than the pipeline is sized for, by size and by page count.
 
-    Both ceilings exist because neither covers everything: bytes apply to every accepted type
-    but say little about how long a conversion will take, and pages say a great deal but only a
-    PDF has them to count.
+    Both ceilings are needed: bytes cover every type but say little about conversion time,
+    pages say a lot but only a PDF has them.
 
     @param path: the resolved input path
     @raise ParseRequestError: when the document is over either ceiling
@@ -205,22 +197,18 @@ def refuse_oversized_pdf(path: Path) -> None:
 def resolve_parse_path(raw_path: str) -> Path:
     """Resolve and allowlist a caller-supplied document path under the shared docs root.
 
-    ``raw_path`` is already URL-decoded: ``parse_qs`` decodes query values, so decoding
-    again here would turn a correctly-encoded ``report%2520final.pdf`` into
-    ``report final.pdf`` -- a different file -- and would also let ``%252e%252e`` collapse
-    into ``..`` after the caller believed it had escaped it.
+    Do not decode ``raw_path`` again -- ``parse_qs`` already did. A second pass would turn a
+    correctly-encoded ``report%2520final.pdf`` into a different file, and would let
+    ``%252e%252e`` collapse into ``..`` after the caller thought it had escaped it.
 
-    ``os.path.realpath`` before the containment check is what makes it hold: it collapses
-    ``..`` and follows symlinks first, so a link planted inside the root that points out of
-    it is compared at its real location. CodeQL's ``py/path-injection`` query then requires
-    ``str.startswith`` on that normalized value (it does not model ``commonpath`` or
-    ``Path.relative_to``). ``commonpath`` is the real jail: it rejects a sibling whose name
-    merely starts with the root ("/shared-docs-evil"), which ``startswith`` would accept.
-    ``relative_to`` is kept as a third closed check.
+    All three containment checks are load-bearing. ``realpath`` runs first so ``..`` and
+    symlinks are resolved before anything is compared. ``commonpath`` is the actual jail: it
+    rejects a sibling that merely starts with the root name ("/shared-docs-evil"), which
+    ``startswith`` accepts. ``startswith`` stays because CodeQL's ``py/path-injection`` only
+    recognises that form, and ``relative_to`` is a third closed check.
 
-    ``parse_qs`` also decodes ``+`` as a space, so a file whose name really contains one has to
-    arrive percent-encoded (``report%2Bfinal.pdf``); sent literally it is looked for as
-    ``report final.pdf`` and reported missing.
+    ``parse_qs`` also decodes ``+`` as a space, so a name really containing one must arrive
+    percent-encoded (``report%2Bfinal.pdf``) or it is looked for as ``report final.pdf``.
 
     @param raw_path: absolute, already-decoded path from the ``path`` query parameter
     @return: resolved existing file path
@@ -233,10 +221,9 @@ def resolve_parse_path(raw_path: str) -> Path:
     try:
         resolved = os.path.realpath(text)
     except ValueError as exc:
-        # A NUL byte in the path. On Linux ``realpath`` calls ``os.lstat``, which raises a bare
-        # ValueError for one, and ``posixpath.realpath`` catches only OSError — so it escaped
-        # before any ParseRequestError could be raised, and the handler reported a malformed
-        # request as a 500. A caller reading 5xx as "retry" would then retry it forever.
+        # A NUL byte. ``posixpath.realpath`` catches only OSError, and ``os.lstat`` raises a
+        # bare ValueError for one, so without this a malformed request came back as a 500 and a
+        # caller treating 5xx as retryable would retry it forever.
         raise ParseRequestError(f"path is not a usable filename: {exc}") from None
     root_s = os.path.realpath(root)
     # realpath (PathNormalization) then startswith (SafeAccessCheck) is the pair
@@ -270,6 +257,11 @@ def resolve_parse_path(raw_path: str) -> Path:
 
 def write_text(path: Path | str, text: str) -> None:
     """Write UTF-8 ``text`` to ``path`` after the CodeQL-visible path check.
+
+    The real containment check is :func:`resolve_parse_path`; this one is here so CodeQL's
+    ``py/path-injection`` sees a barrier guard. Do not pull it out into a shared helper: CodeQL
+    only honours a guard in the same function as the sink, so a helper turns every writer in
+    this module back into an alert.
     """
     resolved = os.path.realpath(path)
     root_marker = os.path.splitdrive(resolved)[0] or os.sep

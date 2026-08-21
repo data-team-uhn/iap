@@ -131,10 +131,9 @@ def parse_document(
     output_md = source.with_suffix(".md")
 
     if not chunk:
-        # Same two things on disk as every other path, and in the same order: the outline
-        # first, the .md last. The .md is the commit marker (see chunker.write_chunk_files),
-        # so writing it first would leave Markdown with no outline beside it if this failed
-        # in between — the one state the invariant exists to rule out.
+        # Outline first, .md last, the same order as every other path. The .md is the commit
+        # marker (see chunker.write_chunk_files), so the other order can leave Markdown with no
+        # outline beside it.
         shared_docs.make_dirs(output_md.parent)
         chunks_dir_path = write_unchunked_outline(output_md, markdown)
         write_atomically(output_md, markdown)
