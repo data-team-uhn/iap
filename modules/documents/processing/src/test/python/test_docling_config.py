@@ -39,6 +39,7 @@ pytest.importorskip("docling", reason="docling not installed; option names unver
 
 import docling_config  # noqa: E402
 from docling.datamodel.pipeline_options import (  # noqa: E402
+    HeadingHierarchyOptions,
     PdfPipelineOptions,
     TableStructureOptions,
 )
@@ -68,6 +69,8 @@ class TestPipelineOptionNames:
         "table_batch_size",
         "batch_polling_interval_seconds",
         "table_structure_options",
+        "document_timeout",
+        "heading_hierarchy_options",
     )
 
     def test_the_model_silently_drops_unknown_options(self):
@@ -100,6 +103,49 @@ class TestPipelineOptionNames:
     def test_the_table_structure_sub_options_are_real_fields(self):
         for name in ("mode", "do_cell_matching"):
             assert name in TableStructureOptions.model_fields, name
+
+    def test_the_heading_hierarchy_sub_options_are_real_fields(self):
+        for name in ("enabled", "use_bookmarks", "use_numbering", "use_style"):
+            assert name in HeadingHierarchyOptions.model_fields, name
+
+    def test_heading_hierarchy_is_on_without_the_style_pass(self):
+        # The layout model gives every PDF heading the same level, which leaves the chunker
+        # nothing to cut on below the top. Bookmarks and numbering fix that for free; the style
+        # pass would need generate_parsed_pages=True and every parsed page held in memory.
+        options = docling_config.PDF_PIPELINE_OPTIONS.heading_hierarchy_options
+        assert options.enabled is True
+        assert options.use_bookmarks is True
+        assert options.use_numbering is True
+        assert options.use_style is False
+        assert docling_config.PDF_PIPELINE_OPTIONS.generate_parsed_pages is False
+
+    def test_the_heading_level_ceiling_matches_the_markdown_one(self):
+        # Anything deeper than 6 would come back as markdown our HEADING regex rejects.
+        from markdown_markers import HEADING
+
+        assert HEADING.match("#" * 6 + " Deep") is not None
+        assert HEADING.match("#" * 7 + " Deeper") is None
+        assert docling_config.PDF_PIPELINE_OPTIONS.heading_hierarchy_options.max_level == 6
+
+    def test_a_conversion_is_time_bounded(self):
+        # Unbounded, one runaway document holds the daemon's only parse slot for as long as it
+        # likes while /health still reports ready.
+        timeout = docling_config.PDF_PIPELINE_OPTIONS.document_timeout
+        assert timeout is not None and timeout > 0
+
+    def test_the_timeout_reads_its_environment_variable(self, monkeypatch):
+        import importlib
+
+        monkeypatch.setenv(docling_config.DOCUMENT_TIMEOUT_VARIABLE, "45.5")
+        reloaded = importlib.reload(docling_config)
+        try:
+            assert reloaded.PDF_PIPELINE_OPTIONS.document_timeout == 45.5
+            # 0 means "no ceiling", which is Docling's own default.
+            monkeypatch.setenv(reloaded.DOCUMENT_TIMEOUT_VARIABLE, "0")
+            assert importlib.reload(reloaded).PDF_PIPELINE_OPTIONS.document_timeout is None
+        finally:
+            monkeypatch.delenv(docling_config.DOCUMENT_TIMEOUT_VARIABLE, raising=False)
+            importlib.reload(docling_config)
 
 
 class TestPerfSettingNames:
@@ -138,3 +184,56 @@ class TestPipelineLoggerName:
         assert importlib.util.find_spec(DOCLING_PIPELINE_LOGGER) is not None, (
             f"{DOCLING_PIPELINE_LOGGER} is gone; bad_alloc detection is watching nothing"
         )
+
+
+class TestDocumentTimeoutBecomesAFailure:
+    """A Docling timeout has to fail the batch, not hand back a shortened document.
+
+    ``document_timeout`` does not raise. Docling stops between page batches, appends a
+    ``TIMEOUT`` error item and sets ``PARTIAL_SUCCESS``, then returns the pages it managed --
+    so a caller that only looks at ``result.document`` gets a truncated document that looks
+    fine. What makes the option safe to enable here is that ``ensure_conversion_ok`` already
+    treats ``PARTIAL_SUCCESS`` as a failure.
+    """
+
+    def _timed_out_result(self):
+        from types import SimpleNamespace
+
+        from docling.datamodel.base_models import (
+            ConversionStatus,
+            DoclingComponentType,
+            FailureCategory,
+        )
+        from docling.datamodel.document import ErrorItem
+
+        error = ErrorItem(
+            component_type=DoclingComponentType.PIPELINE,
+            module_name="base_pipeline",
+            error_message=(
+                "Document processing timeout: exceeded 600.000s limit after 601.2s. "
+                "Processed 3/12 pages."
+            ),
+            category=FailureCategory.TIMEOUT,
+        )
+        # document is present and non-empty, which is exactly the trap: the pages it did
+        # manage are there, so only the status and the error item say anything is wrong.
+        return SimpleNamespace(
+            status=ConversionStatus.PARTIAL_SUCCESS, errors=[error], document=object()
+        )
+
+    def test_a_timeout_raises_rather_than_returning_a_short_document(self):
+        from docling_error_detection import ensure_conversion_ok
+
+        with pytest.raises(RuntimeError) as raised:
+            ensure_conversion_ok(self._timed_out_result())
+        assert "timeout" in str(raised.value).lower()
+
+    def test_the_message_says_how_far_it_got(self):
+        # The operator needs to know whether to raise the ceiling or fix the document.
+        from docling_error_detection import ensure_conversion_ok
+
+        with pytest.raises(RuntimeError) as raised:
+            ensure_conversion_ok(self._timed_out_result())
+        message = str(raised.value)
+        assert "partial_success" in message
+        assert "Processed 3/12 pages" in message
