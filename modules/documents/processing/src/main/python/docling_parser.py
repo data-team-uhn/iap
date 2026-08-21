@@ -27,10 +27,10 @@ from pathlib import Path
 
 import docling_config  # noqa: F401 — apply shared Docling settings on import
 
+from chunker import DEFAULT_MIN_STRUCTURE_TOKENS
 from docling_batch_sizing import MAX_BATCH_PAGES, add_workers_argument, positive_int
 from markdown_markers import INPUT_SUFFIXES
 from parse_document import parse_document
-from toc_and_appendix_detection import DEFAULT_MIN_STRUCTURE_TOKENS
 
 
 def parse_args():

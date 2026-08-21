@@ -72,18 +72,18 @@ class TestChunkerCli:
         chunk_files = sorted(p.name for p in chunks_dir.glob("Chunk-*.md"))
 
         assert outline["chunked"] is True
-        assert outline["fileId"] == "proto.md"
-        assert len(chunk_files) == len(catalog["chunks"])
-        # Compared as sets: the catalog is in document order, which is not the lexicographic
-        # order of the file names (Chunk-10 sorts before Chunk-2).
-        assert {entry["file"] for entry in catalog["chunks"]} == set(chunk_files)
+        assert len(chunk_files) == len(catalog)
+        # chunk_id *is* the file name now, so the catalog names its files directly. Compared
+        # as sets: the catalog is in document order, which is not the lexicographic order of
+        # the names (Chunk-10 sorts before Chunk-2).
+        assert {entry["chunk_id"] for entry in catalog} == set(chunk_files)
 
     def test_reported_count_matches_the_catalog(self, large_md):
         result = run_cli(large_md)
         catalog = json.loads(
             (large_md.parent / CHUNKS_DIRNAME / CATALOG_NAME).read_text(encoding="utf-8")
         )
-        assert f"Created {len(catalog['chunks'])} chunk file(s)." in result.stdout
+        assert f"Created {len(catalog)} chunk file(s)." in result.stdout
 
     def test_small_document_is_left_unchunked(self, tmp_path):
         path = tmp_path / "small.md"

@@ -39,6 +39,7 @@ from docling.document_converter import DocumentConverter
 
 import shared_docs
 from chunker import (
+    DEFAULT_MIN_STRUCTURE_TOKENS,
     CHUNKS_DIRNAME,
     DEFAULT_MAX_TOKENS,
     write_atomically,
@@ -50,7 +51,6 @@ from docling_pdf_parser import convert_pdf_to_markdown
 from libreoffice_convert import prepare_office_document
 from markdown_cleanup import source_file_basename
 from markdown_markers import INPUT_SUFFIXES, SUPPORTED_SUFFIXES
-from toc_and_appendix_detection import DEFAULT_MIN_STRUCTURE_TOKENS
 
 LogFn = Callable[[str], None]
 
@@ -136,7 +136,7 @@ def parse_document(
         # so writing it first would leave Markdown with no outline beside it if this failed
         # in between — the one state the invariant exists to rule out.
         shared_docs.make_dirs(output_md.parent)
-        chunks_dir_path = write_unchunked_outline(output_md, filename, markdown)
+        chunks_dir_path = write_unchunked_outline(output_md, markdown)
         write_atomically(output_md, markdown)
         return {
             "ok": True,

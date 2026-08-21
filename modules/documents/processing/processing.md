@@ -106,9 +106,7 @@ invites client timeouts. Callers retry.
 | `docling_config.py` / `docling_error_detection.py` | Shared Docling pipeline options; parse-failure detection |
 | `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks (idempotent). Called **once per document**, by the converter only |
 | **`chunker.py`** | `write_chunk_files` — **sole** writer of `{stem}.md` + `Chunks/`; `build_chunk_tree` is in-memory only |
-| `toc_and_appendix_detection.py` | `derive_outline` — the outline **fork**, pure and the only entry point |
-| `bookmarks.py` / `pdf_bookmarks.py` | Outline-record helpers / PDF bookmark extraction |
-| `heading_numbering.py` | Section-numbering depth for heading levels |
+| `pdf_bookmarks.py` | PDF bookmark extraction (pypdf) |
 
 ---
 
@@ -142,22 +140,20 @@ chunk_file(<stem>.md)                                        # md is already cle
   └─ write_chunk_files(md, output_file, filename)
        └─ build_chunk_tree(md, filename, markdown_path, max_tokens, min_structure_tokens)
             │                                     # pure: no writes, returns the whole tree
-            ├─ derive_outline(md, markdown_path, min_structure_tokens)
-            │    ├─ extract_bookmarks(<stem>.pdf) → verify_bookmarks  # sibling PDF, pages verified
-            │    └─ _detect_toc(md)               # always; cleans the printed TOC in place
-            │                                     # → toc, backmatterLine, tokens, toc_source
+            ├─ extract_bookmarks(<stem>.pdf)  # sibling PDF; titles taken as given
+            │                                  # → toc, tokens, toc_source
+            │                                  # no bookmarks → toc_source "none", toc []
             │
             ├─ size gate:  tokens = len(md)//4  vs  DEFAULT_MIN_STRUCTURE_TOKENS (20000)
             │    ├─ below → outline only {chunked:false}; STOP (whole-doc used downstream)
             │    └─ at/above ↓
             │
-            ├─ split main content at the shallowest ATX heading level
+            ├─ split at the shallowest ATX heading level
             ├─ unite consecutive sections up to DEFAULT_MAX_TOKENS (2000)
-            ├─ over-budget piece → _split_oversized → _subchunk_blocks, in order:
-            │       ATX sub-heading → outline-record cut → numbered stand-out → paragraph
+            ├─ over-budget piece → _split_oversized → _subchunk_blocks:
+            │       ATX sub-heading, else paragraph boundaries
             ├─ heading-only part folded into a sibling (never its own chunk file)
-            ├─ small text-only tail (< MIN_TAIL_TOKENS 500) folded into the previous part
-            └─ backmatterLine..EOF → one standalone backmatter chunk (no sub-splitting)
+            └─ small text-only tail (< MIN_TAIL_TOKENS 500) folded into the previous part
        │
        └─ write Chunks/ : Chunk-*.md, catalog.json, outline.json
 ```
@@ -180,48 +176,48 @@ checks for them — see "Staleness" below.
 ## The outline subsystem
 
 The document **outline** is a list of records `{title, level|null, page|null, verified?}`,
-held in memory for the whole run and folded into `Chunks/outline.json`. It drives three
-things: the `toc` array, `backmatterLine`, and record-based sub-chunk cut points. Records
-come from one of two sources, decided inside `derive_outline`.
+held in memory for the whole run and folded into `Chunks/outline.json`. It drives one thing:
+the `toc` array. Records come from a sibling PDF's bookmarks, and from nothing else.
 
 Records are never written to disk on their own — they live in memory for the run and only
 `Chunks/outline.json` survives it.
 
-The printed TOC is cleaned **whether or not** PDF bookmarks were found: `_detect_toc` runs
-unconditionally, because a printed TOC left in the body would otherwise be chunked as content.
-Bookmarks decide which records win, not whether the document is rewritten.
+Printed-TOC detection was removed. Finding, confirming, flattening and splicing out a
+"table of contents" block, and locating the first Reference/Appendix section, were together
+~1000 lines of heuristics that missed or truncated their target on roughly 5% of real
+proposals — and a *truncated* TOC is worse than none, because downstream it was sent to the
+model in place of the complete catalog outline, so a partial answer displaced a whole one. A
+document with no PDF bookmarks now reports `toc_source: "none"` with an empty `toc`, and the
+caller decides what to send instead.
+
+Three consequences follow. A printed table of contents is **no longer removed** from the
+Markdown, so its entry lines survive into a chunk. `tocStartLine` / `tocEndLine` and
+`backmatterLine` are gone from `outline.json`, and with `backmatterLine` went the standalone
+backmatter chunk and its `isAppendix` catalog flag — references and appendices are chunked
+like any other section. And the document is never rewritten, so a misread TOC
+can no longer splice real body text away.
 
 ```mermaid
 flowchart TD
-    A["write_chunk_files / daemon POST /parse"] --> B["derive_outline"]
-    B --> C["_detect_toc: always cleans the printed TOC in place, harvests its entries"]
-    C --> D{"sibling stem.pdf with bookmarks?"}
-    D -->|yes| E["extract_bookmarks pypdf, then verify_bookmarks page-correct
-    AUTHORITATIVE: records replace the harvested entries"]
-    D -->|no| F["records = the harvested printed-TOC entries"]
-    E --> G["toc = record titles; backmatterLine from records; record cut-keys drive splits"]
-    F --> G
+    A["write_chunk_files / daemon POST /parse"] --> B["build_chunk_tree"]
+    B --> C{"sibling stem.pdf with bookmarks?"}
+    C -->|yes| D["extract_bookmarks pypdf"]
+    C -->|no| E["no outline: toc_source none, toc empty"]
+    D --> F["toc = record titles, toc_source pdf-bookmarks"]
 ```
 
-The producer is recorded as **`toc_source`** in `outline.json` — `pdf-bookmarks`,
-`md-toc`, or `none` — and echoed in the chunk logs (`chunk_file` → `toc_source=…`),
-so you can tell after the fact (or live) which path produced a document's outline.
+The producer is recorded as **`toc_source`** in `outline.json` — `pdf-bookmarks` or `none`
+— and echoed in the chunk logs (`chunk_file` → `toc_source=…`), so you can tell after the
+fact (or live) which path produced a document's outline.
 
 Key behaviours:
 
-- **Verification / page-correction** (`bookmarks.verify_bookmarks`) — a bookmark often points
-  one page early (header at the top of the next page). For each record the title is looked up
-  on its claimed page, then N−1 and N+1; found on a neighbour ⇒ the page is **rewritten**;
-  found nowhere ⇒ `verified: false`. Unpaged documents (DOCX) skip this.
-- **Manual harvest** (`_entry_to_record`) — a printed-TOC entry becomes a record: title (page
-  stripped), page (its trailing number), level (numbering depth via `heading_numbering`).
-- **Record → line resolution** (`resolve_record_line`) — a record maps to a body line only if
-  its title (normalized: casefold + alphanumerics) matches **exactly one** eligible line;
-  when its page is trusted, only lines on **exactly that page** count. Fail-open: 0 or >1
-  matches resolve to nothing rather than the wrong line.
-- **Record cut points** (`_record_cut_keys`) — records that resolve uniquely to a non-ATX,
-  non-TOC-range body line become sub-chunk boundaries — recovering section headings Docling
-  emitted as plain/bold text instead of `#`.
+- **No page verification** — a bookmark's page used to be looked up in the `<!-- page: N -->`
+  markers and corrected when it pointed one page early. Nothing downstream reads a record's
+  page any more, so the titles are taken as the PDF gives them.
+- **Sub-chunk boundaries** — an ATX sub-heading, or paragraph boundaries. Record-based cut
+  points and bold/ALL-CAPS "stand-out" headings were both removed: a line with no structural
+  marker of its own was too often emphasis or shouting inside a paragraph, so only `#` counts.
 
 The source PDF reaches the chunker as a sibling of the `.md`: either the native upload staged
 beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_office_document`.
@@ -236,7 +232,7 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
     <stem>.pdf                # the staged source, or the LibreOffice rendition, which is
                               # written unconditionally -- nothing checks the name first
     Chunks/
-        outline.json          # ALWAYS written: fileId, tokens, chunked, toc_source, toc (+ unchunkedReason whenever chunked is false)
+        outline.json          # ALWAYS written: tokens, chunked, toc_source, toc (+ unchunkedReason whenever chunked is false)
         catalog.json          # only when chunked: one slim entry per Chunk-*.md
         Chunk-0.md            # content before the first boundary heading (if any)
         Chunk-1.md
@@ -270,7 +266,7 @@ and the daemon runs one conversion at a time.
 ### LibreOffice renditions
 
 `prepare_office_document` writes `{stem}.docx` (for a `.doc`) and a best-effort `{stem}.pdf`
-beside the source, and `derive_outline` picks the PDF up as the `.md`'s sibling. That works
+beside the source, and `build_chunk_tree` picks the PDF up as the `.md`'s sibling. That works
 because a parse owns its directory: the only `{stem}.pdf` there is the one this run rendered,
 or the staged PDF itself when the upload was already a PDF.
 
