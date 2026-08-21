@@ -119,6 +119,17 @@ test.describe('the time off request demo', () => {
     expect(tag.category).toEqual([ 'timeliness' ]);
   });
 
+  test('ships the tag its urgency check places', async ({ request }) => {
+    // Its own category, and that is not tidiness: placing a tag retires whatever else the host carries in the
+    // same one, and a request can be both urgent and overdue at once.
+    const response = await request.get('/Tags/urgent.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const tag = (await response.json()) as { category?: string[]; 'jcr:primaryType'?: string };
+    expect(tag['jcr:primaryType']).toBe('iap:TagDefinition');
+    expect(tag.category).toEqual([ 'priority' ]);
+  });
+
   test('requires a doctor\'s note only for sick leave', async ({ request }) => {
     // The same mechanism one level up: a whole requirement, not just a question, that applies conditionally.
     const response = await request.get('/Schemas/timeOffRequest/v1/doctorsNote.2.json', { headers: asAdmin });
@@ -198,6 +209,7 @@ test.describe('the time off request demo', () => {
       bpmnAuthoritative?: boolean;
       bpmnXmlParsedHash?: string;
       checkBudget?: { handler?: string };
+      markUrgency?: { handler?: string };
       approveRequest?: {
         performers?: string[];
         outcomeOptions?: string[];
@@ -214,6 +226,7 @@ test.describe('the time off request demo', () => {
 
     // And what it produced carries everything the descriptor used to have to say by hand
     expect(version.checkBudget?.handler).toBe('checkTimeOffBudget');
+    expect(version.markUrgency?.handler).toBe('markTimeOffUrgency');
     expect(version.approveRequest?.performers).toEqual([ 'time-off-approvers' ]);
     expect(version.approveRequest?.outcomeOptions).toEqual([ 'approved', 'rejected' ]);
     expect(version.approveRequest?.hostTag).toBe('submitted');
@@ -710,6 +723,48 @@ test.describe('the time off request demo', () => {
     await page.reload();
     await expect(page.getByRole('radio', { name: 'Several days' })).toBeChecked();
     await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
+  });
+
+  test('flags a request whose time off starts tomorrow', async ({ page, request }) => {
+    // The whole point of doing this when the request is sent rather than only overnight: somebody asking today
+    // for tomorrow is exactly the request an approver needs to see today. Driven through the UI because the flag
+    // is placed by a service task on the arc leaving the send step, so nothing but sending it will do.
+    test.slow();
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('Tomorrow, as it turns out');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+    const raised = new URL(page.url()).pathname;
+
+    // Tomorrow, computed rather than written down: a fixed date in a spec stops being tomorrow the next day
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    await page.goto(`${raised}.edit`);
+    await page.getByRole('radio', { name: 'Full day' }).check();
+    const start = page.getByLabel(/Which day does your time off start/);
+    await start.fill(tomorrow);
+    await start.blur();
+    await page.getByRole('radio', { name: 'Vacation' }).check();
+    await expect(page.getByText('Saved')).toHaveCount(3);
+
+    // Not yet: the flag is placed by sending it, and until then nothing has judged the date
+    const beforeSending = await request.get(`${raised}.json`, { headers: asRequester });
+    expect(((await beforeSending.json()) as { tags?: string[] }).tags ?? []).not.toContain('urgent');
+
+    await page.getByRole('button', { name: /Say when you want to be away/ }).click();
+    await expect(page.getByText('Submitted')).toBeVisible();
+
+    // And now, recorded on the request itself rather than worked out by whoever is looking at it
+    const afterSending = await request.get(`${raised}.json`, { headers: asRequester });
+    expect(((await afterSending.json()) as { tags?: string[] }).tags).toContain('urgent');
+    // Beside the lifecycle state rather than instead of it: the two are in different categories, so neither
+    // placement retires the other
+    expect(((await afterSending.json()) as { tags?: string[] }).tags).toContain('submitted');
   });
 
   test('attaches the doctor\'s note the request asks for', async ({ page, request }) => {
