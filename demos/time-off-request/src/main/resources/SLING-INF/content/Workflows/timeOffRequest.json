@@ -46,6 +46,21 @@
       "toApproval": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toApproval",
+        "targetRef": "markUrgency"
+      }
+    },
+    "markUrgency": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markUrgency",
+      "label": "Note how soon this starts",
+      // Sending the request is the first moment its answers are final, so it is the first moment the start date
+      // can be judged. A nightly sweep judges it again when the calendar moves, which is the only other way a
+      // request becomes urgent - and neither is a correction of the other.
+      "handler": "markTimeOffUrgency",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toApprovalTask": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApprovalTask",
         "targetRef": "approveRequest"
       }
     },

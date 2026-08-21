@@ -30,8 +30,15 @@
         // reached through --demo or the demo integration-test suite, never a real deployment.
         "create group time-off-requesters \n create group time-off-approvers",
         "create user demo-requester with password demo-requester \n create user demo-approver with password demo-approver",
-        "add demo-requester to group time-off-requesters \n add demo-approver to group time-off-approvers"
+        "add demo-requester to group time-off-requesters \n add demo-approver to group time-off-approvers",
+        // The nightly urgency sweep reads every request and writes a tag on the ones about to start. It needs a
+        // user of its own because it runs on a clock rather than on somebody's request: there is nobody signed in
+        // to act as, and the engine's own service user belongs to the engine.
+        "create service user urgency \n set ACL for urgency \n allow jcr:all on /Submissions \n end"
       ]
+    },
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~demo-time-off-urgency": {
+      "user.mapping": ["io.uhndata.iap.demo-time-off-request:urgency=[urgency]"]
     }
   }
 }
