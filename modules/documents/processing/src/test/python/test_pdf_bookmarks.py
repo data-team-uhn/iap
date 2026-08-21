@@ -57,3 +57,12 @@ class TestExtractBookmarks:
 
     def test_bad_source_returns_empty(self):
         assert pdf_bookmarks.extract_bookmarks("/no/such/file.pdf") == []
+
+    def test_levels_past_the_heading_ceiling_are_not_extracted(self):
+        ceiling = pdf_bookmarks.MAX_HEADING_LEVEL
+        nested: list = [FakeDest(f"L{ceiling + 1}", 0)]
+        for depth in range(ceiling, 0, -1):
+            nested = [FakeDest(f"L{depth}", 0), nested]
+        out = pdf_bookmarks.extract_bookmarks(FakeReader(nested))
+        assert [record["title"] for record in out] == [f"L{n}" for n in range(1, ceiling + 1)]
+        assert all(record["level"] <= ceiling for record in out)
