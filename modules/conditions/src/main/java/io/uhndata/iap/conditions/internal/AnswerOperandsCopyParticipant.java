@@ -43,12 +43,15 @@ public class AnswerOperandsCopyParticipant implements CopyParticipant
 
     private static final String VALUE_PROPERTY = "value";
 
+    // The source the submissions module's answer resolver reads. Named here, since conditions cannot depend on it
+    private static final String ANSWER_SOURCE = "answer";
+
     @Override
     public void afterCopy(final Node source, final Node copy, final Map<String, String> identifiers)
         throws RepositoryException
     {
         if (copy.isNodeType("cond:ConditionOperand") && copy.hasProperty(VALUE_PROPERTY)
-            && AnswerOperandResolver.SOURCE.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
+            && ANSWER_SOURCE.equals(copy.getProperty(SOURCE_PROPERTY).getString())) {
             // A path resolves against the operand's entity, which the copy keeps whole, so it stays valid.
             // An identifier names the original question, so it is changed to the copy's.
             OperandValues.rename(copy, named -> identifiers.getOrDefault(named, named));
