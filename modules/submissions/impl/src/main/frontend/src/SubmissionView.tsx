@@ -380,8 +380,10 @@ function SubmissionView() {
       <Stack spacing={2}>
         {header}
         {/* Keyed, so navigating to another submission builds a new editor rather than showing
-            the previous one's answers until the new form lands */}
-        <SubmissionEditor key={path} path={path} />
+            the previous one's answers until the new form lands. Answering or attaching can be the
+            thing that completes the request, and whether it is complete decides whether the step
+            above offers to send it. */}
+        <SubmissionEditor key={path} path={path} onChanged={() => setReloads(current => current + 1)} />
       </Stack>
     );
   }
