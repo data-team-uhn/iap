@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.tags.spi;
 
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -74,6 +75,24 @@ public interface TagContext
      */
     @Nullable
     NodeState getScopeRoot();
+
+    /**
+     * The children whose tags may flow up into the node being processed, which is what a
+     * {@link TagProcessor.Phase#BOTTOM_UP} processor must aggregate over instead of the node's own child list. Two
+     * kinds of child are left out: the ones that never take part in tagging at all — hidden nodes, the system and
+     * index subtrees, access control policies — and the {@code iap:TagBoundary} containers, which carry the aggregate
+     * of their own content and offer nothing above themselves.
+     *
+     * <p>
+     * Filtered here rather than left to each processor because getting it wrong is not a cosmetic mistake: a copy
+     * that climbs past a boundary reaches ancestors the committing session may have no right to write, and Oak
+     * evaluates permissions after the editors have run, so it fails that session's commit.
+     * </p>
+     *
+     * @return the child entries that may contribute, never {@code null}
+     */
+    @NotNull
+    Iterable<? extends ChildNodeEntry> getAggregationSources();
 
     /**
      * The tag definitions in effect for this commit.

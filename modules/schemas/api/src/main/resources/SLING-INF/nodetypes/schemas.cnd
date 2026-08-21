@@ -50,7 +50,7 @@
 //-----------------------------------------------------------------------------
 // A named institutional schema. This is only a container identifying the
 // schema; the actual requirements live in its versions.
-[sch:Schema] > iap:Entity
+[sch:Schema] > iap:Entity, iap:TagBoundary
   - sling:resourceType (STRING) = "sch/Schema" mandatory autocreated protected
 
   // Human-readable name for this schema
@@ -72,7 +72,7 @@
 //-----------------------------------------------------------------------------
 // A particular version of a schema; holds the requirements a submission
 // must fulfill. Submissions reference a specific version.
-[sch:SchemaVersion] > iap:Entity
+[sch:SchemaVersion] > iap:Entity, iap:TagBoundary
   // The list of requirements is orderable, so they can be presented to the
   // submitter and reviewer in a deliberate sequence.
   orderable

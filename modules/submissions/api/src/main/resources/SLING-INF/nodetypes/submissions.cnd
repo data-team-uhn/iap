@@ -52,7 +52,7 @@
 // A submission filed by a submitter against a specific schema version. The
 // workflow instances driving its lifecycle live inside it, in the wf:instances
 // child that the wf:WorkflowAttachable mixin autocreates.
-[sub:Submission] > iap:Entity, wf:WorkflowAttachable
+[sub:Submission] > iap:Entity, wf:WorkflowAttachable, iap:TagBoundary
   - sling:resourceType (STRING) = "sub/Submission" mandatory autocreated protected
 
   // Title of the submission

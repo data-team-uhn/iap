@@ -39,6 +39,13 @@ import io.uhndata.iap.tags.spi.TagProcessor;
  * explicit ones and the ones a {@link Phase#LOCAL} processor computed for it — with what that child already
  * aggregated from its own descendants.
  *
+ * <p>
+ * The chain is what carries a tag up, so it is also where the climb has to end: aggregating over
+ * {@link TagContext#getAggregationSources() the children that may contribute} rather than over all of them is what
+ * makes an {@code iap:TagBoundary} opaque from above. Reading a boundary child's own chain link would carry its
+ * content's tags straight past it.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -73,9 +80,7 @@ public class TagAggregationProcessor implements TagProcessor
         final TagDefinitions definitions = context.getDefinitions();
         // The chained values were already filtered when the child's own properties were computed, but re-filtering
         // sheds values left over from a definition that stopped being aggregated
-        return StreamSupport.stream(context.getNode().getChildNodeEntries().spliterator(), false)
-            // Hidden, non-JCR-visible children
-            .filter(entry -> entry.getName().charAt(0) != ':')
+        return StreamSupport.stream(context.getAggregationSources().spliterator(), false)
             .map(ChildNodeEntry::getNodeState)
             .flatMap(TagAggregationProcessor::sourceTags)
             .filter(definitions::isAggregated)

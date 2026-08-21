@@ -22,6 +22,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -36,6 +40,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.tags.api.Tag;
+import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.tags.spi.TagProcessor.Phase;
@@ -46,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit tests for {@link TagManagerImpl}.
@@ -61,6 +67,14 @@ class TagManagerImplTest
     private static final String DRAFT = "draft";
 
     private static final String SENSITIVE = "sensitive";
+
+    private static final String INCOMPLETE = "incomplete";
+
+    /** Marks a test resource whose stand-in node answers to the boundary mixin. */
+    private static final String BOUNDARY = "testBoundary";
+
+    /** Marks a test resource whose stand-in node fails to answer at all. */
+    private static final String UNCLASSIFIABLE = "testUnclassifiable";
 
     private final SlingContext context = new SlingContext();
 
@@ -113,7 +127,7 @@ class TagManagerImplTest
     @Test
     void listsDefinitionsInDisplayOrder()
     {
-        assertEquals(List.of(DRAFT, "submitted", "incomplete", SENSITIVE, "PATIENT SURVEY"),
+        assertEquals(List.of(DRAFT, "submitted", INCOMPLETE, SENSITIVE, "PATIENT SURVEY"),
             this.tagManager.getDefinitions()
                 .stream().map(TagDefinition::getName).toList());
     }
@@ -170,7 +184,7 @@ class TagManagerImplTest
         final Resource part = this.context.create().resource("/data/part",
             TYPE_PROPERTY, "iap/EntityPart");
         // All unrestricted tags apply, the entity-only SENSITIVE tag does not
-        assertEquals(List.of(DRAFT, "submitted", "incomplete", "PATIENT SURVEY"),
+        assertEquals(List.of(DRAFT, "submitted", INCOMPLETE, "PATIENT SURVEY"),
             this.taggable(part).getApplicableDefinitions()
                 .stream().map(TagDefinition::getName).toList());
     }
@@ -253,8 +267,8 @@ class TagManagerImplTest
             TYPE_PROPERTY, "iap/Entity",
             "tags", new String[] { DRAFT }));
 
-        this.taggable(resource).setTags(List.of(SENSITIVE, "incomplete"));
-        assertEquals(Set.of(SENSITIVE, "incomplete"), this.taggable(resource).getTags());
+        this.taggable(resource).setTags(List.of(SENSITIVE, INCOMPLETE));
+        assertEquals(Set.of(SENSITIVE, INCOMPLETE), this.taggable(resource).getTags());
     }
 
     @Test
@@ -275,12 +289,12 @@ class TagManagerImplTest
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
             TYPE_PROPERTY, "iap/Entity",
             "tags", new String[] { DRAFT },
-            Phase.BOTTOM_UP.getPropertyName(), new String[] { "incomplete" },
+            Phase.BOTTOM_UP.getPropertyName(), new String[] { INCOMPLETE },
             Phase.TOP_DOWN.getPropertyName(), new String[] { SENSITIVE },
             Phase.LOCAL.getPropertyName(), new String[] { "computed" }));
 
         // One property per phase, all read whatever processors happen to be registered
-        assertEquals(Set.of(DRAFT, "incomplete", SENSITIVE, "computed"),
+        assertEquals(Set.of(DRAFT, INCOMPLETE, SENSITIVE, "computed"),
             this.taggable(resource).getEffectiveTagNames());
     }
 
@@ -323,11 +337,78 @@ class TagManagerImplTest
             TYPE_PROPERTY, "iap/Entity");
         this.context.create().resource("/data/entity/part", Map.of(
             TYPE_PROPERTY, "iap/EntityPart",
-            Phase.LOCAL.getPropertyName(), new String[] { "incomplete" }));
+            Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
 
-        assertTrue(this.taggable(entity).hasTag("incomplete"));
+        assertTrue(this.taggable(entity).hasTag(INCOMPLETE));
         assertEquals(Set.of(Tag.Origin.AGGREGATED),
-            collect(this.taggable(entity).getEffectiveTags()).get("incomplete").getOrigins());
+            collect(this.taggable(entity).getEffectiveTags()).get(INCOMPLETE).getOrigins());
+    }
+
+    /**
+     * What a resource's tags say has to match what the propagation editor stored, so this read path stops at a
+     * boundary exactly as the {@code aggregatedTags} chain does. Otherwise the two ways of asking give different
+     * answers about the same content.
+     */
+    @Test
+    void aggregationStopsAtABoundaryContainer()
+    {
+        this.context.registerAdapter(Resource.class, Node.class,
+            (Function<Resource, Node>) TagManagerImplTest::asNode);
+        final Resource entity = this.context.create().resource("/data/entity", TYPE_PROPERTY, "iap/Entity");
+        // A listing inside the entity, and content of its own carrying the aggregated tag
+        this.context.create().resource("/data/entity/listing", Map.of(
+            TYPE_PROPERTY, "iap/EntityHomepage",
+            BOUNDARY, true));
+        this.context.create().resource("/data/entity/listing/inner", Map.of(
+            TYPE_PROPERTY, "iap/EntityPart",
+            Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
+        // ...and ordinary content of the entity, which does aggregate
+        this.context.create().resource("/data/entity/part", Map.of(
+            TYPE_PROPERTY, "iap/EntityPart",
+            Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
+
+        final Tag aggregated = collect(this.taggable(entity).getEffectiveTags()).get(INCOMPLETE);
+
+        assertEquals(Set.of(Tag.Origin.AGGREGATED), aggregated.getOrigins());
+        assertEquals(Set.of("/data/entity/part"), aggregated.getSources());
+    }
+
+    @Test
+    void aResourceThatCannotBeClassifiedCountsAsOrdinaryContent()
+    {
+        this.context.registerAdapter(Resource.class, Node.class,
+            (Function<Resource, Node>) TagManagerImplTest::asNode);
+        final Resource entity = this.context.create().resource("/data/entity", TYPE_PROPERTY, "iap/Entity");
+        this.context.create().resource("/data/entity/unclassifiable", Map.of(
+            TYPE_PROPERTY, "iap/EntityPart",
+            UNCLASSIFIABLE, true,
+            Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
+
+        // Describing a resource must not fail because one node could not be classified
+        assertEquals(Set.of("/data/entity/unclassifiable"),
+            collect(this.taggable(entity).getEffectiveTags()).get(INCOMPLETE).getSources());
+    }
+
+    /**
+     * Stands in for the node behind a resource, since the mock resolver has no node types of its own: a marker
+     * property decides what {@code isNodeType} answers, and another makes it fail the way a real one can.
+     *
+     * @param resource the resource being adapted
+     * @return a node answering only {@code isNodeType}
+     */
+    private static Node asNode(final Resource resource)
+    {
+        final boolean boundary = resource.getValueMap().get(BOUNDARY, false);
+        final boolean unclassifiable = resource.getValueMap().get(UNCLASSIFIABLE, false);
+        return mock(Node.class, invocation -> {
+            if (!"isNodeType".equals(invocation.getMethod().getName())) {
+                return null;
+            }
+            if (unclassifiable) {
+                throw new RepositoryException("this stand-in has no node types");
+            }
+            return boundary && TagManager.BOUNDARY_MIXIN.equals(invocation.getArgument(0));
+        });
     }
 
     @Test
@@ -412,8 +493,8 @@ class TagManagerImplTest
         assertThrows(IllegalArgumentException.class,
             () -> this.taggable(resource).setTags(List.of(DRAFT)));
         // Keeping the system tag while changing the others is fine
-        this.taggable(resource).setTags(List.of("submitted", "incomplete"));
-        assertEquals(Set.of("submitted", "incomplete"), this.taggable(resource).getTags());
+        this.taggable(resource).setTags(List.of("submitted", INCOMPLETE));
+        assertEquals(Set.of("submitted", INCOMPLETE), this.taggable(resource).getTags());
         // With the platform-reserved variant, system tags may be dropped too
         this.taggable(resource).setTags(List.of(DRAFT), true);
         assertEquals(Set.of(DRAFT), this.taggable(resource).getTags());
@@ -430,23 +511,23 @@ class TagManagerImplTest
             "tags", new String[] { DRAFT }));
         this.context.create().resource("/data/entity/part/answer", Map.of(
             TYPE_PROPERTY, "iap/EntityPart",
-            "tags", new String[] { "incomplete" }));
+            "tags", new String[] { INCOMPLETE }));
 
-        // The entity carries its own tags, plus "incomplete" aggregated from a descendant;
+        // The entity carries its own tags, plus INCOMPLETE aggregated from a descendant;
         // the non-aggregated DRAFT on the part does not bubble up
         final Map<String, Tag> entityTags = collect(this.taggable(entity).getEffectiveTags());
-        assertEquals(Set.of(SENSITIVE, "legacy", "incomplete"), entityTags.keySet());
+        assertEquals(Set.of(SENSITIVE, "legacy", INCOMPLETE), entityTags.keySet());
         assertEquals(Set.of(Tag.Origin.EXPLICIT), entityTags.get(SENSITIVE).getOrigins());
-        assertEquals(Set.of(Tag.Origin.AGGREGATED), entityTags.get("incomplete").getOrigins());
-        assertEquals(Set.of("/data/entity/part/answer"), entityTags.get("incomplete").getSources());
+        assertEquals(Set.of(Tag.Origin.AGGREGATED), entityTags.get(INCOMPLETE).getOrigins());
+        assertEquals(Set.of("/data/entity/part/answer"), entityTags.get(INCOMPLETE).getSources());
         // The undefined "legacy" tag is still reported, without a definition
         assertFalse(entityTags.get("legacy").isDefined());
         assertTrue(entityTags.get(SENSITIVE).isDefined());
 
-        // The part carries its own DRAFT, SENSITIVE inherited from the entity, and "incomplete"
+        // The part carries its own DRAFT, SENSITIVE inherited from the entity, and INCOMPLETE
         // aggregated from its own descendant; the non-inheritable "legacy" does not flow down
         final Map<String, Tag> partTags = collect(this.taggable(part).getEffectiveTags());
-        assertEquals(Set.of(DRAFT, SENSITIVE, "incomplete"), partTags.keySet());
+        assertEquals(Set.of(DRAFT, SENSITIVE, INCOMPLETE), partTags.keySet());
         assertEquals(Set.of(Tag.Origin.INHERITED), partTags.get(SENSITIVE).getOrigins());
         assertEquals(Set.of("/data/entity"), partTags.get(SENSITIVE).getSources());
     }
@@ -476,15 +557,15 @@ class TagManagerImplTest
             TYPE_PROPERTY, "iap/EntityPart");
         this.context.create().resource("/data/entity/part/answer", Map.of(
             TYPE_PROPERTY, "iap/EntityPart",
-            "tags", new String[] { "incomplete", DRAFT }));
+            "tags", new String[] { INCOMPLETE, DRAFT }));
 
         // Explicit
         assertTrue(this.taggable(entity).hasTag(SENSITIVE));
         // Inherited from the entity
         assertTrue(this.taggable(part).hasTag(SENSITIVE));
         // Aggregated from the descendant answer
-        assertTrue(this.taggable(entity).hasTag("incomplete"));
-        assertTrue(this.taggable(part).hasTag("incomplete"));
+        assertTrue(this.taggable(entity).hasTag(INCOMPLETE));
+        assertTrue(this.taggable(part).hasTag(INCOMPLETE));
         // DRAFT is neither inheritable nor aggregated, so it stays where it was placed
         assertFalse(this.taggable(entity).hasTag(DRAFT));
         assertFalse(this.taggable(part).hasTag(DRAFT));
@@ -494,7 +575,7 @@ class TagManagerImplTest
         final Resource lonely = this.context.create().resource("/lonely",
             TYPE_PROPERTY, "iap/Entity");
         assertFalse(this.taggable(lonely).hasTag(SENSITIVE));
-        assertFalse(this.taggable(lonely).hasTag("incomplete"));
+        assertFalse(this.taggable(lonely).hasTag(INCOMPLETE));
     }
 
     private Map<String, Tag> collect(final Iterable<Tag> tags)
