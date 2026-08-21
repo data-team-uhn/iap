@@ -20,6 +20,8 @@
 import logging
 import os
 
+from shared_docs import positive_number_from_env
+
 # Before the docling imports below, deliberately. These pull in torch, which loads libgomp,
 # and libgomp reads OMP_NUM_THREADS once when it loads -- setting it afterwards is a no-op in
 # the process that set it. The container also sets both as ENV, so this only ever mattered
@@ -30,6 +32,7 @@ os.environ.setdefault("DOCLING_NUM_THREADS", "1")
 
 from docling.datamodel.accelerator_options import AcceleratorOptions  # noqa: E402
 from docling.datamodel.pipeline_options import (  # noqa: E402
+    HeadingHierarchyOptions,
     PdfPipelineOptions,
     TableFormerMode,
     TableStructureOptions,
@@ -55,6 +58,17 @@ settings.perf.page_batch_size = 1
 # Extracted elements processed together internally.
 settings.perf.elements_batch_size = 16
 
+# Wall-clock ceiling for one Docling conversion, which here means one page batch (at most
+# MAX_BATCH_PAGES pages). Docling checks it between batches and stops with PARTIAL_SUCCESS plus
+# a TIMEOUT error item, which ensure_conversion_ok already treats as a failure -- so a document
+# that runs away fails its batch loudly instead of holding the daemon's only parse slot for as
+# long as it likes. Generous on purpose: a false timeout fails a document that would have
+# converted, and a table-heavy page on one thread is slow rather than broken. It bounds a slow
+# conversion, not a wedged one: a batch that hangs inside a single page never reaches the check.
+# 0 disables it, which is Docling's own default.
+DOCUMENT_TIMEOUT_VARIABLE = "IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS"
+DEFAULT_DOCUMENT_TIMEOUT_SECONDS = 600.0
+
 PDF_PIPELINE_OPTIONS = PdfPipelineOptions(
     do_ocr=False,
     do_table_structure=True,
@@ -75,5 +89,25 @@ PDF_PIPELINE_OPTIONS = PdfPipelineOptions(
     table_structure_options=TableStructureOptions(
         mode=TableFormerMode.ACCURATE,
         do_cell_matching=True,
+    ),
+    document_timeout=positive_number_from_env(
+        DOCUMENT_TIMEOUT_VARIABLE, DEFAULT_DOCUMENT_TIMEOUT_SECONDS, float, "a number"
+    ),
+    # The layout model flags a region as a section header without a level, so every heading
+    # the PDF path produces is the same depth and the hierarchy is flat. The chunker cuts at
+    # the shallowest heading level and splits an oversized chunk at the level below, so a flat
+    # document gives it nothing to work with: every heading becomes a top-level cut and an
+    # oversized section falls back to splitting on paragraphs.
+    #
+    # Bookmarks and numbering are both free. use_style is not: it reads font sizes off
+    # parsed_page, which means generate_parsed_pages=True and holding every parsed page in
+    # memory, and this config exists to keep a worker inside its RAM budget. Measured on a
+    # numbered document it also changed nothing that numbering and bookmarks had not already
+    # settled, so it stays off.
+    heading_hierarchy_options=HeadingHierarchyOptions(
+        enabled=True,
+        use_bookmarks=True,
+        use_numbering=True,
+        use_style=False,
     ),
 )
