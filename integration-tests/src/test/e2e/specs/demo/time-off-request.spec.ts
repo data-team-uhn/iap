@@ -107,6 +107,18 @@ test.describe('the time off request demo', () => {
     expect(condition?.operandB?.value).toEqual([ 'multiple-days' ]);
   });
 
+  test('ships the tag its reminder places', async ({ request }) => {
+    // A tag with no definition cannot be placed at all, so a reminder that fired would fail the commit rather
+    // than mark anything. And the category matters: `overdue` is not a lifecycle state — placing one retires
+    // whatever else the host carries in the same category, and a late request is still submitted.
+    const response = await request.get('/Tags/overdue.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const tag = (await response.json()) as { category?: string[]; 'jcr:primaryType'?: string };
+    expect(tag['jcr:primaryType']).toBe('iap:TagDefinition');
+    expect(tag.category).toEqual([ 'timeliness' ]);
+  });
+
   test('requires a doctor\'s note only for sick leave', async ({ request }) => {
     // The same mechanism one level up: a whole requirement, not just a question, that applies conditionally.
     const response = await request.get('/Schemas/timeOffRequest/v1/doctorsNote.2.json', { headers: asAdmin });
@@ -173,6 +185,54 @@ test.describe('the time off request demo', () => {
 
     // The diagram is a file child of the version, not a property on it, so it must not turn up here
     expect(version).not.toHaveProperty('bpmnXml');
+  });
+
+  test('derives the flow nodes from the diagram rather than from the descriptor', async ({ request }) => {
+    // This version declares its diagram authoritative, so the commit editor owns its flow nodes: it parses the
+    // bpmn.xml and replaces whatever the descriptor installed. Worth asserting because every other test here
+    // passes either way — a workflow that runs proves the nodes are right, not where they came from.
+    const response = await request.get('/Workflows/timeOffRequest/v1.deep.-dereference.infinity.json',
+      { headers: asAdmin });
+    expect(response.ok()).toBeTruthy();
+    const version = (await response.json()) as Record<string, unknown> & {
+      bpmnAuthoritative?: boolean;
+      bpmnXmlParsedHash?: string;
+      checkBudget?: { handler?: string };
+      approveRequest?: {
+        performers?: string[];
+        outcomeOptions?: string[];
+        hostTag?: string;
+        approvalOverdue?: { timerDuration?: string; interrupting?: boolean };
+        approvalReminder?: { timerDuration?: string; interrupting?: boolean; hostTag?: string };
+      };
+      decision?: { toApproved?: { 'cond:condition'?: Record<string, unknown> } };
+    };
+
+    expect(version.bpmnAuthoritative).toBe(true);
+    // Set only after a parse succeeds, so its presence is the parse having happened
+    expect(version.bpmnXmlParsedHash).toEqual(expect.stringMatching(/^[0-9a-f]{64}$/));
+
+    // And what it produced carries everything the descriptor used to have to say by hand
+    expect(version.checkBudget?.handler).toBe('checkTimeOffBudget');
+    expect(version.approveRequest?.performers).toEqual([ 'time-off-approvers' ]);
+    expect(version.approveRequest?.outcomeOptions).toEqual([ 'approved', 'rejected' ]);
+    expect(version.approveRequest?.hostTag).toBe('submitted');
+    // Two boundary events, both stored inside the activity they watch, with their durations read out of the
+    // element BPMN writes them in — and the arcs leaving them are what the parse used to choke on
+    expect(version.approveRequest?.approvalOverdue?.timerDuration).toBe('P5D');
+    expect(version.approveRequest?.approvalOverdue?.interrupting).toBe(true);
+    // The nudge: same task, earlier, and it does not cancel it. `interrupting` is the only thing that tells
+    // "remind them" from "give up", and it comes across as a boolean rather than the string BPMN wrote.
+    expect(version.approveRequest?.approvalReminder?.timerDuration).toBe('P2D');
+    expect(version.approveRequest?.approvalReminder?.interrupting).toBe(false);
+    expect(version.approveRequest?.approvalReminder?.hostTag).toBe('overdue');
+    // The condition subtree, built from the System View the diagram carries in its extensionElements
+    const condition = version.decision?.toApproved?.['cond:condition'];
+    expect(condition).toBeTruthy();
+    expect(condition?.['jcr:primaryType']).toBe('cond:SingleCondition');
+    expect(condition?.comparator).toBe('equals');
+    expect((condition?.operandA as { source?: string; value?: string[] } | undefined)?.source).toBe('variable');
+    expect((condition?.operandA as { value?: string[] } | undefined)?.value).toEqual([ 'outcome' ]);
   });
 
   test('ships the BPMN as a file, served as XML', async ({ request }) => {
