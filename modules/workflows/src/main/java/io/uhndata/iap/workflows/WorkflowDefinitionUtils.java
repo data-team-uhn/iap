@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -223,15 +222,25 @@ public final class WorkflowDefinitionUtils
      * The invariants of a single parse: everything the per-element methods need that does not change from one element
      * to the next, bundled together so the individual methods stay within the checkstyle parameter limit.
      *
+     * <p>{@code createdNodes} holds every node this parse has made, by the BPMN id it was made for, and where it
+     * went. Membership answers "did this parse create that?" — but the builder is needed too, because a boundary
+     * event lives inside the activity it watches rather than beside it, so an arc leaving one cannot be found by
+     * looking under the version.</p>
+     *
      * @since 0.1.0
      */
     private record ParseContext(NodeBuilder workflowVersion, NodeState nodeTypesRoot, String author, String created,
-        String path, Set<String> claimedNames, Map<String, String> messageNames)
+        String path, Map<String, NodeBuilder> createdNodes, Map<String, String> messageNames)
     {
         ParseContext(final NodeBuilder workflowVersion, final NodeState nodeTypesRoot, final String author,
             final String created, final String path, final Map<String, String> messageNames)
         {
-            this(workflowVersion, nodeTypesRoot, author, created, path, new HashSet<>(), messageNames);
+            this(workflowVersion, nodeTypesRoot, author, created, path, new LinkedHashMap<>(), messageNames);
+        }
+
+        Set<String> claimedNames()
+        {
+            return this.createdNodes.keySet();
         }
     }
 
@@ -777,7 +786,7 @@ public final class WorkflowDefinitionUtils
                     .with(ELEMENT_DETAIL, id));
             return null;
         }
-        if (!context.claimedNames().add(id)) {
+        if (context.createdNodes().containsKey(id)) {
             LOGGER.warn("BPMN element id {} in {} is used more than once, skipping the later element", id,
                 context.path());
             ErrorLogger.logProblem("BPMN element id is used more than once",
@@ -795,6 +804,7 @@ public final class WorkflowDefinitionUtils
         }
         final NodeBuilder node = parent.child(id);
         node.setProperty(JCR_PRIMARY_TYPE, nodeType, Type.NAME);
+        context.createdNodes().put(id, node);
         return node;
     }
 
@@ -1072,7 +1082,10 @@ public final class WorkflowDefinitionUtils
                     .with(ELEMENT_DETAIL, id).with("references", targetRef));
             return;
         }
-        final NodeBuilder source = context.workflowVersion().getChildNode(sourceRef);
+        // Not `workflowVersion().getChildNode(sourceRef)`: a boundary event is stored inside the activity it
+        // watches, so an arc leaving one — "and if nobody decides in time, go here" — has a source that is not a
+        // child of the version at all. Asking the parse where it put the node is the only reliable answer.
+        final NodeBuilder source = context.createdNodes().get(sourceRef);
         final NodeBuilder flow = createNode(source, id, SEQUENCE_FLOW_NODETYPE, context);
         if (flow == null) {
             return;
