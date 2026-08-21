@@ -41,7 +41,7 @@
       <bpmn:outgoing>toStart</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toStart" sourceRef="markCompleteness" targetRef="start" />
-    <bpmn:serviceTask id="start" iap:handler="startWorkflow" name="Put it under its workflow">
+    <bpmn:serviceTask id="start" iap:workflowFrom="schemaVersion/workflow" iap:handler="startWorkflow" name="Put it under its workflow">
       <bpmn:incoming>toStart</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
