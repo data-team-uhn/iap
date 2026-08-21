@@ -26,7 +26,7 @@ import chunker
 import markdown_cleanup
 import markdown_markers as mm
 
-# The canonical form, exactly as markdown_markers.page_marker builds it and as the PDF
+# The canonical form, exactly as markdown_markers.get_page_marker builds it and as the PDF
 # parser emits it.
 EMITTED = "<!-- page: 12 -->"
 NON_CANONICAL = "<!-- page: 12-->"
@@ -34,10 +34,10 @@ NON_CANONICAL = "<!-- page: 12-->"
 
 class TestCanonicalPageMarker:
     def test_page_marker_builds_the_canonical_form(self):
-        assert mm.page_marker(12) == EMITTED
+        assert mm.get_page_marker(12) == EMITTED
 
     def test_page_marker_has_a_space_before_the_close(self):
-        assert mm.page_marker(7) == "<!-- page: 7 -->"
+        assert mm.get_page_marker(7) == "<!-- page: 7 -->"
 
 
 class TestPageMarkerFormat:
@@ -89,12 +89,12 @@ class TestConsumersAgreeOnTheMarker:
 
     def test_every_stage_reads_the_canonical_marker(self):
         assert chunker.is_neutral(EMITTED) is True
-        assert chunker._pages_in(f"body\n{EMITTED}\nmore") == [12]
+        assert chunker._get_pages(f"body\n{EMITTED}\nmore") == [12]
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{EMITTED}\nb") is not None
 
     def test_every_stage_rejects_non_canonical_spacing(self):
         assert chunker.is_neutral(NON_CANONICAL) is False
-        assert chunker._pages_in(f"body\n{NON_CANONICAL}\nmore") == []
+        assert chunker._get_pages(f"body\n{NON_CANONICAL}\nmore") == []
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{NON_CANONICAL}\nb") is None
 
 
@@ -160,20 +160,20 @@ class TestCountTokens:
 
 class TestWithinWordLimits:
     def test_ordinary_line(self):
-        assert mm.within_word_limits("Background and Rationale") is True
+        assert mm.is_within_word_limits("Background and Rationale") is True
 
     def test_empty_or_blank_rejected(self):
-        assert mm.within_word_limits("") is False
-        assert mm.within_word_limits("   ") is False
+        assert mm.is_within_word_limits("") is False
+        assert mm.is_within_word_limits("   ") is False
 
     def test_at_the_word_limit_is_allowed(self):
-        assert mm.within_word_limits(" ".join(["w"] * mm.MAX_HEADING_WORDS)) is True
+        assert mm.is_within_word_limits(" ".join(["w"] * mm.MAX_HEADING_WORDS)) is True
 
     def test_over_the_word_limit_rejected(self):
-        assert mm.within_word_limits(" ".join(["w"] * (mm.MAX_HEADING_WORDS + 1))) is False
+        assert mm.is_within_word_limits(" ".join(["w"] * (mm.MAX_HEADING_WORDS + 1))) is False
 
     def test_overlong_word_rejected(self):
-        assert mm.within_word_limits("word " + "x" * (mm.MAX_WORD_CHARS + 1)) is False
+        assert mm.is_within_word_limits("word " + "x" * (mm.MAX_WORD_CHARS + 1)) is False
 
 
 class TestSupportedSuffixes:

@@ -28,7 +28,7 @@ from pathlib import Path
 import docling_config  # noqa: F401 — apply shared Docling settings on import
 
 from chunker import DEFAULT_MIN_STRUCTURE_TOKENS
-from docling_batch_sizing import MAX_BATCH_PAGES, add_workers_argument, positive_int
+from docling_batch_sizing import MAX_BATCH_PAGES, add_workers_argument, parse_positive_int
 from markdown_markers import INPUT_SUFFIXES
 from parse_document import parse_document
 
@@ -41,7 +41,7 @@ def parse_args():
     add_workers_argument(parser)
     parser.add_argument(
         "--batch-pages",
-        type=positive_int,
+        type=parse_positive_int,
         default=None,
         metavar="N",
         help=(
@@ -51,7 +51,7 @@ def parse_args():
     )
     parser.add_argument(
         "--min-structure-tokens",
-        type=positive_int,
+        type=parse_positive_int,
         default=DEFAULT_MIN_STRUCTURE_TOKENS,
         metavar="N",
         help=(

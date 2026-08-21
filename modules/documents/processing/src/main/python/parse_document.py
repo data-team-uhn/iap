@@ -49,7 +49,7 @@ from chunker import (
 from docling_docx_parser import convert_docx_to_markdown
 from docling_pdf_parser import convert_pdf_to_markdown
 from libreoffice_convert import prepare_office_document
-from markdown_cleanup import source_file_basename
+from markdown_cleanup import get_source_file_basename
 from markdown_markers import INPUT_SUFFIXES, SUPPORTED_SUFFIXES
 
 LogFn = Callable[[str], None]
@@ -100,7 +100,7 @@ def parse_document(
         if log is not None:
             log(message)
 
-    filename = source_file_basename(source.name)
+    filename = get_source_file_basename(source.name)
     docling_input = prepare_office_document(source, log=_log)
     if docling_input != source:
         _log(f"LibreOffice prepared '{docling_input.name}' from '{source.name}'")

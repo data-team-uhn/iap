@@ -76,7 +76,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 
 import shared_docs
-from docling_batch_sizing import positive_int
+from docling_batch_sizing import parse_positive_int
 from markdown_markers import (
     HEADING,
     MIN_HEADING_CHARS,
@@ -84,8 +84,8 @@ from markdown_markers import (
     PAGE_MARKER_LINE,
     RULE_LINE,
     count_tokens,
-    tokens_for_length,
-    within_word_limits,
+    count_tokens_for_length,
+    is_within_word_limits,
 )
 from pdf_bookmarks import extract_bookmarks
 
@@ -121,7 +121,7 @@ UNCHUNKED_BELOW_THRESHOLD = "below_min_structure_tokens"
 UNCHUNKED_NOT_REQUESTED = "chunking_not_requested"
 
 # A line recurring at least this many times across the document is page furniture (a running
-# header or footer), never a heading — see :func:`repeated_lines`. Three rather than two so a
+# header or footer), never a heading — see :func:`get_repeated_lines`. Three rather than two so a
 # heading that genuinely appears twice is not discarded.
 MIN_RUNNING_HEADER_PAGES = 3
 
@@ -132,17 +132,17 @@ def is_neutral(stripped: str) -> bool:
         or PAGE_MARKER_LINE.match(stripped) is not None
 
 
-def valid_heading(text: str) -> bool:
+def is_valid_heading(text: str) -> bool:
     """Whether a heading candidate is usable: longer than 4 characters
     (:data:`markdown_markers.MIN_HEADING_CHARS`), within the shared word limits
-    (:func:`markdown_markers.within_word_limits`), and not a table caption (text already
+    (:func:`markdown_markers.is_within_word_limits`), and not a table caption (text already
     stripped of ``#`` / ``**`` markers must not start with ``Table ``).
     """
     if text.casefold().startswith("table "):
         return False
     if len(text) < MIN_HEADING_CHARS:
         return False
-    return within_word_limits(text)
+    return is_within_word_limits(text)
 
 
 def _split_lines_at(lines: list[str], is_boundary: Callable[[int], bool]) -> list[str]:
@@ -167,8 +167,8 @@ def _match_heading(line: str) -> tuple[int, str] | None:
     the heading level (number of leading ``#``) and its text with the ``#`` markers
     stripped — or ``None`` if the line is not an ATX heading.
 
-    Does **not** apply :func:`valid_heading`; callers that decide chunk cuts or catalog
-    labels must filter via :func:`_heading_level` or :func:`valid_heading` themselves.
+    Does **not** apply :func:`is_valid_heading`; callers that decide chunk cuts or catalog
+    labels must filter via :func:`_get_heading_level` or :func:`is_valid_heading` themselves.
     """
     match = HEADING.match(line)
     if match is None:
@@ -176,18 +176,18 @@ def _match_heading(line: str) -> tuple[int, str] | None:
     return len(match.group(1)), match.group(2).strip()
 
 
-def _heading_level(line: str) -> int | None:
+def _get_heading_level(line: str) -> int | None:
     """Return the heading level used for chunk cuts, or ``None`` if the line is not an
-    ATX heading or its text fails :func:`valid_heading` (same rules as catalog/outline
+    ATX heading or its text fails :func:`is_valid_heading` (same rules as catalog/outline
     labels — e.g. ``Table …`` captions do not start or end a chunk).
     """
     matched = _match_heading(line)
-    if matched is None or not valid_heading(matched[1]):
+    if matched is None or not is_valid_heading(matched[1]):
         return None
     return matched[0]
 
 
-def _min_heading_level(lines: list[str], deeper_than: int = 0) -> int | None:
+def _get_min_heading_level(lines: list[str], deeper_than: int = 0) -> int | None:
     """Return the shallowest heading level appearing in ``lines`` that is deeper than
     ``deeper_than``, or ``None`` if no such heading exists.
 
@@ -197,13 +197,13 @@ def _min_heading_level(lines: list[str], deeper_than: int = 0) -> int | None:
     """
     best: int | None = None
     for line in lines:
-        level = _heading_level(line)
+        level = _get_heading_level(line)
         if level is not None and level > deeper_than and (best is None or level < best):
             best = level
     return best
 
 
-def _pages_in(text: str) -> list[int]:
+def _get_pages(text: str) -> list[int]:
     """Return the sorted, de-duplicated ``<!-- page: N -->`` numbers referenced in a string."""
     pages: set[int] = set()
     for match in PAGE_MARKER.finditer(text or ""):
@@ -220,10 +220,10 @@ def _split_into_top_chunks(lines: list[str], boundary_level: int | None) -> list
 
     @param lines: the main-content Markdown already split on newlines
     @param boundary_level: the shallowest ATX heading level, or ``None`` for none at all --
-        computed once by :func:`write_chunk_files` via :func:`_min_heading_level`
+        computed once by :func:`write_chunk_files` via :func:`_get_min_heading_level`
     @return: chunks in document order, each ``{"number", "text"}``. Content before the first
         boundary heading is chunk ``number == 0``, the rest are numbered from 1. Each chunk
-        keeps its own heading line at the head of its ``text``; :func:`_part_heading` derives
+        keeps its own heading line at the head of its ``text``; :func:`_get_part_heading` derives
         catalog labels later, per emitted part.
     """
     if boundary_level is None:
@@ -235,7 +235,7 @@ def _split_into_top_chunks(lines: list[str], boundary_level: int | None) -> list
     current: list[str] | None = None
 
     for line in lines:
-        if _heading_level(line) == boundary_level:
+        if _get_heading_level(line) == boundary_level:
             if current is not None:
                 chunks.append(current)
             current = [line]
@@ -267,9 +267,9 @@ def _subchunk_blocks(chunk_text: str, boundary_level: int) -> list[str]:
     sub-heading the whole text is one block and :func:`_split_by_paragraphs` takes over.
     """
     lines = chunk_text.split("\n")
-    sub_level = _min_heading_level(lines, deeper_than=boundary_level)
+    sub_level = _get_min_heading_level(lines, deeper_than=boundary_level)
     if sub_level is not None:
-        return _split_lines_at(lines, lambda index: _heading_level(lines[index]) == sub_level)
+        return _split_lines_at(lines, lambda index: _get_heading_level(lines[index]) == sub_level)
 
     stripped = chunk_text.strip()
     return [stripped] if stripped else []
@@ -350,7 +350,7 @@ def _split_by_paragraphs(text: str, max_tokens: int) -> list[str]:
         if not pieces:
             pieces, length = [paragraph], len(paragraph)
             continue
-        if tokens_for_length(length + 2 + len(paragraph)) <= max_tokens:
+        if count_tokens_for_length(length + 2 + len(paragraph)) <= max_tokens:
             pieces.append(paragraph)
             length += 2 + len(paragraph)
             continue
@@ -370,7 +370,7 @@ def _is_standalone_heading(block: str) -> bool:
         if is_neutral(line.strip()):
             continue
         content.append(line)
-    return len(content) == 1 and _heading_level(content[0]) is not None
+    return len(content) == 1 and _get_heading_level(content[0]) is not None
 
 
 def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
@@ -388,7 +388,7 @@ def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
     parts: list[str] = []
     # Keep the part being built as unjoined pieces plus the length it would have once joined.
     # Actually joining it just to measure copies the whole part on every block and every
-    # discarded lookahead, which makes packing quadratic. tokens_for_length gives the same
+    # discarded lookahead, which makes packing quadratic. count_tokens_for_length gives the same
     # answer without building the string.
     pieces: list[str] = []
     length = 0
@@ -414,7 +414,7 @@ def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
         if _is_standalone_heading(block) and index + 1 < n:
             following = blocks[index + 1]
             lookahead = length + 2 + len(block) + 2 + len(following)
-            if tokens_for_length(lookahead) <= max_tokens:
+            if count_tokens_for_length(lookahead) <= max_tokens:
                 take(block)
                 index += 1
                 continue
@@ -425,7 +425,7 @@ def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
             index += 1
             continue
 
-        if tokens_for_length(length + 2 + len(block)) <= max_tokens:
+        if count_tokens_for_length(length + 2 + len(block)) <= max_tokens:
             take(block)
             index += 1
             continue
@@ -477,7 +477,7 @@ def _is_heading_only(part: str) -> bool:
     consecutive headings with no prose between them are just as unusable as a chunk.
     """
     content = [line for line in part.split("\n") if not is_neutral(line.strip())]
-    return bool(content) and all(_heading_level(line) is not None for line in content)
+    return bool(content) and all(_get_heading_level(line) is not None for line in content)
 
 
 def _merge_heading_only_parts(parts: list[str]) -> list[str]:
@@ -510,14 +510,14 @@ def _merge_heading_only_parts(parts: list[str]) -> list[str]:
 def _merge_small_text_tails(parts: list[str], min_tokens: int) -> list[str]:
     """Fold a text-only continuation part smaller than ``min_tokens`` back into the part
     before it, so a small tail cut off from the previous part is not emitted as its own file.
-    A part that carries any *cut-worthy* ATX heading (see :func:`_heading_level` /
-    :func:`valid_heading`) is never merged; lines that look like headings but fail
+    A part that carries any *cut-worthy* ATX heading (see :func:`_get_heading_level` /
+    :func:`is_valid_heading`) is never merged; lines that look like headings but fail
     validation (e.g. ``## Table …``) do not block the merge. The merge is applied even
     when it pushes the preceding part over the token budget.
     """
     merged: list[str] = []
     for part in parts:
-        if merged and _min_heading_level(part.split("\n")) is None \
+        if merged and _get_min_heading_level(part.split("\n")) is None \
                 and count_tokens(part) < min_tokens:
             merged[-1] = merged[-1].rstrip() + "\n\n" + part.lstrip()
         else:
@@ -538,7 +538,9 @@ def normalize_title(text: str) -> str:
     return _NON_ALNUM.sub("", text.casefold())
 
 
-def repeated_lines(lines: list[str], min_occurrences: int = MIN_RUNNING_HEADER_PAGES) -> frozenset:
+def get_repeated_lines(
+    lines: list[str], min_occurrences: int = MIN_RUNNING_HEADER_PAGES
+) -> frozenset:
     """Normalized keys of lines that recur at least ``min_occurrences`` times in the document —
     running headers and footers.
 
@@ -561,20 +563,20 @@ def repeated_lines(lines: list[str], min_occurrences: int = MIN_RUNNING_HEADER_P
     return frozenset(key for key, count in counts.items() if count >= min_occurrences)
 
 
-def _part_heading(
+def _get_part_heading(
     part_text: str, previous_heading: list[str] | None, repeated: frozenset = frozenset()
 ) -> list[str]:
     """Derive the heading array for one chunk file part in the order they appear.
 
     Collects ATX headings within one level of the part's first one, so a sub-sub-section does
-    not clutter the label. Each must pass :func:`valid_heading`. A part with no heading of its
+    not clutter the label. Each must pass :func:`is_valid_heading`. A part with no heading of its
     own copies the previous chunk's array; :data:`DEFAULT_HEADING` is the last resort, when
     there is no previous entry either.
 
     @param part_text: the emitted chunk part
     @param previous_heading: the preceding catalog entry's heading array, when there is one
     @param repeated: normalized keys of document-wide recurring lines to refuse
-        (see :func:`repeated_lines`) — page furniture, not headings
+        (see :func:`get_repeated_lines`) — page furniture, not headings
     @return: the heading array for this part
     """
     lines = part_text.split("\n")
@@ -590,14 +592,14 @@ def _part_heading(
                 continue
         else:
             continue
-        if valid_heading(text) and normalize_title(text) not in repeated:
+        if is_valid_heading(text) and normalize_title(text) not in repeated:
             headings.append(text)
     if headings:
         return headings
     return previous_heading or [DEFAULT_HEADING]
 
 
-def _preamble_heading(
+def _get_preamble_heading(
     part_text: str, preamble_text: str, repeated: frozenset = frozenset()
 ) -> list[str]:
     """Heading array for the part that carries the document preamble.
@@ -610,12 +612,12 @@ def _preamble_heading(
 
     @param part_text: the emitted chunk part
     @param preamble_text: the preamble chunk's text, to tell "preamble only" from "merged"
-    @param repeated: recurring lines to refuse (see :func:`repeated_lines`)
+    @param repeated: recurring lines to refuse (see :func:`get_repeated_lines`)
     @return: the heading array for this part
     """
     if part_text.strip() == preamble_text.strip():
         return [DEFAULT_HEADING]
-    headings = _part_heading(part_text, None, repeated)
+    headings = _get_part_heading(part_text, None, repeated)
     return headings if headings == [DEFAULT_HEADING] else [DEFAULT_HEADING] + headings
 
 
@@ -860,9 +862,9 @@ def build_chunk_tree(
     md_lines = md_file.split("\n")
     # Page furniture, identified once for the whole document: a per-part view cannot tell a
     # running header from a heading, because within one page each appears exactly once.
-    repeated = repeated_lines(md_lines)
+    repeated = get_repeated_lines(md_lines)
 
-    boundary_level = _min_heading_level(md_lines)
+    boundary_level = _get_min_heading_level(md_lines)
 
     catalog_chunks: list[dict] = []
     chunks: list[dict] = []
@@ -889,7 +891,7 @@ def build_chunk_tree(
             "headings": heading,
             "summary": "",
             "rubric_tags": [],
-            "pages": _pages_in(text),
+            "pages": _get_pages(text),
             "length": len(chunk_file_content(text)),
         })
 
@@ -910,10 +912,10 @@ def build_chunk_tree(
             name = f"Chunk-{number}.md" if single_part else f"Chunk-{number}.{part_index}.md"
             previous_heading = catalog_chunks[-1]["headings"] if catalog_chunks else None
             if first_number == 0 and not catalog_chunks:
-                heading = _preamble_heading(part_text, preamble_text, repeated)
+                heading = _get_preamble_heading(part_text, preamble_text, repeated)
             else:
                 # Everything else gets its real heading
-                heading = _part_heading(part_text, previous_heading, repeated)
+                heading = _get_part_heading(part_text, previous_heading, repeated)
             add(name, part_text, heading)
 
     return {
@@ -974,13 +976,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--max-tokens",
-        type=positive_int,
+        type=parse_positive_int,
         default=DEFAULT_MAX_TOKENS,
         help=f"Maximum tokens per chunk file (default: {DEFAULT_MAX_TOKENS})",
     )
     parser.add_argument(
         "--min-structure-tokens",
-        type=positive_int,
+        type=parse_positive_int,
         default=DEFAULT_MIN_STRUCTURE_TOKENS,
         help=(
             "Skip chunking when document tokens (len//4) are below this "

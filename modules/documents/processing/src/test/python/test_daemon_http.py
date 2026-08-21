@@ -86,16 +86,16 @@ def _log(_message):
 class TestDaemonToken:
     def test_unset_is_none(self, monkeypatch):
         monkeypatch.delenv(daemon_http.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
-        assert daemon_http.daemon_token() is None
+        assert daemon_http.get_daemon_token() is None
 
     def test_blank_is_none(self, monkeypatch):
         # The compose file leaves it empty by default, which must mean "unset", not "".
         monkeypatch.setenv(daemon_http.TOKEN_ENVIRONMENT_VARIABLE, "   ")
-        assert daemon_http.daemon_token() is None
+        assert daemon_http.get_daemon_token() is None
 
     def test_surrounding_whitespace_is_stripped(self, monkeypatch):
         monkeypatch.setenv(daemon_http.TOKEN_ENVIRONMENT_VARIABLE, "  s3cret\n")
-        assert daemon_http.daemon_token() == "s3cret"
+        assert daemon_http.get_daemon_token() == "s3cret"
 
 
 class TestRefuseUnauthorized:
@@ -217,7 +217,7 @@ class TestDrainRequestBody:
 class TestJsonResponse:
     def test_it_writes_json_with_a_length_and_content_type(self):
         handler = FakeHandler()
-        daemon_http.json_response(handler, HTTPStatus.OK, {"status": "ok"})
+        daemon_http.send_json_response(handler, HTTPStatus.OK, {"status": "ok"})
         assert handler.status() == HTTPStatus.OK
         assert json.loads(handler.body()) == {"status": "ok"}
         sent = dict(handler.sent)
@@ -226,13 +226,13 @@ class TestJsonResponse:
 
     def test_non_ascii_survives_the_reply(self):
         handler = FakeHandler()
-        daemon_http.json_response(handler, HTTPStatus.BAD_REQUEST, {"error": "café — 研究"})
+        daemon_http.send_json_response(handler, HTTPStatus.BAD_REQUEST, {"error": "café — 研究"})
         assert json.loads(handler.body())["error"] == "café — 研究"
 
     def test_a_closing_connection_says_so(self):
         handler = FakeHandler()
         handler.close_connection = True
-        daemon_http.json_response(handler, HTTPStatus.OK, {})
+        daemon_http.send_json_response(handler, HTTPStatus.OK, {})
         assert dict(handler.sent)["Connection"] == "close"
 
 

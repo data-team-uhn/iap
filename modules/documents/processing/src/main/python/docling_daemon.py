@@ -55,10 +55,10 @@ import docling_config  # noqa: F401 — apply shared Docling settings on import
 
 from daemon_http import (
     TOKEN_ENVIRONMENT_VARIABLE,
-    daemon_token,
-    token_is_ascii,
+    get_daemon_token,
+    is_token_ascii,
     drain_request_body,
-    json_response,
+    send_json_response,
     parse_chunk_flag,
     parse_query,
     parse_token_options,
@@ -70,12 +70,12 @@ from docling_batch_sizing import add_workers_argument, calc_workers
 from docling.datamodel.base_models import InputFormat
 
 from docling_docx_parser import get_docx_converter
-from docling_pdf_parser import warm_pdf_workers, worker_context, _init_worker
+from docling_pdf_parser import warm_pdf_workers, get_worker_context, _init_worker
 from shared_docs import (
     ParseRequestError,
     refuse_oversized_input,
     resolve_parse_path,
-    shared_docs_root,
+    get_shared_docs_root,
 )
 from parse_document import parse_document
 
@@ -89,7 +89,7 @@ DEFAULT_PORT = 18765
 MAX_CONCURRENT_PARSES = 1
 
 
-def _stderr(message: str) -> None:
+def _log_stderr(message: str) -> None:
     """Log one line to the container log."""
     print(message, file=sys.stderr, flush=True)
 
@@ -103,8 +103,8 @@ class DaemonState:
         self.pdf_executor = ProcessPoolExecutor(
             max_workers=self.worker_count,
             initializer=_init_worker,
-            # Spawn, not fork: torch is already loaded here. See worker_context().
-            mp_context=worker_context(),
+            # Spawn, not fork: torch is already loaded here. See get_worker_context().
+            mp_context=get_worker_context(),
         )
         self.docx_lock = threading.Lock()
         # The DOCX converter lives in this process, not the pool, so it sits outside the
@@ -116,7 +116,7 @@ class DaemonState:
         # than parked on a socket for however long the conversion ahead of it takes
         self.parse_slots = threading.BoundedSemaphore(MAX_CONCURRENT_PARSES)
         try:
-            warm_pdf_workers(self.pdf_executor, self.worker_count, log=_stderr)
+            warm_pdf_workers(self.pdf_executor, self.worker_count, log=_log_stderr)
             # Built and initialized here: get_docx_converter only constructs, and Docling would
             # otherwise build the pipeline on the first convert, while it holds the parse slot.
             self.docx_converter = get_docx_converter()
@@ -144,7 +144,7 @@ _SERVER: DrainingHTTPServer | None = None
 _SHUTDOWN_ENABLED = False
 
 
-def _health_status() -> str:
+def _get_health_status() -> str:
     """The reason ``/health`` is refusing, for an operator reading the body."""
     if _STATE is None:
         return "starting"
@@ -223,18 +223,18 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         # Split on "?" like the POST routes do: a probe that acquires a query string
         # ("/health?ready=1") would otherwise start getting 404s.
         if self.path.split("?", 1)[0] != "/health":
-            json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+            send_json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
             return
 
         ready = _STATE is not None and _STATE.is_ready()
-        json_response(
+        send_json_response(
             self,
             HTTPStatus.OK if ready else HTTPStatus.SERVICE_UNAVAILABLE,
             # No filesystem paths here: /health is deliberately open so container probes need
             # no credential, which makes it the wrong place to hand out the shared-docs root.
             # It is logged at startup instead, where only an operator sees it.
             {
-                "status": _health_status(),
+                "status": _get_health_status(),
                 "workers": _STATE.worker_count if _STATE is not None else 0,
                 "ready": ready,
             },
@@ -249,7 +249,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         """
         keep_alive = self.close_connection
         self.close_connection = True
-        if refuse_unauthorized(self, endpoint, log=_stderr):
+        if refuse_unauthorized(self, endpoint, log=_log_stderr):
             return True
         # Restored, not cleared: an HTTP/1.0 caller or one sending "Connection: close" already
         # had this set, and overwriting it held the socket open for the handler's whole timeout.
@@ -263,7 +263,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                 # first -- an unread body would be parsed as the next request line on a
                 # keep-alive connection.
                 drain_request_body(self)
-                json_response(
+                send_json_response(
                     self,
                     HTTPStatus.NOT_FOUND,
                     {"error": "/shutdown is disabled; start with --enable-shutdown"},
@@ -273,7 +273,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                 return
             drain_request_body(self)
             _request_shutdown()
-            json_response(self, HTTPStatus.OK, {"status": "shutting_down"})
+            send_json_response(self, HTTPStatus.OK, {"status": "shutting_down"})
             return
 
         if self.path.split("?", 1)[0] == "/parse":
@@ -281,7 +281,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             return
 
         drain_request_body(self)
-        json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
+        send_json_response(self, HTTPStatus.NOT_FOUND, {"error": "not found"})
 
     def _handle_parse(self) -> None:
         """Parse a document already on the shared volume.
@@ -294,7 +294,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         if not drain_request_body(self):
             # Chunked or oversized: the request was refused rather than read, so the
             # connection is closing and there is nothing to act on.
-            json_response(
+            send_json_response(
                 self,
                 HTTPStatus.BAD_REQUEST,
                 {"error": "request body must be absent, or declared and under 1 MiB"},
@@ -361,7 +361,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                 )
             else:
                 reply = (HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
-        json_response(self, *reply)
+        send_json_response(self, *reply)
 
 
 def _request_shutdown() -> None:
@@ -417,7 +417,7 @@ TRUSTED_NETWORK_VARIABLE = "IAP_DOCLING_TRUSTED_NETWORK"
 
 def _warn_if_exposed(host: str) -> None:
     """Say so, loudly, when the bind address is not loopback and nothing authenticates."""
-    if host in ("127.0.0.1", "::1", "localhost") or daemon_token() is not None:
+    if host in ("127.0.0.1", "::1", "localhost") or get_daemon_token() is not None:
         return
     if (os.environ.get(TRUSTED_NETWORK_VARIABLE) or "").strip():
         return
@@ -437,11 +437,11 @@ def main() -> None:
     args = parse_args()
     _SHUTDOWN_ENABLED = args.enable_shutdown
     _warn_if_exposed(args.host)
-    if not token_is_ascii():
+    if not is_token_ascii():
         # Said at startup rather than left to fail per request: a non-ASCII secret is compared
         # against whatever bytes the client encoded it to, so authentication becomes
         # encoding-dependent and a correct client can be refused with no clue why.
-        _stderr(
+        _log_stderr(
             f"WARNING: {TOKEN_ENVIRONMENT_VARIABLE} contains non-ASCII characters. An HTTP "
             "header carries bytes, so whether a client authenticates then depends on the "
             "encoding it chose. Use an ASCII secret."
@@ -462,7 +462,7 @@ def main() -> None:
     print(
         f"Docling daemon listening on http://{args.host}:{args.port} "
         f"with {_STATE.worker_count} warm PDF workers "
-        f"(shared docs root: {shared_docs_root()})",
+        f"(shared docs root: {get_shared_docs_root()})",
         flush=True,
     )
 
