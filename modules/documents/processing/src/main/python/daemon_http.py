@@ -49,26 +49,26 @@ TOKEN_ENVIRONMENT_VARIABLE = "IAP_DOCLING_TOKEN"
 MAX_DRAINED_BODY_BYTES = 1024 * 1024
 
 
-def daemon_token() -> str | None:
+def get_daemon_token() -> str | None:
     """The shared secret guarding the mutating endpoints, or ``None`` when unset."""
     token = (os.environ.get(TOKEN_ENVIRONMENT_VARIABLE) or "").strip()
     return token or None
 
 
-def token_is_ascii() -> bool:
+def is_token_ascii() -> bool:
     """Whether the configured token is ASCII, and so unambiguous on the wire.
 
     ``http.server`` hands headers over latin-1 decoded, while the configured token arrives from
     the environment decoded as UTF-8. Those agree for ASCII. For anything else authentication
     depends on how the client encoded it, so a correct client can quietly fail. Unset is fine.
     """
-    token = daemon_token()
+    token = get_daemon_token()
     if token is None:
         return True
     return token.isascii()
 
 
-def json_response(handler, status: int, payload: dict[str, Any]) -> None:
+def send_json_response(handler, status: int, payload: dict[str, Any]) -> None:
     """Send ``payload`` as JSON."""
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
@@ -129,22 +129,22 @@ def refuse_unauthorized(handler, endpoint: str, *, log) -> bool:
     """
     if handler.headers.get("Origin") is not None:
         log(f"Refused a browser-originated {endpoint} request")
-        json_response(
+        send_json_response(
             handler,
             HTTPStatus.FORBIDDEN,
             {"error": "requests carrying an Origin header are not accepted"},
         )
         return True
-    token = daemon_token()
+    token = get_daemon_token()
     if token is None:
         return False
     # Compare bytes, not str. compare_digest raises TypeError on a non-ASCII string, and this
     # runs before the handler's try/except, so one 0xFF byte killed the request with no reply.
     # The header goes back to the latin-1 bytes the client sent; the configured token is UTF-8.
-    # Those match only for an ASCII token, which is why token_is_ascii() warns at startup.
+    # Those match only for an ASCII token, which is why is_token_ascii() warns at startup.
     presented = (handler.headers.get("Authorization") or "").encode("latin-1", "replace")
     if not hmac.compare_digest(presented, f"Bearer {token}".encode()):
-        json_response(
+        send_json_response(
             handler,
             HTTPStatus.UNAUTHORIZED,
             {"error": f"missing or invalid {TOKEN_ENVIRONMENT_VARIABLE} bearer token"},

@@ -43,7 +43,7 @@ def _is_consecutive(values: list[int]) -> bool:
     return all(values[index + 1] - values[index] == 1 for index in range(len(values) - 1))
 
 
-def _leading_line_number_run(lines: list[str]) -> tuple[list[int], int]:
+def _get_leading_line_number_run(lines: list[str]) -> tuple[list[int], int]:
     """
     Scan lines from the top and return a leading digit-only run.
 
@@ -79,7 +79,7 @@ def cleanup_page_leading_line_numbers(page_md: str) -> str:
         return page_md
 
     lines = page_md.split("\n")
-    run, end_index = _leading_line_number_run(lines)
+    run, end_index = _get_leading_line_number_run(lines)
     if len(run) < MIN_RUN_LENGTH or not _is_consecutive(run):
         return page_md
 
@@ -121,7 +121,7 @@ def _escape_comment(value: str) -> str:
     return value.replace("--", "\u2014")
 
 
-def source_file_basename(source_file: str) -> str:
+def get_source_file_basename(source_file: str) -> str:
     """Return the final component of a client-supplied file name.
 
     Upload names can come from another operating system, so normalize Windows separators before
@@ -144,11 +144,11 @@ def resolve_source_file_name(input_path: Path, source_file: str | None = None) -
     full path cannot leak into the markdown comment.
     """
     if source_file and source_file.strip():
-        return source_file_basename(source_file.strip())
+        return get_source_file_basename(source_file.strip())
     return input_path.name
 
 
-def source_file_header(source_file: str) -> str:
+def get_source_file_header(source_file: str) -> str:
     """The reserved ``<!-- source_file: ... -->`` header naming a document's original input file.
 
     Prepended by the PDF/DOCX parsers after cleanup, not by :func:`clean_markdown`.
@@ -171,7 +171,7 @@ def finalize_markdown(
     """
     cleaned = clean_markdown(raw_markdown)
     display_name = resolve_source_file_name(input_path, source_file)
-    return f"{source_file_header(display_name)}\n{cleaned}"
+    return f"{get_source_file_header(display_name)}\n{cleaned}"
 
 
 def clean_markdown(md: str) -> str:

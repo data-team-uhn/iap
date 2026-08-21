@@ -104,7 +104,7 @@ class TestHelpers:
 
     def test_leading_line_number_run(self):
         lines = ["1", "", "2", "", "3", "Body"]
-        run, end_index = mc._leading_line_number_run(lines)
+        run, end_index = mc._get_leading_line_number_run(lines)
         assert run == [1, 2, 3]
         assert lines[end_index] == "Body"
 
@@ -123,7 +123,7 @@ class TestSourceFileHeader:
 
     def test_header_escapes_double_dash(self):
         # '--' cannot appear inside an HTML comment; it becomes an em dash.
-        header = mc.source_file_header("weird--name.pdf")
+        header = mc.get_source_file_header("weird--name.pdf")
         assert "--" not in header.replace("<!--", "").replace("-->", "")
         assert header.startswith("<!-- source_file: ")
         assert header.endswith(" -->")

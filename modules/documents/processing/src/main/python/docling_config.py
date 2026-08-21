@@ -20,7 +20,7 @@
 import logging
 import os
 
-from shared_docs import positive_number_from_env
+from shared_docs import read_positive_number_from_env
 
 # Must stay above the docling imports: they pull in torch, which loads libgomp, and libgomp
 # reads OMP_NUM_THREADS once at load time. Setting it later does nothing. Outer parallelism is
@@ -85,7 +85,7 @@ PDF_PIPELINE_OPTIONS = PdfPipelineOptions(
         mode=TableFormerMode.ACCURATE,
         do_cell_matching=True,
     ),
-    document_timeout=positive_number_from_env(
+    document_timeout=read_positive_number_from_env(
         DOCUMENT_TIMEOUT_VARIABLE, DEFAULT_DOCUMENT_TIMEOUT_SECONDS, float, "a number"
     ),
     # Without this the layout model gives every heading the same depth, and the chunker needs

@@ -52,13 +52,13 @@ TIMEOUT_VARIABLE = "IAP_LIBREOFFICE_TIMEOUT_SECONDS"
 DEFAULT_CONVERSION_TIMEOUT_SECONDS = 300
 
 
-def conversion_timeout_seconds() -> float:
+def get_conversion_timeout_seconds() -> float:
     """Seconds to allow one soffice run, from the environment or the default.
 
     Unlike the page and byte ceilings there is no "off" state here: a non-positive timeout
     would mean "kill soffice immediately", so it falls back to the default.
     """
-    configured = shared_docs.positive_number_from_env(
+    configured = shared_docs.read_positive_number_from_env(
         TIMEOUT_VARIABLE, DEFAULT_CONVERSION_TIMEOUT_SECONDS, float, "a number"
     )
     return configured if configured is not None else DEFAULT_CONVERSION_TIMEOUT_SECONDS
@@ -234,7 +234,7 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
             str(staged),
         ]
         try:
-            completed = _run_soffice(command, conversion_timeout_seconds())
+            completed = _run_soffice(command, get_conversion_timeout_seconds())
         except FileNotFoundError as exc:
             raise RuntimeError(
                 f"LibreOffice executable not found ({resolve_soffice_path()!r})"
@@ -264,7 +264,7 @@ def convert(input_path: Path, target_format: str, output_dir: Path | None = None
         _discard_staging(staging_root)
 
 
-def _sibling_pdf_via_odt(source: Path) -> None:
+def _convert_sibling_pdf_via_odt(source: Path) -> None:
     """Fallback: Render the sibling PDF through LibreOffice's own format ODT instead of directly.
 
     @param source: the document to render, the same one the direct attempt used
@@ -281,7 +281,7 @@ def _sibling_pdf_via_odt(source: Path) -> None:
 def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
     """Convert DOCX to PDF
 
-    Two attempts: direct PDF, if failed, try through ODT (see :func:`_sibling_pdf_via_odt`).
+    Two attempts: direct PDF, if failed, try through ODT (see :func:`_convert_sibling_pdf_via_odt`).
     """
     try:
         convert(source, _PDF_CONVERT_TO, source.parent)
@@ -295,7 +295,7 @@ def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
         first = direct_failure
 
     try:
-        _sibling_pdf_via_odt(source)
+        _convert_sibling_pdf_via_odt(source)
     except (RuntimeError, FileNotFoundError, OSError) as odt_failure:
         if log is not None:
             log(

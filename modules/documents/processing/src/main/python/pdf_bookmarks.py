@@ -35,7 +35,7 @@ from pathlib import Path, PurePath
 MAX_OUTLINE_DEPTH = 32
 
 
-def _records_from(reader) -> list[dict]:
+def _get_records(reader) -> list[dict]:
     """Flatten one reader's outline into records."""
     records: list[dict] = []
     _flatten(reader, reader.outline, 1, records)
@@ -59,8 +59,8 @@ def extract_bookmarks(source) -> list[dict]:
             from shared_docs import open_pdf_reader
             # The outline is flattened into plain dicts, so the handle is only needed here.
             with open(source, "rb") as handle:
-                return _records_from(open_pdf_reader(handle))
-        return _records_from(source)
+                return _get_records(open_pdf_reader(handle))
+        return _get_records(source)
     except Exception:  # noqa: BLE001 -- any reader/parse failure means "no usable outline"
         return []
 
@@ -75,20 +75,20 @@ def _flatten(reader, items, level: int, out: list[dict]) -> None:
             _flatten(reader, item, level + 1, out)
             continue
         try:
-            title = _title_of(item)
+            title = _get_title(item)
             if not title:
                 continue
-            out.append({"title": title, "level": level, "page": _page_of(reader, item)})
+            out.append({"title": title, "level": level, "page": _get_page(reader, item)})
         except Exception:  # noqa: BLE001 -- skip a single malformed bookmark, keep the rest
             continue
 
 
-def _title_of(item) -> str:
+def _get_title(item) -> str:
     title = getattr(item, "title", None)
     return " ".join(str(title).split()).strip() if title is not None else ""
 
 
-def _page_of(reader, item) -> int | None:
+def _get_page(reader, item) -> int | None:
     try:
         index = reader.get_destination_page_number(item)
     except Exception:  # noqa: BLE001

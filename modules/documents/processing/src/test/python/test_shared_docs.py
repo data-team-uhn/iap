@@ -243,12 +243,12 @@ class TestPageCeiling:
 
     def test_the_limit_can_be_turned_off(self, monkeypatch, tmp_path):
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "0")
-        assert shared_docs.max_input_pages() is None
+        assert shared_docs.get_max_input_pages() is None
         shared_docs.refuse_oversized_pdf(self._pdf(tmp_path, 5))
 
     def test_a_bad_limit_falls_back_to_the_default(self, monkeypatch):
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "not-a-number")
-        assert shared_docs.max_input_pages() == shared_docs.DEFAULT_MAX_INPUT_PAGES
+        assert shared_docs.get_max_input_pages() == shared_docs.DEFAULT_MAX_INPUT_PAGES
 
     def test_an_unreadable_pdf_is_left_to_the_converter(self, monkeypatch, tmp_path):
         # Fails open: the conversion reports a real error for a corrupt document.
@@ -351,12 +351,12 @@ class TestByteCeiling:
     def test_the_limit_can_be_turned_off(self, monkeypatch, tmp_path):
         monkeypatch.setenv(shared_docs.BYTE_LIMIT_VARIABLE, "0")
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "0")
-        assert shared_docs.max_input_bytes() is None
+        assert shared_docs.get_max_input_bytes() is None
         shared_docs.refuse_oversized_input(self._file(tmp_path, "huge.docx", 5000))
 
     def test_a_bad_limit_falls_back_and_says_so(self, monkeypatch, capsys):
         monkeypatch.setenv(shared_docs.BYTE_LIMIT_VARIABLE, "25MB")
-        assert shared_docs.max_input_bytes() == shared_docs.DEFAULT_MAX_INPUT_BYTES
+        assert shared_docs.get_max_input_bytes() == shared_docs.DEFAULT_MAX_INPUT_BYTES
         assert shared_docs.BYTE_LIMIT_VARIABLE in capsys.readouterr().err
 
     def test_a_missing_file_is_left_to_the_converter(self, monkeypatch, tmp_path):
@@ -369,10 +369,10 @@ class TestPageLimitDiagnostics:
         # "150O" for "1500" silently became the default, so the operator had no way to know
         # their setting was ignored.
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "150O")
-        assert shared_docs.max_input_pages() == shared_docs.DEFAULT_MAX_INPUT_PAGES
+        assert shared_docs.get_max_input_pages() == shared_docs.DEFAULT_MAX_INPUT_PAGES
         assert shared_docs.PAGE_LIMIT_VARIABLE in capsys.readouterr().err
 
     def test_a_valid_limit_says_nothing(self, monkeypatch, capsys):
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "42")
-        assert shared_docs.max_input_pages() == 42
+        assert shared_docs.get_max_input_pages() == 42
         assert capsys.readouterr().err == ""

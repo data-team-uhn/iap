@@ -25,7 +25,7 @@ DOCLING_PIPELINE_LOGGER = "docling.pipeline.standard_pdf_pipeline"
 PIPELINE_FAILURE_MARKERS = ("preprocess failed", "bad_alloc")
 
 
-def normalized_status(status) -> ConversionStatus | None:
+def normalize_status(status) -> ConversionStatus | None:
     """
     Coerce a Docling conversion status value to ConversionStatus.
     Returns: ConversionStatus enum, or None if status is missing or unrecognized.
@@ -56,7 +56,7 @@ class DoclingLogCollector(logging.Handler):
         self._messages.append(record.getMessage())
 
 
-def conversion_failure_message(
+def get_conversion_failure_message(
     result,
     *,
     pipeline_logs: list[str] | None = None,
@@ -66,7 +66,7 @@ def conversion_failure_message(
     empty pages. Treat pipeline ERROR logs, result.errors, and non-success status
     as hard failures.
     """
-    status = normalized_status(getattr(result, "status", None))
+    status = normalize_status(getattr(result, "status", None))
     errors = getattr(result, "errors", None) or []
     details = [
         getattr(item, "error_message", str(item))
@@ -96,9 +96,9 @@ def ensure_conversion_ok(
     """
     Raise RuntimeError when conversion failed or no document was returned.
 
-    Combines conversion_failure_message and document presence checks.
+    Combines get_conversion_failure_message and document presence checks.
     """
-    failure = conversion_failure_message(result, pipeline_logs=pipeline_logs)
+    failure = get_conversion_failure_message(result, pipeline_logs=pipeline_logs)
     if failure is not None:
         raise RuntimeError(failure)
     if getattr(result, "document", None) is None:
