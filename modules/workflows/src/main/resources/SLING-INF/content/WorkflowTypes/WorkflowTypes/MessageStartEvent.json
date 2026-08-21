@@ -7,5 +7,7 @@
   "xmlElement": "bpmn:startEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
   "jcrNodeType": "wf:StartEvent",
-  "properties": [ "{https://iap.uhndata.io/bpmn}performers=performers[]" ]
+  "properties": [ "{https://iap.uhndata.io/bpmn}performers=performers[]",
+    "{https://iap.uhndata.io/bpmn}hostTag=hostTag"
+  ]
 }
