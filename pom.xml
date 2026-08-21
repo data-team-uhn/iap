@@ -1089,6 +1089,8 @@
 
                       <module name="PatternVariableName" />
 
+                      <module name="PreferLiteralJavadocInlineTag" />
+
                       <module name="RecordComponentName" />
 
                       <module name="RecordComponentNumber" />
@@ -1687,6 +1689,8 @@
                       <module name="PatternVariableAssignment" />
 
                       <module name="PatternVariableName" />
+
+                      <module name="PreferLiteralJavadocInlineTag" />
 
                       <module name="RecordComponentName" />
 
