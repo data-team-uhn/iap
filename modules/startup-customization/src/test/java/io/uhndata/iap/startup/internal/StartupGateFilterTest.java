@@ -25,24 +25,33 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.felix.hc.api.Result;
+import org.apache.felix.hc.api.execution.HealthCheckExecutionOptions;
 import org.apache.felix.hc.api.execution.HealthCheckExecutionResult;
 import org.apache.felix.hc.api.execution.HealthCheckExecutor;
 import org.apache.felix.hc.api.execution.HealthCheckMetadata;
+import org.apache.felix.hc.api.execution.HealthCheckSelector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.osgi.service.component.ComponentContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -58,7 +67,25 @@ class StartupGateFilterTest
 {
     private static final String LOGIN_CHECK = "Login Page Ready Check";
 
-    private static final String OTHER_CHECK = "OSGi Framework Ready Check";
+    private static final String FRAMEWORK_CHECK = "OSGi Framework Ready Check";
+
+    private static final String BUNDLES_CHECK = "Bundles Started";
+
+    private static final String CONTENT_CHECK = "Bundle Content Loaded";
+
+    private static final String AUTH_CHECK = "Authentication Handler Ready Check";
+
+    private static final String SERVICES_CHECK = "Services Ready Check";
+
+    /**
+     * The checks the gate requires, restated here rather than read from the filter: an independent list is what makes
+     * an accidental edit to the constant fail a test, instead of quietly weakening the gate along with its tests.
+     */
+    private static final List<String> REQUIRED =
+        List.of(LOGIN_CHECK, FRAMEWORK_CHECK, BUNDLES_CHECK, AUTH_CHECK, SERVICES_CHECK);
+
+    /** Stands in for the timings and stack traces real checks report, which must not reach the log on every poll. */
+    private static final String RESULT_MESSAGE = "diagnostics that must not be part of the description";
 
     private HealthCheckExecutor executor;
 
@@ -98,15 +125,51 @@ class StartupGateFilterTest
         when(metadata.getName()).thenReturn(name);
         when(result.getHealthCheckMetadata()).thenReturn(metadata);
         when(result.getHealthCheckResult())
-            .thenReturn(new Result(ok ? Result.Status.OK : Result.Status.TEMPORARILY_UNAVAILABLE, name));
+            .thenReturn(new Result(ok ? Result.Status.OK : Result.Status.TEMPORARILY_UNAVAILABLE, RESULT_MESSAGE));
         return result;
     }
 
-    /** Nested stubbing confuses Mockito, so the results are always built before the executor is stubbed. */
+    /**
+     * Stubs what the executor reports. Uses {@code doReturn} rather than {@code when}, so that it can also re-stub an
+     * executor that was previously made to throw; and the results are always built before the executor is stubbed,
+     * because nested stubbing confuses Mockito.
+     */
     private void checksReport(final HealthCheckExecutionResult... results)
     {
         final List<HealthCheckExecutionResult> reported = List.of(results);
-        when(this.executor.execute(any())).thenReturn(reported);
+        doReturn(reported).when(this.executor).execute(any(), any());
+    }
+
+    private void checksReport(final List<String> names, final String failing)
+    {
+        checksReport(names.stream().map(name -> result(name, !name.equals(failing)))
+            .toArray(HealthCheckExecutionResult[]::new));
+    }
+
+    /** The whole gating set, registered and passing: what a started system looks like. */
+    private void everythingPasses()
+    {
+        checksReport(REQUIRED, null);
+    }
+
+    /** The whole gating set, registered, with a single check failing, so that only that one thing is under test. */
+    private void everythingPassesExcept(final String failing)
+    {
+        checksReport(REQUIRED, failing);
+    }
+
+    /**
+     * Asks the gate, without touching the shared response and chain mocks, so that this can be called in a loop.
+     *
+     * @return whether a request would reach the application rather than the startup page
+     */
+    private boolean letsRequestsThrough() throws Exception
+    {
+        final AtomicBoolean passedThrough = new AtomicBoolean();
+        final HttpServletResponse localResponse = mock(HttpServletResponse.class);
+        when(localResponse.getWriter()).thenReturn(new PrintWriter(new StringWriter()));
+        this.filter.doFilter(this.request, localResponse, (req, res) -> passedThrough.set(true));
+        return passedThrough.get();
     }
 
     private void assertStillGated()
@@ -149,21 +212,64 @@ class StartupGateFilterTest
     }
 
     @Test
-    void opensWhenAllChecksPassIncludingTheLoginPageCheck() throws Exception
+    void opensOnlyWhenEveryRequiredCheckIsPresentAndPassing() throws Exception
     {
-        checksReport(result(OTHER_CHECK, true), result(LOGIN_CHECK, true));
+        everythingPasses();
 
         this.filter.poll(0);
         this.filter.doFilter(this.request, this.response, this.chain);
 
+        assertNull(this.filter.findProblem());
         verify(this.chain).doFilter(this.request, this.response);
         verify(this.response, never()).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
     }
 
     @Test
+    void staysClosedWhileAnyRequiredCheckIsMissing() throws Exception
+    {
+        // The regression test for the gate opening early: a check that is not registered contributes no result at
+        // all rather than a failing one, so an incomplete set passes "every result is OK" without any of them saying
+        // anything is wrong. Every one of the required checks is briefly unregistered during startup.
+        for (final String absent : REQUIRED) {
+            checksReport(REQUIRED.stream().filter(name -> !name.equals(absent)).toList(), null);
+
+            this.filter.poll(0);
+
+            final String problem = this.filter.findProblem();
+            assertNotNull(problem, absent);
+            assertTrue(problem.contains(absent), absent);
+            assertFalse(letsRequestsThrough(), absent);
+        }
+        assertStillGated();
+    }
+
+    @Test
+    void opensWithoutATaggedCheckThatIsNotOneOfTheRequiredOnes()
+    {
+        // The tag decides which checks the gate consults, the required list decides which of them have to be there.
+        // Bundle Content Loaded is tagged but never registers, and requiring it would hang the gate forever.
+        everythingPasses();
+
+        assertNull(this.filter.findProblem());
+    }
+
+    @Test
+    void staysClosedWhenATaggedCheckThatIsNotRequiredFails() throws Exception
+    {
+        // The other half of that split: a check does not have to be on the required list to hold the gate shut once
+        // it is actually there, so a check added to the tag starts gating on its own.
+        checksReport(Stream.concat(REQUIRED.stream(), Stream.of(CONTENT_CHECK)).toList(), CONTENT_CHECK);
+
+        this.filter.poll(0);
+
+        assertTrue(this.filter.findProblem().contains(CONTENT_CHECK));
+        assertFalse(letsRequestsThrough());
+    }
+
+    @Test
     void staysClosedWhenAnyCheckFails() throws Exception
     {
-        checksReport(result(OTHER_CHECK, false), result(LOGIN_CHECK, true));
+        everythingPassesExcept(FRAMEWORK_CHECK);
 
         this.filter.poll(0);
         this.filter.doFilter(this.request, this.response, this.chain);
@@ -178,7 +284,7 @@ class StartupGateFilterTest
     {
         // Every present check passes, but the one that proves the login page renders is not registered
         // (yet, or anymore): the gate must fail closed rather than trust an incomplete picture.
-        checksReport(result(OTHER_CHECK, true));
+        checksReport(REQUIRED.stream().filter(name -> !LOGIN_CHECK.equals(name)).toList(), null);
 
         this.filter.poll(0);
         this.filter.doFilter(this.request, this.response, this.chain);
@@ -200,12 +306,114 @@ class StartupGateFilterTest
     }
 
     @Test
-    void closesAgainWhenReadinessRegresses() throws Exception
+    void namesEveryRequiredCheckWhenTheyAllVanishAtOnce()
     {
-        checksReport(result(LOGIN_CHECK, true));
+        // The whole configured set disappears at once every time the JCR installer re-delivers its configurations
+        checksReport();
+
+        final String problem = this.filter.findProblem();
+
+        REQUIRED.forEach(name -> assertTrue(problem.contains(name), name));
+    }
+
+    @Test
+    void treatsAnUnnamedCheckAsNotOneOfTheRequiredOnes()
+    {
+        // getName is a raw read of the hc.name property, so a check registered without one reads as null here
+        checksReport(result(null, true));
+
+        final String problem = this.filter.findProblem();
+
+        assertTrue(problem.contains(LOGIN_CHECK));
+        assertFalse(problem.contains("null"));
+    }
+
+    @Test
+    void describesFailingChecksByStatusOnly()
+    {
+        everythingPassesExcept(SERVICES_CHECK);
+
+        final String problem = this.filter.findProblem();
+
+        assertTrue(problem.contains(SERVICES_CHECK + " is " + Result.Status.TEMPORARILY_UNAVAILABLE));
+        // Real check messages carry timings and stack traces, which would describe an unchanged situation
+        // differently on every poll, and so log a line twice a second for the whole of startup
+        assertFalse(problem.contains(RESULT_MESSAGE));
+    }
+
+    @Test
+    void describesAnUnchangedSituationTheSameWayEveryTime()
+    {
+        // What lets the reporting log on change only: the executor returns its results in registration order, so the
+        // description has to impose one of its own or it would look different on every poll
+        checksReport(result(SERVICES_CHECK, false), result(LOGIN_CHECK, false), result(BUNDLES_CHECK, true));
+        final String first = this.filter.findProblem();
+
+        checksReport(result(LOGIN_CHECK, false), result(BUNDLES_CHECK, true), result(SERVICES_CHECK, false));
+
+        assertEquals(first, this.filter.findProblem());
+    }
+
+    @Test
+    void selectsTheChecksByTag()
+    {
+        everythingPasses();
+        final ArgumentCaptor<HealthCheckSelector> selector = ArgumentCaptor.forClass(HealthCheckSelector.class);
+
         this.filter.poll(0);
 
-        checksReport(result(LOGIN_CHECK, false));
+        verify(this.executor).execute(selector.capture(), any());
+        assertEquals(List.of("systemalive"), List.of(selector.getValue().tags()));
+    }
+
+    @Test
+    void requestsInstantExecutionSoEveryPollIsFreshEvidence()
+    {
+        everythingPasses();
+        final ArgumentCaptor<HealthCheckExecutionOptions> options =
+            ArgumentCaptor.forClass(HealthCheckExecutionOptions.class);
+
+        this.filter.poll(0);
+
+        verify(this.executor).execute(any(), options.capture());
+        assertTrue(options.getValue().isForceInstantExecution());
+        // Overriding the timeout would block the poller instead of letting a slow check fail and recover, so if this
+        // ever becomes deliberate it should be a deliberate edit here too
+        assertEquals(0, options.getValue().getOverrideGlobalTimeout());
+    }
+
+    @Test
+    void staysClosedWhenTheChecksCannotBeExecuted() throws Exception
+    {
+        doThrow(new IllegalStateException("the executor is mid-restart")).when(this.executor).execute(any(), any());
+
+        this.filter.poll(0);
+
+        assertTrue(this.filter.findProblem().contains("the executor is mid-restart"));
+        assertFalse(letsRequestsThrough());
+        assertStillGated();
+    }
+
+    @Test
+    void keepsPollingAfterTheChecksFailToExecute() throws Exception
+    {
+        // An exception escaping into the scheduler cancels every further poll, and the gate would never open again
+        doThrow(new IllegalStateException("the executor is mid-restart")).when(this.executor).execute(any(), any());
+        this.filter.poll(0);
+
+        everythingPasses();
+        this.filter.poll(1);
+
+        assertTrue(letsRequestsThrough());
+    }
+
+    @Test
+    void closesAgainWhenReadinessRegresses() throws Exception
+    {
+        everythingPasses();
+        this.filter.poll(0);
+
+        everythingPassesExcept(LOGIN_CHECK);
         this.filter.poll(StartupGateFilter.SETTLE_NANOS);
         this.filter.doFilter(this.request, this.response, this.chain);
 
@@ -217,7 +425,7 @@ class StartupGateFilterTest
     @Test
     void doesNotRetireBeforeReadinessHasSettled()
     {
-        checksReport(result(LOGIN_CHECK, true));
+        everythingPasses();
 
         this.filter.poll(0);
         this.filter.poll(StartupGateFilter.SETTLE_NANOS - 1);
@@ -228,7 +436,7 @@ class StartupGateFilterTest
     @Test
     void retiresTheWholeGateOnceReadinessHasSettled()
     {
-        checksReport(result(OTHER_CHECK, true), result(LOGIN_CHECK, true));
+        everythingPasses();
 
         this.filter.poll(0);
         this.filter.poll(StartupGateFilter.SETTLE_NANOS);
@@ -244,13 +452,13 @@ class StartupGateFilterTest
     {
         // Ready, briefly not ready, ready again: only the last stretch counts, so a pair of ready polls
         // straddling the interruption must not be mistaken for a system that has been up all along.
-        checksReport(result(LOGIN_CHECK, true));
+        everythingPasses();
         this.filter.poll(0);
 
-        checksReport(result(LOGIN_CHECK, false));
+        everythingPassesExcept(AUTH_CHECK);
         this.filter.poll(1);
 
-        checksReport(result(LOGIN_CHECK, true));
+        everythingPasses();
         this.filter.poll(2);
         this.filter.poll(StartupGateFilter.SETTLE_NANOS);
 
@@ -264,7 +472,7 @@ class StartupGateFilterTest
     @Test
     void pollsWithTheCurrentTime() throws Exception
     {
-        checksReport(result(LOGIN_CHECK, true));
+        everythingPasses();
 
         this.filter.poll();
         this.filter.doFilter(this.request, this.response, this.chain);
@@ -284,7 +492,7 @@ class StartupGateFilterTest
     @Test
     void pollsOnItsOwnScheduleWhenActivatedByOsgi() throws Exception
     {
-        checksReport(result(LOGIN_CHECK, true));
+        everythingPasses();
         final AtomicBoolean passedThrough = new AtomicBoolean();
         final FilterChain recordingChain = (req, res) -> passedThrough.set(true);
         // The real scheduler is in charge here: nothing below calls poll(), so the gate can only open if the

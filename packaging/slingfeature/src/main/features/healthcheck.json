@@ -41,18 +41,32 @@
         // Tagged systemalive so the startup stub outlasts bundle activation: while bundles are
         // still activating, the scripting classloader gets invalidated repeatedly, and pages that
         // just rendered fine can transiently fail with "No use provider could resolve identifier".
+        // hc.name is set explicitly, rather than left to the generalchecks default, because
+        // StartupGateFilter.REQUIRED_CHECKS lists these names one by one: an upstream rename on a
+        // version bump would otherwise silently take this check out of the gate.
         "org.apache.felix.hc.generalchecks.BundlesStartedCheck":{
+            "hc.name":"Bundles Started",
             "hc.tags":[
                 "bundles",
                 "systemalive"
             ],
             "useCriticalForInactive": true
         },
-        // Tagged systemalive so the StartupGateFilter keeps serving the
-        // "starting up" stub until all Sling-Initial-Content is actually in the repository:
-        // reaching the target start level only means the bundles started, while the pages
-        // (scripts, webpack assets, config) they carry are still being loaded asynchronously.
+        // Meant to keep the StartupGateFilter serving the "starting up" stub until all
+        // Sling-Initial-Content is actually in the repository: reaching the target start level
+        // only means the bundles started, while the pages (scripts, webpack assets, config) they
+        // carry are still being loaded asynchronously.
+        // CAVEAT: this check only sometimes works. On some cold starts its component never leaves
+        // "unsatisfied (reference)" and so never registers at all, for the whole life of the
+        // process, even though the console then reports every one of its references as satisfied;
+        // on others it registers normally. It is therefore deliberately NOT in
+        // StartupGateFilter.REQUIRED_CHECKS, since requiring it would hold the gate shut forever
+        // on the runs where it does not turn up. It keeps the systemalive tag, so it still gates
+        // whenever it is there. What covers this ground unconditionally is the Login Page Ready
+        // check, which renders a real page rather than inspecting bundles.
+        // hc.name is pinned here for the same reason as above.
         "org.apache.sling.jcr.contentloader.hc.BundleContentLoadedCheck":{
+            "hc.name":"Bundle Content Loaded",
             "hc.tags":[
                 "bundles",
                 "content-loading",
@@ -88,7 +102,9 @@
                 "org.apache.sling.auth.form.FormAuthenticationHandler"
             ]
         },
+        // hc.name is pinned here for the same reason as BundlesStartedCheck above.
         "org.apache.felix.hc.generalchecks.FrameworkStartCheck":{
+            "hc.name":"OSGi Framework Ready Check",
             "hc.tags":[
                 "systemalive"
             ],
@@ -102,7 +118,9 @@
             "heapUsedPercentageThresholdCritical":100,
             "heapUsedPercentageThresholdWarn":95
         },
+        // hc.name is pinned here for the same reason as BundlesStartedCheck above.
         "org.apache.felix.hc.generalchecks.ServicesCheck":{
+            "hc.name":"Services Ready Check",
             "hc.tags":[
                 "systemalive"
             ],
@@ -125,10 +143,13 @@
         // being configured through OSGi means being restarted (and thus bypassed for seconds) when
         // the JCR installer re-delivers configurations mid-startup, and it treats a transiently
         // empty set of checks as healthy. The configuration-free StartupGateFilter in the
-        // startup-customization module serves the same purpose, gated on the systemalive tag and
-        // on the Login Page Ready check specifically. It evaluates these checks on a background
-        // poller, never on the request thread, and retires itself once the system has been ready
-        // for a few uninterrupted seconds, so a started system pays nothing for it.
+        // startup-customization module serves the same purpose, and requires every one of the six
+        // systemalive checks to be registered AND passing, by name: an unregistered check is
+        // invisible to the executor rather than failing, so a partial set would otherwise pass.
+        // That is why each of the checks above pins its hc.name. The filter evaluates them on a
+        // background poller, never on the request thread, and retires itself once the system has
+        // been ready for an uninterrupted stretch long enough to outlast this configuration churn,
+        // so a started system pays nothing for it.
         "org.apache.felix.hc.core.impl.servlet.HealthCheckExecutorServlet~default":{
             "servletPath":"/system/health",
             "servletContextName":"org.osgi.service.http",
