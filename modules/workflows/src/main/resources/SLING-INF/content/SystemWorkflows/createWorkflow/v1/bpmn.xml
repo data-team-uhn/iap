@@ -21,6 +21,7 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
                   id="createWorkflowDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/createWorkflow">
   <bpmn:message id="createMessage" name="create" />
@@ -30,7 +31,7 @@
       <bpmn:outgoing>toCreate</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
-    <bpmn:serviceTask id="create" name="Create the workflow">
+    <bpmn:serviceTask id="create" iap:handler="createEntity" name="Create the workflow">
       <bpmn:incoming>toCreate</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
