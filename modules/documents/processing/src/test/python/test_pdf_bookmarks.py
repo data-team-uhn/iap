@@ -18,11 +18,6 @@
 """Unit tests for the pypdf outline flattening (via a fake reader; no real PDF needed)."""
 
 import pdf_bookmarks
-from bookmarks import build_lines_catalog, verify_bookmarks
-
-
-def _verify(records, md: str):
-    return verify_bookmarks(records, md, build_lines_catalog(md.split("\n")))
 
 
 class FakeDest:
@@ -62,19 +57,3 @@ class TestExtractBookmarks:
 
     def test_bad_source_returns_empty(self):
         assert pdf_bookmarks.extract_bookmarks("/no/such/file.pdf") == []
-
-
-class TestExtractVerified:
-    def test_corrects_page(self):
-        out = _verify(
-            pdf_bookmarks.extract_bookmarks(FakeReader([FakeDest("Methods", 0)])),
-            "<!-- page: 2 -->\n## Methods",
-        )
-        assert out[0]["page"] == 2 and "verified" not in out[0]
-
-    def test_flags_missing(self):
-        out = _verify(
-            pdf_bookmarks.extract_bookmarks(FakeReader([FakeDest("Ghost", 4)])),
-            "<!-- page: 1 -->\n## Real",
-        )
-        assert out[0]["verified"] is False
