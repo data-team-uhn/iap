@@ -71,6 +71,12 @@ test.describe('a story: asking for time off, and getting it', () => {
 
     const login = new LoginPage(page);
     const shell = new AppShell(page);
+    // Where her request ends up, captured when she raises it. The dashboard shows five rows a page and this
+    // person accumulates a request per story and per spec, so which page hers is on is a race the suite wins or
+    // loses by creation order — it passed for a while and then stopped when a second story added a sixth. Her
+    // finding it in a listing is asserted where it is the point (her approver's step below, and the listing
+    // specs); here the point is what the request says once it has been decided.
+    let raised = '';
 
     await test.step('she signs in', async () => {
       await login.open();
@@ -87,6 +93,7 @@ test.describe('a story: asking for time off, and getting it', () => {
       // The heading, not the text: the dashboard she came from lists the request too, so a bare text
       // match is satisfied without her having left it
       await expect(page.getByRole('heading', { name: 'The last week of November' })).toBeVisible();
+      raised = new URL(page.url()).pathname;
     });
 
     await test.step('she fills it in, and the form asks for more as she does', async () => {
@@ -206,8 +213,9 @@ test.describe('a story: asking for time off, and getting it', () => {
       await login.signInAs('demo-requester', 'demo-requester');
       expect(await shell.signedInAs()).toBe('demo-requester');
 
-      await page.getByRole('row', { name: new RegExp(REQUEST) }).getByText(REQUEST).click();
+      await page.goto(raised);
 
+      await expect(page.getByRole('heading', { name: REQUEST })).toBeVisible();
       await expect(page.getByText('Approved')).toBeVisible();
       // And nothing is waiting for her either: the process is over
       await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toHaveCount(0);
