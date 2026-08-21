@@ -41,7 +41,7 @@ import docling_config  # noqa: E402
 from docling.datamodel.pipeline_options import (  # noqa: E402
     HeadingHierarchyOptions,
     PdfPipelineOptions,
-    TableStructureOptions,
+    TableStructureV2Options,
 )
 from docling.datamodel.settings import settings  # noqa: E402
 
@@ -101,8 +101,14 @@ class TestPipelineOptionNames:
         assert options.accelerator_options.num_threads == 1
 
     def test_the_table_structure_sub_options_are_real_fields(self):
-        for name in ("mode", "do_cell_matching"):
-            assert name in TableStructureOptions.model_fields, name
+        assert "do_cell_matching" in TableStructureV2Options.model_fields
+
+    def test_the_table_model_is_v2(self):
+        # V1 duplicated a cell's text down a column; V2 is also the faster of the two. Both
+        # matter, so pin the model rather than leaving it to Docling's default.
+        options = docling_config.PDF_PIPELINE_OPTIONS.table_structure_options
+        assert isinstance(options, TableStructureV2Options)
+        assert options.do_cell_matching is True
 
     def test_the_heading_hierarchy_sub_options_are_real_fields(self):
         for name in ("enabled", "use_bookmarks", "use_numbering", "use_style"):
