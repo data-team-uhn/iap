@@ -120,7 +120,12 @@ function Requirement({ path, requirement, disabled, states, onAnswered, onAttach
 // and the form is then read again. That is what keeps the questions on screen correct, because
 // which of them apply depends on the answers, and the server is the only thing that decides it.
 // Nothing here evaluates a condition; a question that stops applying simply stops being sent.
-function SubmissionEditor({ path }: { path: string }) {
+//
+// `onChanged` says that the request itself has changed, which is more than the form knowing it: what
+// the request is still missing is recorded on the submission, and the control offering to *send* it
+// reads that. Without this, answering the last question or attaching the last document leaves that
+// control refusing a request that is now complete, until something else re-reads the page.
+function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () => void }) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
   // Absent until a field has been saved at least once, so reading one may find nothing
@@ -151,11 +156,12 @@ function SubmissionEditor({ path }: { path: string }) {
         // The field's own outcome, whether or not a later answer has overtaken this one: a save that
         // succeeded should not be reported as still saving because something else happened after it
         setStates(current => ({ ...current, [question.path]: { state: "saved" } }));
+        onChanged?.();
         return reload(token);
       })
       .catch((e: unknown) => setStates(current => (
         { ...current, [question.path]: { state: "failed", error: message(e) } })));
-  }, [ path, reload ]);
+  }, [ path, reload, onChanged ]);
 
   if (error) {
     return <Alert severity="error">{error}</Alert>;
@@ -185,6 +191,7 @@ function SubmissionEditor({ path }: { path: string }) {
           onAttached={() => {
             const token = latest.current + 1;
             latest.current = token;
+            onChanged?.();
             reload(token).catch((e: unknown) => setError(message(e)));
           }}
         />
