@@ -48,6 +48,7 @@
               SLING-INF/content/libs/err/LoggedErrorsHomepage/;path:=/libs/err/LoggedErrorsHomepage/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/err/Acknowledgement/;path:=/libs/err/Acknowledgement/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

@@ -23,6 +23,7 @@
       "@iap/admin-console/*": ["./modules/admin-console/src/main/frontend/src/*"],
       "@iap/categories/*": ["./modules/categories/src/main/frontend/src/*"],
       "@iap/deletion/*": ["./modules/deletion/src/main/frontend/src/*"],
+      "@iap/error-tracking/*": ["./modules/error-tracking/impl/src/main/frontend/src/*"],
       "@iap/frontend-commons/*": ["./modules/frontend-commons/src/main/frontend/src/*"],
       "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],
       "@iap/login/*": ["./modules/login/src/main/frontend/src/*"],

@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "iap:Extension",
+  "iap:extensionPointId": "iap/coreUI/view",
+  "iap:extensionName": "Recorded error",
+  "iap:targetURL": "/admin/errors/*",
+  "iap:extensionRenderURL": "asset:iap-error-tracking.LoggedErrorView.js?lazy"
+}
