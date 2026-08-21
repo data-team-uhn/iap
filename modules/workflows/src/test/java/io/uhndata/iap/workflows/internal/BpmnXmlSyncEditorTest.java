@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
@@ -172,6 +173,62 @@ class BpmnXmlSyncEditorTest
      * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
      */
     @Test
+    void carriesAListAcrossAsAMultiValuedProperty() throws Exception
+    {
+        // `performers` is where this matters most: the node type declares it multiple, and a workflow whose
+        // approval task named one group as a single string would admit nobody the engine expects
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        types.getChildNode("UserTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}performers=performers[]"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, withIapNs()
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:performers=\"approvers, @creator\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        final PropertyState performers = after.getChildNode(TASK_1).getProperty("performers");
+        assertTrue(performers.isArray(), "declared multiple in the node type, so it has to arrive as an array");
+        assertEquals(List.of("approvers", "@creator"), performers.getValue(Type.STRINGS));
+    }
+
+    @Test
+    void readsASingleValuedRuleAsOneValueEvenWhenItLooksLikeAList() throws Exception
+    {
+        // The reason the rule says so rather than the parser guessing: without the marker a value containing a
+        // comma is one value, and there is no way to tell "a name with a comma in it" from "two names"
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        types.getChildNode("UserTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}hostTag=hostTag"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, withIapNs()
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:hostTag=\"a, b\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        final PropertyState hostTag = after.getChildNode(TASK_1).getProperty("hostTag");
+        assertFalse(hostTag.isArray());
+        assertEquals("a, b", hostTag.getValue(Type.STRING));
+    }
+
+    @Test
+    void dropsTheEmptyEntriesOfAList() throws Exception
+    {
+        // A trailing separator is the commonest way a hand-edited list goes wrong, and an empty performer would
+        // be a principal nothing can match rather than a harmless blank
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        types.getChildNode("UserTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}performers=performers[]"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, withIapNs()
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:performers=\"approvers,,\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals(List.of("approvers"), after.getChildNode(TASK_1).getProperty("performers")
+            .getValue(Type.STRINGS));
+    }
+
+    @Test
     void carriesAnExtensionAttributeAcrossByNamespace() throws Exception
     {
         // BPMN says nothing about which code a service task runs, so `handler` arrives as an extension attribute.
@@ -283,6 +340,13 @@ class BpmnXmlSyncEditorTest
 
         assertEquals("checkBudget",
             version(process(before, after)).getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    /** {@link #DEFS_OPEN} with the IAP extension namespace declared, which extension attributes need. */
+    private String withIapNs()
+    {
+        return DEFS_OPEN.replace("<bpmn:definitions", "<bpmn:definitions xmlns:iap=\"" + IAP_NS + "\"")
+            + PROCESS_OPEN;
     }
 
     private NodeBuilder base()

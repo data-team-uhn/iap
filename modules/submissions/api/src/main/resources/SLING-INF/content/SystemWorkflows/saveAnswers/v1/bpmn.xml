@@ -26,7 +26,7 @@
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/saveAnswers">
   <bpmn:message id="saveMessage" name="save" />
   <bpmn:process id="saveAnswers" name="Save a submission's answers" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Answers submitted">
+    <bpmn:startEvent id="requested" iap:performers="everyone" name="Answers submitted">
       <bpmn:messageEventDefinition id="saveRequested" messageRef="saveMessage" />
       <bpmn:outgoing>toSave</bpmn:outgoing>
     </bpmn:startEvent>

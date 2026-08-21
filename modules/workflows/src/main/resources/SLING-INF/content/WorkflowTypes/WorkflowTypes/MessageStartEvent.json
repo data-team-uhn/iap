@@ -6,5 +6,6 @@
   "priority": 10,
   "xmlElement": "bpmn:startEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
-  "jcrNodeType": "wf:StartEvent"
+  "jcrNodeType": "wf:StartEvent",
+  "properties": [ "{https://iap.uhndata.io/bpmn}performers=performers[]" ]
 }
