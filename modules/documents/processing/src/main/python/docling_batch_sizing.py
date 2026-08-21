@@ -299,7 +299,7 @@ def refresh_default_max_workers() -> int:
 # Per PDF parse — call before each conversion
 # =============================================================================
 
-def positive_int(value: str) -> int:
+def parse_positive_int(value: str) -> int:
     """Utility f-n to validate command-line options that must be int 1 or greater.
 
     @param value: the raw command-line string
@@ -326,7 +326,7 @@ def add_workers_argument(parser: argparse.ArgumentParser) -> None:
     """
     parser.add_argument(
         "--workers",
-        type=positive_int,
+        type=parse_positive_int,
         default=None,
         metavar="N",
         help=(
@@ -341,7 +341,7 @@ def calc_workers(workers_override: int | None = None) -> int:
     Resolve the number of parallel worker processes. CLI: --workers
 
     Clamped to at least 1: ``ProcessPoolExecutor(max_workers=0)`` raises, so a bad
-    override must not reach it even if it bypassed :func:`positive_int`.
+    override must not reach it even if it bypassed :func:`parse_positive_int`.
 
     Free RAM is refreshed either way. An override sets the worker count but says nothing about
     the module-level RAM figures that :func:`print_parallelism_summary` reports and operators

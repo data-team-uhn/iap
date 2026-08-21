@@ -208,25 +208,25 @@ class TestHealthReporting:
 
     def test_status_is_ok_when_ready(self, monkeypatch):
         monkeypatch.setattr(daemon, "_STATE", self._state())
-        assert daemon._health_status() == "ok"
+        assert daemon._get_health_status() == "ok"
 
     def test_broken_pool_says_so_rather_than_shutting_down(self, monkeypatch):
         monkeypatch.setattr(daemon, "_STATE", self._state(pdf_executor_broken=True))
-        assert daemon._health_status() == "pdf_pool_broken"
+        assert daemon._get_health_status() == "pdf_pool_broken"
 
     def test_shutdown_still_says_shutting_down(self, monkeypatch):
         monkeypatch.setattr(daemon, "_STATE", self._state(shutdown_requested=True))
-        assert daemon._health_status() == "shutting_down"
+        assert daemon._get_health_status() == "shutting_down"
 
     def test_broken_pool_wins_over_shutdown(self, monkeypatch):
         monkeypatch.setattr(
             daemon, "_STATE", self._state(pdf_executor_broken=True, shutdown_requested=True)
         )
-        assert daemon._health_status() == "pdf_pool_broken"
+        assert daemon._get_health_status() == "pdf_pool_broken"
 
     def test_no_state_yet_says_starting(self, monkeypatch):
         monkeypatch.setattr(daemon, "_STATE", None)
-        assert daemon._health_status() == "starting"
+        assert daemon._get_health_status() == "starting"
 
 
 class TestParseErrorStatus:
@@ -583,7 +583,7 @@ class TestPathBasedParseContract:
 
     def test_resolve_parse_path_exists(self):
         assert hasattr(daemon, "resolve_parse_path")
-        assert hasattr(daemon, "shared_docs_root")
+        assert hasattr(daemon, "get_shared_docs_root")
 
     def test_legacy_byte_upload_helpers_are_gone(self):
         for name in ("_spool_upload", "_safe_suffix", "MAX_UPLOAD_BYTES", "MIN_GZIP_BYTES"):
@@ -679,7 +679,7 @@ class TestParseFailureStatuses:
     ``_request_shutdown()``, so ``shutdown_requested`` is set for a dead pool too. A
     shutdown-only check therefore reported an OOM-killed worker as "daemon shutting down
     mid-parse" — the wrong cause, and indistinguishable from a plain SIGTERM, while
-    ``_health_status()`` still said ``pdf_pool_broken``. Nothing covered ``_handle_parse`` for
+    ``_get_health_status()`` still said ``pdf_pool_broken``. Nothing covered ``_handle_parse`` for
     any of these; ``TestBrokenPoolShutsDown`` calls ``_run_parse`` directly.
     """
 

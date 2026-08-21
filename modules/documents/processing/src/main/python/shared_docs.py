@@ -62,13 +62,13 @@ class ParseRequestError(ValueError):
     """
 
 
-def shared_docs_root() -> Path:
+def get_shared_docs_root() -> Path:
     """Root of the shared volume; paths outside it are refused."""
     configured = (os.environ.get("IAP_SHARED_DOCS") or DEFAULT_SHARED_DOCS).strip()
     return Path(configured).resolve()
 
 
-def positive_number_from_env(variable, default, cast=int, expected="an integer"):
+def read_positive_number_from_env(variable, default, cast=int, expected="an integer"):
     """A positive numeric setting from the environment, or ``None`` when it is switched off.
 
     Shared by every numeric knob so they all warn on an unreadable value instead of silently
@@ -96,19 +96,19 @@ def positive_number_from_env(variable, default, cast=int, expected="an integer")
     return value if value > 0 else None
 
 
-def _limit_from_env(variable: str, default: int) -> int | None:
+def _get_env_limit(variable: str, default: int) -> int | None:
     """A page/byte ceiling from the environment; ``None`` means the ceiling is off."""
-    return positive_number_from_env(variable, default)
+    return read_positive_number_from_env(variable, default)
 
 
-def max_input_pages() -> int | None:
+def get_max_input_pages() -> int | None:
     """The configured PDF page ceiling, or ``None`` when the limit is off."""
-    return _limit_from_env(PAGE_LIMIT_VARIABLE, DEFAULT_MAX_INPUT_PAGES)
+    return _get_env_limit(PAGE_LIMIT_VARIABLE, DEFAULT_MAX_INPUT_PAGES)
 
 
-def max_input_bytes() -> int | None:
+def get_max_input_bytes() -> int | None:
     """The configured input size ceiling in bytes, or ``None`` when the limit is off."""
-    return _limit_from_env(BYTE_LIMIT_VARIABLE, DEFAULT_MAX_INPUT_BYTES)
+    return _get_env_limit(BYTE_LIMIT_VARIABLE, DEFAULT_MAX_INPUT_BYTES)
 
 
 def refuse_oversized_input(path: Path) -> None:
@@ -120,7 +120,7 @@ def refuse_oversized_input(path: Path) -> None:
     @param path: the resolved input path
     @raise ParseRequestError: when the document is over either ceiling
     """
-    byte_limit = max_input_bytes()
+    byte_limit = get_max_input_bytes()
     if byte_limit is not None:
         try:
             size = path.stat().st_size
@@ -170,12 +170,12 @@ def open_pdf_reader(source):
 
 
 def refuse_oversized_pdf(path: Path) -> None:
-    """Reject a PDF with more pages than :func:`max_input_pages` allows.
+    """Reject a PDF with more pages than :func:`get_max_input_pages` allows.
 
     @param path: the resolved input path
     @raise ParseRequestError: when the document is over the ceiling, or password-locked
     """
-    limit = max_input_pages()
+    limit = get_max_input_pages()
     if limit is None or path.suffix.lower() != ".pdf":
         return
     try:
@@ -217,7 +217,7 @@ def resolve_parse_path(raw_path: str) -> Path:
     text = (raw_path or "").strip()
     if not text:
         raise ParseRequestError("path query parameter is required")
-    root = shared_docs_root()
+    root = get_shared_docs_root()
     try:
         resolved = os.path.realpath(text)
     except ValueError as exc:

@@ -24,7 +24,7 @@ from __future__ import annotations
 import re
 
 
-def page_marker(page_number: int) -> str:
+def get_page_marker(page_number: int) -> str:
     """The canonical page marker for ``page_number``: ``<!-- page: 12 -->``.
 
     @param page_number: the 1-based page number
@@ -33,7 +33,7 @@ def page_marker(page_number: int) -> str:
     return f"<!-- page: {page_number} -->"
 
 
-def page_marker_pattern(number: str) -> str:
+def get_page_marker_pattern(number: str) -> str:
     """The page marker as a pattern fragment, with ``number`` substituted for the
     page-number part.
 
@@ -50,20 +50,20 @@ _PAGE_NUMBER_PLAIN = r"\d+"
 
 # A page marker anywhere in a string, page number captured. Use with ``finditer`` to
 # collect the pages a block of text refers to.
-PAGE_MARKER = re.compile(page_marker_pattern(_PAGE_NUMBER_CAPTURED), re.IGNORECASE)
+PAGE_MARKER = re.compile(get_page_marker_pattern(_PAGE_NUMBER_CAPTURED), re.IGNORECASE)
 
 # A page marker alone on its own line, page number captured. The ``\s*`` is line-level slack
 # for indentation or a stray carriage return, so this matches stripped and unstripped lines
 # alike; the marker's own spacing stays exact.
 PAGE_MARKER_LINE = re.compile(
-    rf"^\s*{page_marker_pattern(_PAGE_NUMBER_CAPTURED)}\s*$", re.IGNORECASE
+    rf"^\s*{get_page_marker_pattern(_PAGE_NUMBER_CAPTURED)}\s*$", re.IGNORECASE
 )
 
 # A page marker on its own line including the newlines around it, as one capturing group, for
 # ``re.split``. The page number is deliberately not captured: ``re.split`` returns every group,
 # and a second one would break the caller's stride-2 walk over the split parts.
 PAGE_MARKER_SPLIT = re.compile(
-    rf"(\n{page_marker_pattern(_PAGE_NUMBER_PLAIN)}\n)", re.IGNORECASE
+    rf"(\n{get_page_marker_pattern(_PAGE_NUMBER_PLAIN)}\n)", re.IGNORECASE
 )
 
 # A horizontal-rule line ("---", "-----", ...).
@@ -98,10 +98,10 @@ def count_tokens(text: str) -> int:
     @param text: the string to measure
     @return: the estimated token count
     """
-    return tokens_for_length(len(text))
+    return count_tokens_for_length(len(text))
 
 
-def tokens_for_length(length: int) -> int:
+def count_tokens_for_length(length: int) -> int:
     """Estimate the token count of a string of ``length`` characters.
 
     Lets a caller measure a concatenation it has not built yet -- the chunker tests whether the
@@ -114,7 +114,7 @@ def tokens_for_length(length: int) -> int:
     return length // 4
 
 
-def within_word_limits(text: str) -> bool:
+def is_within_word_limits(text: str) -> bool:
     """Whether ``text`` is short enough to be a real heading or TOC entry rather than parsing
     garbage: at least one word, at most :data:`MAX_HEADING_WORDS` words, and no single word
     longer than :data:`MAX_WORD_CHARS` characters.
