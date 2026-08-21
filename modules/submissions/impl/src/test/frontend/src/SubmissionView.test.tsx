@@ -712,6 +712,61 @@ describe("SubmissionView", () => {
     });
   });
 
+  describe("what the request is still missing, while it is being filled in", () => {
+    // The send control lives above both modes and is decided by the submission, not by the form. So the
+    // page has to keep reading the submission while the editor is open — otherwise the control answers
+    // from whatever was true when the editor was opened, for the whole session.
+    const INCOMPLETE_THEN_NOT = [
+      { ...DEEP_SUBMISSION, tags: ["draft", "incomplete"] },
+      { ...DEEP_SUBMISSION, tags: ["draft"] },
+    ];
+
+    function servingInTurn(submissions: unknown[]) {
+      let read = 0;
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
+        if (url.endsWith(".deep.json")) {
+          const next = submissions[Math.min(read, submissions.length - 1)];
+          read += 1;
+          return tagAwareFetch(next)(url);
+        }
+        if (url.endsWith(".form.json")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              path: "/Submissions/demo-1", title: "Test my drug", editable: true,
+              requirements: [ { name: "details", type: "sch/FormRequirement", label: "Request details",
+                items: [ { name: "why", type: "sch/Question", path: "details/why", text: "Why?",
+                  dataType: "text", required: true, multiple: false, options: [], value: [] } ] } ],
+            }),
+          } as unknown as Response);
+        }
+        if (init?.method === "POST") {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as unknown as Response);
+        }
+        return tagAwareFetch(submissions[submissions.length - 1])(url);
+      });
+    }
+
+    it("reads the submission again while the editor is open, not only on the way out", async () => {
+      const fetchMock = servingInTurn(INCOMPLETE_THEN_NOT);
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1.edit");
+
+      // Read once for the page itself, even though the editor is what is showing
+      await waitFor(() => expect(fetchMock.mock.calls
+        .filter(call => call[0].endsWith(".deep.json")).length).toBeGreaterThan(0));
+
+      // Finishing an answer says the request changed, and the page reads it again rather than
+      // assuming the answer changed nothing about what is still outstanding
+      await userEvent.type(await screen.findByLabelText(/Why\?/), "because");
+      await userEvent.tab();
+
+      await waitFor(() => expect(fetchMock.mock.calls
+        .filter(call => call[0].endsWith(".deep.json")).length).toBeGreaterThan(1));
+    });
+  });
+
   describe("switching between reading and filling in", () => {
     it("opens the editor, which asks the server what the form is", async () => {
       const fetchMock = bothModes();

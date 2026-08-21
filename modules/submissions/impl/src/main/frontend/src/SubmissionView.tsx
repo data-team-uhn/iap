@@ -298,12 +298,12 @@ function SubmissionView() {
   // again for a path it has already loaded — which is the one thing its own dependencies cannot say
   const [reloads, setReloads] = useState(0);
 
-  // Reading depends on the mode as well as the path, and not only so that leaving the editor
-  // fetches at all. The editor saves as it goes, so what it changed is what coming back should show.
+  // Read in both modes, because the step offered above the two of them is decided by what the request
+  // is still missing, and that changes while somebody is filling it in. Skipping the read while the
+  // editor was open left that control refusing a request that had just been completed — for the whole
+  // editing session, since nothing else re-read the page. The editor says when it has changed
+  // something rather than this guessing, so the extra read costs one request per editor opened.
   useEffect(() => {
-    if (editing) {
-      return undefined;
-    }
     let cancelled = false;
     fetchUtil(`${path}.deep.json`)
       .then(response => {
@@ -331,7 +331,7 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path, fetchUtil, editing, reloads]);
+  }, [path, fetchUtil, reloads]);
 
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
   // page rather than to either mode. It is rendered whatever the page is doing, because the states
