@@ -1238,8 +1238,6 @@
                       <module name="WriteTag">
                         <property name="tag" value="@since" />
                         <property name="tagFormat" value="\d+\.\d+(\.\d+)?" />
-                        <!-- Do not report the tag when it is present and well-formed -->
-                        <property name="tagSeverity" value="ignore" />
                       </module>
                     </module>
                   </module>
