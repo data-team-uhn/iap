@@ -43,10 +43,8 @@ def page_marker_pattern(number: str) -> str:
     return rf"<!-- page: {number} -->"
 
 
-# The page-number sub-patterns, named rather than written inline below. A backslash inside an
-# f-string *expression* is only legal from Python 3.12 (PEP 701), and this package supports
-# 3.10, so writing them inside the f-strings below meant this module did not even parse there.
-# Naming them moves the backslash out of the expression.
+# Named, not inlined below: a backslash inside an f-string expression needs Python 3.12
+# (PEP 701) and this package supports 3.10.
 _PAGE_NUMBER_CAPTURED = r"(\d+)"
 _PAGE_NUMBER_PLAIN = r"\d+"
 
@@ -54,18 +52,16 @@ _PAGE_NUMBER_PLAIN = r"\d+"
 # collect the pages a block of text refers to.
 PAGE_MARKER = re.compile(page_marker_pattern(_PAGE_NUMBER_CAPTURED), re.IGNORECASE)
 
-# A page marker alone on its own line, page number captured. The marker's own spacing is
-# exact (see :func:`page_marker_pattern`); the ``\s*`` here is only line-level slack for
-# indentation or a stray carriage return, and matches whether or not the caller stripped the
-# line first.
+# A page marker alone on its own line, page number captured. The ``\s*`` is line-level slack
+# for indentation or a stray carriage return, so this matches stripped and unstripped lines
+# alike; the marker's own spacing stays exact.
 PAGE_MARKER_LINE = re.compile(
     rf"^\s*{page_marker_pattern(_PAGE_NUMBER_CAPTURED)}\s*$", re.IGNORECASE
 )
 
-# A page marker on its own line *including* the newlines around it, as a single capturing
-# group, for ``re.split``. The page number is intentionally NOT captured: ``re.split``
-# returns every group, and a second group would break the caller's stride-2 walk over the
-# split parts.
+# A page marker on its own line including the newlines around it, as one capturing group, for
+# ``re.split``. The page number is deliberately not captured: ``re.split`` returns every group,
+# and a second one would break the caller's stride-2 walk over the split parts.
 PAGE_MARKER_SPLIT = re.compile(
     rf"(\n{page_marker_pattern(_PAGE_NUMBER_PLAIN)}\n)", re.IGNORECASE
 )
@@ -73,18 +69,12 @@ PAGE_MARKER_SPLIT = re.compile(
 # A horizontal-rule line ("---", "-----", ...).
 RULE_LINE = re.compile(r"^-{3,}$")
 
-# An ATX heading line; group 1 = the '#' run, group 2 = the heading text. The ``(?!#)``
-# guard rejects a 7+ '#' run, which is not a heading in Markdown.
+# An ATX heading line; group 1 = the '#' run, group 2 = the heading text. ``(?!#)`` rejects a
+# 7+ '#' run, which is not a heading in Markdown.
 #
-# Group 2 keeps any trailing whitespace; the one caller that reads it,
-# :func:`chunker._match_heading`, already strips. That is deliberate. Writing the tail as
-# ``(.*\S)\s*$`` puts two repetitions next to each other competing for the same spaces, which
-# is quadratic on a line of nothing but '#' and whitespace — one crafted 8k-space line cost
-# about a second of a warm worker, and _match_heading takes raw document lines. Pinning it
-# with a ``(?=\S)`` lookahead fixed the running time but left the ambiguity in place for any
-# reader (and for CodeQL) to trip over again. Requiring ``\S`` up front and dropping the
-# trailing ``\s*`` removes it outright: nothing follows ``.*``, so there is nothing to
-# backtrack against.
+# Keep the tail as ``(\S.*)$``. Writing it ``(.*\S)\s*$`` puts two repetitions next to each
+# other competing for the same spaces, which is quadratic on a line of only '#' and whitespace
+# -- and :func:`chunker._match_heading` feeds this raw document lines.
 HEADING = re.compile(r"^(#{1,6})(?!#)\s+(\S.*)$")
 
 # Maximum words per accepted heading/TOC entry, and maximum characters per word within it.
@@ -114,9 +104,9 @@ def count_tokens(text: str) -> int:
 def tokens_for_length(length: int) -> int:
     """Estimate the token count of a string of ``length`` characters.
 
-    Lets a caller measure a concatenation it has not built yet — the chunker tests whether
-    the next block still fits before committing to joining it. :func:`count_tokens` is
-    defined in terms of this, so the two cannot drift apart.
+    Lets a caller measure a concatenation it has not built yet -- the chunker tests whether the
+    next block still fits before joining it. :func:`count_tokens` is defined in terms of this
+    so the two cannot drift apart.
 
     @param length: the character count to measure
     @return: the estimated token count
@@ -125,9 +115,9 @@ def tokens_for_length(length: int) -> int:
 
 
 def within_word_limits(text: str) -> bool:
-    """Whether ``text`` is short enough to be a real heading or TOC entry rather than
-    parsing garbage: at least one word, at most :data:`MAX_HEADING_WORDS` words, and no
-    single word longer than :data:`MAX_WORD_CHARS` characters.
+    """Whether ``text`` is short enough to be a real heading or TOC entry rather than parsing
+    garbage: at least one word, at most :data:`MAX_HEADING_WORDS` words, and no single word
+    longer than :data:`MAX_WORD_CHARS` characters.
 
     @param text: the candidate line, markers already stripped
     @return: ``True`` when the line is within both limits

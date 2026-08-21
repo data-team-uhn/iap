@@ -17,11 +17,10 @@
 
 """The daemon's HTTP plumbing and request guards, with no Docling import anywhere.
 
-Split out of :mod:`docling_daemon` for the same reason :mod:`shared_docs` was: the daemon
-pulls in the whole model stack, so its test module skips itself wherever Docling is not
-installed -- including CI, which installs only ``requirements-test.txt``. That left the
-checks standing between an unauthenticated caller and the worker pool exercised by nothing
-automated. They live here instead, and ``test_daemon_http.py`` runs everywhere.
+Kept out of :mod:`docling_daemon` so it stays importable without Docling. The daemon's own
+test module skips itself wherever Docling is missing, including CI, which would leave these
+checks -- the only thing between an unauthenticated caller and the worker pool -- untested.
+``test_daemon_http.py`` runs everywhere.
 
 What is here: the bearer-token secret, the guard refusing browser-originated and
 unauthenticated requests to the mutating endpoints, the request-body drain with its size cap,
@@ -59,11 +58,9 @@ def daemon_token() -> str | None:
 def token_is_ascii() -> bool:
     """Whether the configured token is ASCII, and so unambiguous on the wire.
 
-    An HTTP header carries bytes; ``http.server`` hands them over latin-1 decoded, and the
-    configured token comes from the environment already decoded (UTF-8 on Linux). For an ASCII
-    token every encoding agrees and :func:`refuse_unauthorized` compares exactly the bytes the
-    client sent. For anything else the comparison depends on how the client encoded it, so a
-    correct client can fail to authenticate — quietly. Unset counts as fine.
+    ``http.server`` hands headers over latin-1 decoded, while the configured token arrives from
+    the environment decoded as UTF-8. Those agree for ASCII. For anything else authentication
+    depends on how the client encoded it, so a correct client can quietly fail. Unset is fine.
     """
     token = daemon_token()
     if token is None:
@@ -118,10 +115,10 @@ def refuse_unauthorized(handler, endpoint: str, *, log) -> bool:
 
     Two checks, covering different callers:
 
-    * An ``Origin`` header means a page made this request. Nothing that legitimately drives
-      this daemon is a web page, and loopback binding is no defence — the browser runs on the
-      same host, and a ``POST`` with a simple content type needs no preflight, so any site the
-      operator visits could otherwise spend the worker pool or call ``/shutdown``.
+    * An ``Origin`` header means a page made this request, and nothing that legitimately drives
+      this daemon is a web page. Loopback binding is no defence: the browser runs on the same
+      host and a simple-content-type ``POST`` needs no preflight, so any site the operator
+      visits could otherwise spend the worker pool or call ``/shutdown``.
     * A bearer token, when :data:`TOKEN_ENVIRONMENT_VARIABLE` is set, so that reaching the
       port is not by itself authority to use it.
 
@@ -141,15 +138,10 @@ def refuse_unauthorized(handler, endpoint: str, *, log) -> bool:
     token = daemon_token()
     if token is None:
         return False
-    # Compared as bytes, not str: headers arrive latin-1 decoded, and compare_digest raises
-    # TypeError on a non-ASCII string. This runs before the handler's try/except, so one 0xFF
-    # byte killed the request with no reply at all.
-    #
-    # The two sides use different encodings for a non-ASCII token: the header is re-encoded to
-    # the latin-1 bytes the client actually sent, while the configured token is encoded UTF-8.
-    # For an ASCII token — the only kind that is interoperable in an HTTP header — they are the
-    # same bytes. Anything else authenticates or not depending on the client's encoding, which
-    # is why :func:`token_is_ascii` exists and the daemon says so at startup.
+    # Compare bytes, not str. compare_digest raises TypeError on a non-ASCII string, and this
+    # runs before the handler's try/except, so one 0xFF byte killed the request with no reply.
+    # The header goes back to the latin-1 bytes the client sent; the configured token is UTF-8.
+    # Those match only for an ASCII token, which is why token_is_ascii() warns at startup.
     presented = (handler.headers.get("Authorization") or "").encode("latin-1", "replace")
     if not hmac.compare_digest(presented, f"Bearer {token}".encode()):
         json_response(

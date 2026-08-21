@@ -82,12 +82,10 @@ from parse_document import parse_document
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 18765
 
-# How many conversions may be in flight at once. One, because the whole RAM budget in
-# docling_batch_sizing — worker count, page-batch size, the cgroup limit it reads — is
-# calculated for a single conversion spread over the worker pool. ThreadingHTTPServer will
-# start a thread per request regardless, so without this a burst of callers each holds a
-# full assembled document plus its chunk tree, the cgroup OOM killer takes a worker, and the
-# BrokenProcessPool that follows marks the daemon permanently broken.
+# One conversion at a time: the whole RAM budget in docling_batch_sizing is calculated for a
+# single conversion spread over the pool. ThreadingHTTPServer starts a thread per request
+# anyway, so without this a burst of callers gets a worker OOM-killed, and the BrokenProcessPool
+# that follows marks the daemon permanently broken.
 MAX_CONCURRENT_PARSES = 1
 
 
@@ -109,11 +107,8 @@ class DaemonState:
             mp_context=worker_context(),
         )
         self.docx_lock = threading.Lock()
-        # The DOCX converter lives in *this* process, not the pool, so whatever it holds sits
-        # outside the per-worker budget calc_max_workers_by_ram computes. In practice that is
-        # very little: WordFormatOption uses Docling's SimplePipeline, which parses OOXML
-        # structurally and loads no model weights (initialize_pipeline for it takes ~0.04s,
-        # against seconds and a model stack for the PDF pipeline).
+        # The DOCX converter lives in this process, not the pool, so it sits outside the
+        # per-worker RAM budget. That is fine: SimplePipeline parses OOXML and loads no models.
         self.docx_converter = None
         self.shutdown_requested = False
         self.pdf_executor_broken = False
@@ -122,10 +117,8 @@ class DaemonState:
         self.parse_slots = threading.BoundedSemaphore(MAX_CONCURRENT_PARSES)
         try:
             warm_pdf_workers(self.pdf_executor, self.worker_count, log=_stderr)
-            # Built *and* initialized: get_docx_converter only constructs, and Docling builds
-            # the pipeline lazily on first convert. It costs ~0.04s here because SimplePipeline
-            # has no weights to load, so there is no reason to leave it until a request is
-            # holding the parse slot.
+            # Built and initialized here: get_docx_converter only constructs, and Docling would
+            # otherwise build the pipeline on the first convert, while it holds the parse slot.
             self.docx_converter = get_docx_converter()
             self.docx_converter.initialize_pipeline(InputFormat.DOCX)
         except Exception:
@@ -195,17 +188,14 @@ def _run_parse(
 class DrainingHTTPServer(ThreadingHTTPServer):
     """``ThreadingHTTPServer`` whose request threads are joinable on close.
 
-    The base class sets ``daemon_threads = True``, and ``socketserver._Threads.append``
-    *returns early* for a daemon thread — so no request thread is ever tracked and
-    ``server_close()``'s ``join()`` joins an empty list. It returned in 0.00s with a request
-    still in flight, which made the whole drain below a no-op: the pool was torn down under a
-    running conversion, its queued page batches cancelled, and the process exited before the
-    caller was answered. That is exactly the "a cancelled batch is indistinguishable from a
-    corrupt document" failure the ordering in :func:`main` exists to prevent.
+    Do not restore ``daemon_threads = True``. ``socketserver._Threads.append`` returns early
+    for a daemon thread, so no request thread is tracked and ``server_close()`` joins an empty
+    list -- the drain in :func:`main` becomes a no-op and the pool is torn down under a running
+    conversion.
 
-    The cost: an idle keep-alive connection holds its thread in ``readline()`` until
-    ``DoclingDaemonHandler.timeout``, so ``server_close()`` can take that long even with
-    nothing converting. Well inside the container's stop grace period.
+    The cost is that an idle keep-alive connection holds its thread until
+    ``DoclingDaemonHandler.timeout``, so ``server_close()`` can take that long with nothing
+    converting. Still well inside the container's stop grace period.
     """
 
     daemon_threads = False
@@ -269,10 +259,9 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self.path.split("?", 1)[0] == "/shutdown":
             if not _SHUTDOWN_ENABLED:
-                # Off unless asked for: the container is stopped with a signal, so the
-                # endpoint is a liability everywhere except a caller-owned daemon. Drain
-                # first: answering with the body still unread leaves those bytes to be
-                # parsed as the next request line on a keep-alive connection.
+                # Off unless asked for: the container is stopped with a signal instead. Drain
+                # first -- an unread body would be parsed as the next request line on a
+                # keep-alive connection.
                 drain_request_body(self)
                 json_response(
                     self,
@@ -355,20 +344,17 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
             reply = (HTTPStatus.BAD_REQUEST, {"error": str(exc)})
         except Exception as exc:
             # Everything else is a server-side failure, including the ValueErrors Docling,
-            # pypdf and the chunker raise on a malformed document. Log the traceback: the
-            # reply carries only the message.
+            # pypdf and the chunker raise on a malformed document. The reply carries only the
+            # message, so log the traceback.
             traceback.print_exc(file=sys.stderr)
             broken_pool = _STATE is not None and _STATE.pdf_executor_broken
             if _STATE is not None and _STATE.shutdown_requested and not broken_pool:
-                # A conversion interrupted by a shutdown says nothing about the document, so
-                # it must not come back as a 500 the caller could read as "unparseable".
-                # 503 is the retryable answer, and a fresh daemon will manage it.
+                # A shutdown mid-conversion says nothing about the document, so answer 503
+                # (retryable) rather than a 500 the caller could read as "unparseable".
                 #
-                # Excluding a broken pool matters: _run_parse answers BrokenProcessPool by
-                # flagging the pool *and* calling _request_shutdown(), so shutdown_requested is
-                # set for that case too. Without the guard, an OOM-killed worker came back as
-                # "daemon shutting down mid-parse" — the wrong cause, and indistinguishable
-                # from a plain SIGTERM, while _health_status() still reported pdf_pool_broken.
+                # The broken-pool guard is needed because _run_parse also calls
+                # _request_shutdown() for a BrokenProcessPool, so shutdown_requested is set
+                # there too -- without it an OOM-killed worker reports the wrong cause.
                 reply = (
                     HTTPStatus.SERVICE_UNAVAILABLE,
                     {"error": f"daemon shutting down mid-parse; retry this document ({exc})"},
@@ -422,11 +408,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# Set by an operator who has confined the port by other means -- published to loopback, or on
-# a private Compose network. The daemon cannot see either from in here: the ENTRYPOINT has to
-# bind 0.0.0.0 for Docker to forward a published port at all, so without this the warning below
-# fired on every boot of the sanctioned configuration, and a warning that is always on is a
-# warning nobody reads.
+# Set by an operator who has confined the port another way -- published to loopback, or on a
+# private Compose network. The daemon cannot see either from in here, because the ENTRYPOINT has
+# to bind 0.0.0.0 for Docker to forward a published port at all, so without this the warning
+# below fires on every boot of the sanctioned setup.
 TRUSTED_NETWORK_VARIABLE = "IAP_DOCLING_TRUSTED_NETWORK"
 
 
@@ -467,11 +452,9 @@ def main() -> None:
         print(f"Docling daemon initialization failed: {e}", file=sys.stderr, flush=True)
         sys.exit(1)
 
-    # The server is built before the handlers are installed. Installing them first leaves a
-    # window in which a signal finds _SERVER still None: _request_shutdown would set the flag
-    # and return with nothing to stop the accept loop, and serve_forever would then run
-    # forever answering 503 to everything until the stop grace period ran out and SIGKILL
-    # landed — a container that looks hung rather than one that stops.
+    # Build the server before installing the handlers. The other order leaves a window where a
+    # signal finds _SERVER still None, so nothing stops the accept loop and serve_forever runs
+    # on answering 503 until SIGKILL -- a container that looks hung instead of stopping.
     _SERVER = DrainingHTTPServer((args.host, args.port), DoclingDaemonHandler)
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
@@ -484,18 +467,16 @@ def main() -> None:
     )
 
     try:
-        # A signal delivered between installing the handlers and getting here has already
-        # set the flag, so check it rather than entering a loop nothing will leave
+        # A signal delivered between installing the handlers and here already set the flag, so
+        # check it rather than entering a loop nothing will leave.
         if _STATE.is_ready():
             _SERVER.serve_forever()
     finally:
         pool_broke = _STATE.pdf_executor_broken
-        # server_close() first, and only then the pool: it joins the request threads (which
-        # takes a non-daemon-thread server, see DrainingHTTPServer), so a conversion already
-        # running gets to finish and answer its caller. Tearing the pool down first cancelled
-        # that conversion's queued page batches instead, and a cancelled batch comes back
-        # through the same path as a corrupt one — so a plain SIGTERM was reported to the
-        # caller as a failed document. The container's stop grace period bounds the wait.
+        # server_close() first, pool second. It joins the request threads (which needs
+        # DrainingHTTPServer), so a running conversion finishes and answers its caller. The
+        # other order cancels its queued page batches, and a cancelled batch is reported the
+        # same way as a corrupt document -- so a plain SIGTERM looked like a parse failure.
         _SERVER.server_close()
         _STATE.close()
         print("Docling daemon stopped", flush=True)
