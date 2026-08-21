@@ -120,12 +120,16 @@ class TestPipelineOptionNames:
         assert docling_config.PDF_PIPELINE_OPTIONS.generate_parsed_pages is False
 
     def test_the_heading_level_ceiling_matches_the_markdown_one(self):
-        # Anything deeper than 6 would come back as markdown our HEADING regex rejects.
-        from markdown_markers import HEADING
+        # Anything deeper than MAX_HEADING_LEVEL would come back as markdown our HEADING regex
+        # rejects.
+        from markdown_markers import HEADING, MAX_HEADING_LEVEL
 
-        assert HEADING.match("#" * 6 + " Deep") is not None
-        assert HEADING.match("#" * 7 + " Deeper") is None
-        assert docling_config.PDF_PIPELINE_OPTIONS.heading_hierarchy_options.max_level == 6
+        assert HEADING.match("#" * MAX_HEADING_LEVEL + " Deep") is not None
+        assert HEADING.match("#" * (MAX_HEADING_LEVEL + 1) + " Deeper") is None
+        assert (
+            docling_config.PDF_PIPELINE_OPTIONS.heading_hierarchy_options.max_level
+            == MAX_HEADING_LEVEL
+        )
 
     def test_a_conversion_is_time_bounded(self):
         # Unbounded, one runaway document holds the daemon's only parse slot for as long as it

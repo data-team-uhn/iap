@@ -170,6 +170,23 @@ class TestOutlineToc:
         outline = json.loads(outline_path.read_text(encoding="utf-8"))
         assert outline["toc"] == ["Alpha Section"]
 
+    def test_toc_keeps_headings_up_to_the_level_ceiling(self, tmp_path, monkeypatch):
+        records = [
+            {"title": "Aims", "level": 1, "page": 1},
+            {"title": "Specific", "level": chunker.MAX_HEADING_LEVEL, "page": 2},
+            {"title": "Too deep", "level": chunker.MAX_HEADING_LEVEL + 1, "page": 3},
+        ]
+        monkeypatch.setattr(
+            "chunker.extract_bookmarks", lambda *a, **k: records
+        )
+        path = tmp_path / "small.md"
+        path.write_text("# Tiny\n\nshort body\n", encoding="utf-8")
+        (tmp_path / "small.pdf").write_bytes(b"%PDF-1.4")
+        chunker.chunk_file(str(path), min_structure_tokens=10 ** 9)
+        outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
+        outline = json.loads(outline_path.read_text(encoding="utf-8"))
+        assert outline["toc"] == ["Aims", "Specific"]
+
 
 class TestUnchunkedOutline:
     """``?chunk=false`` leaves the same shape on disk as the size gate does.

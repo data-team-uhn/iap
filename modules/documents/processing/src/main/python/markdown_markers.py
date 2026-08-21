@@ -69,13 +69,17 @@ PAGE_MARKER_SPLIT = re.compile(
 # A horizontal-rule line ("---", "-----", ...).
 RULE_LINE = re.compile(r"^-{3,}$")
 
+# Deepest heading level kept from Markdown, Docling, and PDF bookmarks. A longer '#' run is
+# not an ATX heading; bookmark nesting past this is walked but not extracted into the TOC.
+MAX_HEADING_LEVEL = 6
+
 # An ATX heading line; group 1 = the '#' run, group 2 = the heading text. ``(?!#)`` rejects a
-# 7+ '#' run, which is not a heading in Markdown.
+# run longer than :data:`MAX_HEADING_LEVEL`, which is not a heading in Markdown.
 #
 # Keep the tail as ``(\S.*)$``. Writing it ``(.*\S)\s*$`` puts two repetitions next to each
 # other competing for the same spaces, which is quadratic on a line of only '#' and whitespace
 # -- and :func:`chunker._match_heading` feeds this raw document lines.
-HEADING = re.compile(r"^(#{1,6})(?!#)\s+(\S.*)$")
+HEADING = re.compile(rf"^(#{{1,{MAX_HEADING_LEVEL}}})(?!#)\s+(\S.*)$")
 
 # Maximum words per accepted heading/TOC entry, and maximum characters per word within it.
 # A line breaching either is parsing garbage rather than a real heading.

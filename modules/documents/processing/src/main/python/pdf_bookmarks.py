@@ -29,6 +29,8 @@ from __future__ import annotations
 
 from pathlib import Path, PurePath
 
+from markdown_markers import MAX_HEADING_LEVEL
+
 
 # Deepest outline nesting worth walking. A PDF's outline is caller-supplied and one
 # recursion deep per level, so an absurdly nested one would otherwise exhaust the stack.
@@ -76,7 +78,7 @@ def _flatten(reader, items, level: int, out: list[dict]) -> None:
             continue
         try:
             title = _get_title(item)
-            if not title:
+            if not title or level > MAX_HEADING_LEVEL:
                 continue
             out.append({"title": title, "level": level, "page": _get_page(reader, item)})
         except Exception:  # noqa: BLE001 -- skip a single malformed bookmark, keep the rest
