@@ -43,22 +43,18 @@ part even if that pushes it over the budget.
 
 All chunks are summarised in ``catalog.json``
 
-    {
-      "fileId": "protocol.pdf",
-      "chunks": [
-        {
-          "chunk_id": "chunk001",
-          "file": "Chunk-1.md",
-          "headings": ["Introduction"],
-          "summary": "",
-          "rubric_tags": [],
-          "pages": [1, 2],
-          "length": 1837
-        }, ...
-      ]
-    }
+    [
+      {
+        "chunk_id": "Chunk-1.md",
+        "headings": ["Introduction"],
+        "summary": "",
+        "rubric_tags": [],
+        "pages": [1, 2],
+        "length": 1837
+      }, ...
+    ]
 
-``summary``, ``rubric_tags``, ``questions_answered`` and ``extraction_hints`` are always left
+``chunk_id`` is the chunk's own file name. ``summary`` and ``rubric_tags`` are always left
 empty here so they can be filled in later.
 ``pages`` lists the <!-- page: N --> numbers referenced within a chunk (from the
 ``<!-- page: N -->`` markers the PDF parser emits); it is empty for DOCX.
@@ -774,7 +770,6 @@ def _swap_into_place(staging: Path, target: Path) -> None:
 def write_chunk_files(
     markdown_content: str,
     output_file: Path,
-    filename: str,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     *,
     min_structure_tokens: int = DEFAULT_MIN_STRUCTURE_TOKENS,
@@ -790,14 +785,12 @@ def write_chunk_files(
 
     @param markdown_content: cleaned Markdown
     @param output_file: path of the ``.md`` to write
-    @param filename: original upload name (stored as ``fileId``)
     @param max_tokens: max tokens per chunk before further splitting
     @param min_structure_tokens: below this, leave the document unchunked
     @return: :class:`ChunkingSummary`
     """
     tree = build_chunk_tree(
         markdown_content,
-        filename,
         output_file,
         max_tokens,
         min_structure_tokens,
@@ -844,8 +837,7 @@ def write_chunk_files(
 
 def build_chunk_tree(
     markdown_content: str,
-    filename: str,
-    markdown_path: Path,
+    markdown_path: Path | None,
     max_tokens: int,
     min_structure_tokens: int,
 ) -> dict[str, Any]:
@@ -854,8 +846,8 @@ def build_chunk_tree(
     Writes nothing. Callers that need the tree on disk go through :func:`write_chunk_files`.
 
     @param markdown_content: the full Markdown document, already cleaned
-    @param filename: the original input file name (with extension), recorded as ``fileId``
-    @param markdown_path: path of the ``.md``; a sibling ``.pdf`` supplies the outline
+    @param markdown_path: path of the ``.md``; a sibling ``.pdf`` supplies the outline.
+        ``None`` means there is no sibling to look for, so the document has no outline
     @param max_tokens: target maximum tokens per chunk
     @param min_structure_tokens: leave the document unchunked below this size
     @return: ``{"markdown", "chunked", "outline", "catalog", "chunks", "records"}``, where
@@ -979,7 +971,6 @@ def chunk_file(
     max_tokens: int = DEFAULT_MAX_TOKENS,
     *,
     min_structure_tokens: int = DEFAULT_MIN_STRUCTURE_TOKENS,
-    filename: str | None = None,
 ) -> dict[str, Any]:
     """Split one already-parsed Markdown file into its chunk tree.
 
@@ -993,7 +984,6 @@ def chunk_file(
     @param file_path: path to the parsed ``.md``
     @param max_tokens: target maximum tokens per chunk file
     @param min_structure_tokens: skip chunking when the document is smaller than this
-    @param filename: original upload name for ``fileId`` / headers; defaults to the ``.md`` name
     @return: summary dict ``{"chunks", "logs"}``
     @raise FileNotFoundError: when the file does not exist
     """
@@ -1005,7 +995,6 @@ def chunk_file(
     summary = write_chunk_files(
         markdown,
         path,
-        filename if filename is not None else path.name,
         max_tokens=max_tokens,
         min_structure_tokens=min_structure_tokens,
     )
