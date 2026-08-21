@@ -74,13 +74,12 @@ _converter: DocumentConverter | None = None
 def worker_context() -> multiprocessing.context.BaseContext:
     """The start method the PDF pool must use: spawn, never fork.
 
-    Importing this module pulls in Docling, and so torch and libgomp, before any pool is
-    built. Forking a process that has already loaded an OpenMP runtime is not safe -- it is a
-    classic source of the worker hangs and BrokenProcessPool failures the code around here
-    works hard to detect. Fork is the default on Linux, which is where this runs.
+    Importing this module pulls in Docling, so torch and libgomp are loaded before any pool is
+    built, and forking a process that already holds an OpenMP runtime hangs workers. Fork is the
+    Linux default, which is where this runs.
 
-    :func:`_init_worker` rebuilds the converter in every worker anyway, so spawn costs one
-    interpreter start per worker and nothing else; the warm-up pass absorbs it.
+    :func:`_init_worker` rebuilds the converter in every worker anyway, so spawn only costs one
+    interpreter start each, absorbed by the warm-up pass.
     """
     return multiprocessing.get_context("spawn")
 
@@ -94,15 +93,13 @@ def _init_worker() -> None:
 def _warm_worker() -> int:
     """Build the PDF pipeline in this worker so model weights are loaded before any request.
 
-    ``build_pdf_converter`` only constructs the ``DocumentConverter``; Docling creates the
-    pipeline and loads the weights lazily on the first ``convert()``, which is what
-    ``initialize_pipeline`` is for. Merely checking that the converter exists left every
-    worker cold, so the first real parse still paid the full model load — the cost the warm
-    pool exists to avoid — while ``/health`` already reported ready.
+    ``build_pdf_converter`` only constructs the converter; Docling loads the weights lazily on
+    the first ``convert()``, which is what ``initialize_pipeline`` forces. Just checking that
+    the converter exists left every worker cold while ``/health`` reported ready.
 
-    Doing the real work here is also what spreads the warm-up across processes: a task that
-    returns instantly is handed straight back to an idle worker, so a pool sized for N ends
-    up running one or two of them (see :func:`warm_pdf_workers`).
+    The real work also has to happen here to spread warm-up across processes: a task that
+    returns instantly goes straight back to the same idle worker, so a pool sized for N warms
+    one or two (see :func:`warm_pdf_workers`).
 
     @return: this worker's process id, so the caller can count how many were reached;
         ``0`` when the converter was never initialized
@@ -138,11 +135,9 @@ def _run_pdf_chunks(
         try:
             result = future.result()
         except BrokenProcessPool:
-            # The pool itself is dead (a worker was OOM-killed or crashed), not just this
-            # batch. It cannot recover in-process, so the caller has to see the real
-            # exception type: the daemon's handler flags the pool broken and asks for a
-            # restart. Turning it into a "failed batch" tuple below would hide that behind a
-            # generic RuntimeError and leave the daemon reporting itself healthy forever.
+            # The whole pool is dead, not just this batch, and it cannot recover in-process.
+            # Let the real exception type through so the daemon's handler flags the pool and
+            # asks for a restart; a "failed batch" tuple would leave it reporting healthy.
             for pending in future_to_chunk:
                 pending.cancel()
             raise
@@ -181,10 +176,9 @@ def _abandon_batches(futures, *, log: LogFn) -> None:
     """Cancel what has not started and wait out what already has, before giving up on a
     conversion.
 
-    ``cancel()`` cannot stop a batch that is already running. In daemon mode the executor is
-    shared and outlives the request, so simply returning would leave those batches consuming
-    workers and RAM on behalf of a conversion whose result is already discarded — starving
-    the next request. Waiting here bounds that to the in-flight batches only.
+    ``cancel()`` cannot stop a batch already running, and in daemon mode the executor outlives
+    the request. Returning early would leave those batches spending workers and RAM on a result
+    nobody wants, starving the next caller.
     """
     still_running = [future for future in futures if not future.cancel() and not future.done()]
     if not still_running:
@@ -302,15 +296,12 @@ def warm_pdf_workers(
 ) -> None:
     """Load the Docling models in every worker process before the first request.
 
-    All tasks are submitted before any is awaited, and each one is slow (it builds the
-    pipeline), so no worker is idle when the next task arrives and the pool has to spawn a
-    process for it. Awaiting them one at a time instead would let a single worker take the
-    lot: ``ProcessPoolExecutor`` only spawns beyond its current process count when no idle
-    worker can be handed the item.
+    Submit every task before awaiting any. Each one is slow, so no worker is idle when the next
+    arrives and the pool has to spawn for it. Awaiting one at a time lets a single worker take
+    the lot, because ``ProcessPoolExecutor`` only spawns when no idle worker can take the item.
 
-    Coverage is reported rather than enforced. The pool is free to run fewer processes than
-    asked for, and a daemon that warmed most of its workers is still worth starting — but an
-    operator seeing slow first parses needs to know it happened.
+    Coverage is reported, not enforced: a daemon that warmed most of its workers is still worth
+    starting, but an operator seeing slow first parses needs to know.
 
     @param executor: the pool to warm, already created with ``_init_worker``
     @param worker_count: how many worker processes the pool was sized for
@@ -321,10 +312,9 @@ def warm_pdf_workers(
     """
     futures = [executor.submit(_warm_worker) for _ in range(worker_count)]
     warmed: set[int] = set()
-    # One deadline for the whole warm-up. Giving each future its own made the worst case
-    # worker_count x the timeout, which for any real worker count runs past the 180s
-    # start_period the Dockerfile and compose both set — the health check would fail the
-    # container while it was still legitimately starting.
+    # One deadline for the whole warm-up. Per-future timeouts make the worst case
+    # worker_count x the timeout, past the 180s start_period, so the health check would fail a
+    # container that was still legitimately starting.
     deadline = perf_counter() + WORKER_WARMUP_TIMEOUT_SECONDS
     for future in futures:
         pid = future.result(timeout=max(0.0, deadline - perf_counter()))
