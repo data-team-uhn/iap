@@ -133,6 +133,20 @@ public final class WorkflowDefinitionUtils
     /** Marks a copy rule's target as multi-valued. */
     private static final String MULTIPLE_SUFFIX = "[]";
 
+    private static final String MESSAGE_EVENT_DEFINITION = "messageEventDefinition";
+
+    private static final String MESSAGE_ELEMENT = "message";
+
+    private static final String MESSAGE_REF_ATTRIBUTE = "messageRef";
+
+    private static final String MESSAGE_NAME_PROPERTY = "messageName";
+
+    private static final String TIMER_EVENT_DEFINITION = "timerEventDefinition";
+
+    private static final String TIME_DURATION_ELEMENT = "timeDuration";
+
+    private static final String TIMER_DURATION_PROPERTY = "timerDuration";
+
     private static final String INTERRUPTING_PROPERTY = "interrupting";
 
     private static final String LABEL_PROPERTY = "label";
@@ -194,12 +208,12 @@ public final class WorkflowDefinitionUtils
      * @since 0.1.0
      */
     private record ParseContext(NodeBuilder workflowVersion, NodeState nodeTypesRoot, String author, String created,
-        String path, Set<String> claimedNames)
+        String path, Set<String> claimedNames, Map<String, String> messageNames)
     {
         ParseContext(final NodeBuilder workflowVersion, final NodeState nodeTypesRoot, final String author,
-            final String created, final String path)
+            final String created, final String path, final Map<String, String> messageNames)
         {
-            this(workflowVersion, nodeTypesRoot, author, created, path, new HashSet<>());
+            this(workflowVersion, nodeTypesRoot, author, created, path, new HashSet<>(), messageNames);
         }
     }
 
@@ -234,7 +248,7 @@ public final class WorkflowDefinitionUtils
         // One timestamp for the whole batch: every node in it was created by the same parse, and differing
         // millisecond values would suggest otherwise.
         final ParseContext context = new ParseContext(workflowVersion, nodeTypesRoot, author,
-            ISO8601.format(Calendar.getInstance()), workflowVersionPath);
+            ISO8601.format(Calendar.getInstance()), workflowVersionPath, messageNames(process));
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes = loadFlowNodeTypes(workflowTypesRoot);
         final Map<String, Element> elementsById = new LinkedHashMap<>();
         final List<Element> sequenceFlows = new ArrayList<>();
@@ -418,8 +432,85 @@ public final class WorkflowDefinitionUtils
         }
         applyJcrProperties(flowNodeType, node, context);
         applyCopiedProperties(flowNodeType, element, node);
+        applyEventDefinitions(element, node, context);
         applyIdentity(node, element, id, flowNodeType);
         applySystemProperties(node, flowNodeType.jcrNodeType(), context);
+    }
+
+    /**
+     * What BPMN's own event definitions say, for the two the engine acts on.
+     *
+     * <p>Neither is an attribute, which is why neither can be a copy rule. A message event names a
+     * {@code <bpmn:message>} declared beside the process and the engine wants that message's <em>name</em>, not the
+     * id used to point at it — the id is a document-internal handle and the name is what a caller sends. A timer
+     * carries its duration as the text of a {@code <bpmn:timeDuration>} grandchild.</p>
+     *
+     * <p>Read here rather than configured per type because both are standard BPMN rather than an IAP extension:
+     * a vocabulary entry saying so would be repeating the specification, and a new message event type added later
+     * would have to remember to.</p>
+     *
+     * @param element the BPMN element being translated
+     * @param node the flow node being written
+     * @param context the parse in progress, holding the document's message names
+     */
+    private static void applyEventDefinitions(final Element element, final NodeBuilder node,
+        final ParseContext context)
+    {
+        final Element message = childElement(element, MESSAGE_EVENT_DEFINITION);
+        if (message != null) {
+            final String ref = message.getAttribute(MESSAGE_REF_ATTRIBUTE);
+            final String name = context.messageNames().get(ref);
+            if (StringUtils.isBlank(name)) {
+                // Worth saying: an event that catches a message nobody can name is a workflow nothing can start,
+                // and the diagram looks complete
+                LOGGER.warn("Message event {} in {} references message {} which declares no name",
+                    element.getAttribute(ID_ATTRIBUTE), context.path(), ref);
+            } else {
+                node.setProperty(MESSAGE_NAME_PROPERTY, name);
+            }
+        }
+        final Element timer = childElement(element, TIMER_EVENT_DEFINITION);
+        if (timer != null) {
+            final Element duration = childElement(timer, TIME_DURATION_ELEMENT);
+            if (duration != null) {
+                setIfNotBlank(node, TIMER_DURATION_PROPERTY, duration.getTextContent().trim());
+            }
+        }
+    }
+
+    /**
+     * The message names a document declares, by the id events point at them with.
+     *
+     * @param process the process element, used to reach the document it belongs to
+     * @return message id to message name, empty when the document declares none
+     */
+    private static Map<String, String> messageNames(final Element process)
+    {
+        final Map<String, String> names = new LinkedHashMap<>();
+        final NodeList messages = process.getOwnerDocument().getElementsByTagNameNS(BPMN_NS, MESSAGE_ELEMENT);
+        for (int i = 0; i < messages.getLength(); ++i) {
+            final Element message = (Element) messages.item(i);
+            names.put(message.getAttribute(ID_ATTRIBUTE), message.getAttribute(NAME_ATTRIBUTE));
+        }
+        return names;
+    }
+
+    /**
+     * The first direct child with this BPMN local name.
+     *
+     * @param element the element to look under
+     * @param localName the BPMN local name wanted
+     * @return that child, or {@code null} if the element has none
+     */
+    private static Element childElement(final Element element, final String localName)
+    {
+        final NodeList children = element.getChildNodes();
+        return IntStream.range(0, children.getLength())
+            .mapToObj(children::item)
+            .filter(child -> isBpmnElement(child, localName))
+            .map(Element.class::cast)
+            .findFirst()
+            .orElse(null);
     }
 
     /**
@@ -474,6 +565,7 @@ public final class WorkflowDefinitionUtils
         }
         applyJcrProperties(flowNodeType, node, context);
         applyCopiedProperties(flowNodeType, element, node);
+        applyEventDefinitions(element, node, context);
         applyIdentity(node, element, id, flowNodeType);
         // The BPMN attribute and the JCR property share both name-in-spirit and default (true), so an absent
         // attribute correctly leaves the node type's own default in place.
