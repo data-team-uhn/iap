@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -48,6 +49,10 @@ class BpmnXmlSyncEditorTest
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     private static final String HASH_PROPERTY = "bpmnXmlParsedHash";
+
+    private static final String AUTHORITATIVE = "bpmnAuthoritative";
+
+    private static final String HANDLER = "handler";
 
     private static final String WORKFLOWS_PATH = "Workflows";
 
@@ -164,6 +169,64 @@ class BpmnXmlSyncEditorTest
      * Builds the repository state before any {@code bpmn.xml} is saved: {@code /WorkflowTypes} fully configured,
      * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
      */
+    @Test
+    void leavesAloneAVersionWhoseDiagramDoesNotOwnItsFlowNodes() throws Exception
+    {
+        // The whole point of the flag. A version whose flow nodes were written by hand holds things no diagram
+        // expresses yet — a handler naming the code a service task runs, a multi-valued list of performers — and
+        // deriving it would quietly drop them, leaving a workflow shaped like the diagram and unable to run.
+        final NodeBuilder root = base();
+        version(root).removeProperty(AUTHORITATIVE);
+        final NodeBuilder authored = version(root).child(TASK_1);
+        authored.setProperty(PRIMARY_TYPE, "wf:Activity", Type.NAME);
+        authored.setProperty(HANDLER, "checkBudget");
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" name=\"Decide\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        // Untouched, not merged: the authored node is exactly as authored, and nothing was derived beside it
+        assertEquals("checkBudget", after.getChildNode(TASK_1).getString(HANDLER));
+        assertFalse(after.hasProperty(HASH_PROPERTY),
+            "a version it did not parse should carry no record of a parse");
+    }
+
+    @Test
+    void treatsASilentVersionAsNotOwnedByItsDiagram() throws Exception
+    {
+        // Absent is the same answer as false, and it has to be: every workflow that existed before the flag did
+        // was written by hand, so the safe reading of silence is the only one that does not break them all
+        final NodeBuilder root = base();
+        version(root).removeProperty(AUTHORITATIVE);
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertFalse(after.getChildNode(START_1).exists(), "nothing should have been derived");
+    }
+
+    @Test
+    void keepsTheFlowNodesOfANonAuthoritativeVersionWhenItsDiagramGoesAway() throws Exception
+    {
+        // Removing the diagram from a hand-authored version says nothing about its flow nodes, which were never
+        // derived from it. Clearing them would delete a working workflow on the strength of a deleted drawing.
+        final NodeBuilder root = base();
+        version(root).removeProperty(AUTHORITATIVE);
+        setBpmnXml(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\" />\n" + PROCESS_CLOSE + DEFS_CLOSE);
+        final NodeBuilder authored = version(root).child(TASK_1);
+        authored.setProperty(PRIMARY_TYPE, "wf:Activity", Type.NAME);
+        authored.setProperty(HANDLER, "checkBudget");
+
+        final NodeState before = root.getNodeState();
+        final NodeBuilder after = before.builder();
+        descend(after, WORKFLOWS_PATH, DEFINITION_NAME, VERSION_NAME).getChildNode(BPMN_XML).remove();
+
+        assertEquals("checkBudget",
+            version(process(before, after)).getChildNode(TASK_1).getString(HANDLER));
+    }
+
     private NodeBuilder base()
     {
         final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
@@ -201,6 +264,10 @@ class BpmnXmlSyncEditorTest
         final NodeBuilder version = version(root);
         version.setProperty(PRIMARY_TYPE, "wf:WorkflowVersion", Type.NAME);
         version.setProperty("version", VERSION_NAME);
+        // Every test below is about a version whose diagram owns its flow nodes, which is the only case this
+        // editor acts on. The other case — a version whose nodes were written by hand, because the translation
+        // cannot yet carry all of them — has tests of its own.
+        version.setProperty(AUTHORITATIVE, true);
 
         return root;
     }
