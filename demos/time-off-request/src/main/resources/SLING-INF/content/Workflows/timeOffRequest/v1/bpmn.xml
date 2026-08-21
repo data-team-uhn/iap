@@ -45,6 +45,17 @@
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toDecision" sourceRef="approveRequest" targetRef="decision" />
+    <!-- Two deadlines on the same task, and the only thing that tells them apart is cancelActivity. This one
+         nudges: at two days the request is marked overdue and stays exactly where it is, on the same person's
+         desk. The one below gives up. -->
+    <bpmn:boundaryEvent id="approvalReminder" name="Waiting too long" attachedToRef="approveRequest"
+        cancelActivity="false" iap:hostTag="overdue">
+      <bpmn:outgoing>toReminded</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">P2D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="toReminded" sourceRef="approvalReminder" targetRef="reminded" />
     <bpmn:boundaryEvent id="approvalOverdue" name="Not decided in time" attachedToRef="approveRequest"
         cancelActivity="true">
       <bpmn:outgoing>toExpired</bpmn:outgoing>
@@ -101,6 +112,9 @@
     <bpmn:endEvent id="requestRejected" iap:hostTag="rejected" name="Time off refused">
       <bpmn:incoming>toRejected</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:endEvent id="reminded" name="Reminder sent">
+      <bpmn:incoming>toReminded</bpmn:incoming>
+    </bpmn:endEvent>
     <bpmn:endEvent id="requestExpired" iap:hostTag="expired" name="Nobody decided in time">
       <bpmn:incoming>toExpired</bpmn:incoming>
     </bpmn:endEvent>
@@ -128,6 +142,22 @@
           <dc:Bounds x="560" y="263" width="82" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approvalReminderShape" bpmnElement="approvalReminder">
+        <dc:Bounds x="712" y="240" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="690" y="283" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="remindedShape" bpmnElement="reminded">
+        <dc:Bounds x="812" y="240" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="795" y="283" width="72" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toRemindedEdge" bpmnElement="toReminded">
+        <di:waypoint x="748" y="258" />
+        <di:waypoint x="812" y="258" />
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNShape id="requestExpiredShape" bpmnElement="requestExpired">
         <dc:Bounds x="582" y="380" width="36" height="36" />
         <bpmndi:BPMNLabel>
