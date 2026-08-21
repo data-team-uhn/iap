@@ -21,6 +21,7 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
                   id="timeOffRequestDefinitions"
                   targetNamespace="https://iap.uhndata.io/demos/timeOffRequest">
   <bpmn:process id="timeOffRequest" name="Time off request" isExecutable="true">
@@ -28,17 +29,17 @@
       <bpmn:outgoing>toBudget</bpmn:outgoing>
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toBudget" sourceRef="requestSubmitted" targetRef="checkBudget" />
-    <bpmn:serviceTask id="checkBudget" name="Check the time off budget">
+    <bpmn:serviceTask id="checkBudget" iap:handler="checkTimeOffBudget" name="Check the time off budget">
       <bpmn:incoming>toBudget</bpmn:incoming>
       <bpmn:outgoing>toFillIn</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toFillIn" sourceRef="checkBudget" targetRef="fillIn" />
-    <bpmn:userTask id="fillIn" name="Say when you want to be away">
+    <bpmn:userTask id="fillIn" iap:hostTag="draft" name="Say when you want to be away">
       <bpmn:incoming>toFillIn</bpmn:incoming>
       <bpmn:outgoing>toApproval</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toApproval" sourceRef="fillIn" targetRef="approveRequest" />
-    <bpmn:userTask id="approveRequest" name="Approve the request">
+    <bpmn:userTask id="approveRequest" iap:hostTag="submitted" name="Approve the request">
       <bpmn:incoming>toApproval</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:userTask>
@@ -60,13 +61,13 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">outcome == 'approved'</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="requestRejected" />
-    <bpmn:endEvent id="requestApproved" name="Time off approved">
+    <bpmn:endEvent id="requestApproved" iap:hostTag="approved" name="Time off approved">
       <bpmn:incoming>toApproved</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:endEvent id="requestRejected" name="Time off refused">
+    <bpmn:endEvent id="requestRejected" iap:hostTag="rejected" name="Time off refused">
       <bpmn:incoming>toRejected</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:endEvent id="requestExpired" name="Nobody decided in time">
+    <bpmn:endEvent id="requestExpired" iap:hostTag="expired" name="Nobody decided in time">
       <bpmn:incoming>toExpired</bpmn:incoming>
     </bpmn:endEvent>
   </bpmn:process>
