@@ -6,6 +6,10 @@
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
+    // The diagram beside this descriptor is now the source of the flow nodes below: everything they hold is
+    // expressible in it, so the editor derives them and removes whatever the diagram stops saying. The nodes
+    // stay here as the initial content that installs the workflow; a reparse produces the same tree.
+    "bpmnAuthoritative": true,
     "active": true,
     "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built."
   }
