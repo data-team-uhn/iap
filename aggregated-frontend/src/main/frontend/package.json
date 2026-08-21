@@ -86,14 +86,14 @@
     "@types/react-dom": "19.2.4",
     "react-compiler-webpack": "1.0.1",
     "babel-plugin-react-compiler": "1.0.0",
-    "vitest": "4.1.10",
-    "@vitest/coverage-v8": "4.1.10",
+    "vitest": "4.1.11",
+    "@vitest/coverage-v8": "4.1.11",
     "jsdom": "30.0.1",
     "resize-observer-polyfill": "1.5.1",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.2",
     "@testing-library/jest-dom": "7.0.1",
-    "@testing-library/user-event": "14.6.4"
+    "@testing-library/user-event": "14.6.5"
   },
   "resolutions": {
     "@babel/runtime": "^7.29.7",
