@@ -1054,3 +1054,81 @@ class TestOutlineIsOneObject:
         doc = "# Title\n\n" + ("Some content paragraph. " * 40)
         result, updates, _, _ = _derive(doc)
         assert updates["tokens"] == len(result) // 4
+
+
+class TestBackmatterFromBodyHeadings:
+    """A Reference/Appendix heading in the body marks the split even with no outline.
+
+    ``backmatter_from_records`` only ever sees records, so a document with no PDF bookmarks and
+    no printed TOC offered it nothing and got no ``backmatterLine`` at all -- while its
+    ``## 11 References`` sat in the body the whole time. These are the heading shapes real
+    protocols use.
+    """
+
+    BODY = "\n".join(
+        f"Body paragraph {i} with enough real words to look like prose." for i in range(60)
+    )
+    REFS = "Abeshouse A, Ahn J, et al (2015) The Molecular Taxonomy of Primary Prostate Cancer."
+
+    def _outline(self, heading, refs=None):
+        document = (
+            f"# 1 Introduction\n\n{self.BODY}\n\n"
+            f"<!-- page: 149 -->\n{heading}\n\n{refs or self.REFS}\n"
+        )
+        _, fields, _, _ = _derive(document)
+        return fields.get("backmatterLine"), document.split("\n")
+
+    @pytest.mark.parametrize("heading", [
+        "## 11 References",           # number, no dot, title case
+        "## CHAPTER 11: REFERENCES",  # a labelled chapter number
+        "## 14. REFERENCES",          # number with a dot
+        "## 9 REFERENCES",            # number, no dot, upper case
+        "## 12.0 REFERENCES",         # decimal number
+        "## REFERENCES",              # no number at all
+        "### Bibliography",           # deeper level, another phrase
+    ])
+    def test_the_heading_is_found(self, heading):
+        line, lines = self._outline(heading)
+        assert line is not None, f"{heading} was not detected"
+        assert lines[line] == heading
+
+    @pytest.mark.parametrize("heading", [
+        "## 3 Reference Documents",            # a protocol's front matter, not backmatter
+        "## 2.1 Reference Safety Information",
+        "## 4 Introduction",
+    ])
+    def test_a_front_matter_heading_is_not_taken_for_backmatter(self, heading):
+        # Splitting here would send most of the document into the chunk that is never
+        # summarized, so a Reference heading has to *be* one of the phrases, not start with one.
+        line, _ = self._outline(heading)
+        assert line is None, f"{heading} was wrongly taken for backmatter"
+
+    def test_an_appendix_heading_keeps_its_identifier(self):
+        # Appendix headings carry one, so those still match as a prefix.
+        line, lines = self._outline("## Appendix A: Study Schedule")
+        assert line is not None
+        assert lines[line] == "## Appendix A: Study Schedule"
+
+    def test_a_heading_with_nothing_after_it_is_not_a_split(self):
+        # Nothing to split off, and the chunker would write a chunk holding only the title.
+        document = f"# 1 Introduction\n\n{self.BODY}\n\n## 11 References\n"
+        _, fields, _, _ = _derive(document)
+        assert fields.get("backmatterLine") is None
+
+    def test_the_first_of_several_backmatter_headings_wins(self):
+        document = (
+            f"# 1 Introduction\n\n{self.BODY}\n\n## 11 References\n\nSmith J (2020) A paper.\n\n"
+            "## Appendix A: Schedule\n\nVisit 1, Visit 2.\n"
+        )
+        _, fields, _, _ = _derive(document)
+        assert document.split("\n")[fields["backmatterLine"]] == "## 11 References"
+
+    def test_the_outline_still_wins_when_it_has_one(self):
+        # The records path is preferred; the body scan only runs when it returns nothing.
+        document = (
+            f"# 1 Introduction\n\n{self.BODY}\n\n## 11 References\n\nSmith J (2020) A paper.\n"
+        )
+        lines = document.split("\n")
+        index = build_line_index(build_lines_catalog(lines))
+        records = [{"title": "11 References", "page": None}]
+        assert tad.backmatter_from_records(records, index) == lines.index("## 11 References")
