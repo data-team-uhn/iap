@@ -102,7 +102,15 @@ USER docling
 # huggingface.co and fails on any host with no egress or with TLS interception — the container
 # would start healthy and then fail every real request. Downloading at build time also makes
 # startup deterministic and lets the runtime stay fully offline (see the ENV below).
-RUN python -c "import os; from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path(os.environ['DOCLING_ARTIFACTS_PATH']), with_tableformer_v2=True)" \
+#
+# Only what docling_config actually turns on. The three defaults switched off below are
+# ~675 MB plus the RapidOCR weights, all of it downloaded and never loaded: CodeFormulaV2
+# (640 MB; do_code_enrichment and do_formula_enrichment are False), DocumentFigureClassifier
+# (34 MB; do_picture_classification is False) and RapidOCR (do_ocr is False). Turning a do_*
+# option back on in docling_config means turning its model back on here, or the conversion
+# fails offline at runtime. with_layout has no such flag: it always fetches every engine
+# variant, so the 171 MB ONNX copy of the layout model comes along unused either way.
+RUN python -c "import os; from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path(os.environ['DOCLING_ARTIFACTS_PATH']), with_tableformer_v2=True, with_code_formula=False, with_picture_classifier=False, with_rapidocr=False)" \
     && find /opt/models -type d -name '.locks' -prune -exec rm -rf {} +
 
 # Now that we have the models downloaded, we can turn HF offline.
