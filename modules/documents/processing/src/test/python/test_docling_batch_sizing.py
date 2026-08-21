@@ -119,18 +119,18 @@ class TestBatchPagesOverrideClamped:
 
 class TestPositiveInt:
     def test_accepts_one_and_above(self):
-        assert bs.positive_int("1") == 1
-        assert bs.positive_int("12") == 12
+        assert bs.parse_positive_int("1") == 1
+        assert bs.parse_positive_int("12") == 12
 
     def test_rejects_zero_and_negative(self):
         for value in ("0", "-1", "-99"):
             with pytest.raises(argparse.ArgumentTypeError, match="1 or greater"):
-                bs.positive_int(value)
+                bs.parse_positive_int(value)
 
     def test_rejects_non_integers(self):
         for value in ("abc", "", "2.5"):
             with pytest.raises(argparse.ArgumentTypeError, match="expected an integer"):
-                bs.positive_int(value)
+                bs.parse_positive_int(value)
 
 
 class TestPrintParallelismSummary:

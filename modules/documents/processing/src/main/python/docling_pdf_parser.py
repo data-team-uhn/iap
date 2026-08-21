@@ -52,7 +52,7 @@ from docling_error_detection import (
     ensure_conversion_ok,
 )
 from markdown_cleanup import finalize_markdown
-from markdown_markers import page_marker
+from markdown_markers import get_page_marker
 
 
 def build_pdf_converter() -> DocumentConverter:
@@ -71,7 +71,7 @@ def build_pdf_converter() -> DocumentConverter:
 _converter: DocumentConverter | None = None
 
 
-def worker_context() -> multiprocessing.context.BaseContext:
+def get_worker_context() -> multiprocessing.context.BaseContext:
     """The start method the PDF pool must use: spawn, never fork.
 
     Importing this module pulls in Docling, so torch and libgomp are loaded before any pool is
@@ -258,7 +258,7 @@ def convert_pdf_to_markdown(
         with ProcessPoolExecutor(
             max_workers=active_workers,
             initializer=_init_worker,
-            mp_context=worker_context(),
+            mp_context=get_worker_context(),
         ) as pool:
             completed_results = _run_pdf_chunks(chunks, pool, log=log_fn)
     else:
@@ -364,7 +364,7 @@ def parse_pdf_chunk(
         chunk_parts: list[str] = []
         for page_no in range(start_page, end_page + 1):
             # Add page marker and page markdown to the chunk parts
-            chunk_parts.append(f"\n{page_marker(page_no)}\n")
+            chunk_parts.append(f"\n{get_page_marker(page_no)}\n")
             page_md = result.document.export_to_markdown(page_no=page_no)
             chunk_parts.append(page_md)
 

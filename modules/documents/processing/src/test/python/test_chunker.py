@@ -28,20 +28,20 @@ import chunker
 
 class TestValidHeading:
     def test_ordinary_heading(self):
-        assert chunker.valid_heading("Introduction") is True
+        assert chunker.is_valid_heading("Introduction") is True
 
     def test_too_short_rejected(self):
-        assert chunker.valid_heading("Hi") is False
+        assert chunker.is_valid_heading("Hi") is False
 
     def test_table_caption_rejected(self):
-        assert chunker.valid_heading("Table 1: Baseline characteristics") is False
+        assert chunker.is_valid_heading("Table 1: Baseline characteristics") is False
 
     def test_too_many_words_rejected(self):
         line = "one two three four five six seven eight nine ten eleven"
-        assert chunker.valid_heading(line) is False
+        assert chunker.is_valid_heading(line) is False
 
     def test_overlong_word_rejected(self):
-        assert chunker.valid_heading("word " + "x" * 101) is False
+        assert chunker.is_valid_heading("word " + "x" * 101) is False
 
 
 class TestHeadingMatching:
@@ -58,16 +58,16 @@ class TestHeadingMatching:
         assert chunker._match_heading("plain text line") is None
 
     def test_heading_level_filters_invalid_headings(self):
-        assert chunker._heading_level("## Introduction") == 2
+        assert chunker._get_heading_level("## Introduction") == 2
         # A "Table ..." caption is a heading syntactically but not a chunk boundary.
-        assert chunker._heading_level("## Table 1: Overview") is None
+        assert chunker._get_heading_level("## Table 1: Overview") is None
 
     def test_min_heading_level(self):
         # Every heading text must clear MIN_HEADING_CHARS (5) to count as a boundary.
         lines = "# Alpha\n## Bravo\n### Gamma".split("\n")
-        assert chunker._min_heading_level(lines) == 1
-        assert chunker._min_heading_level(lines, deeper_than=1) == 2
-        assert chunker._min_heading_level(["no headings here"]) is None
+        assert chunker._get_min_heading_level(lines) == 1
+        assert chunker._get_min_heading_level(lines, deeper_than=1) == 2
+        assert chunker._get_min_heading_level(["no headings here"]) is None
 
 
 class TestChunkFile:

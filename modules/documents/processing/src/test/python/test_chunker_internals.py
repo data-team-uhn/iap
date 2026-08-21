@@ -37,11 +37,11 @@ def _md_path(tmp_path: Path) -> Path:
 class TestPagesIn:
     def test_sorted_and_deduplicated(self):
         text = "a\n<!-- page: 3 -->\nb\n<!-- page: 1 -->\n<!-- page: 3 -->"
-        assert chunker._pages_in(text) == [1, 3]
+        assert chunker._get_pages(text) == [1, 3]
 
     def test_no_markers(self):
-        assert chunker._pages_in("") == []
-        assert chunker._pages_in("plain text") == []
+        assert chunker._get_pages("") == []
+        assert chunker._get_pages("plain text") == []
 
 
 class TestSplitTrailingPageMarkers:
@@ -303,7 +303,7 @@ class TestSplitIntoTopChunks:
         assert [c["number"] for c in chunks] == [0, 1, 2]
         assert chunks[0]["text"] == "preamble text"
         # Each section keeps its own heading line at the head of its text; catalog labels
-        # are derived per emitted part later, by _part_heading.
+        # are derived per emitted part later, by _get_part_heading.
         assert chunks[1]["text"] == "# Section One\nbody one"
         assert chunks[2]["text"] == "# Section Two\nbody two"
 
@@ -336,17 +336,17 @@ class TestSubchunkBlocks:
 class TestPartHeading:
     def test_collects_atx_within_two_levels(self):
         part = "## First Heading\n\ntext\n\n### Sub Heading Here"
-        assert chunker._part_heading(part, None) == ["First Heading", "Sub Heading Here"]
+        assert chunker._get_part_heading(part, None) == ["First Heading", "Sub Heading Here"]
 
     def test_excludes_headings_deeper_than_beginning_plus_one(self):
         part = "## Alpha Heading\n\n### Beta Heading\n\n#### Gamma Heading"
-        assert chunker._part_heading(part, None) == ["Alpha Heading", "Beta Heading"]
+        assert chunker._get_part_heading(part, None) == ["Alpha Heading", "Beta Heading"]
 
     def test_no_heading_copies_previous(self):
-        assert chunker._part_heading("no heading text", ["Prev Heading"]) == ["Prev Heading"]
+        assert chunker._get_part_heading("no heading text", ["Prev Heading"]) == ["Prev Heading"]
 
     def test_no_heading_no_previous_uses_default(self):
-        assert chunker._part_heading("no heading text", None) == [chunker.DEFAULT_HEADING]
+        assert chunker._get_part_heading("no heading text", None) == [chunker.DEFAULT_HEADING]
 
 
 class TestFirstChunkHeading:
@@ -354,7 +354,7 @@ class TestFirstChunkHeading:
 
     Regression: the first entry was forced to DEFAULT_HEADING regardless of content, so every
     document without a preamble lost a perfectly good label like "1.0 Introduction" — and it
-    contradicted _part_heading's own documented contract, which already falls back to
+    contradicted _get_part_heading's own documented contract, which already falls back to
     DEFAULT_HEADING exactly when a part has no heading and there is no previous entry to copy.
     """
 
@@ -420,7 +420,7 @@ class TestFirstChunkHeading:
 
 class TestNormalizeTitle:
     """The one comparison key. Moved here with the function when ``bookmarks`` was retired;
-    :func:`chunker.repeated_lines` is what uses it."""
+    :func:`chunker.get_repeated_lines` is what uses it."""
 
     def test_strips_markup(self):
         assert chunker.normalize_title("## 1.0 Background:") == "10background"
@@ -450,34 +450,34 @@ class TestRepeatedLines:
         lines = []
         for page in range(1, 5):
             lines += [f"<!-- page: {page} -->", "CONFIDENTIAL", "", "Body text."]
-        repeated = chunker.repeated_lines(lines)
+        repeated = chunker.get_repeated_lines(lines)
         assert chunker.normalize_title("CONFIDENTIAL") in repeated
         assert chunker.normalize_title("Body text.") in repeated
 
     def test_a_heading_appearing_once_is_not_repeated(self):
         lines = ["<!-- page: 1 -->", "REAL HEADING", "", "prose", "more prose"]
-        assert chunker.repeated_lines(lines) == frozenset()
+        assert chunker.get_repeated_lines(lines) == frozenset()
 
     def test_twice_is_not_enough(self):
         lines = ["SEEN TWICE", "", "SEEN TWICE", "", "other"]
-        assert chunker.repeated_lines(lines) == frozenset()
+        assert chunker.get_repeated_lines(lines) == frozenset()
 
     def test_page_markers_themselves_are_ignored(self):
         lines = [f"<!-- page: {n} -->" for n in range(1, 6)]
-        assert chunker.repeated_lines(lines) == frozenset()
+        assert chunker.get_repeated_lines(lines) == frozenset()
 
     def test_part_heading_refuses_a_repeated_heading(self):
         # A heading Docling emitted on every page is page furniture. Only ATX lines are
         # candidates now, so the recurrence set is what tells the two apart.
         part = f"<!-- page: 7 -->{chr(10)}## CONFIDENTIAL{chr(10)}{chr(10)}Body text follows."
         repeated = frozenset({chunker.normalize_title("CONFIDENTIAL")})
-        assert chunker._part_heading(part, None) == ["CONFIDENTIAL"]
-        assert chunker._part_heading(part, None, repeated) == [chunker.DEFAULT_HEADING]
+        assert chunker._get_part_heading(part, None) == ["CONFIDENTIAL"]
+        assert chunker._get_part_heading(part, None, repeated) == [chunker.DEFAULT_HEADING]
 
     def test_a_real_heading_after_a_page_marker_still_counts(self):
         part = f"<!-- page: 7 -->{chr(10)}## 5.0 METHODS{chr(10)}{chr(10)}Body text follows."
         repeated = frozenset({chunker.normalize_title("CONFIDENTIAL")})
-        assert chunker._part_heading(part, None, repeated) == ["5.0 METHODS"]
+        assert chunker._get_part_heading(part, None, repeated) == ["5.0 METHODS"]
 
 
 class TestSplitOversized:
