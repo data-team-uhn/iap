@@ -26,7 +26,7 @@
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/attachDocument">
   <bpmn:message id="attachDocumentMessage" name="attachDocument" />
   <bpmn:process id="attachDocument" name="Attach a document to a submission" isExecutable="true">
-    <bpmn:startEvent id="requested" name="File uploaded">
+    <bpmn:startEvent id="requested" iap:performers="everyone" name="File uploaded">
       <bpmn:messageEventDefinition id="attachRequested" messageRef="attachDocumentMessage" />
       <bpmn:outgoing>toAttach</bpmn:outgoing>
     </bpmn:startEvent>

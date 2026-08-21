@@ -34,12 +34,12 @@
       <bpmn:outgoing>toFillIn</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="toFillIn" sourceRef="checkBudget" targetRef="fillIn" />
-    <bpmn:userTask id="fillIn" iap:hostTag="draft" name="Say when you want to be away">
+    <bpmn:userTask id="fillIn" iap:performers="@creator" iap:hostTag="draft" name="Say when you want to be away">
       <bpmn:incoming>toFillIn</bpmn:incoming>
       <bpmn:outgoing>toApproval</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:sequenceFlow id="toApproval" sourceRef="fillIn" targetRef="approveRequest" />
-    <bpmn:userTask id="approveRequest" iap:hostTag="submitted" name="Approve the request">
+    <bpmn:userTask id="approveRequest" iap:performers="time-off-approvers" iap:outcomeOptions="approved, rejected" iap:hostTag="submitted" name="Approve the request">
       <bpmn:incoming>toApproval</bpmn:incoming>
       <bpmn:outgoing>toDecision</bpmn:outgoing>
     </bpmn:userTask>

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -128,6 +129,9 @@ public final class WorkflowDefinitionUtils
     private static final String ATTACHED_TO_REF_ATTRIBUTE = "attachedToRef";
 
     private static final String CANCEL_ACTIVITY_ATTRIBUTE = "cancelActivity";
+
+    /** Marks a copy rule's target as multi-valued. */
+    private static final String MULTIPLE_SUFFIX = "[]";
 
     private static final String INTERRUPTING_PROPERTY = "interrupting";
 
@@ -705,6 +709,13 @@ public final class WorkflowDefinitionUtils
      * booleans so that a mapping onto one of the BOOLEAN properties {@code workflowDefinitions.cnd} declares lands
      * with the declared type rather than as a string.
      *
+     * <p>A {@code []} suffix on the JCR property name makes it multi-valued: the attribute is split on commas
+     * and each part trimmed, so <code>{...}performers=performers[]</code> reads
+     * {@code performers="approvers, @creator"} as two values. Marked in the rule rather than inferred, because
+     * the parser cannot see the node type's cardinality and a value that happens to contain a comma must not
+     * become a list by accident — which is the whole difference between "one performer whose name has a comma in
+     * it" and "two performers".</p>
+     *
      * <p>An attribute outside BPMN's own vocabulary is named by namespace rather than by prefix:
      * <code>{https://iap.uhndata.io/bpmn}handler=handler</code>. BPMN carries nothing that says which code a
      * service task runs or what reaching a node means to the thing being decided, so those arrive as extension
@@ -723,7 +734,11 @@ public final class WorkflowDefinitionUtils
             if (StringUtils.isBlank(value)) {
                 continue;
             }
-            if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
+            if (jcrProperty.endsWith(MULTIPLE_SUFFIX)) {
+                node.setProperty(jcrProperty.substring(0, jcrProperty.length() - MULTIPLE_SUFFIX.length()),
+                    Arrays.stream(value.split(",")).map(String::trim).filter(StringUtils::isNotBlank).toList(),
+                    Type.STRINGS);
+            } else if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
                 node.setProperty(jcrProperty, Boolean.parseBoolean(value));
             } else {
                 node.setProperty(jcrProperty, value);
