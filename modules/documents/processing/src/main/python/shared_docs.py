@@ -145,16 +145,6 @@ def refuse_oversized_input(path: Path) -> None:
 def open_pdf_reader(source):
     """A pypdf reader, unlocking empty-password AES encryption when that is all that is set.
 
-    Signed and permission-restricted PDFs are often AES-encrypted with an empty user
-    password. pypdf needs the ``cryptography`` package for AES; without it, reading the
-    page tree raises ``DependencyError``. That is a server-side gap (the image should
-    ship the extra), so it stays a ``ValueError`` — a 500 the caller may retry after
-    the image is rebuilt. A PDF that still needs a real password after ``decrypt("")``
-    will not parse on retry either, so that case is a :class:`ParseRequestError`.
-
-    ``source`` is a binary file handle or anything else ``PdfReader`` accepts. Fake
-    readers used in tests are not passed through here.
-
     @param source: an open binary PDF stream (or a path ``PdfReader`` can open)
     @return: a reader whose page tree can be walked
     @raise ParseRequestError: when the PDF needs a non-empty password
@@ -189,13 +179,6 @@ def open_pdf_reader(source):
 
 def refuse_oversized_pdf(path: Path) -> None:
     """Reject a PDF with more pages than :func:`max_input_pages` allows.
-
-    Reads only the page tree, which is cheap next to the conversion it is protecting.
-    Deliberately fails open: an unreadable or non-PDF file is left to the converter, which
-    reports a real error for it. The ceiling is a resource guard, not a security boundary --
-    :func:`resolve_parse_path` is what keeps a caller inside the shared volume.
-    :class:`ParseRequestError` from :func:`open_pdf_reader` is re-raised: a passworded PDF
-    is not "unreadable" in that fail-open sense, and retrying it will not help.
 
     @param path: the resolved input path
     @raise ParseRequestError: when the document is over the ceiling, or password-locked
@@ -238,16 +221,6 @@ def resolve_parse_path(raw_path: str) -> Path:
     ``parse_qs`` also decodes ``+`` as a space, so a file whose name really contains one has to
     arrive percent-encoded (``report%2Bfinal.pdf``); sent literally it is looked for as
     ``report final.pdf`` and reported missing.
-
-    Resolve-then-use, so there is a window between the checks here and the converter opening
-    the file: a symlink swapped in after this returns would be followed. Accepted rather than
-    closed, because exploiting it needs write access to the shared volume, and anyone who has
-    that can simply stage the file they want parsed.
-
-    Deliberately cheap — stat and string work only, no reading of the document. The size
-    ceilings are :func:`refuse_oversized_input`, which the caller applies once it holds the
-    parse slot: walking a PDF's page tree is real work, and doing it here let every concurrent
-    request do it at once on a container sized for one conversion.
 
     @param raw_path: absolute, already-decoded path from the ``path`` query parameter
     @return: resolved existing file path
@@ -297,16 +270,6 @@ def resolve_parse_path(raw_path: str) -> Path:
 
 def write_text(path: Path | str, text: str) -> None:
     """Write UTF-8 ``text`` to ``path`` after the CodeQL-visible path check.
-
-    This check is not a containment check and rejects nothing in practice -- the jail is
-    :func:`resolve_parse_path`. It exists only so the query sees a guard at the syscall.
-
-    ``realpath`` + ``startswith`` must sit in this function, not a helper: CodeQL's
-    ``SafeAccessCheck`` is a barrier-guard and only sanitizes the true branch in the
-    same CFG as the ``open``. After ``realpath`` the path is absolute, so it starts
-    with the drive (Windows) or ``os.sep`` (POSIX). The shared-docs jail stays in
-    :func:`resolve_parse_path`; this only satisfies the query at the syscall so the
-    CLI can still re-chunk a file outside ``IAP_SHARED_DOCS``.
     """
     resolved = os.path.realpath(path)
     root_marker = os.path.splitdrive(resolved)[0] or os.sep
