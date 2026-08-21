@@ -166,12 +166,65 @@ class BpmnXmlSyncEditorTest
 
     private final String messageIntermediateCatchEventTypeId = UUID.randomUUID().toString();
 
+    private final String timerCatchEventTypeId = UUID.randomUUID().toString();
+
     private final String timerBoundaryEventTypeId = UUID.randomUUID().toString();
 
     /**
      * Builds the repository state before any {@code bpmn.xml} is saved: {@code /WorkflowTypes} fully configured,
      * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
      */
+    @Test
+    void resolvesAMessageEventToTheNameACallerWouldSend() throws Exception
+    {
+        // The engine matches an incoming event by the message's *name*; the id is a document-internal handle for
+        // pointing at it. Getting these the wrong way round gives a workflow nothing can start.
+        final NodeState after = firstSave(richBase(), DEFS_OPEN
+            + "  <bpmn:message id=\"saveMessage\" name=\"save\" />\n" + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:messageEventDefinition messageRef=\"saveMessage\" />\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("save", after.getChildNode(START_1).getString("messageName"));
+    }
+
+    @Test
+    void leavesAMessageEventUnnamedWhenTheMessageItPointsAtHasNoName() throws Exception
+    {
+        // The node is still derived — the diagram says there is a start event here — but nothing invents a name
+        // for it, because a guessed message name is a workflow that answers the wrong events
+        final NodeState after = firstSave(richBase(), DEFS_OPEN
+            + "  <bpmn:message id=\"saveMessage\" />\n" + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:messageEventDefinition messageRef=\"saveMessage\" />\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertTrue(after.getChildNode(START_1).exists());
+        assertNull(after.getChildNode(START_1).getString("messageName"));
+    }
+
+    @Test
+    void readsATimersDurationFromTheElementItIsWrittenIn() throws Exception
+    {
+        // Not an attribute, so no copy rule could reach it: BPMN puts the duration in the text of a
+        // <bpmn:timeDuration> inside the timer definition
+        final NodeBuilder root = richBase();
+        flowNodeType(root.child("WorkflowTypes"), "TimerIntermediateCatchEvent", this.timerCatchEventTypeId,
+            "bpmn:intermediateCatchEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:intermediateCatchEvent id=\"" + TASK_1 + "\">\n"
+            + "      <bpmn:timerEventDefinition>\n"
+            + "        <bpmn:timeDuration>P5D</bpmn:timeDuration>\n"
+            + "      </bpmn:timerEventDefinition>\n"
+            + "    </bpmn:intermediateCatchEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("P5D", after.getChildNode(TASK_1).getString("timerDuration"));
+    }
+
     @Test
     void carriesAListAcrossAsAMultiValuedProperty() throws Exception
     {
