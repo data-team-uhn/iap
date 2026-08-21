@@ -6,5 +6,6 @@
   "priority": 10,
   "xmlElement": "bpmn:endEvent",
   "xmlChildElement": "bpmn:messageEventDefinition",
-  "jcrNodeType": "wf:EndEvent"
+  "jcrNodeType": "wf:EndEvent",
+  "properties": [ "{https://iap.uhndata.io/bpmn}hostTag=hostTag" ]
 }
