@@ -81,7 +81,7 @@
 
 //-----------------------------------------------------------------------------
 // The top-level template describing a workflow process.
-[wf:WorkflowDefinition] > iap:Entity
+[wf:WorkflowDefinition] > iap:Entity, iap:TagBoundary
   - sling:resourceType (STRING) = "wf/WorkflowDefinition" mandatory autocreated protected
 
   // Human-readable name for this workflow
@@ -102,7 +102,7 @@
 
 //-----------------------------------------------------------------------------
 // A particular version of a workflow process.
-[wf:WorkflowVersion] > iap:Entity
+[wf:WorkflowVersion] > iap:Entity, iap:TagBoundary
   - sling:resourceType (STRING) = "wf/WorkflowVersion" mandatory autocreated protected
 
   // Optional description of what this workflow does

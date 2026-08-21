@@ -159,6 +159,19 @@ above one still reaches the content inside it.
 what lists and filters its entities on `aggregatedTags`, and nothing above it lists anything.
 Anything else that contains content and is not an entity homepage may declare itself one too.
 
+**Entities that own a subtree are boundaries as well**, so the aggregate stops one level lower still:
+`sub:Submission`, `sch:Schema`, `sch:SchemaVersion`, `wf:WorkflowDefinition` and `wf:WorkflowVersion`.
+A submission therefore carries the aggregate of its answers, documents and reviews — which is exactly
+what a listing filters a submission on — and `/Submissions` carries nothing. Two reasons, and the
+first is the practical one: a homepage's `aggregatedTags` is rewritten by every commit anywhere
+beneath it, so without a lower boundary one shared node becomes a write hotspot for every change to
+any of its entities. And nothing reads that union — a listing filters each row on that row's own
+derived tags, never on the sum across rows.
+
+The cost is worth stating, because it is a choice rather than an oversight: a definition sees nothing
+aggregated from its versions, since a version is a boundary too. If a definition ever needs to
+summarise its versions, that is a query over them, not an aggregated tag.
+
 Without a top, an aggregated tag climbs to the repository root, and both consequences are bad. The
 value stops answering any question: the root's aggregate is the union of every aggregated tag in the
 repository. And, less obviously, **it breaks writes**. Every property the propagation editor sets is

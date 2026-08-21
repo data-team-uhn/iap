@@ -85,6 +85,16 @@
 // lists and filters its entities on the derived properties. Anything else that
 // contains content but is not an entity homepage — an archive, say — may
 // declare itself one too.
+//
+// An entity that owns a subtree declares it as well, so the aggregate stops at
+// the entity rather than at its homepage. Two reasons, and the first is the one
+// that bites: a homepage's aggregate is written by every commit anywhere
+// beneath it, so without a lower boundary one shared node is rewritten for
+// every change to any of its entities. And nothing reads that union anyway —
+// a listing filters its rows on each row's own derived tags, never on the sum
+// of them. The cost, stated so it is chosen rather than discovered: a
+// definition sees nothing aggregated from its versions, since a version is a
+// boundary too.
 [iap:TagBoundary]
   mixin
 
