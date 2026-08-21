@@ -399,7 +399,10 @@ function SubmissionView() {
     return (
       <Stack spacing={2}>
         {header}
-        <SubmissionEditor path={path} />
+        {/* Answering or attaching can be the thing that completes the request, and whether it is
+            complete decides whether the step above offers to send it. Re-read here rather than
+            worked out again: the save workflow already recorded it on the submission. */}
+        <SubmissionEditor path={path} onChanged={() => setReloads(current => current + 1)} />
       </Stack>
     );
   }
