@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.xml.XMLConstants;
@@ -146,6 +147,23 @@ public final class WorkflowDefinitionUtils
     private static final String TIME_DURATION_ELEMENT = "timeDuration";
 
     private static final String TIMER_DURATION_PROPERTY = "timerDuration";
+
+    /** JCR's own System View namespace, used verbatim rather than reinvented. */
+    private static final String SV_NS = "http://www.jcp.org/jcr/sv/1.0";
+
+    private static final String EXTENSION_ELEMENTS = "extensionElements";
+
+    private static final String SV_NODE = "node";
+
+    private static final String SV_PROPERTY = "property";
+
+    private static final String SV_VALUE = "value";
+
+    private static final String SV_NAME_ATTRIBUTE = "name";
+
+    private static final String SV_TYPE_ATTRIBUTE = "type";
+
+    private static final String SV_MULTIPLE_ATTRIBUTE = "multiple";
 
     private static final String INTERRUPTING_PROPERTY = "interrupting";
 
@@ -433,6 +451,7 @@ public final class WorkflowDefinitionUtils
         applyJcrProperties(flowNodeType, node, context);
         applyCopiedProperties(flowNodeType, element, node);
         applyEventDefinitions(element, node, context);
+        applyExtensionNodes(element, node, context);
         applyIdentity(node, element, id, flowNodeType);
         applySystemProperties(node, flowNodeType.jcrNodeType(), context);
     }
@@ -476,6 +495,171 @@ public final class WorkflowDefinitionUtils
                 setIfNotBlank(node, TIMER_DURATION_PROPERTY, duration.getTextContent().trim());
             }
         }
+    }
+
+    /**
+     * Builds whatever subtrees a BPMN element carries in its {@code extensionElements}, written as JCR System View.
+     *
+     * <p><strong>Why System View and not something shorter.</strong> Some of what a flow node holds is a subtree
+     * rather than a value — a condition is a {@code cond:SingleCondition} with operand children, and a
+     * {@code cond:ConditionGroup} nests. BPMN sanctions exactly this: {@code tExtensionElements} is
+     * {@code xsd:any namespace="##other" processContents="lax"}, so an arbitrary foreign subtree is the intended
+     * extension point, and {@code bpmn-moddle} preserves one across a round trip (measured, not assumed).</p>
+     *
+     * <p>The serialization is JCR's own, because every terser scheme reinvents it badly. A node name carries a
+     * namespace prefix ({@code cond:condition}) which no element name can hold without deciding what an
+     * unprefixed name means; a property may be multi-valued, which no attribute can express without the parser
+     * knowing the node type's cardinality; and {@code value} here is {@code UNDEFINED multiple}, so its type is
+     * not even implied. System View says all three outright, and it is what "the same structure as in JCR, as XML"
+     * already means.</p>
+     *
+     * <p>Read leniently: a missing {@code sv:type} is a string and a missing {@code sv:multiple} is false, so a
+     * hand-written subtree need not restate the obvious. A conformant System View document is still read exactly
+     * as it says.</p>
+     *
+     * @param element the BPMN element being translated
+     * @param node the flow node it became
+     * @param context the parse in progress
+     */
+    private static void applyExtensionNodes(final Element element, final NodeBuilder node,
+        final ParseContext context)
+    {
+        final Element extensions = childElement(element, EXTENSION_ELEMENTS);
+        if (extensions == null) {
+            return;
+        }
+        svChildren(extensions, SV_NODE).forEach(child -> buildSvNode(child, node, context));
+    }
+
+    /**
+     * Creates one {@code sv:node} and everything under it.
+     *
+     * @param svNode the System View element describing the node
+     * @param parent the node it belongs under
+     * @param context the parse in progress
+     */
+    private static void buildSvNode(final Element svNode, final NodeBuilder parent, final ParseContext context)
+    {
+        final String name = svAttribute(svNode, SV_NAME_ATTRIBUTE);
+        if (StringUtils.isBlank(name)) {
+            LOGGER.warn("An sv:node in {} declares no sv:name, skipping it and everything under it",
+                context.path());
+            return;
+        }
+        // The primary type is a property in System View and the node's identity in Oak, so it is read out of the
+        // properties before the node exists rather than set like the others afterwards
+        final String primaryType = svProperties(svNode)
+            .filter(property -> JCR_PRIMARY_TYPE.equals(svAttribute(property, SV_NAME_ATTRIBUTE)))
+            .findFirst()
+            .map(property -> String.join("", svValues(property)))
+            .orElse(null);
+        if (StringUtils.isBlank(primaryType)) {
+            LOGGER.warn("The sv:node {} in {} declares no jcr:primaryType, skipping it", name, context.path());
+            return;
+        }
+        final NodeBuilder child = parent.child(name);
+        child.setProperty(JCR_PRIMARY_TYPE, primaryType, Type.NAME);
+        applySystemProperties(child, primaryType, context);
+        svProperties(svNode)
+            .filter(property -> !JCR_PRIMARY_TYPE.equals(svAttribute(property, SV_NAME_ATTRIBUTE)))
+            .forEach(property -> setSvProperty(property, child, context));
+        svChildren(svNode, SV_NODE).forEach(grandchild -> buildSvNode(grandchild, child, context));
+    }
+
+    /**
+     * Sets one {@code sv:property}, single or multi-valued, in the type it declares.
+     *
+     * @param svProperty the System View element describing the property
+     * @param node the node to set it on
+     * @param context the parse in progress
+     */
+    private static void setSvProperty(final Element svProperty, final NodeBuilder node, final ParseContext context)
+    {
+        final String name = svAttribute(svProperty, SV_NAME_ATTRIBUTE);
+        if (StringUtils.isBlank(name)) {
+            LOGGER.warn("An sv:property of a node in {} declares no sv:name, ignoring it", context.path());
+            return;
+        }
+        final List<String> values = svValues(svProperty);
+        final String declaredType = svAttribute(svProperty, SV_TYPE_ATTRIBUTE);
+        if (Boolean.parseBoolean(svAttribute(svProperty, SV_MULTIPLE_ATTRIBUTE))) {
+            node.setProperty(name, values, svMultipleType(declaredType));
+            return;
+        }
+        if (values.isEmpty()) {
+            return;
+        }
+        setSvSingleValue(node, name, values.get(0), declaredType);
+    }
+
+    private static void setSvSingleValue(final NodeBuilder node, final String name, final String value,
+        final String declaredType)
+    {
+        switch (declaredType) {
+            case "Boolean" -> node.setProperty(name, Boolean.parseBoolean(value));
+            case "Long" -> node.setProperty(name, Long.parseLong(value));
+            case "Double" -> node.setProperty(name, Double.parseDouble(value));
+            case "Name" -> node.setProperty(name, value, Type.NAME);
+            // String, an absent type, and anything the engine has no use for: stored as written. A condition
+            // operand's `value` is UNDEFINED in the node type precisely because the evaluator unifies types at
+            // evaluation time rather than trusting what was stored.
+            case null, default -> node.setProperty(name, value);
+        }
+    }
+
+    private static Type<Iterable<String>> svMultipleType(final String declaredType)
+    {
+        return "Name".equals(declaredType) ? Type.NAMES : Type.STRINGS;
+    }
+
+    /**
+     * One System View attribute, by namespace where the document kept it and by plain name where it did not.
+     *
+     * <p><strong>Measured, not defensive.</strong> {@code bpmn-moddle} — what the diagram editor reads and writes
+     * with — preserves a foreign element's name and namespace across a round trip but flattens its <em>attribute</em>
+     * prefixes: {@code sv:name="x"} is written back as {@code name="x"}. It only keeps the prefix on attributes it
+     * has a schema for, which is why the neighbouring {@code xsi:type} survives and these do not. A parse that
+     * insisted on the namespace would therefore read a hand-written diagram correctly and lose every condition in
+     * one the editor had saved — quietly, since the flow node itself would still be derived.</p>
+     *
+     * <p>Reading both costs nothing in ambiguity: these attributes are only ever looked for on an {@code sv:node}
+     * or {@code sv:property}, where an unprefixed {@code name} cannot mean anything else.</p>
+     *
+     * @param element the System View element to read
+     * @param localName the attribute wanted
+     * @return its value, or the empty string when the element carries it under neither form
+     */
+    private static String svAttribute(final Element element, final String localName)
+    {
+        final String qualified = element.getAttributeNS(SV_NS, localName);
+        return StringUtils.isNotBlank(qualified) ? qualified : element.getAttribute(localName);
+    }
+
+    private static Stream<Element> svProperties(final Element svNode)
+    {
+        return svChildren(svNode, SV_PROPERTY);
+    }
+
+    private static List<String> svValues(final Element svProperty)
+    {
+        return svChildren(svProperty, SV_VALUE).map(Element::getTextContent).toList();
+    }
+
+    /**
+     * The direct children of an element that are System View elements of one kind.
+     *
+     * @param element the element to look under
+     * @param localName the System View local name wanted
+     * @return those children, in document order
+     */
+    private static Stream<Element> svChildren(final Element element, final String localName)
+    {
+        final NodeList children = element.getChildNodes();
+        return IntStream.range(0, children.getLength())
+            .mapToObj(children::item)
+            .filter(child -> child instanceof Element candidate && SV_NS.equals(candidate.getNamespaceURI())
+                && localName.equals(candidate.getLocalName()))
+            .map(Element.class::cast);
     }
 
     /**
@@ -897,6 +1081,7 @@ public final class WorkflowDefinitionUtils
         flow.setProperty(TARGET_REF_PROPERTY, targetRef);
         setIfNotBlank(flow, LABEL_PROPERTY, element.getAttribute(NAME_ATTRIBUTE));
         setIfNotBlank(flow, CONDITION_EXPRESSION_PROPERTY, getConditionExpression(element));
+        applyExtensionNodes(element, flow, context);
         final Element sourceElement = elementsById.get(sourceRef);
         if (sourceElement != null && id.equals(sourceElement.getAttribute("default"))) {
             flow.setProperty("isDefault", true);
