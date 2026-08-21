@@ -116,6 +116,21 @@
   // SHA-256 hash of the bpmnXml file at the time of the last successful parse into flow nodes
   - bpmnXmlParsedHash (STRING)
 
+  // Whether this version's diagram is the source of its flow nodes. When true the editor owns them
+  // outright: it derives them from the bpmn.xml and removes whatever the diagram no longer says,
+  // which is what lets a workflow be authored in the diagram editor and nowhere else.
+  //
+  // False for a version whose flow nodes were written by hand, because the translation cannot yet
+  // carry everything they hold - a multi-valued `performers`, a timer's duration, a condition
+  // subtree. Deriving such a version would quietly drop what it cannot express, and merging the two
+  // would be worse: nothing in a diagram says whether an absent property was inexpressible or
+  // deleted, and a node reused under the same id may have been redrawn as something else entirely.
+  // So the choice is made once, per version, by whoever knows - and this property records it.
+  //
+  // The flag is temporary. It goes away when the translation is complete, because then every version
+  // can be derived and the question stops being a question.
+  - bpmnAuthoritative (BOOLEAN) = false
+
   // When false, no new instances may be created from this version
   - active (BOOLEAN) = false
 
