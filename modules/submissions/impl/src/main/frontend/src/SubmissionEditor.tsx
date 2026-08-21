@@ -119,7 +119,12 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
 // ticked, and the form is then read again. That is what keeps the questions on screen correct, because
 // which of them apply depends on the answers, and the server is the only thing that decides it.
 // Nothing here evaluates a condition; a question that stops applying simply stops being sent.
-function SubmissionEditor({ path }: { path: string }) {
+//
+// `onChanged` says that the request itself has changed, which is more than the form knowing it: what
+// the request is still missing is recorded on the submission, and the control offering to *send* it
+// reads that. Without this, answering the last question or attaching the last document leaves that
+// control refusing a request that is now complete, until something else re-reads the page.
+function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () => void }) {
   const [ form, setForm ] = useState<SubmissionForm>();
   const [ error, setError ] = useState<string>();
   // Absent until a field has been saved at least once, so reading one may find nothing
@@ -151,7 +156,11 @@ function SubmissionEditor({ path }: { path: string }) {
       // succeeded is not reported as still saving because something else happened after it. Settled
       // in this handler rather than in a trailing catch, so that only the read below reaches one
       .then(
-        () => setStates(current => ({ ...current, [question.path]: { state: "saved" } })),
+        () => {
+          setStates(current => ({ ...current, [question.path]: { state: "saved" } }));
+          // What the request is still missing lives on the submission, which the send control reads
+          onChanged?.();
+        },
         (e: unknown) => setStates(current => (
           { ...current, [question.path]: { state: "failed", error: message(e) } })),
       )
@@ -161,15 +170,16 @@ function SubmissionEditor({ path }: { path: string }) {
       // A read that fails says nothing about the answer, which is why it is reported against the
       // form rather than against the field
       .catch((e: unknown) => setError(message(e)));
-  }, [ doFetch, path, reload ]);
+  }, [ doFetch, path, reload, onChanged ]);
 
   // The form again, because what it asks can change with what was just attached: a requirement that
   // is now answered, and a request that is no longer incomplete
   const attached = useCallback(() => {
     const token = latestFormRead.current + 1;
     latestFormRead.current = token;
+    onChanged?.();
     reload(token).catch((e: unknown) => setError(message(e)));
-  }, [ reload ]);
+  }, [ reload, onChanged ]);
 
   if (error) {
     return <Alert severity="error">{error}</Alert>;
