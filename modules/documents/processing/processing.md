@@ -212,6 +212,7 @@ fact (or live) which path produced a document's outline.
 
 Key behaviours:
 
+- **Heading-level ceiling** — `toc` keeps bookmark titles at level 1–`MAX_HEADING_LEVEL` (6). Deeper nesting is still walked (up to `MAX_OUTLINE_DEPTH`) so a crafted outline cannot exhaust the stack.
 - **No page verification** — a bookmark's page used to be looked up in the `<!-- page: N -->`
   markers and corrected when it pointed one page early. Nothing downstream reads a record's
   page any more, so the titles are taken as the PDF gives them.
@@ -294,6 +295,7 @@ Both modes share `chunker.py`, so the outline + chunk logic is identical.
 | `DEFAULT_MIN_STRUCTURE_TOKENS` | 20000 | Size gate: below this the doc is left unchunked (whole-document downstream) |
 | `DEFAULT_MAX_TOKENS` | 2000 | Target max tokens per chunk file before an over-budget piece is split |
 | `MIN_TAIL_TOKENS` | 500 | A text-only tail smaller than this is folded back into the previous part |
+| `MAX_HEADING_LEVEL` | 6 | Deepest heading / bookmark level extracted into the outline TOC (Markdown ATX ceiling) |
 | `MAX_HEADING_WORDS` / `MAX_WORD_CHARS` / `MIN_HEADING_CHARS` | 10 / 100 / 5 | Heading-validity filters (reject run-ons, garbage, `Table …` captions) |
 | `DEFAULT_MAX_INPUT_PAGES` | 1500 | Largest PDF accepted; over it is a 400, raised *after* the parse slot is taken (counting pages means reading the document). Override with `IAP_MAX_INPUT_PAGES`, 0 to disable |
 | `DEFAULT_MAX_INPUT_BYTES` | 64 MiB | The same ceiling by size, for every accepted type — a `.docx` has no pages to count. Override with `IAP_MAX_INPUT_BYTES` |
