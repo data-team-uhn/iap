@@ -79,6 +79,7 @@ import shared_docs
 from docling_batch_sizing import parse_positive_int
 from markdown_markers import (
     HEADING,
+    MAX_HEADING_LEVEL,
     MIN_HEADING_CHARS,
     PAGE_MARKER,
     PAGE_MARKER_LINE,
@@ -842,7 +843,11 @@ def build_chunk_tree(
     outline = {
         "tokens": tokens,
         "toc_source": "pdf-bookmarks" if toc_records else "none",
-        "toc": [record["title"] for record in toc_records if record.get("title")],
+        "toc": [
+            record["title"]
+            for record in toc_records
+            if record.get("title") and record["level"] <= MAX_HEADING_LEVEL
+        ],
         "chunked": to_be_chunked,
     }
 

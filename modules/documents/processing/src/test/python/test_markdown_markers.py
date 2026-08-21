@@ -103,8 +103,9 @@ class TestHeadingPattern:
         match = mm.HEADING.match("### Study Design")
         assert match.group(1) == "###" and match.group(2) == "Study Design"
 
-    def test_rejects_seven_hashes(self):
-        assert mm.HEADING.match("####### Seven") is None
+    def test_rejects_hashes_past_the_heading_ceiling(self):
+        assert mm.HEADING.match("#" * mm.MAX_HEADING_LEVEL + " Deep") is not None
+        assert mm.HEADING.match("#" * (mm.MAX_HEADING_LEVEL + 1) + " Deeper") is None
 
     def test_rejects_hash_without_space(self):
         assert mm.HEADING.match("#NoSpace") is None
