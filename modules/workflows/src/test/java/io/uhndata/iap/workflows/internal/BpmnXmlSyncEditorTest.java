@@ -177,6 +177,43 @@ class BpmnXmlSyncEditorTest
      * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
      */
     @Test
+    void storesAnArcLeavingABoundaryEventUnderThatEvent() throws Exception
+    {
+        // "And if nobody decides in time, go here." A boundary event lives inside the activity it watches, so the
+        // arc leaving it has a source that is not a child of the version — which is where sequence flows had been
+        // looked for. The parse threw ("This builder does not exist") and, because clear() runs first, left the
+        // version with no flow nodes at all: a diagram that installed an empty workflow.
+        final NodeBuilder root = richBase();
+        flowNodeType(root.child("WorkflowTypes"), "TimerBoundaryEvent", this.timerCatchEventTypeId,
+            "bpmn:boundaryEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" />\n"
+            + "    <bpmn:boundaryEvent id=\"deadline\" attachedToRef=\"" + TASK_1 + "\""
+            + " cancelActivity=\"true\">\n"
+            + "      <bpmn:timerEventDefinition>\n"
+            + "        <bpmn:timeDuration>P5D</bpmn:timeDuration>\n"
+            + "      </bpmn:timerEventDefinition>\n"
+            + "      <bpmn:outgoing>" + FLOW_1 + "</bpmn:outgoing>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + "    <bpmn:sequenceFlow id=\"" + FLOW_1 + "\" sourceRef=\"deadline\" targetRef=\"" + END_1
+            + "\" />\n"
+            + "    <bpmn:endEvent id=\"" + END_1 + "\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        // The whole version survived the parse, which is the half that was actually broken
+        assertTrue(after.getChildNode(TASK_1).exists());
+        assertTrue(after.getChildNode(END_1).exists());
+        // And the arc hangs off the boundary event, inside the task, not beside it
+        final NodeState boundary = after.getChildNode(TASK_1).getChildNode("deadline");
+        assertTrue(boundary.exists());
+        assertEquals("P5D", boundary.getString("timerDuration"));
+        assertTrue(boundary.getChildNode(FLOW_1).exists(), "the arc belongs to the event it leaves");
+        assertEquals(END_1, boundary.getChildNode(FLOW_1).getString("targetRef"));
+        assertFalse(after.getChildNode(FLOW_1).exists(), "and not to the version");
+    }
+
+    @Test
     void buildsASubtreeFromASystemViewExtension() throws Exception
     {
         // Some of what a flow node holds is a subtree rather than a value: a condition is a cond:SingleCondition
