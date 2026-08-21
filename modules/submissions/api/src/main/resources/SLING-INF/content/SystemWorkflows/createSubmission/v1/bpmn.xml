@@ -26,7 +26,7 @@
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/createSubmission">
   <bpmn:message id="createMessage" name="create" />
   <bpmn:process id="createSubmission" name="Raise a submission" isExecutable="true">
-    <bpmn:startEvent id="requested" name="Submission requested">
+    <bpmn:startEvent id="requested" iap:performers="everyone" name="Submission requested">
       <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
       <bpmn:outgoing>toCreate</bpmn:outgoing>
     </bpmn:startEvent>
