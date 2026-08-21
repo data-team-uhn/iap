@@ -113,7 +113,12 @@ APPENDIX_HEADINGS = [
 
 # Leading section numbering to strip before matching a Reference/Appendix keyword, e.g.
 # "18.0 ", "13 ", "10.1. ", "17  ".
-_APPENDIX_NUMBERING_PREFIX = re.compile(r"^\(?\d+(?:\.\d+)*[.)]?\s+")
+# A section number at the start of a heading, with the label some documents put in front
+# of it ("CHAPTER 11: REFERENCES") and the punctuation that can follow it.
+_APPENDIX_NUMBERING_PREFIX = re.compile(
+    r"^(?:(?:chapter|section|part|clause)\s+)?\(?\d+(?:\.\d+)*[.):]?\s+",
+    re.IGNORECASE,
+)
 
 
 def _keyword_start_pattern(phrases: list[str]) -> re.Pattern:
@@ -912,17 +917,86 @@ def _is_backmatter_title(title: str) -> bool:
     return bool(_REFERENCE_HEADING_START.match(text) or _APPENDIX_HEADING_START.match(text))
 
 
+def _names_backmatter_exactly(text: str) -> bool:
+    """Whether a heading's own text names a backmatter section, numbering and punctuation aside.
+
+    Stricter than :func:`_is_backmatter_title` on the Reference side, and deliberately so. That
+    one takes titles from PDF bookmarks or a printed TOC, which are curated; this one is applied
+    to every heading in the body, where "Reference Documents" and "Reference Safety
+    Information" are ordinary front-matter section names in a protocol. Splitting there would
+    send most of the document into the chunk that is never summarized, so a Reference heading
+    has to *be* one of :data:`REFERENCE_HEADINGS` rather than merely start with one.
+
+    Appendix headings keep prefix matching: they carry an identifier ("Appendix A: Schedule",
+    "Annex 2"), and an Appendix heading early in a document is not a thing.
+
+    @param text: the heading's text, without its leading ``#`` marks
+    @return: whether it names a Reference or Appendix section
+    """
+    stripped = _APPENDIX_NUMBERING_PREFIX.sub("", text).strip()
+    stripped = stripped.strip("*_ 	:.-").strip()
+    if any(stripped.lower() == phrase.lower() for phrase in REFERENCE_HEADINGS):
+        return True
+    return bool(_APPENDIX_HEADING_START.match(stripped))
+
+
+def _has_body_after(lines: list[str], index: int) -> bool:
+    """Whether anything but blank lines and page markers follows ``index``.
+
+    A backmatter split needs something to split off. A document ending on a bare
+    "Appendix Section Title" would otherwise put a chunk holding nothing but that title into
+    the outline, which is the one thing the chunker's heading-only merge exists to prevent --
+    and the backmatter chunk is exempt from that merge.
+
+    @param lines: the document's lines
+    @param index: the heading's index
+    @return: whether any substantive line follows
+    """
+    for line in lines[index + 1:]:
+        stripped = line.strip()
+        if stripped == "" or PAGE_MARKER_LINE.match(stripped):
+            continue
+        return True
+    return False
+
+
+def backmatter_from_headings(
+    lines: list[str],
+    toc_range: tuple[int, int] | None = None,
+) -> int | None:
+    """The line of the first heading in the body that names a backmatter section.
+
+    The fallback for :func:`backmatter_from_records`. A document with no PDF bookmarks and no
+    printed TOC has no records at all, so nothing was ever offered to the record lookup -- and
+    its ``## 11 References`` is still sitting in the body, which is the only thing marking where
+    the references begin.
+
+    @param lines: the document's lines, split the way :func:`derive_outline` splits them
+    @param toc_range: inclusive ``(start, end)`` line range of the printed TOC, when known
+    @return: the heading's line index, or ``None``
+    """
+    for index, line in enumerate(lines):
+        if toc_range is not None and toc_range[0] <= index <= toc_range[1]:
+            continue
+        heading = HEADING.match(line.strip())
+        if (
+            heading is not None
+            and _names_backmatter_exactly(heading.group(2))
+            and _has_body_after(lines, index)
+        ):
+            return index
+    return None
+
+
 def backmatter_from_records(
     records: list[dict],
     index: LineIndex,
     toc_range: tuple[int, int] | None = None,
 ) -> int | None:
-    """Get the body line index of the first Reference/Appendix record that resolves to a
-    unique line,
+    """Get the body line index of the first Reference/Appendix record that resolves to a unique line,
     or ``None`` -- the outline-based replacement for the heuristic body scan.
 
-    ``toc_range`` must be passed whenever it is known, because a TOC entry can be styled
-    like a heading.
+    ``toc_range`` must be passed whenever it is known to avoid, because it can be styled as headings.
 
     @param records: the document's outline records, in order
     @param index: precomputed :func:`bookmarks.build_line_index` for the document
@@ -1005,6 +1079,10 @@ def derive_outline(
     toc_summary["toc_source"] = toc_source
     toc_summary["toc"] = [record["title"] for record in toc_records if record.get("title")]
     backmatter_line = backmatter_from_records(toc_records, line_index, toc_range)
+    if backmatter_line is None:
+        # No record resolved to one: either the outline has no Reference/Appendix entry, or
+        # there is no outline at all. The heading in the body still marks the split.
+        backmatter_line = backmatter_from_headings(md_lines, toc_range)
     if backmatter_line is not None:
         toc_summary["backmatterLine"] = backmatter_line
     return md_file, toc_summary, toc_records, line_index
