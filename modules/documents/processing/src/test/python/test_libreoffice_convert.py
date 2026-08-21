@@ -391,7 +391,7 @@ class TestNothingCallerDerivedReachesTheArgv:
         assert not staged.is_symlink()
         assert staged.parent == work
 
-    def test_the_caller_document_is_left_alone(self, tmp_path, monkeypatch):
+    def test_the_caller_document_is_left_alone(self, tmp_path):
         # soffice is handed the copy, so nothing it does can reach the original.
         source = tmp_path / "report.docx"
         source.write_bytes(b"pk-content")

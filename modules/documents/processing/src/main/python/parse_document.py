@@ -150,7 +150,6 @@ def parse_document(
     summary = write_chunk_files(
         markdown,
         output_md,
-        filename,
         max_tokens=max_tokens,
         min_structure_tokens=min_structure_tokens,
     )

@@ -137,8 +137,8 @@ converter that produced the `.md`, and everything below takes that text as-is.
 
 ```
 chunk_file(<stem>.md)                                        # md is already cleaned
-  └─ write_chunk_files(md, output_file, filename)
-       └─ build_chunk_tree(md, filename, markdown_path, max_tokens, min_structure_tokens)
+  └─ write_chunk_files(md, output_file)
+       └─ build_chunk_tree(md, markdown_path, max_tokens, min_structure_tokens)
             │                                     # pure: no writes, returns the whole tree
             ├─ extract_bookmarks(<stem>.pdf)  # sibling PDF; titles taken as given
             │                                  # → toc, tokens, toc_source
