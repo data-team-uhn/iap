@@ -40,9 +40,6 @@ deeper than the top) and then paragraph (blank-line) boundaries. A text-only tai
 smaller than :data:`MIN_TAIL_TOKENS` is not cut off — it is folded back into the preceding
 part even if that pushes it over the budget.
 
-Everything from ``backmatterLine`` (the first Reference/Appendix heading recorded in
-``Chunks/outline.json``) to the end of the document becomes one standalone final
-chunk.
 
 All chunks are summarised in ``catalog.json``
 
@@ -52,21 +49,17 @@ All chunks are summarised in ``catalog.json``
         {
           "chunk_id": "chunk001",
           "file": "Chunk-1.md",
-          "heading": ["Introduction"],
+          "headings": ["Introduction"],
           "summary": "",
           "rubric_tags": [],
-          "questions_answered": [],
-          "extraction_hints": [],
           "pages": [1, 2],
-          "length": 1837,
-          "isAppendix": false
+          "length": 1837
         }, ...
       ]
     }
 
 ``summary``, ``rubric_tags``, ``questions_answered`` and ``extraction_hints`` are always left
-empty here so they can be filled in later. ``isAppendix`` is ``true`` only for the
-backmatter (Reference/Appendix) chunk; that chunk is never sent to the summarizer.
+empty here so they can be filled in later.
 ``pages`` lists the <!-- page: N --> numbers referenced within a chunk (from the
 ``<!-- page: N -->`` markers the PDF parser emits); it is empty for DOCX.
 ``length`` is the character count of the chunk file's content.
@@ -94,13 +87,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 
 import shared_docs
-from bookmarks import (
-    LineIndex,
-    normalize_title,
-    resolve_record_line,
-)
 from docling_batch_sizing import positive_int
-from heading_numbering import numbering_depth
 from markdown_markers import (
     HEADING,
     MIN_HEADING_CHARS,
@@ -111,14 +98,15 @@ from markdown_markers import (
     tokens_for_length,
     within_word_limits,
 )
-from toc_and_appendix_detection import (
-    DEFAULT_MIN_STRUCTURE_TOKENS,
-    derive_outline,
-    is_toc_entry_line,
-)
+from pdf_bookmarks import extract_bookmarks
 
 # Default maximum tokens per chunk file. A chunk larger than this is split into parts.
 DEFAULT_MAX_TOKENS = 2000
+
+# Documents shorter than this (``len(md) // 4``) are left unchunked and sent whole downstream.
+# Known PDF bookmarks bypass the gate: they are already in hand, and even a small document
+# needs its ``toc``.
+DEFAULT_MIN_STRUCTURE_TOKENS = 20000
 
 # A text-only continuation part smaller than this is folded back into the preceding part
 # instead of being cut off into its own file, even when that pushes the preceding part over
@@ -150,13 +138,6 @@ UNCHUNKED_NOT_REQUESTED = "chunking_not_requested"
 # heading that genuinely appears twice is not discarded.
 MIN_RUNNING_HEADER_PAGES = 3
 
-# A line that is entirely bold or bold+italic (2 or 3 matching stars on each side,
-# optionally ending with ':'), e.g. "**13.0 Funding**" or "***13.0 Funding***".
-_BOLD_LINE = re.compile(r"^(\*{2,3})(.+?)\1:?$")
-
-# A leading Markdown list marker, e.g. the "- " of "- 20.0 **Appendices**".
-_LIST_MARKER = re.compile(r"^[-*+]\s+")
-
 
 def is_neutral(stripped: str) -> bool:
     """Lines that neither extend nor break a region: blanks, page markers, rules."""
@@ -175,52 +156,6 @@ def valid_heading(text: str) -> bool:
     if len(text) < MIN_HEADING_CHARS:
         return False
     return within_word_limits(text)
-
-
-def _standout_heading(lines: list[str], index: int) -> str | None:
-    """A bold/bold+italic (``**...**``/``***...***``) or isolated ALL-CAPS stand-out
-    heading at ``lines[index]``, or ``None``, e.g. ``**POTENTIAL IMPACT OF RESEARCH**``,
-    ``**13.0 Funding**``, ``REFERENCES``.
-
-    Isolation — blank/neutral lines on both sides, or a document/page boundary — is what
-    lets a line with no structural marker of its own (unlike an ATX heading) be trusted as
-    a heading rather than emphasis or shouting inside a paragraph.
-    """
-    stripped = lines[index].strip()
-    # A lenient, leading-pipe-only check on purpose: this only needs to SKIP anything
-    # table-ish (better to under-collect than to mistake a stray cell's content for a
-    # heading), unlike toc_and_appendix_detection's stricter both-ends table-line check, which
-    # parses actual table structure and cannot afford a false positive there.
-    if not stripped or is_neutral(stripped) or stripped.startswith("|"):
-        return None
-    before = lines[index - 1].strip() if index > 0 else ""
-    after = lines[index + 1].strip() if index + 1 < len(lines) else ""
-    if not is_neutral(before) or not is_neutral(after):
-        return None
-
-    bold = _BOLD_LINE.match(stripped)
-    if bold:
-        return bold.group(2).strip()
-    if stripped == stripped.upper() and len(re.sub(r"[^A-Z]", "", stripped)) >= 3 \
-            and not is_toc_entry_line(stripped) and not HEADING.match(stripped):
-        return stripped
-    return None
-
-
-def _numbered_standout_depth(lines: list[str], index: int) -> int | None:
-    """The section-numbering depth of an isolated bold/ALL-CAPS stand-out heading at
-    ``lines[index]`` -- e.g. ``**3.2.1 Recruitment**`` -> 3 -- or ``None`` when the line is
-    not such a heading or carries no numeric prefix.
-
-    Used only as a sub-chunk split fallback (see :func:`_subchunk_blocks`): Docling
-    sometimes demotes a deep numbered heading to bold body text, which no ATX-based cut
-    would catch. Only Arabic-decimal numbering is honoured, to avoid false positives.
-    """
-    text = _standout_heading(lines, index)
-    if text is None or not valid_heading(text):
-        return None
-    depth = numbering_depth(text)
-    return depth or None
 
 
 def _split_lines_at(lines: list[str], is_boundary: Callable[[int], bool]) -> list[str]:
@@ -289,31 +224,6 @@ def _pages_in(text: str) -> list[int]:
     return sorted(pages)
 
 
-def _backmatter_heading(text: str) -> list[str]:
-    """The heading array for a backmatter chunk: the text of the block's first non-empty line as a
-    displayable label, with ATX ``#``, a leading list marker and Markdown emphasis removed.
-
-    The list marker and inline emphasis matter because Docling routinely emits a backmatter
-    heading as a list item with only part of it bold — ``- 20.0 **Appendices**`` on one real
-    protocol, which reached the catalog verbatim because it is neither an ATX heading nor a
-    fully-bold line.
-    """
-    for line in text.split("\n"):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        atx = _match_heading(line)
-        if atx:
-            return [atx[1]]
-        candidate = _LIST_MARKER.sub("", stripped)
-        bold = _BOLD_LINE.match(candidate)
-        if bold:
-            return [bold.group(2).strip()]
-        cleaned = candidate.replace("*", "").strip()
-        return [cleaned or candidate]
-    return [DEFAULT_HEADING]
-
-
 def _split_into_top_chunks(lines: list[str], boundary_level: int | None) -> list[dict]:
     """Split the document at its shallowest heading level.
 
@@ -360,43 +270,25 @@ def _split_into_top_chunks(lines: list[str], boundary_level: int | None) -> list
     return result
 
 
-def _subchunk_blocks(chunk_text: str, boundary_level: int, cut_keys=frozenset()) -> list[str]:
+def _subchunk_blocks(chunk_text: str, boundary_level: int) -> list[str]:
     """Split a chunk's text at its shallowest sub-heading level.
 
     The first block holds the chunk's own boundary heading and any lead-in text before the
     first sub-heading; each subsequent block is one sub-chunk.
 
-    With no ATX sub-heading (nothing deeper than ``boundary_level``), fall back in order to:
-    (1) outline-record cut points -- non-ATX lines whose normalized text is in ``cut_keys``
-    (bookmark / printed-TOC titles that resolved to a unique body line; see
-    :func:`_record_cut_keys`); then (2) the shallowest *numbered stand-out* heading (a
-    bold/ALL-CAPS line with a numeric prefix Docling emitted in place of a heading). With
-    none of these, the whole text is a single block.
+    An ATX sub-heading is the only boundary. There used to be two fallbacks for sections
+    Docling left without one -- outline-record cut points, and bold/ALL-CAPS lines with a
+    numeric prefix -- but a line with no structural marker of its own was too often emphasis
+    or shouting inside a paragraph, so nothing but ``#`` counts. With no sub-heading the whole
+    text is a single block, and :func:`_split_by_paragraphs` takes it from there.
     """
     lines = chunk_text.split("\n")
     sub_level = _min_heading_level(lines, deeper_than=boundary_level)
     if sub_level is not None:
         return _split_lines_at(lines, lambda index: _heading_level(lines[index]) == sub_level)
 
-    if cut_keys:
-        record_boundaries = {
-            index
-            for index, line in enumerate(lines)
-            if _match_heading(line) is None and normalize_title(line) in cut_keys
-        }
-        if record_boundaries:
-            return _split_lines_at(lines, lambda index: index in record_boundaries)
-
-    depth_by_index = {
-        index: depth
-        for index in range(len(lines))
-        if (depth := _numbered_standout_depth(lines, index)) is not None
-    }
-    if not depth_by_index:
-        stripped = chunk_text.strip()
-        return [stripped] if stripped else []
-    top_depth = min(depth_by_index.values())
-    return _split_lines_at(lines, lambda index: depth_by_index.get(index) == top_depth)
+    stripped = chunk_text.strip()
+    return [stripped] if stripped else []
 
 
 def _split_trailing_page_markers(text: str) -> tuple[str, str] | None:
@@ -575,17 +467,17 @@ def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
 
 
 def _split_oversized(
-    chunk_text: str, boundary_level: int, max_tokens: int, cut_keys=frozenset()
+    chunk_text: str, boundary_level: int, max_tokens: int
 ) -> list[str]:
     """Split an over-budget chunk into parts.
 
     Sub-headings (the shallowest heading level deeper than ``boundary_level``) are honoured
     first: consecutive sub-chunks are united up to the budget. If the chunk has no
     sub-headings, or a united part is still over budget, that piece is split at paragraph
-    boundaries. ``cut_keys`` are outline-record cut points used as a sub-heading fallback
+    boundaries.
     (see :func:`_subchunk_blocks`).
     """
-    blocks = _subchunk_blocks(chunk_text, boundary_level, cut_keys)
+    blocks = _subchunk_blocks(chunk_text, boundary_level)
     packed = _split_by_paragraphs(chunk_text, max_tokens) if len(blocks) <= 1 \
         else _pack_blocks(blocks, max_tokens)
 
@@ -658,6 +550,23 @@ def _merge_small_text_tails(parts: list[str], min_tokens: int) -> list[str]:
     return merged
 
 
+# Everything that is not a letter or a digit *in any script*. The ASCII-only
+# ``[^a-z0-9]+`` it replaced silently erased whole titles: a CJK or Cyrillic heading
+# normalized to "" and so became invisible to running-header detection. ``\W`` with
+# re.UNICODE keeps them, and dropping "_" as well keeps the key to letters and digits only.
+# Both sides of every comparison go through this one function, so ASCII titles key exactly
+# as before.
+_NON_ALNUM = re.compile(r"[\W_]+", re.UNICODE)
+
+
+def normalize_title(text: str) -> str:
+    """A comparison key for a heading: casefolded, letters and digits only, in any script.
+
+    So ``"## 1.0 Background:"`` and ``"1.0 Background"`` both key to ``"10background"``.
+    """
+    return _NON_ALNUM.sub("", text.casefold())
+
+
 def repeated_lines(lines: list[str], min_occurrences: int = MIN_RUNNING_HEADER_PAGES) -> frozenset:
     """Normalized keys of lines that recur at least ``min_occurrences`` times in the document —
     running headers and footers.
@@ -703,7 +612,7 @@ def _part_heading(
     lines = part_text.split("\n")
     beginning_level: int | None = None
     headings: list[str] = []
-    for index, line in enumerate(lines):
+    for line in lines:
         atx = _match_heading(line)
         if atx is not None:
             level, text = atx
@@ -712,9 +621,7 @@ def _part_heading(
             if not (beginning_level <= level <= beginning_level + 1):
                 continue
         else:
-            text = _standout_heading(lines, index)
-            if text is None:
-                continue
+            continue
         if valid_heading(text) and normalize_title(text) not in repeated:
             headings.append(text)
     if headings:
@@ -761,7 +668,7 @@ def _write_json(path: Path, data: object) -> None:
     )
 
 
-def write_unchunked_outline(output_file: Path, filename: str, markdown: str) -> Path:
+def write_unchunked_outline(output_file: Path, markdown: str) -> Path:
     """Write ``Chunks/outline.json`` for a document that was never offered to the chunker.
 
     ``?chunk=false`` skips detection on purpose, so there is no TOC to record — but leaving no
@@ -770,7 +677,6 @@ def write_unchunked_outline(output_file: Path, filename: str, markdown: str) -> 
     skips chunking; only the reason differs.
 
     @param output_file: path of the ``.md`` the outline sits beside
-    @param filename: original upload name, recorded as ``fileId``
     @param markdown: the document, for its token count
     @return: the ``Chunks/`` directory
     """
@@ -781,37 +687,9 @@ def write_unchunked_outline(output_file: Path, filename: str, markdown: str) -> 
         "toc": [],
         "tokens": count_tokens(markdown),
         "chunked": False,
-        "fileId": filename,
         "unchunkedReason": UNCHUNKED_NOT_REQUESTED,
     })
     return chunks_dir
-
-
-def _record_cut_keys(
-    records: list[dict],
-    lines: list[str],
-    toc_range: tuple[int, int] | None,
-    index: LineIndex,
-) -> frozenset:
-    """Normalized title keys of outline records that resolve to exactly one eligible body
-    line -- not an ATX heading, not inside ``toc_range`` -- via
-    :func:`bookmarks.resolve_record_line` (exact page when the record's page is trusted).
-    These become sub-chunk cut points for sections Docling left without an ATX sub-heading.
-    """
-    if not records:
-        return frozenset()
-    exclude = {
-        line_index for line_index, line in enumerate(lines) if _match_heading(line) is not None
-    }
-    if toc_range is not None:
-        exclude |= set(range(toc_range[0], toc_range[1] + 1))
-    keys: set[str] = set()
-    for record in records:
-        if resolve_record_line(index, record, exclude=exclude) is not None:
-            key = normalize_title(record.get("title") or "")
-            if key:
-                keys.add(key)
-    return frozenset(keys)
 
 
 class ChunkingSummary(NamedTuple):
@@ -977,33 +855,37 @@ def build_chunk_tree(
 
     @param markdown_content: the full Markdown document, already cleaned
     @param filename: the original input file name (with extension), recorded as ``fileId``
-    @param markdown_path: path of the ``.md`` (sibling ``.pdf`` supplies bookmarks in
-        :func:`derive_outline`)
+    @param markdown_path: path of the ``.md``; a sibling ``.pdf`` supplies the outline
     @param max_tokens: target maximum tokens per chunk
     @param min_structure_tokens: leave the document unchunked below this size
     @return: ``{"markdown", "chunked", "outline", "catalog", "chunks", "records"}``, where
         ``chunks`` is a list of ``{"file", "text"}`` in document order, ``catalog`` is ``None``
-        when the document was left unchunked, and ``records`` is the outline the document was
-        actually analysed against — PDF bookmarks when available, otherwise whatever was
-        harvested from the printed TOC (empty when the size gate skipped detection)
+        when the document was left unchunked, and ``records`` is the sibling PDF's bookmarks
+        (empty when there is no sibling PDF, or it carries none)
     """
-    md_file, outline, toc_records, line_index = derive_outline(
-        markdown_content,
-        markdown_path,
-        min_structure_tokens,
-    )
+    md_file = markdown_content
+
+    # The outline is a sibling <stem>.pdf's own bookmarks and nothing else: either the native
+    # upload staged beside the .md, or the DOC/DOCX->PDF rendition LibreOffice wrote before
+    # Docling ran. The titles are taken as the PDF gives them -- no page verification against
+    # the <!-- page: N --> markers, since nothing downstream reads a record's page.
+    toc_records: list[dict] = []
+    if markdown_path is not None:
+        pdf_file = Path(markdown_path).with_suffix(".pdf")
+        if pdf_file.is_file():
+            toc_records = extract_bookmarks(pdf_file)
 
     # The size gate is the pipeline's single binary routing decision, recorded as ``chunked``
     # in the outline — which is always produced, even when chunking is skipped, so downstream
-    # routing has a uniform answer. ``derive_outline`` returns no fields when it gated out, so
-    # stamp the identity/defaults here to keep both paths' outlines the same shape.
+    # routing has a uniform answer.
     tokens = count_tokens(md_file)
     to_be_chunked = tokens >= min_structure_tokens
-    outline.setdefault("toc_source", "none")
-    outline.setdefault("toc", [])
-    outline.setdefault("tokens", tokens)
-    outline["chunked"] = to_be_chunked
-    outline["fileId"] = filename
+    outline = {
+        "tokens": tokens,
+        "toc_source": "pdf-bookmarks" if toc_records else "none",
+        "toc": [record["title"] for record in toc_records if record.get("title")],
+        "chunked": to_be_chunked,
+    }
 
     if not to_be_chunked:
         # Say *why* it is unchunked (deliberate send-it-whole below the size gate).
@@ -1024,26 +906,14 @@ def build_chunk_tree(
     # running header from a heading, because within one page each appears exactly once.
     repeated = repeated_lines(md_lines)
 
-    toc_start = outline.get("tocStartLine")
-    toc_end = outline.get("tocEndLine")
-    toc_range = (toc_start, toc_end) if isinstance(toc_start, int) and isinstance(toc_end, int) \
-        else None
-    backmatter_line = outline.get("backmatterLine")
-    if not isinstance(backmatter_line, int):
-        backmatter_line = None
-    main_lines = md_lines[:backmatter_line] if backmatter_line is not None else md_lines
-    backmatter_text = (
-        "\n".join(md_lines[backmatter_line:]).strip() if backmatter_line is not None else None
-    )
-    boundary_level = _min_heading_level(main_lines)
+    boundary_level = _min_heading_level(md_lines)
 
     catalog_chunks: list[dict] = []
     chunks: list[dict] = []
-    next_id = 1
 
     # Unite consecutive top-level sections up to the token budget, then split only
     # those united parts that are still over budget (a single oversized section).
-    top_chunks = _split_into_top_chunks(main_lines, boundary_level)
+    top_chunks = _split_into_top_chunks(md_lines, boundary_level)
     top_texts = [chunk["text"] for chunk in top_chunks if chunk["text"]]
     # _pack_blocks already ends with _move_trailing_page_markers, so nothing more is needed
     # here; a second pass only re-walked and re-split every packed part to find nothing.
@@ -1057,33 +927,24 @@ def build_chunk_tree(
     first_number = 0 if (top_chunks and top_chunks[0]["number"] == 0) else 1
     preamble_text = top_chunks[0]["text"] if first_number == 0 else ""
     split_level = boundary_level if boundary_level is not None else 0
-    if line_index is None:
-        # The size gate returns above when derive_outline skips the index, so this cannot
-        # happen. A real check rather than an assert, which -O strips out.
-        raise RuntimeError("no line index for a document that passed the size gate")
-    cut_keys = _record_cut_keys(toc_records, md_lines, toc_range, line_index)
 
-    def add(name: str, text: str, heading: list[str], is_appendix: bool) -> None:
-        nonlocal next_id
+    def add(name: str, text: str, heading: list[str]) -> None:
         chunks.append({"file": name, "text": text})
         catalog_chunks.append({
-            "chunk_id": f"chunk{next_id:03d}",
-            "file": name,
-            "heading": heading,
+            # The chunk's file name is its id: it was recorded twice, once as a sequence
+            # number and once as "file", and the two had to be read together to find a chunk.
+            "chunk_id": name,
+            "headings": heading,
             "summary": "",
             "rubric_tags": [],
-            "questions_answered": [],
-            "extraction_hints": [],
             "pages": _pages_in(text),
             "length": len(chunk_file_content(text)),
-            "isAppendix": is_appendix,
         })
-        next_id += 1
 
     for offset, packed_text in enumerate(packed):
         number = first_number + offset
         if count_tokens(packed_text) > max_tokens:
-            parts = _split_oversized(packed_text, split_level, max_tokens, cut_keys)
+            parts = _split_oversized(packed_text, split_level, max_tokens)
         else:
             parts = [packed_text]
         parts = _merge_heading_only_parts(parts)
@@ -1095,23 +956,19 @@ def build_chunk_tree(
         single_part = len(parts) == 1
         for part_index, part_text in enumerate(parts, start=1):
             name = f"Chunk-{number}.md" if single_part else f"Chunk-{number}.{part_index}.md"
-            previous_heading = catalog_chunks[-1]["heading"] if catalog_chunks else None
+            previous_heading = catalog_chunks[-1]["headings"] if catalog_chunks else None
             if first_number == 0 and not catalog_chunks:
                 heading = _preamble_heading(part_text, preamble_text, repeated)
             else:
                 # Everything else gets its real heading
                 heading = _part_heading(part_text, previous_heading, repeated)
-            add(name, part_text, heading, False)
-
-    if backmatter_text:
-        add(f"Chunk-{first_number + len(packed)}.md", backmatter_text,
-            _backmatter_heading(backmatter_text), True)
+            add(name, part_text, heading)
 
     return {
         "markdown": md_file,
         "chunked": True,
         "outline": outline,
-        "catalog": {"fileId": filename, "chunks": catalog_chunks},
+        "catalog": catalog_chunks,
         "chunks": chunks,
         "records": toc_records,
     }

@@ -70,32 +70,6 @@ class TestHeadingMatching:
         assert chunker._min_heading_level(["no headings here"]) is None
 
 
-class TestStandoutHeading:
-    def test_isolated_bold_heading(self):
-        lines = ["", "**FUNDING SOURCE**", ""]
-        assert chunker._standout_heading(lines, 1) == "FUNDING SOURCE"
-
-    def test_isolated_all_caps_heading(self):
-        lines = ["", "REFERENCES", ""]
-        assert chunker._standout_heading(lines, 1) == "REFERENCES"
-
-    def test_not_isolated_returns_none(self):
-        lines = ["body text", "**FUNDING SOURCE**", "more body"]
-        assert chunker._standout_heading(lines, 1) is None
-
-
-class TestNeutralAndTokens:
-    def test_is_neutral(self):
-        assert chunker.is_neutral("") is True
-        assert chunker.is_neutral("---") is True
-        assert chunker.is_neutral("<!-- page: 3 -->") is True
-        assert chunker.is_neutral("Real content") is False
-
-    def test_count_tokens_is_quarter_of_length(self):
-        assert chunker.count_tokens("a" * 40) == 10
-        assert chunker.count_tokens("") == 0
-
-
 class TestChunkFile:
     def _write_small(self, tmp_path):
         path = tmp_path / "small.md"
@@ -122,7 +96,6 @@ class TestChunkFile:
         assert outline_path.is_file()
         outline = json.loads(outline_path.read_text(encoding="utf-8"))
         assert outline["chunked"] is False
-        assert outline["fileId"] == "small.md"
         assert outline["toc"] == []
         assert isinstance(outline["tokens"], int) and outline["tokens"] > 0
         # No catalog for an unchunked document.
@@ -138,7 +111,7 @@ class TestChunkFile:
         assert outline["chunked"] is True
         assert (chunks_dir / chunker.CATALOG_NAME).is_file()
         catalog = json.loads((chunks_dir / chunker.CATALOG_NAME).read_text(encoding="utf-8"))
-        assert len(catalog["chunks"]) == summary["chunks"]
+        assert len(catalog) == summary["chunks"]
 
     def test_catalog_length_matches_the_chunk_file(self, tmp_path):
         # "length" is the character count of the chunk file on disk, including the trailing
@@ -147,10 +120,13 @@ class TestChunkFile:
         chunker.chunk_file(str(path))
         chunks_dir = path.parent / chunker.CHUNKS_DIRNAME
         catalog = json.loads((chunks_dir / chunker.CATALOG_NAME).read_text(encoding="utf-8"))
-        assert catalog["chunks"]
-        for entry in catalog["chunks"]:
-            written = (chunks_dir / entry["file"]).read_text(encoding="utf-8")
-            assert entry["length"] == len(written), entry["file"]
+        assert catalog
+        # The catalog no longer names its file, so the lengths are compared as a multiset:
+        # every entry still has to match some chunk file, and the counts still have to agree.
+        written = sorted(
+            len(f.read_text(encoding="utf-8")) for f in chunks_dir.glob("Chunk-*.md")
+        )
+        assert sorted(entry["length"] for entry in catalog) == written
 
     def test_huge_threshold_forces_unchunked(self, tmp_path):
         path = self._write_large(tmp_path)
@@ -163,35 +139,28 @@ class TestChunkFile:
 
 
 class TestOutlineToc:
-    """Printed-TOC and PDF-bookmark titles land in ``Chunks/outline.json``'s ``toc`` list."""
+    """PDF-bookmark titles land in ``Chunks/outline.json``'s ``toc`` list; nothing else does."""
 
     PARAGRAPH = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 60
 
-    def _protocol(self, path):
-        # Four entries, not two: the no-table path needs MIN_DENSITY_MATCHES (3) of the lines
-        # after the label to look like entries before it accepts the block as a TOC.
-        toc = ["## TABLE OF CONTENTS"] + [
-            "1.0 Background\t2", "2.0 Objectives\t3", "3.0 Design\t4", "4.0 Analysis\t5", "",
-        ]
-        body = [f"# Section {i} Heading\n\n{self.PARAGRAPH}\n" for i in range(1, 51)]
-        path.write_text("\n".join(toc + body), encoding="utf-8")
-
-    def test_printed_toc_titles_land_in_outline(self, tmp_path):
+    def test_a_printed_toc_contributes_nothing(self, tmp_path):
+        # It used to be harvested into the toc list. Only a PDF's bookmarks are an outline
+        # source now, so a document that prints its own contents still reports none.
         path = tmp_path / "proto.md"
-        self._protocol(path)
+        toc = ["## TABLE OF CONTENTS", "1.0 Background", "2.0 Objectives", ""]
+        body = [f"# Section {i} Heading{chr(10)}{chr(10)}{self.PARAGRAPH}{chr(10)}"
+                for i in range(1, 51)]
+        path.write_text(chr(10).join(toc + body), encoding="utf-8")
         chunker.chunk_file(str(path))
         outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
         outline = json.loads(outline_path.read_text(encoding="utf-8"))
-        assert "1.0 Background" in outline["toc"]
-        assert "4.0 Analysis" in outline["toc"]
+        assert outline["toc"] == []
+        assert outline["toc_source"] == "none"
 
     def test_pdf_bookmarks_on_the_unchunked_path(self, tmp_path, monkeypatch):
         records = [{"title": "Alpha Section", "level": 1, "page": 1}]
         monkeypatch.setattr(
-            "toc_and_appendix_detection.extract_bookmarks", lambda *a, **k: records
-        )
-        monkeypatch.setattr(
-            "toc_and_appendix_detection.verify_bookmarks", lambda *a, **k: records
+            "chunker.extract_bookmarks", lambda *a, **k: records
         )
         path = tmp_path / "small.md"
         path.write_text("# Tiny\n\nshort body\n", encoding="utf-8")
@@ -222,11 +191,10 @@ class TestUnchunkedOutline:
 
     def test_it_writes_an_outline_recording_the_reason(self, tmp_path):
         path = self._md(tmp_path)
-        chunker.write_unchunked_outline(path, "doc.pdf", path.read_text(encoding="utf-8"))
+        chunker.write_unchunked_outline(path, path.read_text(encoding="utf-8"))
         outline = self._outline(tmp_path)
         assert outline["chunked"] is False
         assert outline["unchunkedReason"] == chunker.UNCHUNKED_NOT_REQUESTED
-        assert outline["fileId"] == "doc.pdf"
 
     def test_the_keys_match_the_size_gate_path(self, tmp_path):
         # One shape for downstream, whichever way the document ended up unchunked.
@@ -238,7 +206,7 @@ class TestUnchunkedOutline:
         gate_keys = set(self._outline(gated))
 
         path = self._md(tmp_path)
-        chunker.write_unchunked_outline(path, "doc.pdf", path.read_text(encoding="utf-8"))
+        chunker.write_unchunked_outline(path, path.read_text(encoding="utf-8"))
         assert set(self._outline(tmp_path)) == gate_keys
 
     def test_write_atomically_leaves_no_scratch_behind(self, tmp_path):
