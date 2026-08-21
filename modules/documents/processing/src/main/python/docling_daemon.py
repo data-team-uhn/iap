@@ -385,7 +385,7 @@ def _request_shutdown() -> None:
         threading.Thread(target=_SERVER.shutdown, daemon=True).start()
 
 
-def _handle_signal(signum: int, _frame: Any) -> None:
+def _handle_signal(_signum: int, _frame: Any) -> None:
     _request_shutdown()
 
 

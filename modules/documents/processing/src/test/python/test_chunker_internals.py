@@ -131,7 +131,6 @@ class TestOutlineSizeGate:
             )
         return chunker.build_chunk_tree(
             self.SMALL,
-            "doc.md",
             md_path,
             chunker.DEFAULT_MAX_TOKENS,
             10 ** 9,
@@ -160,7 +159,7 @@ class TestOutlineSizeGate:
     def test_a_large_document_runs_the_outline_pass_without_records(self, tmp_path):
         big = self.SMALL + ("Body sentence that carries it along. " * 200)
         tree = chunker.build_chunk_tree(
-            big, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
+            big, _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
         )
         # No sibling PDF bookmarks, and a printed TOC is not an outline source.
         assert tree["outline"]["toc_source"] == "none"
@@ -235,7 +234,7 @@ class TestNoHeadingOnlyChunkFiles:
 
     def _files(self, md, tmp_path):
         tree = chunker.build_chunk_tree(
-            md, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
+            md, _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
         )
         return [(chunk["file"], len(chunk["text"])) for chunk in tree["chunks"]]
 
@@ -277,7 +276,7 @@ class TestNoHeadingOnlyChunkFiles:
             "# 3.0 Appendix Section Title",
         ])
         tree = chunker.build_chunk_tree(
-            md, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
+            md, _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
         )
         # Folded into a sibling, never dropped
         assert any("Appendix Section Title" in chunk["text"] for chunk in tree["chunks"])
@@ -363,7 +362,7 @@ class TestFirstChunkHeading:
 
     def _tree(self, markdown, tmp_path, max_tokens=chunker.DEFAULT_MAX_TOKENS):
         return chunker.build_chunk_tree(
-            markdown, "doc.md", _md_path(tmp_path), max_tokens, 1
+            markdown, _md_path(tmp_path), max_tokens, 1
         )
 
     def test_no_preamble_uses_the_real_heading(self, tmp_path):
