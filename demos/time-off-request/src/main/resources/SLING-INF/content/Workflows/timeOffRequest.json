@@ -82,10 +82,9 @@
         "elementId": "toDecision",
         "targetRef": "decision"
       },
-      // Stored inside the activity it watches, which is what makes it a boundary event: it listens only for as
-      // long as this task is open, and the engine starts its clock when the task is raised. Interrupting, so the
-      // deadline passing cancels the task rather than starting a second path beside it - "remind them but let
-      // them carry on" needs two tokens, which this engine does not have yet.
+      // Two deadlines on this task, both stored inside the activity they watch - which is what makes them
+      // boundary events: they listen only for as long as the task is open, and the engine starts their clocks
+      // when it is raised.
       "approvalReminder": {
         "jcr:primaryType": "wf:IntermediateCatchingEvent",
         "elementId": "approvalReminder",
@@ -109,6 +108,8 @@
         "elementId": "approvalOverdue",
         "label": "Not decided in time",
         "timerDuration": "P5D",
+        // Interrupting, so this deadline passing gives up on the task rather than starting a branch beside it.
+        // The whole of what tells the two apart.
         "interrupting": true,
         "jcr:reference:flowNodeType": "/WorkflowTypes/TimerBoundaryEvent",
         "toExpired": {
