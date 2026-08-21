@@ -21,6 +21,7 @@
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
                   id="saveAnswersDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/saveAnswers">
   <bpmn:message id="saveMessage" name="save" />
@@ -31,7 +32,7 @@
 
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toSave" sourceRef="requested" targetRef="save" />
-    <bpmn:serviceTask id="save" name="Record the answers">
+    <bpmn:serviceTask id="save" iap:handler="saveAnswers" name="Record the answers">
       <bpmn:incoming>toSave</bpmn:incoming>
       <bpmn:outgoing>toDone</bpmn:outgoing>
     </bpmn:serviceTask>
