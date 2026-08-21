@@ -119,6 +119,7 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
         refreshToken={refreshToken}
         emptyMessage="No submissions"
         noResultsMessage="No matching submissions"
+        searchLabel="Search my submissions"
       />
       { /* Mounted only while open, so each opening reads what is on offer afresh and never
            reopens onto a half-filled attempt */ }
