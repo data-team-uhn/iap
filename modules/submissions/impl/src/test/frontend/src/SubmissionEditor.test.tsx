@@ -128,6 +128,33 @@ describe("SubmissionEditor", () => {
     expect(await screen.findByLabelText("Not saved")).toBeInTheDocument();
   });
 
+  it("tells the page the request changed, so the step that sends it can re-read", async () => {
+    // The editor knowing the form again is not enough: what the request is still missing is recorded
+    // on the submission, and the control offering to *send* it reads that. Without this, answering the
+    // last question leaves that control refusing a request that is now complete.
+    const changed = vi.fn();
+    vi.stubGlobal("fetch", serving(form()));
+
+    render(<SubmissionEditor path={PATH} onChanged={changed} />);
+    // Finished, not merely typed into: an answer is saved when the field is left
+    await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
+    await userEvent.tab();
+
+    await waitFor(() => expect(changed).toHaveBeenCalled());
+  });
+
+  it("says nothing to a page that did not ask to be told", async () => {
+    // Optional, because the editor is renderable on its own and a page with no send control has
+    // nothing to re-read
+    vi.stubGlobal("fetch", serving(form()));
+
+    render(<SubmissionEditor path={PATH} />);
+    await userEvent.type(await screen.findByLabelText(/several days/), "multiple days");
+    await userEvent.tab();
+
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+  });
+
   it("cannot be answered once the request is no longer the submitter's to change", async () => {
     // The same two rules the save workflow enforces, answered by the server, so the editor offers
     // editing only where a save would be accepted rather than finding out from a refusal
@@ -307,6 +334,18 @@ describe("SubmissionEditor", () => {
       fireEvent.change(await screen.findByLabelText(/Attach a file/), { target: { files: [] } });
 
       expect(fetchMock.mock.calls.some(call => call[0].includes(".attachDocument"))).toBe(false);
+    });
+
+    it("tells the page the request changed when a document is attached", async () => {
+      // Attaching the last thing a request was waiting for makes it ready to send, which is the same
+      // chain a saved answer walks
+      const changed = vi.fn();
+      vi.stubGlobal("fetch", serving(asked(), asked({ attached: [ "note.pdf" ] })));
+
+      render(<SubmissionEditor path={PATH} onChanged={changed} />);
+      await userEvent.upload(await screen.findByLabelText(/Attach a file/), pick());
+
+      await waitFor(() => expect(changed).toHaveBeenCalled());
     });
 
     it("cannot be attached to once the request is no longer the submitter's to change", async () => {
