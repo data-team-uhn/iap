@@ -102,7 +102,7 @@ USER docling
 # huggingface.co and fails on any host with no egress or with TLS interception — the container
 # would start healthy and then fail every real request. Downloading at build time also makes
 # startup deterministic and lets the runtime stay fully offline (see the ENV below).
-RUN python -c "import os; from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path(os.environ['DOCLING_ARTIFACTS_PATH']))" \
+RUN python -c "import os; from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path(os.environ['DOCLING_ARTIFACTS_PATH']), with_tableformer_v2=True)" \
     && find /opt/models -type d -name '.locks' -prune -exec rm -rf {} +
 
 # Now that we have the models downloaded, we can turn HF offline.
