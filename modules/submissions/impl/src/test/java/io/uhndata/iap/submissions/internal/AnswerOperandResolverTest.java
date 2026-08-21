@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.conditions.internal;
+package io.uhndata.iap.submissions.internal;
 
 import java.util.Map;
 
@@ -55,6 +55,9 @@ class AnswerOperandResolverTest
 
     private static final String ENTITY_TYPE = "data/Entity";
 
+    /** The search boundary. A submission is what holds answers; the generic entity was only ever a stand-in. */
+    private static final String SUBMISSION_TYPE = "sub/Submission";
+
     private static final String QUESTION_ID = "11111111-2222-3333-4444-555555555555";
 
     private final SlingContext context = new SlingContext();
@@ -90,7 +93,7 @@ class AnswerOperandResolverTest
     {
         final ConditionOperand operand = this.createOperand(QUESTION_ID);
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
         this.context.create().resource("/Submissions/sub/a1", Map.of(
             "question", QUESTION_ID, "value", new String[]{ "yes" }));
 
@@ -109,7 +112,7 @@ class AnswerOperandResolverTest
         this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of(
             "jcr:uuid", QUESTION_ID, "dataType", "long"));
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
         this.context.create().resource("/Submissions/sub/a1", Map.of(
             "question", QUESTION_ID, "value", new String[]{ "42" }));
 
@@ -134,7 +137,7 @@ class AnswerOperandResolverTest
         Mockito.when(session.getNodeByIdentifier(QUESTION_ID)).thenReturn(questionNode);
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
         this.context.create().resource("/Submissions/sub/a1", Map.of(
             "question", QUESTION_ID, "value", new String[]{ "42" }));
 
@@ -152,7 +155,7 @@ class AnswerOperandResolverTest
         Mockito.when(session.getNodeByIdentifier(QUESTION_ID)).thenThrow(new ItemNotFoundException());
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
         this.context.create().resource("/Submissions/sub/a1", Map.of(
             "question", QUESTION_ID, "value", new String[]{ "yes" }));
 
@@ -167,7 +170,7 @@ class AnswerOperandResolverTest
     void prefersTheAnswerClosestToTheContext()
     {
         final ConditionOperand operand = this.createOperand(QUESTION_ID);
-        this.context.create().resource("/Submissions/sub", SLING_RESOURCE_TYPE, ENTITY_TYPE);
+        this.context.create().resource("/Submissions/sub", SLING_RESOURCE_TYPE, SUBMISSION_TYPE);
         this.context.create().resource("/Submissions/sub/block1/a1", Map.of(
             "question", QUESTION_ID, "value", new String[]{ "one" }));
         final Content block2 = this.context.create().resource("/Submissions/sub/block2")
@@ -185,7 +188,7 @@ class AnswerOperandResolverTest
     void widensTheSearchToTheEnclosingEntity()
     {
         final ConditionOperand operand = this.createOperand(QUESTION_ID);
-        this.context.create().resource("/Submissions/sub", SLING_RESOURCE_TYPE, ENTITY_TYPE);
+        this.context.create().resource("/Submissions/sub", SLING_RESOURCE_TYPE, SUBMISSION_TYPE);
         this.context.create().resource("/Submissions/sub/block1/a1", Map.of(
             "question", QUESTION_ID, "value", new String[]{ "one" }));
         final Content block2 = this.context.create().resource("/Submissions/sub/block2")
@@ -198,11 +201,46 @@ class AnswerOperandResolverTest
     }
 
     @Test
+    void reachesTheRequestFromInsideItsWorkflow()
+    {
+        // The gap this boundary was changed for. A workflow instance is an iap:Entity and holds no answers, so
+        // stopping at the first entity stopped a gateway guard at the instance and it never saw the request it
+        // was guarding — "requests over thirty days need a second approval" could not be written.
+        final ConditionOperand operand = this.createOperand(QUESTION_ID);
+        this.context.create().resource("/Submissions/sub", SLING_RESOURCE_TYPE, SUBMISSION_TYPE);
+        this.context.create().resource("/Submissions/sub/a1", Map.of(
+            "question", QUESTION_ID, "value", new String[]{ "40" }));
+        final Content gateway = this.context.create().resource(
+            "/Submissions/sub/wf:instances/timeOffRequest/decision",
+            SLING_RESOURCE_TYPE, "wf/WorkflowInstance").adaptTo(Content.class);
+
+        final Operand resolved = this.resolver.resolve(operand, gateway);
+
+        assertEquals("40", resolved.get(0));
+    }
+
+    @Test
+    void doesNotReadAnotherRequestsAnswer()
+    {
+        // What the boundary is for, and what it kept when it moved: widening cannot cross into a neighbour,
+        // because a sibling submission is never an ancestor of anything inside this one
+        final ConditionOperand operand = this.createOperand(QUESTION_ID);
+        this.context.create().resource("/Submissions/mine", SLING_RESOURCE_TYPE, SUBMISSION_TYPE);
+        this.context.create().resource("/Submissions/theirs", SLING_RESOURCE_TYPE, SUBMISSION_TYPE);
+        this.context.create().resource("/Submissions/theirs/a1", Map.of(
+            "question", QUESTION_ID, "value", new String[]{ "not mine" }));
+        final Content mine = this.context.resourceResolver().getResource("/Submissions/mine")
+            .adaptTo(Content.class);
+
+        assertTrue(this.resolver.resolve(operand, mine).isEmpty());
+    }
+
+    @Test
     void resolvesToEmptyWhenThereIsNoAnswer()
     {
         final ConditionOperand operand = this.createOperand(QUESTION_ID);
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
 
         assertTrue(this.resolver.resolve(operand, submission).isEmpty());
     }
@@ -223,7 +261,7 @@ class AnswerOperandResolverTest
     {
         final ConditionOperand operand = this.createOperand();
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
 
         assertTrue(this.resolver.resolve(operand, submission).isEmpty());
     }
@@ -233,7 +271,7 @@ class AnswerOperandResolverTest
     {
         final ConditionOperand operand = this.createOperand("form/missing");
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
 
         assertTrue(this.resolver.resolve(operand, submission).isEmpty());
     }
@@ -245,7 +283,7 @@ class AnswerOperandResolverTest
         // The question exists but has no jcr:uuid to match answers against
         this.context.create().resource("/Schemas/schema/1.0/form/q1", Map.of("text", "Question?"));
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
 
         assertTrue(this.resolver.resolve(operand, submission).isEmpty());
     }
@@ -258,7 +296,7 @@ class AnswerOperandResolverTest
             "source", "answer",
             "value", new String[]{ "form/q1" })).adaptTo(ConditionOperand.class);
         final Content submission = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, ENTITY_TYPE).adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, SUBMISSION_TYPE).adaptTo(Content.class);
 
         assertTrue(this.resolver.resolve(operand, submission).isEmpty());
     }
