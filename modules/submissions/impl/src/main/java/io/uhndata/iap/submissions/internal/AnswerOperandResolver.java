@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.conditions.internal;
+package io.uhndata.iap.submissions.internal;
 
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -29,7 +29,7 @@ import io.uhndata.iap.conditions.api.OperandType;
 import io.uhndata.iap.conditions.models.ConditionOperand;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
-import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.submissions.models.Submission;
 
 /**
  * Resolves {@code answer} operands: the recorded answer to a question, e.g. a submission's answer to one of its
@@ -40,10 +40,23 @@ import io.uhndata.iap.entities.models.Entity;
  *
  * <p>
  * The answer itself is any node whose {@code question} property references the identified question, looked up
- * nearest-scope-first: the context's own subtree is searched before widening, one ancestor at a time, to the whole
- * enclosing entity. When the same question is answered several times in repeated blocks, a condition evaluated
- * inside one block therefore sees that block's own answer, not an arbitrary one.
+ * nearest-scope-first: the context's own subtree is searched before widening, one ancestor at a time, up to and
+ * including the submission that holds it. When the same question is answered several times in repeated blocks, a
+ * condition evaluated inside one block therefore sees that block's own answer, not an arbitrary one.
  * </p>
+ *
+ * <p><strong>The submission is the boundary, and it is deliberately the submission rather than any
+ * {@code iap:Entity}.</strong> This resolver used to live in the conditions module, which cannot name a
+ * submission — it depends on content and entities only, while schemas and submissions depend on it — so it
+ * stopped at the generic entity as a stand-in. That stand-in was wrong in a way that mattered: a workflow
+ * instance is an {@code iap:Entity} too, and it holds no answers, so a gateway guard asking about an answer was
+ * stopped at the instance and never reached the request it was guarding. "Requests over thirty days need a second
+ * approval" could not be written.</p>
+ *
+ * <p>Stopping at the submission fixes that and keeps what the old rule was protecting. Widening cannot leak
+ * across records, because a sibling submission is never an <em>ancestor</em>: from anywhere inside one, the walk
+ * meets its own submission and stops. And an {@code answer} is a submissions word, so this resolver belongs in
+ * the module that owns it — which is what {@code OperandResolver} being a published SPI is for.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -109,7 +122,7 @@ public class AnswerOperandResolver implements OperandResolver
             if (answer.isPresent()) {
                 return Operand.of(answer.get().get(VALUE_PROPERTY), question.type);
             }
-            if (scope.isOfType(Entity.RESOURCE_TYPE)) {
+            if (scope.isOfType(Submission.RESOURCE_TYPE)) {
                 break;
             }
             searched = scope;
