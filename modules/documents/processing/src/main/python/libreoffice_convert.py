@@ -306,14 +306,6 @@ def _convert_sibling_pdf(source: Path, log: LogFn | None = None) -> None:
 def prepare_office_document(input_path: Path, *, log: LogFn | None = None) -> Path:
     """Convert DOC/DOCX to PDF and return the Docling input path.
 
-    * ``.doc``  -> ``{stem}.docx``, then a best-effort ``{stem}.pdf`` rendered *from that
-      ``.docx``*; Docling receives the ``.docx``
-    * ``.docx`` -> best-effort ``{stem}.pdf``; Docling receives the original ``.docx``
-    * anything else is returned unchanged (no LibreOffice)
-
-    Sibling PDF conversion is best-effort: failure is logged and ignored so Docling can still
-    parse the Word document. ``.doc`` → ``.docx`` remains required.
-
     @param input_path: staged source file under the shared docs tree
     @param log: optional line logger for soft PDF failures
     @return: path Docling should convert (``.pdf`` or ``.docx``)

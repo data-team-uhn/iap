@@ -27,7 +27,6 @@ from pathlib import Path
 
 import pytest
 
-from bookmarks import build_line_index, build_lines_catalog
 import chunker
 
 
@@ -43,31 +42,6 @@ class TestPagesIn:
     def test_no_markers(self):
         assert chunker._pages_in("") == []
         assert chunker._pages_in("plain text") == []
-
-
-class TestBackmatterHeading:
-    def test_atx_heading(self):
-        assert chunker._backmatter_heading("## References\n\ncitation") == ["References"]
-
-    def test_bold_heading(self):
-        assert chunker._backmatter_heading("**Appendix A**\n\nbody") == ["Appendix A"]
-
-    def test_plain_first_line(self):
-        assert chunker._backmatter_heading("Plain first line\n\nmore") == ["Plain first line"]
-
-    def test_list_marker_and_partial_emphasis_stripped(self):
-        # Docling emits backmatter headings as list items with only part of them bold, e.g.
-        # "- 20.0 **Appendices**" on a real protocol — neither an ATX heading nor fully bold.
-        assert chunker._backmatter_heading("- 20.0 **Appendices**\n\nbody") == ["20.0 Appendices"]
-        assert chunker._backmatter_heading("* 19.0 References") == ["19.0 References"]
-        assert chunker._backmatter_heading("+ **Annexes**") == ["Annexes"]
-
-    def test_a_plain_list_item_keeps_its_text(self):
-        assert chunker._backmatter_heading("- plain item") == ["plain item"]
-
-    def test_empty_uses_default(self):
-        assert chunker._backmatter_heading("") == [chunker.DEFAULT_HEADING]
-        assert chunker._backmatter_heading("   \n  ") == [chunker.DEFAULT_HEADING]
 
 
 class TestSplitTrailingPageMarkers:
@@ -152,11 +126,7 @@ class TestOutlineSizeGate:
         if records is not None:
             (tmp_path / "doc.pdf").write_bytes(b"%PDF-1.4")
             monkeypatch.setattr(
-                "toc_and_appendix_detection.extract_bookmarks",
-                lambda *a, **k: records,
-            )
-            monkeypatch.setattr(
-                "toc_and_appendix_detection.verify_bookmarks",
+                "chunker.extract_bookmarks",
                 lambda *a, **k: records,
             )
         return chunker.build_chunk_tree(
@@ -192,7 +162,8 @@ class TestOutlineSizeGate:
         tree = chunker.build_chunk_tree(
             big, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
         )
-        assert tree["outline"]["toc_source"] == "md-toc"
+        # No sibling PDF bookmarks, and a printed TOC is not an outline source.
+        assert tree["outline"]["toc_source"] == "none"
 
 
 class TestIsHeadingOnly:
@@ -266,9 +237,7 @@ class TestNoHeadingOnlyChunkFiles:
         tree = chunker.build_chunk_tree(
             md, "doc.md", _md_path(tmp_path), chunker.DEFAULT_MAX_TOKENS, 1
         )
-        return [(entry["file"], len(chunk["text"]))
-                for entry, chunk in zip(tree["catalog"]["chunks"], tree["chunks"],
-                                        strict=True)]
+        return [(chunk["file"], len(chunk["text"])) for chunk in tree["chunks"]]
 
     def test_heading_stays_with_an_over_budget_table(self, tmp_path):
         # One row of ten cells is ~20 tokens, so 130 rows clears the 2000-token budget.
@@ -399,9 +368,8 @@ class TestFirstChunkHeading:
 
     def test_no_preamble_uses_the_real_heading(self, tmp_path):
         md = f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}"
-        first = self._tree(md, tmp_path)["catalog"]["chunks"][0]
-        assert first["heading"] == ["1.0 Introduction"]
-        assert first["file"] == "Chunk-1.md"
+        first = self._tree(md, tmp_path)["catalog"][0]
+        assert first["headings"] == ["1.0 Introduction"]
 
     def test_preamble_with_no_headings_uses_the_default(self, tmp_path):
         # The preamble has to be over budget to stand alone: a short one is packed together with
@@ -410,12 +378,11 @@ class TestFirstChunkHeading:
         preamble = "Loose front matter carrying no heading whatsoever. " * 40
         md = (f"{preamble}{chr(10)}{chr(10)}"
               f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}")
-        chunks = self._tree(md, tmp_path, max_tokens=300)["catalog"]["chunks"]
-        assert chunks[0]["file"] == "Chunk-0.md"
-        assert chunks[0]["heading"] == [chunker.DEFAULT_HEADING]
+        chunks = self._tree(md, tmp_path, max_tokens=300)["catalog"]
+        assert chunks[0]["headings"] == [chunker.DEFAULT_HEADING]
         # And the section that follows keeps its own heading.
-        assert any(c["heading"] == ["1.0 Introduction"] for c in chunks[1:]), \
-            [c["heading"] for c in chunks]
+        assert any(c["headings"] == ["1.0 Introduction"] for c in chunks[1:]), \
+            [c["headings"] for c in chunks]
 
     def test_packed_preamble_keeps_the_default_and_the_packed_headings(self, tmp_path):
         # A short preamble is packed together with the following sections. Chunk-0 is still
@@ -424,33 +391,51 @@ class TestFirstChunkHeading:
         md = (f"One short front-matter line.{chr(10)}{chr(10)}"
               f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}{chr(10)}{chr(10)}"
               f"# 2.0 Methods{chr(10)}{chr(10)}{self.PARAGRAPH}")
-        first = self._tree(md, tmp_path)["catalog"]["chunks"][0]
-        assert first["file"] == "Chunk-0.md"
-        assert first["heading"][0] == chunker.DEFAULT_HEADING
-        assert "1.0 Introduction" in first["heading"]
-        assert "2.0 Methods" in first["heading"]
+        first = self._tree(md, tmp_path)["catalog"][0]
+        assert first["headings"][0] == chunker.DEFAULT_HEADING
+        assert "1.0 Introduction" in first["headings"]
+        assert "2.0 Methods" in first["headings"]
 
     def test_preamble_alone_is_only_the_default(self, tmp_path):
         # Nothing packed in with it, so there is no real heading to add.
         md = f"One short front-matter line.{chr(10)}"
-        first = self._tree(md, tmp_path)["catalog"]["chunks"][0]
-        assert first["heading"] == [chunker.DEFAULT_HEADING]
+        first = self._tree(md, tmp_path)["catalog"][0]
+        assert first["headings"] == [chunker.DEFAULT_HEADING]
 
     def test_preamble_stand_out_lines_do_not_become_the_label(self, tmp_path):
         # A title block's bold/ALL-CAPS lines are field labels, not section titles.
         preamble = (f"**PRINCIPAL INVESTIGATOR:**{chr(10)}{chr(10)}Dr Somebody{chr(10)}{chr(10)}"
                     + "Front matter prose that runs on for a while. " * 40)
         md = (f"{preamble}{chr(10)}{chr(10)}# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}")
-        chunks = self._tree(md, tmp_path, max_tokens=300)["catalog"]["chunks"]
-        assert chunks[0]["heading"] == [chunker.DEFAULT_HEADING]
+        chunks = self._tree(md, tmp_path, max_tokens=300)["catalog"]
+        assert chunks[0]["headings"] == [chunker.DEFAULT_HEADING]
 
     def test_later_chunks_unaffected(self, tmp_path):
         md = "".join(
             f"# {i}.0 Section Heading{chr(10)}{chr(10)}{self.PARAGRAPH}{chr(10)}{chr(10)}"
             for i in range(1, 6)
         )
-        headings = [c["heading"] for c in self._tree(md, tmp_path)["catalog"]["chunks"]]
+        headings = [c["headings"] for c in self._tree(md, tmp_path)["catalog"]]
         assert all(h != [chunker.DEFAULT_HEADING] for h in headings), headings
+
+
+class TestNormalizeTitle:
+    """The one comparison key. Moved here with the function when ``bookmarks`` was retired;
+    :func:`chunker.repeated_lines` is what uses it."""
+
+    def test_strips_markup(self):
+        assert chunker.normalize_title("## 1.0 Background:") == "10background"
+
+    def test_casefold(self):
+        assert chunker.normalize_title("**Introduction**") == "introduction"
+
+    def test_empty(self):
+        assert chunker.normalize_title("  ---  ") == ""
+
+    def test_keeps_non_latin_scripts(self):
+        # An ASCII-only class erased these entirely, making the heading invisible to
+        # running-header detection.
+        assert chunker.normalize_title("## Введение") == "введение"
 
 
 class TestRepeatedLines:
@@ -482,15 +467,16 @@ class TestRepeatedLines:
         lines = [f"<!-- page: {n} -->" for n in range(1, 6)]
         assert chunker.repeated_lines(lines) == frozenset()
 
-    def test_part_heading_refuses_a_repeated_line(self):
-        part = f"<!-- page: 7 -->{chr(10)}CONFIDENTIAL{chr(10)}{chr(10)}Body text follows."
+    def test_part_heading_refuses_a_repeated_heading(self):
+        # A heading Docling emitted on every page is page furniture. Only ATX lines are
+        # candidates now, so the recurrence set is what tells the two apart.
+        part = f"<!-- page: 7 -->{chr(10)}## CONFIDENTIAL{chr(10)}{chr(10)}Body text follows."
         repeated = frozenset({chunker.normalize_title("CONFIDENTIAL")})
-        # Without the set it is accepted as a stand-out heading; with it, the part falls through.
         assert chunker._part_heading(part, None) == ["CONFIDENTIAL"]
         assert chunker._part_heading(part, None, repeated) == [chunker.DEFAULT_HEADING]
 
     def test_a_real_heading_after_a_page_marker_still_counts(self):
-        part = f"<!-- page: 7 -->{chr(10)}**5.0 METHODS**{chr(10)}{chr(10)}Body text follows."
+        part = f"<!-- page: 7 -->{chr(10)}## 5.0 METHODS{chr(10)}{chr(10)}Body text follows."
         repeated = frozenset({chunker.normalize_title("CONFIDENTIAL")})
         assert chunker._part_heading(part, None, repeated) == ["5.0 METHODS"]
 
@@ -509,31 +495,6 @@ class TestSplitOversized:
         parts = chunker._split_oversized(chunk_text, 1, 25)
         assert len(parts) >= 2
         assert all(chunker.count_tokens(p) <= 25 for p in parts)
-
-
-class TestSubchunkBlocksNumberedFallback:
-    def test_splits_at_bold_numbered_when_no_atx(self):
-        # No ATX sub-heading, but Docling left bold numbered headings: split on those.
-        text = (
-            "## 5 Analysis\n\nlead-in\n\n"
-            "**5.1 First**\n\nalpha body\n\n"
-            "**5.2 Second**\n\nbeta body"
-        )
-        blocks = chunker._subchunk_blocks(text, boundary_level=2)
-        assert len(blocks) == 3
-        assert blocks[0].startswith("## 5 Analysis")
-        assert blocks[1].startswith("**5.1 First**")
-        assert blocks[2].startswith("**5.2 Second**")
-
-    def test_atx_subheadings_take_precedence(self):
-        # A real ATX sub-heading wins; the bold line is not treated as a boundary.
-        text = "## 5 Analysis\n\n### 5.1 First\n\na\n\n**bold note**\n\nb"
-        blocks = chunker._subchunk_blocks(text, boundary_level=2)
-        assert len(blocks) == 2
-
-    def test_no_numbered_standout_single_block(self):
-        text = "## 5 Analysis\n\njust paragraphs\n\nmore text"
-        assert chunker._subchunk_blocks(text, boundary_level=2) == [text]
 
 
 class TestBookmarksStorage:
@@ -592,72 +553,3 @@ class TestAtomicPublication:
         assert sorted(p.name for p in (tmp_path / "Chunks").iterdir()) == before
         assert md.read_text(encoding="utf-8") == markdown_before
         assert self._leftovers(tmp_path) == []
-
-
-class TestRecordCutKeys:
-    def _index(self, md: str):
-        lines = md.split("\n")
-        return lines, build_line_index(build_lines_catalog(lines))
-
-    def test_resolves_unique_non_atx(self):
-        md = "<!-- page: 1 -->\n## 5 Analysis\n\nData Sharing\n\nbody"
-        lines, index = self._index(md)
-        keys = chunker._record_cut_keys(
-            [{"title": "Data Sharing", "page": 1}], lines, None, index
-        )
-        assert keys == frozenset({chunker.normalize_title("Data Sharing")})
-
-    def test_excludes_atx_match(self):
-        md = "<!-- page: 1 -->\n## Data Sharing\n\nbody"
-        lines, index = self._index(md)
-        keys = chunker._record_cut_keys(
-            [{"title": "Data Sharing", "page": 1}], lines, None, index
-        )
-        assert keys == frozenset()
-
-    def test_excludes_toc_range(self):
-        md = "<!-- page: 1 -->\nData Sharing\n\nbody"  # "Data Sharing" is line index 1
-        lines, index = self._index(md)
-        keys = chunker._record_cut_keys(
-            [{"title": "Data Sharing", "page": 1}], lines, (1, 1), index
-        )
-        assert keys == frozenset()
-
-    def test_no_records_is_empty(self):
-        lines, index = self._index("x")
-        assert chunker._record_cut_keys([], lines, None, index) == frozenset()
-
-
-class TestSubchunkBlocksRecordTier:
-    def test_splits_at_resolved_record_lines(self):
-        text = "## 5 Analysis\n\nlead\n\nData Sharing\n\nalpha\n\nGenomic Data\n\nbeta"
-        keys = frozenset({
-            chunker.normalize_title("Data Sharing"),
-            chunker.normalize_title("Genomic Data"),
-        })
-        blocks = chunker._subchunk_blocks(text, boundary_level=2, cut_keys=keys)
-        assert len(blocks) == 3
-        assert blocks[1].startswith("Data Sharing")
-        assert blocks[2].startswith("Genomic Data")
-
-    def test_atx_line_not_used_by_record_tier(self):
-        text = "## 5 Analysis\n\n## Data Sharing\n\nbody"
-        keys = frozenset({chunker.normalize_title("Data Sharing")})
-        assert chunker._subchunk_blocks(text, boundary_level=2, cut_keys=keys) == [text]
-
-    def test_records_take_precedence_over_numbered_standout(self):
-        text = "## 5 Analysis\n\nData Sharing\n\nalpha\n\n**5.1 Sub**\n\nbeta"
-        keys = frozenset({chunker.normalize_title("Data Sharing")})
-        blocks = chunker._subchunk_blocks(text, boundary_level=2, cut_keys=keys)
-        assert blocks[1].startswith("Data Sharing") and "**5.1 Sub**" in blocks[1]
-
-    def test_cut_keys_thread_through_split_oversized(self):
-        text = "## 5 Analysis\n\n" + "x" * 120 + "\n\nData Sharing\n\n" + "y" * 120
-        keys = frozenset({chunker.normalize_title("Data Sharing")})
-        parts = chunker._split_oversized(text, 2, 20, keys)
-        assert any(part.startswith("Data Sharing") for part in parts)
-
-    def test_unnumbered_bold_does_not_split(self):
-        # Bold but no numeric prefix -> not a boundary; whole chunk stays one block.
-        text = "## 5 Analysis\n\nlead\n\n**Important Note**\n\nbody\n\n**Another Note**\n\nmore"
-        assert chunker._subchunk_blocks(text, boundary_level=2) == [text]

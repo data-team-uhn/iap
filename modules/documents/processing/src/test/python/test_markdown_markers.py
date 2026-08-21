@@ -22,21 +22,14 @@ assert that every other spacing is rejected."""
 
 import time
 
-import bookmarks
 import chunker
 import markdown_cleanup
 import markdown_markers as mm
-import toc_and_appendix_detection as tad
 
 # The canonical form, exactly as markdown_markers.page_marker builds it and as the PDF
 # parser emits it.
 EMITTED = "<!-- page: 12 -->"
 NON_CANONICAL = "<!-- page: 12-->"
-
-
-def _pages(markdown: str):
-    """Page number -> normalized line keys, the way the chunker reads a document."""
-    return bookmarks.pages_from_positions(bookmarks.build_lines_catalog(markdown.split("\n")))
 
 
 class TestCanonicalPageMarker:
@@ -87,20 +80,21 @@ class TestPageMarkerFormat:
 
 
 class TestConsumersAgreeOnTheMarker:
-    """Every stage that recognises a page marker must recognise the emitted one."""
+    """Every stage that recognises a page marker must recognise the emitted one.
+
+    The outline module used to be one of them. It no longer reads page markers itself -- it
+    hands the document to :func:`bookmarks.build_lines_catalog`, which is covered here through
+    the ``_pages`` helper.
+    """
 
     def test_every_stage_reads_the_canonical_marker(self):
         assert chunker.is_neutral(EMITTED) is True
         assert chunker._pages_in(f"body\n{EMITTED}\nmore") == [12]
-        assert _pages(f"{EMITTED}\nSome Title") == {12: {"sometitle"}}
-        assert tad.PAGE_MARKER_LINE.match(EMITTED) is not None
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{EMITTED}\nb") is not None
 
     def test_every_stage_rejects_non_canonical_spacing(self):
         assert chunker.is_neutral(NON_CANONICAL) is False
         assert chunker._pages_in(f"body\n{NON_CANONICAL}\nmore") == []
-        assert _pages(f"{NON_CANONICAL}\nSome Title") != {12: {"sometitle"}}
-        assert tad.PAGE_MARKER_LINE.match(NON_CANONICAL) is None
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{NON_CANONICAL}\nb") is None
 
 

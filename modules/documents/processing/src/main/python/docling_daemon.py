@@ -65,7 +65,7 @@ from daemon_http import (
     refuse_unauthorized,
 )
 
-from chunker import DEFAULT_MAX_TOKENS
+from chunker import DEFAULT_MAX_TOKENS, DEFAULT_MIN_STRUCTURE_TOKENS
 from docling_batch_sizing import add_workers_argument, calc_workers
 from docling.datamodel.base_models import InputFormat
 
@@ -78,7 +78,6 @@ from shared_docs import (
     shared_docs_root,
 )
 from parse_document import parse_document
-from toc_and_appendix_detection import DEFAULT_MIN_STRUCTURE_TOKENS
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 18765
