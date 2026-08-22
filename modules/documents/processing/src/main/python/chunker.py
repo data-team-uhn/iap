@@ -51,12 +51,13 @@ Every chunk is listed in ``catalog.json``::
 
 ``chunk_id`` is the chunk's own file name. ``summary`` and ``rubric_tags`` stay empty here, to
 be filled in later. ``pages`` is the page range covered by the chunk (``"11-12"``, or ``"11"``
-for one page), empty for DOCX. ``length`` is the chunk content's character count. When a
-sibling PDF supplies
-bookmarks, ``headings`` are those bookmark titles (not every ATX line): a printed TOC styled
-as ``#`` is dropped, and a section that never became ``#`` is still labelled. When bookmarks
-exist they also rewrite heading levels in the Markdown used for splitting, so chunk cuts
-follow the outline rather than Docling's ``#`` counts.
+for one page), empty for DOCX. ``length`` is the chunk content's character count.
+
+When a sibling PDF supplies bookmarks, ``headings`` are those bookmark titles (not every ATX
+line): a printed TOC styled as ``#`` is dropped, and a section that never became ``#`` is still
+labelled. The bookmarks also rewrite the heading levels in the Markdown, so a cut follows the
+outline's level rather than Docling's ``#`` count -- but the cut points are the heading lines
+themselves, so a section the outline missed still starts its own chunk.
 
 Token counts come from :func:`markdown_markers.count_tokens`, a character-based heuristic
 (``len(text) // 4``). No ML tokenizer is loaded. Heading recognition lives in
@@ -78,14 +79,14 @@ import json
 import os
 import sys
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any
 
 import shared_docs
+from chunkweaver import Chunker
+from chunkweaver.presets import MARKDOWN_LEVELED
 from docling_batch_sizing import parse_positive_int
 from heading_helpers import (
     _apply_bookmark_heading_levels,
-    _get_heading_level,
     _get_min_atx_level,
     _get_part_heading,
     _get_preamble_heading,
@@ -104,6 +105,20 @@ from pdf_bookmarks import extract_bookmarks
 
 # Default maximum tokens per chunk file. A chunk larger than this is split into parts.
 DEFAULT_MAX_TOKENS = 2000
+
+# chunkweaver sizes chunks in characters, this pipeline in tokens. The same 4:1 ratio
+# count_tokens uses (see markdown_markers.count_tokens_for_length), so a budget converted
+# here and a chunk measured there agree.
+CHARS_PER_TOKEN = 4
+
+# chunkweaver's Markdown heading boundaries, with its horizontal-rule spec dropped.
+HEADING_BOUNDARIES = [
+    spec for spec in MARKDOWN_LEVELED if not spec[0].startswith("^---")
+]
+
+# Passed as chunkweaver's ``target_size`` where it is cutting on structure alone. The budget
+# belongs to _pack_blocks, which runs after the cut.
+UNBOUNDED_TARGET_SIZE = 10 ** 9
 
 # Documents shorter than this (``len(md) // 4``) are left unchunked and sent whole downstream.
 # Known PDF bookmarks bypass the gate: they are already in hand, and even a small document
@@ -128,23 +143,6 @@ CHUNKS_DIRNAME = "Chunks"
 # ``chunked: false``, so a reader gets one shape plus the reason.
 UNCHUNKED_BELOW_THRESHOLD = "below_min_structure_tokens"
 UNCHUNKED_NOT_REQUESTED = "chunking_not_requested"
-
-
-def _split_lines_at(lines: list[str], is_boundary: Callable[[int], bool]) -> list[str]:
-    """Group ``lines`` into blocks, starting a new block at each boundary line. A boundary
-    at the very start (nothing accumulated yet) does not create an empty leading block.
-    """
-    blocks: list[str] = []
-    current: list[str] = []
-    for index, line in enumerate(lines):
-        if is_boundary(index) and current:
-            blocks.append("\n".join(current).strip())
-            current = [line]
-        else:
-            current.append(line)
-    if current:
-        blocks.append("\n".join(current).strip())
-    return [block for block in blocks if block]
 
 
 def _get_page_range(text: str) -> str:
@@ -178,75 +176,48 @@ def _starts_with_page_marker(text: str) -> bool:
     return False
 
 
-def _get_header_line_index(bookmark: dict) -> int | None:
-    """0-based array index from a bookmark's 1-based ``line``, or ``None`` if missing."""
-    line = bookmark.get("line")
-    if isinstance(line, int) and line >= 1:
-        return line - 1
-    return None
+def _split_into_top_chunks(lines: list[str]) -> list[dict]:
+    """Split the document at its top-level heading lines.
 
+    chunkweaver does the cutting, on the heading levels
+    :func:`heading_helpers._apply_bookmark_heading_levels` has already written into the lines --
+    so where a PDF bookmark matched, the cut follows the bookmark's level, and where none did,
+    it follows the heading Docling produced. Cutting only at bookmark-matched lines instead
+    glued a real section onto its neighbour whenever the PDF outline was incomplete.
 
-def _split_into_top_chunks(
-    lines: list[str],
-    header_bookmarks: list[dict],
-    min_header_level: int | None,
-) -> list[dict]:
-    """Split the document at top-level header lines already listed in ``header_bookmarks``.
+    ``target_size`` is a sentinel: the budget belongs to :func:`_pack_blocks`, which runs next,
+    and a real budget here would split a section before it had its say. That is also why the
+    boundary is built from the shallowest heading level the document actually has, rather than
+    taken from :data:`HEADING_BOUNDARIES`: chunkweaver only splits on a level below its
+    strongest when the segment is over ``target_size``, which a sentinel never is. Against a
+    document whose headings are all ``##`` the fixed list therefore cut nothing, and four
+    sibling sections came out named ``Chunk-1.1`` to ``Chunk-1.4`` -- parts of one section.
 
-    @param lines: the main-content Markdown already split on newlines
-    @param header_bookmarks: heading candidates / matched bookmarks with ``level`` and line
-    @param min_header_level: the shallowest heading level to cut on, or ``None``
-    @return: chunks in document order, each ``{"number", "text"}``
+    @param lines: the main-content Markdown, heading levels already resolved
+    @return: chunks in document order, each ``{"number", "text"}``. Content before the first
+        heading is chunk ``number == 0``, the rest are numbered from 1.
     """
-    if min_header_level is None:
-        text = "\n".join(lines).strip()
-        return [{"number": 0, "text": text}] if text else []
-
-    split_indices = sorted({
-        index
-        for bookmark in header_bookmarks
-        if bookmark.get("level") == min_header_level
-        and (index := _get_header_line_index(bookmark)) is not None
-    })
-    # If none of pdf bookmarks matched to md lines so no records have any line numbers from md
-    if not split_indices:
-        # PDF levels with no matched line, or no positioned top-level header.
-        text = "\n".join(lines).strip()
-        return [{"number": 0, "text": text}] if text else []
-
-    result: list[dict] = []
-    first_cut = split_indices[0]
-    # Content before the first such heading is chunk ``number == 0``
-    if first_cut > 0:
-        preamble = "\n".join(lines[:first_cut]).strip()
-        if preamble:
-            result.append({"number": 0, "text": preamble})
-
-    for chunk_number, start in enumerate(split_indices, start=1):
-        end = split_indices[chunk_number] if chunk_number < len(split_indices) else len(lines)
-        text = "\n".join(lines[start:end]).strip()
-        if text:
-            result.append({"number": chunk_number, "text": text})
-    return result
-
-
-def _subchunk_blocks(chunk_text: str, min_header_level: int) -> list[str]:
-    """Split a chunk's text at its shallowest sub-heading level.
-
-    The first block holds the chunk's own boundary heading and any lead-in text before the
-    first sub-heading; each subsequent block is one sub-chunk.
-
-    An ATX ``#`` sub-heading is the only boundary. Do not add fallbacks for bold or ALL-CAPS
-    lines: they were tried and matched emphasis inside paragraphs far too often. With no
-    sub-heading the whole text is one block and :func:`_split_by_paragraphs` takes over.
-    """
-    lines = chunk_text.split("\n")
-    sub_level = _get_min_atx_level(lines, deeper_than=min_header_level)
-    if sub_level is not None:
-        return _split_lines_at(lines, lambda index: _get_heading_level(lines[index]) == sub_level)
-
-    stripped = chunk_text.strip()
-    return [stripped] if stripped else []
+    document = "\n".join(lines)
+    top_level = _get_min_atx_level(lines)
+    if top_level is None:
+        return [{"number": 0, "text": document.strip()}] if document.strip() else []
+    parts = [
+        part for part in Chunker(
+            target_size=UNBOUNDED_TARGET_SIZE,
+            overlap=0,
+            min_size=0,
+            boundaries=[(rf"^#{{{top_level}}}\s", 0)],
+        ).chunk(document)
+        if part.strip()
+    ]
+    if not parts:
+        return []
+    # A first part that does not open on a heading is the preamble.
+    first_number = 0 if not parts[0].lstrip().startswith("#") else 1
+    return [
+        {"number": first_number + offset, "text": part.strip()}
+        for offset, part in enumerate(parts)
+    ]
 
 
 def _split_trailing_page_markers(text: str) -> tuple[str, str] | None:
@@ -307,34 +278,42 @@ def _move_trailing_page_markers(parts: list[str]) -> list[str]:
     return [part for part in result if part.strip()]
 
 
-def _split_by_paragraphs(text: str, max_tokens: int) -> list[str]:
-    """Split text into parts no larger than the budget at blank-line (paragraph) boundaries.
+def _split_to_budget(text: str, max_tokens: int) -> list[str]:
+    """Split text into parts no larger than the budget, at the best boundary available.
 
-    A single paragraph larger than the budget is kept whole (nothing is split mid-paragraph).
-    When a part is closed, a trailing ``<!-- page: N -->`` run is moved onto the next paragraph.
+    chunkweaver does the splitting: paragraph boundaries first, then sentence boundaries
+    inside a paragraph that is over budget on its own. That last part is why it is here. The
+    hand-written version this replaced could only cut on blank lines, and Docling emits a
+    table as one run of ``|`` lines with no blank line in it -- so a 600-row schedule of
+    assessments arrived as a single paragraph and came out as one chunk 5.5x over budget.
+
+    ``overlap=0`` is not optional: chunkweaver defaults to 2 sentences of overlap for RAG
+    retrieval, which repeats text across chunk files and inflated a document by 43% in
+    testing. ``min_size=0`` likewise -- merging short segments forward is
+    :func:`_merge_small_text_tails`'s job, and it is the one that knows not to merge a part
+    carrying a heading.
+
+    @param text: the block to split, already over budget
+    @param max_tokens: the token budget per part
+    @return: parts in document order, none ending on a ``<!-- page: N -->`` run
     """
-    parts: list[str] = []
-    # The part under construction is kept unjoined: measuring a candidate by length instead
-    # of building it keeps this linear in the size of the text (see :func:`_pack_blocks`).
-    pieces: list[str] = []
-    length = 0
-    for paragraph in text.split("\n\n"):
-        if paragraph.strip() == "":
-            continue
-        if not pieces:
-            pieces, length = [paragraph], len(paragraph)
-            continue
-        if count_tokens_for_length(length + 2 + len(paragraph)) <= max_tokens:
-            pieces.append(paragraph)
-            length += 2 + len(paragraph)
-            continue
-        body, current = _flush_without_trailing_page_markers("\n\n".join(pieces), paragraph)
-        if body is not None:
-            parts.append(body)
-        pieces, length = [current], len(current)
-    if pieces:
-        parts.append("\n\n".join(pieces))
-    return _move_trailing_page_markers(parts)
+    budget = max_tokens * CHARS_PER_TOKEN
+    parts = Chunker(
+        # chunkweaver counts characters; count_tokens is len // 4 (see markdown_markers).
+        target_size=budget,
+        overlap=0,
+        # Also in characters, and it has to stay under target_size: min_size wins over
+        # target_size when the two disagree, so a floor above the budget makes every part
+        # over budget. Half the budget at most, whatever MIN_TAIL_TOKENS says.
+        min_size=min(MIN_TAIL_TOKENS * CHARS_PER_TOKEN, budget // 2),
+        # Headings inside the block are still worth cutting on: the outer pass only cut at the
+        # shallowest level, so a section's own sub-headings arrive here uncut. Without the
+        # ``---`` spec that MARKDOWN_LEVELED carries -- Docling emits horizontal rules inside
+        # sections, and cutting on them produces a chunk that opens with a bare rule.
+        boundaries=HEADING_BOUNDARIES,
+        fallback="paragraph",
+    ).chunk(text)
+    return _move_trailing_page_markers([part for part in parts if part.strip()])
 
 
 def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
@@ -412,23 +391,20 @@ def _pack_blocks(blocks: list[str], max_tokens: int) -> list[str]:
     return _move_trailing_page_markers(parts)
 
 
-def _split_oversized(
-    chunk_text: str, min_header_level: int, max_tokens: int
-) -> list[str]:
-    """Split an over-budget chunk into parts.
+def _split_oversized(chunk_text: str, max_tokens: int) -> list[str]:
+    """Split an over-budget chunk into parts, then fill them back up to the budget.
 
-    Sub-headings (the shallowest level deeper than ``min_header_level``) come first: consecutive
-    sub-chunks are joined up to the budget. A chunk with no sub-headings, or a joined part still
-    over budget, is split at paragraph boundaries instead.
+    :func:`_split_to_budget` cuts on the chunk's own sub-headings and comes back with parts
+    that fit, but it cuts at every heading it finds -- 12 small sub-sections come back as 12
+    parts. :func:`_pack_blocks` is what fills them again, because chunkweaver will not: its
+    ``min_size`` merge refuses to join two segments at the same heading level.
     """
-    blocks = _subchunk_blocks(chunk_text, min_header_level)
-    packed = _split_by_paragraphs(chunk_text, max_tokens) if len(blocks) <= 1 \
-        else _pack_blocks(blocks, max_tokens)
-
     parts: list[str] = []
-    for part in packed:
+    # _pack_blocks pulls a stand-alone heading in even when that breaks the budget, so the
+    # result still has to be checked.
+    for part in _pack_blocks(_split_to_budget(chunk_text, max_tokens), max_tokens):
         if count_tokens(part) > max_tokens:
-            parts.extend(_split_by_paragraphs(part, max_tokens))
+            parts.extend(_split_to_budget(part, max_tokens))
         else:
             parts.append(part)
     return parts
@@ -437,7 +413,7 @@ def _split_oversized(
 def _merge_heading_only_parts(parts: list[str]) -> list[str]:
     """Fold a part that is only a heading into a neighbour, so no chunk file is a bare title.
 
-    Two paths produce one: :func:`_split_by_paragraphs` flushes a heading alone when the body
+    Two paths produce one: :func:`_split_to_budget` flushes a heading alone when the body
     is one over-budget paragraph (common for a big table, which Docling emits as ``|`` lines
     with no blank line), and :func:`_pack_blocks` leaves a trailing bare heading as the last
     part because its lookahead stops at ``index + 1 < n``.
@@ -637,20 +613,11 @@ def build_chunk_tree(
     md_file = "\n".join(md_lines)
     outline["bookmarks"] = header_bookmarks
 
-    min_header_level = min(
-        (
-            bookmark["level"]
-            for bookmark in header_bookmarks
-            if isinstance(bookmark.get("level"), int) and bookmark["level"] > 0
-        ),
-        default=None,
-    )
-
     catalog_chunks: list[dict] = []
     chunks: list[dict] = []
 
     # Returns array [{"number": chunk_number, "text": text}]
-    top_chunks = _split_into_top_chunks(md_lines, header_bookmarks, min_header_level)
+    top_chunks = _split_into_top_chunks(md_lines)
     top_texts = [chunk["text"] for chunk in top_chunks if chunk["text"]]
     # _pack_blocks already ends with _move_trailing_page_markers; a second pass finds nothing.
     packed = _pack_blocks(top_texts, max_tokens) if top_texts else []
@@ -661,7 +628,6 @@ def build_chunk_tree(
     # Prefer Chunk-0 when the document has a leading preamble; otherwise start at 1.
     first_number = 0 if (top_chunks and top_chunks[0]["number"] == 0) else 1
     preamble_text = top_chunks[0]["text"] if first_number == 0 else ""
-    split_level = min_header_level if min_header_level is not None else 0
 
     def add(name: str, text: str, heading: list[str]) -> None:
         chunks.append({"file": name, "text": text})
@@ -677,7 +643,7 @@ def build_chunk_tree(
     for offset, packed_text in enumerate(packed):
         number = first_number + offset
         if count_tokens(packed_text) > max_tokens:
-            parts = _split_oversized(packed_text, split_level, max_tokens)
+            parts = _split_oversized(packed_text, max_tokens)
         else:
             parts = [packed_text]
         parts = _merge_heading_only_parts(parts)

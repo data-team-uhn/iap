@@ -39,3 +39,4 @@ pypdf==6.16.1
 # DependencyError: cryptography>=3.1 is required for AES algorithm.
 cryptography==46.0.7
 psutil==7.2.2
+chunkweaver==0.4.0

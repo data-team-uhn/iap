@@ -17,7 +17,7 @@ Production shape (what these tests exercise pieces of): Java stages an upload un
 | `test_markdown_markers.py` | shared `<!-- page: N -->` format (one accepted spelling), token helpers, supported suffixes |
 | `test_chunker.py` | heading helpers (`heading_helpers`); `chunk_file()` routing (small docs left whole, large ones split into `Chunks/`); `outline.json` / `catalog.json`; the unchunked-outline shape |
 | `test_daemon_http.py` | the daemon's request guards with no Docling import, so they run in CI: the bearer token, the `Origin` refusal, the body drain and its 1 MiB cap, `/parse` query parsing |
-| `test_chunker_internals.py` | splitting internals via `build_chunk_tree`; heading helpers in `heading_helpers`; block packing, oversized splitting, paragraph fallback, heading resolution, merge passes that avoid bare-heading or tiny orphan chunks |
+| `test_chunker_internals.py` | splitting internals via `build_chunk_tree`; heading helpers in `heading_helpers`; block packing, oversized splitting, the chunkweaver leaf split, heading resolution, merge passes that avoid bare-heading or tiny orphan chunks |
 | `test_pdf_bookmarks.py` | flattening a PDF's embedded bookmark tree (pypdf; fake reader, no real PDF needed) |
 | `test_docling_batch_sizing.py` | worker/RAM/batch-page arithmetic, including cgroup v1 and v2 quota reading |
 | `test_docling_runtime.py` | daemon plumbing with no model inference: `IAP_SHARED_DOCS` path allowlisting for `POST /parse`, body draining, health reporting, broken PDF-pool shutdown, batch-abandon path |
