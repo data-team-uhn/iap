@@ -32,6 +32,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.InternalLink;
 
@@ -83,8 +85,12 @@ public class AutocreateBacklinksListener implements ResourceChangeListener
             }
         } catch (final LoginException e) {
             LOGGER.warn("Failed to get a service session for completing backlinks: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(AutocreateBacklinksListener.class, "serviceLogin")
+                .about(path));
         } catch (final PersistenceException e) {
             LOGGER.warn("Failed to complete the backlink for {}: {}", path, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(AutocreateBacklinksListener.class, "completeBacklink")
+                .about(path));
         }
     }
 }

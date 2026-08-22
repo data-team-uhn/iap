@@ -37,15 +37,20 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
 import io.uhndata.iap.links.models.InternalLink;
 import io.uhndata.iap.links.models.LinkDefinition;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 /**
  * Unit tests for {@link AutocreateBacklinksListener}.
@@ -229,6 +234,73 @@ class AutocreateBacklinksListenerTest
         this.listener.onChange(List.of(new ResourceChange(ResourceChange.ChangeType.ADDED, LINK_PATH, false)));
 
         assertEquals(0, this.childrenCount("/Things/b/" + CONTAINER));
+    }
+
+    @Test
+    void recordsTheMissingServiceUserRatherThanOnlyLoggingIt()
+        throws Exception
+    {
+        // Nothing downstream can tell a backlink that was never wanted from one this failed to create, so an
+        // instance whose links service user is misconfigured would look healthy while quietly losing every backlink
+        this.createCommittedFixture();
+        final ResourceResolverFactory badFactory = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(badFactory.getServiceResourceResolver(Mockito.anyMap()))
+            .thenThrow(new LoginException("no such service user"));
+        this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory", badFactory);
+        final ErrorLoggerService recorder = this.recordInto();
+
+        try {
+            this.listener.onChange(List.of(new ResourceChange(ResourceChange.ChangeType.ADDED, LINK_PATH, false)));
+
+            final ArgumentCaptor<Throwable> fault = ArgumentCaptor.forClass(Throwable.class);
+            Mockito.verify(recorder).logError(fault.capture(), Mockito.any(ErrorContext.class));
+            assertInstanceOf(LoginException.class, fault.getValue());
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+    }
+
+    @Test
+    void recordsABacklinkItCouldNotCommit()
+        throws Exception
+    {
+        this.createCommittedFixture();
+        final ResourceResolver failing = Mockito.spy(this.context.getService(ResourceResolverFactory.class)
+            .getServiceResourceResolver(null));
+        Mockito.doThrow(new org.apache.sling.api.resource.PersistenceException("read only"))
+            .when(failing).commit();
+        final ResourceResolverFactory failingFactory = Mockito.mock(ResourceResolverFactory.class);
+        Mockito.when(failingFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(failing);
+        this.inject(this.listener, AutocreateBacklinksListener.class, "resolverFactory", failingFactory);
+        final ErrorLoggerService recorder = this.recordInto();
+
+        try {
+            this.listener.onChange(List.of(new ResourceChange(ResourceChange.ChangeType.ADDED, LINK_PATH, false)));
+
+            final ArgumentCaptor<Throwable> fault = ArgumentCaptor.forClass(Throwable.class);
+            Mockito.verify(recorder).logError(fault.capture(), Mockito.any(ErrorContext.class));
+            assertInstanceOf(org.apache.sling.api.resource.PersistenceException.class, fault.getValue());
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+    }
+
+    /**
+     * Publishes a recorder to the static facade, so that a test can see what was recorded.
+     *
+     * <p>
+     * The facade is process-global, so every test doing this withdraws it again in a {@code finally}: the surefire
+     * configuration asks for parallel classes and methods, which the JUnit 5 provider currently ignores, and a
+     * leaked recorder would turn that into flakiness the day it stops ignoring it.
+     * </p>
+     *
+     * @return the recorder, to verify against
+     */
+    private ErrorLoggerService recordInto()
+    {
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        return recorder;
     }
 
     private void mockNode(final Session session, final String identifier, final String path)

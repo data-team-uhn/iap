@@ -51,6 +51,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
 import io.uhndata.iap.links.models.InternalLink;
@@ -171,6 +173,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             this.definitions = Map.of();
             LOGGER.error("Cannot read the link definitions, the link-types service user is not available: {}",
                 e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(LinkManagerImpl.class, "serviceLogin"));
             return;
         }
         final Resource homepage = this.definitionsResolver.getResource(LINK_TYPES_PATH);
@@ -235,6 +238,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             this.collectBacklinks(node.getWeakReferences(InternalLink.REFERENCE_PROPERTY), resource, result);
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to retrieve the links pointing at {}: {}", resource.getPath(), e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(LinkManagerImpl.class, "getBacklinks").about(resource));
         }
         return result;
     }
