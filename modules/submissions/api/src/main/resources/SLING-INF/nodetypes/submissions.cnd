@@ -110,20 +110,18 @@
   // The model's explanation of how it got there
   - reasoning (STRING)
 
-  // Free-text note for a reviewer
-  - note (STRING)
-
   // How far extractedAnswer is from the submitter's value: the raw edit
-  // distance, and the same as a percentage of the longer of the two
+  // distance, and that distance as a percentage of the extracted answer's own
+  // length. Both are -1 when there is no extracted answer to compare against.
   - editDistance (LONG)
   - percentageDistance (DOUBLE)
+
+  // The passages backing the extracted answer
+  + * (sub:Evidence) = sub:Evidence
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
-
-  // The passages backing the extracted answer
-  + * (sub:Evidence) = sub:Evidence
 
   // Allow any other children for extensibility;
   // file-type answers store their upload as nt:file children
@@ -185,22 +183,19 @@
 //-----------------------------------------------------------------------------
 // One revision of a document: exactly one uploaded file, and everything the
 // parsing pipeline made of it. Uploading a replacement adds a version instead
-// of overwriting the file a reviewer has already read.
-//
+// of overwriting the file a reviewer has already read. A revision's number is
+// its position in the document's ordered list of versions, so it is not stored.
 [sub:DocumentVersion] > data:EntityPart, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "sub/DocumentVersion" mandatory autocreated protected
-
-  // Version label shown to the submitter, e.g. "1.0"
-  - version (STRING) mandatory
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
 
   // The one file this revision consists of. Not declared mandatory, so the
   // version node can be created before the upload lands, but a version without
   // it is incomplete.
   + file (sub:File) = sub:File
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -212,33 +207,15 @@
 [sub:File] > data:EntityPart, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "sub/File" mandatory autocreated protected
 
-  // This file's working directory on the shared volume (IAP_SHARED_DOCS), which
-  // is where the daemon reads the upload from and writes the renditions and the
-  // chunk files to. The daemon is never handed document bytes, only this path.
-  - sharedPath (STRING)
-
-  // Where the parse got to, mirrored from the job node under
-  // /var/documents/jobs/<jobId>: queued, active, completed or failed. Kept here
-  // as well as on the job so a file that failed parsing does not look like one
-  // that was never parsed.
-  - parseJobId (STRING)
+  // Where the parse got to: queued, active, completed or failed. Kept here as
+  // well as on the parse job so that a file that failed parsing does not look
+  // like one that was never parsed.
   - parseStatus (STRING)
   - parseError (STRING)
 
   // Token count of the Markdown. A cheap character heuristic, len(md) // 4;
   // no ML tokenizer is involved.
   - tokens (LONG)
-
-  // Where the outline came from: pdf-bookmarks, md-toc, or none
-  - tocSource (STRING)
-
-  // Titles of the outline records, in document order; empty when there is no TOC
-  - toc (STRING) multiple
-
-  // Line range of the printed table of contents within the Markdown, so it can
-  // be skipped when reading the body. Absent when no printed TOC was found.
-  - tocStartLine (LONG)
-  - tocEndLine (LONG)
 
   // The first Reference/Appendix record that resolved to a body line.
   // Everything from here to the end becomes one standalone backmatter chunk.
@@ -253,10 +230,6 @@
   // failure; it is here so that a missing chunk tree always says which it was.
   - unchunkedReason (STRING)
 
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
@@ -264,15 +237,47 @@
   // reads, and the .docx / .pdf made along the way
   + * (nt:file) = nt:file
 
+  // The document's outline, absent when no outline was found
+  + toc (sub:ToC) = sub:ToC
+
   // The chunk tree; absent when chunked is false
   + chunks (sub:Chunks) = sub:Chunks
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The outline of one file: where it was read from, the records it holds, and
+// the lines the printed table of contents occupies.
+[sub:ToC] > data:EntityPart
+  - sling:resourceType (STRING) = "sub/ToC" mandatory autocreated protected
+
+  // Where the outline came from: pdf-bookmarks or md-toc
+  - source (STRING)
+
+  // Titles of the outline records, in document order
+  - titles (STRING) multiple
+
+  // Line range of the printed table of contents within the Markdown, so it can
+  // be skipped when reading the body. Absent when no printed TOC was found.
+  - startLine (LONG)
+  - endLine (LONG)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
 // The chunk tree of one file: what the pipeline writes as Chunks/catalog.json,
-// with one child per chunk.
+// with one child per chunk. The file the catalog was built from is this node's
+// own parent, so it is not named again here.
 [sub:Chunks] > data:EntityPart
   // Chunks are kept in document order, which is the order the catalog lists
   // them in and the order a reader would meet them.
@@ -280,27 +285,23 @@
 
   - sling:resourceType (STRING) = "sub/Chunks" mandatory autocreated protected
 
-  // The catalog's fileId: the name of the file the catalog was built from
-  - fileId (STRING)
+  // The chunks, in document order
+  + * (sub:Chunk) = sub:Chunk
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
-
-  // The chunks, in document order
-  + * (sub:Chunk) = sub:Chunk
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
 // One chunk of a document. Referenceable so that a sub:Evidence passage can
-// cite the chunk it was quoted from.
+// cite the chunk it was quoted from. The catalog's chunk_id is this node's own
+// name, and the chunk's length is that of its content file, so neither is
+// stored as a property.
 [sub:Chunk] > data:EntityPart, mix:referenceable
   - sling:resourceType (STRING) = "sub/Chunk" mandatory autocreated protected
-
-  // The catalog's chunk_id, e.g. "chunk001"
-  - chunkId (STRING) mandatory
 
   // The catalog's heading: the heading path this chunk sits under
   - headings (STRING) multiple
@@ -314,7 +315,7 @@
   - rubricTags (STRING) multiple
 
   // How rubricTags was arrived at: "heading" when it was guessed from the
-  // heading alone, "fulltext" when a model read the whole chunk, or "deep" from
+  // list of headings alone, "fulltext" when a model read the whole chunk, or "deep" from
   // a later and more thorough pass. Only the last two count as content-based.
   - tagBasis (STRING)
 
@@ -322,30 +323,23 @@
   // came back truncated.
   - uncertain (BOOLEAN) = false
 
-  // Free text, at most 40 tokens each: what this chunk can answer. Also written
-  // by the summarizer, for a reader or a chat router browsing the catalogue.
-  // The extraction planner does not use it; it uses extractionHints below.
-  - questionsAnswered (STRING) multiple
-
-  // The page markers referenced within this chunk, read from the
+  // The range of page markers this chunk covers, read from the
   // <!-- page: N --> comments the PDF parser emits, so an extracted answer can
-  // be cited back to a page of the source. Empty for documents that came in as
+  // be cited back to a page of the source. Absent for documents that came in as
   // DOCX, which carry no page markers.
-  - pages (LONG) multiple
-
-  // Character count of the chunk file's content
-  - length (LONG)
+  - pageStart (LONG)
+  - pageEnd (LONG)
 
   // True only for the backmatter (Reference/Appendix) chunk, which is never
   // sent to the summarizer
   - isAppendix (BOOLEAN) = false
 
+  // This chunk's Chunk-<n>.md
+  + content (nt:file) = nt:file
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
-
-  // This chunk's Chunk-<n>.md
-  + content (nt:file) = nt:file
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured

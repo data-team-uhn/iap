@@ -167,19 +167,19 @@
   // How the question is rendered to the submitter
   - displayMode (STRING)
 
-  // What this question is for, in the reviewer's terms
+  // What the answer is used to judge, in the reviewer's terms rather than the
+  // submitter's
   - purpose (STRING)
 
-  // The prompt an llm is given to read this answer out of the submitted documents
-  - prompt (STRING)
+  // The prompt an LLM is given to read this answer out of the submitted documents
+  - extractionPrompt (STRING)
 
-  // The shape the llm model's reply must take, as a JSON schema
+  // The shape the LLM's reply must take, as a JSON schema
   - responseShape (STRING)
 
-  // Tags for proposal schema sections that may contain the answer
-  // Selection of chunks for extraction is tag-driven: 
-  // take the union of the extraction fields' rubricTags 
-  // and select every chunk whose llm-assigned rubricTags intersect that union
+  // Tags of the schema sections that may contain the answer. Chunk selection for
+  // extraction is tag-driven: take the union of the extraction fields' rubricTags,
+  // and select every chunk whose LLM-assigned rubricTags intersect that union.
   - rubricTags (STRING) multiple
 
   // Allow any other properties for extensibility
