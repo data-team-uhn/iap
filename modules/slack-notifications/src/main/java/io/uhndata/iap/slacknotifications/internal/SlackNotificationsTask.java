@@ -32,6 +32,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
@@ -127,9 +129,18 @@ public class SlackNotificationsTask implements Runnable
                 // The webhook was reached and refused the message, which no exception would have told us about
                 LOGGER.warn("The notification was refused by the webhook with status {}: {}",
                     response.getStatusCode(), response.getBody());
+                // A problem rather than a failure, since nothing was thrown and the endpoint is configuration. The
+                // status goes in the context rather than the phrase: one refusing webhook is one thing to fix,
+                // however many status codes it answers with
+                ErrorLogger.logProblem("the webhook refused the notification",
+                    ErrorContext.of(SlackNotificationsTask.class, "post")
+                        .with("status", response.getStatusCode()));
             }
         } catch (final IOException e) {
             LOGGER.warn("Failed to post the notification: {}", e.getMessage(), e);
+            // The whole point of a notification is to tell somebody something, so a notification that never
+            // arrives is the one failure guaranteed to have nobody watching for it
+            ErrorLogger.logError(e, ErrorContext.of(SlackNotificationsTask.class, "post"));
         }
     }
 

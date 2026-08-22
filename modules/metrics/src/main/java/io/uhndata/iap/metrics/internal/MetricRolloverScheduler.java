@@ -37,6 +37,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.metrics.api.Metric;
 import io.uhndata.iap.metrics.api.MetricsException;
 
@@ -58,6 +60,12 @@ import io.uhndata.iap.metrics.api.MetricsException;
 public class MetricRolloverScheduler implements ResourceChangeListener
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(MetricRolloverScheduler.class);
+
+    /** The recorded-error detail naming which metric a roll-over failure was about. */
+    private static final String METRIC_DETAIL = "metric";
+
+    /** The recorded-error detail naming the schedule a roll-over failure was configured with. */
+    private static final String SCHEDULE_DETAIL = "schedule";
 
     private static final String JOB_NAME_PREFIX = "iap-metrics-rollover-";
 
@@ -160,8 +168,13 @@ public class MetricRolloverScheduler implements ResourceChangeListener
             }
             LOGGER.error("Failed to schedule the roll-over of metric {}, is [{}] a valid cron expression?",
                 name, schedule);
+            ErrorLogger.logProblem("metric roll-over schedule was refused",
+                ErrorContext.of(MetricRolloverScheduler.class, SCHEDULE_DETAIL)
+                    .with(METRIC_DETAIL, name).with(SCHEDULE_DETAIL, schedule));
         } catch (final RuntimeException e) {
             LOGGER.error("Failed to schedule the roll-over of metric {}: {}", name, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(MetricRolloverScheduler.class, SCHEDULE_DETAIL)
+                .with(METRIC_DETAIL, name).with(SCHEDULE_DETAIL, schedule));
         }
         return false;
     }
@@ -181,6 +194,8 @@ public class MetricRolloverScheduler implements ResourceChangeListener
             new MetricImpl(this.resolverFactory, name).rollOver();
         } catch (final RuntimeException e) {
             LOGGER.warn("Scheduled roll-over of metric {} failed: {}", name, e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(MetricRolloverScheduler.class, "rollOver")
+                .with(METRIC_DETAIL, name));
         }
     }
 }
