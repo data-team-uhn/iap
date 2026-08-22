@@ -210,16 +210,16 @@ test.describe('an administrator triages an error the instance could not deal wit
 
     await expect(page.getByRole('alert')).toContainText('Decision recorded');
     // Re-read from the server rather than patched in the browser: the markers are derived from the
-    // decision when the write commits. The chip shows one state per category and the processor
-    // derives `acknowledged` alongside the decision, so it is that umbrella state which appears
-    // here; the decision that was actually taken is named in the list below it.
+    // decision when the write commits. Both of them are shown, since the processor derives the
+    // umbrella `acknowledged` alongside the decision itself and neither is the whole story.
     await expect(page.getByText('Acknowledged')).toHaveCount(1);
     await expect(page.getByText('Decisions (1)')).toBeVisible();
-    // Twice, and both are wanted: the decision is named in the list, and the select still shows the
-    // choice that was just made. Counted rather than taken `.first()` so that losing either one is
-    // a failure — the list entry is the record, and the select keeping its value is what tells the
-    // reader what they just submitted.
-    await expect(page.getByText('Known issue')).toHaveCount(2);
+    // Three times, and all three are wanted: the marker derived from the decision, the decision
+    // named in the list, and the select still showing the choice that was just made. Counted
+    // rather than taken `.first()` so that losing any of them is a failure — the marker is what
+    // the rest of the platform reads, the list entry is the record, and the select keeping its
+    // value is what tells the reader what they submitted.
+    await expect(page.getByText('Known issue')).toHaveCount(3);
     await expect(page.getByText('Raised on purpose by the triage story.')).toBeVisible();
     await expect(page.getByText(`${ADMIN.username} ·`)).toBeVisible();
   });
@@ -233,13 +233,12 @@ test.describe('an administrator triages an error the instance could not deal wit
 
     await signInAs(page, ADMIN);
     await page.goto('/admin/errors');
-    // The status chip shows ONE state per category — TagChip with a category takes the first tag in
-    // definition order — while the processor derives both `acknowledged` and the decision that was
-    // taken. `acknowledged` is order 100 and `known-issue` is 110, so the column reads
-    // "Acknowledged" and never names the specific decision. Asserted as it behaves rather than as
-    // it arguably should: what this step is about is that the error has stopped needing attention,
-    // and the decision itself is named on the error's own page and in the API check above.
+    // Both markers in the one Triage cell: that the error was dealt with, and what was decided.
+    // Two substring matches on the same cell rather than one match on its whole accessible name,
+    // which would pin down how the chips happen to be joined together; what matters is that
+    // neither marker is missing, since either alone leaves the reader asking the other question.
     await expect(page.getByRole('gridcell', { name: 'Acknowledged' })).toBeVisible();
+    await expect(page.getByRole('gridcell', { name: 'Known issue' })).toBeVisible();
     await expect(page.getByRole('gridcell', { name: 'Needs attention' })).toHaveCount(0);
 
     // Narrowed to what is outstanding, this error is gone

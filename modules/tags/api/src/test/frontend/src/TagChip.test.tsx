@@ -81,14 +81,33 @@ describe("TagChip", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/Tags.search.json");
   });
 
-  it("shows the first defined tag in definition order when several apply", async () => {
+  it("shows every tag of the category, in definition order", async () => {
     vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
 
-    render(<TagChip tags={["rejected", "submitted", "not-a-state"]} category="lifecycle" />);
+    // Several at once is not a contradiction to be resolved by picking one: a category is a
+    // subject, and only some categories are lifecycles. Recorded errors carry both the marker
+    // saying somebody dealt with them and the one naming what was decided
+    const { container } = render(
+      <TagChip tags={["rejected", "submitted", "not-a-state"]} category="lifecycle" />);
 
-    // "submitted" (order 20) is defined before "rejected" (order 70)
     expect(await screen.findByText("Submitted")).toBeInTheDocument();
-    expect(screen.queryByText("Rejected")).toBeNull();
+    expect(screen.getByText("Rejected")).toBeInTheDocument();
+    // "submitted" is order 20 and "rejected" order 70, and the order is the definitions', not
+    // the one the node happens to list them in
+    expect([ ...container.querySelectorAll(".MuiChip-label") ].map(chip => chip.textContent))
+      .toEqual([ "Submitted", "Rejected" ]);
+  });
+
+  it("leaves a tag of another category out even when it shows several", async () => {
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({})));
+
+    // "in-progress" is a review state; showing everything within a category must not become
+    // showing everything the node carries
+    render(<TagChip tags={["submitted", "in-progress", "approved"]} category="lifecycle" />);
+
+    expect(await screen.findByText("Submitted")).toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(screen.queryByText("In progress")).toBeNull();
   });
 
   it("tolerates a single string instead of an array", async () => {

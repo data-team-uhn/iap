@@ -80,11 +80,15 @@ const ERROR_COLUMNS: EntityGridColumn[] = [
   {
     field: TRIAGE_PROPERTY,
     headerName: "Triage",
-    width: 150,
+    // Wide enough for the two markers a triaged error carries at once — that it was dealt with,
+    // and what was decided. Grid rows are a fixed height, so a third would wrap out of sight; the
+    // error's own page shows however many there are
+    width: 240,
     type: "singleSelect",
-    // The choices are the error-triage tag definitions under /Tags. An equality filter on the
-    // multivalued property matches an error carrying that marker among others, which is what
-    // "show me what needs attention" needs
+    // The choices are the error-triage tag definitions under /Tags. Single-select is the filter,
+    // not the display: an equality filter on the multivalued property matches an error carrying
+    // that marker among others, which is what "show me what needs attention" needs, while the
+    // cell below shows every marker the error carries
     valueOptions: tagValueOptions(TRIAGE_CATEGORY),
     // Ordering by a multivalued property has no meaningful semantics
     sortable: false,

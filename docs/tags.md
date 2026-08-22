@@ -19,7 +19,7 @@ through their initial content, e.g. the test-data module ships a demo set in
 | `name` | String | The exact string stored in `tags` properties; defaults to the definition node's name, set it explicitly only for tag strings that would be awkward as node names |
 | `label` | String | Display name, defaults to the tag name |
 | `description` | String | What the tag means and when it applies |
-| `category` | String[] | Grouping/filtering facets, e.g. `lifecycle`, `validation`, `privacy` |
+| `category` | String[] | Grouping/filtering facets, e.g. `lifecycle`, `validation`, `privacy`. A category is a subject, not necessarily a lifecycle: some hold states a node has one of at a time, others hold tags that apply together, and the UI shows every tag a node carries in the category it was asked about |
 | `inheritable` | Boolean | The tag flows *down*: resources under a tagged node implicitly carry it too (e.g. everything inside a `sensitive` submission is sensitive) |
 | `aggregated` | Boolean | The tag bubbles *up*: a node implicitly carries it when any descendant explicitly does (e.g. a submission with an `incomplete` answer is incomplete), as far as the nearest `iap:TagBoundary` — see [How far a copy travels](#how-far-a-copy-travels) |
 | `targetResourceTypes` | String[] | `sling:resourceType`s the tag may be placed on, subtypes included; empty means unrestricted |
