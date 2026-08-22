@@ -80,8 +80,8 @@ test.describe('stories: what becomes of something after it is deleted', () => {
       await page.getByRole('button', { name: 'Administration' }).click();
       await expect(page).toHaveURL(/\/admin$/);
 
-      expect(await archive.archived('Archived in total')).toBe(0);
-      expect(await archive.archived('Archived in the last 24 hours')).toBe(0);
+      expect(await archive.count('Archived in total')).toBe(0);
+      expect(await archive.count('Archived in the last 24 hours')).toBe(0);
     });
 
     await test.step('she creates a category', async () => {
@@ -99,8 +99,8 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
     await test.step('the console counts the deletion', async () => {
       await page.goto('/admin');
-      expect(await archive.archived('Archived in the last 24 hours')).toBe(1);
-      expect(await archive.archived('Archived in total')).toBe(1);
+      expect(await archive.count('Archived in the last 24 hours')).toBe(1);
+      expect(await archive.count('Archived in total')).toBe(1);
     });
 
     let deleted = '';
@@ -134,7 +134,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
       await expect(archive.empty()).toBeVisible();
 
       await page.goto('/admin');
-      expect(await archive.archived('Archived in total')).toBe(0);
+      expect(await archive.count('Archived in total')).toBe(0);
     });
 
     await test.step('and the category is back where it was', async () => {
@@ -286,7 +286,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
       // Destroyed rather than hidden: the console counts what is in the archive, and it is not there
       await page.goto('/admin');
-      expect(await archive.archived('Archived in total')).toBe(0);
+      expect(await archive.count('Archived in total')).toBe(0);
     });
 
     await test.step('she signs out', async () => {
@@ -312,8 +312,8 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
     await test.step('the console counts all three', async () => {
       await page.goto('/admin');
-      expect(await archive.archived('Archived in the last 24 hours')).toBe(3);
-      expect(await archive.archived('Archived in total')).toBe(3);
+      expect(await archive.count('Archived in the last 24 hours')).toBe(3);
+      expect(await archive.count('Archived in total')).toBe(3);
     });
 
     await test.step('and the archive lists them, the last one deleted first', async () => {
@@ -349,7 +349,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
       await archive.filterBy('');
       await expect(archive.rows()).toHaveCount(3);
 
-      await archive.sortBy('Archived');
+      await archive.sortBy('Deleted at');
       await expect
         .poll(async () => (await archive.listedPaths())[0].toLowerCase())
         .toContain(SPECIALTIES[0].toLowerCase());
@@ -370,7 +370,7 @@ test.describe('stories: what becomes of something after it is deleted', () => {
 
       await expect(archive.empty()).toBeVisible();
       await page.goto('/admin');
-      expect(await archive.archived('Archived in total')).toBe(0);
+      expect(await archive.count('Archived in total')).toBe(0);
     });
 
     await test.step('the taxonomy has that one back, and neither of the others', async () => {

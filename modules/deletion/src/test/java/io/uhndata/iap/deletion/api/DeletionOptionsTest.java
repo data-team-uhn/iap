@@ -32,7 +32,7 @@ class DeletionOptionsTest
     @Test
     void archiveIsNeitherRecursiveNorPermanent()
     {
-        final DeletionOptions options = DeletionOptions.archive();
+        final DeletionOptions options = DeletionOptions.recoverable();
         assertFalse(options.isRecursive());
         assertFalse(options.isPermanent());
     }

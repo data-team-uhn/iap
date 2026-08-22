@@ -51,7 +51,7 @@ public interface DeletionService
     String ENTRY_NODETYPE = "iap:ArchiveEntry";
 
     /** The node type of the wrapper around each archived subtree, recording where it came from. */
-    String ITEM_NODETYPE = "iap:ArchivedItem";
+    String ITEM_NODETYPE = "iap:DeletedItem";
 
     /** The mixin marking resources that must never be deleted. */
     String UNDELETABLE_MIXIN = "iap:Undeletable";

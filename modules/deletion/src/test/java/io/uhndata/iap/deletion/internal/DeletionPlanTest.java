@@ -39,12 +39,12 @@ import static org.mockito.Mockito.mock;
 class DeletionPlanTest
 {
     private final DeletionPlan plan =
-        new DeletionPlan(DeletionOptions.archive(), "/content/x", null, null);
+        new DeletionPlan(DeletionOptions.recoverable(), "/content/x", null, null);
 
     @Test
     void valuesAreKept()
     {
-        assertSame(DeletionOptions.archive().isRecursive(), this.plan.getOptions().isRecursive());
+        assertSame(DeletionOptions.recoverable().isRecursive(), this.plan.getOptions().isRecursive());
         assertEquals("/content/x", this.plan.getRequestedPath());
         assertNull(this.plan.getUserSession());
         assertNull(this.plan.getServiceResolver());

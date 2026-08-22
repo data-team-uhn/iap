@@ -108,7 +108,7 @@ final class ArchiveOperations
      * @return the path of the created archive entry, inside the {@link PrefixTree prefix tree} under the archive
      * @throws RepositoryException if the changes cannot be applied
      */
-    String archive(final DeletionPlan plan, final String userId) throws RepositoryException
+    String store(final DeletionPlan plan, final String userId) throws RepositoryException
     {
         // Opening the buckets saves them, so it has to happen before this deletion has anything else pending
         final String entryName = UUID.randomUUID().toString();

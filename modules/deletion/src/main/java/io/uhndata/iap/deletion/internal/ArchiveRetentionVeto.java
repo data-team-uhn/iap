@@ -87,10 +87,10 @@ public class ArchiveRetentionVeto implements DeletionVeto
      * The instant from which an entry archived at the given time may be destroyed, kept in the timestamp's own zone so
      * that the reported instant reads the way the entry was recorded.
      */
-    private ZonedDateTime destroyableFrom(final Calendar archivedAt)
+    private ZonedDateTime destroyableFrom(final Calendar deletedAt)
     {
-        return archivedAt.toInstant()
-            .atZone(archivedAt.getTimeZone().toZoneId())
+        return deletedAt.toInstant()
+            .atZone(deletedAt.getTimeZone().toZoneId())
             .plusDays(this.minimumRetentionDays);
     }
 }

@@ -38,7 +38,7 @@ export class ArchivePage {
    * that only happens past ten thousand entries, and reading it as a number here would silently turn
    * a bounded scan into an exact answer, so it is refused instead.
    */
-  async archived(period: ArchivePeriod): Promise<number> {
+  async count(period: ArchivePeriod): Promise<number> {
     const value = (await this.page.getByText(period, { exact: true })
       .locator('xpath=following-sibling::span').innerText()).trim();
     expect(value, `${period} was reported as an approximate count`).toMatch(/^\d+$/);
@@ -91,8 +91,9 @@ export class ArchivePage {
   }
 
   /** Orders the listing by a column, or reverses it if it is already ordered by that one. */
-  async sortBy(column: 'Archived' | 'Deleted by' | 'Deleted path'): Promise<void> {
-    await this.page.getByRole('button', { name: column }).click();
+  async sortBy(column: 'Deleted at' | 'Deleted by' | 'Deleted path'): Promise<void> {
+    // Exact: the column names share a prefix, so a substring match resolves to all three of them.
+    await this.page.getByRole('button', { name: column, exact: true }).click();
   }
 
   /** The paths currently listed, in the order they are shown in. */

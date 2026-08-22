@@ -62,15 +62,15 @@ const FILTER_DELAY_MS = 300;
 
 /** The columns that can be ordered on, paired with the JCR property the server knows them by. */
 const COLUMNS: { property: string; label: string; sortable: boolean }[] = [
-  { property: "jcr:created", label: "Archived", sortable: true },
+  { property: "jcr:created", label: "Deleted at", sortable: true },
   { property: "deletedBy", label: "Deleted by", sortable: true },
   { property: "requestedPath", label: "Deleted path", sortable: true },
   { property: "itemCount", label: "Items", sortable: false },
 ];
 
-// When the entry was archived, in the reader's own locale. The raw timestamp stays available as a
+// When the entry was deleted, in the reader's own locale. The raw timestamp stays available as a
 // tooltip, since a support conversation about a deletion is usually conducted in ISO-8601.
-function Archived({ entry }: { entry: ArchiveEntry }) {
+function Deleted({ entry }: { entry: ArchiveEntry }) {
   if (!entry.created) {
     return <>—</>;
   }
@@ -86,7 +86,7 @@ function Archived({ entry }: { entry: ArchiveEntry }) {
 // which is why only that one asks first.
 //
 // Registered as a view on the `iap/coreUI/view` extension point, so it is displayed by the
-// application shell's router at /Archive rather than being a page of its own.
+// application shell's router at /admin/archive rather than being a page of its own.
 //
 // Reachable only by users who can read /Archive — the server decides that, and a refusal surfaces
 // here as an ordinary message rather than as an empty table.
@@ -222,7 +222,7 @@ export function ArchiveBrowser() {
           <TableBody>
             {rows.map(entry => (
               <TableRow key={entry.path} hover>
-                <TableCell><Archived entry={entry} /></TableCell>
+                <TableCell><Deleted entry={entry} /></TableCell>
                 <TableCell>{entry.deletedBy}</TableCell>
                 <TableCell>
                   <Tooltip title={entry.originalPaths.join(", ")}>

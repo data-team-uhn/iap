@@ -88,7 +88,7 @@ deletion was requested — not one per node of the subtree.
 ## The archive
 
 Unless a permanent deletion is requested, the impacted subtrees are *moved* into a new
-`iap:ArchiveEntry` under `/Archive`, wrapped in one `iap:ArchivedItem` per subtree recording its
+`iap:ArchiveEntry` under `/Archive`, wrapped in one `iap:DeletedItem` per subtree recording its
 `originalPath`. The entry records who requested the deletion (`deletedBy` — the actual writes are
 performed by the `iap-deletion` service user, so `jcr:createdBy` cannot) and which resource was
 targeted (`requestedPath`).

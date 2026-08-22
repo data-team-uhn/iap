@@ -84,7 +84,7 @@ class ArchiveEntriesServletTest
         final Node entry = bucket.addNode(name, "iap:ArchiveEntry");
         entry.setProperty("deletedBy", user);
         entry.setProperty("requestedPath", path);
-        entry.addNode("item0", "iap:ArchivedItem").setProperty("originalPath", path);
+        entry.addNode("item0", "iap:DeletedItem").setProperty("originalPath", path);
         this.session.save();
     }
 

@@ -162,7 +162,7 @@ describe("ArchiveBrowser", () => {
     browser();
     await screen.findByText("/content/one");
 
-    await userEvent.click(screen.getByRole("button", { name: "Archived" }));
+    await userEvent.click(screen.getByRole("button", { name: "Deleted at" }));
 
     await waitFor(() => { expect(listings(calls).at(-1)).toContain("descending=false"); });
   });

@@ -104,7 +104,7 @@ public class DeletionServiceImpl implements DeletionService
                 operations.deletePermanently(plan);
                 return new DeletionResult(DeletionResult.Status.DELETED, null, impact);
             }
-            final String entryPath = operations.archive(plan, plan.getUserSession().getUserID());
+            final String entryPath = operations.store(plan, plan.getUserSession().getUserID());
             return new DeletionResult(DeletionResult.Status.ARCHIVED, entryPath, impact);
         } catch (final RepositoryException e) {
             throw new DeletionException("Failed to delete " + item.getPath(), e);
