@@ -74,6 +74,23 @@ public final class TestResolvers
     }
 
     /**
+     * Reads one of a component's fields directly, for a test that has to reach a collaborator the component made for
+     * itself. The counterpart of {@link #set}, and there for the same reason.
+     *
+     * @param component the component under test
+     * @param name the field to read
+     * @return whatever is in it
+     * @throws ReflectiveOperationException if the component has no such field
+     */
+    public static Object get(final Object component, final String name)
+        throws ReflectiveOperationException
+    {
+        final Field field = component.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return field.get(component);
+    }
+
+    /**
      * A resolver factory handing out the given resolver, for a collaborator that has to be built by hand rather than
      * injected.
      *

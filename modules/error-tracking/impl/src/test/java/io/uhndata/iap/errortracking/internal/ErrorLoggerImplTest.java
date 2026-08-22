@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -758,14 +759,33 @@ class ErrorLoggerImplTest
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
         TestResolvers.inject(running, this.context.resourceResolver());
         running.activate();
-        // Occupy the writer so that stopping actually has to wait for something
         TestResolvers.set(running, "shutdownWait", 2_000L);
-        running.logError(new IllegalStateException(BOOM));
+        // Hold the writer's one thread, so that stopping has to wait for it. Queuing a tally instead does not:
+        // draining it takes microseconds, and an executor with nothing left to do returns from awaitTermination at
+        // once without ever consulting the interrupt flag, leaving the interrupted path below unreached. The
+        // assertion passed either way, since nothing clears the flag, so only this path's coverage noticed — and it
+        // was a coin toss, failing this module's build on about every other run
+        final CountDownLatch occupied = new CountDownLatch(1);
+        final ScheduledExecutorService writer =
+            (ScheduledExecutorService) TestResolvers.get(running, "ownWriter");
+        writer.execute(() -> {
+            try {
+                occupied.await(5, TimeUnit.SECONDS);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
         Thread.currentThread().interrupt();
 
-        running.deactivate();
+        try {
+            running.deactivate();
 
-        assertTrue(Thread.interrupted(), "the interrupt was swallowed rather than restored");
+            assertTrue(Thread.interrupted(), "the interrupt was swallowed rather than restored");
+        } finally {
+            // Let the thread go, whatever happened above: it is a daemon, but a test that leaves it parked for five
+            // seconds slows down every one after it
+            occupied.countDown();
+        }
     }
 
     @Test
