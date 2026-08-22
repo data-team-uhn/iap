@@ -149,11 +149,9 @@ chunk_file(<stem>.md)                                        # md is already cle
        │    └─ at/above ↓
        │
        ├─ if bookmarks: rewrite heading lines to bookmark level/title (paged TOC ATX demoted)
-       ├─ chunkweaver cuts at the top-level heading lines
-       ├─ unite consecutive sections up to DEFAULT_MAX_TOKENS (2000)
-       ├─ over-budget piece → _split_oversized → _split_to_budget: chunkweaver again,
-       │       cutting on sub-headings then paragraphs then sentences, repacked after
-       ├─ heading-only part folded into a sibling (never its own chunk file)
+       ├─ _split_into_chunks: one chunkweaver pass to DEFAULT_MAX_TOKENS (2000) --
+       │       top heading level always, deeper levels where over budget, then paragraphs,
+       │       then sentences
        └─ small text-only tail (< MIN_TAIL_TOKENS 500) folded into the previous part
   │
   └─ write Chunks/ : Chunk-*.md, catalog.json, outline.json
@@ -174,17 +172,16 @@ checks for them — see "Staleness" below.
 
 ### What chunkweaver does, and what it does not
 
-It does all the cutting:
+All the cutting happens in **one** `Chunker` call, in `_split_into_chunks`. It gets the real
+budget, so the strongest heading level always cuts, deeper levels cut only where a section is
+over budget, and a section too big for its own sub-headings falls through to paragraphs and
+then sentences. That last fallback is why the library is here at all: Docling emits a table as
+a run of `|` lines with no blank line, so a 700-row schedule of assessments is a single
+paragraph, and the hand-written splitter returned it whole -- one chunk 6.4x over budget.
 
-- **The top-level cut.** On the heading lines, which the bookmark rewrite has already set to
-  the bookmark levels -- so cutting on them is cutting on the bookmarks, and a heading the
-  outline missed still starts a chunk. `target_size` is a sentinel there, because a real budget
-  would re-split a section before `_pack_blocks` has had its say.
-- **The over-budget cut.** `_split_to_budget` gives it the Markdown heading boundaries, so it
-  cuts on a section's own sub-headings, then paragraphs, then sentences. That last fallback is
-  why it is here at all: Docling emits a table as a run of `|` lines with no blank line, so a
-  700-row schedule of assessments is one paragraph, and the hand-written splitter returned it
-  whole -- one chunk 6.4x over budget.
+It cuts on the heading lines, which the bookmark rewrite has already set to the bookmark
+levels, so cutting on them is cutting on the outline -- and a heading the outline missed still
+starts a chunk, which cutting only at bookmark-matched lines did not do.
 
 Two settings are not optional. `overlap=0`, because the default is 2 sentences of RAG
 retrieval overlap, which repeats text across chunk files and inflated a test document by 43%.
@@ -196,13 +193,8 @@ horizontal rules inside sections, and cutting on them opens a chunk with a bare 
 
 What it does **not** do:
 
-- **Packing.** `_pack_blocks` unites consecutive sections up to the budget, and chunkweaver
-  cannot: `target_size` only ever splits, and its `min_size` merge explicitly refuses to join
-  two segments at the same heading level. Left to itself it turned 12 small sub-sections into
-  12 parts of ~245 tokens where packing gives 2 of ~1970 and ~1045.
-- **The post-split tweaks**: trailing page markers moved to the next chunk, heading-only parts
-  folded into a sibling, small text tails folded back, `Chunk-N.K` numbering, catalog headings
-  and pages.
+- **The post-cut pass**: trailing page markers moved to the next chunk, small text tails
+  folded back, catalog heading and pages.
 
 ## The outline subsystem
 
@@ -238,7 +230,7 @@ Key behaviours:
 
 - **Heading-level ceiling** — `bookmarks` keeps entries at level 1–`MAX_HEADING_LEVEL` (6). Deeper nesting is still walked (up to `MAX_OUTLINE_DEPTH`) so a crafted outline cannot exhaust the stack.
 - **Bookmark levels drive chunking** — when bookmarks exist, each Markdown heading line is matched to a PDF bookmark by normalized title only (dest page is ignored). The line is rewritten to that bookmark's level and title before any split, so a `###` that the bookmarks call level 1 is cut as `#`, and a bold/ALL-CAPS title that never had hashes becomes a heading. An ATX line that matches no bookmark title is demoted to body and does not start a chunk.
-- **Catalog headings from bookmarks** — each chunk's `headings` are the bookmark titles that appear as a line in that chunk. Bookmark `page` is not used to match.
+- **Catalog heading** — each chunk's `heading` is the text of its first non-neutral line when that line is ATX; otherwise empty. Bookmarks rewrite heading lines in the Markdown before splitting.
 - **No page rewrite** — a bookmark's page used to be looked up in the `<!-- page: N -->`
   markers and corrected when it pointed one page early. Matching is by title only; the titles
   are taken as the PDF gives them.
@@ -259,10 +251,9 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
     Chunks/
         outline.json          # ALWAYS written: tokens, chunked, bookmarks (+ unchunkedReason whenever chunked is false)
         catalog.json          # only when chunked: one slim entry per Chunk-*.md
-        Chunk-0.md            # content before the first boundary heading (if any)
+        Chunk-0.md            # content before the first heading (if any)
         Chunk-1.md
-        Chunk-2.1.md          # an oversized chunk split into parts
-        Chunk-2.2.md
+        Chunk-2.md
 ```
 
 ``extract_bookmarks`` reaches disk as ``bookmarks`` in `Chunks/outline.json`.

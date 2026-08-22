@@ -53,43 +53,36 @@ class TestValidHeading:
         assert heading_helpers.is_valid_heading("") is False
         assert heading_helpers.is_valid_heading("   ") is False
 
-
-class TestRejectedHeading:
-    """The ATX substance floor. Measured over letters and digits, not the matching key."""
-
     def test_a_numbered_short_heading_is_kept(self):
-        # Regression: normalize_title drops the numbering so "3.1 Aims" keys to "aims", four
-        # characters, and measuring that demoted the most common section title in a proposal.
+        # Substance is measured over letters and digits, not the matching key alone.
         for title in ("3.1 Aims", "5.2 Data", "2.0 Bias", "1.4 Team"):
-            assert heading_helpers._is_rejected_heading(title) is False, title
+            assert heading_helpers.is_valid_heading(title) is True, title
 
     def test_digits_only_is_rejected(self):
-        assert heading_helpers._is_rejected_heading("4.2") is True
+        assert heading_helpers.is_valid_heading("4.2") is False
 
-    def test_a_caption_is_rejected(self):
-        assert heading_helpers._is_rejected_heading("Table 3: Baseline") is True
-        assert heading_helpers._is_rejected_heading("Confidential") is True
+    def test_confidential_is_rejected(self):
+        assert heading_helpers.is_valid_heading("Confidential") is False
 
     def test_an_unnumbered_short_title_is_still_rejected(self):
-        # Unchanged from before the matching key changed: too little to identify a section.
-        assert heading_helpers._is_rejected_heading("Aims") is True
+        assert heading_helpers.is_valid_heading("Aims") is False
 
     def test_a_real_heading_is_kept(self):
-        assert heading_helpers._is_rejected_heading("3.1 Study Aims") is False
+        assert heading_helpers.is_valid_heading("3.1 Study Aims") is True
 
 
 class TestHeadingMatching:
-    def test_match_heading_level_and_text(self):
-        assert heading_helpers._match_heading("## Foo Bar") == (2, "Foo Bar")
+    def test_match_atx_heading_level_and_text(self):
+        assert heading_helpers._match_atx_heading("## Foo Bar") == (2, "Foo Bar")
 
-    def test_match_heading_deepest_level(self):
-        assert heading_helpers._match_heading("###### Deep Heading") == (6, "Deep Heading")
+    def test_match_atx_heading_deepest_level(self):
+        assert heading_helpers._match_atx_heading("###### Deep Heading") == (6, "Deep Heading")
 
-    def test_match_heading_seven_hashes_is_not_a_heading(self):
-        assert heading_helpers._match_heading("####### Seven") is None
+    def test_match_atx_heading_seven_hashes_is_not_a_heading(self):
+        assert heading_helpers._match_atx_heading("####### Seven") is None
 
-    def test_match_heading_plain_line(self):
-        assert heading_helpers._match_heading("plain text line") is None
+    def test_match_atx_heading_plain_line(self):
+        assert heading_helpers._match_atx_heading("plain text line") is None
 
     def test_heading_level_filters_invalid_headings(self):
         assert heading_helpers._get_heading_level("## Introduction") == 2
@@ -172,25 +165,41 @@ class TestChunkFile:
 
 
 class TestOutlineBookmarks:
-    """``Chunks/outline.json`` ``bookmarks`` are PDF bookmarks, or Markdown heading
-    candidates when the sibling PDF has none.
+    """``Chunks/outline.json`` ``bookmarks`` come from a sibling PDF and from nothing else.
+
+    Markdown headings are not harvested into them. A document with no sibling PDF reports an
+    empty list, and the caller decides what to send in its place; the document's own headings
+    are still in ``catalog.json`` per chunk.
     """
 
     PARAGRAPH = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 60
 
-    def test_a_printed_toc_is_not_harvested(self, tmp_path):
-        path = tmp_path / "proto.md"
+    def _proposal_with_a_printed_toc(self, path):
         toc = ["## TABLE OF CONTENTS", "1.0 Background", "2.0 Objectives", ""]
         body = [f"# Section {i} Heading{chr(10)}{chr(10)}{self.PARAGRAPH}{chr(10)}"
                 for i in range(1, 51)]
         path.write_text(chr(10).join(toc + body), encoding="utf-8")
+
+    def test_no_sibling_pdf_means_no_bookmarks(self, tmp_path):
+        path = tmp_path / "proto.md"
+        self._proposal_with_a_printed_toc(path)
         chunker.chunk_file(str(path))
         outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
         outline = json.loads(outline_path.read_text(encoding="utf-8"))
-        titles = [entry["title"] for entry in outline["bookmarks"]]
-        assert "TABLE OF CONTENTS" not in titles
-        assert "Section 1 Heading" in titles
+        assert outline["bookmarks"] == []
         assert "bookmark_source" not in outline
+
+    def test_a_printed_toc_is_not_a_chunk_heading(self, tmp_path):
+        # The reason the outline no longer harvests Markdown: a printed TOC line looks exactly
+        # like a heading. It still must not end up labelling a chunk.
+        path = tmp_path / "proto.md"
+        self._proposal_with_a_printed_toc(path)
+        chunker.chunk_file(str(path))
+        catalog_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.CATALOG_NAME
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        headings = [entry["heading"] for entry in catalog]
+        assert "TABLE OF CONTENTS" not in headings
+        assert any(h.startswith("Section ") and h.endswith(" Heading") for h in headings)
 
     def test_pdf_bookmarks_on_the_unchunked_path(self, tmp_path, monkeypatch):
         pdf_bookmarks = [{"title": "Alpha Section", "level": 1, "page": 1}]

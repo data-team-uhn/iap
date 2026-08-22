@@ -98,11 +98,17 @@ class TestChunkerCli:
         assert outline["unchunkedReason"] == "below_min_structure_tokens"
         assert not (chunks_dir / CATALOG_NAME).exists()
 
-    def test_max_tokens_option_changes_the_split(self, large_md):
-        run_cli(large_md, "--max-tokens", 400)
-        many = len(list((large_md.parent / CHUNKS_DIRNAME).glob("Chunk-*.md")))
-        run_cli(large_md, "--max-tokens", 4000)
-        few = len(list((large_md.parent / CHUNKS_DIRNAME).glob("Chunk-*.md")))
+    def test_max_tokens_option_changes_the_split(self, tmp_path):
+        # Each section must exceed the small budget, or chunkweaver keeps one chunk per heading
+        # regardless of max_tokens.
+        big_para = "Word " * 2000
+        path = tmp_path / "proto.md"
+        body = [f"# Section {i} Heading\n\n{big_para}\n" for i in range(1, 6)]
+        path.write_text("\n".join(body), encoding="utf-8")
+        run_cli(path, "--max-tokens", 400, "--min-structure-tokens", 1)
+        many = len(list((path.parent / CHUNKS_DIRNAME).glob("Chunk-*.md")))
+        run_cli(path, "--max-tokens", 4000, "--min-structure-tokens", 1)
+        few = len(list((path.parent / CHUNKS_DIRNAME).glob("Chunk-*.md")))
         assert many > few, f"a smaller budget should split further ({many} vs {few})"
 
     def test_min_structure_tokens_option_forces_unchunked(self, large_md):
