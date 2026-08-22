@@ -64,7 +64,7 @@
 
 //-----------------------------------------------------------------------------
 // One deletion operation: records who requested it, when (jcr:created), and
-// which resource was targeted, and holds one iap:ArchivedItem wrapper for
+// which resource was targeted, and holds one iap:DeletedItem wrapper for
 // each subtree the operation moved into the archive.
 [iap:ArchiveEntry] > sling:Folder, mix:created
   - sling:resourceType (STRING) = "iap/ArchiveEntry" mandatory autocreated protected
@@ -82,15 +82,15 @@
   - * (UNDEFINED) multiple
 
   // The archived subtrees
-  + * (iap:ArchivedItem) = iap:ArchivedItem
+  + * (iap:DeletedItem) = iap:DeletedItem
 
 //-----------------------------------------------------------------------------
-// A wrapper around one archived subtree, recording where it came from so it
+// A wrapper around one deleted subtree, recording where it came from so it
 // can be restored. The wrapper stays untouched by the move itself, so
 // archiving doesn't need to modify - or check out - the resources it
 // archives, and restoring leaves no residue on them.
-[iap:ArchivedItem] > sling:Folder
-  - sling:resourceType (STRING) = "iap/ArchivedItem" mandatory autocreated protected
+[iap:DeletedItem] > sling:Folder
+  - sling:resourceType (STRING) = "iap/DeletedItem" mandatory autocreated protected
 
   // The absolute path the wrapped subtree was moved from
   - originalPath (STRING) mandatory

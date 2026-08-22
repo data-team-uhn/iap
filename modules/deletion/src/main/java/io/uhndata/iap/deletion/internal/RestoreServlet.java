@@ -19,8 +19,6 @@ package io.uhndata.iap.deletion.internal;
 
 import java.io.IOException;
 
-import jakarta.json.Json;
-import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.servlet.Servlet;
 import jakarta.servlet.http.HttpServletResponse;
@@ -84,13 +82,7 @@ public class RestoreServlet extends SlingJakartaAllMethodsServlet
     {
         final JsonObjectBuilder body = JsonResponses.body(HttpServletResponse.SC_CONFLICT, "conflict");
         body.add("status.message", "Some archived items cannot be restored; nothing was changed");
-        final JsonArrayBuilder conflicts = Json.createArrayBuilder();
-        result.getConflicts().stream()
-            .map(conflict -> Json.createObjectBuilder()
-                .add("originalPath", conflict.getOriginalPath())
-                .add("reason", conflict.getReason().name()))
-            .forEach(conflicts::add);
-        body.add("conflicts", conflicts);
+        body.add("conflicts", JsonResponses.conflicts(result.getConflicts()));
         JsonResponses.send(response, HttpServletResponse.SC_CONFLICT, body);
     }
 }

@@ -88,7 +88,7 @@ deletion was requested — not one per node of the subtree.
 ## The archive
 
 Unless a permanent deletion is requested, the impacted subtrees are *moved* into a new
-`iap:ArchiveEntry` under `/Archive`, wrapped in one `iap:ArchivedItem` per subtree recording its
+`iap:ArchiveEntry` under `/Archive`, wrapped in one `iap:DeletedItem` per subtree recording its
 `originalPath`. The entry records who requested the deletion (`deletedBy` — the actual writes are
 performed by the `iap-deletion` service user, so `jcr:createdBy` cannot) and which resource was
 targeted (`requestedPath`).
@@ -99,6 +99,26 @@ characters of that UUID — `/Archive/3f/a9/1c/3fa91c48-…` — which keeps a p
 deletion ever performed. The buckets are `iap:Archive` nodes themselves; see the utility's javadoc
 for the layout and its contract. Nothing should assume the depth: use the entry path returned by
 the service, or look entries up by node type.
+
+The tree is a storage concern, and it does not have to reach the people reading a URL: an entry can
+also be addressed as **`/Archive/<uuid>`**, without its buckets. `PrefixTreeResourceProvider`
+(`io.uhndata.iap.utils.internal`, in `iap-java-utils`) translates the short form back, and it needs
+no lookup, index or state to do it, because `PrefixTree.pathFor` computes a bucket path from the
+node's own name. Registered in overlay mode, so stored paths always win and nothing under the
+archive changes; anything that is not a direct, extension-less child of the root and long enough to
+be filed in the tree is left alone, which is also what keeps a two-character bucket from being read
+as a node.
+
+It is not specific to the archive: it serves **any** prefix tree, one instance per factory
+configuration, and reads the root back from the `provider.root` service property it is mounted at,
+so the path it translates under and the path it is registered for cannot drift apart. The archive
+declares one in `modules/deletion`, and `modules/submissions` declares another for `/Submissions`,
+whose submissions are filed the same way.
+
+**What comes back is the real resource, with its real path.** The short form is an address, not an
+identity: a resource whose `getPath()` disagreed with the node behind it would be a trap for
+everything that adapts to a `Node`. So `path` in the API is still the stored one, and a second
+field, `shortPath`, carries the address to link a reader to.
 
 A move preserves node identifiers, so all references between archived resources — and references
 *into* the archive from resources archived earlier — remain intact. That is exactly what makes
@@ -139,6 +159,83 @@ an entry must reach before it may be purged. It defaults to `0`, which imposes n
 may be purged the moment it is created. Raising it only ever prevents destruction — nothing purges
 anything automatically, so this is a floor under purging rather than a schedule for it.
 
+### Viewing the archive
+
+Restoring and purging both act on an entry's path, and entries are filed under a prefix tree of
+buckets, so no client can construct one: they have to be listed. Two read endpoints do that, both
+bound to `iap/Archive` and therefore addressable on the archive root or on any bucket under it —
+listing a bucket is occasionally useful when diagnosing, and costs nothing to support.
+
+- `GET /Archive.entries.json` returns one page of entries, newest first. `offset` and `limit` page
+  it, `filter` keeps the entries whose `requestedPath` or `deletedBy` contains it (ignoring case),
+  and `sortBy` (`jcr:created`, `deletedBy` or `requestedPath`) with `descending` orders it. The
+  effective sort is echoed back, because an unrecognised column falls back to the default rather
+  than failing the request. Each row carries the entry's `path`, `requestedPath`, `deletedBy`,
+  `created`, `itemCount` and the `originalPaths` of everything archived in it, plus `shortPath` —
+  the address to link to, as opposed to `path`, which is where it is stored.
+- `GET /Archive.summary.json` returns `last24Hours`, `lastWeek` and `total` — the three counts the
+  administration console widget shows, without fetching rows nothing displays.
+- `GET /Archive/<xx>/<yy>/<zz>/<entry>.entry.json` describes one entry **and what would happen to
+  it**: the same fields as a listing row, plus `restorable` with the `restoreConflicts` that would
+  block a restore, and `purgeable` with the `purgeVetoes` that would block a purge.
+
+That last one is a preflight, and it exists because both actions can fail for reasons that are
+knowable in advance — a restore whose original parent is gone or whose path has been taken, a purge
+a guard refuses. It runs the very evaluations the operations run before they change anything:
+`DeletionService.checkRestore` shares `ArchiveOperations.evaluateRestore` with `restore`, and
+`checkPurge` shares the veto sweep with `purge`, so a preflight and the operation cannot disagree
+about what is possible. It is the same idea the deletion endpoint's own `dryRun` serves.
+
+A preflight is a snapshot, not a promise: another deletion can occupy a path and a retention floor
+expires, so the operations evaluate again rather than trusting it. A refusal arriving after a clean
+preflight is therefore ordinary, and the entry page re-reads itself when one does.
+
+The listing endpoints count with a bound (`ArchiveSearch.MAX_SCAN`) and report `approximate`/`totalIsApproximate`
+when they stopped early, so an archive that has grown without limit costs a fixed amount to page
+through rather than however much has been deleted over the years. Both run the query with the
+**requester's own** session, so they can only ever show what that user could already read — which
+is what makes the "everyone else gets a 404" rule of the action endpoints hold here too, with no
+separate permission check to keep in step.
+
+A property index on `jcr:created`, declared for `iap:ArchiveEntry`, ships with the module so the
+listing is served by an index rather than by traversing the archive.
+
+The UI is in `modules/deletion/src/main/frontend`, and both halves are extensions rather than pages:
+
+- `ArchiveWidget` is registered on `iap/adminDashboard/entry`, so it sits on the administration
+  console beside the other administrative tools rather than on everybody's homepage. It shows the
+  three counts; the way through to the archive is the dashboard frame's own header action, declared
+  by the extension's `iap:actionLabel` and `iap:targetURL` rather than drawn by the widget.
+- `ArchiveBrowser` is registered on `iap/coreUI/view` with `iap:targetURL` `/admin/archive` — a
+  filterable, sortable table with per-entry restore and purge actions, wrapped in the console's
+  `AdminScreen` chrome like every other administrative tool. Each row links through to its entry.
+- `ArchiveEntryView` is registered the same way for `/admin/archive/*`: one entry, what it holds,
+  and whether each item could go back where it came from — the preflight above, per item and in
+  words.
+
+Both are pages of the administration console rather than standalone pages, so they carry no HTL of
+their own: `/admin/**` is served by the console's own resource provider, which renders the
+application shell for any path under it.
+
+**The console route and the repository path are different strings, deliberately.** The browser sits
+at `/admin/archive/<entry>` while the endpoints answer on `/Archive/<entry>`; `archiveApi.ts` owns
+both constants and the two conversions between them, so they cannot drift into a route that
+navigates somewhere real and fetches from somewhere that is not.
+  That route also covers the prefix-tree buckets, which are not entries; the endpoint says so and
+  the page reports it rather than rendering an empty entry.
+
+`/Archive` and each entry are real nodes, which is what lets those views be opened directly as well
+as navigated to: `html.GET.html` includes the shell's own script and `null.GET.html` re-dispatches
+the extensionless URL to it, the same pair `iap:Content` declares for its subtypes, declared on both
+`iap/Archive` and `iap/ArchiveEntry`. The archive types deliberately do not extend `iap:Content`, so
+they also carry one-line `header.html` and `footer.html` borrowing the shared chrome by path. Nothing about the page is bespoke — the shell
+decides what a page looks like, and the resource's readability decides who may open it.
+
+The widget needs no persona restriction, because the administration console is reached only by
+those who can read its extensions — access control is repository-side. Reaching the console is still
+not the same as being allowed to read the archive, so a user whose rights do not match is told the
+archive is unavailable rather than shown three zeros.
+
 ## The Java API
 
 The `iap-deletion` bundle exposes **`DeletionService`** (`io.uhndata.iap.deletion.api`, an OSGi
@@ -172,6 +269,11 @@ failures (repository errors, missing service user).
 | `DELETE /path/to/resource?dryRun=true` | Only report what would happen, change nothing |
 | `POST /Archive/<xx>/<yy>/<zz>/<entry>.restore.json` | Restore an archive entry |
 | `DELETE /Archive/<xx>/<yy>/<zz>/<entry>` | Purge an archive entry |
+| `GET /Archive.entries.json` | List archive entries, paged, filtered and sorted |
+| `GET /Archive.summary.json` | Count the entries archived in the last day, last week, and in total |
+| `GET /Archive/<xx>/<yy>/<zz>/<entry>.entry.json` | Describe one entry, and whether restoring or purging it would work |
+
+Every endpoint addressing an entry also accepts the short form, e.g. `POST /Archive/<uuid>.restore.json`.
 
 The deletion endpoint is bound to the `iap/Content` resource type, i.e. every content resource;
 the archive endpoints are bound to `iap/ArchiveEntry`, and are implicitly restricted to users who

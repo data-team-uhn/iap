@@ -30,6 +30,11 @@ export interface Credentials {
 /** The administrator a freshly launched instance always has, which is how these suites sign in. */
 export const ADMIN: Credentials = { username: 'admin', password: 'admin' } as const;
 
+/** Request headers that authenticate as somebody. */
+export function basicAuth(user: Credentials): Record<string, string> {
+  return { Authorization: `Basic ${Buffer.from(`${user.username}:${user.password}`).toString('base64')}` };
+}
+
 /**
  * Request headers that authenticate as the administrator.
  *
@@ -37,9 +42,7 @@ export const ADMIN: Credentials = { username: 'admin', password: 'admin' } as co
  * several tests exist precisely to check what an *unauthenticated* caller is served — a project-wide
  * credential would silently make those pass against a repository that never refused anyone.
  */
-export const adminAuth = {
-  Authorization: `Basic ${Buffer.from(`${ADMIN.username}:${ADMIN.password}`).toString('base64')}`,
-} as const;
+export const adminAuth = basicAuth(ADMIN);
 
 /**
  * Signs the browser in, so that whatever the test is really about starts from an authenticated session.

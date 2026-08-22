@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.deletion.api;
 
+import java.util.List;
+
 import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 
@@ -49,7 +51,7 @@ public interface DeletionService
     String ENTRY_NODETYPE = "iap:ArchiveEntry";
 
     /** The node type of the wrapper around each archived subtree, recording where it came from. */
-    String ITEM_NODETYPE = "iap:ArchivedItem";
+    String ITEM_NODETYPE = "iap:DeletedItem";
 
     /** The mixin marking resources that must never be deleted. */
     String UNDELETABLE_MIXIN = "iap:Undeletable";
@@ -115,4 +117,33 @@ public interface DeletionService
      */
     @NotNull
     DeletionResult purge(@NotNull Resource archiveEntry);
+
+    /**
+     * Report what would stand in the way of restoring an archive entry, without restoring it. The same evaluation
+     * {@link #restore} performs before it moves anything, so an empty result means a restore requested now would
+     * succeed — "now" being the operative word: another deletion or a concurrent restore can occupy a path in the
+     * meantime, which is why the restore itself checks again rather than trusting this.
+     *
+     * @param archiveEntry an {@code iap:ArchiveEntry} resource
+     * @return every conflict blocking a restore, empty if there are none
+     * @throws DeletionException if the check fails for a non-business reason, e.g. the repository is unavailable
+     * @throws IllegalArgumentException if the resource is not an archive entry
+     * @since 0.1.0
+     */
+    @NotNull
+    List<RestoreConflict> checkRestore(@NotNull Resource archiveEntry);
+
+    /**
+     * Report which guards would refuse to purge an archive entry, without purging it. The same sweep {@link #purge}
+     * performs before it destroys anything, with the same caveat: a guard's answer can change — a retention floor
+     * expires, a mixin is added — so the purge consults them again.
+     *
+     * @param archiveEntry an {@code iap:ArchiveEntry} resource
+     * @return every veto blocking a purge, empty if there are none
+     * @throws DeletionException if the check fails for a non-business reason, e.g. the repository is unavailable
+     * @throws IllegalArgumentException if the resource is not an archive entry
+     * @since 0.1.0
+     */
+    @NotNull
+    List<Veto> checkPurge(@NotNull Resource archiveEntry);
 }

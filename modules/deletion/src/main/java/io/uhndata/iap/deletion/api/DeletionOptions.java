@@ -45,7 +45,7 @@ public final class DeletionOptions
      * @return non-recursive, non-permanent options
      */
     @NotNull
-    public static DeletionOptions archive()
+    public static DeletionOptions recoverable()
     {
         return new DeletionOptions(false, false);
     }

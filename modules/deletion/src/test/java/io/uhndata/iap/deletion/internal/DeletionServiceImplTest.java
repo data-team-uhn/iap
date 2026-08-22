@@ -254,7 +254,7 @@ class DeletionServiceImplTest
         final Node node = this.target(VICTIM);
         this.referrer("holder", node, node);
         final DeletionImpact impact =
-            this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.archive());
+            this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable());
         assertFalse(impact.isExecutable());
         assertEquals(1, impact.getReferrers().size());
         assertEquals(1, impact.getReferrers().get(0).getCount());
@@ -435,7 +435,7 @@ class DeletionServiceImplTest
         assertEquals(DeletionResult.Status.ARCHIVED, this.delete("/content/holder", false, false).getStatus());
         // The holder is archived and still references the victim; archiving the victim is fine...
         final DeletionImpact archival =
-            this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.archive());
+            this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable());
         assertTrue(archival.isExecutable());
         // ...but permanently deleting it would break somebody's archived data, so it is refused
         final DeletionResult result = this.delete(VICTIM_PATH, false, true);
@@ -457,7 +457,7 @@ class DeletionServiceImplTest
             this.delete("/content/weakHolder", false, false).getStatus());
         // Archiving the target leaves the archived links alone
         final DeletionImpact archival =
-            this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.archive());
+            this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable());
         assertTrue(archival.isExecutable());
         assertTrue(archival.getRemovedLinkPaths().isEmpty());
         // Permanently deleting it removes the archived hard link, while the weak one just dangles
@@ -548,7 +548,7 @@ class DeletionServiceImplTest
         final Session restricted = mock(Session.class, delegatesTo(this.session));
         doReturn(false).when(restricted).hasPermission(anyString(), eq(Session.ACTION_REMOVE));
         final DeletionResult result = this.service.delete(
-            this.withUserSession(VICTIM_PATH, restricted), DeletionOptions.archive());
+            this.withUserSession(VICTIM_PATH, restricted), DeletionOptions.recoverable());
         assertEquals(DeletionResult.Status.DENIED, result.getStatus());
         assertTrue(this.session.nodeExists(VICTIM_PATH));
     }
@@ -559,7 +559,7 @@ class DeletionServiceImplTest
         this.target(VICTIM);
         inject(this.service, "resolverFactory", new TestResolverFactory(null));
         assertThrows(DeletionException.class,
-            () -> this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.archive()));
+            () -> this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable()));
     }
 
     @Test
@@ -569,16 +569,16 @@ class DeletionServiceImplTest
         final DeletionResult archival = this.delete(VICTIM_PATH, false, false);
         assertEquals(DeletionResult.Status.ARCHIVED, archival.getStatus());
         assertThrows(IllegalArgumentException.class,
-            () -> this.service.delete(this.resource(DeletionService.ARCHIVE_PATH), DeletionOptions.archive()));
+            () -> this.service.delete(this.resource(DeletionService.ARCHIVE_PATH), DeletionOptions.recoverable()));
         final Resource archived = this.resource(archival.getArchiveEntryPath());
         assertThrows(IllegalArgumentException.class,
-            () -> this.service.delete(archived, DeletionOptions.archive()));
+            () -> this.service.delete(archived, DeletionOptions.recoverable()));
         // Including the prefix tree the entry is filed under
         final Resource bucket = this.resource(archived.getParent().getPath());
         assertThrows(IllegalArgumentException.class,
-            () -> this.service.delete(bucket, DeletionOptions.archive()));
+            () -> this.service.delete(bucket, DeletionOptions.recoverable()));
         assertThrows(IllegalArgumentException.class,
-            () -> this.service.delete(this.resource("/"), DeletionOptions.archive()));
+            () -> this.service.delete(this.resource("/"), DeletionOptions.recoverable()));
     }
 
     @Test
@@ -587,7 +587,7 @@ class DeletionServiceImplTest
         final Resource synthetic = mock(Resource.class);
         when(synthetic.getPath()).thenReturn("/content/ghost");
         assertThrows(IllegalArgumentException.class,
-            () -> this.service.analyze(synthetic, DeletionOptions.archive()));
+            () -> this.service.analyze(synthetic, DeletionOptions.recoverable()));
     }
 
     @Test
@@ -596,7 +596,7 @@ class DeletionServiceImplTest
         this.target(VICTIM);
         assertThrows(DeletionException.class,
             () -> this.service.analyze(this.withUserSession(VICTIM_PATH, null),
-                DeletionOptions.archive()));
+                DeletionOptions.recoverable()));
     }
 
     @Test
@@ -606,8 +606,8 @@ class DeletionServiceImplTest
         final Session failing = mock(Session.class, delegatesTo(this.session));
         doThrow(new RepositoryException("boom")).when(failing).hasPermission(anyString(), anyString());
         final Resource item = this.withUserSession(VICTIM_PATH, failing);
-        assertThrows(DeletionException.class, () -> this.service.analyze(item, DeletionOptions.archive()));
-        assertThrows(DeletionException.class, () -> this.service.delete(item, DeletionOptions.archive()));
+        assertThrows(DeletionException.class, () -> this.service.analyze(item, DeletionOptions.recoverable()));
+        assertThrows(DeletionException.class, () -> this.service.delete(item, DeletionOptions.recoverable()));
     }
 
     @Test
@@ -791,6 +791,9 @@ class DeletionServiceImplTest
         };
         assertThrows(DeletionException.class, () -> this.service.restore(fake));
         assertThrows(DeletionException.class, () -> this.service.purge(fake));
+        // The preflights read the same entry, so they fail the same way
+        assertThrows(DeletionException.class, () -> this.service.checkRestore(fake));
+        assertThrows(DeletionException.class, () -> this.service.checkPurge(fake));
     }
 
     @Test
@@ -800,7 +803,7 @@ class DeletionServiceImplTest
         final Session named = mock(Session.class, delegatesTo(this.session));
         doReturn("jdoe").when(named).getUserID();
         final DeletionResult result = this.service.delete(
-            this.withUserSession(VICTIM_PATH, named), DeletionOptions.archive());
+            this.withUserSession(VICTIM_PATH, named), DeletionOptions.recoverable());
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
         assertEquals("jdoe", this.session.getNode(result.getArchiveEntryPath())
             .getProperty(DeletionService.DELETED_BY_PROPERTY).getString());
@@ -834,6 +837,84 @@ class DeletionServiceImplTest
         };
         inject(this.service, "resolverFactory", new TestResolverFactory(sessionless));
         assertThrows(DeletionException.class,
-            () -> this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.archive()));
+            () -> this.service.analyze(this.resource(VICTIM_PATH), DeletionOptions.recoverable()));
     }
+
+    @Test
+    void checkRestoreReportsNothingWhenTheWayIsClear() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        assertTrue(this.service.checkRestore(this.resource(deleted.getArchiveEntryPath())).isEmpty());
+        // The point of asking is that asking does nothing
+        assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
+        assertFalse(this.session.nodeExists(VICTIM_PATH));
+    }
+
+    @Test
+    void checkRestoreNamesWhatIsInTheWay() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        this.target(VICTIM);
+        final List<RestoreConflict> conflicts =
+            this.service.checkRestore(this.resource(deleted.getArchiveEntryPath()));
+        assertEquals(1, conflicts.size());
+        assertEquals(RestoreConflict.Reason.OCCUPIED, conflicts.get(0).getReason());
+        assertEquals(VICTIM_PATH, conflicts.get(0).getOriginalPath());
+    }
+
+    @Test
+    void checkRestoreAgreesWithTheRestoreItself() throws Exception
+    {
+        // The preflight is only worth showing if it says what the operation will do
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        this.target(VICTIM);
+        final Resource entry = this.resource(deleted.getArchiveEntryPath());
+        final List<RestoreConflict> predicted = this.service.checkRestore(entry);
+        final RestoreResult actual = this.service.restore(entry);
+        assertEquals(RestoreResult.Status.CONFLICT, actual.getStatus());
+        assertEquals(predicted.size(), actual.getConflicts().size());
+        assertEquals(predicted.get(0).getReason(), actual.getConflicts().get(0).getReason());
+    }
+
+    @Test
+    void checkRestoreRejectsNonEntries() throws Exception
+    {
+        this.target(VICTIM);
+        assertThrows(IllegalArgumentException.class,
+            () -> this.service.checkRestore(this.resource(VICTIM_PATH)));
+    }
+
+    @Test
+    void checkPurgeReportsNoObjectionsWhenThereAreNone() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        assertTrue(this.service.checkPurge(this.resource(deleted.getArchiveEntryPath())).isEmpty());
+        assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
+    }
+
+    @Test
+    void checkPurgeNamesTheGuardsThatWouldRefuse() throws Exception
+    {
+        this.target(VICTIM);
+        final DeletionResult deleted = this.delete(VICTIM_PATH, false, false);
+        this.session.getNode(deleted.getArchiveEntryPath()).getNode("0/victim")
+            .addMixin(DeletionService.UNDELETABLE_MIXIN);
+        this.session.save();
+        assertFalse(this.service.checkPurge(this.resource(deleted.getArchiveEntryPath())).isEmpty());
+        // Asking destroyed nothing
+        assertTrue(this.session.nodeExists(deleted.getArchiveEntryPath()));
+    }
+
+    @Test
+    void checkPurgeRejectsNonEntries() throws Exception
+    {
+        this.target(VICTIM);
+        assertThrows(IllegalArgumentException.class,
+            () -> this.service.checkPurge(this.resource(VICTIM_PATH)));
+    }
+
 }

@@ -22,6 +22,13 @@
     }
   ],
   "configurations": {
+    // Lets a submission be addressed as /Submissions/<uuid>, without the prefix tree it is filed in. Inert until
+    // something files submissions in one; a submission stored directly under the homepage keeps resolving the way
+    // it always did, because overlay mode answers from the repository first.
+    "io.uhndata.iap.utils.internal.PrefixTreeResourceProvider~submissions": {
+      "provider.root": "/Submissions",
+      "provider.mode": "overlay"
+    },
     "org.apache.sling.jcr.repoinit.RepositoryInitializer~submissions": {
       "service.ranking:Integer": 300,
       "scripts": [

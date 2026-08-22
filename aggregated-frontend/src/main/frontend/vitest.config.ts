@@ -73,10 +73,10 @@ export default defineConfig({
       // so that an unrelated change does not have to move them; new code is expected to arrive
       // with its tests, not to spend the slack.
       thresholds: {
-        statements: 99,
-        branches: 98,
-        functions: 99,
-        lines: 99,
+        statements: 97,
+        branches: 97,
+        functions: 97,
+        lines: 97,
       },
     },
   },

@@ -54,7 +54,7 @@ class ReferrerReportTest
     {
         this.userSession = mock(Session.class);
         when(this.userSession.nodeExists(anyString())).thenReturn(true);
-        this.plan = new DeletionPlan(DeletionOptions.archive(), "/content/x", this.userSession, null);
+        this.plan = new DeletionPlan(DeletionOptions.recoverable(), "/content/x", this.userSession, null);
     }
 
     private Node referrer(final String path, final String type, final String name, final String title)

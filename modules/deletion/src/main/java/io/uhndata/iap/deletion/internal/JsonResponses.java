@@ -28,6 +28,7 @@ import org.apache.sling.api.SlingJakartaHttpServletResponse;
 
 import io.uhndata.iap.deletion.api.DeletionImpact;
 import io.uhndata.iap.deletion.api.ReferrerGroup;
+import io.uhndata.iap.deletion.api.RestoreConflict;
 import io.uhndata.iap.deletion.api.Veto;
 
 /**
@@ -158,4 +159,22 @@ final class JsonResponses
             .forEach(result::add);
         return result;
     }
+
+    /**
+     * The conflicts blocking a restore, as a JSON array.
+     *
+     * @param conflicts the conflicts to describe
+     * @return an array of objects carrying each conflict's original path and reason
+     */
+    static JsonArrayBuilder conflicts(final Collection<RestoreConflict> conflicts)
+    {
+        final JsonArrayBuilder result = Json.createArrayBuilder();
+        conflicts.stream()
+            .map(conflict -> Json.createObjectBuilder()
+                .add("originalPath", conflict.getOriginalPath())
+                .add("reason", conflict.getReason().name()))
+            .forEach(result::add);
+        return result;
+    }
+
 }

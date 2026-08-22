@@ -49,9 +49,9 @@ const browsers = (): string[] => {
 };
 
 /**
- * One Playwright project per launched instance per browser, each pointed at its own instance and reading
- * its specs from its own directory. Anything shared — page objects, fixtures — lives outside those
- * directories and is imported.
+ * Two Playwright projects per launched instance per browser, each pointed at its own instance and
+ * reading its tests from its own directory. Anything shared — page objects, fixtures — lives outside
+ * those directories and is imported.
  *
  * A suite whose instance was not launched simply produces no project, so `-Dit.platform.skip=true` needs
  * no matching change here.
@@ -60,6 +60,18 @@ const browsers = (): string[] => {
  * decoration: a name that appeared only once a second browser was configured would silently invalidate
  * every `--project=` already written down, and a report that says which engine a failure came from is
  * worth more than four saved keystrokes.
+ *
+ * **Specs observe, stories mutate**, so a suite's `<suite>-stories-<browser>` project depends on its
+ * `<suite>-<browser>` one and runs only once that has finished. Much of what a spec asserts is what a
+ * freshly launched deployment looks like — an empty taxonomy, "No workflows are defined yet.", an
+ * archive nothing has ever been put in — and a story that creates content has no business being in
+ * flight while any of that is being checked. Left unsequenced the two do not in fact overlap, since the
+ * story worker is queued behind the specs and is slower to create anything than they are to finish; the
+ * dependency is here to make that a property rather than a coincidence of worker count and machine
+ * speed, and to stop a story that fails partway from leaving content behind that fails every spec which
+ * had not run yet. The cost is that a failing spec skips its suite's stories, which is the right way
+ * round: the build is already failing, and a story that failed only because the instance was not in the
+ * state it says it starts from is worse than no result.
  */
 export default defineConfig({
   testDir: './specs',
@@ -91,10 +103,21 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
   },
   projects: activeInstances().flatMap(instance =>
-    browsers().map(browser => ({
-      name: `${instance.name}-${browser}`,
-      testDir: `./specs/${instance.name}`,
-      use: { ...devices[DEVICE_FOR_BROWSER[browser]], baseURL: instance.baseURL },
-    })),
+    browsers().flatMap(browser => {
+      const use = { ...devices[DEVICE_FOR_BROWSER[browser]], baseURL: instance.baseURL };
+      const specs = `${instance.name}-${browser}`;
+      // Selected by where a test lives rather than by a `testDir` of its own, so that a suite with no
+      // stories yet needs no directory created for one.
+      return [
+        { name: specs, testDir: `./specs/${instance.name}`, testIgnore: '**/stories/**', use },
+        {
+          name: `${instance.name}-stories-${browser}`,
+          testDir: `./specs/${instance.name}`,
+          testMatch: '**/stories/**',
+          dependencies: [ specs ],
+          use,
+        },
+      ];
+    }),
   ),
 });

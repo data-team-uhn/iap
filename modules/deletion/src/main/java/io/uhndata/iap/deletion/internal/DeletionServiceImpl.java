@@ -40,6 +40,7 @@ import io.uhndata.iap.deletion.api.DeletionImpact;
 import io.uhndata.iap.deletion.api.DeletionOptions;
 import io.uhndata.iap.deletion.api.DeletionResult;
 import io.uhndata.iap.deletion.api.DeletionService;
+import io.uhndata.iap.deletion.api.RestoreConflict;
 import io.uhndata.iap.deletion.api.RestoreResult;
 import io.uhndata.iap.deletion.api.Veto;
 import io.uhndata.iap.deletion.spi.DeletionMode;
@@ -103,7 +104,7 @@ public class DeletionServiceImpl implements DeletionService
                 operations.deletePermanently(plan);
                 return new DeletionResult(DeletionResult.Status.DELETED, null, impact);
             }
-            final String entryPath = operations.archive(plan, plan.getUserSession().getUserID());
+            final String entryPath = operations.store(plan, plan.getUserSession().getUserID());
             return new DeletionResult(DeletionResult.Status.ARCHIVED, entryPath, impact);
         } catch (final RepositoryException e) {
             throw new DeletionException("Failed to delete " + item.getPath(), e);
@@ -127,9 +128,7 @@ public class DeletionServiceImpl implements DeletionService
     {
         try (ResourceResolver serviceResolver = this.getServiceResolver()) {
             final Node entry = this.requireEntry(archiveEntry, serviceResolver);
-            final List<Veto> found = new ArrayList<>();
-            CascadeResolver.sweepVetoes(entry, this.currentVetoes(), DeletionMode.PURGE,
-                this.getUserSession(archiveEntry), found);
+            final List<Veto> found = this.sweepPurgeVetoes(entry, archiveEntry);
             final DeletionImpact impact = new DeletionImpact(List.of(entry.getPath()), List.of(), found,
                 List.of(), 0, "");
             if (!found.isEmpty()) {
@@ -219,4 +218,45 @@ public class DeletionServiceImpl implements DeletionService
         final List<DeletionVeto> current = this.vetoes;
         return current == null ? List.of() : List.copyOf(current);
     }
+
+    @Override
+    public List<RestoreConflict> checkRestore(final Resource archiveEntry)
+    {
+        try (ResourceResolver serviceResolver = this.getServiceResolver()) {
+            final Node entry = this.requireEntry(archiveEntry, serviceResolver);
+            return ArchiveOperations.forResolver(serviceResolver)
+                .evaluateRestore(entry, this.getUserSession(archiveEntry))
+                .conflicts();
+        } catch (final RepositoryException e) {
+            throw new DeletionException("Failed to check restoring " + archiveEntry.getPath(), e);
+        }
+    }
+
+    @Override
+    public List<Veto> checkPurge(final Resource archiveEntry)
+    {
+        try (ResourceResolver serviceResolver = this.getServiceResolver()) {
+            return this.sweepPurgeVetoes(this.requireEntry(archiveEntry, serviceResolver), archiveEntry);
+        } catch (final RepositoryException e) {
+            throw new DeletionException("Failed to check purging " + archiveEntry.getPath(), e);
+        }
+    }
+
+    /**
+     * Ask every guard whether this entry may be destroyed. Shared with {@link #purge} so that a preflight and the
+     * purge itself cannot disagree about what is destroyable.
+     *
+     * @param entry the entry node, in the service session
+     * @param archiveEntry the entry as the requester addressed it, whose session identifies them to the guards
+     * @return every objection raised, empty if there are none
+     * @throws RepositoryException if the archive cannot be read
+     */
+    private List<Veto> sweepPurgeVetoes(final Node entry, final Resource archiveEntry) throws RepositoryException
+    {
+        final List<Veto> found = new ArrayList<>();
+        CascadeResolver.sweepVetoes(entry, this.currentVetoes(), DeletionMode.PURGE,
+            this.getUserSession(archiveEntry), found);
+        return found;
+    }
+
 }
