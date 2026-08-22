@@ -59,10 +59,13 @@ function DefinedTagChip({ definition }: { definition: TagDefinition }) {
 
 // Small chips displaying a node's tags, labeled and colored by their definitions under /Tags.
 //
-// With a `category`, this displays the single state the node's tags describe in that category:
-// the node's first tag (in the definitions' own order) that is defined in the category, and
-// nothing when there is none — in a specific category, only tags actually belonging to it are
-// trustworthy enough to show.
+// With a `category`, this displays the tags the node carries in that category — all of them, in
+// the definitions' own order. Not one: a category is a subject the tags on it speak about, not
+// necessarily a lifecycle with one state at a time, and an error's triage markers say both that
+// somebody dealt with it and what they decided. A name that no definition in the category matches
+// is not shown at all, since in a specific category only tags actually belonging to it are
+// trustworthy enough to show — outside one such a name is an unrecognized tag, but here it is a
+// tag of some other category, which the caller did not ask about.
 //
 // Without a category, this displays all of the node's tags: the defined ones styled by their
 // definitions (in definition order), and the unrecognized ones after them, raw, as muted
@@ -90,13 +93,14 @@ function TagChip({ tags, category }: { tags?: unknown; category?: string }) {
   if (!definitions || names.length === 0) {
     return null;
   }
-  if (category) {
-    const shown = definitions.find(definition => names.includes(definition.name));
-    return shown ? <DefinedTagChip definition={shown} /> : null;
-  }
   const defined = definitions.filter(definition => names.includes(definition.name));
   const recognized = new Set(defined.map(definition => definition.name));
-  const unrecognized = names.filter(name => !recognized.has(name));
+  const unrecognized = category ? [] : names.filter(name => !recognized.has(name));
+  // Nothing at all rather than an empty row, so that a cell or a heading holding one of these is
+  // as narrow as it looks
+  if (defined.length === 0 && unrecognized.length === 0) {
+    return null;
+  }
   return (
     <Stack direction="row" spacing={0.5} useFlexGap sx={{ flexWrap: "wrap" }}>
       {defined.map(definition => <DefinedTagChip key={definition.name} definition={definition} />)}

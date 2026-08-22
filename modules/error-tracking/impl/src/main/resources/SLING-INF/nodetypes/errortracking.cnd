@@ -1,0 +1,232 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<err = 'https://iap.uhndata.io/err/'>
+
+//-----------------------------------------------------------------------------
+//
+// Error tracking: errors that a running instance could not deal with on its
+// own are recorded under /LoggedErrors, so that a system administrator can be
+// told about them long after the log file they were written to has rotated
+// away.
+//
+// Nothing here is versionable and /LoggedErrors is not under a versionable
+// ancestor, so no on-parent-version attributes are needed anywhere in this
+// file; their absence is deliberate rather than an oversight.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /LoggedErrors root path, holding the recorded errors.
+//
+// An iap:EntityHomepage rather than a plain container: the recorded errors are
+// not entities, but the homepage's generic tools are exactly what somebody
+// working through them needs — the pagination servlet listing and filtering
+// its children, and rep:AccessControllable for the ACL that repoinit places
+// here.
+[err:LoggedErrorsHomepage] > iap:EntityHomepage
+  // Attributes:
+
+  // We can query the recorded errors
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "err/LoggedErrorsHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // The type of the children listed by the pagination servlet
+  - childNodeType (STRING) = "err:LoggedError" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains recorded errors, thrown or not
+  + * (err:LoggedError) = err:LoggedFailure
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// What every recorded error has in common, whether or not something was
+// thrown. Never instantiated directly: a recording is either an
+// err:LoggedFailure or an err:LoggedProblem.
+//
+// The node is named after a *fingerprint* of the fault rather than after its
+// printed stack trace: the code that failed — the frames and the classes of
+// the throwable chain — together with the component and the operation the
+// caller named. Everything that varies with the data rather than with the
+// fault, the message included, is deliberately outside the identity and kept
+// below as a bounded sample instead. The number of these nodes is therefore
+// bounded by the number of distinct ways this build can fail, not by how much
+// data flows through it, which is what makes it safe never to delete any of
+// them.
+//
+// An iap:Content, so that a recorded error is an ordinary piece of content:
+// readable as JSON, listable, and taggable — which is how a decision about one
+// is recorded, since nothing here is ever removed. iap:Content also brings
+// sling:Folder > nt:folder > nt:hierarchyNode > mix:created, so jcr:created
+// and jcr:createdBy are autocreated by the repository; jcr:created is when the
+// fault was first seen, and `lastOccurrence` when it was last seen.
+[err:LoggedError] > iap:Content
+  // Attributes:
+
+  // This is an abstract node type, a recording is one of the two below
+  abstract
+
+  // We can query the recorded errors
+  query
+
+  // Properties:
+
+  // Hardcode the supertype to the parent err/LoggedError type, so that both
+  // kinds of recording answer to it. Without this the subtypes would inherit
+  // iap:Content's value and their resource type chain would skip straight past
+  // err/LoggedError — which is what the acknowledge servlet is bound to, what
+  // the triage tags are targeted at, and how the container picks its children
+  // out.
+  - sling:resourceSuperType (STRING) = "err/LoggedError" mandatory autocreated protected
+
+  // The class doing the work when the fault happened — for a plugin, the
+  // plugin's own class rather than the framework that called it, since that is
+  // what has to be fixed. Part of the fingerprint, so it is either a class
+  // name or absent, never anything derived from content. Guessed from the
+  // topmost frame that is ours when the caller did not say.
+  - component (STRING)
+
+  // What the component was trying to do: a short label chosen in code, such as
+  // "computeTags" or "readDefinitions". Part of the fingerprint, same rule — a
+  // constant, never a path or an identifier.
+  - operation (STRING)
+
+  // How many times this fault has been recorded so far. Not a count of the
+  // samples below: a fault recorded a thousand times keeps twenty subjects,
+  // and this says a thousand.
+  - occurrences (LONG) = '1' mandatory autocreated
+
+  // When this fault was last recorded; jcr:created is when it was first seen
+  - lastOccurrence (DATE) mandatory
+
+  // A bounded sample of the distinct messages this fault was seen with, most
+  // recent first. Multi-valued because whatever varies between occurrences is
+  // outside the fingerprint: "Cannot read /Submissions/1234" and "Cannot read
+  // /Submissions/5678" are one fault seen twice, not two faults. For a thrown
+  // failure these are the throwable's messages; for a problem, the phrases the
+  // caller reported that were too variable to name the fault by.
+  - messages (STRING) multiple
+
+  // A bounded sample of the paths this fault happened to, most recent first,
+  // and only a sample: there is deliberately no count of how many distinct
+  // paths were hit, because keeping one would mean either keeping them all or
+  // making a number up. Diagnostic evidence, not a work queue — content that
+  // has to be retried or repaired must carry its own marker for that, the way
+  // a node whose tags could not be computed carries tagComputationFailed.
+  - subjects (STRING) multiple
+
+  // A bounded sample of the users this fault happened on behalf of, most
+  // recent first. Absent for anything running outside a request: a commit
+  // hook, a scheduled task, an asynchronous listener.
+  - actors (STRING) multiple
+
+  // Everything else the caller said about the most recent occurrence, one
+  // "key: value" per line. Overwritten on each occurrence rather than
+  // accumulated, so it stays the size of a single occurrence: it answers "what
+  // exactly was going on the last time this happened", which is what is needed
+  // to reproduce it, and nothing more.
+  - lastContext (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The decisions somebody has taken about this error
+  + * (err:Acknowledgement) = err:Acknowledgement
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// A recorded error that something was thrown for.
+[err:LoggedFailure] > err:LoggedError
+  - sling:resourceType (STRING) = "err/LoggedFailure" mandatory autocreated protected
+
+  // The class name of the outermost throwable, e.g.
+  // "java.lang.IllegalStateException". Part of the fingerprint.
+  - type (STRING) mandatory
+
+  // The full stack trace of one occurrence, causes included, as it would be
+  // printed to a log file, truncated if enormous. An exemplar rather than the
+  // identity: every occurrence shares these frames by construction, but may
+  // carry a different message.
+  - stackTrace (STRING) mandatory
+
+//-----------------------------------------------------------------------------
+// A recorded error that nothing was thrown for: something the instance found
+// wrong and could only shrug at, most often a mis-authored definition — a
+// condition naming a comparator that does not exist, an operand with no
+// resolver behind it. There is no stack trace worth showing for these: where
+// the code noticed is in `component` and `operation`, and what it was looking
+// at is in `subjects`.
+[err:LoggedProblem] > err:LoggedError
+  - sling:resourceType (STRING) = "err/LoggedProblem" mandatory autocreated protected
+
+  // What is wrong: a short phrase chosen in code, such as "unknown
+  // comparator". Part of the fingerprint, so the same rule as `operation` — a
+  // constant, with whatever varies left to `subjects`. A caller who reports a
+  // phrase that quotes something is recorded under its stable head, and the
+  // phrase itself is kept in `messages`: dropping the recording would make the
+  // module that exists to catch silent failures commit one.
+  - problem (STRING) mandatory
+
+//-----------------------------------------------------------------------------
+// One decision somebody took about one recorded error.
+//
+// A child node rather than a property, and appended rather than replaced,
+// because a decision is exactly the kind of thing the reviews and audits this
+// module exists for need to be able to look back at: who decided what, when,
+// why, and how much had happened by then. It is also what lets a fault
+// un-acknowledge itself — see `acknowledgedOccurrences`.
+[err:Acknowledgement] > iap:Content
+  - sling:resourceType (STRING) = "err/Acknowledgement" mandatory autocreated protected
+
+  // What was decided, the name of a tag in the error-triage category, e.g.
+  // "known-issue". The triage tags on the error itself are derived from the
+  // most recent decision, never placed by hand, so this is where a decision is
+  // actually made.
+  - resolution (STRING) mandatory
+
+  // Why, in the acknowledger's own words
+  - note (STRING)
+
+  // What the error's `occurrences` had reached when this decision was taken.
+  // An error counts as dealt with only while it has not happened again since,
+  // so a fault that recurs after somebody decided it was fixed goes back to
+  // needing attention on its own, without anything having to notice the date.
+  // A count rather than a timestamp because a count cannot be confused by two
+  // things happening in the same second, or by a clock that disagrees.
+  - acknowledgedOccurrences (LONG) mandatory
+
+  // jcr:created and jcr:createdBy, from iap:Content, record when and by whom
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
