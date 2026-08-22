@@ -32,6 +32,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.spi.TagContext;
 import io.uhndata.iap.tags.spi.TagDefinitions;
@@ -319,6 +321,13 @@ public class TagPropagationEditor extends DefaultEditor
                 failed = true;
                 LOGGER.error("The tag processor {} failed on {}, the {} of that node are left as they were: {}",
                     processor.getClass().getName(), targetPath, phase.getPropertyName(), e.getMessage(), e);
+                // Recorded against the processor's own class, not this editor's: a broken processor is what has to
+                // be fixed, and the framework that called it is the same in every such failure. Once per commit,
+                // because a processor that fails on one node fails on every node of that commit
+                if (this.config.isFirstFailure(processor, phase)) {
+                    ErrorLogger.logError(e, ErrorContext.of(processor.getClass(), "computeTags")
+                        .about(targetPath).with("phase", phase.getPropertyName()));
+                }
             }
         }
         if (failed) {

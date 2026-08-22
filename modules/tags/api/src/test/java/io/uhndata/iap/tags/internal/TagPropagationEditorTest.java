@@ -32,7 +32,12 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.spi.TagContext;
 import io.uhndata.iap.tags.spi.TagProcessor;
@@ -349,6 +354,55 @@ class TagPropagationEditorTest
 
         assertEquals(Set.of(SENSITIVE), read(result, INHERITED, "container", "homepage"));
         assertEquals(Set.of(SENSITIVE), read(result, INHERITED, "container", "homepage", "item"));
+    }
+
+    @Test
+    void recordsABrokenProcessorOnceForTheWholeCommit() throws Exception
+    {
+        // A broken processor fails on every node the commit touches. The repository would cope — recordings of one
+        // fault deduplicate onto a single node — but the recording happens on the commit thread, and a count of
+        // damaged commits is more use to a reader than a count of nodes visited
+        final EditorHook broken = hookWith(new FailingProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
+        descend(after, DATA, ENTITY, PART).child("second").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        descend(after, DATA, ENTITY, PART).child("third").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+
+        try {
+            broken.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+            final ArgumentCaptor<ErrorContext> context = ArgumentCaptor.forClass(ErrorContext.class);
+            Mockito.verify(recorder).logError(Mockito.any(IllegalStateException.class), context.capture());
+            // Against the processor's own class, since that is what has to be fixed
+            assertEquals(FailingProcessor.class.getName(), context.getValue().getComponent());
+            assertEquals("computeTags", context.getValue().getOperation());
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+    }
+
+    @Test
+    void recordsEachBrokenProcessorSeparately() throws Exception
+    {
+        // Deduplication is per processor and phase, not per commit: two broken processors are two things to fix
+        final EditorHook broken = hookWith(new FailingProcessor(), new AlsoFailingProcessor());
+        final NodeState before = base().getNodeState();
+        final NodeBuilder after = before.builder();
+        descend(after, DATA, ENTITY, PART, ANSWER).setProperty(STATUS, INCOMPLETE);
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+
+        try {
+            broken.processCommit(before, after.getNodeState(), CommitInfo.EMPTY);
+
+            Mockito.verify(recorder, Mockito.times(2))
+                .logError(Mockito.any(RuntimeException.class), Mockito.any(ErrorContext.class));
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
     }
 
     /**
@@ -908,6 +962,33 @@ class TagPropagationEditorTest
         public Set<String> computeTags(final TagContext context)
         {
             throw new IllegalStateException("This processor is broken");
+        }
+    }
+
+    /**
+     * A second broken processor, so that a test can tell "once per commit" from "once per commit per processor".
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class AlsoFailingProcessor implements TagProcessor
+    {
+        @Override
+        public Phase getPhase()
+        {
+            return Phase.LOCAL;
+        }
+
+        @Override
+        public int getPriority()
+        {
+            return 200;
+        }
+
+        @Override
+        public Set<String> computeTags(final TagContext context)
+        {
+            throw new UnsupportedOperationException("This processor is broken too");
         }
     }
 
