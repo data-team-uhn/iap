@@ -42,7 +42,8 @@ import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
 
 /**
- * Records a decision about one recorded error, at {@code POST /LoggedErrors/<fingerprint>.acknowledge}.
+ * Records a decision about one recorded error, at
+ * {@code POST /LoggedErrors/<fingerprint>.acknowledge.json}.
  *
  * <p>
  * Takes a {@code resolution} naming one of the tags in the {@value LoggedError#TRIAGE_CATEGORY} category, and an

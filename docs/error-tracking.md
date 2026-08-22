@@ -164,7 +164,7 @@ leave it reporting itself as unhealthy forever — and a report that is always r
 reads. Instead, an error is **acknowledged**: somebody looks at it and records what they decided.
 
 ```
-POST /LoggedErrors/<fingerprint>.acknowledge
+POST /LoggedErrors/<fingerprint>.acknowledge.json
     resolution=known-issue
     note=fix is in the next release
 ```
