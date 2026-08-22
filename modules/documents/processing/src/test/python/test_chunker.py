@@ -54,6 +54,30 @@ class TestValidHeading:
         assert heading_helpers.is_valid_heading("   ") is False
 
 
+class TestRejectedHeading:
+    """The ATX substance floor. Measured over letters and digits, not the matching key."""
+
+    def test_a_numbered_short_heading_is_kept(self):
+        # Regression: normalize_title drops the numbering so "3.1 Aims" keys to "aims", four
+        # characters, and measuring that demoted the most common section title in a proposal.
+        for title in ("3.1 Aims", "5.2 Data", "2.0 Bias", "1.4 Team"):
+            assert heading_helpers._is_rejected_heading(title) is False, title
+
+    def test_digits_only_is_rejected(self):
+        assert heading_helpers._is_rejected_heading("4.2") is True
+
+    def test_a_caption_is_rejected(self):
+        assert heading_helpers._is_rejected_heading("Table 3: Baseline") is True
+        assert heading_helpers._is_rejected_heading("Confidential") is True
+
+    def test_an_unnumbered_short_title_is_still_rejected(self):
+        # Unchanged from before the matching key changed: too little to identify a section.
+        assert heading_helpers._is_rejected_heading("Aims") is True
+
+    def test_a_real_heading_is_kept(self):
+        assert heading_helpers._is_rejected_heading("3.1 Study Aims") is False
+
+
 class TestHeadingMatching:
     def test_match_heading_level_and_text(self):
         assert heading_helpers._match_heading("## Foo Bar") == (2, "Foo Bar")

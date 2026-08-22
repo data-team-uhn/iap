@@ -36,8 +36,21 @@ from markdown_markers import (
 DEFAULT_HEADING = "General Information"
 
 # Letters in any script. Digits and punctuation are dropped so ``"1.0 Background"`` and
-# ``"Background"`` share a key; do not narrow this to ASCII or CJK/Cyrillic titles vanish.
-_NON_LETTER = re.compile(r"[\W\d_]+", re.UNICODE)
+# do not narrow these to ASCII, or CJK/Cyrillic titles vanish.
+# A section number at the START of a heading: "3.1 ", "2) ", "10. ". Dropped from the key so a
+# printed "3.1 Aims" matches a bookmark called "Aims". Only the leading run: a number anywhere
+# else is part of the name, and dropping those merged "Objective 1" with "Objective 2".
+_LEADING_NUMBER = re.compile(r"^[\s#*_]*\d+(?:\.\d+)*[.)]?\s+")
+
+# Everything that is not a letter or digit, in any script.
+_NON_ALNUM_KEY = re.compile(r"[\W_]+", re.UNICODE)
+
+# Letters and digits, for measuring how much of a heading line is substance. Deliberately not
+# _NON_LETTER: that one drops the numbering so "3.1 Aims" matches a bookmark called "Aims",
+# which is right for matching and wrong for measuring -- it leaves "aims", four characters, and
+# the floor below then demoted every numbered short heading in the document. "Aims", "Data",
+# "Bias" and "Team" are all real proposal sections.
+_NON_ALNUM = re.compile(r"[\W_]+", re.UNICODE)
 
 # A whole-line bold span: ``**Background**`` or ``__Background__``.
 _BOLD_LINE = re.compile(r"^(\*\*|__)(.+)\1$")
@@ -107,11 +120,17 @@ def _get_min_atx_level(lines: list[str], deeper_than: int = 0) -> int | None:
 
 
 def normalize_title(text: str) -> str:
-    """A comparison key for a heading: casefolded letters only, in any script.
+    """A comparison key for a heading: casefolded, leading section number dropped.
 
-    So ``"## 1.0 Background:"`` and ``"1.0 Background"`` both key to ``"background"``.
+    So ``"## 1.0 Background:"`` and ``"Background"`` both key to ``"background"``, which is what
+    lets a printed heading match a PDF bookmark that carries no numbering.
+
+    Digits that are not the leading number are kept, because they are part of the name. Dropping
+    every digit merged ``"Objective 1"``, ``"Objective 2"`` and ``"Objective 3"`` into one key,
+    and the caller treats same-key lines as repeats of one heading: the first kept its markers
+    and the rest were demoted to body.
     """
-    return _NON_LETTER.sub("", text.casefold())
+    return _NON_ALNUM_KEY.sub("", _LEADING_NUMBER.sub("", text).casefold())
 
 
 def _is_standalone_heading(block: str) -> bool:
@@ -216,12 +235,17 @@ def _get_bookmark_level(bookmark: dict) -> int:
 
 
 def _is_rejected_heading(text: str) -> bool:
-    """ATX noise: too short once normalized, digits-only, or a Table/Confidential caption."""
+    """ATX noise: too little substance, digits-only, or a Table/Confidential caption.
+
+    Substance is measured over letters *and* digits, not over
+    :func:`normalize_title`'s letters-only key. A section numbered ``3.1 Aims`` is a real
+    heading; keyed for matching it is only ``aims``, and measuring that demoted it.
+    """
     words = text.split()
     first = words[0].casefold() if words else ""
     if first in _REJECTED_HEADING_WORDS:
         return True
-    return len(normalize_title(text)) < MIN_HEADING_CHARS
+    return len(_NON_ALNUM.sub("", text.casefold())) < MIN_HEADING_CHARS
 
 
 def _get_bold_text(stripped: str) -> str | None:

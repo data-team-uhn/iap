@@ -25,5 +25,6 @@ pytest
 psutil
 pypdf
 cryptography
+chunkweaver
 # Lint, run in the same Maven phase as the tests (see pom.xml, ruff.toml).
 ruff
