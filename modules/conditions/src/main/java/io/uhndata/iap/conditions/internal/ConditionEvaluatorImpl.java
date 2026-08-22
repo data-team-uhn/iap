@@ -39,6 +39,8 @@ import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.conditions.models.SingleCondition;
 import io.uhndata.iap.conditions.spi.OperandResolver;
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Straightforward implementation of {@link ConditionEvaluator}: single conditions are compared through the
@@ -104,6 +106,9 @@ public class ConditionEvaluatorImpl implements ConditionEvaluator
             rightAggregator = aggregatorOf(operandB);
         } catch (final IllegalArgumentException ex) {
             LOGGER.warn("Cannot evaluate condition at {}: {}", condition.getPath(), ex.getMessage());
+            // A problem rather than a failure: nothing here is broken, a definition is mis-authored
+            ErrorLogger.logProblem(ex.getMessage(), ErrorContext.of(ConditionEvaluatorImpl.class, "evaluate")
+                .about(condition.getPath()));
             return false;
         }
         final Optional<Operand> leftRaw = this.resolve(operandA, context);

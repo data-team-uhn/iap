@@ -51,6 +51,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.io.Encoders;
 import io.uhndata.iap.auth.token.TokenManager;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Implementation of the {@link TokenManager} service using JWT tokens.
@@ -133,8 +135,11 @@ public final class IapJwtTokenManagerImpl implements TokenManager
             }
         } catch (LoginException e) {
             LOGGER.error("Service access not granted: {}", e.getMessage());
+            // Recorded here and deliberately NOT where a token is parsed, since its error message quotes the token
+            ErrorLogger.logError(e, ErrorContext.of(IapJwtTokenManagerImpl.class, "serviceLogin"));
         } catch (Exception e) {
             LOGGER.error("Failed to load JWT Signing key from node: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(IapJwtTokenManagerImpl.class, "loadKeys"));
         }
         this.signingKey = signing;
         this.verificationKey = verification;
