@@ -34,7 +34,7 @@ import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * One archive entry, as the archive viewer's table displays it: when it was archived, who asked, what they asked to
+ * One archive entry, as the archive browser's table displays it: when it was archived, who asked, what they asked to
  * delete, and where everything the operation dragged along came from.
  *
  * <p>

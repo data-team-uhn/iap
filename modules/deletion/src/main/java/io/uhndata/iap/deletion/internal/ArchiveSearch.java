@@ -26,7 +26,7 @@ import javax.jcr.query.Query;
 import javax.jcr.query.RowIterator;
 
 /**
- * Runs the archive viewer's queries against the repository.
+ * Runs the archive browser's queries against the repository.
  *
  * <p>
  * Every scan is bounded. A count is the number of entries seen before the bound is reached, and the caller is told

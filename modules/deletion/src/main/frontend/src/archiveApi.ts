@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-// The client half of the archive viewer's endpoints: reading what is in the archive, and acting on
+// The client half of the archive browser's endpoints: reading what is in the archive, and acting on
 // one entry of it. Every call takes the fetch to use as its first argument rather than reaching for
 // a hook, so that this file stays free of React and can be tested as plain functions; components
 // pass `useAuthenticatedFetch()` in.

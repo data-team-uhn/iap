@@ -25,7 +25,7 @@ import java.util.Set;
 import io.uhndata.iap.utils.DateUtils;
 
 /**
- * The JCR-SQL2 statements behind the archive viewer: one listing the archive entries under a subtree, one counting
+ * The JCR-SQL2 statements behind the archive browser: one listing the archive entries under a subtree, one counting
  * those created since a given instant.
  *
  * <p>
