@@ -116,17 +116,3 @@ def count_tokens_for_length(length: int) -> int:
     @return: the estimated token count
     """
     return length // 4
-
-
-def is_within_word_limits(text: str) -> bool:
-    """Whether ``text`` is short enough to be a real heading or TOC entry rather than parsing
-    garbage: at least one word, at most :data:`MAX_HEADING_WORDS` words, and no single word
-    longer than :data:`MAX_WORD_CHARS` characters.
-
-    @param text: the candidate line, markers already stripped
-    @return: ``True`` when the line is within both limits
-    """
-    words = text.split()
-    if not words or len(words) > MAX_HEADING_WORDS:
-        return False
-    return all(len(word) <= MAX_WORD_CHARS for word in words)

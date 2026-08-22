@@ -542,8 +542,8 @@ class TestNothingIsLeftInTemp:
 class TestSiblingPdfFallsBackThroughOdt:
     """When the direct Word-to-PDF export fails, try again through ODT.
 
-    The sibling PDF is what supplies bookmarks and page numbers, so losing it costs
-    ``toc_source``. Some documents the import filter reads fine cannot be exported straight to
+    The sibling PDF is what supplies bookmarks and page numbers, so losing it costs the
+    ``bookmarks`` list. Some documents the import filter reads fine cannot be exported straight to
     PDF, and re-writing them as ODT in between is often enough for the export to work.
     """
 
