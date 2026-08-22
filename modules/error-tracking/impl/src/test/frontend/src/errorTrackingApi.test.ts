@@ -63,7 +63,7 @@ describe("errorNameFromRoute", () => {
   });
 
   it("names nothing for an unrelated route", () => {
-    expect(errorNameFromRoute("/admin/attic/xyz")).toBeNull();
+    expect(errorNameFromRoute("/admin/archive/xyz")).toBeNull();
   });
 
   it("round-trips with errorRoute", () => {
