@@ -39,6 +39,7 @@ import io.uhndata.iap.schemas.models.DocumentRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -55,7 +56,8 @@ class DocumentTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Document.class, DocumentRequirement.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Document.class, DocumentRequirement.class,
+            DocumentVersion.class);
     }
 
     @Test
@@ -92,30 +94,48 @@ class DocumentTest
     }
 
     @Test
-    void listsAttachments()
+    void listsVersionsOldestFirst()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/consent",
             "sling:resourceType", Document.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/submission/consent/page1",
-            "sling:resourceType", "nt:file");
-        this.context.create().resource("/Submissions/submission/consent/page2",
+        this.context.create().resource("/Submissions/submission/consent/v0",
+            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/consent/v1",
+            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+        // The uploads live under a version now, so a stray file child is not one of them
+        this.context.create().resource("/Submissions/submission/consent/stray",
             "sling:resourceType", "nt:file");
         final Document document = resource.adaptTo(Document.class);
 
-        final List<Resource> attachments = document.getAttachments();
+        final List<DocumentVersion> versions = document.getVersions();
 
-        assertEquals(2, attachments.size());
-        assertEquals("page1", attachments.get(0).getName());
-        assertEquals("page2", attachments.get(1).getName());
+        assertEquals(2, versions.size());
+        assertEquals("v0", versions.get(0).getName());
+        assertEquals("v1", versions.get(1).getName());
     }
 
     @Test
-    void listsNoAttachmentsWhenNoneExist()
+    void namesTheNewestVersionAsTheCurrentOne()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/consent",
+            "sling:resourceType", Document.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/consent/v0",
+            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/consent/v1",
+            "sling:resourceType", DocumentVersion.RESOURCE_TYPE);
+        final Document document = resource.adaptTo(Document.class);
+
+        assertEquals("v1", document.getCurrentVersion().getName());
+    }
+
+    @Test
+    void hasNoVersionsBeforeAnythingIsUploaded()
     {
         final Resource resource = this.context.create().resource("/Submissions/submission/empty",
             "sling:resourceType", Document.RESOURCE_TYPE);
         final Document document = resource.adaptTo(Document.class);
 
-        assertTrue(document.getAttachments().isEmpty());
+        assertTrue(document.getVersions().isEmpty());
+        assertNull(document.getCurrentVersion());
     }
 }

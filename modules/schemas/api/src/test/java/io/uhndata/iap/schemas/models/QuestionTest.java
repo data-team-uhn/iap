@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -92,5 +93,31 @@ class QuestionTest
         assertNull(question.getDataType());
         assertFalse(question.isRequired());
         assertFalse(question.isMultiple());
+        assertNull(question.getDisplayMode());
+        assertNull(question.getPurpose());
+        assertNull(question.getExtractionPrompt());
+        assertNull(question.getResponseShape());
+        assertTrue(question.getRubricTags().isEmpty());
+    }
+
+    @Test
+    void exposesWhatAnswerExtractionNeeds()
+    {
+        final Resource resource = this.context.create().resource("/Schemas/schema/1.0/participants", Map.of(
+            "sling:resourceType", Question.RESOURCE_TYPE,
+            "text", "How many participants will be recruited?",
+            "displayMode", "number",
+            "purpose", "Whether the sample size matches the statistical plan",
+            "extractionPrompt", "Read the target number of participants out of the recruitment section",
+            "responseShape", "{\"type\": \"integer\"}",
+            "rubricTags", new String[]{ "recruitment", "statistics" }));
+        final Question question = resource.adaptTo(Question.class);
+
+        assertEquals("number", question.getDisplayMode());
+        assertEquals("Whether the sample size matches the statistical plan", question.getPurpose());
+        assertEquals("Read the target number of participants out of the recruitment section",
+            question.getExtractionPrompt());
+        assertEquals("{\"type\": \"integer\"}", question.getResponseShape());
+        assertEquals(List.of("recruitment", "statistics"), question.getRubricTags());
     }
 }

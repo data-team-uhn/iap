@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.schemas.models;
 
+import java.util.List;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -51,6 +53,21 @@ public class Question extends FormItem
 
     @ValueMapValue
     private boolean multiple;
+
+    @ValueMapValue
+    private String displayMode;
+
+    @ValueMapValue
+    private String purpose;
+
+    @ValueMapValue
+    private String extractionPrompt;
+
+    @ValueMapValue
+    private String responseShape;
+
+    @ValueMapValue
+    private String[] rubricTags;
 
     /**
      * The question text shown to the submitter.
@@ -103,5 +120,61 @@ public class Question extends FormItem
     public boolean isMultiple()
     {
         return this.multiple;
+    }
+
+    /**
+     * How the question is rendered to the submitter.
+     *
+     * @return a display mode, or {@code null} to let the answer's data type decide
+     */
+    @Nullable
+    public String getDisplayMode()
+    {
+        return this.displayMode;
+    }
+
+    /**
+     * What the answer is used to judge, in the reviewer's terms rather than the submitter's.
+     *
+     * @return a purpose, or {@code null} if not stated
+     */
+    @Nullable
+    public String getPurpose()
+    {
+        return this.purpose;
+    }
+
+    /**
+     * The prompt an LLM is given to read this answer out of the submitted documents.
+     *
+     * @return a prompt, or {@code null} if this answer is not extracted
+     */
+    @Nullable
+    public String getExtractionPrompt()
+    {
+        return this.extractionPrompt;
+    }
+
+    /**
+     * The shape the LLM's reply must take, as a JSON schema.
+     *
+     * @return a JSON schema, or {@code null} if the reply is unconstrained
+     */
+    @Nullable
+    public String getResponseShape()
+    {
+        return this.responseShape;
+    }
+
+    /**
+     * The tags of the schema sections that may contain the answer. Chunk selection for extraction is tag-driven:
+     * the union of the extracted questions' tags decides which chunks a model is given.
+     *
+     * @return a list of tags, empty if none were assigned
+     */
+    @NotNull
+    public List<String> getRubricTags()
+    {
+        return this.rubricTags == null ? List.of() : List.of(this.rubricTags);
     }
 }

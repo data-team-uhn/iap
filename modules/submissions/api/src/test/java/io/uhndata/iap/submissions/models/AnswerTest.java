@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.Node;
@@ -38,8 +39,10 @@ import io.uhndata.iap.schemas.models.Question;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link Answer}.
@@ -55,7 +58,8 @@ class AnswerTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class, Question.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class, Question.class,
+            Evidence.class);
     }
 
     @Test
@@ -98,5 +102,71 @@ class AnswerTest
         assertNotNull(answer);
         assertNull(answer.getQuestion());
         assertNull(answer.getValue());
+        assertFalse(answer.isExtracted());
+        assertNull(answer.getExtractedAnswer());
+        assertNull(answer.getConfidence());
+        assertNull(answer.getReasoning());
+        assertNull(answer.getEditDistance());
+        assertNull(answer.getPercentageDistance());
+        assertTrue(answer.getEvidence().isEmpty());
+    }
+
+    @Test
+    void exposesWhatExtractionFound()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/extracted", Map.of(
+            "sling:resourceType", Answer.RESOURCE_TYPE,
+            "extracted", true,
+            "extractedAnswer", "42 participants",
+            "confidence", 0.87,
+            "reasoning", "The recruitment table gives 42 in the final column",
+            "editDistance", 3L,
+            "percentageDistance", 20.0));
+        final Answer answer = resource.adaptTo(Answer.class);
+
+        assertTrue(answer.isExtracted());
+        assertEquals("42 participants", answer.getExtractedAnswer());
+        assertEquals(0.87, answer.getConfidence());
+        assertEquals("The recruitment table gives 42 in the final column", answer.getReasoning());
+        assertEquals(3L, answer.getEditDistance());
+        assertEquals(20.0, answer.getPercentageDistance());
+    }
+
+    @Test
+    void reportsThatExtractionRanAndFoundNothing()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/empty", Map.of(
+            "sling:resourceType", Answer.RESOURCE_TYPE,
+            "extracted", true,
+            "editDistance", -1L,
+            "percentageDistance", -1.0));
+        final Answer answer = resource.adaptTo(Answer.class);
+
+        // "ran and found nothing" is the case a null extracted answer cannot tell apart from "never ran"
+        assertTrue(answer.isExtracted());
+        assertNull(answer.getExtractedAnswer());
+        assertEquals(-1L, answer.getEditDistance());
+        assertEquals(-1.0, answer.getPercentageDistance());
+    }
+
+    @Test
+    void listsTheEvidenceBackingTheExtractedAnswer()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/cited",
+            "sling:resourceType", Answer.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/cited/evidence0", Map.of(
+            "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "42 participants will be recruited"));
+        this.context.create().resource("/Submissions/submission/cited/evidence1", Map.of(
+            "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "of whom 42 complete the protocol"));
+        // Not evidence, and must not be listed as such
+        this.context.create().resource("/Submissions/submission/cited/upload",
+            "sling:resourceType", "nt:file");
+        final Answer answer = resource.adaptTo(Answer.class);
+
+        final List<Evidence> evidence = answer.getEvidence();
+
+        assertEquals(2, evidence.size());
+        assertEquals("42 participants will be recruited", evidence.get(0).getQuote());
+        assertEquals("of whom 42 complete the protocol", evidence.get(1).getQuote());
     }
 }
