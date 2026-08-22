@@ -117,7 +117,7 @@ class TestHeadingPattern:
     def test_a_hash_line_of_only_whitespace_stays_linear(self):
         # CWE-1333. When the tail was written as (.*\S)\s*$ those two repetitions competed
         # for the same whitespace and the engine retried once per space: a 16k-space line
-        # took 1.4s, and the cost is quadratic. _match_heading takes raw document lines, and
+        # took 1.4s, and the cost is quadratic. _match_atx_heading takes raw document lines, and
         # the document comes from the caller, so this is reachable from a crafted upload.
         for size in (200_000, 800_000):
             line = "# " + " " * size
@@ -133,7 +133,7 @@ class TestHeadingPattern:
         assert time.perf_counter() - start < 1.0
 
     def test_the_heading_text_group_may_carry_trailing_whitespace(self):
-        # _match_heading strips trailing whitespace; every other caller uses HEADING as a
+        # _match_atx_heading strips trailing whitespace; every other caller uses HEADING as a
         # predicate and does not care about the captured tail.
         assert mm.HEADING.match("## Study Design   ").group(2) == "Study Design   "
         assert mm.HEADING.match("## Study Design").group(2) == "Study Design"
