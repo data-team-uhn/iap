@@ -96,7 +96,7 @@ python modules/documents/processing/src/main/python/docling_daemon.py --host 127
 - `GET  http://localhost:18765/health` — readiness probe: `{"status", "workers", "ready"}`.
   Deliberately carries no filesystem paths, since it is the one endpoint with no credential.
 - `POST http://localhost:18765/parse?path=/shared-docs/.../proto.pdf&chunk=true` —
-  path under the shared root → summary JSON. LibreOffice prep + Docling + `write_chunk_files`.
+  path under the shared root → summary JSON. LibreOffice prep + Docling + `chunk_file`.
 - `POST http://localhost:18765/shutdown` — graceful stop; **served only with
   `--enable-shutdown`**, and answers 404 otherwise. A container is stopped with a signal, so the
   endpoint is useful only when the caller owns the daemon process and is a denial-of-service

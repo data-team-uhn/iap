@@ -98,6 +98,6 @@ The caller and the Docling daemon share **`/shared-docs`** (env `IAP_SHARED_DOCS
 /shared-docs/{uuid}/
   {stem}.pdf|.docx|.doc     # staged by the caller
   {stem}.docx / {stem}.pdf  # LibreOffice conversions (Python)
-  {stem}.md                 # write_chunk_files only
-  Chunks/                   # write_chunk_files only
+  {stem}.md                 # chunk_file only
+  Chunks/                   # chunk_file only
 ```

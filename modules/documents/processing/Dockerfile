@@ -17,7 +17,7 @@
 # Docling processing daemon.
 #
 # Serves POST /parse with a path under the shared /shared-docs volume. LibreOffice prep,
-# Docling, and write_chunk_files all run in this container and write beside the staged file.
+# Docling, and chunk_file all run in this container and write beside the staged file.
 #
 # Build, from the repo root:
 #   mvn install -Pdocker -pl modules/documents/processing

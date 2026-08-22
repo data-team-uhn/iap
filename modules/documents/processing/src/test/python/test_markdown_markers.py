@@ -23,6 +23,7 @@ assert that every other spacing is rejected."""
 import time
 
 import chunker
+import heading_helpers
 import markdown_cleanup
 import markdown_markers as mm
 
@@ -84,17 +85,17 @@ class TestConsumersAgreeOnTheMarker:
 
     The outline module used to be one of them. It no longer reads page markers itself -- it
     hands the document to :func:`bookmarks.build_lines_catalog`, which is covered here through
-    the ``_pages`` helper.
+    the ``_get_page_range`` helper.
     """
 
     def test_every_stage_reads_the_canonical_marker(self):
-        assert chunker.is_neutral(EMITTED) is True
-        assert chunker._get_pages(f"body\n{EMITTED}\nmore") == [12]
+        assert heading_helpers.is_neutral(EMITTED) is True
+        assert chunker._get_page_range(f"body\n{EMITTED}\nmore") == "11-12"
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{EMITTED}\nb") is not None
 
     def test_every_stage_rejects_non_canonical_spacing(self):
-        assert chunker.is_neutral(NON_CANONICAL) is False
-        assert chunker._get_pages(f"body\n{NON_CANONICAL}\nmore") == []
+        assert heading_helpers.is_neutral(NON_CANONICAL) is False
+        assert chunker._get_page_range(f"body\n{NON_CANONICAL}\nmore") == ""
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{NON_CANONICAL}\nb") is None
 
 
@@ -157,24 +158,6 @@ class TestCountTokens:
 
     def test_floors_rather_than_rounds(self):
         assert mm.count_tokens("abc") == 0
-
-
-class TestWithinWordLimits:
-    def test_ordinary_line(self):
-        assert mm.is_within_word_limits("Background and Rationale") is True
-
-    def test_empty_or_blank_rejected(self):
-        assert mm.is_within_word_limits("") is False
-        assert mm.is_within_word_limits("   ") is False
-
-    def test_at_the_word_limit_is_allowed(self):
-        assert mm.is_within_word_limits(" ".join(["w"] * mm.MAX_HEADING_WORDS)) is True
-
-    def test_over_the_word_limit_rejected(self):
-        assert mm.is_within_word_limits(" ".join(["w"] * (mm.MAX_HEADING_WORDS + 1))) is False
-
-    def test_overlong_word_rejected(self):
-        assert mm.is_within_word_limits("word " + "x" * (mm.MAX_WORD_CHARS + 1)) is False
 
 
 class TestSupportedSuffixes:

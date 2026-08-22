@@ -18,7 +18,7 @@
 """Shared convert + chunk + write path used by the daemon and the CLI.
 
 LibreOffice prep (when needed) runs first and saves converted files beside the source.
-Docling then converts to Markdown in memory. :func:`chunker.write_chunk_files` writes
+Docling then converts to Markdown in memory. :func:`chunker.chunk_file` writes
 ``{stem}.md`` and ``Chunks/``.
 """
 
@@ -42,8 +42,8 @@ from chunker import (
     DEFAULT_MIN_STRUCTURE_TOKENS,
     CHUNKS_DIRNAME,
     DEFAULT_MAX_TOKENS,
+    chunk_file,
     write_atomically,
-    write_chunk_files,
     write_unchunked_outline,
 )
 from docling_docx_parser import convert_docx_to_markdown
@@ -132,7 +132,7 @@ def parse_document(
 
     if not chunk:
         # Outline first, .md last, the same order as every other path. The .md is the commit
-        # marker (see chunker.write_chunk_files), so the other order can leave Markdown with no
+        # marker (see chunker.chunk_file), so the other order can leave Markdown with no
         # outline beside it.
         shared_docs.make_dirs(output_md.parent)
         chunks_dir_path = write_unchunked_outline(output_md, markdown)
@@ -146,20 +146,20 @@ def parse_document(
             "filename": filename,
         }
 
-    summary = write_chunk_files(
-        markdown,
+    summary = chunk_file(
         output_md,
         max_tokens=max_tokens,
         min_structure_tokens=min_structure_tokens,
+        markdown=markdown,
     )
-    if summary.logs:
-        _log(summary.logs)
+    if summary["logs"]:
+        _log(summary["logs"])
 
-    chunks_dir_path = summary.chunks_dir or (output_md.parent / CHUNKS_DIRNAME)
+    chunks_dir_path = summary["chunks_dir"] or (output_md.parent / CHUNKS_DIRNAME)
     return {
         "ok": True,
         "markdown_path": str(output_md.resolve()),
-        "chunked": summary.chunked,
+        "chunked": summary["chunked"],
         "chunks_dir": str(chunks_dir_path.resolve()),
         "logs": "\n".join(logs),
         "filename": filename,
