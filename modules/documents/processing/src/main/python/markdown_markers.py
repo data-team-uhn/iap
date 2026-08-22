@@ -78,7 +78,7 @@ MAX_HEADING_LEVEL = 6
 #
 # Keep the tail as ``(\S.*)$``. Writing it ``(.*\S)\s*$`` puts two repetitions next to each
 # other competing for the same spaces, which is quadratic on a line of only '#' and whitespace
-# -- and :func:`chunker._match_heading` feeds this raw document lines.
+# -- and :func:`chunker._match_atx_heading` feeds this raw document lines.
 HEADING = re.compile(rf"^(#{{1,{MAX_HEADING_LEVEL}}})(?!#)\s+(\S.*)$")
 
 # Maximum words per accepted heading/TOC entry, and maximum characters per word within it.
