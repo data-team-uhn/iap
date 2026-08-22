@@ -105,7 +105,7 @@ invites client timeouts. Callers retry.
 | `docling_batch_sizing.py` | Worker-count / page-batch sizing from RAM + cores |
 | `docling_config.py` / `docling_error_detection.py` | Shared Docling pipeline options; parse-failure detection |
 | `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks (idempotent). Called **once per document**, by the converter only |
-| **`chunker.py`** | `chunk_file` — **sole** writer of `{stem}.md` + `Chunks/`; `build_chunk_tree` is in-memory only |
+| **`chunker.py`** | `chunk_file` — **sole** writer of `{stem}.md` + `Chunks/`; `build_chunk_tree` is in-memory only. Leaf splitting is [chunkweaver](https://github.com/metawake/chunkweaver) |
 | `heading_helpers.py` | Identify ATX headings, match them to PDF bookmarks, catalog labels |
 | `pdf_bookmarks.py` | PDF bookmark extraction (pypdf) |
 
@@ -149,10 +149,10 @@ chunk_file(<stem>.md)                                        # md is already cle
        │    └─ at/above ↓
        │
        ├─ if bookmarks: rewrite heading lines to bookmark level/title (paged TOC ATX demoted)
-       ├─ split at the shallowest ATX heading level
+       ├─ chunkweaver cuts at the top-level heading lines
        ├─ unite consecutive sections up to DEFAULT_MAX_TOKENS (2000)
-       ├─ over-budget piece → _split_oversized → _subchunk_blocks:
-       │       ATX sub-heading, else paragraph boundaries
+       ├─ over-budget piece → _split_oversized → _split_to_budget: chunkweaver again,
+       │       cutting on sub-headings then paragraphs then sentences, repacked after
        ├─ heading-only part folded into a sibling (never its own chunk file)
        └─ small text-only tail (< MIN_TAIL_TOKENS 500) folded into the previous part
   │
@@ -171,6 +171,38 @@ and wipes the directory. **No parse ever meets files left by an earlier one**, s
 checks for them — see "Staleness" below.
 
 ---
+
+### What chunkweaver does, and what it does not
+
+It does all the cutting:
+
+- **The top-level cut.** On the heading lines, which the bookmark rewrite has already set to
+  the bookmark levels -- so cutting on them is cutting on the bookmarks, and a heading the
+  outline missed still starts a chunk. `target_size` is a sentinel there, because a real budget
+  would re-split a section before `_pack_blocks` has had its say.
+- **The over-budget cut.** `_split_to_budget` gives it the Markdown heading boundaries, so it
+  cuts on a section's own sub-headings, then paragraphs, then sentences. That last fallback is
+  why it is here at all: Docling emits a table as a run of `|` lines with no blank line, so a
+  700-row schedule of assessments is one paragraph, and the hand-written splitter returned it
+  whole -- one chunk 6.4x over budget.
+
+Two settings are not optional. `overlap=0`, because the default is 2 sentences of RAG
+retrieval overlap, which repeats text across chunk files and inflated a test document by 43%.
+And `min_size` has to stay under `target_size`: it wins when the two disagree, so a floor
+above the budget puts every part over budget.
+
+`MARKDOWN_LEVELED` is used without its `^---` spec (see `HEADING_BOUNDARIES`). Docling emits
+horizontal rules inside sections, and cutting on them opens a chunk with a bare rule.
+
+What it does **not** do:
+
+- **Packing.** `_pack_blocks` unites consecutive sections up to the budget, and chunkweaver
+  cannot: `target_size` only ever splits, and its `min_size` merge explicitly refuses to join
+  two segments at the same heading level. Left to itself it turned 12 small sub-sections into
+  12 parts of ~245 tokens where packing gives 2 of ~1970 and ~1045.
+- **The post-split tweaks**: trailing page markers moved to the next chunk, heading-only parts
+  folded into a sibling, small text tails folded back, `Chunk-N.K` numbering, catalog headings
+  and pages.
 
 ## The outline subsystem
 
@@ -210,7 +242,7 @@ Key behaviours:
 - **No page rewrite** — a bookmark's page used to be looked up in the `<!-- page: N -->`
   markers and corrected when it pointed one page early. Matching is by title only; the titles
   are taken as the PDF gives them.
-- **Sub-chunk boundaries** — an ATX sub-heading (after bookmark rewrite, when an outline exists), or paragraph boundaries. Without bookmarks, only `#` counts: bold/ALL-CAPS lines are not cuts on their own.
+- **Sub-chunk boundaries** — chunkweaver cuts on any ATX sub-heading (after the bookmark rewrite, when an outline exists), then paragraphs, then sentences. Bold/ALL-CAPS lines are not cuts on their own.
 
 The source PDF reaches the chunker as a sibling of the `.md`: either the native upload staged
 beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_office_document`.
