@@ -21,6 +21,7 @@ import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
@@ -55,6 +56,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class LoggedErrorsStatusReporterTest
 {
+    /**
+     * A moment inside any plausible recency window. Most of these fixtures are about what the report says rather
+     * than about when, but its level is a judgement about time, so "seen a moment ago" is the ordinary case here.
+     */
+    private static final long RECENTLY = System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(1);
+
+    /** A moment outside the default window: a fault this instance is no longer getting wrong. */
+    private static final long A_WHILE_AGO = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(3);
+
     private final SlingContext context = new SlingContext();
 
     private LoggedErrorsStatusReporter reporter;
@@ -110,8 +120,8 @@ class LoggedErrorsStatusReporterTest
     @Test
     void countsWhatNeedsAttention()
     {
-        thrown("first", 3, 1000, null);
-        thrown("second", 1, 2000, null);
+        thrown("first", 3, RECENTLY, null);
+        thrown("second", 1, RECENTLY + 1000, null);
 
         final StatusReport report = this.reporter.report(false);
 
@@ -122,8 +132,8 @@ class LoggedErrorsStatusReporterTest
     @Test
     void leavesTheOccurrenceCountOutWhenEverythingHappenedOnce()
     {
-        thrown("first", 1, 1000, null);
-        thrown("second", 1, 2000, null);
+        thrown("first", 1, RECENTLY, null);
+        thrown("second", 1, RECENTLY + 1000, null);
 
         assertEquals("There are 2 errors logged", this.reporter.report(false).getName());
     }
@@ -131,15 +141,105 @@ class LoggedErrorsStatusReporterTest
     @Test
     void countsOneErrorInTheSingular()
     {
-        thrown("only", 1, 1000, null);
+        thrown("only", 1, RECENTLY, null);
 
         assertEquals("There is 1 error logged", this.reporter.report(false).getName());
     }
 
     @Test
+    void staysAWarningForAFaultThatIsNotHappeningAnyMore()
+    {
+        // Nothing recorded here is ever deleted, so a fault from last week that nobody dealt with must not keep the
+        // report red for the rest of the instance's life — and must not page whoever is monitoring it
+        thrown("stale", 2, A_WHILE_AGO, null);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals(StatusReport.Status.WARNING, report.getStatus());
+        assertEquals("There is 1 error logged, 2 occurrences in total, no failure seen in the last 60 minutes",
+            report.getName());
+    }
+
+    @Test
+    void turnsRedForAFaultThatIsStillHappening()
+    {
+        thrown("stale", 1, A_WHILE_AGO, null);
+        thrown("live", 1, RECENTLY, null);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals(StatusReport.Status.ERROR, report.getStatus());
+        // Which of them made it red: the rest are the reader's to work through at their leisure
+        assertEquals("There are 2 errors logged, 1 still happening", report.getName());
+    }
+
+    @Test
+    void doesNotTurnRedForSomethingItMerelyFoundWrong()
+    {
+        // A condition naming a comparator that does not exist is somebody's to correct. However often it is hit, it
+        // says nothing about whether this instance is well
+        problem("misauthored", "unknown comparator", RECENTLY);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals(StatusReport.Status.WARNING, report.getStatus());
+        assertEquals("There is 1 error logged, no failure seen in the last 60 minutes", report.getName());
+    }
+
+    @Test
+    void turnsRedForAProblemWhereTheDeploymentSaysDefinitionsMustBeRight()
+    {
+        configure(60, true);
+        problem("misauthored", "unknown comparator", RECENTLY);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals(StatusReport.Status.ERROR, report.getStatus());
+        // And then the headline is about everything, since nothing is being left out of the judgement
+        assertEquals("There is 1 error logged", report.getName());
+    }
+
+    @Test
+    void speaksOfEverythingWhereNothingIsLeftOutOfTheJudgement()
+    {
+        // With problems counted too, the headline can say plainly that nothing has been seen. It cannot when they
+        // are not: a problem hit a minute ago is not ongoing, and "none seen" would be a lie about it
+        configure(60, true);
+        problem("misauthored", "unknown comparator", A_WHILE_AGO);
+
+        final StatusReport report = this.reporter.report(false);
+
+        assertEquals(StatusReport.Status.WARNING, report.getStatus());
+        assertEquals("There is 1 error logged, none seen in the last 60 minutes", report.getName());
+    }
+
+    @Test
+    void measuresBeingRecentAgainstTheConfiguredWindow()
+    {
+        // The same error and the same report at two settings: nothing about the fault itself decides this
+        thrown("theOnlyOne", 1, A_WHILE_AGO, null);
+
+        configure(5, false);
+        assertEquals(StatusReport.Status.WARNING, this.reporter.report(false).getStatus());
+
+        configure((int) TimeUnit.DAYS.toMinutes(1), false);
+        assertEquals(StatusReport.Status.ERROR, this.reporter.report(false).getStatus());
+    }
+
+    @Test
+    void treatsAWindowThatCannotSayWhatIsHappeningNowAsTheDefault()
+    {
+        // Zero silences every ERROR this reporter can raise, which is not what configuring a quieter report means
+        configure(0, false);
+        thrown("live", 1, RECENTLY, null);
+
+        assertEquals(StatusReport.Status.ERROR, this.reporter.report(false).getStatus());
+    }
+
+    @Test
     void quotesWhatBrokeAndWhatItWasWorkingOn()
     {
-        thrown("first", 3, 1000, null);
+        thrown("first", 3, RECENTLY, null);
 
         final String body = this.reporter.report(false).getText();
 
@@ -158,15 +258,15 @@ class LoggedErrorsStatusReporterTest
     void alwaysSaysWhenSomethingHappened()
     {
         // A one-off quoted with no date at all is precisely the case a reader most wants dated
-        thrown("once", 1, 1000, null);
+        thrown("once", 1, RECENTLY, null);
 
         final String body = this.reporter.report(false).getText();
 
         assertTrue(body.contains("**1 occurrence**, first seen "));
         // In the platform's own format, milliseconds included and a zero offset written out rather than shortened
         // to Z, so that a date in a report reads the same as the same date in a serialized resource
-        assertTrue(body.contains("last seen " + DateUtils.toString(at(1000))), body);
-        assertTrue(DateUtils.toString(at(1000)).matches(".*\\.\\d{3}[+-]\\d{2}:\\d{2}"));
+        assertTrue(body.contains("last seen " + DateUtils.toString(at(RECENTLY))), body);
+        assertTrue(DateUtils.toString(at(RECENTLY)).matches(".*\\.\\d{3}[+-]\\d{2}:\\d{2}"));
     }
 
     @Test
@@ -187,7 +287,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void describesAProblemWithoutPretendingItHasATrace()
     {
-        problem("broken", "unknown comparator", 1000);
+        problem("broken", "unknown comparator", RECENTLY);
 
         final String body = this.reporter.report(false).getText();
 
@@ -198,7 +298,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void hidesEverythingThatQuotesContentFromAReaderWhoIsNotLoggedIn()
     {
-        thrown("first", 3, 1000, null);
+        thrown("first", 3, RECENTLY, null);
 
         final StatusReport report = this.reporter.report(true);
 
@@ -215,7 +315,7 @@ class LoggedErrorsStatusReporterTest
     void anInstanceWhereEverythingHasBeenDealtWithIsNotReportedAsBroken()
     {
         // Nothing is ever deleted, so without this the first error an instance ever hits would leave it red forever
-        thrown("first", 3, 1000, "known-issue");
+        thrown("first", 3, RECENTLY, "known-issue");
 
         final StatusReport report = this.reporter.report(false);
 
@@ -227,7 +327,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void repeatsWhyAnErrorWasSetAside()
     {
-        final String name = thrown("handled", 1, 1000, "known-issue");
+        final String name = thrown("handled", 1, RECENTLY, "known-issue");
         this.context.resourceResolver().getResource("/LoggedErrors/" + name + "/decision1")
             .adaptTo(ModifiableValueMap.class).put("note", "waiting on the partner");
 
@@ -237,8 +337,8 @@ class LoggedErrorsStatusReporterTest
     @Test
     void countsSeveralAcknowledgedErrorsTogether()
     {
-        thrown("first", 1, 1000, "known-issue");
-        thrown("second", 1, 2000, "wont-fix");
+        thrown("first", 1, RECENTLY, "known-issue");
+        thrown("second", 1, RECENTLY + 1000, "wont-fix");
 
         assertEquals("All 2 logged errors have been acknowledged", this.reporter.report(false).getName());
     }
@@ -246,8 +346,8 @@ class LoggedErrorsStatusReporterTest
     @Test
     void saysHowMuchHasAlreadyBeenDealtWith()
     {
-        thrown("needsWork", 1, 1000, null);
-        thrown("handled", 1, 2000, "known-issue");
+        thrown("needsWork", 1, RECENTLY, null);
+        thrown("handled", 1, RECENTLY + 1000, "known-issue");
 
         final StatusReport report = this.reporter.report(false);
 
@@ -261,7 +361,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void tellsNobodyWhichErrorsWereSilencedWhenNotLoggedIn()
     {
-        thrown("handled", 1, 2000, "known-issue");
+        thrown("handled", 1, RECENTLY + 1000, "known-issue");
 
         assertEquals("", this.reporter.report(true).getText());
     }
@@ -270,7 +370,7 @@ class LoggedErrorsStatusReporterTest
     void describesOnlySoManyErrorsInFull()
     {
         for (int i = 0; i < 12; i++) {
-            thrown("error" + i, 1, 1000 + i, null);
+            thrown("error" + i, 1, RECENTLY + i, null);
         }
 
         final String body = this.reporter.report(false).getText();
@@ -282,7 +382,7 @@ class LoggedErrorsStatusReporterTest
     void listsOnlySoManyErrorsInTheTable()
     {
         for (int i = 0; i < 30; i++) {
-            thrown("error" + i, 1, 1000 + i, null);
+            thrown("error" + i, 1, RECENTLY + i, null);
         }
 
         assertTrue(this.reporter.report(true).getText().contains("_...and 5 more._"));
@@ -291,7 +391,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void quotesOnlyAFewOfTheSubjects()
     {
-        final String name = thrown("many", 1, 1000, null);
+        final String name = thrown("many", 1, RECENTLY, null);
         this.context.resourceResolver().getResource("/LoggedErrors/" + name)
             .adaptTo(ModifiableValueMap.class)
             .put("subjects", new String[] {"/one", "/two", "/three", "/four", "/five"});
@@ -308,7 +408,7 @@ class LoggedErrorsStatusReporterTest
     void listsOnlySoManyAcknowledgedErrors()
     {
         for (int i = 0; i < 12; i++) {
-            thrown("handled" + i, 1, 1000 + i, "wont-fix");
+            thrown("handled" + i, 1, RECENTLY + i, "wont-fix");
         }
 
         assertTrue(this.reporter.report(false).getText().contains("_...and 2 more._"));
@@ -362,7 +462,7 @@ class LoggedErrorsStatusReporterTest
     @Test
     void countsWhatCouldNotBeRecordedAlongsideWhatWas() throws ReflectiveOperationException
     {
-        thrown("first", 1, 1000, null);
+        thrown("first", 1, RECENTLY, null);
         droppedSoFar(3);
 
         final StatusReport report = this.reporter.report(false);
@@ -375,12 +475,14 @@ class LoggedErrorsStatusReporterTest
     void nothingAcknowledgesWhatWasNeverRecorded() throws ReflectiveOperationException
     {
         // Acknowledging every error there is cannot silence an overflow: nobody ever saw what was dropped
-        thrown("handled", 1, 1000, "known-issue");
+        thrown("handled", 1, RECENTLY, "known-issue");
         droppedSoFar(2);
 
         final StatusReport report = this.reporter.report(false);
 
-        assertEquals(StatusReport.Status.ERROR, report.getStatus());
+        // Loud, but not red: what an overflow says is that faults once arrived faster than they could be written,
+        // and the count is cumulative, so red here would mean red until this instance is restarted
+        assertEquals(StatusReport.Status.WARNING, report.getStatus());
         assertEquals("Nothing logged needs attention, and 2 could not be recorded at all, and 1 already acknowledged",
             report.getName());
     }
@@ -389,7 +491,7 @@ class LoggedErrorsStatusReporterTest
     void saysHowMuchWasLostEvenToAReaderWhoIsNotLoggedIn() throws ReflectiveOperationException
     {
         // A count of what was dropped says nothing about what the instance was working on
-        thrown("first", 1, 1000, null);
+        thrown("first", 1, RECENTLY, null);
         droppedSoFar(4);
 
         assertTrue(this.reporter.report(true).getText().contains("**4 errors could not be recorded**"));
@@ -400,7 +502,7 @@ class LoggedErrorsStatusReporterTest
     {
         // The reference is left unset here, standing in for the window between the report starting and the recorder
         // being injected: the errors already in the repository are still worth reporting
-        thrown("first", 1, 1000, null);
+        thrown("first", 1, RECENTLY, null);
 
         assertEquals("There is 1 error logged", this.reporter.report(false).getName());
     }
@@ -432,6 +534,36 @@ class LoggedErrorsStatusReporterTest
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /**
+     * Configures the reporter, the way the framework would.
+     *
+     * @param window how long a failure counts as still happening, in minutes
+     * @param problemsAreUrgent whether something merely found wrong can make the report an error
+     */
+    private void configure(final int window, final boolean problemsAreUrgent)
+    {
+        this.reporter.activate(new ErrorReportConfiguration()
+        {
+            @Override
+            public Class<ErrorReportConfiguration> annotationType()
+            {
+                return ErrorReportConfiguration.class;
+            }
+
+            @Override
+            public int recentFailureWindow()
+            {
+                return window;
+            }
+
+            @Override
+            public boolean problemsAreUrgent()
+            {
+                return problemsAreUrgent;
+            }
+        });
+    }
 
     /**
      * Gives the reporter a recording service that has had to drop that many faults.

@@ -22,13 +22,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +55,16 @@ import io.uhndata.iap.utils.DateUtils;
  * </p>
  *
  * <p>
+ * How loudly it speaks is a judgement about the instance, not about any one fault. A failure nobody has dealt with
+ * that is still happening is an {@code ERROR}: something is going wrong now. One last seen longer ago than the
+ * configured window is a {@code WARNING} — a fault somebody should look at, not a reason to believe this instance is
+ * unwell — and so, by default, is something the instance merely found wrong rather than threw, since a mis-authored
+ * definition is somebody's to correct however often it is hit. The distinction is the whole point of the levels
+ * here: an {@code ERROR} is what a monitoring tool pages somebody for, and being paged for a typo in a definition
+ * teaches whoever is on call to stop reading these reports.
+ * </p>
+ *
+ * <p>
  * What the report may say depends on who is reading. A component, an operation and a count describe the instance's
  * own code and are safe to show to anyone; a stack trace, a message, a path or a user quote whatever the failing code
  * was working on, which may be anything at all, and are shown only to a reader who is logged in.
@@ -61,6 +74,7 @@ import io.uhndata.iap.utils.DateUtils;
  * @since 0.1.0
  */
 @Component(immediate = true, service = StatusReporter.class)
+@Designate(ocd = ErrorReportConfiguration.class)
 public class LoggedErrorsStatusReporter implements StatusReporter
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(LoggedErrorsStatusReporter.class);
@@ -91,6 +105,31 @@ public class LoggedErrorsStatusReporter implements StatusReporter
     /** The recording service, asked how much it could not keep up with. */
     @Reference
     private ErrorLoggerService recorder;
+
+    /**
+     * How long a failure counts as still happening, in minutes. Initialized rather than left to
+     * {@link #activate(ErrorReportConfiguration)} so that a reporter asked for a report before it was configured
+     * still answers the way its documentation says it does.
+     */
+    private int recentWindow = ErrorReportConfiguration.DEFAULT_RECENT_WINDOW;
+
+    /** Whether something merely found wrong can make the report an error. */
+    private boolean problemsAreUrgent;
+
+    @Activate
+    void activate(final ErrorReportConfiguration config)
+    {
+        // A window of zero or less would leave nothing at all counting as happening now, which is not a quieter
+        // report but a report that has stopped answering the question. A deployment that wants every unacknowledged
+        // failure to be loud configures a very long window instead, and the attribute's description says so
+        if (config.recentFailureWindow() <= 0) {
+            LOGGER.warn("A recent-failure window of {} minutes cannot say what is happening now, using {} instead",
+                config.recentFailureWindow(), ErrorReportConfiguration.DEFAULT_RECENT_WINDOW);
+        } else {
+            this.recentWindow = config.recentFailureWindow();
+        }
+        this.problemsAreUrgent = config.problemsAreUrgent();
+    }
 
     @Override
     public String getName()
@@ -153,13 +192,17 @@ public class LoggedErrorsStatusReporter implements StatusReporter
      * @param unprivileged whether the report is going somewhere anybody can read
      * @return the report
      */
-    private static StatusReport describe(final LoggedErrorsHomepage errors, final long dropped,
+    private StatusReport describe(final LoggedErrorsHomepage errors, final long dropped,
         final boolean unprivileged)
     {
         final List<LoggedError> unacknowledged = errors.getUnacknowledgedErrors();
         final List<LoggedError> acknowledged = errors.getAcknowledgedErrors();
-        LOGGER.debug("Found {} recorded errors, {} of them unacknowledged, {} not kept up with",
-            unacknowledged.size() + acknowledged.size(), unacknowledged.size(), dropped);
+        // One cutoff for the whole report rather than one per error, so that everything in it is measured against
+        // the same moment and two errors seen a millisecond apart cannot fall on opposite sides of it
+        final long cutoff = System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(this.recentWindow);
+        final List<LoggedError> ongoing = unacknowledged.stream().filter(error -> isOngoing(error, cutoff)).toList();
+        LOGGER.debug("Found {} recorded errors, {} of them unacknowledged, {} of those still happening, {} not kept "
+            + "up with", unacknowledged.size() + acknowledged.size(), unacknowledged.size(), ongoing.size(), dropped);
 
         if (unacknowledged.isEmpty() && acknowledged.isEmpty()) {
             // Nothing recorded and yet something dropped means faults arrived faster than they could be written,
@@ -177,10 +220,39 @@ public class LoggedErrorsStatusReporter implements StatusReporter
                     : "All " + acknowledged.size() + " logged errors have been acknowledged",
                 StatusReport.Status.INFO, unprivileged ? "" : body(List.of(), acknowledged));
         }
-        // Nothing acknowledges what was never recorded, so anything dropped keeps the report red
-        return new StatusReport(summarize(unacknowledged, acknowledged, dropped), StatusReport.Status.ERROR,
+        // Red only for something going wrong now. Nothing recorded here is ever deleted, so a report that turned
+        // red for the oldest fault in it would be red for the rest of the instance's life, and a report that is
+        // always red is one nobody looks at — the same reason acknowledged errors are reported apart from the rest.
+        // An overflow does not make it red either: losing recordings is worth saying loudly, and what it says is
+        // that faults once arrived faster than they could be written, not that any of them is happening now
+        final StatusReport.Status level =
+            ongoing.isEmpty() ? StatusReport.Status.WARNING : StatusReport.Status.ERROR;
+        return new StatusReport(summarize(unacknowledged, ongoing, acknowledged, dropped), level,
             overflow(dropped) + (unprivileged ? summaryTable(unacknowledged) + "\n" + HIDDEN
                 : body(unacknowledged, acknowledged)));
+    }
+
+    /**
+     * Whether an error is one this instance is still getting wrong, as opposed to one it got wrong a while ago and
+     * has not since. What makes a report red, and so the one judgement here worth configuring.
+     *
+     * <p>
+     * A problem — something found wrong with nothing thrown — is not ongoing unless the deployment says problems
+     * are, however recently it was seen: it is a mis-authored definition, and it will go on being hit until somebody
+     * corrects it, which is a thing to be told about rather than woken for.
+     * </p>
+     *
+     * @param error the error to judge
+     * @param cutoff the moment before which an occurrence no longer counts as now, in milliseconds since the epoch
+     * @return {@code true} when this error is still happening
+     */
+    private boolean isOngoing(final LoggedError error, final long cutoff)
+    {
+        if (!(error instanceof LoggedFailure) && !this.problemsAreUrgent) {
+            return false;
+        }
+        // Never null: an error with no recorded moment falls back to when it was first seen, and then to the epoch
+        return error.getLastOccurrence().getTimeInMillis() >= cutoff;
     }
 
     /**
@@ -188,12 +260,13 @@ public class LoggedErrorsStatusReporter implements StatusReporter
      * the repository at all.
      *
      * @param unacknowledged the errors nobody has dealt with
+     * @param ongoing those of them that are still happening
      * @param acknowledged the errors somebody has
      * @param dropped how many recordings could not be kept up with
      * @return one line
      */
-    private static String summarize(final List<LoggedError> unacknowledged, final List<LoggedError> acknowledged,
-        final long dropped)
+    private String summarize(final List<LoggedError> unacknowledged, final List<LoggedError> ongoing,
+        final List<LoggedError> acknowledged, final long dropped)
     {
         final StringBuilder headline = new StringBuilder();
         if (unacknowledged.isEmpty()) {
@@ -202,7 +275,7 @@ public class LoggedErrorsStatusReporter implements StatusReporter
             headline.append("Nothing logged needs attention, and ").append(dropped)
                 .append(" could not be recorded at all");
         } else {
-            describeUnacknowledged(headline, unacknowledged, dropped);
+            describeUnacknowledged(headline, unacknowledged, ongoing, dropped);
         }
         if (!acknowledged.isEmpty()) {
             headline.append(", and ").append(acknowledged.size()).append(" already acknowledged");
@@ -215,16 +288,28 @@ public class LoggedErrorsStatusReporter implements StatusReporter
      *
      * @param headline the headline under construction
      * @param unacknowledged the errors nobody has dealt with, never empty
+     * @param ongoing those of them that are still happening
      * @param dropped how many recordings could not be kept up with
      */
-    private static void describeUnacknowledged(final StringBuilder headline,
-        final List<LoggedError> unacknowledged, final long dropped)
+    private void describeUnacknowledged(final StringBuilder headline, final List<LoggedError> unacknowledged,
+        final List<LoggedError> ongoing, final long dropped)
     {
         final long occurrences = unacknowledged.stream().mapToLong(LoggedError::getOccurrences).sum();
         headline.append(unacknowledged.size() == 1 ? "There is 1 error logged"
             : "There are " + unacknowledged.size() + " errors logged");
         if (occurrences != unacknowledged.size()) {
             headline.append(", ").append(occurrences).append(" occurrences in total");
+        }
+        // Why this report is the level it is: a reader owed a WARNING about several errors is owed the reason it is
+        // not worse, and one reading an ERROR about many is owed the count that made it one. Nothing is added when
+        // every one of them is still happening, which is the case the plain sentence above already describes
+        if (ongoing.isEmpty()) {
+            // Not "none seen recently": with problems left out of the judgement, one hit a minute ago is still not
+            // ongoing, and a headline claiming nothing had been seen would be false about it
+            headline.append(this.problemsAreUrgent ? ", none seen in the last " : ", no failure seen in the last ")
+                .append(plural(this.recentWindow, "minute"));
+        } else if (ongoing.size() < unacknowledged.size()) {
+            headline.append(", ").append(ongoing.size()).append(" still happening");
         }
         if (dropped > 0) {
             headline.append(", and ").append(dropped).append(" that could not be recorded at all");

@@ -212,13 +212,49 @@ The `LoggedErrorsStatusReporter` contributes a report tagged `problems` and `err
 | --- | --- | --- |
 | `/LoggedErrors` missing or of the wrong type | `ERROR` | `*ERROR*: Errors cannot be logged` |
 | nothing recorded | `DEBUG` | `No errors are logged` |
-| something needs attention | `ERROR` | `There are N errors logged, M occurrences in total` |
+| a failure needing attention is still happening | `ERROR` | `There are N errors logged, M occurrences in total` |
+| something needs attention, but none of it is still happening | `WARNING` | `There is 1 error logged, no failure seen in the last 60 minutes` |
 | everything acknowledged | `INFO` | `All N logged errors have been acknowledged` |
 | nothing recorded, but faults were dropped | `WARNING` | `*WARNING*: N errors could not be recorded` |
 
-Anything the tally could not keep up with is counted in every one of those, headline included, and
-keeps the report red however much has been acknowledged: nobody ever saw what was dropped, so
-nothing can have acknowledged it. The count names no content, so it is shown to any reader.
+Anything the tally could not keep up with is counted in every one of those, headline included,
+however much has been acknowledged: nobody ever saw what was dropped, so nothing can have
+acknowledged it. The count names no content, so it is shown to any reader.
+
+### How loud the report is
+
+`ERROR` is the loudest thing this platform can say about itself, and `/system/status` is what a
+monitoring tool polls, so it is worth being exact about when the recorded errors earn one. Two
+things are deliberately *not* enough on their own:
+
+- **An old fault.** Nothing recorded here is ever deleted, so a report that turned red for the
+  oldest entry would be red for the rest of the instance's life, and a report that is always red
+  is one nobody reads. A failure counts as still happening while it was last seen inside the
+  **recent failure window**, 60 minutes by default.
+- **A problem rather than a failure.** Something the instance [merely found
+  wrong](#something-wrong-that-nothing-was-thrown-for) — a condition naming a comparator that does
+  not exist — is an
+  authoring mistake, somebody's to correct. However often it is hit, it is not evidence that this
+  instance is unwell, so by default it cannot make the report an `ERROR`.
+
+Both are settings on the **Error Report** configuration
+(`io.uhndata.iap.errortracking.internal.ErrorReportConfiguration`):
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `recentFailureWindow` | `60` | Minutes after a failure was last seen that it still counts as happening now |
+| `problemsAreUrgent` | `false` | Whether a recorded problem can make the report an `ERROR` the way a failure does |
+
+A deployment that would rather be woken for anything unacknowledged sets a window longer than an
+instance ever runs, and `problemsAreUrgent` to `true`. A window of zero or less cannot say what is
+happening now — it would silence every `ERROR` this reporter can raise — so it is refused and the
+default used instead, with a line in the log saying so.
+
+An overflow is the one thing that is loud without being red. Losing recordings is worth saying
+plainly, and the headline and body both say it, but what it reports is that faults *once* arrived
+faster than they could be written; the count is cumulative for the life of the process, so
+treating it as an `ERROR` would mean an instance that hit one burst stayed red until it was
+restarted.
 
 `INFO` for the acknowledged case, deliberately: `SUCCESS` would be a lie, since something did
 break and the record is still there, while `WARNING` would still trip any monitor thresholding
