@@ -86,19 +86,42 @@ class TestMoveTrailingPageMarkers:
         assert chunker._move_trailing_page_markers(parts) == parts
 
 
-class TestSplitByParagraphs:
+class TestSplitToBudget:
+    """chunkweaver does the splitting; these pin the behaviour this pipeline needs."""
+
     def test_all_fits_single_part(self):
         text = "Para one.\n\nPara two.\n\nPara three."
-        assert chunker._split_by_paragraphs(text, 10_000) == [text]
+        assert chunker._split_to_budget(text, 10_000) == [text]
 
-    def test_each_paragraph_over_budget_split(self):
-        para = "x" * 40  # 10 tokens
-        text = "\n\n".join([para, para, para])
-        assert chunker._split_by_paragraphs(text, 5) == [para, para, para]
+    def test_splits_on_paragraph_boundaries(self):
+        para = "Sentence one here. " * 6
+        parts = chunker._split_to_budget("\n\n".join([para] * 3), 30)
+        assert len(parts) == 3
+        assert all(chunker.count_tokens(part) <= 30 for part in parts), parts
 
-    def test_single_oversized_paragraph_kept_whole(self):
-        big = "y" * 100  # 25 tokens, no blank-line boundary to split on
-        assert chunker._split_by_paragraphs(big, 5) == [big]
+    def test_an_oversized_paragraph_is_split_rather_than_kept_whole(self):
+        # The reason chunkweaver is here. Docling emits a table as one run of "|" lines
+        # with no blank line, so the blank-line-only splitter this replaced returned it as
+        # a single part far over budget, and nothing downstream re-split it.
+        row = "| " + " | ".join(["Procedure with a realistic label"] + ["X"] * 9) + " |"
+        parts = chunker._split_to_budget("\n".join([row] * 600),
+                                         chunker.DEFAULT_MAX_TOKENS)
+        assert len(parts) > 1
+        assert all(chunker.count_tokens(part) <= chunker.DEFAULT_MAX_TOKENS for part in parts), \
+            [chunker.count_tokens(part) for part in parts]
+
+    def test_nothing_is_lost_or_duplicated(self):
+        # A chunk tree is the document of record, so the parts must re-form the input.
+        row = "| " + " | ".join(["Procedure"] + ["X"] * 8) + " |"
+        text = "\n".join(["Lead-in prose.", ""] + [row] * 300 + ["", "Tail prose."])
+        parts = chunker._split_to_budget(text, chunker.DEFAULT_MAX_TOKENS)
+        assert " ".join(" ".join(parts).split()) == " ".join(text.split())
+
+    def test_no_part_ends_on_a_page_marker(self):
+        para = "Sentence one here. " * 6
+        text = "\n\n".join([para, "<!-- page: 7 -->", para])
+        parts = chunker._split_to_budget(text, 30)
+        assert not any(part.rstrip().endswith("-->") for part in parts), parts
 
 
 class TestPackBlocks:
@@ -214,7 +237,7 @@ class TestMergeHeadingOnlyParts:
     """No chunk file may be a bare title.
 
     Regression, reproduced at default settings: a section whose body is one over-budget
-    paragraph made _split_by_paragraphs flush the heading alone, giving a 29-byte
+    paragraph made _split_to_budget flush the heading alone, giving a 29-byte
     'Chunk-1.1.md' holding '# 6.0 Schedule of Assessments' and nothing else, with the table
     next to it labelled only by inheritance. Docling emits a table as consecutive '|' lines
     with no blank line, so the whole table is one paragraph and this is not an edge case.
@@ -322,11 +345,7 @@ class TestMergeSmallTextTails:
 class TestSplitIntoTopChunks:
     def test_preamble_and_sections(self):
         lines = ["preamble text", "# Section One", "body one", "# Section Two", "body two"]
-        bookmarks = [
-            {"title": "Section One", "level": 1, "line": 2},
-            {"title": "Section Two", "level": 1, "line": 4},
-        ]
-        chunks = chunker._split_into_top_chunks(lines, bookmarks, 1)
+        chunks = chunker._split_into_top_chunks(lines)
         assert [c["number"] for c in chunks] == [0, 1, 2]
         assert chunks[0]["text"] == "preamble text"
         # Each section keeps its own heading line at the head of its text; catalog labels
@@ -335,36 +354,19 @@ class TestSplitIntoTopChunks:
         assert chunks[2]["text"] == "# Section Two\nbody two"
 
     def test_no_headings_single_chunk(self):
-        assert chunker._split_into_top_chunks(["just", "text"], [], None) == \
+        assert chunker._split_into_top_chunks(["just", "text"]) == \
             [{"number": 0, "text": "just\ntext"}]
 
     def test_empty(self):
-        assert chunker._split_into_top_chunks([], [], None) == []
+        assert chunker._split_into_top_chunks([]) == []
 
-    def test_levels_without_lines_stay_one_chunk(self):
-        # PDF bookmarks that never matched a Markdown line still carry a level.
-        lines = ["just", "body text"]
-        bookmarks = [{"title": "Background", "level": 1, "page": 5}]
-        assert chunker._split_into_top_chunks(lines, bookmarks, 1) == \
-            [{"number": 0, "text": "just\nbody text"}]
-
-
-class TestSubchunkBlocks:
-    def test_splits_at_subheadings(self):
-        chunk_text = (
-            "# Main Section\n\nlead in text\n\n"
-            "## Sub Alpha\n\naaa\n\n"
-            "## Sub Beta\n\nbbb"
-        )
-        assert chunker._subchunk_blocks(chunk_text, 1) == [
-            "# Main Section\n\nlead in text",
-            "## Sub Alpha\n\naaa",
-            "## Sub Beta\n\nbbb",
-        ]
-
-    def test_no_subheadings_single_block(self):
-        assert chunker._subchunk_blocks("# Main Section\n\njust body", 1) == \
-            ["# Main Section\n\njust body"]
+    def test_a_heading_with_no_bookmark_still_starts_a_chunk(self):
+        # The cut follows the heading lines, not the bookmark list. Cutting only where a
+        # bookmark had matched glued a real section onto its neighbour whenever the PDF
+        # outline was incomplete.
+        lines = ["# One Section", "body one", "# Two Section", "body two"]
+        chunks = chunker._split_into_top_chunks(lines)
+        assert [chunk["number"] for chunk in chunks] == [1, 2]
 
 
 class TestPartHeading:
@@ -470,6 +472,23 @@ class TestNormalizeTitle:
     def test_keeps_non_latin_scripts(self):
         # An ASCII-only class erased these entirely, so they could not match a bookmark.
         assert heading_helpers.normalize_title("## Введение") == "введение"
+
+    def test_the_leading_number_is_dropped_so_a_bookmark_matches(self):
+        # The point of dropping it: a PDF bookmark carries no numbering.
+        assert heading_helpers.normalize_title("3.1 Aims") == \
+            heading_helpers.normalize_title("Aims")
+
+    def test_numbered_siblings_keep_separate_keys(self):
+        # Regression: dropping every digit keyed these all to "objective", and the caller
+        # treats same-key lines as repeats of one heading -- the first kept its markers and
+        # the rest were demoted to body, losing their # and their chunk boundary.
+        keys = [heading_helpers.normalize_title(title)
+                for title in ("Objective 1", "Objective 2", "Objective 3")]
+        assert len(set(keys)) == 3, keys
+
+    def test_a_trailing_number_is_part_of_the_name(self):
+        assert heading_helpers.normalize_title("Phase 2") == "phase2"
+        assert heading_helpers.normalize_title("2.0 Site 1") == "site1"
 
 
 class TestLocalBookmarkTitles:
@@ -644,16 +663,11 @@ class TestApplyBookmarkHeadingLevels:
         out, bookmarks = heading_helpers._apply_bookmark_heading_levels(
             lines, self.PDF_BOOKMARKS
         )
-        boundary = min(
-            (
-                bookmark["level"]
-                for bookmark in bookmarks
-                if isinstance(bookmark.get("level"), int) and bookmark["level"] > 0
-            ),
-            default=None,
-        )
-        assert boundary == 1
-        chunks = chunker._split_into_top_chunks(out, bookmarks, boundary)
+        assert min(
+            bookmark["level"] for bookmark in bookmarks
+            if isinstance(bookmark.get("level"), int) and bookmark["level"] > 0
+        ) == 1
+        chunks = chunker._split_into_top_chunks(out)
         assert [chunk["number"] for chunk in chunks] == [0, 1, 2]
         assert "Background" in chunks[0]["text"]
         assert chunks[1]["text"].startswith("# Background")
@@ -749,7 +763,7 @@ class TestCatalogHeadingsFromBookmarks:
 class TestSplitOversized:
     def test_no_subheadings_paragraph_split(self):
         chunk_text = "\n\n".join(["p" * 40] * 4)  # four 10-token paragraphs
-        parts = chunker._split_oversized(chunk_text, 0, 15)
+        parts = chunker._split_oversized(chunk_text, 15)
         assert len(parts) == 4
         assert all(chunker.count_tokens(p) <= 15 for p in parts)
 
@@ -757,7 +771,7 @@ class TestSplitOversized:
         chunk_text = "# Top Heading\n\n" + "\n\n".join(
             f"## Sub {i} Heading\n\n" + "q" * 40 for i in range(1, 5)
         )
-        parts = chunker._split_oversized(chunk_text, 1, 25)
+        parts = chunker._split_oversized(chunk_text, 25)
         assert len(parts) >= 2
         assert all(chunker.count_tokens(p) <= 25 for p in parts)
 
