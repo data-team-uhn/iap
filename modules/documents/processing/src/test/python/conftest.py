@@ -17,7 +17,7 @@
 
 """Shared pytest setup for the parsing tests.
 
-The modules under test (``markdown_cleanup``, ``toc_and_appendix_detection``,
+The modules under test (``markdown_cleanup``, ``heading_helpers``,
 ``chunker``, ``docling_batch_sizing``) live in ``src/main/python`` and are imported by
 their bare module name. This file sits in ``src/test/python``. Put the source directory
 on ``sys.path`` so the tests run the same way whether launched by Maven or by ``pytest``
