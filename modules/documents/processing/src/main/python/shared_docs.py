@@ -169,14 +169,24 @@ def open_pdf_reader(source):
         ) from exc
 
 
+def refuse_empty_pdf(pages: int) -> None:
+    """Reject a PDF whose page tree is empty.
+
+    @param pages: the page count from :func:`open_pdf_reader`
+    @raise ParseRequestError: when ``pages`` is zero
+    """
+    if pages == 0:
+        raise ParseRequestError("document has no pages")
+
+
 def refuse_oversized_pdf(path: Path) -> None:
-    """Reject a PDF with more pages than :func:`get_max_input_pages` allows.
+    """Reject a PDF with no pages, or with more pages than :func:`get_max_input_pages` allows.
 
     @param path: the resolved input path
-    @raise ParseRequestError: when the document is over the ceiling, or password-locked
+    @raise ParseRequestError: when the document has no pages, is over the ceiling, or
+        password-locked
     """
-    limit = get_max_input_pages()
-    if limit is None or path.suffix.lower() != ".pdf":
+    if path.suffix.lower() != ".pdf":
         return
     try:
         # Opened through a context manager: this runs on every /parse, and PdfReader holds the
@@ -187,7 +197,9 @@ def refuse_oversized_pdf(path: Path) -> None:
         raise
     except Exception:  # noqa: BLE001 -- unreadable here means "let the converter say why"
         return
-    if pages > limit:
+    refuse_empty_pdf(pages)
+    limit = get_max_input_pages()
+    if limit is not None and pages > limit:
         raise ParseRequestError(
             f"document has {pages} pages, over the {limit}-page limit "
             f"({PAGE_LIMIT_VARIABLE} raises or disables it)"

@@ -241,6 +241,33 @@ class TestPageCeiling:
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "3")
         shared_docs.refuse_oversized_pdf(self._pdf(tmp_path, 3))
 
+    def test_a_zero_page_pdf_is_refused(self, tmp_path):
+        from pypdf import PdfWriter
+
+        path = tmp_path / "empty.pdf"
+        with open(path, "wb") as handle:
+            PdfWriter().write(handle)
+        with pytest.raises(shared_docs.ParseRequestError, match="no pages"):
+            shared_docs.refuse_oversized_pdf(path)
+
+    def test_refuse_empty_pdf_rejects_zero(self):
+        with pytest.raises(shared_docs.ParseRequestError, match="no pages"):
+            shared_docs.refuse_empty_pdf(0)
+
+    def test_refuse_empty_pdf_accepts_one_or_more(self):
+        shared_docs.refuse_empty_pdf(1)
+        shared_docs.refuse_empty_pdf(100)
+
+    def test_zero_pages_are_refused_even_when_the_limit_is_off(self, monkeypatch, tmp_path):
+        from pypdf import PdfWriter
+
+        monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "0")
+        path = tmp_path / "empty.pdf"
+        with open(path, "wb") as handle:
+            PdfWriter().write(handle)
+        with pytest.raises(shared_docs.ParseRequestError, match="no pages"):
+            shared_docs.refuse_oversized_pdf(path)
+
     def test_the_limit_can_be_turned_off(self, monkeypatch, tmp_path):
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "0")
         assert shared_docs.get_max_input_pages() is None
