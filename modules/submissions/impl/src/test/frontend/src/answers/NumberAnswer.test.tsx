@@ -24,10 +24,10 @@ import { QUESTION, type FormQuestion } from "@iap/submissions/submissionForm";
 
 import { ControlledAnswer } from "./controlled.fixture";
 
-function renderNumber(dataType: string, values: string[] = []) {
+function renderNumber(dataType: string, values: string[] = [], overrides: Partial<FormQuestion> = {}) {
   const question: FormQuestion = {
     name: "days", type: QUESTION, path: "details/days", text: "How many days?",
-    dataType, required: false, multiple: false, options: [], value: [],
+    dataType, minAnswers: 0, maxAnswers: 1, options: [], value: [], ...overrides,
   };
   const onAnswered = vi.fn();
   render(<ControlledAnswer component={NumberAnswer} question={question} initial={values}
@@ -51,6 +51,21 @@ describe("NumberAnswer", () => {
 
     expect(input).toHaveAttribute("step", "any");
     expect(input).toHaveAttribute("inputmode", "decimal");
+  });
+
+  // The save is what enforces the bounds; here they only become the input's own hints
+  it("carries the schema's bounds onto the input", () => {
+    const { input } = renderNumber("long", [], { minValue: 1, maxValue: 30 });
+
+    expect(input).toHaveAttribute("min", "1");
+    expect(input).toHaveAttribute("max", "30");
+  });
+
+  it("leaves the input unbounded where the schema is", () => {
+    const { input } = renderNumber("long");
+
+    expect(input).not.toHaveAttribute("min");
+    expect(input).not.toHaveAttribute("max");
   });
 
   it("shows the answer already given", () => {

@@ -29,8 +29,8 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
     path: "details/startDate",
     text: "Which day does your time off start?",
     dataType: "date",
-    required: false,
-    multiple: false,
+    minAnswers: 0,
+    maxAnswers: 1,
     options: [],
     value: [],
     ...overrides,
@@ -117,7 +117,7 @@ describe("AnswerField", () => {
 
   it("takes several values one per line, dropping the blank ones", async () => {
     const answered = vi.fn();
-    render(<AnswerField question={question({ dataType: "text", multiple: true })} state="idle" onAnswered={answered} />);
+    render(<AnswerField question={question({ dataType: "text", maxAnswers: 0 })} state="idle" onAnswered={answered} />);
 
     await userEvent.type(screen.getByLabelText(/Which day/), "Monday\n\nTuesday");
     await userEvent.tab();
@@ -176,7 +176,7 @@ describe("AnswerField", () => {
     // The values are compared as one joined string, so the separator has to be a character an answer
     // cannot contain. Joining on a space would make [ "Monday", "Tuesday" ] and [ "Monday Tuesday" ]
     // equal, and a re-read that regrouped them would leave the field showing the grouping it replaced.
-    const many = { dataType: "text", multiple: true };
+    const many = { dataType: "text", maxAnswers: 0 };
     const { rerender } = render(
       <AnswerField question={question({ ...many, value: [ "Monday", "Tuesday" ] })} state="saved" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveValue("Monday\nTuesday");

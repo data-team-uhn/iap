@@ -18,6 +18,7 @@
 
 import { TextField } from "@mui/material";
 
+import { isRequired } from "../submissionForm";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -33,7 +34,7 @@ function DateAnswer({ question, values, disabled, onChange, onAnswered }: Answer
     <TextField
       label={questionLabel(question)}
       type="date"
-      required={question.required}
+      required={isRequired(question)}
       disabled={disabled}
       fullWidth
       value={values[0] ?? ""}
