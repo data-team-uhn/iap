@@ -533,6 +533,12 @@ once, at save time, instead of by every reader. The tag is a system tag in its o
 `completeness` category: nobody can hand-place it, and it does not displace the lifecycle
 state.
 
+Four properties carry the engine's matching, authorization and dispatch, derived from the diagram's
+`iap:*` attributes wherever a version says its BPMN is authoritative, and set by hand elsewhere:
+`messageName` on events (the domain event name), `targetResourceType` on versions (what a system workflow
+answers for), `performers` on flow nodes (who may pass through), and `handler` on activities (who performs
+a service task).
+
 ## Content workflows: the part that persists
 
 A system workflow runs inside the request and leaves nothing behind. A content workflow
