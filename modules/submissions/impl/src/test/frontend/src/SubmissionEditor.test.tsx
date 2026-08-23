@@ -178,6 +178,7 @@ describe("SubmissionEditor", () => {
       type: DOCUMENT_REQUIREMENT,
       label: "Doctor's note",
       description: "A note covering the days you were unwell.",
+      required: true,
       acceptedFileTypes: [ "application/pdf", "image/png" ],
       template: "/Schemas/timeOffRequest/v1/doctorsNote/template",
       attached: [],
@@ -210,6 +211,14 @@ describe("SubmissionEditor", () => {
 
       expect(await screen.findByLabelText(/Attach a file/)).not.toHaveAttribute("accept");
       expect(screen.queryByRole("link", { name: "Download the blank form" })).toBeNull();
+    });
+
+    it("says skipping it is allowed when the form says so", async () => {
+      vi.stubGlobal("fetch", serving(asked({ required: false })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("Nothing attached yet — optional")).toBeInTheDocument();
     });
 
     it("names what is already there, so a form reopened later does not look untouched", async () => {

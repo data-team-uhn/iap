@@ -83,7 +83,11 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
       {failure ? <Alert severity="error" onClose={() => setFailure(undefined)}>{failure}</Alert> : null}
       {attached.length > 0
         ? <Typography variant="body2">{`Attached: ${attached.join(", ")}`}</Typography>
-        : <Typography variant="placeholder">Nothing attached yet</Typography>}
+        : (
+          <Typography variant="placeholder">
+            {requirement.required ? "Nothing attached yet" : "Nothing attached yet — optional"}
+          </Typography>
+        )}
       {requirement.template
         ? <Link href={requirement.template} download>Download the blank form</Link>
         : null}

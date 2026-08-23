@@ -93,6 +93,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String ATTACHED_KEY = "attached";
 
+    private static final String REQUIRED_KEY = "required";
+
     @Reference
     private transient ConditionEvaluator conditions;
 
@@ -186,6 +188,9 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private void describe(final DocumentRequirement requirement, final Submission submission,
         final JsonObjectBuilder json)
     {
+        // Stated always, not only when false: the upload control marks the optional case, and should do so
+        // because the form said so rather than because a key was missing
+        json.add(REQUIRED_KEY, requirement.isRequired());
         final JsonArrayBuilder accepted = Json.createArrayBuilder();
         // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
         // empty — so the key is always there and it is the emptiness that carries the meaning
@@ -274,7 +279,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add("text", Objects.toString(question.getText(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))
-            .add("required", question.isRequired())
+            .add(REQUIRED_KEY, question.isRequired())
             .add("multiple", question.isMultiple())
             .add("value", value);
     }

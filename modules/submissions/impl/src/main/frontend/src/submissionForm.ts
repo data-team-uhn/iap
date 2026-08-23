@@ -83,6 +83,9 @@ export interface FormRequirement extends Requirement {
 
 // The kind answered by attaching a file.
 export interface DocumentRequirement extends Requirement {
+  // Whether the submission is incomplete without it. An optional one is still asked, since whether it
+  // is asked at all was decided on the server, but skipping it blocks nothing.
+  required: boolean;
   // Empty means no restriction, which is why the key is there at all: a reader has to tell "takes
   // anything" from "takes nothing".
   acceptedFileTypes: string[];

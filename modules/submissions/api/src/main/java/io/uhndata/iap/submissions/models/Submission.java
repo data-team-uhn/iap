@@ -201,7 +201,7 @@ public class Submission extends Entity
     }
 
     /**
-     * The requirements of this submission's schema version that haven't been fulfilled yet. A
+     * The requirements of this submission's schema version that haven't been fulfilled yet. A <em>required</em>
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
      * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Requirements, sections and
      * questions whose condition doesn't currently hold for this submission don't apply, so they are never
@@ -226,10 +226,13 @@ public class Submission extends Entity
     private boolean isFulfilled(final Requirement requirement)
     {
         if (requirement instanceof DocumentRequirement) {
-            return this.getDocuments().stream().anyMatch(document -> {
-                final Requirement fulfilled = document.getFulfills();
-                return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
-            });
+            // An optional document is asked for but not demanded, so nothing attached still fulfils it. Whether
+            // it is asked at all is its condition's decision, made before this is ever reached.
+            return !((DocumentRequirement) requirement).isRequired() || this.getDocuments().stream()
+                .anyMatch(document -> {
+                    final Requirement fulfilled = document.getFulfills();
+                    return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
+                });
         }
         if (requirement instanceof ApprovalRequirement) {
             return this.getReviews().stream().anyMatch(review -> {
