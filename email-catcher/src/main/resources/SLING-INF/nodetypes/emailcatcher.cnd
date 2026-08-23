@@ -1,0 +1,95 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<iap = 'https://iap.uhndata.io/'>
+<mail = 'https://iap.uhndata.io/mail/'>
+
+//-----------------------------------------------------------------------------
+//
+// What a development instance sends instead of mail: every message handed to
+// the mail service, filed where it can be read back.
+//
+// This exists so that email can be exercised without a mail server, and it
+// ships only in a development, test or demo distribution. A production
+// distribution has no bundle declaring these types.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /CaughtMail root path.
+[mail:CaughtMailHomepage] > iap:EntityHomepage
+  - sling:resourceType (STRING) = "mail/CaughtMailHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The messages caught so far
+  + * (mail:CaughtMessage) = mail:CaughtMessage
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One message that would have been sent.
+//
+// Content rather than an entity: nothing references a caught message, nothing
+// versions one, and it is a record of something that happened rather than a
+// thing the institution works on.
+//
+// The addresses are stored as they were written on the message, display name
+// and all, because what is worth checking is what a recipient would have seen
+// in their client rather than a normalised form of it.
+[mail:CaughtMessage] > iap:Content
+  - sling:resourceType (STRING) = "mail/CaughtMessage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "iap/Content" mandatory autocreated protected
+
+  // What the message says it is
+  - subject (STRING)
+
+  // Who it is from, and where a reply would have gone
+  - from (STRING) multiple
+  - replyTo (STRING) multiple
+
+  // Who would have received it. Kept apart rather than merged into one list:
+  // whether an address was visible to the others is part of what is being
+  // checked, and a bcc that read as a to would hide a real mistake.
+  - to (STRING) multiple
+  - cc (STRING) multiple
+  - bcc (STRING) multiple
+
+  // When the message was handed over, which for a caught message is also when
+  // it was written down
+  - caughtAt (DATE) mandatory
+
+  // The bodies, either of which may be absent: a message may be plain text
+  // only, HTML only, or both
+  - textBody (STRING)
+  - htmlBody (STRING)
+
+  // Every other header, as "Name: value" lines. Anything the platform sets
+  // deliberately - a List-Unsubscribe, a reference to what a notification is
+  // about - is checkable here without this type having to know about it.
+  - headers (STRING) multiple
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

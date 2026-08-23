@@ -1,0 +1,28 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Files what would have been sent into /CaughtMail instead of delivering it, so that email can be
+// exercised without a mail server. It outranks Sling's own mail service rather than replacing it.
+//
+// This lives in `dev` because that group is included only by the test and demo aggregates: the
+// production ones take `core` and nothing else, so a distribution that could be deployed has no
+// bundle registering a mail service that swallows mail. That composition IS the safeguard — the
+// bundle itself cannot tell what it was deployed into.
+{
+    "prototype":{
+        "id": "${project.groupId}:iap-email-catcher:slingosgifeature:${project.version}"
+    }
+}

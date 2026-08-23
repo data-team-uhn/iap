@@ -70,6 +70,7 @@
               <filesInclude>oak/*.json</filesInclude>
               <filesInclude>oak/persistence/oak_persistence_sns.json</filesInclude>
               <filesInclude>core/*.json</filesInclude>
+              <filesInclude>dev/*.json</filesInclude>
               <filesInclude>test/*.json</filesInclude>
               <title>IAP With Test Data</title>
             </aggregate>
@@ -82,6 +83,7 @@
               <filesInclude>oak/*.json</filesInclude>
               <filesInclude>oak/persistence/oak_persistence_sns.json</filesInclude>
               <filesInclude>core/*.json</filesInclude>
+              <filesInclude>dev/*.json</filesInclude>
               <filesInclude>demo/*.json</filesInclude>
               <title>IAP With Demos</title>
             </aggregate>
