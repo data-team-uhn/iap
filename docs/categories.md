@@ -114,7 +114,7 @@ names the category it picked: node names are only unique among siblings.
 
 The primary consumer is AI-assisted categorization, which builds its prompt from the served
 descriptions. The catalogue's own heading and introduction come from the `title` and `description`
-properties of the [`iap:Documented`](autodoc.md) mixin on `/Categories`, so a deployment can reword
+properties of the [`doc:Documented`](autodoc.md) mixin on `/Categories`, so a deployment can reword
 them without touching code.
 
 ## Managing the tree

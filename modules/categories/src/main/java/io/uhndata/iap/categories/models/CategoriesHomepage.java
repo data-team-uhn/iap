@@ -38,7 +38,7 @@ import io.uhndata.iap.entities.models.EntityHomepage;
  * be filed under. A retired category is excluded together with its whole subtree, since
  * submissions may not be filed under any of its descendants either. The primary consumer is AI-assisted
  * categorization, which builds its prompt from the served descriptions; the heading and introduction can be
- * reworded without code through the {@code title} and {@code description} properties of the {@code iap:Documented}
+ * reworded without code through the {@code title} and {@code description} properties of the {@code doc:Documented}
  * mixin.</p>
  *
  * @version $Id$

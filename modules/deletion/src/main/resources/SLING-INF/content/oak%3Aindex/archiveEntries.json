@@ -6,6 +6,6 @@
     "jcr:created"
   ],
   "jcr:name:declaringNodeTypes": [
-    "iap:ArchiveEntry"
+    "del:ArchiveEntry"
   ]
 }

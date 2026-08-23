@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<doc = 'https://iap.uhndata.io/doc/'>
 <tag = 'https://iap.uhndata.io/tag/'>
 <data = 'https://iap.uhndata.io/data/'>
 
@@ -34,7 +34,7 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /Tags root path, holding the tag definitions.
-[tag:Homepage] > data:Content, rep:AccessControllable, iap:Documented
+[tag:Homepage] > data:Content, rep:AccessControllable, doc:Documented
   // Attributes:
 
   // We can query tag definitions
@@ -48,7 +48,7 @@
   - childNodeType (STRING) = "tag:Definition" mandatory autocreated protected
 
   // The heading of the served documentation, overriding the empty defaults of
-  // the iap:Documented mixin. Autocreated rather than hardcoded in the model
+  // the doc:Documented mixin. Autocreated rather than hardcoded in the model
   // serving the catalogue, but still editable, so that a deployment can reword
   // the heading without touching code.
   - title (STRING) = "Tags" autocreated

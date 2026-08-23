@@ -61,7 +61,7 @@ public class MetricImpl implements Metric
     static final String METRICS_PATH = "/Metrics";
 
     /** The node type of a metric node. */
-    static final String NODE_TYPE = "iap:Metric";
+    static final String NODE_TYPE = "metric:Metric";
 
     /** The name of the subservice performing all repository access. */
     static final String SUBSERVICE = "metrics";

@@ -155,7 +155,7 @@ shallower than BPMN's, and it is the test to apply before adding to it:
 
 ### Self-documentation, and why its shape matters
 
-`/WorkflowTypes` carries the `iap:Documented` mixin, so its catalogue is served at
+`/WorkflowTypes` carries the `doc:Documented` mixin, so its catalogue is served at
 `/WorkflowTypes.doc.json` and `/WorkflowTypes.doc.md` (see [autodoc](autodoc.md)).
 
 The JSON is **not just prose**: it is what the visual BPMN editor reads to build its toolbars, grouped by

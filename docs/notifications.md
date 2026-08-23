@@ -85,7 +85,7 @@ the repository, so a deployment can reword what the platform says without touchi
 
 ### A template
 
-An `iap:EmailTemplate` node, whose properties carry the addressing and whose child files carry the
+An `mail:Template` node, whose properties carry the addressing and whose child files carry the
 body:
 
 | Property | Meaning |

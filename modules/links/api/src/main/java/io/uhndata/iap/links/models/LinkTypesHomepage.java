@@ -31,7 +31,7 @@ import io.uhndata.iap.content.models.Content;
 
 /**
  * A Sling Model wrapping the {@code link:TypesHomepage} node at {@code /LinkTypes}, holding the link
- * definitions. The homepage documents the whole link vocabulary: the node carries the {@code iap:Documented} mixin
+ * definitions. The homepage documents the whole link vocabulary: the node carries the {@code doc:Documented} mixin
  * through its primary type, so the catalogue of defined link types is served at {@code /LinkTypes.doc.json} and
  * {@code /LinkTypes.doc.md}. Its heading comes from the {@code title} and {@code description} properties,
  * autocreated from the defaults declared by the {@code link:TypesHomepage} node type and editable by a

@@ -197,7 +197,7 @@ describe("fetchArchiveEntry", () => {
 
   it("rejects a path that is not an entry at all", async () => {
     // A prefix-tree bucket shares the archive's resource type and answers with something else
-    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { "jcr:primaryType": "iap:Archive" }));
+    const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, { "jcr:primaryType": "del:Archive" }));
     await expect(fetchArchiveEntry(doFetch, "/Archive/ab")).rejects.toThrow("not an archive entry");
   });
 });

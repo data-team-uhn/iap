@@ -6,7 +6,7 @@ survive restarts and are shared by every node of a cluster.
 
 ## The data model
 
-Each metric is an `iap:Metric` node under `/Metrics`, holding descriptive metadata (`label`,
+Each metric is an `metric:Metric` node under `/Metrics`, holding descriptive metadata (`label`,
 `description`, `category`, `defaultOrder`, `accessLevel`) next to its counter state. The count itself lives in the
 `oak:counter` property, maintained by the repository's atomic counter support: committing an
 `oak:increment` value on the node atomically adds it to the counter, so concurrent increments from

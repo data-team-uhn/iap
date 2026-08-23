@@ -44,7 +44,7 @@ class ArchiveQueryTest
     void entriesAreScopedToTheSubtreeAndOrderedNewestFirstByDefault()
     {
         final String statement = ArchiveQuery.entries("/Archive", null, ArchiveQuery.DEFAULT_SORT, true);
-        assertTrue(statement.contains("FROM [iap:ArchiveEntry]"), statement);
+        assertTrue(statement.contains("FROM [del:ArchiveEntry]"), statement);
         assertTrue(statement.contains("ISDESCENDANTNODE(entry, '/Archive')"), statement);
         assertTrue(statement.endsWith("ORDER BY entry.[jcr:created] DESC"), statement);
     }

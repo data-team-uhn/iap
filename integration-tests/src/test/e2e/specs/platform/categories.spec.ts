@@ -78,7 +78,7 @@ test.describe('submission categories', () => {
     const response = await request.get('/Categories.doc.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
-    // The heading and introduction come from the iap:Documented mixin on /Categories, so the catalogue
+    // The heading and introduction come from the doc:Documented mixin on /Categories, so the catalogue
     // describes itself even while there is nothing in it to list.
     const catalogue = (await response.json()) as unknown;
     expect(JSON.stringify(catalogue)).toContain('Submission categories');

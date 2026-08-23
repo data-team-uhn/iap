@@ -36,7 +36,7 @@ import io.uhndata.iap.autodoc.api.AutoDocumentable;
 
 /**
  * Serves the documentation of any {@link AutoDocumentable auto-documentable} node: appending {@code .doc.json} or
- * {@code .doc.md} to the path of a node marked with the {@code iap:Documented} mixin returns its catalogue as JSON
+ * {@code .doc.md} to the path of a node marked with the {@code doc:Documented} mixin returns its catalogue as JSON
  * or as a human-readable Markdown document. The servlet is not tied to any particular resource type: it opts in for
  * the nodes carrying the mixin, whether set explicitly or inherited from their primary type, and renders whatever
  * their {@link AutoDocumentable} model reports; a feature needing a completely different rendering can still

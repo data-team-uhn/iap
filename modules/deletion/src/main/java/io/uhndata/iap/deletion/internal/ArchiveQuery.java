@@ -111,7 +111,7 @@ final class ArchiveQuery
 
     private static String under(final String root)
     {
-        return "SELECT entry.* FROM [iap:ArchiveEntry] AS entry WHERE ISDESCENDANTNODE(entry, '"
+        return "SELECT entry.* FROM [del:ArchiveEntry] AS entry WHERE ISDESCENDANTNODE(entry, '"
             + literal(root) + "')";
     }
 

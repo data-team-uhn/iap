@@ -16,7 +16,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <rep = 'internal'>
-<iap = 'https://iap.uhndata.io/'>
+<del = 'https://iap.uhndata.io/del/'>
 <data = 'https://iap.uhndata.io/data/'>
 
 //-----------------------------------------------------------------------------
@@ -41,7 +41,7 @@
 // Marks a resource that must never be deleted: neither archived nor
 // permanently removed, and not purged if it somehow ends up in the archive.
 // Deleting it again becomes possible only by removing this mixin first.
-[iap:Undeletable]
+[del:Undeletable]
   mixin
 
 //-----------------------------------------------------------------------------
@@ -49,26 +49,26 @@
 // Not granted to anyone by default: regular users cannot see it (and their
 // queries cannot return archived content), administrators bypass access
 // control, and the deletion service user manages its contents.
-[iap:Archive] > sling:Folder, rep:AccessControllable
-  - sling:resourceType (STRING) = "iap/Archive" mandatory autocreated protected
+[del:Archive] > sling:Folder, rep:AccessControllable
+  - sling:resourceType (STRING) = "del/Archive" mandatory autocreated protected
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
   // One entry per deletion operation, never a direct child of /Archive: the
-  // entries are spread over a PrefixTree of buckets, which are iap:Archive
+  // entries are spread over a PrefixTree of buckets, which are del:Archive
   // nodes themselves, so that no single parent ends up holding every deletion
   // ever performed. See docs/deletion.md.
-  + * (iap:ArchiveEntry) = iap:ArchiveEntry
-  + * (iap:Archive) = iap:Archive
+  + * (del:ArchiveEntry) = del:ArchiveEntry
+  + * (del:Archive) = del:Archive
 
 //-----------------------------------------------------------------------------
 // One deletion operation: records who requested it, when (jcr:created), and
-// which resource was targeted, and holds one iap:DeletedItem wrapper for
+// which resource was targeted, and holds one del:DeletedItem wrapper for
 // each subtree the operation moved into the archive.
-[iap:ArchiveEntry] > sling:Folder, mix:created
-  - sling:resourceType (STRING) = "iap/ArchiveEntry" mandatory autocreated protected
+[del:ArchiveEntry] > sling:Folder, mix:created
+  - sling:resourceType (STRING) = "del/ArchiveEntry" mandatory autocreated protected
 
   // The user who requested the deletion. jcr:createdBy cannot record this,
   // since the moves are performed by the deletion service user.
@@ -83,15 +83,15 @@
   - * (UNDEFINED) multiple
 
   // The archived subtrees
-  + * (iap:DeletedItem) = iap:DeletedItem
+  + * (del:DeletedItem) = del:DeletedItem
 
 //-----------------------------------------------------------------------------
 // A wrapper around one deleted subtree, recording where it came from so it
 // can be restored. The wrapper stays untouched by the move itself, so
 // archiving doesn't need to modify - or check out - the resources it
 // archives, and restoring leaves no residue on them.
-[iap:DeletedItem] > sling:Folder
-  - sling:resourceType (STRING) = "iap/DeletedItem" mandatory autocreated protected
+[del:DeletedItem] > sling:Folder
+  - sling:resourceType (STRING) = "del/DeletedItem" mandatory autocreated protected
 
   // The absolute path the wrapped subtree was moved from
   - originalPath (STRING) mandatory

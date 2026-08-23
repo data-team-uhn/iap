@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-create path (iap:MetricsHomepage) /Metrics
+create path (metric:Homepage) /Metrics
 
 # The service user performing all the metric reads and updates.
 # Regular users don't get repository access to /Metrics, everything goes through the MetricsManager service,
@@ -28,5 +28,5 @@ end
 # Everyone may see the homepage node itself, so that the metrics listing endpoint can serve them,
 # but not the individual metric nodes: those are filtered by their access level in the endpoint
 set ACL for everyone
-    allow jcr:read on /Metrics restriction(rep:ntNames,iap:MetricsHomepage)
+    allow jcr:read on /Metrics restriction(rep:ntNames,metric:Homepage)
 end

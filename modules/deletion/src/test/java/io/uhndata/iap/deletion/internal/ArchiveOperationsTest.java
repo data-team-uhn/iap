@@ -62,7 +62,7 @@ class ArchiveOperationsTest
         NodeTypeDefinitionScanner.get().register(this.session,
             List.of("SLING-INF/nodetypes/deletion.cnd", "SLING-INF/nodetypes/test.cnd"),
             ResourceResolverType.JCR_OAK.getNodeTypeMode());
-        this.session.getRootNode().addNode("Archive", "iap:Archive");
+        this.session.getRootNode().addNode("Archive", "del:Archive");
         this.session.getRootNode().addNode("content");
         this.session.save();
     }

@@ -31,7 +31,7 @@ import io.uhndata.iap.content.models.Content;
 
 /**
  * A Sling Model wrapping the {@code tag:Homepage} node, the root container holding the tag definitions. The
- * homepage documents the whole tag vocabulary: the node carries the {@code iap:Documented} mixin through its primary
+ * homepage documents the whole tag vocabulary: the node carries the {@code doc:Documented} mixin through its primary
  * type, so the catalogue of defined tags is served at {@code /Tags.doc.json} and {@code /Tags.doc.md}. Its heading
  * comes from the {@code title} and {@code description} properties, autocreated from the defaults declared by the
  * {@code tag:Homepage} node type and editable by a deployment wanting to reword it.

@@ -17,7 +17,7 @@
 # Where deleted resources are kept until restored or purged. Deliberately not
 # granted to anyone: regular users must not see deleted content, and queries
 # must not return it; administrators bypass access control.
-create path (iap:Archive) /Archive
+create path (del:Archive) /Archive
 
 # The service user performing the impact analysis and all the changes: it
 # scans references regardless of who can see them, writes the archive, and

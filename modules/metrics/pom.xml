@@ -52,8 +52,8 @@
             <Include-Resource>{maven-resources}</Include-Resource>
             <Sling-Nodetypes>SLING-INF/nodetypes/metrics.cnd</Sling-Nodetypes>
             <Sling-Initial-Content>
-              SLING-INF/content/libs/iap/MetricsHomepage/;path:=/libs/iap/MetricsHomepage/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/Metric/;path:=/libs/iap/Metric/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/metric/Homepage/;path:=/libs/metric/Homepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/metric/Metric/;path:=/libs/metric/Metric/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

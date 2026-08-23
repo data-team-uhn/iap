@@ -16,7 +16,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <rep = 'internal'>
-<iap = 'https://iap.uhndata.io/'>
+<doc = 'https://iap.uhndata.io/doc/'>
 <link = 'https://iap.uhndata.io/link/'>
 <data = 'https://iap.uhndata.io/data/'>
 
@@ -38,14 +38,14 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /LinkTypes root path, holding the link definitions.
-[link:TypesHomepage] > data:Content, rep:AccessControllable, iap:Documented
+[link:TypesHomepage] > data:Content, rep:AccessControllable, doc:Documented
   // We can query link definitions
   query
 
   - sling:resourceType (STRING) = "link/TypesHomepage" mandatory autocreated protected
 
   // The heading of the served documentation, overriding the empty defaults of
-  // the iap:Documented mixin. Autocreated rather than hardcoded in the model
+  // the doc:Documented mixin. Autocreated rather than hardcoded in the model
   // serving the catalogue, but still editable, so that a deployment can reword
   // the heading without touching code.
   - title (STRING) = "Link types" autocreated
