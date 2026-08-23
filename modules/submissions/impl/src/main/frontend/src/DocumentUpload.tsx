@@ -80,7 +80,10 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
       {failure ? <Alert severity="error" onClose={() => setFailure(undefined)}>{failure}</Alert> : null}
       {attached.length > 0
         ? <Typography variant="body2">{`Attached: ${attached.join(", ")}`}</Typography>
-        : <Typography variant="body2" color="text.secondary">Nothing attached yet</Typography>}
+        : <Typography variant="body2" color="text.secondary">
+          {/* Whether skipping this blocks anything is the form's own statement, not a guess here */}
+          {requirement.required === false ? "Nothing attached yet — optional" : "Nothing attached yet"}
+        </Typography>}
       {requirement.template
         ? <Link href={requirement.template} download>Download the blank form</Link>
         : null}
