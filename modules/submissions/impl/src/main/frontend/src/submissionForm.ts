@@ -83,6 +83,10 @@ export interface FormRequirement {
   description?: string;
   // Present only for requirements that hold questions; a document or an approval has none
   items?: FormItem[];
+  // Present only for document requirements: whether the submission is incomplete without it. An
+  // optional one is still asked - whether it is asked at all was decided server-side - but skipping
+  // it blocks nothing, and the control says so.
+  required?: boolean;
   // Present only for document requirements. Empty means no restriction, which is why the key is
   // there at all: a reader has to tell "takes anything" from "takes nothing".
   acceptedFileTypes?: string[];
