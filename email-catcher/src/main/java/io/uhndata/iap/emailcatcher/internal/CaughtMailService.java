@@ -95,9 +95,12 @@ public class CaughtMailService implements MailService
     /** The property naming a node's type, which has to be set explicitly when creating through Sling. */
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
-    /** The headers read into their own properties, and therefore left out of the catch-all list. */
-    private static final List<String> OWN_PROPERTIES =
-        List.of("From", "To", "Cc", "Bcc", "Reply-To", "Subject", "Date");
+    /**
+     * The headers read into their own properties, and therefore left out of the catch-all list. {@code Date} is
+     * not among them: it says when the message was built, which is a different fact from when it was caught, and
+     * it stays readable as an ordinary header.
+     */
+    private static final List<String> OWN_PROPERTIES = List.of("From", "To", "Cc", "Bcc", "Reply-To", "Subject");
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -157,7 +160,10 @@ public class CaughtMailService implements MailService
     {
         final Map<String, Object> properties = new HashMap<>();
         properties.put(PRIMARY_TYPE, MESSAGE_TYPE);
-        properties.put("caughtAt", sentAt(message));
+        // When it was caught, not when it was built. The message's own Date header has second precision, so
+        // reading that would leave two messages sent in the same second in no particular order — and this is the
+        // property a reader sorts by.
+        properties.put("caughtAt", Calendar.getInstance());
         put(properties, "subject", message.getSubject());
         putAll(properties, "from", addresses(message.getFrom()));
         putAll(properties, "replyTo", addresses(message.getReplyTo()));
@@ -170,22 +176,6 @@ public class CaughtMailService implements MailService
         put(properties, "textBody", bodies.text);
         put(properties, "htmlBody", bodies.html);
         return properties;
-    }
-
-    /**
-     * When the message says it was sent, or now when it does not say.
-     *
-     * @param message the message being filed
-     * @return the moment to record
-     * @throws MessagingException if the date cannot be read
-     */
-    private static Calendar sentAt(final MimeMessage message) throws MessagingException
-    {
-        final Calendar when = Calendar.getInstance();
-        if (message.getSentDate() != null) {
-            when.setTime(message.getSentDate());
-        }
-        return when;
     }
 
     /**

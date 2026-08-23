@@ -36,54 +36,64 @@ interface CaughtMessage {
  * A test that only checked the send endpoint's status would prove nothing: it answers 200 for a message that was
  * handed over, and whether anything came of that is exactly the question. So every assertion here is about what
  * came back out of `/CaughtMail`, not about what went in.
+ *
+ * The mailbox is one shared thing and this suite runs fully parallel, so nothing here reads by position or
+ * counts totals — each test addresses its own message and finds that one. Anything else is a race against the
+ * other tests in this file, which is a flake rather than a finding.
  */
 test.describe('the email catcher', () => {
-  const caught = async (request: APIRequestContext) => {
+  const messages = async (request: APIRequestContext): Promise<CaughtMessage[]> => {
     const response = await request.get('/CaughtMail.messages.json', { headers: asAdmin });
     expect(response.ok()).toBeTruthy();
-    return (await response.json()) as { total: number; messages: CaughtMessage[] };
+    return ((await response.json()) as { messages: CaughtMessage[] }).messages;
   };
 
+  /** Sends the fixed test message to an address only this test uses. */
+  const sendTo = async (request: APIRequestContext, address: string, isHtml = false) => {
+    const response = await request.get('/content.emailtest.html'
+      + `?fromEmail=platform@example.com&fromName=The%20Platform&toEmail=${address}&toName=Recipient`
+      + (isHtml ? '&isHtml=true' : ''), { headers: asAdmin });
+    expect(response.ok()).toBeTruthy();
+  };
+
+  const addressedTo = (caught: CaughtMessage[], address: string) =>
+    caught.filter(message => (message.to ?? []).some(to => to.includes(address)));
+
   test('files a message that would have been sent, instead of sending it', async ({ request }) => {
-    const before = (await caught(request)).total;
+    await sendTo(request, 'plain@example.com');
 
-    const sent = await request.get('/content.emailtest.html'
-      + '?fromEmail=platform@example.com&fromName=The%20Platform'
-      + '&toEmail=someone@example.com&toName=Someone', { headers: asAdmin });
-    expect(sent.ok()).toBeTruthy();
-
-    // The far end: the endpoint says it prepared a message, and this is whether one exists
-    const after = await caught(request);
-    expect(after.total).toBe(before + 1);
-
-    const message = after.messages[0];
-    expect(message.subject).toBe('IAP test message');
-    expect(message.from).toEqual([ 'The Platform <platform@example.com>' ]);
-    expect(message.to).toEqual([ 'Someone <someone@example.com>' ]);
-    expect(message.textBody).toContain('Institutional Authorization Platform');
-    expect(message.caughtAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // The far end: the endpoint said it prepared a message, and this is whether one exists
+    const mine = addressedTo(await messages(request), 'plain@example.com');
+    expect(mine).toHaveLength(1);
+    expect(mine[0].subject).toBe('IAP test message');
+    expect(mine[0].from).toEqual([ 'The Platform <platform@example.com>' ]);
+    expect(mine[0].to).toEqual([ 'Recipient <plain@example.com>' ]);
+    expect(mine[0].textBody).toContain('Institutional Authorization Platform');
+    expect(mine[0].caughtAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    // Nobody was copied, and the form says so rather than leaving a reader to guess
+    expect(mine[0].cc).toEqual([]);
   });
 
   test('keeps the HTML body of a rich message', async ({ request }) => {
-    await request.get('/content.emailtest.html'
-      + '?fromEmail=platform@example.com&fromName=The%20Platform'
-      + '&toEmail=rich@example.com&toName=Rich&isHtml=true', { headers: asAdmin });
+    await sendTo(request, 'rich@example.com', true);
 
-    const message = (await caught(request)).messages[0];
-    expect(message.to).toEqual([ 'Rich <rich@example.com>' ]);
-    expect(message.htmlBody).toContain('<p>');
+    const mine = addressedTo(await messages(request), 'rich@example.com');
+    expect(mine).toHaveLength(1);
+    expect(mine[0].htmlBody).toContain('<p>');
     // The plain text part is still there, for the clients that cannot show the rich one
-    expect(message.textBody).toContain('Institutional Authorization Platform');
+    expect(mine[0].textBody).toContain('Institutional Authorization Platform');
   });
 
   test('answers newest first', async ({ request }) => {
-    await request.get('/content.emailtest.html'
-      + '?fromEmail=a@example.com&fromName=A&toEmail=first@example.com&toName=First', { headers: asAdmin });
-    await request.get('/content.emailtest.html'
-      + '?fromEmail=a@example.com&fromName=A&toEmail=second@example.com&toName=Second', { headers: asAdmin });
+    await sendTo(request, 'earlier@example.com');
+    await sendTo(request, 'later@example.com');
 
-    const messages = (await caught(request)).messages;
-    expect(messages[0].to).toEqual([ 'Second <second@example.com>' ]);
-    expect(messages[1].to).toEqual([ 'First <first@example.com>' ]);
+    // Relative to each other, not by index: other tests are filing into the same mailbox at the same time
+    const caught = await messages(request);
+    const earlier = caught.findIndex(message => (message.to ?? []).some(to => to.includes('earlier@')));
+    const later = caught.findIndex(message => (message.to ?? []).some(to => to.includes('later@')));
+
+    expect(later).toBeGreaterThanOrEqual(0);
+    expect(later).toBeLessThan(earlier);
   });
 });

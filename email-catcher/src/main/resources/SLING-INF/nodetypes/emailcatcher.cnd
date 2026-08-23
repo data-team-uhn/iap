@@ -73,8 +73,10 @@
   - cc (STRING) multiple
   - bcc (STRING) multiple
 
-  // When the message was handed over, which for a caught message is also when
-  // it was written down
+  // When the message was handed over. Stamped here rather than read from the
+  // message's own Date header, which has second precision: this is what a
+  // reader sorts by, and two messages sent in the same second would otherwise
+  // be in no particular order. The Date header itself stays among the headers.
   - caughtAt (DATE) mandatory
 
   // The bodies, either of which may be absent: a message may be plain text

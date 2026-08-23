@@ -214,17 +214,25 @@ class CaughtMailServiceTest
         assertFalse(message.containsKey("subject"));
     }
 
-    // Where a message says nothing about when it was sent, the moment it was caught is the honest answer
+    // When it was caught, not when it was built: a message carrying an old date is still caught now, which is
+    // what a reader sorting by this property means by it
     @Test
-    void stampsAMessageThatCarriesNoDate() throws Exception
+    void stampsWhenItWasCaughtRatherThanWhenItWasSent() throws Exception
     {
-        final MimeMessage undated = this.message().text("x").build();
-        undated.setSentDate(null);
-        undated.saveChanges();
+        final Calendar longAgo = Calendar.getInstance();
+        longAgo.add(Calendar.YEAR, -1);
+        final MimeMessage old = this.message().text("x").build();
+        old.setSentDate(longAgo.getTime());
+        old.saveChanges();
 
-        this.service.sendMessage(undated);
+        this.service.sendMessage(old);
 
-        assertNotNull(this.caught().get("caughtAt", Calendar.class));
+        final Calendar caughtAt = this.caught().get("caughtAt", Calendar.class);
+        assertNotNull(caughtAt);
+        assertTrue(caughtAt.after(longAgo));
+        // And the message's own date is still readable, as the header it always was
+        assertTrue(List.of(this.caught().get("headers", new String[0])).stream()
+            .anyMatch(header -> header.startsWith("Date:")));
     }
 
     // Nothing consumes the future this is reported in, so the failure has to be visible some other way; what is
