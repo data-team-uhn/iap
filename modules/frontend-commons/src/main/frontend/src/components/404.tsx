@@ -32,7 +32,13 @@ if (container) {
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={appTheme} defaultMode="system">
           <CssBaseline enableColorScheme />
-          <PageNotFound />
+          { /* The server looked the requested path up in the archive while it was rendering this page,
+               and left what a reader may know about it on the container. */ }
+          <PageNotFound
+            deletedAt={container.dataset.deletedAt}
+            deletedBy={container.dataset.deletedBy}
+            entryUrl={container.dataset.entryUrl}
+          />
         </ThemeProvider>
       </StyledEngineProvider>
     </StrictMode>

@@ -35,6 +35,11 @@ type ErrorPageProps = Omit<BoxProps, "title"> & {
   buttonLink?: string;
   buttonLabel?: ReactNode;
   textAlign?: CSSProperties["textAlign"];
+  /**
+   * Supporting detail shown under the message. `message` is markdown, so anything carrying a value
+   * the server supplied belongs here instead, where React escapes it.
+   */
+  children?: ReactNode;
 };
 
 const ErrorContainer = styled(Box)(({ theme }) => ({
@@ -57,6 +62,7 @@ export default function ErrorPage(props: ErrorPageProps) {
     buttonLink,
     buttonLabel,
     textAlign = "left",
+    children,
     ...rest
   } = props;
 
@@ -97,6 +103,7 @@ export default function ErrorPage(props: ErrorPageProps) {
             {message && <FormattedText variant="subtitle1" color={resolvedMessageColor}>
               {message}
             </FormattedText> }
+            {children}
           </Stack>
         </Grid>
         { /* Both halves are needed for the button to be worth offering: a label with nowhere to go

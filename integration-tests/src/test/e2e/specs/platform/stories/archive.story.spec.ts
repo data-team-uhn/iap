@@ -27,11 +27,12 @@ import { ensureUser } from '../../../support/users';
 /**
  * THE STORIES: what becomes of something after it is deleted.
  *
- * Miriam administers this deployment. Over five episodes she deletes submission categories and then
+ * Miriam administers this deployment. Over six episodes she deletes submission categories and then
  * has to deal with what became of them: one she deleted by mistake and wants back, a branch that has
  * to go back in the order it came out, one that can never go back at all, and three she has to tell
- * apart. The last episode is not hers — a colleague with an account and nothing else goes looking
- * for a deletion she has been given no right to see.
+ * apart. Then a link she had already sent out stops working, and what it says about that depends on
+ * who follows it. The last episode is not hers at all — a colleague with an account and nothing else
+ * goes looking for a deletion she has been given no right to see.
  *
  * Categories are what gets deleted here because they are the only real thing this platform has that
  * can be: a category is a versionable node whose parent constrains what it will hold, so putting one
@@ -59,6 +60,8 @@ test.describe('stories: what becomes of something after it is deleted', () => {
   const LEGACY = 'Legacy studies';
 
   const DUPLICATE = 'Duplicate intake';
+
+  const WITHDRAWN = 'Withdrawn studies';
 
   const SPECIALTIES = [ 'Cardiology', 'Neurology', 'Oncology' ];
 
@@ -381,6 +384,75 @@ test.describe('stories: what becomes of something after it is deleted', () => {
     });
 
     await test.step('she signs out', async () => {
+      await shell.signOut();
+    });
+  });
+
+  test('a link outlives what it pointed at, and says so to each of them differently', async ({ page, request }) => {
+    const shell = new AppShell(page);
+    const manager = new CategoryManagerPage(page);
+    const archive = new ArchivePage(page);
+
+    let stale = '';
+
+    await test.step('Miriam deletes a category people had been sent links to', async () => {
+      await signInAs(page, ADMIN);
+      await manager.openFromConsole();
+      await manager.create(WITHDRAWN);
+      await manager.delete(WITHDRAWN);
+
+      // The link everyone was sent is the category's own path, which is the one thing the archive
+      // records about a deletion and the only way this story can know what to ask for
+      await archive.openFromConsole();
+      stale = await archive.newestEntryPath();
+      expect(stale.toLowerCase()).toContain('withdrawn');
+    });
+
+    await test.step('the link tells her it was deleted, rather than that it never existed', async () => {
+      const answer = await page.goto(stale);
+      // Still absent, and still says so with the status: what changed is only what it says in words
+      expect(answer?.status()).toBe(404);
+      await expect(page.getByRole('heading', { name: 'Deleted', exact: true })).toBeVisible();
+      await expect(page.getByText(/^This page was deleted on /)).toBeVisible();
+    });
+
+    await test.step('and offers her the entry, because she is allowed to see it', async () => {
+      await expect(page.getByText('Deleted by admin')).toBeVisible();
+      await page.getByRole('link', { name: 'View the archive entry' }).click();
+
+      await expect(new ArchiveEntryPage(page).heading(stale)).toBeVisible();
+      await shell.signOut();
+    });
+
+    await test.step('Nadia follows the same link, and is told only that it is gone', async () => {
+      await ensureUser(request, NADIA);
+      await signInAs(page, NADIA);
+      await page.goto(stale);
+
+      await expect(page.getByRole('heading', { name: 'Deleted', exact: true })).toBeVisible();
+      await expect(page.getByText(/^This page was deleted on /)).toBeVisible();
+      // Who did it and where it now sits belong to the archive, which is not hers to read
+      await expect(page.getByText(/^Deleted by /)).toHaveCount(0);
+      await expect(page.getByRole('link', { name: 'View the archive entry' })).toHaveCount(0);
+
+      // A 404 is not the application — it carries none of the shell, and so nothing to sign out
+      // from. The way back is the only control it offers her, and it is the way back to one.
+      await page.getByRole('button', { name: 'Go to the homepage' }).click();
+      await shell.signOut();
+    });
+
+    await test.step('once Miriam destroys the entry, the link stops saying anything at all', async () => {
+      // The proof that the archive is what the message is read from: the path is exactly as absent
+      // as it was a moment ago, and the page has stopped claiming to know what became of it
+      await signInAs(page, ADMIN);
+      await archive.openFromConsole();
+      await archive.purge(stale);
+      await expect(archive.empty()).toBeVisible();
+
+      await page.goto(stale);
+      await expect(page.getByRole('heading', { name: 'Not found' })).toBeVisible();
+
+      await page.getByRole('button', { name: 'Go to the homepage' }).click();
       await shell.signOut();
     });
   });
