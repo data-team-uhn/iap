@@ -55,7 +55,7 @@ def parse_args():
         default=DEFAULT_MIN_STRUCTURE_TOKENS,
         metavar="N",
         help=(
-            "skip TOC/appendix marking and chunking when document tokens (len//4) "
+            "skip chunking when document tokens (len//4) "
             f"are below this (default: {DEFAULT_MIN_STRUCTURE_TOKENS})"
         ),
     )

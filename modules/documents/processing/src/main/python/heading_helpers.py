@@ -36,9 +36,6 @@ from markdown_markers import (
 # Everything that is not a letter or digit, in any script.
 _NON_ALNUM = re.compile(r"[\W_]+", re.UNICODE)
 
-# Catalog label for Chunk-0 when the preamble has no leading ATX heading.
-DEFAULT_HEADING = "General Information"
-
 
 def is_neutral(stripped: str) -> bool:
     """Lines that neither extend nor break a region: blanks, page markers, rules."""
@@ -205,7 +202,7 @@ def _apply_bookmark_heading_levels(
             matches,
             key=lambda item: (
                 _get_page_distance(bookmark.get("page"), item[1]),
-                -item[0], # later lines in the document win
+                -item[0],  # later lines in the document win
             ),
         )
         if chosen_page is not None:

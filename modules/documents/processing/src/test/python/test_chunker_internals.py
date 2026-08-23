@@ -275,6 +275,7 @@ class TestGetChunkHeading:
     def test_skips_page_markers(self):
         part = "<!-- page: 1 -->\n\n# Section"
         assert heading_helpers._get_chunk_heading(part) == "Section"
+
     def test_first_atx_line(self):
         part = "## First Heading\n\ntext\n\n### Sub Heading Here"
         assert heading_helpers._get_chunk_heading(part) == "First Heading"
@@ -518,7 +519,9 @@ class TestCatalogFromBookmarks:
 
     PARAGRAPH = "Body sentence that carries the section text along. " * 40
 
-    def _tree(self, tmp_path, monkeypatch, md, pdf_bookmarks, max_tokens=chunker.DEFAULT_MAX_TOKENS):
+    def _tree(
+        self, tmp_path, monkeypatch, md, pdf_bookmarks, max_tokens=chunker.DEFAULT_MAX_TOKENS
+    ):
         (tmp_path / "doc.pdf").write_bytes(b"%PDF-1.4")
         monkeypatch.setattr("chunker.extract_bookmarks", lambda *a, **k: pdf_bookmarks)
         return chunker.build_chunk_tree(md, _md_path(tmp_path), max_tokens, 1)
