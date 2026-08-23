@@ -123,11 +123,11 @@ class SubmissionTest
             "title", "Section"));
         this.context.create().resource("/Schemas/schema/1.0/form/section/q1", Map.of(
             SLING_RESOURCE_TYPE, Question.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
-            "required", true,
+            "minAnswers", 1L,
             "text", "Q1"));
         this.context.create().resource("/Schemas/schema/1.0/form/q2", Map.of(
             SLING_RESOURCE_TYPE, Question.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
-            "required", true,
+            "minAnswers", 1L,
             "text", "Q2"));
         this.context.create().resource("/Schemas/schema/1.0/consent", Map.of(
             SLING_RESOURCE_TYPE, DocumentRequirement.RESOURCE_TYPE, "sling:resourceSuperType",

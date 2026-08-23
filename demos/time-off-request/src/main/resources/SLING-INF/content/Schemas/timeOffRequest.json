@@ -16,7 +16,7 @@
         "jcr:primaryType": "sch:Question",
         "text": "Is this a half day, a full day, or several days?",
         "dataType": "text",
-        "required": true,
+        "minAnswers": 1,
         "halfDay": {
           "jcr:primaryType": "sch:AnswerOption",
           "value": "half-day",
@@ -37,13 +37,13 @@
         "jcr:primaryType": "sch:Question",
         "text": "Which day does your time off start?",
         "dataType": "date",
-        "required": true
+        "minAnswers": 1
       },
       "endDate": {
         "jcr:primaryType": "sch:Question",
         "text": "Which day are you back?",
         "dataType": "date",
-        "required": true,
+        "minAnswers": 1,
         "cond:condition": {
           "jcr:primaryType": "cond:SingleCondition",
           "comparator": "equals",
@@ -62,7 +62,7 @@
         "jcr:primaryType": "sch:Question",
         "text": "What kind of absence is this?",
         "dataType": "text",
-        "required": true,
+        "minAnswers": 1,
         "personal": {
           "jcr:primaryType": "sch:AnswerOption",
           "value": "personal",
