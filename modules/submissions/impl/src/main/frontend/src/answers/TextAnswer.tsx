@@ -19,13 +19,14 @@
 import { TextField } from "@mui/material";
 
 import { registerAnswerComponent } from "../answerComponents";
+import { isMultiple, isRequired } from "../submissionForm";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // Typed-in text. Several values are typed one per line. A question that offers its answers is a ChoiceAnswer instead.
 function TextAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
-  const many = question.multiple;
+  const many = isMultiple(question);
   const helperText = many
     ? `${question.description ?? ""} One per line.`.trim()
     : question.description;
@@ -33,7 +34,7 @@ function TextAnswer({ question, values, disabled, onChange, onAnswered }: Answer
   return (
     <TextField
       label={questionLabel(question)}
-      required={question.required}
+      required={isRequired(question)}
       disabled={disabled}
       multiline={many}
       minRows={many ? 2 : undefined}

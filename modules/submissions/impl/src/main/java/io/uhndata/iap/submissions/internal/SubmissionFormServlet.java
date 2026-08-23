@@ -316,15 +316,37 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         question.getOptions().forEach(option -> options.add(Json.createObjectBuilder()
             .add("value", option.getValue())
             .add("label", option.getLabel())));
-        return Json.createObjectBuilder()
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, question.getName())
             .add(TYPE_KEY, question.getType())
             .add(PATH_KEY, path)
             .add("text", Objects.toString(question.getText(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))
-            .add(REQUIRED_KEY, question.isRequired())
-            .add("multiple", question.isMultiple())
+            // The pair itself rather than derived required/multiple flags: one vocabulary on the wire, read the
+            // same way it is stored, so the two sides cannot disagree about what a count means
+            .add("minAnswers", question.getMinAnswers())
+            .add("maxAnswers", question.getMaxAnswers());
+        // The constraints are stated only where the schema states them; the editor maps them onto the input's own
+        // hints, and the save is where they are enforced. Each is read once into a local, so the null check
+        // guards the very value that is written.
+        final Double minValue = question.getMinValue();
+        final Double maxValue = question.getMaxValue();
+        final String pattern = question.getPattern();
+        final String patternMessage = question.getPatternMessage();
+        if (minValue != null) {
+            json.add("minValue", minValue);
+        }
+        if (maxValue != null) {
+            json.add("maxValue", maxValue);
+        }
+        if (pattern != null) {
+            json.add("pattern", pattern);
+        }
+        if (patternMessage != null) {
+            json.add("patternMessage", patternMessage);
+        }
+        return json
             .add("options", options)
             .add("value", value);
     }
