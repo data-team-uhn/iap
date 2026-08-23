@@ -181,6 +181,9 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     private void describe(final DocumentRequirement requirement, final Submission submission,
         final JsonObjectBuilder json)
     {
+        // Stated always, not only when false: an upload control marks the optional case, and it should do so
+        // because the form said so rather than because a key was missing
+        json.add("required", requirement.isRequired());
         final JsonArrayBuilder accepted = Json.createArrayBuilder();
         // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
         // empty — so the key is always there and it is the emptiness that carries the meaning
