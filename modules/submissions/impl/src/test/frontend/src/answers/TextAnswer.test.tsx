@@ -27,7 +27,7 @@ import { ControlledAnswer } from "./controlled.fixture";
 function renderText(overrides: Partial<FormQuestion> = {}, values: string[] = []) {
   const question: FormQuestion = {
     name: "reason", type: QUESTION, path: "details/reason", text: "Why?",
-    dataType: "text", required: false, multiple: false, options: [], value: [], ...overrides,
+    dataType: "text", minAnswers: 0, maxAnswers: 1, options: [], value: [], ...overrides,
   };
   const onAnswered = vi.fn();
   render(<ControlledAnswer component={TextAnswer} question={question} initial={values}
@@ -57,7 +57,7 @@ describe("TextAnswer", () => {
 
   describe("a question taking several values", () => {
     it("takes them one per line, dropping the blank ones", async () => {
-      const { input, onAnswered } = renderText({ multiple: true });
+      const { input, onAnswered } = renderText({ maxAnswers: 0 });
 
       await userEvent.type(input, "Monday{Enter}{Enter}Tuesday");
       await userEvent.tab();
@@ -66,7 +66,7 @@ describe("TextAnswer", () => {
     });
 
     it("says how to give more than one", () => {
-      renderText({ multiple: true, description: "The days you will be away." });
+      renderText({ maxAnswers: 0, description: "The days you will be away." });
 
       expect(screen.getByText("The days you will be away. One per line.")).toBeInTheDocument();
     });

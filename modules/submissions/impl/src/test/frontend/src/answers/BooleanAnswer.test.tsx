@@ -25,7 +25,7 @@ import { QUESTION, type FormQuestion } from "@iap/submissions/submissionForm";
 function renderBoolean(overrides: Partial<FormQuestion> = {}, values: string[] = []) {
   const question: FormQuestion = {
     name: "recurring", type: QUESTION, path: "details/recurring", text: "Does this repeat?",
-    dataType: "boolean", required: false, multiple: false, options: [], value: [], ...overrides,
+    dataType: "boolean", minAnswers: 0, maxAnswers: 1, options: [], value: [], ...overrides,
   };
   const onAnswered = vi.fn();
   render(<BooleanAnswer question={question} values={values} disabled={false}
