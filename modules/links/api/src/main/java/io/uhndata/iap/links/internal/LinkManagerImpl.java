@@ -62,7 +62,7 @@ import io.uhndata.iap.links.models.LinkDefinition;
 /**
  * Straightforward implementation of {@link LinkManager}, doubling as the {@link LinkOperations} behind the
  * models' behavior. The only writes not going through the models' own resolver are the creation of a missing
- * {@code iap:links} container — done through the links service user, since it may require checking out a
+ * {@code link:links} container — done through the links service user, since it may require checking out a
  * versionable resource — and, indirectly, the automatic completion of backlinks the caller could not create,
  * performed by {@link AutocreateBacklinksListener} after the links are committed.
  *
@@ -291,7 +291,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             this.findExisting(container, definitionId, InternalLink.REFERENCE_PROPERTY, destinationId, label);
         final Resource linkResource = existing != null ? existing
             : this.createLinkNode(container,
-                definition.isWeak() ? "iap:WeakLink" : "iap:Link",
+                definition.isWeak() ? "link:WeakLink" : "link:Link",
                 definitionId, InternalLink.REFERENCE_PROPERTY, destinationId, label);
         final InternalLink link = linkResource.adaptTo(InternalLink.class);
         if (withBacklink && definition.hasBacklink()) {
@@ -323,7 +323,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         final Resource existing =
             this.findExisting(container, definitionId, ExternalLink.VALUE_PROPERTY, value, label);
         final Resource linkResource = existing != null ? existing
-            : this.createLinkNode(container, "iap:ExternalLink", definitionId, ExternalLink.VALUE_PROPERTY, value,
+            : this.createLinkNode(container, "link:ExternalLink", definitionId, ExternalLink.VALUE_PROPERTY, value,
                 label);
         return Objects.requireNonNull(linkResource.adaptTo(ExternalLink.class));
     }
@@ -555,7 +555,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     Resource createContainer(final ResourceResolver resolver, final Resource owner)
     {
         try {
-            return resolver.create(owner, CONTAINER_NAME, Map.of(PRIMARY_TYPE_PROPERTY, "iap:Links"));
+            return resolver.create(owner, CONTAINER_NAME, Map.of(PRIMARY_TYPE_PROPERTY, "link:Links"));
         } catch (final PersistenceException e) {
             throw new IllegalArgumentException(
                 "Cannot create the links container on " + owner.getPath() + ": " + e.getMessage(), e);
@@ -575,7 +575,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         try {
             final Resource linkResource = container.getResourceResolver()
                 .create(container, UUID.randomUUID().toString(), properties);
-            this.retypeReferences(linkResource, targetProperty, "iap:WeakLink".equals(primaryType));
+            this.retypeReferences(linkResource, targetProperty, "link:WeakLink".equals(primaryType));
             return linkResource;
         } catch (final PersistenceException | RepositoryException e) {
             throw new IllegalArgumentException(

@@ -26,7 +26,7 @@ import io.uhndata.iap.tags.models.TagDefinition;
 import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * The tag vocabulary service, resolving the {@code iap:TagDefinition} nodes stored under
+ * The tag vocabulary service, resolving the {@code tag:Definition} nodes stored under
  * {@value #DEFINITIONS_PATH}. The operations on the tags themselves live on the models: view any content model as
  * {@link Taggable} to read, place, or remove its tags.
  *
@@ -41,7 +41,7 @@ import io.uhndata.iap.tags.models.Taggable;
  */
 public interface TagManager
 {
-    /** The name of the property holding the tags of a piece of content, declared by the {@code iap:Taggable} mixin. */
+    /** The name of the property holding the tags of a piece of content, declared by the {@code tag:Taggable} mixin. */
     String TAGS_PROPERTY = "tags";
 
     /**
@@ -49,11 +49,11 @@ public interface TagManager
      * aggregate of everything beneath it, and offers nothing to its own ancestors. {@code data:EntityHomepage}
      * declares it, so every entity listing is one.
      */
-    String BOUNDARY_MIXIN = "iap:TagBoundary";
+    String BOUNDARY_MIXIN = "tag:Boundary";
 
     /**
      * The name of the property marking content whose derived tags cannot be trusted, declared by the
-     * {@code iap:Taggable} mixin. Absent when they can. See {@link #STATE_FAILED} and
+     * {@code tag:Taggable} mixin. Absent when they can. See {@link #STATE_FAILED} and
      * {@link #STATE_RECOMPUTING} for the two values, and note that the property's presence, not its value, is what
      * drives the recomputation.
      */
@@ -65,7 +65,7 @@ public interface TagManager
     /** The stored derived tags were declared untrustworthy and a recomputation was asked for. */
     String STATE_RECOMPUTING = "recomputing";
 
-    /** The path of the {@code iap:TagsHomepage} node holding the tag definitions. */
+    /** The path of the {@code tag:Homepage} node holding the tag definitions. */
     String DEFINITIONS_PATH = "/Tags";
 
     /**

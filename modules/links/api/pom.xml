@@ -52,7 +52,7 @@
             <Sling-Nodetypes>SLING-INF/nodetypes/links.cnd</Sling-Nodetypes>
             <Sling-Model-Packages>io.uhndata.iap.links.models</Sling-Model-Packages>
             <Sling-Initial-Content>
-              SLING-INF/content/libs/iap/;path:=/libs/iap/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/link/;path:=/libs/link/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

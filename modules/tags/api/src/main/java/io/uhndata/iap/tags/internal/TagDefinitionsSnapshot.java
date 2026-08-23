@@ -29,7 +29,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import io.uhndata.iap.tags.spi.TagDefinitions;
 
 /**
- * A {@link TagDefinitions} snapshot built by reading the {@code iap:TagDefinition} children of the {@code /Tags}
+ * A {@link TagDefinitions} snapshot built by reading the {@code tag:Definition} children of the {@code /Tags}
  * node state at the start of a commit.
  *
  * @version $Id$
@@ -95,12 +95,12 @@ public class TagDefinitionsSnapshot implements TagDefinitions
     {
         final PropertyState resourceType = definition.getProperty("sling:resourceType");
         if (resourceType != null && !resourceType.isArray()
-            && "iap/TagDefinition".equals(resourceType.getValue(Type.STRING))) {
+            && "tag/Definition".equals(resourceType.getValue(Type.STRING))) {
             return true;
         }
         final PropertyState primaryType = definition.getProperty("jcr:primaryType");
         return primaryType != null && !primaryType.isArray()
-            && "iap:TagDefinition".equals(primaryType.getValue(Type.NAME));
+            && "tag:Definition".equals(primaryType.getValue(Type.NAME));
     }
 
     private String getName(final NodeState definition, final String nodeName)

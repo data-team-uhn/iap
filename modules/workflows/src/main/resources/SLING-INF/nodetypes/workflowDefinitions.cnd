@@ -18,7 +18,7 @@
 //
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<tag = 'https://iap.uhndata.io/tag/'>
 <data = 'https://iap.uhndata.io/data/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 
@@ -82,7 +82,7 @@
 
 //-----------------------------------------------------------------------------
 // The top-level template describing a workflow process.
-[wf:WorkflowDefinition] > data:Entity, iap:TagBoundary
+[wf:WorkflowDefinition] > data:Entity, tag:Boundary
   - sling:resourceType (STRING) = "wf/WorkflowDefinition" mandatory autocreated protected
 
   // Human-readable name for this workflow
@@ -103,7 +103,7 @@
 
 //-----------------------------------------------------------------------------
 // A particular version of a workflow process.
-[wf:WorkflowVersion] > data:Entity, iap:TagBoundary
+[wf:WorkflowVersion] > data:Entity, tag:Boundary
   - sling:resourceType (STRING) = "wf/WorkflowVersion" mandatory autocreated protected
 
   // Optional description of what this workflow does

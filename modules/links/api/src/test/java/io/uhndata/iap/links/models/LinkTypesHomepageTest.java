@@ -78,7 +78,7 @@ class LinkTypesHomepageTest
     @Test
     void documentsTheLinkTypes()
     {
-        // The heading properties are autocreated from the defaults declared by the iap:LinkTypesHomepage node
+        // The heading properties are autocreated from the defaults declared by the link:TypesHomepage node
         // type, which the mock repository does not apply, so the test sets the very values the CND declares
         final Resource resource = this.context.create().resource("/LinkTypes", Map.of(
             "sling:resourceType", LinkTypesHomepage.RESOURCE_TYPE,

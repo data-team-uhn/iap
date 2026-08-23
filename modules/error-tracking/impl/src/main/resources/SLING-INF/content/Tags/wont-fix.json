@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Won't fix",
   "description": "This failure is understood and deliberately left as it is. It needs no further attention unless the circumstances that made it acceptable change.",
   "category": ["error-triage"],

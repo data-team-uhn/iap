@@ -152,9 +152,9 @@ class LinkManagerImplTest
     private Resource createThings()
     {
         final Resource thing = this.context.create().resource("/Things/a", Map.of(UUID_PROPERTY, THING_A_ID));
-        this.context.create().resource("/Things/a/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
+        this.context.create().resource("/Things/a/" + CONTAINER, PRIMARY_TYPE, "link:Links");
         this.context.create().resource(THING_B_PATH, Map.of(UUID_PROPERTY, THING_B_ID));
-        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
+        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "link:Links");
         return thing;
     }
 
@@ -296,7 +296,7 @@ class LinkManagerImplTest
         assertEquals(SIMPLE_ID, link.get("type"));
         assertEquals(THING_B_ID, link.get("reference"));
         assertEquals("see also", link.get("label"));
-        assertEquals("iap:Link", link.get(PRIMARY_TYPE));
+        assertEquals("link:Link", link.get(PRIMARY_TYPE));
         // The write is not committed; that is the caller's decision
         assertTrue(this.context.resourceResolver().hasChanges());
     }
@@ -325,7 +325,7 @@ class LinkManagerImplTest
         final InternalLink link = this.manager.addLink(thing,
             this.asContent(this.context.resourceResolver().getResource(THING_B_PATH)), "weak", null);
 
-        assertEquals("iap:WeakLink", link.get(PRIMARY_TYPE));
+        assertEquals("link:WeakLink", link.get(PRIMARY_TYPE));
     }
 
     @Test
@@ -359,7 +359,7 @@ class LinkManagerImplTest
         final Resource source = this.context.create().resource("/Things/typed", Map.of(
             UUID_PROPERTY, "cccccccc-cccc-cccc-cccc-cccccccccccc",
             PRIMARY_TYPE, "data:Entity"));
-        this.context.create().resource("/Things/typed/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
+        this.context.create().resource("/Things/typed/" + CONTAINER, PRIMARY_TYPE, "link:Links");
         final Resource mixinDestination = this.context.create().resource("/Things/mixed", Map.of(
             UUID_PROPERTY, "dddddddd-dddd-dddd-dddd-dddddddddddd",
             PRIMARY_TYPE, "nt:unstructured",
@@ -416,7 +416,7 @@ class LinkManagerImplTest
         final Resource owner = this.context.resourceResolver().getResource("/Committed");
         final Resource destination = this.context.create().resource(THING_B_PATH,
             Map.of(UUID_PROPERTY, THING_B_ID));
-        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
+        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "link:Links");
 
         final InternalLink link = this.manager.addLink(owner, this.asContent(destination), SIMPLE, null);
 
@@ -432,7 +432,7 @@ class LinkManagerImplTest
         final Resource owner = this.context.create().resource("/Things/fresh", Map.of(UUID_PROPERTY, THING_A_ID));
         final Resource destination = this.context.create().resource(THING_B_PATH,
             Map.of(UUID_PROPERTY, THING_B_ID));
-        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
+        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "link:Links");
 
         final InternalLink link = this.manager.addLink(owner, this.asContent(destination), SIMPLE, null);
 
@@ -458,7 +458,7 @@ class LinkManagerImplTest
         final Resource owner = this.context.resourceResolver().getResource("/Committed");
         final Resource destination = this.context.create().resource(THING_B_PATH,
             Map.of(UUID_PROPERTY, THING_B_ID));
-        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
+        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "link:Links");
 
         assertNotNull(this.manager.addLink(owner, this.asContent(destination), SIMPLE, null));
 
@@ -476,7 +476,7 @@ class LinkManagerImplTest
         final Resource owner = this.context.create().resource("/Things/fresh", Map.of(UUID_PROPERTY, THING_A_ID));
         final Resource destination = this.context.create().resource(THING_B_PATH,
             Map.of(UUID_PROPERTY, THING_B_ID));
-        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
+        this.context.create().resource(THING_B_PATH + "/" + CONTAINER, PRIMARY_TYPE, "link:Links");
 
         assertNotNull(this.manager.addLink(owner, this.asContent(destination), SIMPLE, null));
     }
@@ -648,7 +648,7 @@ class LinkManagerImplTest
         final ExternalLink link = this.linkable(thing).addExternalLink("ehrChart", "12345", "chart");
         final ExternalLink duplicate = this.linkable(thing).addExternalLink("ehrChart", "12345", "chart");
 
-        assertEquals("iap:ExternalLink", link.get(PRIMARY_TYPE));
+        assertEquals("link:ExternalLink", link.get(PRIMARY_TYPE));
         assertEquals("12345", link.get("value"));
         assertEquals(link.getPath(), duplicate.getPath());
     }
@@ -811,7 +811,7 @@ class LinkManagerImplTest
             .thenThrow(new org.apache.sling.api.resource.PersistenceException("read only"));
 
         assertThrows(IllegalArgumentException.class, () -> this.manager
-            .createLinkNode(container, "iap:Link", SIMPLE_ID, "reference", THING_B_ID, null));
+            .createLinkNode(container, "link:Link", SIMPLE_ID, "reference", THING_B_ID, null));
     }
 
     @Test

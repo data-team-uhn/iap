@@ -39,7 +39,7 @@ public interface LinkManager
     String LINK_TYPES_PATH = "/LinkTypes";
 
     /** The child node name where the links of a piece of content are stored. */
-    String CONTAINER_NAME = "iap:links";
+    String CONTAINER_NAME = "link:links";
 
     /**
      * Resolve a link definition. The definitions are world-readable platform vocabulary, read with the manager's

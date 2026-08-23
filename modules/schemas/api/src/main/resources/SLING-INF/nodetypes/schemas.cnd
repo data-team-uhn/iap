@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<tag = 'https://iap.uhndata.io/tag/'>
 <data = 'https://iap.uhndata.io/data/'>
 <cond = 'https://iap.uhndata.io/cond/'>
 <sch = 'https://iap.uhndata.io/sch/'>
@@ -51,7 +51,7 @@
 //-----------------------------------------------------------------------------
 // A named institutional schema. This is only a container identifying the
 // schema; the actual requirements live in its versions.
-[sch:Schema] > data:Entity, iap:TagBoundary
+[sch:Schema] > data:Entity, tag:Boundary
   - sling:resourceType (STRING) = "sch/Schema" mandatory autocreated protected
 
   // Human-readable name for this schema
@@ -73,7 +73,7 @@
 //-----------------------------------------------------------------------------
 // A particular version of a schema; holds the requirements a submission
 // must fulfill. Submissions reference a specific version.
-[sch:SchemaVersion] > data:Entity, iap:TagBoundary
+[sch:SchemaVersion] > data:Entity, tag:Boundary
   // The list of requirements is orderable, so they can be presented to the
   // submitter and reviewer in a deliberate sequence.
   orderable

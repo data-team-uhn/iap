@@ -14,7 +14,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-create path (iap:TagsHomepage) /Tags
+create path (tag:Homepage) /Tags
 
 # Every user needs to know what the tags placed on the resources they can see mean
 set ACL for everyone

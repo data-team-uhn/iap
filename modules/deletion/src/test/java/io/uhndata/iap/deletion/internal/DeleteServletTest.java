@@ -118,7 +118,7 @@ class DeleteServletTest
     {
         this.adaptable();
         final DeletionImpact impact = new DeletionImpact(List.of("/content/x", "/content/y"),
-            List.of("/content/z/iap:links/l"), List.of(), List.of(), 0, "");
+            List.of("/content/z/link:links/l"), List.of(), List.of(), 0, "");
         when(this.deletionService.delete(any(), any()))
             .thenReturn(new DeletionResult(DeletionResult.Status.ARCHIVED, "/Archive/123", impact));
         this.servlet.doDelete(this.request, this.response);
@@ -127,7 +127,7 @@ class DeleteServletTest
         assertEquals("archived", body.getString("status"));
         assertEquals("/Archive/123", body.getString("archiveEntry"));
         assertEquals(2, body.getJsonArray("items").size());
-        assertEquals("/content/z/iap:links/l", body.getJsonArray("removedLinks").getString(0));
+        assertEquals("/content/z/link:links/l", body.getJsonArray("removedLinks").getString(0));
     }
 
     @Test

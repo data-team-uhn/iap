@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Retired",
   "description": "No new submissions may be filed under this category. Everything below a retired category is retired too, and existing submissions keep referencing it.",
   "category": ["lifecycle"],

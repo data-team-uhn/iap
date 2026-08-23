@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<tag = 'https://iap.uhndata.io/tag/'>
 <data = 'https://iap.uhndata.io/data/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 <sub = 'https://iap.uhndata.io/sub/'>
@@ -53,7 +53,7 @@
 // A submission filed by a submitter against a specific schema version. The
 // workflow instances driving its lifecycle live inside it, in the wf:instances
 // child that the wf:WorkflowAttachable mixin autocreates.
-[sub:Submission] > data:Entity, wf:WorkflowAttachable, iap:TagBoundary
+[sub:Submission] > data:Entity, wf:WorkflowAttachable, tag:Boundary
   - sling:resourceType (STRING) = "sub/Submission" mandatory autocreated protected
 
   // Title of the submission

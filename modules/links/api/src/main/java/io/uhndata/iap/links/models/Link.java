@@ -31,7 +31,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.internal.LinkOperations;
 
 /**
- * The abstract base shared by all the links kept in a resource's {@code iap:links} container: a typed, optionally
+ * The abstract base shared by all the links kept in a resource's {@code link:links} container: a typed, optionally
  * labeled connection from the resource holding it to a target. The target is either another resource in the
  * repository ({@link InternalLink}) or something outside it, recorded as a value ({@link ExternalLink}). Like the
  * other abstract bases in the data model, this class is deliberately not itself a registered Sling Model: each
@@ -43,7 +43,7 @@ import io.uhndata.iap.links.internal.LinkOperations;
  */
 public abstract class Link extends Content
 {
-    /** The name of the property referencing the {@code iap:LinkDefinition} describing a link. */
+    /** The name of the property referencing the {@code link:Definition} describing a link. */
     public static final String TYPE_PROPERTY = "type";
 
     /** The name of the property holding a link's optional extra label. */
@@ -77,11 +77,11 @@ public abstract class Link extends Content
         if (resource == null) {
             return null;
         }
-        if (isLinkKind(resource, InternalLink.RESOURCE_TYPE, "iap:Link")
-            || isLinkKind(resource, InternalLink.WEAK_RESOURCE_TYPE, "iap:WeakLink")) {
+        if (isLinkKind(resource, InternalLink.RESOURCE_TYPE, "link:Link")
+            || isLinkKind(resource, InternalLink.WEAK_RESOURCE_TYPE, "link:WeakLink")) {
             return resource.adaptTo(InternalLink.class);
         }
-        if (isLinkKind(resource, ExternalLink.RESOURCE_TYPE, "iap:ExternalLink")) {
+        if (isLinkKind(resource, ExternalLink.RESOURCE_TYPE, "link:ExternalLink")) {
             return resource.adaptTo(ExternalLink.class);
         }
         return null;
@@ -130,7 +130,7 @@ public abstract class Link extends Content
     }
 
     /**
-     * The content that this link belongs to, i.e. the owner of the {@code iap:links} container holding it.
+     * The content that this link belongs to, i.e. the owner of the {@code link:links} container holding it.
      *
      * @return a content model, or {@code null} if the structure is unexpected
      */

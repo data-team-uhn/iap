@@ -60,7 +60,7 @@ class TaggableTest
     @Test
     void anyContentIsViewableAsTaggable()
     {
-        // The iap:Taggable mixin is a declaration aid, not an adaptation gate: any content adapts
+        // The tag:Taggable mixin is a declaration aid, not an adaptation gate: any content adapts
         assertNotNull(this.context.create().resource("/data/plain").adaptTo(Taggable.class));
     }
 

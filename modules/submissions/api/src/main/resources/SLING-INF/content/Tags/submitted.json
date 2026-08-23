@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Submitted",
   "description": "The record was submitted and can no longer be edited by its author.",
   "category": ["lifecycle"],

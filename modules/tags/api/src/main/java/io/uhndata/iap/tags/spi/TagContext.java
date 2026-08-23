@@ -80,7 +80,7 @@ public interface TagContext
      * The children whose tags may flow up into the node being processed, which is what a
      * {@link TagProcessor.Phase#BOTTOM_UP} processor must aggregate over instead of the node's own child list. Two
      * kinds of child are left out: the ones that never take part in tagging at all — hidden nodes, the system and
-     * index subtrees, access control policies — and the {@code iap:TagBoundary} containers, which carry the aggregate
+     * index subtrees, access control policies — and the {@code tag:Boundary} containers, which carry the aggregate
      * of their own content and offer nothing above themselves.
      *
      * <p>

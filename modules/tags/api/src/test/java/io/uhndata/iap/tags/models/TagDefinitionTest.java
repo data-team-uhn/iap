@@ -59,7 +59,7 @@ class TagDefinitionTest
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Tags/draft",
-            "sling:resourceType", "iap/TagDefinition");
+            "sling:resourceType", "tag/Definition");
         assertNotNull(resource.adaptTo(TagDefinition.class));
     }
 
@@ -68,7 +68,7 @@ class TagDefinitionTest
     {
         // Property pairs passed as varargs: Map.of tops out at ten pairs, which this outgrew
         final Resource resource = this.context.create().resource("/Tags/incomplete",
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "label", "Incomplete",
             "description", "Some required answers are missing",
             "category", new String[] { "lifecycle", "validation" },
@@ -99,7 +99,7 @@ class TagDefinitionTest
     void toleratesMissingOptionalProperties()
     {
         final Resource resource = this.context.create().resource("/Tags/bare",
-            "sling:resourceType", "iap/TagDefinition");
+            "sling:resourceType", "tag/Definition");
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
 
         assertEquals("bare", definition.getName());
@@ -122,7 +122,7 @@ class TagDefinitionTest
     {
         // An explicit name property allows tag strings that would be awkward as node names
         final Resource resource = this.context.create().resource("/Tags/patientSurvey", Map.of(
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "name", "PATIENT SURVEY"));
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
 
@@ -134,7 +134,7 @@ class TagDefinitionTest
     void unrestrictedDefinitionAppliesToAnyContent()
     {
         final Resource resource = this.context.create().resource("/Tags/draft",
-            "sling:resourceType", "iap/TagDefinition");
+            "sling:resourceType", "tag/Definition");
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
         final Resource target = this.context.create().resource("/data/whatever",
             "sling:resourceType", "data/Content");
@@ -146,7 +146,7 @@ class TagDefinitionTest
     void restrictedDefinitionChecksContentType()
     {
         final Resource resource = this.context.create().resource("/Tags/sensitive", Map.of(
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "targetResourceTypes", new String[] { "data/Entity" }));
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
         final Resource entity = this.context.create().resource("/data/entity",
@@ -162,7 +162,7 @@ class TagDefinitionTest
     void restrictedDefinitionAcceptsSubtypes()
     {
         final Resource resource = this.context.create().resource("/Tags/sensitive", Map.of(
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "targetResourceTypes", new String[] { "data/Entity" }));
         final TagDefinition definition = resource.adaptTo(TagDefinition.class);
         // A resource of a more specific type declaring data/Entity as its supertype is accepted too
@@ -177,13 +177,13 @@ class TagDefinitionTest
     void displayOrderSortsByOrderThenName()
     {
         final TagDefinition first = this.context.create().resource("/Tags/zebra", Map.of(
-            "sling:resourceType", "iap/TagDefinition", "order", 1L)).adaptTo(TagDefinition.class);
+            "sling:resourceType", "tag/Definition", "order", 1L)).adaptTo(TagDefinition.class);
         final TagDefinition second = this.context.create().resource("/Tags/aardvark", Map.of(
-            "sling:resourceType", "iap/TagDefinition", "order", 2L)).adaptTo(TagDefinition.class);
+            "sling:resourceType", "tag/Definition", "order", 2L)).adaptTo(TagDefinition.class);
         final TagDefinition unorderedA = this.context.create().resource("/Tags/alpha",
-            "sling:resourceType", "iap/TagDefinition").adaptTo(TagDefinition.class);
+            "sling:resourceType", "tag/Definition").adaptTo(TagDefinition.class);
         final TagDefinition unorderedB = this.context.create().resource("/Tags/beta",
-            "sling:resourceType", "iap/TagDefinition").adaptTo(TagDefinition.class);
+            "sling:resourceType", "tag/Definition").adaptTo(TagDefinition.class);
 
         final List<TagDefinition> sorted = new ArrayList<>(List.of(unorderedB, second, unorderedA, first));
         sorted.sort(TagDefinition.DISPLAY_ORDER);
@@ -196,7 +196,7 @@ class TagDefinitionTest
     void documentsItsBehaviors()
     {
         final Resource resource = this.context.create().resource("/Tags/sensitive", Map.of(
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "label", "Sensitive",
             "description", "Contains confidential data",
             "category", new String[] { "privacy" },
@@ -221,7 +221,7 @@ class TagDefinitionTest
     void plainTagsHaveNothingToCallOut()
     {
         final Resource resource = this.context.create().resource("/Tags/plain",
-            "sling:resourceType", "iap/TagDefinition");
+            "sling:resourceType", "tag/Definition");
         assertTrue(resource.adaptTo(TagDefinition.class).getDocumentationDetails().isEmpty());
     }
 
@@ -230,7 +230,7 @@ class TagDefinitionTest
     {
         // Property pairs passed as varargs: Map.of tops out at ten pairs, which this outgrew
         final Resource resource = this.context.create().resource("/Tags/sensitive",
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "label", "Sensitive",
             "description", "Contains confidential data",
             "category", new String[] { "privacy" },
@@ -262,7 +262,7 @@ class TagDefinitionTest
     void jsonLeavesUnsetOptionalFieldsOut()
     {
         final Resource resource = this.context.create().resource("/Tags/plain",
-            "sling:resourceType", "iap/TagDefinition");
+            "sling:resourceType", "tag/Definition");
         final JsonObject json = resource.adaptTo(TagDefinition.class).toDocumentationJson();
 
         assertEquals("plain", json.getString("name"));

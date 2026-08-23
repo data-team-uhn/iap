@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<tag = 'https://iap.uhndata.io/tag/'>
 <data = 'https://iap.uhndata.io/data/'>
 
 //-----------------------------------------------------------------------------
@@ -28,14 +28,14 @@
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Marks content that can carry tags: named markers defined by iap:TagDefinition
+// Marks content that can carry tags: named markers defined by tag:Definition
 // nodes under /Tags; see the tags module. The mixin declares the tagging
 // properties once — every data:Content node carries it through its supertypes,
 // and other node types, e.g. nt:file, become taggable by adding the mixin.
 // All the properties are unversioned (IGNORE): tags are living metadata
 // describing the current status of the content, so changing them must neither
 // require a checkout nor be reverted by a restore.
-[iap:Taggable]
+[tag:Taggable]
   mixin
 
   // Tags explicitly placed on this content, e.g. "incomplete" or "sensitive",
@@ -96,10 +96,10 @@
 // of them. The cost, stated so it is chosen rather than discovered: a
 // definition sees nothing aggregated from its versions, since a version is a
 // boundary too.
-[iap:TagBoundary]
+[tag:Boundary]
   mixin
 
-[data:Content] > sling:Folder, sling:Resource, sling:ResourceSuperType, iap:Taggable
+[data:Content] > sling:Folder, sling:Resource, sling:ResourceSuperType, tag:Taggable
   // Attributes:
 
   // This is an abstract node type

@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "name": "external review",
   "label": "External review",
   "description": "A demonstration of a tag whose name differs from its definition node's name.",

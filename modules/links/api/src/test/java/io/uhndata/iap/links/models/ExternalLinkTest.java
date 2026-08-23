@@ -78,7 +78,7 @@ class ExternalLinkTest
         definition.putAll(definitionSettings);
         this.context.create().resource("/LinkTypes/ehrChart", definition);
         this.context.create().resource("/Things/a");
-        return this.context.create().resource("/Things/a/iap:links/e1", Map.of(
+        return this.context.create().resource("/Things/a/link:links/e1", Map.of(
             SLING_RESOURCE_TYPE, ExternalLink.RESOURCE_TYPE,
             "type", DEFINITION_ID,
             "value", "12345"));
@@ -88,7 +88,7 @@ class ExternalLinkTest
     void valuelessLinksHaveNoUrlAndAnEmptyLabel()
     {
         this.createFixture(Map.of("urlTemplate", "https://ehr.example.org/chart/{value}"));
-        final Resource valueless = this.context.create().resource("/Things/a/iap:links/e2", Map.of(
+        final Resource valueless = this.context.create().resource("/Things/a/link:links/e2", Map.of(
             SLING_RESOURCE_TYPE, ExternalLink.RESOURCE_TYPE,
             "type", DEFINITION_ID));
         final ExternalLink link = (ExternalLink) valueless.adaptTo(Link.class);
@@ -101,7 +101,7 @@ class ExternalLinkTest
     void linksWithUnresolvableDefinitionsStillDisplay()
     {
         this.createFixture(Map.of("urlTemplate", "https://ehr.example.org/chart/{value}"));
-        final Resource untyped = this.context.create().resource("/Things/a/iap:links/e3", Map.of(
+        final Resource untyped = this.context.create().resource("/Things/a/link:links/e3", Map.of(
             SLING_RESOURCE_TYPE, ExternalLink.RESOURCE_TYPE,
             "type", "99999999-9999-9999-9999-999999999999",
             "value", "677"));

@@ -23,7 +23,7 @@ Starting from the requested resource, the service follows, transitively:
   referrer in non-recursive mode), and `IGNORE` leaves a weak link dangling. A hard link cannot
   ignore its target's deletion, so an illegal `IGNORE` on a hard link is downgraded to
   `REMOVE_LINK`, with a warning. Links never outlive their definition: deleting an
-  `iap:LinkDefinition` removes the links of that type, regardless of policy.
+  `link:Definition` removes the links of that type, regardless of policy.
 
 The analysis is cycle-safe — mutually referencing resources, like a completed backlink pair whose
 definitions both cascade, resolve in one bounded pass — and the set of deleted subtrees is kept

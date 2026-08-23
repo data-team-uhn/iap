@@ -65,7 +65,7 @@ class LinkableTest
     @Test
     void anyContentIsViewableAsLinkable()
     {
-        // The iap:Linkable mixin is a declaration aid, not an adaptation gate: any content adapts
+        // The link:Linkable mixin is a declaration aid, not an adaptation gate: any content adapts
         final Resource plain = this.context.create().resource("/Things/plain");
         assertNotNull(plain.adaptTo(Linkable.class));
         assertNotNull(this.destination.as(Linkable.class));

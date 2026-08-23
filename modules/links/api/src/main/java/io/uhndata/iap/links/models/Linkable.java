@@ -33,12 +33,12 @@ import io.uhndata.iap.links.internal.LinkOperations;
  * The links-aware view of a piece of content, and the entry point for working with its links: view any content
  * model as this one, {@code content.as(Linkable.class)}, then list, add, or remove links. Writes are made in
  * memory through the resolver this model was read with and are the caller's to commit, with two exceptions:
- * creating a missing {@code iap:links} container is committed immediately through the links service user (it may
+ * creating a missing {@code link:links} container is committed immediately through the links service user (it may
  * require checking out a versionable resource the caller cannot), and the automatic backlink completion commits
  * its own work.
  *
  * <p>
- * The view adapts any content; the {@code iap:Linkable} mixin only exists so that node types (or individual
+ * The view adapts any content; the {@code link:Linkable} mixin only exists so that node types (or individual
  * nodes) can declare the links container once instead of re-declaring the child node — content whose type allows
  * the container some other way holds links just as well.
  * </p>

@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Rejected",
   "description": "The reviewers turned this record down.",
   "category": ["lifecycle", "review"],

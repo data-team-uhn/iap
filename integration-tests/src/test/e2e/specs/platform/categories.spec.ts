@@ -69,7 +69,7 @@ test.describe('submission categories', () => {
       inheritable?: boolean;
       targetResourceTypes?: string[];
     };
-    expect(definition['jcr:primaryType']).toBe('iap:TagDefinition');
+    expect(definition['jcr:primaryType']).toBe('tag:Definition');
     expect(definition.inheritable).toBe(true);
     expect(definition.targetResourceTypes).toContain('cat/Category');
   });

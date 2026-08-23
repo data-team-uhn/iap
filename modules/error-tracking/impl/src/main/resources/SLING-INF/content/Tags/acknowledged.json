@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Acknowledged",
   "description": "Somebody has looked at this error and decided what to do about it. Acknowledged errors are still kept and still listed — nothing here is ever deleted — but they no longer make the instance report itself as unhealthy. Should the error happen again, it goes back to needing attention on its own.",
   "category": ["error-triage"],

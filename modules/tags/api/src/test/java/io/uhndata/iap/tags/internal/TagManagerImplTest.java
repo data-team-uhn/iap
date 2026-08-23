@@ -85,31 +85,31 @@ class TagManagerImplTest
     {
         this.context.addModelsForClasses(Content.class, TagDefinition.class, Taggable.class);
         this.context.create().resource("/Tags",
-            TYPE_PROPERTY, "iap/TagsHomepage");
+            TYPE_PROPERTY, "tag/Homepage");
         this.context.create().resource("/Tags/draft", Map.of(
-            TYPE_PROPERTY, "iap/TagDefinition",
+            TYPE_PROPERTY, "tag/Definition",
             "label", "Draft",
             "description", "Work in progress",
             "category", new String[] { "lifecycle" },
             "order", 1L));
         this.context.create().resource("/Tags/submitted", Map.of(
-            TYPE_PROPERTY, "iap/TagDefinition",
+            TYPE_PROPERTY, "tag/Definition",
             "category", new String[] { "lifecycle" },
             "system", true,
             "order", 2L));
         this.context.create().resource("/Tags/incomplete", Map.of(
-            TYPE_PROPERTY, "iap/TagDefinition",
+            TYPE_PROPERTY, "tag/Definition",
             "category", new String[] { "validation" },
             "aggregated", true,
             "order", 3L));
         this.context.create().resource("/Tags/sensitive", Map.of(
-            TYPE_PROPERTY, "iap/TagDefinition",
+            TYPE_PROPERTY, "tag/Definition",
             "category", new String[] { "privacy" },
             "inheritable", true,
             "targetResourceTypes", new String[] { "data/Entity" },
             "order", 4L));
         this.context.create().resource("/Tags/patientSurvey", Map.of(
-            TYPE_PROPERTY, "iap/TagDefinition",
+            TYPE_PROPERTY, "tag/Definition",
             "name", "PATIENT SURVEY"));
         // An extensibility child of another type, not a tag definition
         this.context.create().resource("/Tags/config",
@@ -417,7 +417,7 @@ class TagManagerImplTest
         assertNull(this.tagManager.getDefinition("added"));
 
         this.context.create().resource("/Tags/added", Map.of(
-            TYPE_PROPERTY, "iap/TagDefinition",
+            TYPE_PROPERTY, "tag/Definition",
             "label", "Added"));
         // The definitions are cached until something under /Tags changes
         assertNull(this.tagManager.getDefinition("added"));

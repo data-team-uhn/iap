@@ -3,13 +3,13 @@
 Some relations between content are part of a node type's own shape — a submission's
 `schemaVersion`, an answer's `question` — and those stay direct REFERENCE properties. Everything
 else, the ad-hoc "this is related to that" connections, goes through the **links module**
-(`modules/links`): typed, optionally labeled connections kept in an `iap:links` child
+(`modules/links`): typed, optionally labeled connections kept in an `link:links` child
 container on the source. A link points either at other content inside the repository, or at
 something outside it — an identifier in an external system, recorded as a plain value.
 
 ## Link types
 
-Every usable link type must first be *defined* as an `iap:LinkDefinition` node under
+Every usable link type must first be *defined* as an `link:Definition` node under
 **`/LinkTypes`**. The definition is the single source of truth for what the connection means and
 how it behaves:
 
@@ -56,7 +56,7 @@ resolver.commit();
 ```
 
 Writes are made in memory through the resolver the model was read with and are **the caller's to
-commit**, with two exceptions: creating a missing `iap:links` container is committed immediately
+commit**, with two exceptions: creating a missing `link:links` container is committed immediately
 through the `iap-links` service user (it may require checking out a versionable resource the
 caller cannot), and automatic backlink completion commits its own work. Identical links are
 deduplicated: adding the same (type, target, label) again returns the existing link.
@@ -68,7 +68,7 @@ definition with an access control policy therefore has no effect.
 
 ## Marking content linkable
 
-The **`iap:Linkable` mixin** declares the `iap:links` container once, so a node type opts into
+The **`link:Linkable` mixin** declares the `link:links` container once, so a node type opts into
 holding links by listing the mixin among its supertypes — `data:Entity` does, so every entity is
 linkable — and an individual node by a plain `addMixin`. It is a declaration aid, not a gate:
 content whose type allows the container some other way (e.g. through residual child definitions)

@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Approved",
   "description": "The reviewers accepted this record; it is now authoritative.",
   "category": ["lifecycle", "review"],

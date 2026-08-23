@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Sensitive",
   "description": "Contains sensitive information; everything inside a sensitive record is itself sensitive.",
   "category": ["privacy"],

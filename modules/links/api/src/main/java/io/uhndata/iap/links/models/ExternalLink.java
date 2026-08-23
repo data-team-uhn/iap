@@ -25,7 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping an {@code iap:ExternalLink} node: a link to something outside the repository, recording
+ * A Sling Model wrapping an {@code link:ExternalLink} node: a link to something outside the repository, recording
  * the target as a value — e.g. this resource's identifier in an external system.
  *
  * @version $Id$
@@ -35,8 +35,8 @@ import org.jetbrains.annotations.Nullable;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class ExternalLink extends Link
 {
-    /** The {@code sling:resourceType} of an {@code iap:ExternalLink} node. */
-    public static final String RESOURCE_TYPE = "iap/ExternalLink";
+    /** The {@code sling:resourceType} of an {@code link:ExternalLink} node. */
+    public static final String RESOURCE_TYPE = "link/ExternalLink";
 
     /** The name of the property holding the recorded value. */
     public static final String VALUE_PROPERTY = "value";

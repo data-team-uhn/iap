@@ -215,7 +215,7 @@ workflow into version storage, and *restoring an earlier revision rolls the work
 editor reverting a typo would quietly un-approve a proposal. Verified against Oak both ways: with the
 default, a restore rewound the token to where it had been at check-in; with `IGNORE`, the submission
 reverted and the workflow carried on untouched. The same reasoning is why `data:Entity` declares its
-`iap:links` child `IGNORE`.
+`link:links` child `IGNORE`.
 
 Three consequences of co-locating worth knowing:
 

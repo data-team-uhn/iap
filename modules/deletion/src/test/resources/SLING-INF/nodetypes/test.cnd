@@ -15,10 +15,10 @@
 // limitations under the License.
 
 <test = 'https://iap.uhndata.io/test/'>
-<iap = 'https://iap.uhndata.io/'>
+<link = 'https://iap.uhndata.io/link/'>
 
 // Replicates the shape of a versionable entity: the links container and
 // everything under it stay out of the version history, so links can be
 // added and removed without checking their holder out.
 [test:Entity] > nt:unstructured, mix:referenceable, mix:versionable
-  + iap:links (iap:Links) = iap:Links IGNORE
+  + link:links (link:Links) = link:Links IGNORE

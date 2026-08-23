@@ -32,7 +32,7 @@ import io.uhndata.iap.tags.api.TagManager;
  * Answers the three node type questions the tag propagation needs, against the node type registry materialized at
  * {@code /jcr:system/jcr:nodeTypes}: whether a node may store the tag properties at all, whether it is the
  * {@code data:Entity} that bounds an {@link io.uhndata.iap.tags.spi.TagProcessor.Scope#ENTITY} computation, and
- * whether it is the {@code iap:TagBoundary} that aggregated tags travel up to and no further. Verdicts are cached
+ * whether it is the {@code tag:Boundary} that aggregated tags travel up to and no further. Verdicts are cached
  * per type name, so one instance must not outlive the commit it was created for.
  *
  * @version $Id$
@@ -73,7 +73,7 @@ public final class NodeTypeInspector
 
     /**
      * Checks whether tag properties may be stored on the given node: one of the node's primary or mixin types, or one
-     * of their supertypes, must declare the tag properties by name, which is what {@code iap:Taggable} does and what
+     * of their supertypes, must declare the tag properties by name, which is what {@code tag:Taggable} does and what
      * every {@code data:Content} node inherits.
      *
      * <p>
@@ -94,7 +94,7 @@ public final class NodeTypeInspector
 
     /**
      * Checks whether the given node is where aggregated tags stop, i.e. whether it carries the
-     * {@code iap:TagBoundary} mixin, either directly or through one of its types' supertypes as
+     * {@code tag:Boundary} mixin, either directly or through one of its types' supertypes as
      * {@code data:EntityHomepage} does.
      *
      * @param node the node to check

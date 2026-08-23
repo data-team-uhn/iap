@@ -42,7 +42,7 @@ import io.uhndata.iap.tags.spi.TagProcessor;
  * <p>
  * The chain is what carries a tag up, so it is also where the climb has to end: aggregating over
  * {@link TagContext#getAggregationSources() the children that may contribute} rather than over all of them is what
- * makes an {@code iap:TagBoundary} opaque from above. Reading a boundary child's own chain link would carry its
+ * makes an {@code tag:Boundary} opaque from above. Reading a boundary child's own chain link would carry its
  * content's tags straight past it.
  * </p>
  *

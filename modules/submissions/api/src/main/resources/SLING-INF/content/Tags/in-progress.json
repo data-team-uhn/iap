@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "In progress",
   "description": "This review was started and has no decision yet.",
   "category": ["review"],

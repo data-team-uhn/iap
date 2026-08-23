@@ -424,7 +424,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
 
     /**
      * Gathers the aggregated tags belonging to a resource's descendants, visiting the subtree down to the nearest
-     * boundaries. An {@code iap:TagBoundary} container is where aggregation stops, so neither it nor anything inside it
+     * boundaries. An {@code tag:Boundary} container is where aggregation stops, so neither it nor anything inside it
      * contributes here — the same rule the stored {@code aggregatedTags} are built by, and this has to agree with them
      * or the two ways of asking the same question give different answers.
      *

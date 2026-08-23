@@ -137,8 +137,8 @@ class AutocreateBacklinksListenerTest
         final Resource things = committer.create(root, "Things", Map.of());
         final Resource thingA = committer.create(things, "a", Map.of(UUID_PROPERTY, THING_A_ID));
         final Resource thingB = committer.create(things, "b", Map.of(UUID_PROPERTY, THING_B_ID));
-        final Resource containerA = committer.create(thingA, CONTAINER, Map.of("jcr:primaryType", "iap:Links"));
-        committer.create(thingB, CONTAINER, Map.of("jcr:primaryType", "iap:Links"));
+        final Resource containerA = committer.create(thingA, CONTAINER, Map.of("jcr:primaryType", "link:Links"));
+        committer.create(thingB, CONTAINER, Map.of("jcr:primaryType", "link:Links"));
         committer.create(containerA, "l1", Map.of(
             SLING_RESOURCE_TYPE, InternalLink.RESOURCE_TYPE,
             "type", REFERENCES_ID,

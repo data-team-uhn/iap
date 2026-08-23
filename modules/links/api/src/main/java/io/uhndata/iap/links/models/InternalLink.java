@@ -30,7 +30,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.links.api.LinkManager;
 
 /**
- * A Sling Model wrapping an {@code iap:Link} or {@code iap:WeakLink} node: a link referencing other content inside
+ * A Sling Model wrapping an {@code link:Link} or {@code link:WeakLink} node: a link referencing other content inside
  * the repository, as opposed to an {@link ExternalLink} recording a correspondence to something outside it.
  *
  * @version $Id$
@@ -40,11 +40,11 @@ import io.uhndata.iap.links.api.LinkManager;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class InternalLink extends Link
 {
-    /** The {@code sling:resourceType} of an {@code iap:Link} node. */
-    public static final String RESOURCE_TYPE = "iap/Link";
+    /** The {@code sling:resourceType} of an {@code link:Link} node. */
+    public static final String RESOURCE_TYPE = "link/Link";
 
-    /** The {@code sling:resourceType} of an {@code iap:WeakLink} node. */
-    public static final String WEAK_RESOURCE_TYPE = "iap/WeakLink";
+    /** The {@code sling:resourceType} of an {@code link:WeakLink} node. */
+    public static final String WEAK_RESOURCE_TYPE = "link/WeakLink";
 
     /** The name of the property referencing the linked resource. */
     public static final String REFERENCE_PROPERTY = "reference";
@@ -68,7 +68,7 @@ public class InternalLink extends Link
      * Whether this is a weak link, which may break when the linked resource is deleted, instead of a hard one,
      * which prevents that deletion.
      *
-     * @return {@code true} for an {@code iap:WeakLink} node
+     * @return {@code true} for an {@code link:WeakLink} node
      */
     public boolean isWeak()
     {

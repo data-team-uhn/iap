@@ -40,7 +40,7 @@ class TagDefinitionsSnapshotTest
 {
     private static final String TYPE_PROPERTY = "sling:resourceType";
 
-    private static final String DEFINITION_TYPE = "iap/TagDefinition";
+    private static final String DEFINITION_TYPE = "tag/Definition";
 
     @Test
     void readsDefinitionsByResourceType()
@@ -68,7 +68,7 @@ class TagDefinitionsSnapshotTest
     void readsDefinitionsByPrimaryType()
     {
         final NodeBuilder homepage = EmptyNodeState.EMPTY_NODE.builder();
-        homepage.child("draft").setProperty("jcr:primaryType", "iap:TagDefinition", Type.NAME);
+        homepage.child("draft").setProperty("jcr:primaryType", "tag:Definition", Type.NAME);
 
         assertTrue(new TagDefinitionsSnapshot(homepage.getNodeState()).isDefined("draft"));
     }

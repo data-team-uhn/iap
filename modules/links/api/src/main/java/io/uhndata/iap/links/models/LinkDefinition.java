@@ -36,7 +36,7 @@ import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code iap:LinkDefinition} node: the definition of a type of link, stored under
+ * A Sling Model wrapping an {@code link:Definition} node: the definition of a type of link, stored under
  * {@code /LinkTypes}. The definition is the single source of truth for what a connection means, what it may
  * connect, and how it behaves, and each one documents itself as an entry of the catalogue served at
  * {@code /LinkTypes.doc.json} and {@code /LinkTypes.doc.md}.
@@ -48,8 +48,8 @@ import io.uhndata.iap.content.models.Content;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class LinkDefinition extends Content implements DocumentedItem
 {
-    /** The {@code sling:resourceType} of an {@code iap:LinkDefinition} node. */
-    public static final String RESOURCE_TYPE = "iap/LinkDefinition";
+    /** The {@code sling:resourceType} of an {@code link:Definition} node. */
+    public static final String RESOURCE_TYPE = "link/Definition";
 
     /**
      * What to do with the linking resource when the linked resource is deleted. Enforced by the deletion
