@@ -188,11 +188,54 @@ SMTP settings come from the module's feature configuration —
 `.checkserveridentity`, `.from` — with the password decrypted through Sling's crypto
 service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD` environment variable.
 
+### Reading mail a development instance would have sent
+
+A development, test or demo instance has no mail server, and pointing one at a real relay to see what
+the platform writes is both awkward and a way to mail real people by accident. So those distributions
+carry an **email catcher**: a `MailService` that files each message under `/CaughtMail` instead of
+delivering it.
+
+Nothing is configured to use it and nothing has to be. It registers at `service.ranking=1000`, above
+Sling's own mail service, so every `@Reference MailService` — the test endpoint, `EmailUtils`, anything
+added later — is handed the catcher without knowing it. The real service still starts and stays
+reachable for anything that deliberately asks for it.
+
+`GET /CaughtMail.messages.json` answers with what has been caught, newest first:
+
+```json
+{
+  "total": 1,
+  "messages": [
+    {
+      "path": "/CaughtMail/6f3a…",
+      "caughtAt": "2026-08-23T11:04:17+00:00",
+      "subject": "Your request was approved",
+      "from": [ "IAP <noreply@example.com>" ],
+      "to": [ "Priya <priya@example.com>" ],
+      "cc": [], "bcc": [], "replyTo": [],
+      "headers": [ "X-Reason: a reminder" ],
+      "textBody": "…", "htmlBody": "…"
+    }
+  ]
+}
+```
+
+Addresses are kept as they were written, display names and all, and `to`, `cc` and `bcc` stay apart —
+whether an address was visible to the others is usually the point of looking. Attachments are not
+stored: what they were is in the headers, and their bytes are not what anybody reads a caught message
+to check.
+
+**It cannot reach production, and not because anything checks.** The feature lives in the `dev` group,
+which only the `test_tar` and `demo_tar` aggregates include; the three production aggregates take
+`core` and nothing else, so a deployable distribution contains no bundle registering it. A bundle
+cannot tell what it was deployed into, so composition is the only place that safeguard can live.
+
 ## Future work
 
-- **Nothing produces messages yet** beyond the status report, and nothing sends an email
-  yet. Both are wiring, and the workflow engine is the natural place for it: an email
-  belongs to a submission changing state.
+- **Nothing produces messages yet** beyond the status report, and nothing sends an email yet.
+  Both are wiring, and the workflow engine is the natural place for it: an email belongs to
+  a submission changing state. The catcher above is what makes that testable — a workflow
+  that mails somebody can be asserted on without a mail server.
 - **Filling a template in from a submission.** The engine can already reach into whatever
   a caller passes, so what is left is deciding what a caller *should* pass — the
   submission, its answers, the actor, the workflow instance — and that is best designed
