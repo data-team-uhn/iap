@@ -41,7 +41,7 @@
             <Sling-Nodetypes>SLING-INF/nodetypes/content.cnd</Sling-Nodetypes>
             <Sling-Model-Packages>io.uhndata.iap.content.models</Sling-Model-Packages>
             <Sling-Initial-Content>
-              SLING-INF/content/libs/iap/Content/;path:=/libs/iap/Content/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/data/Content/;path:=/libs/data/Content/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

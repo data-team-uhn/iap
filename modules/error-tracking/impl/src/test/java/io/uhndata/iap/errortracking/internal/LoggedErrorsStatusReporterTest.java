@@ -112,7 +112,7 @@ class LoggedErrorsStatusReporterTest
     void reportsAContainerOfTheWrongTypeTheSameWay() throws PersistenceException
     {
         this.context.resourceResolver().delete(this.context.resourceResolver().getResource("/LoggedErrors"));
-        this.context.create().resource("/LoggedErrors", "sling:resourceType", "iap/Content");
+        this.context.create().resource("/LoggedErrors", "sling:resourceType", "data/Content");
 
         assertEquals("*ERROR*: Errors cannot be logged", this.reporter.report(false).getName());
     }

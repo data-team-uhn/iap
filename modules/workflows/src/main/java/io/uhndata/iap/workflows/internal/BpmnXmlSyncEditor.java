@@ -50,7 +50,7 @@ import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
  * </p>
  *
  * <p>
- * {@code wf:WorkflowVersion} extends {@code iap:Entity}, which is {@code mix:versionable}, and neither the
+ * {@code wf:WorkflowVersion} extends {@code data:Entity}, which is {@code mix:versionable}, and neither the
  * {@code bpmn.xml} nor the {@code wf:FlowNode} child item definitions override the default on-parent-version
  * behavior in {@code workflowDefinitions.cnd}. Oak's version enforcement runs as its own commit hook, ahead of the
  * hook this editor is composed into, so it has already accepted the {@code bpmn.xml} change by the time this editor

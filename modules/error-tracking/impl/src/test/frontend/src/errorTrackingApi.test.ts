@@ -113,7 +113,7 @@ describe("fetchTriageCounts", () => {
     const urls = fetchMock.mock.calls.map(call => call[0]);
     expect(urls).toHaveLength(2);
     expect(urls.every(url => url.startsWith("/LoggedErrors.paginate.json?"))).toBe(true);
-    // There is deliberately no summary endpoint: the homepage is an iap:EntityHomepage, so the
+    // There is deliberately no summary endpoint: the homepage is an data:EntityHomepage, so the
     // pagination servlet already answers this
     const filtered = urls.find(url => url.includes("fieldName=computedTags"));
     expect(filtered).toContain("fieldValue=unacknowledged");
@@ -218,7 +218,7 @@ describe("fetchLoggedError", () => {
   it("ignores children that are not decisions", async () => {
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, {
       ...failure,
-      somethingElse: { "@name": "somethingElse", "sling:resourceType": "iap/Content" },
+      somethingElse: { "@name": "somethingElse", "sling:resourceType": "data/Content" },
     })));
     expect((await fetchLoggedError(fetchMock, "abc")).decisions).toEqual([]);
   });

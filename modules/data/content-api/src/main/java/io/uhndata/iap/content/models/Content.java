@@ -36,7 +36,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A Sling Model wrapping an {@code iap:Content} node, the base type of all IAP data nodes. It exposes the generic
+ * A Sling Model wrapping an {@code data:Content} node, the base type of all IAP data nodes. It exposes the generic
  * properties shared by all content nodes, hiding the underlying resource/JCR access from its users. Subclasses may
  * go below the model API through the protected {@link #resource} field; nothing outside the model hierarchy can.
  *
@@ -47,8 +47,8 @@ import org.jetbrains.annotations.Nullable;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class Content
 {
-    /** The {@code sling:resourceType} of an {@code iap:Content} node. */
-    public static final String RESOURCE_TYPE = "iap/Content";
+    /** The {@code sling:resourceType} of an {@code data:Content} node. */
+    public static final String RESOURCE_TYPE = "data/Content";
 
     @SlingObject
     protected Resource resource;

@@ -51,7 +51,7 @@ import io.uhndata.iap.utils.PrefixTree;
  * reverse operations, restoring and purging archive entries.
  *
  * <p>
- * Every {@code iap:Entity} is versionable, and JCR refuses to change the children of a checked-in versionable
+ * Every {@code data:Entity} is versionable, and JCR refuses to change the children of a checked-in versionable
  * node, so before every move or removal the closest versionable ancestor is checked out; the ancestors <em>this
  * operation</em> checked out, and only those, are checked back in after saving. Items whose own definition sets
  * the {@code IGNORE} on-parent-version action, like the links container and its links, need no checkout at all.

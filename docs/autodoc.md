@@ -40,7 +40,7 @@ Three pieces, all provided by this module:
 
 3. **Mark the node with the `iap:Documented` mixin**, either by adding it to individual nodes or
    by declaring it as a supertype of the node's primary type
-   (`[iap:TagsHomepage] > iap:Content, ..., iap:Documented`). The mixin is what makes the
+   (`[iap:TagsHomepage] > data:Content, ..., iap:Documented`). The mixin is what makes the
    documentation endpoint respond, and it also offers optional `title` and `description`
    properties, so a deployment can reword a catalogue's heading without touching code.
 

@@ -51,7 +51,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * A servlet that lists, in pages, the entities stored under an entity homepage. It is registered on
- * {@code iap/EntityHomepage} with the {@code paginate} selector, so, through the {@code sling:resourceSuperType}
+ * {@code data/EntityHomepage} with the {@code paginate} selector, so, through the {@code sling:resourceSuperType}
  * chain of the concrete homepage types, it serves e.g. {@code /Submissions.paginate.json} or
  * {@code /Schemas.paginate.json}.
  *
@@ -94,7 +94,7 @@ import org.slf4j.LoggerFactory;
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
-@SlingServletResourceTypes(resourceTypes = { "iap/EntityHomepage" }, methods = { "GET" },
+@SlingServletResourceTypes(resourceTypes = { "data/EntityHomepage" }, methods = { "GET" },
     selectors = { "paginate" }, extensions = { "json" })
 public class PaginationServlet extends SlingJakartaSafeMethodsServlet
 {

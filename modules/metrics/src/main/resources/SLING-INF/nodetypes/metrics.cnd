@@ -16,11 +16,12 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <oak = 'http://jackrabbit.apache.org/oak/ns/1.0'>
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /Metrics root path.
-[iap:MetricsHomepage] > iap:Content, rep:AccessControllable
+[iap:MetricsHomepage] > data:Content, rep:AccessControllable
   - sling:resourceType (STRING) = "iap/MetricsHomepage" mandatory autocreated protected
 
   // Allow any other properties for extensibility
@@ -48,7 +49,7 @@
 // true, which turns addMixin() into a no-op, so nothing can ever write the
 // property. The counter would silently never count. The mixin has to be listed
 // in jcr:mixinTypes when the node is created, which is what MetricsManager does.
-[iap:Metric] > iap:Content
+[iap:Metric] > data:Content
   - sling:resourceType (STRING) = "iap/Metric" mandatory autocreated protected
 
   // Human-readable name for this metric

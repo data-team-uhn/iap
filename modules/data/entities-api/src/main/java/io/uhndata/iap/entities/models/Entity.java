@@ -29,8 +29,8 @@ import org.jetbrains.annotations.Nullable;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code iap:Entity} node, a first-class, standalone, versionable data entity. On top of
- * the generic {@code iap:Content} properties, it exposes the stable identifier and versioning metadata specific to
+ * A Sling Model wrapping an {@code data:Entity} node, a first-class, standalone, versionable data entity. On top of
+ * the generic {@code data:Content} properties, it exposes the stable identifier and versioning metadata specific to
  * entities.
  *
  * @version $Id$
@@ -40,8 +40,8 @@ import io.uhndata.iap.content.models.Content;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class Entity extends Content
 {
-    /** The {@code sling:resourceType} of an {@code iap:Entity} node. */
-    public static final String RESOURCE_TYPE = "iap/Entity";
+    /** The {@code sling:resourceType} of an {@code data:Entity} node. */
+    public static final String RESOURCE_TYPE = "data/Entity";
 
     @ValueMapValue(name = "jcr:uuid")
     private String identifier;

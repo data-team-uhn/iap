@@ -19,6 +19,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 
 //-----------------------------------------------------------------------------
@@ -31,9 +32,9 @@
 // Homepage node for the /WorkflowTypes root path.
 // Documented: the catalogue served at /WorkflowTypes.doc.json is what populates
 // the toolbars of the visual BPMN editor, so it is a UI contract, not just prose.
-[wf:WorkflowTypesHomepage] > iap:EntityHomepage, iap:Documented
+[wf:WorkflowTypesHomepage] > data:EntityHomepage, iap:Documented
   - sling:resourceType (STRING) = "wf/WorkflowTypesHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
   // The listed entities are flow node types, not following the naming convention
   // that would derive wf:WorkflowType from the resource type.
@@ -64,7 +65,7 @@
 
 //-----------------------------------------------------------------------------
 // A particular type of workflow node.
-[wf:FlowNodeType] > iap:Entity, mix:referenceable
+[wf:FlowNodeType] > data:Entity, mix:referenceable
   query
   abstract
 

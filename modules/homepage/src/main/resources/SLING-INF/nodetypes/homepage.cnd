@@ -34,6 +34,6 @@
   // Hardcode the resource type
   - sling:resourceType (STRING) = "iap/Homepage" mandatory autocreated protected
   // Hardcode the resource supertype: the Homepage is a resource
-  - sling:resourceSuperType (STRING) = "iap/Entity" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
   // Set a default title
   - title (String) = "${platform.name}" mandatory autocreated

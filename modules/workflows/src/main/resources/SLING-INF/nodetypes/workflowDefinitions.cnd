@@ -19,6 +19,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 
 //-----------------------------------------------------------------------------
@@ -29,9 +30,9 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /Workflows root path.
-[wf:WorkflowsHomepage] > iap:EntityHomepage
+[wf:WorkflowsHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "wf/WorkflowsHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
   // The listed entities are workflow definitions, not following the naming convention
   // that would derive wf:Workflow from the resource type.
@@ -55,9 +56,9 @@
 // audiences get separate ACLs wholesale, and user-facing listings need no
 // filtering. The engine reads this tree through its service user, so ordinary
 // users need no access to it at all.
-[wf:SystemWorkflowsHomepage] > iap:EntityHomepage
+[wf:SystemWorkflowsHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "wf/SystemWorkflowsHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
   // The listed entities are ordinary workflow definitions; only their location
   // makes them system workflows.
@@ -81,7 +82,7 @@
 
 //-----------------------------------------------------------------------------
 // The top-level template describing a workflow process.
-[wf:WorkflowDefinition] > iap:Entity, iap:TagBoundary
+[wf:WorkflowDefinition] > data:Entity, iap:TagBoundary
   - sling:resourceType (STRING) = "wf/WorkflowDefinition" mandatory autocreated protected
 
   // Human-readable name for this workflow
@@ -102,7 +103,7 @@
 
 //-----------------------------------------------------------------------------
 // A particular version of a workflow process.
-[wf:WorkflowVersion] > iap:Entity, iap:TagBoundary
+[wf:WorkflowVersion] > data:Entity, iap:TagBoundary
   - sling:resourceType (STRING) = "wf/WorkflowVersion" mandatory autocreated protected
 
   // Optional description of what this workflow does
@@ -144,7 +145,7 @@
 
 //-----------------------------------------------------------------------------
 // Abstract base for all BPMN flow objects (events, activities, gateways).
-[wf:FlowNode] > iap:EntityPart
+[wf:FlowNode] > data:EntityPart
   abstract
 
   // Hardcode the supertype to the parent wf/FlowNode type.
@@ -372,7 +373,7 @@
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
 // Stored as a child node of the source flow node.
-[wf:SequenceFlow] > iap:EntityPart
+[wf:SequenceFlow] > data:EntityPart
   - sling:resourceType (STRING) = "wf/SequenceFlow" mandatory autocreated protected
 
   // Stable BPMN element identifier

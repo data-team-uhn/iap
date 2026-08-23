@@ -86,7 +86,7 @@ class TagsHomepageTest
             "sling:resourceType", "iap/TagDefinition");
         // Extensibility children of other types are not tag definitions
         this.context.create().resource("/Tags/config",
-            "sling:resourceType", "iap/Content");
+            "sling:resourceType", "data/Content");
 
         final List<TagDefinition> definitions = resource.adaptTo(TagsHomepage.class).getDefinitions();
 

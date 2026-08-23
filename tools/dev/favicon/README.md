@@ -69,7 +69,7 @@ are declared:
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 ```
 
-Those live in `libs/iap/Content/header.html` (the app shell) and the 404 error page. Without them only
+Those live in `libs/data/Content/header.html` (the app shell) and the 404 error page. Without them only
 `/favicon.ico` is found, since that is the sole path browsers probe by convention. `/favicon.svg` also needs
 an entry in `sling.auth.requirements`
 ([`sling-configuration.json`](../../../packaging/slingfeature/src/main/features/core/sling-configuration.json))

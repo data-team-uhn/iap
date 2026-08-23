@@ -3,7 +3,7 @@
   "SampleEntity": {
     "jcr:primaryType": "iap:TestEntity",
     "title": "Sample entity",
-    "description": "A minimal concrete iap:Entity, only meant for testing.",
+    "description": "A minimal concrete data:Entity, only meant for testing.",
     "customProperty": "An undeclared property, not part of iap:TestEntity's own schema",
     "customTags": [ "alpha", "beta" ],
     "tags": ["draft"]

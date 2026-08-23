@@ -17,6 +17,7 @@
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <rep = 'internal'>
 <iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 
 //-----------------------------------------------------------------------------
 //
@@ -29,9 +30,9 @@
 // invisible to regular users is the job of access control, not of broken
 // references.
 //
-// The archive types deliberately do NOT extend iap:Content: archive entries
+// The archive types deliberately do NOT extend data:Content: archive entries
 // are bookkeeping, not content, so they must not acquire tags, links, or the
-// iap/Content resource supertype (which would hand them to the content
+// data/Content resource supertype (which would hand them to the content
 // deletion endpoint itself).
 //
 //-----------------------------------------------------------------------------

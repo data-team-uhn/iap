@@ -226,8 +226,8 @@ navigates somewhere real and fetches from somewhere that is not.
 
 `/Archive` and each entry are real nodes, which is what lets those views be opened directly as well
 as navigated to: `html.GET.html` includes the shell's own script and `null.GET.html` re-dispatches
-the extensionless URL to it, the same pair `iap:Content` declares for its subtypes, declared on both
-`iap/Archive` and `iap/ArchiveEntry`. The archive types deliberately do not extend `iap:Content`, so
+the extensionless URL to it, the same pair `data:Content` declares for its subtypes, declared on both
+`iap/Archive` and `iap/ArchiveEntry`. The archive types deliberately do not extend `data:Content`, so
 they also carry one-line `header.html` and `footer.html` borrowing the shared chrome by path. Nothing about the page is bespoke — the shell
 decides what a page looks like, and the resource's readability decides who may open it.
 
@@ -275,7 +275,7 @@ failures (repository errors, missing service user).
 
 Every endpoint addressing an entry also accepts the short form, e.g. `POST /Archive/<uuid>.restore.json`.
 
-The deletion endpoint is bound to the `iap/Content` resource type, i.e. every content resource;
+The deletion endpoint is bound to the `data/Content` resource type, i.e. every content resource;
 the archive endpoints are bound to `iap/ArchiveEntry`, and are implicitly restricted to users who
 can see the archive — everyone else gets a plain 404 from resource resolution. All responses are
 JSON carrying `status.code`, a machine-readable `status` word, and `status.message` when there is

@@ -58,7 +58,7 @@ class EntityPartTest
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/content/part",
-            "sling:resourceType", "iap/EntityPart");
+            "sling:resourceType", "data/EntityPart");
         assertNotNull(resource.adaptTo(EntityPart.class));
     }
 
@@ -66,14 +66,14 @@ class EntityPartTest
     void inheritsContentProperties()
     {
         final Resource resource = this.context.create().resource("/content/part", Map.of(
-            "sling:resourceType", "iap/EntityPart",
+            "sling:resourceType", "data/EntityPart",
             "jcr:created", this.created,
             "jcr:createdBy", "alice"));
         final EntityPart part = resource.adaptTo(EntityPart.class);
 
         assertEquals("/content/part", part.getPath());
         assertEquals("part", part.getName());
-        assertEquals("iap/EntityPart", part.getType());
+        assertEquals("data/EntityPart", part.getType());
         assertEquals(this.created, part.getCreated());
         assertEquals("alice", part.getCreatedBy());
     }
@@ -84,11 +84,11 @@ class EntityPartTest
         // A node of a derived type can also be wrapped by the parent Content model, letting callers work
         // with any resource through the base model when they only need the generic content properties.
         final Resource resource = this.context.create().resource("/content/part",
-            "sling:resourceType", "iap/EntityPart");
+            "sling:resourceType", "data/EntityPart");
         final Content content = resource.adaptTo(Content.class);
 
         assertNotNull(content);
         assertEquals(Content.class, content.getClass());
-        assertEquals("iap/EntityPart", content.getType());
+        assertEquals("data/EntityPart", content.getType());
     }
 }

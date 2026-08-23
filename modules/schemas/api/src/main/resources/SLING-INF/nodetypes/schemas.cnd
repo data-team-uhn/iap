@@ -16,6 +16,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <cond = 'https://iap.uhndata.io/cond/'>
 <sch = 'https://iap.uhndata.io/sch/'>
 
@@ -33,9 +34,9 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /Schemas root path.
-[sch:SchemasHomepage] > iap:EntityHomepage
+[sch:SchemasHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "sch/SchemasHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -50,7 +51,7 @@
 //-----------------------------------------------------------------------------
 // A named institutional schema. This is only a container identifying the
 // schema; the actual requirements live in its versions.
-[sch:Schema] > iap:Entity, iap:TagBoundary
+[sch:Schema] > data:Entity, iap:TagBoundary
   - sling:resourceType (STRING) = "sch/Schema" mandatory autocreated protected
 
   // Human-readable name for this schema
@@ -72,7 +73,7 @@
 //-----------------------------------------------------------------------------
 // A particular version of a schema; holds the requirements a submission
 // must fulfill. Submissions reference a specific version.
-[sch:SchemaVersion] > iap:Entity, iap:TagBoundary
+[sch:SchemaVersion] > data:Entity, iap:TagBoundary
   // The list of requirements is orderable, so they can be presented to the
   // submitter and reviewer in a deliberate sequence.
   orderable
@@ -111,7 +112,7 @@
 // "the items" of a section or form without caring whether each one is a
 // question or a subsection. Conditionable, so every item may carry a single
 // condition controlling whether it is shown to the submitter.
-[sch:FormItem] > iap:EntityPart, cond:Conditionable
+[sch:FormItem] > data:EntityPart, cond:Conditionable
   abstract
 
   // Hardcode the supertype to the parent sch/FormItem type.
@@ -177,7 +178,7 @@
 // documents, reviews) can point back at the requirement they fulfill.
 // Conditionable, so every requirement may carry a single condition
 // controlling whether it applies to a submission.
-[sch:Requirement] > iap:EntityPart, mix:referenceable, cond:Conditionable
+[sch:Requirement] > data:EntityPart, mix:referenceable, cond:Conditionable
   // This is an abstract node type, specific requirement types must be defined.
   abstract
 

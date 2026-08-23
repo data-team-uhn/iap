@@ -46,7 +46,7 @@ class TagsOperandResolverTest
 {
     private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
 
-    private static final String ENTITY_TYPE = "iap/Entity";
+    private static final String ENTITY_TYPE = "data/Entity";
 
     private final SlingContext context = new SlingContext();
 

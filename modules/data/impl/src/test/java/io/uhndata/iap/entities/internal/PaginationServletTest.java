@@ -372,7 +372,7 @@ public class PaginationServletTest
     @Test
     public void explicitChildNodeTypeOverridesTheNamingConvention() throws Exception
     {
-        mockHomepage("iap/EntityHomepage", "iap:TestEntity");
+        mockHomepage("data/EntityHomepage", "iap:TestEntity");
         final ArgumentCaptor<String> statement = mockResults();
         this.servlet.doGet(this.request, this.response);
         Assertions.assertTrue(statement.getValue().startsWith("select n.* from [iap:TestEntity] as n"));

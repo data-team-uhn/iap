@@ -22,7 +22,7 @@
       "start-order":"20"
     },
     {
-      // Must start no earlier than the bundles whose node types it builds on: iap:Content (21), iap:EntityHomepage
+      // Must start no earlier than the bundles whose node types it builds on: data:Content (21), data:EntityHomepage
       // (24) and the tags whose definitions it ships (24)
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"25"

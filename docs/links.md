@@ -69,7 +69,7 @@ definition with an access control policy therefore has no effect.
 ## Marking content linkable
 
 The **`iap:Linkable` mixin** declares the `iap:links` container once, so a node type opts into
-holding links by listing the mixin among its supertypes — `iap:Entity` does, so every entity is
+holding links by listing the mixin among its supertypes — `data:Entity` does, so every entity is
 linkable — and an individual node by a plain `addMixin`. It is a declaration aid, not a gate:
 content whose type allows the container some other way (e.g. through residual child definitions)
 holds links just as well, and the `Linkable` *model* adapts any content regardless. Only a strict

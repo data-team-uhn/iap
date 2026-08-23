@@ -111,7 +111,7 @@ public class TagPropagationEditor extends DefaultEditor
     private final boolean added;
 
     /**
-     * The editor of the nearest {@code iap:Entity} ancestor, this editor itself when its own node is one, and
+     * The editor of the nearest {@code data:Entity} ancestor, this editor itself when its own node is one, and
      * {@code null} outside any entity or when no processor needs an entity at all.
      */
     private final TagPropagationEditor entity;

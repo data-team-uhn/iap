@@ -179,7 +179,7 @@ const errorPath = (name: string): string => `${LOGGED_ERRORS_PATH}/${name}`;
  * Both come from the pagination servlet the errors' homepage already answers, asked for a single row
  * each: the count wanted is `totalrows`, and asking for no rows at all would still pay for the query
  * without proving it works. There is deliberately no dedicated summary endpoint — the homepage is an
- * iap:EntityHomepage, so this needs no server-side code at all.
+ * data:EntityHomepage, so this needs no server-side code at all.
  */
 export async function fetchTriageCounts(fetchUtil: AuthenticatedFetch): Promise<TriageCounts> {
   const [ needing, all ] = await Promise.all([

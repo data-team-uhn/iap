@@ -89,7 +89,7 @@ class LoggedErrorsTest
     void skipsChildrenThatAreNotRecordedErrors()
     {
         thrown("real", 1, 1000);
-        this.context.create().resource("/LoggedErrors/config", "sling:resourceType", "iap/Content");
+        this.context.create().resource("/LoggedErrors/config", "sling:resourceType", "data/Content");
 
         assertEquals(1, this.home.getErrors().size());
     }

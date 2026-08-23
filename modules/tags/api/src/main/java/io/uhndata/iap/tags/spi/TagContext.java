@@ -67,7 +67,7 @@ public interface TagContext
     String getPath();
 
     /**
-     * The state of the {@code iap:Entity} node enclosing the processed node, the recomputation unit of an
+     * The state of the {@code data:Entity} node enclosing the processed node, the recomputation unit of an
      * {@link TagProcessor.Scope#ENTITY} processor. The processed node itself is the scope root when it is the entity.
      *
      * @return a node state, {@code null} for a {@link TagProcessor.Scope#NODE} processor, and for an

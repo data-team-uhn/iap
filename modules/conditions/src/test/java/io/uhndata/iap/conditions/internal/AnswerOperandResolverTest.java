@@ -53,7 +53,7 @@ class AnswerOperandResolverTest
 {
     private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
 
-    private static final String ENTITY_TYPE = "iap/Entity";
+    private static final String ENTITY_TYPE = "data/Entity";
 
     private static final String QUESTION_ID = "11111111-2222-3333-4444-555555555555";
 

@@ -24,14 +24,14 @@ import org.apache.sling.models.annotations.Model;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code iap:EntityPart} node, a sub-piece of a standalone {@code iap:Entity} (e.g. a
+ * A Sling Model wrapping an {@code data:EntityPart} node, a sub-piece of a standalone {@code data:Entity} (e.g. a
  * question, an answer). Parts are versioned together with their owning entity, so, unlike {@link Entity}, this
- * exposes no properties beyond the generic {@code iap:Content} ones.
+ * exposes no properties beyond the generic {@code data:Content} ones.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = "iap/EntityPart",
+@Model(adaptables = Resource.class, resourceType = "data/EntityPart",
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class EntityPart extends Content
 {

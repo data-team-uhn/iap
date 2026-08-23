@@ -353,12 +353,12 @@ class LinkManagerImplTest
         this.context.create().resource("/LinkTypes/typed", Map.of(
             SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, "66666666-6666-6666-6666-666666666666",
-            "requiredSourceTypes", new String[]{ "iap:Entity" },
+            "requiredSourceTypes", new String[]{ "data:Entity" },
             "requiredDestinationTypes", new String[]{ "mix:referenceable" }));
         this.createThings();
         final Resource source = this.context.create().resource("/Things/typed", Map.of(
             UUID_PROPERTY, "cccccccc-cccc-cccc-cccc-cccccccccccc",
-            PRIMARY_TYPE, "iap:Entity"));
+            PRIMARY_TYPE, "data:Entity"));
         this.context.create().resource("/Things/typed/" + CONTAINER, PRIMARY_TYPE, "iap:Links");
         final Resource mixinDestination = this.context.create().resource("/Things/mixed", Map.of(
             UUID_PROPERTY, "dddddddd-dddd-dddd-dddd-dddddddddddd",
@@ -385,12 +385,12 @@ class LinkManagerImplTest
         this.context.create().resource("/LinkTypes/typed", Map.of(
             SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
             UUID_PROPERTY, "66666666-6666-6666-6666-666666666666",
-            "requiredSourceTypes", new String[]{ "iap:Entity" }));
+            "requiredSourceTypes", new String[]{ "data:Entity" }));
         final Resource thing = this.createThings();
         final Resource destination = this.context.resourceResolver().getResource(THING_B_PATH);
         final Node sourceNode = Mockito.mock(Node.class);
         Mockito.when(session.getNode("/Things/a")).thenReturn(sourceNode);
-        Mockito.when(sourceNode.isNodeType("iap:Entity")).thenReturn(true, false);
+        Mockito.when(sourceNode.isNodeType("data:Entity")).thenReturn(true, false);
 
         // First call: the node type matches; second call: it doesn't
         assertNotNull(this.manager.addLink(thing, this.asContent(destination), "typed", null));

@@ -24,14 +24,14 @@ import org.apache.sling.models.annotations.Model;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code iap:EntityHomepage} node, the root container of a collection of entities of one
+ * A Sling Model wrapping an {@code data:EntityHomepage} node, the root container of a collection of entities of one
  * type (e.g. {@code /Schemas}, {@code /Submissions}). It exposes no properties beyond the generic
- * {@code iap:Content} ones; concrete homepage subtypes add typed listing methods for their entities.
+ * {@code data:Content} ones; concrete homepage subtypes add typed listing methods for their entities.
  *
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = "iap/EntityHomepage",
+@Model(adaptables = Resource.class, resourceType = "data/EntityHomepage",
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class EntityHomepage extends Content
 {

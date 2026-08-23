@@ -53,7 +53,7 @@ class EntityHomepageTest
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Schemas",
-            "sling:resourceType", "iap/EntityHomepage");
+            "sling:resourceType", "data/EntityHomepage");
         assertNotNull(resource.adaptTo(EntityHomepage.class));
     }
 
@@ -61,13 +61,13 @@ class EntityHomepageTest
     void inheritsContentProperties()
     {
         final Resource resource = this.context.create().resource("/Schemas", Map.of(
-            "sling:resourceType", "iap/EntityHomepage",
+            "sling:resourceType", "data/EntityHomepage",
             "jcr:createdBy", "alice"));
         final EntityHomepage homepage = resource.adaptTo(EntityHomepage.class);
 
         assertEquals("/Schemas", homepage.getPath());
         assertEquals("Schemas", homepage.getName());
-        assertEquals("iap/EntityHomepage", homepage.getType());
+        assertEquals("data/EntityHomepage", homepage.getType());
         assertEquals("alice", homepage.getCreatedBy());
     }
 
@@ -75,11 +75,11 @@ class EntityHomepageTest
     void adaptsToParentModel()
     {
         final Resource resource = this.context.create().resource("/Schemas",
-            "sling:resourceType", "iap/EntityHomepage");
+            "sling:resourceType", "data/EntityHomepage");
         final Content content = resource.adaptTo(Content.class);
 
         assertNotNull(content);
         assertEquals(Content.class, content.getClass());
-        assertEquals("iap/EntityHomepage", content.getType());
+        assertEquals("data/EntityHomepage", content.getType());
     }
 }

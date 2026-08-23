@@ -84,7 +84,7 @@
       <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- iap:EntityHomepage, which is what makes /LoggedErrors.paginate.json work -->
+    <!-- data:EntityHomepage, which is what makes /LoggedErrors.paginate.json work -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-entities-api</artifactId>

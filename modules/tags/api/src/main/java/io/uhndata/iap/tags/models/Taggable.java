@@ -43,7 +43,7 @@ import io.uhndata.iap.tags.internal.TagOperations;
  *
  * <p>
  * The view adapts any content; the {@code iap:Taggable} mixin only declares the tagging properties once — every
- * {@code iap:Content} node carries it through its supertypes, and other node types, e.g. {@code nt:file}, become
+ * {@code data:Content} node carries it through its supertypes, and other node types, e.g. {@code nt:file}, become
  * taggable by adding the mixin.
  * </p>
  *

@@ -77,7 +77,7 @@ class TagDefinitionsSnapshotTest
     void skipsNonDefinitionChildren()
     {
         final NodeBuilder homepage = EmptyNodeState.EMPTY_NODE.builder();
-        homepage.child("config").setProperty(TYPE_PROPERTY, "iap/Content");
+        homepage.child("config").setProperty(TYPE_PROPERTY, "data/Content");
         homepage.child("untyped");
 
         assertTrue(new TagDefinitionsSnapshot(homepage.getNodeState()).getNames().isEmpty());

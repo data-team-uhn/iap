@@ -17,6 +17,7 @@
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <rep = 'internal'>
 <iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 
 //-----------------------------------------------------------------------------
 //
@@ -36,7 +37,7 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /LinkTypes root path, holding the link definitions.
-[iap:LinkTypesHomepage] > iap:Content, rep:AccessControllable, iap:Documented
+[iap:LinkTypesHomepage] > data:Content, rep:AccessControllable, iap:Documented
   // We can query link definitions
   query
 
@@ -61,7 +62,7 @@
 
 //-----------------------------------------------------------------------------
 // The definition of a type of link.
-[iap:LinkDefinition] > iap:Content, mix:referenceable, mix:lastModified
+[iap:LinkDefinition] > data:Content, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "iap/LinkDefinition" mandatory autocreated protected
 
   // An optional label for the link type. If not defined, the node name is used.
@@ -153,7 +154,7 @@
 // The container holding all the links of a resource, as a child node named
 // iap:links. The IGNORE on-parent-version attributes keep links out of the
 // version history of versionable resources.
-[iap:Links] > iap:Content
+[iap:Links] > data:Content
   - sling:resourceType (STRING) = "iap/Links" mandatory autocreated protected
 
   // Allow any other properties for extensibility
@@ -167,7 +168,7 @@
 
 //-----------------------------------------------------------------------------
 // A hard link to another resource.
-[iap:Link] > iap:Content, mix:lastModified
+[iap:Link] > data:Content, mix:lastModified
   - sling:resourceType (STRING) = "iap/Link" mandatory autocreated protected
 
   // The type of link, a reference to an iap:LinkDefinition node
@@ -195,7 +196,7 @@
 //-----------------------------------------------------------------------------
 // A link to something outside the repository: the recorded value identifies
 // the target, e.g. this resource's identifier in an external system.
-[iap:ExternalLink] > iap:Content, mix:lastModified
+[iap:ExternalLink] > data:Content, mix:lastModified
   - sling:resourceType (STRING) = "iap/ExternalLink" mandatory autocreated protected
 
   // The type of link, a reference to an iap:LinkDefinition node

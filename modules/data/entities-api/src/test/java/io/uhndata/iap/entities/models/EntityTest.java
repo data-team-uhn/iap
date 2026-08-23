@@ -63,7 +63,7 @@ class EntityTest
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/content/entity",
-            "sling:resourceType", "iap/Entity");
+            "sling:resourceType", "data/Entity");
         assertNotNull(resource.adaptTo(Entity.class));
     }
 
@@ -71,7 +71,7 @@ class EntityTest
     void exposesEntitySpecificMetadata()
     {
         final Resource resource = this.context.create().resource("/content/entity", Map.of(
-            "sling:resourceType", "iap/Entity",
+            "sling:resourceType", "data/Entity",
             "jcr:uuid", "0b52a6f0-1e3a-4c1b-9d8e-1234567890ab",
             "jcr:lastModified", this.modified,
             "jcr:lastModifiedBy", "bob"));
@@ -88,14 +88,14 @@ class EntityTest
         // The key inheritance behavior: an Entity also exposes every accessor defined on its
         // Content superclass, populated through the same adaptation.
         final Resource resource = this.context.create().resource("/content/entity", Map.of(
-            "sling:resourceType", "iap/Entity",
+            "sling:resourceType", "data/Entity",
             "jcr:created", this.created,
             "jcr:createdBy", "alice"));
         final Entity entity = resource.adaptTo(Entity.class);
 
         assertEquals("/content/entity", entity.getPath());
         assertEquals("entity", entity.getName());
-        assertEquals("iap/Entity", entity.getType());
+        assertEquals("data/Entity", entity.getType());
         assertEquals(this.created, entity.getCreated());
         assertEquals("alice", entity.getCreatedBy());
     }
@@ -106,7 +106,7 @@ class EntityTest
         // A node of a derived type can also be wrapped by the parent Content model, letting callers work
         // with any resource through the base model when they only need the generic content properties.
         final Resource resource = this.context.create().resource("/content/entity", Map.of(
-            "sling:resourceType", "iap/Entity",
+            "sling:resourceType", "data/Entity",
             "jcr:created", this.created,
             "jcr:createdBy", "alice"));
         final Content content = resource.adaptTo(Content.class);
@@ -115,7 +115,7 @@ class EntityTest
         // Adapting to the parent class yields the parent model, not the derived one
         assertEquals(Content.class, content.getClass());
         assertEquals("/content/entity", content.getPath());
-        assertEquals("iap/Entity", content.getType());
+        assertEquals("data/Entity", content.getType());
         assertEquals(this.created, content.getCreated());
         assertEquals("alice", content.getCreatedBy());
     }
@@ -126,7 +126,7 @@ class EntityTest
         // A node with none of the optional metadata still adapts, and both the entity-specific and
         // the inherited getters return null rather than failing the adaptation.
         final Resource resource = this.context.create().resource("/content/bare",
-            "sling:resourceType", "iap/Entity");
+            "sling:resourceType", "data/Entity");
         final Entity entity = resource.adaptTo(Entity.class);
 
         assertNotNull(entity);

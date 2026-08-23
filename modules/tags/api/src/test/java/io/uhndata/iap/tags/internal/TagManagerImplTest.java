@@ -106,14 +106,14 @@ class TagManagerImplTest
             TYPE_PROPERTY, "iap/TagDefinition",
             "category", new String[] { "privacy" },
             "inheritable", true,
-            "targetResourceTypes", new String[] { "iap/Entity" },
+            "targetResourceTypes", new String[] { "data/Entity" },
             "order", 4L));
         this.context.create().resource("/Tags/patientSurvey", Map.of(
             TYPE_PROPERTY, "iap/TagDefinition",
             "name", "PATIENT SURVEY"));
         // An extensibility child of another type, not a tag definition
         this.context.create().resource("/Tags/config",
-            TYPE_PROPERTY, "iap/Content");
+            TYPE_PROPERTY, "data/Content");
         // The manager reads the definitions with its own service user, so it needs a resolver factory; the SCR
         // metadata that would let the mock OSGi runtime inject it is only generated when the bundle is packaged
         this.tagManager = new TagManagerImpl();
@@ -182,7 +182,7 @@ class TagManagerImplTest
     void listsDefinitionsApplicableToResource()
     {
         final Resource part = this.context.create().resource("/data/part",
-            TYPE_PROPERTY, "iap/EntityPart");
+            TYPE_PROPERTY, "data/EntityPart");
         // All unrestricted tags apply, the entity-only SENSITIVE tag does not
         assertEquals(List.of(DRAFT, "submitted", INCOMPLETE, "PATIENT SURVEY"),
             this.taggable(part).getApplicableDefinitions()
@@ -193,7 +193,7 @@ class TagManagerImplTest
     void readsOwnTags()
     {
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { DRAFT, "legacy" }));
 
         assertEquals(Set.of(DRAFT, "legacy"), this.taggable(resource).getTags());
@@ -207,7 +207,7 @@ class TagManagerImplTest
     void addsTags() throws PersistenceException
     {
         final Resource resource = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "iap/Entity");
+            TYPE_PROPERTY, "data/Entity");
 
         assertTrue(this.taggable(resource).tag(DRAFT));
         // Re-adding an already present tag is a no-op
@@ -220,7 +220,7 @@ class TagManagerImplTest
     void rejectsUndefinedTags()
     {
         final Resource resource = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "iap/Entity");
+            TYPE_PROPERTY, "data/Entity");
         assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).tag("unknown"));
     }
 
@@ -228,8 +228,8 @@ class TagManagerImplTest
     void rejectsInapplicableTags()
     {
         final Resource part = this.context.create().resource("/data/part",
-            TYPE_PROPERTY, "iap/EntityPart");
-        // The SENSITIVE tag may only be placed on iap/Entity resources
+            TYPE_PROPERTY, "data/EntityPart");
+        // The SENSITIVE tag may only be placed on data/Entity resources
         assertThrows(IllegalArgumentException.class, () -> this.taggable(part).tag(SENSITIVE));
     }
 
@@ -237,7 +237,7 @@ class TagManagerImplTest
     void rejectsSystemTagsUnlessAllowed() throws PersistenceException
     {
         final Resource resource = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "iap/Entity");
+            TYPE_PROPERTY, "data/Entity");
 
         assertThrows(IllegalArgumentException.class, () -> this.taggable(resource).tag("submitted"));
         assertTrue(this.taggable(resource).tag("submitted", true));
@@ -250,7 +250,7 @@ class TagManagerImplTest
     void removesTags() throws PersistenceException
     {
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { DRAFT, "legacy" }));
 
         assertTrue(this.taggable(resource).untag(DRAFT));
@@ -264,7 +264,7 @@ class TagManagerImplTest
     void replacesTags() throws PersistenceException
     {
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { DRAFT }));
 
         this.taggable(resource).setTags(List.of(SENSITIVE, INCOMPLETE));
@@ -275,7 +275,7 @@ class TagManagerImplTest
     void replacingTagsWithTheSameSetIsANoOp() throws PersistenceException
     {
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             // "submitted" is a system tag, but an unchanged set is not validated since nothing is added or removed
             "tags", new String[] { DRAFT, "submitted" }));
 
@@ -287,7 +287,7 @@ class TagManagerImplTest
     void readsEffectiveTagNamesFromEveryPhaseProperty()
     {
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { DRAFT },
             Phase.BOTTOM_UP.getPropertyName(), new String[] { INCOMPLETE },
             Phase.TOP_DOWN.getPropertyName(), new String[] { SENSITIVE },
@@ -302,7 +302,7 @@ class TagManagerImplTest
     void effectiveTagNamesOfAnUntouchedNodeAreJustTheExplicitTags()
     {
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { DRAFT }));
 
         assertEquals(Set.of(DRAFT), this.taggable(resource).getEffectiveTagNames());
@@ -312,11 +312,11 @@ class TagManagerImplTest
     void locallyComputedTagsAreOwnTagsWithTheirOwnOrigin()
     {
         final Resource entity = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { DRAFT },
             Phase.LOCAL.getPropertyName(), new String[] { SENSITIVE }));
         final Resource part = this.context.create().resource("/data/entity/part",
-            TYPE_PROPERTY, "iap/EntityPart");
+            TYPE_PROPERTY, "data/EntityPart");
 
         final Map<String, Tag> entityTags = collect(this.taggable(entity).getEffectiveTags());
         assertEquals(Set.of(Tag.Origin.COMPUTED), entityTags.get(SENSITIVE).getOrigins());
@@ -334,9 +334,9 @@ class TagManagerImplTest
     void aggregatesLocallyComputedTagsOfDescendants()
     {
         final Resource entity = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "iap/Entity");
+            TYPE_PROPERTY, "data/Entity");
         this.context.create().resource("/data/entity/part", Map.of(
-            TYPE_PROPERTY, "iap/EntityPart",
+            TYPE_PROPERTY, "data/EntityPart",
             Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
 
         assertTrue(this.taggable(entity).hasTag(INCOMPLETE));
@@ -354,17 +354,17 @@ class TagManagerImplTest
     {
         this.context.registerAdapter(Resource.class, Node.class,
             (Function<Resource, Node>) TagManagerImplTest::asNode);
-        final Resource entity = this.context.create().resource("/data/entity", TYPE_PROPERTY, "iap/Entity");
+        final Resource entity = this.context.create().resource("/data/entity", TYPE_PROPERTY, "data/Entity");
         // A listing inside the entity, and content of its own carrying the aggregated tag
         this.context.create().resource("/data/entity/listing", Map.of(
-            TYPE_PROPERTY, "iap/EntityHomepage",
+            TYPE_PROPERTY, "data/EntityHomepage",
             BOUNDARY, true));
         this.context.create().resource("/data/entity/listing/inner", Map.of(
-            TYPE_PROPERTY, "iap/EntityPart",
+            TYPE_PROPERTY, "data/EntityPart",
             Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
         // ...and ordinary content of the entity, which does aggregate
         this.context.create().resource("/data/entity/part", Map.of(
-            TYPE_PROPERTY, "iap/EntityPart",
+            TYPE_PROPERTY, "data/EntityPart",
             Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
 
         final Tag aggregated = collect(this.taggable(entity).getEffectiveTags()).get(INCOMPLETE);
@@ -378,9 +378,9 @@ class TagManagerImplTest
     {
         this.context.registerAdapter(Resource.class, Node.class,
             (Function<Resource, Node>) TagManagerImplTest::asNode);
-        final Resource entity = this.context.create().resource("/data/entity", TYPE_PROPERTY, "iap/Entity");
+        final Resource entity = this.context.create().resource("/data/entity", TYPE_PROPERTY, "data/Entity");
         this.context.create().resource("/data/entity/unclassifiable", Map.of(
-            TYPE_PROPERTY, "iap/EntityPart",
+            TYPE_PROPERTY, "data/EntityPart",
             UNCLASSIFIABLE, true,
             Phase.LOCAL.getPropertyName(), new String[] { INCOMPLETE }));
 
@@ -464,7 +464,7 @@ class TagManagerImplTest
     void reportsUnmodifiableResources()
     {
         final Resource resource = this.context.create().resource("/data/entity",
-            TYPE_PROPERTY, "iap/Entity");
+            TYPE_PROPERTY, "data/Entity");
         final Resource readOnly = new ResourceWrapper(resource)
         {
             @Override
@@ -483,7 +483,7 @@ class TagManagerImplTest
     void replacingTagsValidatesAdditionsAndRemovals() throws PersistenceException
     {
         final Resource resource = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { "submitted", DRAFT }));
 
         // Adding an undefined tag is rejected
@@ -504,13 +504,13 @@ class TagManagerImplTest
     void computesEffectiveTags() throws PersistenceException
     {
         final Resource entity = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { SENSITIVE, "legacy" }));
         final Resource part = this.context.create().resource("/data/entity/part", Map.of(
-            TYPE_PROPERTY, "iap/EntityPart",
+            TYPE_PROPERTY, "data/EntityPart",
             "tags", new String[] { DRAFT }));
         this.context.create().resource("/data/entity/part/answer", Map.of(
-            TYPE_PROPERTY, "iap/EntityPart",
+            TYPE_PROPERTY, "data/EntityPart",
             "tags", new String[] { INCOMPLETE }));
 
         // The entity carries its own tags, plus INCOMPLETE aggregated from a descendant;
@@ -536,10 +536,10 @@ class TagManagerImplTest
     void combinesOriginsForTheSameTag()
     {
         this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { SENSITIVE }));
         final Resource part = this.context.create().resource("/data/entity/part", Map.of(
-            TYPE_PROPERTY, "iap/EntityPart",
+            TYPE_PROPERTY, "data/EntityPart",
             "tags", new String[] { SENSITIVE }));
 
         final Map<String, Tag> tags = collect(this.taggable(part).getEffectiveTags());
@@ -551,12 +551,12 @@ class TagManagerImplTest
     void checksEffectiveTags()
     {
         final Resource entity = this.context.create().resource("/data/entity", Map.of(
-            TYPE_PROPERTY, "iap/Entity",
+            TYPE_PROPERTY, "data/Entity",
             "tags", new String[] { SENSITIVE }));
         final Resource part = this.context.create().resource("/data/entity/part",
-            TYPE_PROPERTY, "iap/EntityPart");
+            TYPE_PROPERTY, "data/EntityPart");
         this.context.create().resource("/data/entity/part/answer", Map.of(
-            TYPE_PROPERTY, "iap/EntityPart",
+            TYPE_PROPERTY, "data/EntityPart",
             "tags", new String[] { INCOMPLETE, DRAFT }));
 
         // Explicit
@@ -573,7 +573,7 @@ class TagManagerImplTest
         assertFalse(this.taggable(entity).hasTag("unknown"));
         // Inheritable and aggregated tags placed nowhere near the resource are not carried either
         final Resource lonely = this.context.create().resource("/lonely",
-            TYPE_PROPERTY, "iap/Entity");
+            TYPE_PROPERTY, "data/Entity");
         assertFalse(this.taggable(lonely).hasTag(SENSITIVE));
         assertFalse(this.taggable(lonely).hasTag(INCOMPLETE));
     }

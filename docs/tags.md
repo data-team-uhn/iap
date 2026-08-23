@@ -1,7 +1,7 @@
 # Tags
 
 Any IAP resource can be marked with **tags**: short named markers like `incomplete`, `submitted`,
-or `sensitive`, stored in the multivalued `tags` property that every `iap:Content` node may carry.
+or `sensitive`, stored in the multivalued `tags` property that every `data:Content` node may carry.
 Unlike free-form labels, every usable tag must first be **defined**: an `iap:TagDefinition` node
 under `/Tags` is the single source of truth for what the tag means, where it may be placed, and
 how it behaves, instead of scattered code relying on an off-hand understanding of ad-hoc marker
@@ -61,9 +61,9 @@ The `iap-tags-api` bundle (`modules/tags/api`) exposes a models-only API:
 
 ## Marking content taggable
 
-The **`iap:Taggable` mixin** (declared next to `iap:Content` in the content module) declares the
+The **`iap:Taggable` mixin** (declared next to `data:Content` in the content module) declares the
 tagging properties once — the explicit `tags` plus the three materialized phase properties and the
-`tagComputationState` marker. Every `iap:Content` node carries the mixin through its supertypes, so
+`tagComputationState` marker. Every `data:Content` node carries the mixin through its supertypes, so
 all domain content is taggable out of the box, and other node types, e.g. `nt:file`, become
 taggable with a plain `addMixin`. The mixin is a declaration aid, not a gate: the `Taggable`
 *model* adapts any content, and writing simply fails on nodes whose types cannot store the
@@ -110,7 +110,7 @@ The machinery is an extensible SPI (`io.uhndata.iap.tags.spi`), not a hardcoded 
   or AI-check module contributes its own `LOCAL` ones.
 - **`TagProcessor.Scope`** — how much a processor may look at, which is the same thing as how much
   re-triggers it: `NODE` (the node and its parent, the cheap and usual case) or `ENTITY` (the whole
-  enclosing `iap:Entity`, recomputed in full whenever anything inside it changes, for a tag that
+  enclosing `data:Entity`, recomputed in full whenever anything inside it changes, for a tag that
   depends on more than one of an entity's parts). Anything wider cannot be a processor at all — a
   tag depending on a *different* entity belongs in a listener or a job placing explicit `system`
   tags after the fact, accepting the staleness that comes with it.
@@ -133,7 +133,7 @@ Propagation details worth knowing:
 - Copies travel in one direction only: an aggregated copy on an ancestor is not re-inherited by
   the source's siblings, even for a tag that is both `aggregated` and `inheritable`.
 - Derived properties are only written on nodes whose types *declare* them, which is what the
-  `iap:Taggable` mixin does and what every `iap:Content` node inherits. A type that merely tolerates
+  `iap:Taggable` mixin does and what every `data:Content` node inherits. A type that merely tolerates
   residual properties — `nt:unstructured`, and so every free-form container, the repository root
   included — has not opted in, and strict types that would reject them (file contents, access
   control entries, the system and index subtrees) never could. All of them act as propagation
@@ -155,7 +155,7 @@ ancestor of every tagged node is a candidate — so it needs a declared top, and
 nothing to its own ancestors. It stops what flows up and nothing else: an inheritable tag placed
 above one still reaches the content inside it.
 
-`iap:EntityHomepage` is a boundary, which puts the top where the value has a reader — a homepage is
+`data:EntityHomepage` is a boundary, which puts the top where the value has a reader — a homepage is
 what lists and filters its entities on `aggregatedTags`, and nothing above it lists anything.
 Anything else that contains content and is not an entity homepage may declare itself one too.
 

@@ -118,7 +118,7 @@ public interface TagProcessor
         NODE,
 
         /**
-         * The whole {@code iap:Entity} subtree enclosing the processed node, e.g. for a tag depending on more than
+         * The whole {@code data:Entity} subtree enclosing the processed node, e.g. for a tag depending on more than
          * one of an entity's parts. Every such processor is recomputed on every node of an entity whenever anything
          * inside that entity changes, so the cost is bounded by the size of one entity, not of the repository.
          */

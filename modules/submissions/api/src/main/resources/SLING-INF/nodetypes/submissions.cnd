@@ -16,6 +16,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 <sub = 'https://iap.uhndata.io/sub/'>
 
@@ -34,9 +35,9 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /Submissions root path.
-[sub:SubmissionsHomepage] > iap:EntityHomepage
+[sub:SubmissionsHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "sub/SubmissionsHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -52,7 +53,7 @@
 // A submission filed by a submitter against a specific schema version. The
 // workflow instances driving its lifecycle live inside it, in the wf:instances
 // child that the wf:WorkflowAttachable mixin autocreates.
-[sub:Submission] > iap:Entity, wf:WorkflowAttachable, iap:TagBoundary
+[sub:Submission] > data:Entity, wf:WorkflowAttachable, iap:TagBoundary
   - sling:resourceType (STRING) = "sub/Submission" mandatory autocreated protected
 
   // Title of the submission
@@ -86,7 +87,7 @@
 // The answer to a single schema question. Only simple storage: the value's
 // expected type and meaning are dictated by the referenced question.
 // Referenceable so that review comments can target it.
-[sub:Answer] > iap:EntityPart, mix:referenceable, mix:lastModified
+[sub:Answer] > data:EntityPart, mix:referenceable, mix:lastModified
   - sling:resourceType (STRING) = "sub/Answer" mandatory autocreated protected
 
   // The sch:Question this answers
@@ -107,7 +108,7 @@
 //-----------------------------------------------------------------------------
 // A document attached to the submission, e.g. the signed patient consent.
 // Referenceable so that review comments can target it.
-[sub:Document] > iap:EntityPart, mix:referenceable, mix:lastModified
+[sub:Document] > data:EntityPart, mix:referenceable, mix:lastModified
   // The list of attachments is orderable, e.g. to preserve page order for a
   // multi-file scanned document.
   orderable
@@ -136,7 +137,7 @@
 //-----------------------------------------------------------------------------
 // One reviewer's assessment of the submission. Referenceable so that review
 // comments can target it.
-[sub:Review] > iap:EntityPart, mix:referenceable, mix:lastModified
+[sub:Review] > data:EntityPart, mix:referenceable, mix:lastModified
   // The list of comments is orderable, so the review is presented in a
   // deliberate (chronological) sequence.
   orderable
@@ -166,7 +167,7 @@
 
 //-----------------------------------------------------------------------------
 // A single comment or question raised by a reviewer.
-[sub:ReviewComment] > iap:EntityPart, mix:lastModified
+[sub:ReviewComment] > data:EntityPart, mix:lastModified
   // The list of replies is orderable, so the discussion is presented in a
   // deliberate (chronological) sequence.
   orderable
@@ -215,7 +216,7 @@
 // A single message in the discussion thread attached to a review comment,
 // e.g. the submitter responding to a reviewer's question, or the reviewer
 // following up.
-[sub:Reply] > iap:EntityPart, mix:lastModified
+[sub:Reply] > data:EntityPart, mix:lastModified
   - sling:resourceType (STRING) = "sub/Reply" mandatory autocreated protected
 
   // The reply text

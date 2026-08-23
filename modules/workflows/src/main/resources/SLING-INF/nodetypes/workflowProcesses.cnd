@@ -18,7 +18,7 @@
 //
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 
 //-----------------------------------------------------------------------------
@@ -43,11 +43,11 @@
 // The container of the workflow instances running over one resource.
 //
 // IGNORE, on both this node and the instances inside it, is load-bearing. Hosts
-// are typically versionable (every iap:Entity is), and under the default
+// are typically versionable (every data:Entity is), and under the default
 // on-parent-version setting checking one in would copy the whole live workflow
 // into version storage, and restoring an earlier version would roll the workflow
 // back with it — quietly un-approving things. Verified against Oak, not assumed.
-[wf:WorkflowInstances] > iap:Content, rep:AccessControllable
+[wf:WorkflowInstances] > data:Content, rep:AccessControllable
   - sling:resourceType (STRING) = "wf/WorkflowInstances" mandatory autocreated protected
 
   // Allow any other properties for extensibility
@@ -68,7 +68,7 @@
 
 //-----------------------------------------------------------------------------
 // A running or completed execution of a workflow definition.
-[wf:WorkflowInstance] > iap:Entity
+[wf:WorkflowInstance] > data:Entity
   - sling:resourceType (STRING) = "wf/WorkflowInstance" mandatory autocreated protected
 
   // The definition this instance was created from
@@ -102,7 +102,7 @@
 //-----------------------------------------------------------------------------
 // Tracks a single execution branch's current position in a workflow instance.
 // The creation date is the inherited jcr:created.
-[wf:WorkflowToken] > iap:EntityPart
+[wf:WorkflowToken] > data:EntityPart
   - sling:resourceType (STRING) = "wf/WorkflowToken" mandatory autocreated protected
 
   // elementId of the flow node currently occupied by this token
@@ -117,7 +117,7 @@
 
 //-----------------------------------------------------------------------------
 // A running instance of a user task within a workflow instance.
-[wf:TaskInstance] > iap:Entity
+[wf:TaskInstance] > data:Entity
   - sling:resourceType (STRING) = "wf/TaskInstance" mandatory autocreated protected
 
   // elementId of the wf:Activity this task was created from
@@ -171,7 +171,7 @@
 //-----------------------------------------------------------------------------
 // A named variable stored within a workflow instance. The variable's name is the
 // node name, so that looking one up does not mean scanning every sibling.
-[wf:Variable] > iap:EntityPart
+[wf:Variable] > data:EntityPart
   - sling:resourceType (STRING) = "wf/Variable" mandatory autocreated protected
 
   // Declared type: string, long, double, boolean, date, reference

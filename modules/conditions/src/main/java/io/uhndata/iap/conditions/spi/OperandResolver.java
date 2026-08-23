@@ -65,7 +65,7 @@ public interface OperandResolver
      * rather than to the exact context, which may be anywhere inside the entity.
      *
      * @param content a piece of content, may be {@code null}
-     * @return the closest ancestor-or-self that is an {@code iap:Entity}, or {@code null} if there is none
+     * @return the closest ancestor-or-self that is an {@code data:Entity}, or {@code null} if there is none
      */
     @Nullable
     static Content findEnclosingEntity(@Nullable final Content content)

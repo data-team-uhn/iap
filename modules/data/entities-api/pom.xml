@@ -41,9 +41,9 @@
             <Sling-Nodetypes>SLING-INF/nodetypes/entities.cnd</Sling-Nodetypes>
             <Sling-Model-Packages>io.uhndata.iap.entities.models</Sling-Model-Packages>
             <Sling-Initial-Content>
-              SLING-INF/content/libs/iap/EntityPart/;path:=/libs/iap/EntityPart/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/Entity/;path:=/libs/iap/Entity/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/EntityHomepage/;path:=/libs/iap/EntityHomepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/data/EntityPart/;path:=/libs/data/EntityPart/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/data/Entity/;path:=/libs/data/Entity/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/data/EntityHomepage/;path:=/libs/data/EntityHomepage/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

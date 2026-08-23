@@ -12,7 +12,7 @@ Each metric is an `iap:Metric` node under `/Metrics`, holding descriptive metada
 `oak:increment` value on the node atomically adds it to the counter, so concurrent increments from
 different threads or cluster nodes are all applied without conflicting or getting lost.
 
-Both node types extend `iap:Content`, like every other definition-style type in the platform, so a
+Both node types extend `data:Content`, like every other definition-style type in the platform, so a
 metric carries the shared content properties, can be [tagged](tags.md), accepts any further
 properties and children a deployment wants to add, and is served by the standard JSON serialization.
 The atomic-counter mixin is the one thing that is *not* inherited: `mix:atomicCounter` only works

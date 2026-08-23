@@ -452,7 +452,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     /**
      * Checks whether a resource is where aggregation stops. {@code isNodeType} rather than a property check, so that
      * the mixin is seen both when a node carries it explicitly and when its primary type declares it, which is how
-     * every {@code iap:EntityHomepage} is one.
+     * every {@code data:EntityHomepage} is one.
      *
      * @param resource the resource to check
      * @return {@code true} if aggregated tags may not travel out of this resource

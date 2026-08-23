@@ -35,6 +35,6 @@
   // Hardcode the resource type
   - sling:resourceType (STRING) = "iap/LoginPage" mandatory autocreated protected
   // Hardcode the resource supertype: the login page is plain content
-  - sling:resourceSuperType (STRING) = "iap/Content" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected
   // Set a default title
   - title (String) = "${platform.name} - Sign in" mandatory autocreated

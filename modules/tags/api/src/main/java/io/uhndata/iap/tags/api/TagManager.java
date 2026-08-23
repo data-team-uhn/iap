@@ -46,7 +46,7 @@ public interface TagManager
 
     /**
      * The mixin marking a container that {@code aggregated} tags travel up to and no further: it carries the
-     * aggregate of everything beneath it, and offers nothing to its own ancestors. {@code iap:EntityHomepage}
+     * aggregate of everything beneath it, and offers nothing to its own ancestors. {@code data:EntityHomepage}
      * declares it, so every entity listing is one.
      */
     String BOUNDARY_MIXIN = "iap:TagBoundary";
