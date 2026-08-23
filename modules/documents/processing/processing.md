@@ -148,7 +148,7 @@ chunk_file(<stem>.md)                                        # md is already cle
        │    ├─ below → outline only {chunked:false}; STOP (whole-doc used downstream)
        │    └─ at/above ↓
        │
-       ├─ if bookmarks: rewrite heading lines to bookmark level/title (paged TOC ATX demoted)
+       ├─ if bookmarks: rewrite heading lines to bookmark level/title
        ├─ _split_into_chunks: one chunkweaver pass to DEFAULT_MAX_TOKENS (2000) --
        │       top heading level always, deeper levels where over budget, then paragraphs,
        │       then sentences
@@ -200,22 +200,8 @@ What it does **not** do:
 
 The document **outline** is PDF bookmark **titles** (strings) from
 ``extract_bookmarks``, held in memory with level/page for heading rewrite and written to
-`Chunks/outline.json` as ``bookmarks: ["…", …]``. They come from a sibling PDF, and from nothing else.
-
-Printed-TOC detection was removed. Finding, confirming, flattening and splicing out a
-"table of contents" block, and locating the first Reference/Appendix section, were together
-~1000 lines of heuristics that missed or truncated their target on roughly 5% of real
-proposals — and a *truncated* TOC is worse than none, because downstream it was sent to the
-model in place of the complete catalog outline, so a partial answer displaced a whole one. A
-document with no PDF bookmarks now reports an empty `bookmarks` list, and the caller decides
-what to send instead.
-
-Three consequences follow. A printed table of contents is **no longer removed** from the
-Markdown, so its entry lines survive into a chunk. `tocStartLine` / `tocEndLine` and
-`backmatterLine` are gone from `outline.json`, and with `backmatterLine` went the standalone
-backmatter chunk and its `isAppendix` catalog flag — references and appendices are chunked
-like any other section. And the document is never rewritten, so a misread TOC
-can no longer splice real body text away.
+`Chunks/outline.json` as ``bookmarks: ["…", …]``. They come from a sibling PDF,
+and from nothing else. A document with no PDF bookmarks reports an empty `bookmarks` list.
 
 ```mermaid
 flowchart TD
@@ -229,7 +215,7 @@ flowchart TD
 Key behaviours:
 
 - **Heading-level ceiling** — `bookmarks` keeps entries at level 1–`MAX_HEADING_LEVEL` (6). Deeper nesting is still walked (up to `MAX_OUTLINE_DEPTH`) so a crafted outline cannot exhaust the stack.
-- **Bookmark levels drive chunking** — when bookmarks exist, each Markdown heading line is matched to a PDF bookmark by normalized title only (dest page is ignored). The line is rewritten to that bookmark's level and title before any split, so a `###` that the bookmarks call level 1 is cut as `#`, and a bold/ALL-CAPS title that never had hashes becomes a heading. An ATX line that matches no bookmark title is demoted to body and does not start a chunk.
+- **Bookmark levels drive chunking** — when bookmarks exist, each Markdown heading line is matched to a PDF bookmark by normalized title only (dest page is ignored). The line is rewritten to that bookmark's level and title before any split, so a `###` that the bookmarks call level 1 is cut as `#`.
 - **Catalog heading** — each chunk's `heading` is the text of its first non-neutral line when that line is ATX; otherwise empty. Bookmarks rewrite heading lines in the Markdown before splitting.
 - **No page rewrite** — a bookmark's page used to be looked up in the `<!-- page: N -->`
   markers and corrected when it pointed one page early. Matching is by title only; the titles

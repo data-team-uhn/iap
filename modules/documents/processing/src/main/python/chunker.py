@@ -29,7 +29,7 @@ lays out a chunk folder beside that ``.md``::
         Chunk-1.md
         Chunk-2.md
 
-One :func:`_split_into_chunks` pass cuts the whole document to :data:`DEFAULT_MAX_TOKENS`
+One :func:`_split_into_chunks` pass cuts the whole document to :data:`DEFAULT_MAX_TOKENS`.
 
 Every chunk is listed in ``catalog.json``::
 
@@ -106,7 +106,7 @@ CHUNKS_DIRNAME = "Chunks"
 # ``chunked: false``, so a reader gets one shape plus the reason.
 UNCHUNKED_BELOW_THRESHOLD = "below_min_structure_tokens"
 UNCHUNKED_NOT_REQUESTED = "chunking_not_requested"
-# the document was big enough to chunk and the splitter came back with nothing. 
+# the document was big enough to chunk and the splitter came back with nothing.
 # Recorded rather than silently written out as an empty catalog
 UNCHUNKED_NO_PARTS = "splitter_returned_no_parts"
 
