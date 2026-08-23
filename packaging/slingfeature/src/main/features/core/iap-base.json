@@ -31,15 +31,15 @@
             "start-order":"20"
         },
         {
-            "id":"${project.groupId}:iap-data-model-content-api:${project.version}",
+            "id":"${project.groupId}:iap-data-content-api:${project.version}",
             "start-order":"21"
         },
         {
-            "id":"${project.groupId}:iap-data-model-entities-api:${project.version}",
+            "id":"${project.groupId}:iap-data-entities-api:${project.version}",
             "start-order":"24"
         },
         {
-            "id":"${project.groupId}:iap-data-model-entities-impl:${project.version}",
+            "id":"${project.groupId}:iap-data-impl:${project.version}",
             "start-order":"24"
         },
         {

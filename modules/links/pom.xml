@@ -21,13 +21,13 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-data-model</artifactId>
+    <artifactId>iap-modules</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-data-model-content</artifactId>
+  <artifactId>iap-links</artifactId>
   <packaging>pom</packaging>
-  <name>IAP - Data Model - Content nodetypes</name>
+  <name>IAP - Links between entities</name>
 
   <modules>
     <module>api</module>

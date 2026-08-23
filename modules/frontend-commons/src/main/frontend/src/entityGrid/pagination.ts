@@ -18,7 +18,7 @@
 
 // Client for the pagination servlet, which serves the entities stored under an entity homepage
 // (e.g. `/Submissions.paginate.json`) one page at a time. See PaginationServlet in the
-// data-model/entities module for the full list of supported parameters.
+// data/impl module for the full list of supported parameters.
 
 
 import { type AuthenticatedFetch } from "../reLogin";

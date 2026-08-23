@@ -3,7 +3,7 @@
 Some relations between content are part of a node type's own shape — a submission's
 `schemaVersion`, an answer's `question` — and those stay direct REFERENCE properties. Everything
 else, the ad-hoc "this is related to that" connections, goes through the **links module**
-(`modules/data-model/links`): typed, optionally labeled connections kept in an `iap:links` child
+(`modules/links`): typed, optionally labeled connections kept in an `iap:links` child
 container on the source. A link points either at other content inside the repository, or at
 something outside it — an identifier in an external system, recorded as a plain value.
 

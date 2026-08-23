@@ -81,13 +81,13 @@
     <!-- The Content model the recorded errors are read through -->
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-model-content-api</artifactId>
+      <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- iap:EntityHomepage, which is what makes /LoggedErrors.paginate.json work -->
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-model-entities-api</artifactId>
+      <artifactId>iap-data-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- The Taggable model and the TagProcessor SPI deriving the triage markers -->

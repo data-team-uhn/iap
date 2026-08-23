@@ -21,13 +21,13 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-data-model-entities</artifactId>
+    <artifactId>iap-data</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-data-model-entities-api</artifactId>
+  <artifactId>iap-data-entities-api</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Data model - Base Entity and EntityHomepage nodetypes - Definitions, APIs and SPIs</name>
+  <name>IAP - Base data model - Entity nodetypes - Definitions, APIs and SPIs</name>
 
   <build>
     <plugins>
@@ -59,7 +59,7 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-model-content-api</artifactId>
+      <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

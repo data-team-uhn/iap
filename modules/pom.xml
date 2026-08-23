@@ -36,7 +36,7 @@
     <module>autodoc</module>
     <module>categories</module>
     <module>conditions</module>
-    <module>data-model</module>
+    <module>data</module>
     <module>deletion</module>
     <module>email-notifications</module>
     <module>error-tracking</module>
@@ -47,6 +47,7 @@
     <module>http-requests</module>
     <module>java-utils</module>
     <module>keycloak</module>
+    <module>links</module>
     <module>login</module>
     <module>metrics</module>
     <module>schemas</module>

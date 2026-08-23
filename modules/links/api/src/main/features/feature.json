@@ -24,8 +24,8 @@
   "configurations": {
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iaplinks": {
       "user.mapping": [
-        "io.uhndata.iap.data-model-links-api:links=[iap-links]",
-        "io.uhndata.iap.data-model-links-api:link-types=[iap-link-types]"
+        "io.uhndata.iap.links-api:links=[iap-links]",
+        "io.uhndata.iap.links-api:link-types=[iap-link-types]"
       ]
     }
   },
