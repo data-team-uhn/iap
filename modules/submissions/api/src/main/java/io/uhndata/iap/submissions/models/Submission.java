@@ -190,9 +190,9 @@ public class Submission extends Entity
     /**
      * The requirements of this submission's schema version that haven't been fulfilled yet: a
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
-     * approved {@link Review}, or a {@code FormRequirement} with an unanswered <em>required</em> question. An
-     * optional question left blank fulfils it just as well. Requirements, sections and
-     * questions whose condition doesn't currently hold for this submission don't apply, so they are never
+     * approved {@link Review}, or a {@code FormRequirement} with a question given fewer answers than its
+     * {@code minAnswers} demands. An optional question left blank fulfils it just as well. Requirements, sections
+     * and questions whose condition doesn't currently hold for this submission don't apply, so they are never
      * reported as missing.
      *
      * @return a list of unfulfilled requirements, empty if none are missing
@@ -230,12 +230,34 @@ public class Submission extends Entity
                 return reviewed != null && requirement.getPath().equals(reviewed.getPath());
             });
         }
-        // FormRequirement is the only other concrete requirement type today. Only its *required* questions can
-        // leave it unfulfilled: an optional one is asked, not demanded, and a submission is not incomplete for
-        // declining to answer it. Without this filter `Question.required` would mean nothing at all
+        // FormRequirement is the only other concrete requirement type today. Only questions demanding at least one
+        // value can leave it unfulfilled: an optional one is asked, not demanded, and a submission is not
+        // incomplete for declining to answer it. Without this filter `minAnswers` would mean nothing at all
         return this.getQuestionsOf((FormRequirement) requirement).stream()
             .filter(Question::isRequired)
             .allMatch(this::isAnswered);
+    }
+
+    /**
+     * The questions this submission is currently asked: every question of every form requirement that applies,
+     * conditions resolved, in the order the schema declares them. A question whose condition does not hold is not
+     * being asked, so it is absent even when it still holds an answer from before its condition changed.
+     *
+     * <p>This is the walk fulfilment is judged by, published so that anything else reading "what is asked and what
+     * was answered" — a validator, a projection — counts the same questions the completeness decision counts.</p>
+     *
+     * @return the questions currently asked, empty when none apply
+     */
+    @NotNull
+    public List<Question> getQuestions()
+    {
+        return this.getSchemaVersion().getRequirements().stream()
+            .filter(this::applies)
+            .filter(FormRequirement.class::isInstance)
+            .map(FormRequirement.class::cast)
+            .map(this::getQuestionsOf)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
     }
 
     private List<Question> getQuestionsOf(final FormRequirement form)
@@ -263,11 +285,13 @@ public class Submission extends Entity
     private boolean isAnswered(final Question question)
     {
         // Blank counts as unanswered, not as answered. Clearing a field posts an empty value rather than removing
-        // the answer node, so the node stays behind holding nothing — and treating that as an answer would let a
-        // required question be satisfied by emptying it. `allMatch` over no values is true, which is the wanted
-        // reading for a question with no answer node at all
-        return !this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).stream()
-            .allMatch(String::isBlank);
+        // the answer node, so the node stays behind holding nothing — and counting that as an answer would let a
+        // demanded question be satisfied by emptying it. Counted rather than merely detected, because a question
+        // may ask for more than one value, and one of three is as unanswered as none
+        final long given = this.getAnswersByQuestion().getOrDefault(question.getPath(), List.of()).stream()
+            .filter(value -> !value.isBlank())
+            .count();
+        return given >= question.getMinAnswers();
     }
 
     /**
