@@ -424,7 +424,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
 
     /**
      * Gathers the aggregated tags belonging to a resource's descendants, visiting the subtree down to the nearest
-     * boundaries. An {@code iap:TagBoundary} container is where aggregation stops, so neither it nor anything inside it
+     * boundaries. An {@code tag:Boundary} container is where aggregation stops, so neither it nor anything inside it
      * contributes here — the same rule the stored {@code aggregatedTags} are built by, and this has to agree with them
      * or the two ways of asking the same question give different answers.
      *
@@ -452,7 +452,7 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
     /**
      * Checks whether a resource is where aggregation stops. {@code isNodeType} rather than a property check, so that
      * the mixin is seen both when a node carries it explicitly and when its primary type declares it, which is how
-     * every {@code iap:EntityHomepage} is one.
+     * every {@code data:EntityHomepage} is one.
      *
      * @param resource the resource to check
      * @return {@code true} if aggregated tags may not travel out of this resource

@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <cond = 'https://iap.uhndata.io/cond/'>
 
 //-----------------------------------------------------------------------------
@@ -46,7 +46,7 @@
 // composite of conditions (ConditionGroup), so callers can ask for "a
 // condition" without caring whether it is a single comparison or a group of
 // them.
-[cond:Condition] > iap:EntityPart
+[cond:Condition] > data:EntityPart
   abstract
 
   // Hardcode the supertype to the parent cond/Condition type.
@@ -102,7 +102,7 @@
 // A condition operand supplies the value(s) on one side of a comparison. The
 // `source` property names the OperandResolver that computes the actual
 // values at evaluation time, and `value` configures that resolver.
-[cond:ConditionOperand] > iap:EntityPart
+[cond:ConditionOperand] > data:EntityPart
   - sling:resourceType (STRING) = "cond/ConditionOperand" mandatory autocreated protected
 
   // What the resolver needs to compute the values: the literal values

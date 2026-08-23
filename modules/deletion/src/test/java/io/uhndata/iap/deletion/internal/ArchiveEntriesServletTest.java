@@ -71,7 +71,7 @@ class ArchiveEntriesServletTest
         this.session = this.context.resourceResolver().adaptTo(Session.class);
         NodeTypeDefinitionScanner.get().register(this.session, List.of("SLING-INF/nodetypes/deletion.cnd"),
             ResourceResolverType.JCR_OAK.getNodeTypeMode());
-        this.session.getRootNode().addNode("Archive", "iap:Archive");
+        this.session.getRootNode().addNode("Archive", "del:Archive");
         this.session.save();
         this.response = new MockSlingJakartaHttpServletResponse();
     }
@@ -80,11 +80,11 @@ class ArchiveEntriesServletTest
     {
         final Node bucket = this.session.nodeExists("/Archive/ab")
             ? this.session.getNode("/Archive/ab")
-            : this.session.getNode("/Archive").addNode("ab", "iap:Archive");
-        final Node entry = bucket.addNode(name, "iap:ArchiveEntry");
+            : this.session.getNode("/Archive").addNode("ab", "del:Archive");
+        final Node entry = bucket.addNode(name, "del:ArchiveEntry");
         entry.setProperty("deletedBy", user);
         entry.setProperty("requestedPath", path);
-        entry.addNode("item0", "iap:DeletedItem").setProperty("originalPath", path);
+        entry.addNode("item0", "del:DeletedItem").setProperty("originalPath", path);
         this.session.save();
     }
 

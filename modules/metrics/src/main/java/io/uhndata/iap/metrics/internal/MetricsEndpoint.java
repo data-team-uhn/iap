@@ -45,7 +45,7 @@ import io.uhndata.iap.metrics.api.MetricsManager;
  * @since 0.1.0
  */
 @Component(service = { Servlet.class }, property = { "sling.auth.requirements=-/Metrics" })
-@SlingServletResourceTypes(resourceTypes = { "iap/MetricsHomepage" }, methods = { "GET" }, extensions = { "json" })
+@SlingServletResourceTypes(resourceTypes = { "metric/Homepage" }, methods = { "GET" }, extensions = { "json" })
 public class MetricsEndpoint extends SlingJakartaSafeMethodsServlet
 {
     private static final long serialVersionUID = -2434169854854968565L;

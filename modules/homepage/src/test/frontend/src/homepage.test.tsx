@@ -36,13 +36,13 @@ function renderMain(initialEntries: string[]) {
   );
 }
 
-// Builds a view extension as returned by getRoutes: the parsed iap:Extension JSON with the
+// Builds a view extension as returned by getRoutes: the parsed ext:Extension JSON with the
 // render asset already resolved to a component. Whether that resolution happened eagerly
 // or lazily (see extensionManager.tsx) is transparent to Main, so it isn't exercised here.
 const view = (name: string, targetURL: string) => ({
-  "iap:extensionName": name,
-  "iap:targetURL": targetURL,
-  "iap:extensionRender": () => <div>{`${name} view`}</div>,
+  "ext:name": name,
+  "ext:targetURL": targetURL,
+  "ext:render": () => <div>{`${name} view`}</div>,
 });
 
 describe("Main routing", () => {

@@ -15,20 +15,21 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<metric = 'https://iap.uhndata.io/metric/'>
+<data = 'https://iap.uhndata.io/data/'>
 <oak = 'http://jackrabbit.apache.org/oak/ns/1.0'>
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /Metrics root path.
-[iap:MetricsHomepage] > iap:Content, rep:AccessControllable
-  - sling:resourceType (STRING) = "iap/MetricsHomepage" mandatory autocreated protected
+[metric:Homepage] > data:Content, rep:AccessControllable
+  - sling:resourceType (STRING) = "metric/Homepage" mandatory autocreated protected
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
   // Contains the tracked metrics
-  + * (iap:Metric) = iap:Metric
+  + * (metric:Metric) = metric:Metric
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -48,8 +49,8 @@
 // true, which turns addMixin() into a no-op, so nothing can ever write the
 // property. The counter would silently never count. The mixin has to be listed
 // in jcr:mixinTypes when the node is created, which is what MetricsManager does.
-[iap:Metric] > iap:Content
-  - sling:resourceType (STRING) = "iap/Metric" mandatory autocreated protected
+[metric:Metric] > data:Content
+  - sling:resourceType (STRING) = "metric/Metric" mandatory autocreated protected
 
   // Human-readable name for this metric
   - label (STRING) mandatory
@@ -61,7 +62,7 @@
   - category (STRING)
 
   // The order this metric appears in, among the metrics of its own category
-  - iap:defaultOrder (LONG) = "0" mandatory autocreated
+  - defaultOrder (LONG) = "0" mandatory autocreated
 
   // Who may see this metric: everyone, or only administrators
   - accessLevel (STRING) = 'public' mandatory autocreated < 'public', 'admin'

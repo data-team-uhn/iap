@@ -42,8 +42,8 @@ import io.uhndata.iap.tags.internal.TagOperations;
  * the resolver this model was read with.
  *
  * <p>
- * The view adapts any content; the {@code iap:Taggable} mixin only declares the tagging properties once — every
- * {@code iap:Content} node carries it through its supertypes, and other node types, e.g. {@code nt:file}, become
+ * The view adapts any content; the {@code tag:Taggable} mixin only declares the tagging properties once — every
+ * {@code data:Content} node carries it through its supertypes, and other node types, e.g. {@code nt:file}, become
  * taggable by adding the mixin.
  * </p>
  *

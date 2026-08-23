@@ -62,7 +62,7 @@ class ArchiveOperationsTest
         NodeTypeDefinitionScanner.get().register(this.session,
             List.of("SLING-INF/nodetypes/deletion.cnd", "SLING-INF/nodetypes/test.cnd"),
             ResourceResolverType.JCR_OAK.getNodeTypeMode());
-        this.session.getRootNode().addNode("Archive", "iap:Archive");
+        this.session.getRootNode().addNode("Archive", "del:Archive");
         this.session.getRootNode().addNode("content");
         this.session.save();
     }
@@ -136,9 +136,9 @@ class ArchiveOperationsTest
         final Node victim = this.session.getNode("/content").addNode("victim");
         victim.addMixin("mix:referenceable");
         final Node holder = this.session.getNode("/content").addNode("holder");
-        final Node definition = this.session.getRootNode().addNode("definition", "iap:LinkDefinition");
+        final Node definition = this.session.getRootNode().addNode("definition", "link:Definition");
         definition.setProperty("onDelete", "RECURSIVE_DELETE");
-        final Node link = holder.addNode("iap:links", "iap:Links").addNode("link", "iap:Link");
+        final Node link = holder.addNode("link:links", "link:Links").addNode("link", "link:Link");
         link.setProperty("type", definition);
         link.setProperty("reference", victim);
         this.session.save();

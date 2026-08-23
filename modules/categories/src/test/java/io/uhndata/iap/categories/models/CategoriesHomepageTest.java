@@ -80,7 +80,7 @@ class CategoriesHomepageTest
         this.context.create().resource("/Categories/Retrospective",
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE, "label", "Retrospective studies");
         this.context.create().resource("/Categories/notes",
-            SLING_RESOURCE_TYPE, "iap/Content");
+            SLING_RESOURCE_TYPE, "data/Content");
         this.context.create().resource("/Categories/Prospective",
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE, "label", "Prospective studies");
         final CategoriesHomepage homepage = resource.adaptTo(CategoriesHomepage.class);

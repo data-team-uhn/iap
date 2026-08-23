@@ -37,7 +37,7 @@ import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code iap:TagDefinition} node, the definition of one tag: what it means, where it may be
+ * A Sling Model wrapping an {@code tag:Definition} node, the definition of one tag: what it means, where it may be
  * placed, and how it behaves. The tag itself is stored on tagged nodes as a plain string in their {@code tags}
  * property, matching this definition's {@link #getName() name}. Each definition documents itself as an entry of the
  * vocabulary's {@link TagsHomepage catalogue}, spelling out its behaviors and placement restrictions.
@@ -49,8 +49,8 @@ import io.uhndata.iap.content.models.Content;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class TagDefinition extends Content implements DocumentedItem
 {
-    /** The {@code sling:resourceType} of an {@code iap:TagDefinition} node. */
-    public static final String RESOURCE_TYPE = "iap/TagDefinition";
+    /** The {@code sling:resourceType} of an {@code tag:Definition} node. */
+    public static final String RESOURCE_TYPE = "tag/Definition";
 
     /**
      * Sorts tag definitions in their intended display sequence: by their explicit {@link #getOrder() order} first,

@@ -42,8 +42,8 @@
     "org.apache.sling.jcr.repoinit.RepositoryInitializer~iap-jwt-token-authentication": {
       "service.ranking:Integer": 300,
       "scripts": [
-        "create path (rep:Unstructured) /jcr:system/iap:jwt/JWTRSA256Key \n set ACL for everyone \n   deny jcr:all on /jcr:system/iap:jwt/JWTRSA256Key \n end",
-        "create service user iap-jwt-token-manager \n set ACL for iap-jwt-token-manager \n allow jcr:all on /jcr:system/iap:jwt/JWTRSA256Key \n     allow jcr:read on / \n end"
+        "create path (rep:Unstructured) /jcr:system/iap-jwt/JWTRSA256Key \n set ACL for everyone \n   deny jcr:all on /jcr:system/iap-jwt/JWTRSA256Key \n end",
+        "create service user iap-jwt-token-manager \n set ACL for iap-jwt-token-manager \n allow jcr:all on /jcr:system/iap-jwt/JWTRSA256Key \n     allow jcr:read on / \n end"
       ]
     },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iap-jwt-token-authentication": {

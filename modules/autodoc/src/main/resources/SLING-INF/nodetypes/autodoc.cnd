@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-<iap = 'https://iap.uhndata.io/'>
+<doc = 'https://iap.uhndata.io/doc/'>
 
 //-----------------------------------------------------------------------------
 // Marks an auto-documented node, which serves runtime documentation about a
@@ -22,7 +22,7 @@
 // the workflow engine. The documentation is served by appending `.doc.json` or
 // `.doc.md` to the node's path. Node types can extend this mixin directly, or
 // it can be added to individual nodes.
-[iap:Documented]
+[doc:Documented]
   mixin
 
   // Title of the served documentation, e.g. "Tags"

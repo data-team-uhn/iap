@@ -55,7 +55,7 @@ class TagsHomepageTest
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource("/Tags",
-            "sling:resourceType", "iap/TagsHomepage");
+            "sling:resourceType", "tag/Homepage");
         assertNotNull(resource.adaptTo(TagsHomepage.class));
     }
 
@@ -63,13 +63,13 @@ class TagsHomepageTest
     void listsDefinitionsInDisplayOrder()
     {
         final Resource resource = this.context.create().resource("/Tags",
-            "sling:resourceType", "iap/TagsHomepage");
+            "sling:resourceType", "tag/Homepage");
         this.context.create().resource("/Tags/second", Map.of(
-            "sling:resourceType", "iap/TagDefinition", "order", 20L));
+            "sling:resourceType", "tag/Definition", "order", 20L));
         this.context.create().resource("/Tags/first", Map.of(
-            "sling:resourceType", "iap/TagDefinition", "order", 10L));
+            "sling:resourceType", "tag/Definition", "order", 10L));
         this.context.create().resource("/Tags/last",
-            "sling:resourceType", "iap/TagDefinition");
+            "sling:resourceType", "tag/Definition");
 
         final List<TagDefinition> definitions = resource.adaptTo(TagsHomepage.class).getDefinitions();
 
@@ -81,12 +81,12 @@ class TagsHomepageTest
     void skipsChildrenThatAreNotDefinitions()
     {
         final Resource resource = this.context.create().resource("/Tags",
-            "sling:resourceType", "iap/TagsHomepage");
+            "sling:resourceType", "tag/Homepage");
         this.context.create().resource("/Tags/draft",
-            "sling:resourceType", "iap/TagDefinition");
+            "sling:resourceType", "tag/Definition");
         // Extensibility children of other types are not tag definitions
         this.context.create().resource("/Tags/config",
-            "sling:resourceType", "iap/Content");
+            "sling:resourceType", "data/Content");
 
         final List<TagDefinition> definitions = resource.adaptTo(TagsHomepage.class).getDefinitions();
 
@@ -98,26 +98,26 @@ class TagsHomepageTest
     void emptyHomepageListsNoDefinitions()
     {
         final Resource resource = this.context.create().resource("/Tags",
-            "sling:resourceType", "iap/TagsHomepage");
+            "sling:resourceType", "tag/Homepage");
         assertTrue(resource.adaptTo(TagsHomepage.class).getDefinitions().isEmpty());
     }
 
     @Test
     void documentsTheVocabulary()
     {
-        // The heading properties are autocreated from the defaults declared by the iap:TagsHomepage node type,
+        // The heading properties are autocreated from the defaults declared by the tag:Homepage node type,
         // which the mock repository does not apply, so the test sets the very values the CND declares
         final Resource resource = this.context.create().resource("/Tags", Map.of(
-            "sling:resourceType", "iap/TagsHomepage",
+            "sling:resourceType", "tag/Homepage",
             "title", "Tags",
             "description", "All the tags defined in this instance, grouped by category."));
         this.context.create().resource("/Tags/draft", Map.of(
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "label", "Draft",
             "description", "Work in progress",
             "category", new String[] { "lifecycle" }));
         this.context.create().resource("/Tags/loose",
-            "sling:resourceType", "iap/TagDefinition");
+            "sling:resourceType", "tag/Definition");
 
         // The homepage is the AutoDocumentable adapter for the whole vocabulary
         final AutoDocumentable documentation = resource.adaptTo(AutoDocumentable.class);
@@ -146,7 +146,7 @@ class TagsHomepageTest
     void headingsCanBeReworded()
     {
         final Resource resource = this.context.create().resource("/Tags", Map.of(
-            "sling:resourceType", "iap/TagsHomepage",
+            "sling:resourceType", "tag/Homepage",
             "title", "Labels",
             "description", "The labels available here."));
 
@@ -161,7 +161,7 @@ class TagsHomepageTest
         // A deployment can reword the heading by editing the autocreated properties, and nothing in the model
         // second-guesses what it stored
         final Resource resource = this.context.create().resource("/Tags", Map.of(
-            "sling:resourceType", "iap/TagsHomepage",
+            "sling:resourceType", "tag/Homepage",
             "title", "Markers",
             "description", "The markers this institution uses."));
 

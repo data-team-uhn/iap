@@ -61,13 +61,13 @@ class CascadeResolver
     private static final Logger LOGGER = LoggerFactory.getLogger(CascadeResolver.class);
 
     /** The node type shared by resource links, weak or hard. */
-    private static final String LINK_NODETYPE = "iap:Link";
+    private static final String LINK_NODETYPE = "link:Link";
 
     /** The node type of weak resource links. */
-    private static final String WEAK_LINK_NODETYPE = "iap:WeakLink";
+    private static final String WEAK_LINK_NODETYPE = "link:WeakLink";
 
     /** The node type of external links, which reference their definition just like resource links do. */
-    private static final String EXTERNAL_LINK_NODETYPE = "iap:ExternalLink";
+    private static final String EXTERNAL_LINK_NODETYPE = "link:ExternalLink";
 
     private final DeletionPlan plan;
 
@@ -286,7 +286,7 @@ class CascadeResolver
     private void handleRecursiveLink(final Node linkNode, final String path, final Deque<Node> queue)
         throws RepositoryException
     {
-        // Links are stored under <owner>/iap:links/<link>, so the resource sharing the link's fate sits two
+        // Links are stored under <owner>/link:links/<link>, so the resource sharing the link's fate sits two
         // levels up; a link node closer to the root than that is malformed
         if (linkNode.getDepth() < 2) {
             LOGGER.warn("Link {} has no owning resource, only removing the link", path);

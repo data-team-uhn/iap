@@ -14,7 +14,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-create path (iap:LoginPage) /login
+create path (app:LoginPage) /login
 create path (nt:unstructured) /libs/iap/conf/LoginPage
 
 # The login page must be readable without a session. This is the JCR half of the access

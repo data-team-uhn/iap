@@ -78,7 +78,7 @@ class MetricsSessionCountTest
         try (ResourceResolver resolver =
             this.real.getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, "metrics"))) {
             resolver.create(resolver.getResource("/"), "Metrics",
-                Map.of("sling:resourceType", "iap/MetricsHomepage"));
+                Map.of("sling:resourceType", "metric/Homepage"));
             resolver.commit();
         }
         for (int i = 0; i < METRICS; ++i) {

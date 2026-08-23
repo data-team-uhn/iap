@@ -49,7 +49,7 @@ class TagTest
     {
         this.context.addModelsForClasses(Content.class, TagDefinition.class);
         final TagDefinition definition = this.context.create().resource("/Tags/draft",
-            "sling:resourceType", "iap/TagDefinition").adaptTo(TagDefinition.class);
+            "sling:resourceType", "tag/Definition").adaptTo(TagDefinition.class);
 
         final Tag tag = new Tag("draft", definition, Set.of(Tag.Origin.EXPLICIT), Set.of("/data/entity"));
 

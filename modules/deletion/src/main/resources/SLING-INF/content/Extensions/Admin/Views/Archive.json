@@ -1,7 +1,7 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/coreUI/view",
-  "iap:extensionName": "Archive",
-  "iap:targetURL": "/admin/archive",
-  "iap:extensionRenderURL": "asset:iap-deletion.ArchiveBrowser.js?lazy"
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Archive",
+  "ext:targetURL": "/admin/archive",
+  "ext:renderURL": "asset:iap-deletion.ArchiveBrowser.js?lazy"
 }

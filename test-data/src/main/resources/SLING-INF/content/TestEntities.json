@@ -1,10 +1,10 @@
 {
-  "jcr:primaryType": "iap:TestEntityHomepage",
+  "jcr:primaryType": "test:EntityHomepage",
   "SampleEntity": {
-    "jcr:primaryType": "iap:TestEntity",
+    "jcr:primaryType": "test:Entity",
     "title": "Sample entity",
-    "description": "A minimal concrete iap:Entity, only meant for testing.",
-    "customProperty": "An undeclared property, not part of iap:TestEntity's own schema",
+    "description": "A minimal concrete data:Entity, only meant for testing.",
+    "customProperty": "An undeclared property, not part of test:Entity's own schema",
     "customTags": [ "alpha", "beta" ],
     "tags": ["draft"]
   }

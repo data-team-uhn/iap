@@ -30,9 +30,9 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 // A frame-top extension as returned by loadExtensions, with the render asset already resolved
 const notice = (name: string, visibleBeforeLogin?: unknown): Extension => ({
-  "iap:extensionName": name,
-  ...(visibleBeforeLogin === undefined ? {} : { "iap:visibleBeforeLogin": visibleBeforeLogin }),
-  "iap:extensionRender": () => <div>{`${name} content`}</div>,
+  "ext:name": name,
+  ...(visibleBeforeLogin === undefined ? {} : { "ext:visibleBeforeLogin": visibleBeforeLogin }),
+  "ext:render": () => <div>{`${name} content`}</div>,
 });
 
 describe("PreLoginExtensions", () => {

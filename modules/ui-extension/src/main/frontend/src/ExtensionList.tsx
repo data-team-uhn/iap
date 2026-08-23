@@ -18,18 +18,18 @@
 
 import { type ComponentType } from "react";
 
-// An extension is the parsed JSON of one `iap:Extension`, with its `asset:` properties already
+// An extension is the parsed JSON of one `ext:Extension`, with its `asset:` properties already
 // resolved; its exact shape depends on the extension point, so it is an open string-keyed record.
 type Extension = Record<string, unknown>;
 
-// Renders each extension's `iap:extensionRender` component, in the order given, passing it the
-// extension itself so node properties (`iap:data`, ...) are readable at runtime.
+// Renders each extension's `ext:render` component, in the order given, passing it the
+// extension itself so node properties (`ext:data`, ...) are readable at runtime.
 function ExtensionList({ extensions }: { extensions: Extension[] }) {
   return (
     <>
       {
         extensions.map((extension, index) => {
-          const ExtensionContent = extension["iap:extensionRender"] as ComponentType<{ extension: Extension }> | undefined;
+          const ExtensionContent = extension["ext:render"] as ComponentType<{ extension: Extension }> | undefined;
           return ExtensionContent ? <ExtensionContent extension={extension} key={"extension-" + index} /> : null;
         })
       }

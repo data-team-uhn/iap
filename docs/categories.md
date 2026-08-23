@@ -60,11 +60,11 @@ was retired in its own right or is covered by an ancestor — `Category.isRetire
 `Category.isRetired()` — which is what decides where the retirement can be lifted again. It also
 makes "everything currently closed" a query rather than a tree walk.
 
-`cat:Category` extends `iap:Entity`: categories are top-level data, comparable to schemas and
+`cat:Category` extends `data:Entity`: categories are top-level data, comparable to schemas and
 workflows, rather than platform vocabulary like tag or link definitions. So each one is
 referenceable (which is how a submission will point at it), versionable, tracks its last
 modification, can be [tagged](tags.md) and [linked](links.md), and accepts any further properties
-and children a deployment adds. `cat:CategoriesHomepage` extends `iap:EntityHomepage` and names
+and children a deployment adds. `cat:CategoriesHomepage` extends `data:EntityHomepage` and names
 `cat:Category` as its `childNodeType`.
 
 The module creates `/Categories` empty and ships no categories of its own: a taxonomy is a
@@ -114,7 +114,7 @@ names the category it picked: node names are only unique among siblings.
 
 The primary consumer is AI-assisted categorization, which builds its prompt from the served
 descriptions. The catalogue's own heading and introduction come from the `title` and `description`
-properties of the [`iap:Documented`](autodoc.md) mixin on `/Categories`, so a deployment can reword
+properties of the [`doc:Documented`](autodoc.md) mixin on `/Categories`, so a deployment can reword
 them without touching code.
 
 ## Managing the tree

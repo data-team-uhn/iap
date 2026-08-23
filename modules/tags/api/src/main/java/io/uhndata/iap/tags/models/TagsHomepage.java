@@ -30,11 +30,11 @@ import io.uhndata.iap.autodoc.api.AutoDocumentable;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping the {@code iap:TagsHomepage} node, the root container holding the tag definitions. The
- * homepage documents the whole tag vocabulary: the node carries the {@code iap:Documented} mixin through its primary
+ * A Sling Model wrapping the {@code tag:Homepage} node, the root container holding the tag definitions. The
+ * homepage documents the whole tag vocabulary: the node carries the {@code doc:Documented} mixin through its primary
  * type, so the catalogue of defined tags is served at {@code /Tags.doc.json} and {@code /Tags.doc.md}. Its heading
  * comes from the {@code title} and {@code description} properties, autocreated from the defaults declared by the
- * {@code iap:TagsHomepage} node type and editable by a deployment wanting to reword it.
+ * {@code tag:Homepage} node type and editable by a deployment wanting to reword it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -43,8 +43,8 @@ import io.uhndata.iap.content.models.Content;
     resourceType = TagsHomepage.RESOURCE_TYPE, defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class TagsHomepage extends Content implements AutoDocumentable
 {
-    /** The {@code sling:resourceType} of an {@code iap:TagsHomepage} node. */
-    public static final String RESOURCE_TYPE = "iap/TagsHomepage";
+    /** The {@code sling:resourceType} of an {@code tag:Homepage} node. */
+    public static final String RESOURCE_TYPE = "tag/Homepage";
 
     @ValueMapValue
     private String title;

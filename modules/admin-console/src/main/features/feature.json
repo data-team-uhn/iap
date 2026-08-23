@@ -26,7 +26,7 @@
       "service.ranking:Integer": 300,
       "scripts": [
         "create path (sling:Folder) /Extensions/Admin",
-        "create path (iap:Homepage) /admin",
+        "create path (app:Homepage) /admin",
         "set ACL for everyone \n deny jcr:all on /Extensions/Admin,/admin \n end"
       ]
     }

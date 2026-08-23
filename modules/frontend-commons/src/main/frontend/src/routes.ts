@@ -23,11 +23,11 @@ let routesRequest: Promise<unknown[] | undefined> | null = null;
 
 // Retrieves the registered "routes", React components that can display a "data view" in the main content area when the corresponding URL is opened.
 // A route must have:
-// - a path (`iap:targetURL`) that the view is responsible for displaying
-// - a React component (`iap:extensionRender`) that does the actual display
+// - a path (`ext:targetURL`) that the view is responsible for displaying
+// - a React component (`ext:render`) that does the actual display
 // Additionally, a route may have:
-// - a name (`iap:extensionName`)
-// - a description (`iap:hint`)
+// - a name (`ext:name`)
+// - a description (`ext:hint`)
 // This is an asynchronous function, it will return a Promise that resolves to the actual list of routes.
 //
 // @return a Promise that will resolve to the actual list of routes

@@ -37,7 +37,7 @@ describe("getRoutes", () => {
   });
 
   it("resolves the registered Views extensions", async () => {
-    const views = [{ "iap:targetURL": "/reports" }];
+    const views = [{ "ext:targetURL": "/reports" }];
     mockedLoadExtensions.mockResolvedValue(views);
     const getRoutes = await freshRoutes();
 
@@ -46,7 +46,7 @@ describe("getRoutes", () => {
   });
 
   it("only asks for the extensions once, and reuses the answer", async () => {
-    mockedLoadExtensions.mockResolvedValue([{ "iap:targetURL": "/reports" }]);
+    mockedLoadExtensions.mockResolvedValue([{ "ext:targetURL": "/reports" }]);
     const getRoutes = await freshRoutes();
 
     const first = await getRoutes();
@@ -63,10 +63,10 @@ describe("getRoutes", () => {
     const getRoutes = await freshRoutes();
 
     const both = Promise.all([getRoutes(), getRoutes()]);
-    resolveExtensions([{ "iap:targetURL": "/reports" }]);
+    resolveExtensions([{ "ext:targetURL": "/reports" }]);
 
     const [first, second] = await both;
-    expect(first).toEqual([{ "iap:targetURL": "/reports" }]);
+    expect(first).toEqual([{ "ext:targetURL": "/reports" }]);
     expect(second).toEqual(first);
     expect(mockedLoadExtensions).toHaveBeenCalledTimes(1);
   });
@@ -88,7 +88,7 @@ describe("getRoutes", () => {
     const getRoutes = await freshRoutes();
     await getRoutes();
 
-    const views = [{ "iap:targetURL": "/reports" }];
+    const views = [{ "ext:targetURL": "/reports" }];
     mockedLoadExtensions.mockResolvedValueOnce(views);
 
     expect(await getRoutes()).toEqual(views);

@@ -61,7 +61,7 @@ public class MetricImpl implements Metric
     static final String METRICS_PATH = "/Metrics";
 
     /** The node type of a metric node. */
-    static final String NODE_TYPE = "iap:Metric";
+    static final String NODE_TYPE = "metric:Metric";
 
     /** The name of the subservice performing all repository access. */
     static final String SUBSERVICE = "metrics";
@@ -76,7 +76,7 @@ public class MetricImpl implements Metric
     static final String PN_CATEGORY = "category";
 
     /** The name of the property holding the placement within the category. */
-    static final String PN_DEFAULT_ORDER = "iap:defaultOrder";
+    static final String PN_DEFAULT_ORDER = "defaultOrder";
 
     /** The name of the property holding the access level. */
     static final String PN_ACCESS_LEVEL = "accessLevel";

@@ -17,8 +17,8 @@
 {
   "bundles":[
     {
-      // The metrics node types extend iap:Content, and node type registration happens when a bundle
-      // starts, so this must start after iap-data-model-content-api (start-order 21).
+      // The metrics node types extend data:Content, and node type registration happens when a bundle
+      // starts, so this must start after iap-data-content-api (start-order 21).
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"26"
     }

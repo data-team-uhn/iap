@@ -1,9 +1,9 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/dashboard/widget",
-  "iap:extensionName": "Review queue",
-  "iap:subtitle": "Submissions waiting for your review",
-  "iap:extensionRenderURL": "asset:iap-submissions.MyReviewQueueWidget.js",
-  "iap:defaultOrder": 2,
-  "iap:widgetWidth": "full"
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "Review queue",
+  "ext:subtitle": "Submissions waiting for your review",
+  "ext:renderURL": "asset:iap-submissions.MyReviewQueueWidget.js",
+  "defaultOrder": 2,
+  "ext:widgetWidth": "full"
 }

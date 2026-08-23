@@ -31,11 +31,11 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 const SHELL_POINTS = ["FrameTop", "FrameBottom", "FrameStart", "FrameEnd", "PageTop", "PageBottom"];
 
-// Builds an extension as returned by loadExtensions: the parsed iap:Extension JSON with the
+// Builds an extension as returned by loadExtensions: the parsed ext:Extension JSON with the
 // render asset already resolved to a component that displays "<name> content".
 const ext = (name: string, props: Record<string, unknown> = {}) => ({
-  "iap:extensionName": name,
-  "iap:extensionRender": () => <div>{`${name} content`}</div>,
+  "ext:name": name,
+  "ext:render": () => <div>{`${name} content`}</div>,
   ...props,
 });
 

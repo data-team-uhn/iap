@@ -193,7 +193,7 @@ class BpmnXmlSyncEditorTest
         nodeTypes.child("wf:ExclusiveGateway")
             .setProperty("rep:supertypes", List.of("wf:Gateway", "wf:FlowNode"), Type.NAMES)
             .setProperty("jcr:supertypes", List.of("wf:Gateway"), Type.NAMES);
-        nodeTypes.child("wf:SequenceFlow").setProperty("jcr:supertypes", List.of("iap:EntityPart"), Type.NAMES);
+        nodeTypes.child("wf:SequenceFlow").setProperty("jcr:supertypes", List.of("data:EntityPart"), Type.NAMES);
         // nt:file is registered without any supertype naming a flow node, so bpmn.xml survives a reparse.
         nodeTypes.child("nt:file").setProperty("rep:supertypes", List.of("nt:hierarchyNode"), Type.NAMES);
 
@@ -387,7 +387,7 @@ class BpmnXmlSyncEditorTest
         assertTrue(flow1.hasProperty("jcr:created"));
         assertEquals("alice", flow1.getProperty("jcr:createdBy").getValue(Type.STRING));
         assertEquals("wf/SequenceFlow", flow1.getProperty("sling:resourceType").getValue(Type.STRING));
-        assertEquals("iap/EntityPart", flow1.getProperty(RESOURCE_SUPER_TYPE).getValue(Type.STRING));
+        assertEquals("data/EntityPart", flow1.getProperty(RESOURCE_SUPER_TYPE).getValue(Type.STRING));
 
         // One timestamp for the whole batch, so that the nodes of a single parse cannot be told apart by age.
         assertEquals(start.getProperty("jcr:created").getValue(Type.DATE),
@@ -1021,7 +1021,7 @@ class BpmnXmlSyncEditorTest
     {
         final NodeBuilder root = base();
         root.child("jcr:system").child("jcr:nodeTypes").child("x:ApprovalVersion")
-            .setProperty("rep:supertypes", List.of("wf:WorkflowVersion", "iap:Entity"), Type.NAMES);
+            .setProperty("rep:supertypes", List.of("wf:WorkflowVersion", "data:Entity"), Type.NAMES);
         version(root).setProperty(PRIMARY_TYPE, "x:ApprovalVersion", Type.NAME);
         // Siblings that are not versions are walked past: one with an unrelated type, one with none at all.
         descend(root, WORKFLOWS_PATH, DEFINITION_NAME, "notAVersion")

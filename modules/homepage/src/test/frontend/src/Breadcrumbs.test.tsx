@@ -31,9 +31,9 @@ const mockedGetRoutes = vi.mocked(getRoutes);
 // The registered views as the extension mechanism returns them; only the routing-relevant
 // properties matter to the breadcrumb trail.
 const views = [
-  { "iap:extensionName": "Dashboard", "iap:targetURL": "/" },
-  { "iap:extensionName": "Administration", "iap:targetURL": "/admin" },
-  { "iap:extensionName": "Submission categories", "iap:targetURL": "/admin/categories" },
+  { "ext:name": "Dashboard", "ext:targetURL": "/" },
+  { "ext:name": "Administration", "ext:targetURL": "/admin" },
+  { "ext:name": "Submission categories", "ext:targetURL": "/admin/categories" },
 ];
 
 const renderAt = (url: string) => render(
@@ -73,7 +73,7 @@ describe("Breadcrumbs", () => {
 
   it("skips ancestors that have no registered view, e.g. views the user cannot read", async () => {
     // A user who cannot read the Administration view only gets the other views served
-    mockedGetRoutes.mockResolvedValue(views.filter(view => view["iap:targetURL"] !== "/admin"));
+    mockedGetRoutes.mockResolvedValue(views.filter(view => view["ext:targetURL"] !== "/admin"));
 
     const { container } = renderAt("/admin/categories");
 
@@ -97,8 +97,8 @@ describe("Breadcrumbs", () => {
 
   it("falls back to the path for a view that registers no name", async () => {
     mockedGetRoutes.mockResolvedValue([
-      { "iap:targetURL": "/admin" },
-      { "iap:extensionName": "Submission categories", "iap:targetURL": "/admin/categories" },
+      { "ext:targetURL": "/admin" },
+      { "ext:name": "Submission categories", "ext:targetURL": "/admin/categories" },
     ]);
 
     renderAt("/admin/categories");

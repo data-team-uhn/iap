@@ -1,0 +1,214 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<rep = 'internal'>
+<doc = 'https://iap.uhndata.io/doc/'>
+<link = 'https://iap.uhndata.io/link/'>
+<data = 'https://iap.uhndata.io/data/'>
+
+//-----------------------------------------------------------------------------
+//
+// Links: ad-hoc, typed connections from a resource, kept in an `link:links`
+// child container. A link either references another resource in the
+// repository (link:Link, link:WeakLink), or records a correspondence to
+// something outside it, like an identifier in an external system
+// (link:ExternalLink). Structural relations between resources remain direct
+// REFERENCE properties; links are for the relations that aren't part of a
+// node type's own shape.
+//
+// Every usable link type must first be *defined* as an link:Definition
+// node under /LinkTypes: the definition is the single source of truth for
+// what the connection means, what it may connect, and how it behaves.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /LinkTypes root path, holding the link definitions.
+[link:TypesHomepage] > data:Content, rep:AccessControllable, doc:Documented
+  // We can query link definitions
+  query
+
+  - sling:resourceType (STRING) = "link/TypesHomepage" mandatory autocreated protected
+
+  // The heading of the served documentation, overriding the empty defaults of
+  // the doc:Documented mixin. Autocreated rather than hardcoded in the model
+  // serving the catalogue, but still editable, so that a deployment can reword
+  // the heading without touching code.
+  - title (STRING) = "Link types" autocreated
+  - description (STRING) = "All the link types defined in this instance." autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains link definitions
+  + * (link:Definition) = link:Definition
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The definition of a type of link.
+[link:Definition] > data:Content, mix:referenceable, mix:lastModified
+  - sling:resourceType (STRING) = "link/Definition" mandatory autocreated protected
+
+  // An optional label for the link type. If not defined, the node name is used.
+  - label (STRING)
+
+  // An optional longer explanation of what this type of link means and when it
+  // applies, surfaced by the self-documentation catalogue.
+  - description (STRING)
+
+  // Whether links of this type appear in the user-facing UI. This is only a
+  // rendering hint, not access control: the links remain readable by anyone
+  // who can read the resource holding them, and administrative or diagnostic
+  // views ignore it. Should richer rules ever be needed (per role, per state),
+  // the growth path is a display condition, not more values here.
+  - displayed (BOOLEAN) = true
+
+  // Whether links of this type point outside the repository (a recorded value,
+  // e.g. an identifier in an external system) instead of referencing another
+  // resource. External definitions must not declare reference-only settings:
+  // weak, requiredDestinationTypes, backlink, backlinkOnly, onDelete.
+  - external (BOOLEAN) = false
+
+  // Whether the link should be a hard or a weak reference. Hard references
+  // prevent the deletion of the linked resource; weak references may break.
+  - weak (BOOLEAN) = false
+
+  // Required node types for the source or destination. Optional, no
+  // restrictions are imposed when missing.
+  - requiredSourceTypes (NAME) multiple
+  - requiredDestinationTypes (NAME) multiple
+
+  // An optional template rendering a nicer label for the link target, e.g.
+  // "{typeLabel}: {name}". Supported placeholders: {name} and {property:xyz}
+  // (the target's node name / one of its properties), {label} (the label set
+  // on the link itself), {typeLabel} (this definition's label), {sourceName}
+  // (the linking resource's node name), and {value} (an external link's
+  // recorded value). When not set, the target's node name (or the recorded
+  // value) is used.
+  - targetLabelTemplate (STRING)
+
+  // An optional reverse link to be added automatically from the linked
+  // resource back to the linking resource, named as a path to another link
+  // definition. A definition may name itself, for a symmetrical double link.
+  // Every defined backlink is guaranteed to eventually exist: it is created
+  // together with the link when the user may write to the linked resource,
+  // and by the links service user shortly afterwards otherwise.
+  - backlink (PATH)
+
+  // Set on link definitions that cannot be instantiated directly, but only as
+  // automatically created backlinks.
+  - backlinkOnly (BOOLEAN) = false
+
+  // How the linking resource should behave when the linked resource is
+  // deleted. Accepted values:
+  // - IGNORE -> keep the link as a broken reference; only valid for weak links
+  // - REMOVE_LINK -> only remove the link between resources (default)
+  // - RECURSIVE_DELETE -> also delete the linking resource, and any others it may impact
+  // Enforced by the deletion service; see docs/deletion.md.
+  - onDelete (STRING) = "REMOVE_LINK" mandatory autocreated
+
+  // For external definitions, an optional regular expression that recorded
+  // values must fully match, validated when the link is created.
+  - valuePattern (STRING)
+
+  // For external definitions, an optional URL template turning the recorded
+  // value into a navigable address, e.g. "https://ehr.example.org/chart/{value}".
+  - urlTemplate (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// Marks content that holds links: the mixin declares the link:links container
+// once, so node types opt in by listing it as a supertype, and individual
+// nodes by adding the mixin, instead of re-declaring the same child node. It
+// is only a declaration aid, not an access control or a gate: content whose
+// type allows the container some other way holds links just as well.
+[link:Linkable]
+  mixin
+
+  // Container for links to other content
+  + link:links (link:Links) = link:Links autocreated IGNORE
+
+//-----------------------------------------------------------------------------
+// The container holding all the links of a resource, as a child node named
+// link:links. The IGNORE on-parent-version attributes keep links out of the
+// version history of versionable resources.
+[link:Links] > data:Content
+  - sling:resourceType (STRING) = "link/Links" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The links
+  + * (link:Link) = link:Link IGNORE
+  + * (link:WeakLink) = link:WeakLink IGNORE
+  + * (link:ExternalLink) = link:ExternalLink IGNORE
+
+//-----------------------------------------------------------------------------
+// A hard link to another resource.
+[link:Link] > data:Content, mix:lastModified
+  - sling:resourceType (STRING) = "link/Link" mandatory autocreated protected
+
+  // The type of link, a reference to an link:Definition node
+  - type (REFERENCE) mandatory nofulltext
+
+  // The resource being referenced
+  - reference (REFERENCE) mandatory nofulltext
+
+  // An optional extra label associated with the link
+  - label (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+//-----------------------------------------------------------------------------
+// A weak link to another resource.
+[link:WeakLink] > link:Link
+  - sling:resourceType (STRING) = "link/WeakLink" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "link/Link" mandatory autocreated protected
+
+  // The resource being referenced
+  - reference (WEAKREFERENCE) mandatory nofulltext
+
+//-----------------------------------------------------------------------------
+// A link to something outside the repository: the recorded value identifies
+// the target, e.g. this resource's identifier in an external system.
+[link:ExternalLink] > data:Content, mix:lastModified
+  - sling:resourceType (STRING) = "link/ExternalLink" mandatory autocreated protected
+
+  // The type of link, a reference to an link:Definition node
+  - type (REFERENCE) mandatory nofulltext
+
+  // The recorded value, e.g. an external identifier or a URL
+  - value (STRING) mandatory
+
+  // An optional extra label associated with the link
+  - label (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple

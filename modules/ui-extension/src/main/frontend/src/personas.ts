@@ -57,7 +57,7 @@ const availablePersonas = (): Persona[] => [ ...PERSONAS ];
 // The label to display for a persona, falling back to the raw value for one we don't know.
 //
 // `Object.hasOwn` rather than a plain lookup: persona names come from outside this module (repository
-// `iap:personas` values, and role names once the seam above is implemented), and a plain lookup would
+// `ext:personas` values, and role names once the seam above is implemented), and a plain lookup would
 // answer for inherited members too — `personaLabel("constructor")` would hand back a function where
 // the signature promises a string.
 const personaLabel = (persona: Persona): string =>

@@ -16,7 +16,7 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <nt = 'http://www.jcp.org/jcr/nt/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<mail = 'https://iap.uhndata.io/mail/'>
 
 //-----------------------------------------------------------------------------
 //
@@ -31,7 +31,7 @@
 // `bodyTemplate.txt` child files; any other file child is included in the email
 // as an inline attachment, referenced from the HTML body as `cid:<file name>`.
 // Every other property becomes a variable available to the body templates.
-[iap:EmailTemplate] > sling:Folder
+[mail:Template] > sling:Folder
   // Attributes:
 
   // We can look for templates in a query
@@ -39,7 +39,7 @@
 
   // Properties:
 
-  - sling:resourceType (STRING) = "iap/EmailTemplate" mandatory autocreated protected
+  - sling:resourceType (STRING) = "mail/Template" mandatory autocreated protected
 
   // The address and name the email is sent from
   - senderAddress (STRING) mandatory

@@ -113,14 +113,14 @@ class DeletionPlanTest
     void normalizeDropsCoveredBookkeeping()
     {
         final Node node = mock(Node.class);
-        this.plan.getLinksToRemove().put("/content/p/iap:links/l", node);
-        this.plan.getLinksToRemove().put("/content/other/iap:links/l", node);
+        this.plan.getLinksToRemove().put("/content/p/link:links/l", node);
+        this.plan.getLinksToRemove().put("/content/other/link:links/l", node);
         this.plan.getBlockingReferrers().put("/content/p/sub", node);
         this.plan.getBlockingReferrers().put("/content/elsewhere", node);
         this.plan.markRoot("/content/p", node);
         this.plan.normalize();
         assertEquals(1, this.plan.getLinksToRemove().size());
-        assertTrue(this.plan.getLinksToRemove().containsKey("/content/other/iap:links/l"));
+        assertTrue(this.plan.getLinksToRemove().containsKey("/content/other/link:links/l"));
         assertEquals(1, this.plan.getBlockingReferrers().size());
         assertTrue(this.plan.getBlockingReferrers().containsKey("/content/elsewhere"));
     }
@@ -130,7 +130,7 @@ class DeletionPlanTest
     {
         final Node node = mock(Node.class);
         this.plan.getBlockingReferrers().put("/content/form/sub", node);
-        this.plan.getLinksToRemove().put("/content/form/iap:links/l", node);
+        this.plan.getLinksToRemove().put("/content/form/link:links/l", node);
         this.plan.markRoot("/content/form", node);
         this.plan.markRoot("/content/form-2", node);
         this.plan.normalize();

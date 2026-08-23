@@ -15,7 +15,8 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<doc = 'https://iap.uhndata.io/doc/'>
+<data = 'https://iap.uhndata.io/data/'>
 <cat = 'https://iap.uhndata.io/cat/'>
 
 //-----------------------------------------------------------------------------
@@ -34,22 +35,22 @@
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Homepage node for the /Categories root path. iap:Documented makes the tree
+// Homepage node for the /Categories root path. doc:Documented makes the tree
 // serve its own catalogue of live leaf categories at /Categories.doc.md and
 // /Categories.doc.json, primarily consumed by AI-assisted categorization.
-[cat:CategoriesHomepage] > iap:EntityHomepage, iap:Documented
+[cat:CategoriesHomepage] > data:EntityHomepage, doc:Documented
   // Top-level categories are presented in a deliberate, admin-chosen order.
   orderable
 
   - sling:resourceType (STRING) = "cat/CategoriesHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
   // The listed entities are categories, not following the naming convention
   // that would derive cat:Categorie from the resource type.
   - childNodeType (STRING) = "cat:Category" mandatory autocreated protected
 
   // The heading of the served documentation, overriding the empty defaults of
-  // the iap:Documented mixin. Autocreated rather than hardcoded in the model
+  // the doc:Documented mixin. Autocreated rather than hardcoded in the model
   // serving the catalogue, but still editable, so that a deployment can reword
   // the heading without touching code.
   - title (STRING) = "Submission categories" autocreated
@@ -71,7 +72,7 @@
 //-----------------------------------------------------------------------------
 // A submission category. The node name is the category's technical name;
 // the label is what submitters see.
-[cat:Category] > iap:Entity
+[cat:Category] > data:Entity
   // Sibling subcategories are presented in a deliberate, admin-chosen order.
   orderable
 

@@ -25,13 +25,13 @@ import FormattedText from "./FormattedText";
 const SEVERITIES = ["error", "warning", "info", "success"] as const;
 
 // A full-width notice banner (e.g. a maintenance announcement), rendered from a data-only
-// extension — typically registered on `iap/coreUI/frameTop`, with `iap:visibleBeforeLogin`
+// extension — typically registered on `iap/coreUI/frameTop`, with `ext:visibleBeforeLogin`
 // when the notice must also reach users before they sign in. The extension node provides:
-// - `iap:data`: the message (markdown, so it can carry e.g. a link to a status page);
-// - `iap:severity` (optional): one of error/warning/info/success, defaulting to info.
+// - `ext:data`: the message (markdown, so it can carry e.g. a link to a status page);
+// - `ext:severity` (optional): one of error/warning/info/success, defaulting to info.
 export default function NoticeBanner({ extension }: { extension: Extension }) {
-  const message = extension["iap:data"] as string | undefined;
-  const severity = SEVERITIES.find(candidate => candidate === extension["iap:severity"]) ?? "info";
+  const message = extension["ext:data"] as string | undefined;
+  const severity = SEVERITIES.find(candidate => candidate === extension["ext:severity"]) ?? "info";
 
   if (!message) {
     return null;

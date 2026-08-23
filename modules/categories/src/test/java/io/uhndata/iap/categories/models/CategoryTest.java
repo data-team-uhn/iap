@@ -167,7 +167,7 @@ class CategoryTest
         this.context.create().resource("/Categories/Prospective/Observational",
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE, "label", "Prospective Observational Studies");
         this.context.create().resource("/Categories/Prospective/notes",
-            SLING_RESOURCE_TYPE, "iap/Content");
+            SLING_RESOURCE_TYPE, "data/Content");
         this.context.create().resource("/Categories/Prospective/Interventional",
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE, "label", "Prospective Interventional Studies");
         final Category category = resource.adaptTo(Category.class);

@@ -23,9 +23,9 @@ import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 // An extension whose render component reports both its own name and the data it was handed, so the
 // tests can tell that the extension itself is passed through to it.
 const extension = (name: string, extra: Record<string, unknown> = {}): Extension => ({
-  "iap:extensionName": name,
-  "iap:extensionRender": ({ extension: own }: { extension: Extension }) => (
-    <div>{`${name}:${String(own["iap:data"] ?? "")}`}</div>
+  "ext:name": name,
+  "ext:render": ({ extension: own }: { extension: Extension }) => (
+    <div>{`${name}:${String(own["ext:data"] ?? "")}`}</div>
   ),
   ...extra,
 });
@@ -38,13 +38,13 @@ describe("ExtensionList", () => {
   });
 
   it("hands each component its own extension", () => {
-    render(<ExtensionList extensions={[extension("Widget", { "iap:data": 7 })]} />);
+    render(<ExtensionList extensions={[extension("Widget", { "ext:data": 7 })]} />);
 
     expect(screen.getByText("Widget:7")).toBeInTheDocument();
   });
 
   it("skips an extension that has no render component", () => {
-    const { container } = render(<ExtensionList extensions={[{ "iap:extensionName": "Broken" }, extension("Fine")]} />);
+    const { container } = render(<ExtensionList extensions={[{ "ext:name": "Broken" }, extension("Fine")]} />);
 
     expect(container.textContent).toBe("Fine:");
   });

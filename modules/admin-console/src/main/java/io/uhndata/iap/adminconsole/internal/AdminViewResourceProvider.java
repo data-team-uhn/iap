@@ -55,7 +55,7 @@ public class AdminViewResourceProvider extends ResourceProvider<Object>
      * The type the synthesized resources carry, the same one the console node itself has, so that
      * they render through the very same script.
      */
-    static final String VIEW_RESOURCE_TYPE = "iap/Homepage";
+    static final String VIEW_RESOURCE_TYPE = "app/Homepage";
 
     @Override
     public Resource getResource(final ResolveContext<Object> ctx, final String path,

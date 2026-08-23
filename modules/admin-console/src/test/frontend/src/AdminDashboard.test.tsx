@@ -46,9 +46,9 @@ const renderDashboard = () => render(
 describe("AdminDashboard", () => {
   it("lays out each administrative tool as a titled widget with a subtitle", async () => {
     mockedLoadExtensions.mockResolvedValue([{
-      "iap:extensionName": "Submission categories",
-      "iap:subtitle": "Organize the categories submitters choose from, and bind them to schemas",
-      "iap:extensionRender": () => <div>Category summary</div>,
+      "ext:name": "Submission categories",
+      "ext:subtitle": "Organize the categories submitters choose from, and bind them to schemas",
+      "ext:render": () => <div>Category summary</div>,
     }]);
 
     renderDashboard();

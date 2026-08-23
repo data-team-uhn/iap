@@ -1,8 +1,8 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/appBar/entry",
-  "iap:extensionName": "Persona switcher",
-  "iap:extensionRenderURL": "asset:iap-homepage.PersonaSwitcher.js",
-  "iap:appBarSection": "end",
-  "iap:defaultOrder": 25
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/appBar/entry",
+  "ext:name": "Persona switcher",
+  "ext:renderURL": "asset:iap-homepage.PersonaSwitcher.js",
+  "ext:appBarSection": "end",
+  "defaultOrder": 25
 }

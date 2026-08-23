@@ -31,7 +31,7 @@ import {
 const homepageJson = {
   "jcr:primaryType": "cat:CategoriesHomepage",
   "jcr:createdBy": "admin",
-  "iap:links": { "jcr:primaryType": "iap:Links" },
+  "link:links": { "jcr:primaryType": "link:Links" },
   "Retrospective": {
     "jcr:primaryType": "cat:Category",
     "label": "Retrospective studies",

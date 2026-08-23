@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>
  * On activation the manager reads its RSA256 signing key from
- * {@code /jcr:system/iap:jwt/JWTRSA256Key}; here that
+ * {@code /jcr:system/iap-jwt/JWTRSA256Key}; here that
  * lookup is mocked to return a freshly generated, valid RSA256 key, so no
  * repository is needed.
  * </p>
@@ -73,13 +73,13 @@ public class IapJwtTokenManagerImplTest
      */
     private static final String SESSION_SUBJECT = "iap:sessionSubject";
 
-    private static final String KEY_PATH = "/jcr:system/iap:jwt/JWTRSA256Key";
+    private static final String KEY_PATH = "/jcr:system/iap-jwt/JWTRSA256Key";
 
     private static final String SELF_ID = "localhost8080";
 
     private static final String PEER_ID = "localhost8081";
 
-    private static final String PEER_KEY_PATH_PREFIX = "/jcr:system/iap:jwt/";
+    private static final String PEER_KEY_PATH_PREFIX = "/jcr:system/iap-jwt/";
 
     @Mock
     private ResourceResolverFactory resolverFactory;

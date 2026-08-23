@@ -17,7 +17,7 @@ for instance, lists the current top-level categories) leading into the tool's ow
 
 | Point id | Node name | Purpose |
 | --- | --- | --- |
-| `iap/adminDashboard/entry` | `AdminDashboard` | Administrative tool widgets. `iap:extensionName` and `iap:subtitle` title the widget frame, `iap:extensionRenderURL` names the summary component, and `iap:targetURL` is the tool's page — typically exposed as a header action next to the title via `iap:actionLabel`; prefer a label naming the destination (`"Manage categories"`) over a generic "Configure", since the label is what tells users a whole tool sits behind the widget's summary. All the [dashboard frame properties](ui-extensions.md#the-dashboard) apply. |
+| `iap/adminDashboard/entry` | `AdminDashboard` | Administrative tool widgets. `ext:name` and `ext:subtitle` title the widget frame, `ext:renderURL` names the summary component, and `ext:targetURL` is the tool's page — typically exposed as a header action next to the title via `ext:actionLabel`; prefer a label naming the destination (`"Manage categories"`) over a generic "Configure", since the label is what tells users a whole tool sits behind the widget's summary. All the [dashboard frame properties](ui-extensions.md#the-dashboard) apply. |
 
 ## Contributing a tool
 

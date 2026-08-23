@@ -23,7 +23,7 @@ Starting from the requested resource, the service follows, transitively:
   referrer in non-recursive mode), and `IGNORE` leaves a weak link dangling. A hard link cannot
   ignore its target's deletion, so an illegal `IGNORE` on a hard link is downgraded to
   `REMOVE_LINK`, with a warning. Links never outlive their definition: deleting an
-  `iap:LinkDefinition` removes the links of that type, regardless of policy.
+  `link:Definition` removes the links of that type, regardless of policy.
 
 The analysis is cycle-safe — mutually referencing resources, like a completed backlink pair whose
 definitions both cascade, resolve in one bounded pass — and the set of deleted subtrees is kept
@@ -31,7 +31,7 @@ maximal, so a resource dragged in twice is processed once.
 
 ## Never delete
 
-The `iap:Undeletable` mixin marks a resource that must never be deleted: not archived, not
+The `del:Undeletable` mixin marks a resource that must never be deleted: not archived, not
 permanently removed, and not purged if it somehow ends up in the archive. The protection is
 lifted only by explicitly removing the mixin. A marked node *anywhere* in the impacted set —
 including descendants of the deleted resource — blocks the whole operation, and every objection
@@ -88,7 +88,7 @@ deletion was requested — not one per node of the subtree.
 ## The archive
 
 Unless a permanent deletion is requested, the impacted subtrees are *moved* into a new
-`iap:ArchiveEntry` under `/Archive`, wrapped in one `iap:DeletedItem` per subtree recording its
+`del:ArchiveEntry` under `/Archive`, wrapped in one `del:DeletedItem` per subtree recording its
 `originalPath`. The entry records who requested the deletion (`deletedBy` — the actual writes are
 performed by the `iap-deletion` service user, so `jcr:createdBy` cannot) and which resource was
 targeted (`requestedPath`).
@@ -96,7 +96,7 @@ targeted (`requestedPath`).
 Entries are not direct children of `/Archive`. Each one is named with a UUID and filed by
 `PrefixTree` (`io.uhndata.iap.utils`, in `iap-java-utils`) under buckets named after the first
 characters of that UUID — `/Archive/3f/a9/1c/3fa91c48-…` — which keeps a parent from holding every
-deletion ever performed. The buckets are `iap:Archive` nodes themselves; see the utility's javadoc
+deletion ever performed. The buckets are `del:Archive` nodes themselves; see the utility's javadoc
 for the layout and its contract. Nothing should assume the depth: use the entry path returned by
 the service, or look entries up by node type.
 
@@ -163,7 +163,7 @@ anything automatically, so this is a floor under purging rather than a schedule 
 
 Restoring and purging both act on an entry's path, and entries are filed under a prefix tree of
 buckets, so no client can construct one: they have to be listed. Two read endpoints do that, both
-bound to `iap/Archive` and therefore addressable on the archive root or on any bucket under it —
+bound to `del/Archive` and therefore addressable on the archive root or on any bucket under it —
 listing a bucket is occasionally useful when diagnosing, and costs nothing to support.
 
 - `GET /Archive.entries.json` returns one page of entries, newest first. `offset` and `limit` page
@@ -197,7 +197,7 @@ through rather than however much has been deleted over the years. Both run the q
 is what makes the "everyone else gets a 404" rule of the action endpoints hold here too, with no
 separate permission check to keep in step.
 
-A property index on `jcr:created`, declared for `iap:ArchiveEntry`, ships with the module so the
+A property index on `jcr:created`, declared for `del:ArchiveEntry`, ships with the module so the
 listing is served by an index rather than by traversing the archive.
 
 The UI is in `modules/deletion/src/main/frontend`, and both halves are extensions rather than pages:
@@ -205,8 +205,8 @@ The UI is in `modules/deletion/src/main/frontend`, and both halves are extension
 - `ArchiveWidget` is registered on `iap/adminDashboard/entry`, so it sits on the administration
   console beside the other administrative tools rather than on everybody's homepage. It shows the
   three counts; the way through to the archive is the dashboard frame's own header action, declared
-  by the extension's `iap:actionLabel` and `iap:targetURL` rather than drawn by the widget.
-- `ArchiveBrowser` is registered on `iap/coreUI/view` with `iap:targetURL` `/admin/archive` — a
+  by the extension's `ext:actionLabel` and `ext:targetURL` rather than drawn by the widget.
+- `ArchiveBrowser` is registered on `iap/coreUI/view` with `ext:targetURL` `/admin/archive` — a
   filterable, sortable table with per-entry restore and purge actions, wrapped in the console's
   `AdminScreen` chrome like every other administrative tool. Each row links through to its entry.
 - `ArchiveEntryView` is registered the same way for `/admin/archive/*`: one entry, what it holds,
@@ -226,8 +226,8 @@ navigates somewhere real and fetches from somewhere that is not.
 
 `/Archive` and each entry are real nodes, which is what lets those views be opened directly as well
 as navigated to: `html.GET.html` includes the shell's own script and `null.GET.html` re-dispatches
-the extensionless URL to it, the same pair `iap:Content` declares for its subtypes, declared on both
-`iap/Archive` and `iap/ArchiveEntry`. The archive types deliberately do not extend `iap:Content`, so
+the extensionless URL to it, the same pair `data:Content` declares for its subtypes, declared on both
+`del/Archive` and `del/ArchiveEntry`. The archive types deliberately do not extend `data:Content`, so
 they also carry one-line `header.html` and `footer.html` borrowing the shared chrome by path. Nothing about the page is bespoke — the shell
 decides what a page looks like, and the resource's readability decides who may open it.
 
@@ -275,8 +275,8 @@ failures (repository errors, missing service user).
 
 Every endpoint addressing an entry also accepts the short form, e.g. `POST /Archive/<uuid>.restore.json`.
 
-The deletion endpoint is bound to the `iap/Content` resource type, i.e. every content resource;
-the archive endpoints are bound to `iap/ArchiveEntry`, and are implicitly restricted to users who
+The deletion endpoint is bound to the `data/Content` resource type, i.e. every content resource;
+the archive endpoints are bound to `del/ArchiveEntry`, and are implicitly restricted to users who
 can see the archive — everyone else gets a plain 404 from resource resolution. All responses are
 JSON carrying `status.code`, a machine-readable `status` word, and `status.message` when there is
 something to explain:

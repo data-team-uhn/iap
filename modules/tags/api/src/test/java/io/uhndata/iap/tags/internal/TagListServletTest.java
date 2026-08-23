@@ -58,24 +58,24 @@ class TagListServletTest
     {
         this.context.addModelsForClasses(Content.class, TagDefinition.class);
         this.context.create().resource("/Tags",
-            "sling:resourceType", "iap/TagsHomepage");
+            "sling:resourceType", "tag/Homepage");
         this.context.create().resource("/Tags/draft", Map.of(
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "label", "Draft",
             "description", "Work in progress",
             "category", new String[] { "lifecycle" },
             "color", "#9e9e9e",
             "order", 1L));
         this.context.create().resource("/Tags/submitted", Map.of(
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "category", new String[] { "lifecycle" },
             "system", true,
             "order", 2L));
         this.context.create().resource("/Tags/sensitive", Map.of(
-            "sling:resourceType", "iap/TagDefinition",
+            "sling:resourceType", "tag/Definition",
             "category", new String[] { "privacy" },
             "inheritable", true,
-            "targetResourceTypes", new String[] { "iap/Entity" },
+            "targetResourceTypes", new String[] { "data/Entity" },
             "order", 3L));
 
         this.servlet = new TagListServlet();
@@ -148,7 +148,7 @@ class TagListServletTest
     void filtersByTargetResource() throws Exception
     {
         this.context.create().resource("/data/part",
-            "sling:resourceType", "iap/EntityPart");
+            "sling:resourceType", "data/EntityPart");
         final JsonObject result = get(Map.of("target", "/data/part"));
 
         // The entity-only "sensitive" tag may not be placed on an entity part

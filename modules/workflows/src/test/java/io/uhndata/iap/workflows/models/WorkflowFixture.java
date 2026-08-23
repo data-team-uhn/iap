@@ -67,17 +67,17 @@ final class WorkflowFixture
         context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, EntityHomepage.class);
         context.addModelsForPackage("io.uhndata.iap.workflows.models");
 
-        registerType(context, "WorkflowsHomepage", "iap/EntityHomepage");
-        registerType(context, "WorkflowTypesHomepage", "iap/EntityHomepage");
-        registerType(context, "SystemWorkflowsHomepage", "iap/EntityHomepage");
-        registerType(context, "FlowNodeType", "iap/Entity");
+        registerType(context, "WorkflowsHomepage", "data/EntityHomepage");
+        registerType(context, "WorkflowTypesHomepage", "data/EntityHomepage");
+        registerType(context, "SystemWorkflowsHomepage", "data/EntityHomepage");
+        registerType(context, "FlowNodeType", "data/Entity");
         registerType(context, "CatchingEventType", FlowNodeType.RESOURCE_TYPE);
         registerType(context, "ThrowingEventType", FlowNodeType.RESOURCE_TYPE);
         registerType(context, "ActivityType", FlowNodeType.RESOURCE_TYPE);
         registerType(context, "GatewayType", FlowNodeType.RESOURCE_TYPE);
-        registerType(context, "WorkflowDefinition", "iap/Entity");
-        registerType(context, "WorkflowVersion", "iap/Entity");
-        registerType(context, "FlowNode", "iap/EntityPart");
+        registerType(context, "WorkflowDefinition", "data/Entity");
+        registerType(context, "WorkflowVersion", "data/Entity");
+        registerType(context, "FlowNode", "data/EntityPart");
         registerType(context, "Event", FlowNode.RESOURCE_TYPE);
         registerType(context, "StartEvent", Event.RESOURCE_TYPE);
         registerType(context, "EndEvent", Event.RESOURCE_TYPE);
@@ -90,12 +90,12 @@ final class WorkflowFixture
         registerType(context, "ParallelGateway", Gateway.RESOURCE_TYPE);
         registerType(context, "InclusiveGateway", Gateway.RESOURCE_TYPE);
         registerType(context, "EventBasedGateway", Gateway.RESOURCE_TYPE);
-        registerType(context, "SequenceFlow", "iap/EntityPart");
-        registerType(context, "WorkflowInstances", "iap/Content");
-        registerType(context, "WorkflowInstance", "iap/Entity");
-        registerType(context, "WorkflowToken", "iap/EntityPart");
-        registerType(context, "TaskInstance", "iap/Entity");
-        registerType(context, "Variable", "iap/EntityPart");
+        registerType(context, "SequenceFlow", "data/EntityPart");
+        registerType(context, "WorkflowInstances", "data/Content");
+        registerType(context, "WorkflowInstance", "data/Entity");
+        registerType(context, "WorkflowToken", "data/EntityPart");
+        registerType(context, "TaskInstance", "data/Entity");
+        registerType(context, "Variable", "data/EntityPart");
     }
 
     /**

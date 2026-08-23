@@ -31,13 +31,13 @@ const renderBanner = (extension: Extension) => render(
 
 describe("NoticeBanner", () => {
   it("renders nothing when the extension carries no message", () => {
-    const { container } = renderBanner({ "iap:severity": "warning" });
+    const { container } = renderBanner({ "ext:severity": "warning" });
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it("renders the message as markdown", () => {
-    renderBanner({ "iap:data": "Maintenance **tonight** — see the [status page](https://status.example.com)" });
+    renderBanner({ "ext:data": "Maintenance **tonight** — see the [status page](https://status.example.com)" });
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("tonight").tagName).toBe("STRONG");
@@ -46,19 +46,19 @@ describe("NoticeBanner", () => {
   });
 
   it("uses the severity registered on the extension", () => {
-    renderBanner({ "iap:data": "The service is down", "iap:severity": "error" });
+    renderBanner({ "ext:data": "The service is down", "ext:severity": "error" });
 
     expect(screen.getByRole("alert")).toHaveClass("MuiAlert-colorError");
   });
 
   it("defaults to the info severity when none is registered", () => {
-    renderBanner({ "iap:data": "Hello" });
+    renderBanner({ "ext:data": "Hello" });
 
     expect(screen.getByRole("alert")).toHaveClass("MuiAlert-colorInfo");
   });
 
   it("treats an unknown severity as info instead of failing", () => {
-    renderBanner({ "iap:data": "Hello", "iap:severity": "catastrophic" });
+    renderBanner({ "ext:data": "Hello", "ext:severity": "catastrophic" });
 
     expect(screen.getByRole("alert")).toHaveClass("MuiAlert-colorInfo");
   });

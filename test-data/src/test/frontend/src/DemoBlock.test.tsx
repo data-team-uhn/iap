@@ -30,7 +30,7 @@ const renderBlock = (extension: Record<string, unknown>) => render(
 
 describe("DemoBlock", () => {
   it("labels itself with the name of the extension that registered it", () => {
-    renderBlock({ "iap:extensionName": "Sidebar demo" });
+    renderBlock({ "ext:name": "Sidebar demo" });
 
     expect(screen.getByText("Sidebar demo")).toBeInTheDocument();
   });
@@ -42,7 +42,7 @@ describe("DemoBlock", () => {
   });
 
   it("pads itself with the requested number of filler lines", () => {
-    renderBlock({ "iap:extensionName": "Tall demo", "iap:data": 3 });
+    renderBlock({ "ext:name": "Tall demo", "ext:data": 3 });
 
     expect(screen.getByText("Filler line 1")).toBeInTheDocument();
     expect(screen.getByText("Filler line 3")).toBeInTheDocument();
@@ -50,14 +50,14 @@ describe("DemoBlock", () => {
   });
 
   it("reads a filler count that arrived as a string", () => {
-    renderBlock({ "iap:data": "2" });
+    renderBlock({ "ext:data": "2" });
 
     expect(screen.getByText("Filler line 2")).toBeInTheDocument();
     expect(screen.queryByText("Filler line 3")).not.toBeInTheDocument();
   });
 
   it.each([undefined, "not a number", 0])("renders no filler for %o", data => {
-    renderBlock({ "iap:data": data });
+    renderBlock({ "ext:data": data });
 
     expect(screen.queryByText(/Filler line/)).not.toBeInTheDocument();
   });

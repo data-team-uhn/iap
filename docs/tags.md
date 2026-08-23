@@ -1,16 +1,16 @@
 # Tags
 
 Any IAP resource can be marked with **tags**: short named markers like `incomplete`, `submitted`,
-or `sensitive`, stored in the multivalued `tags` property that every `iap:Content` node may carry.
-Unlike free-form labels, every usable tag must first be **defined**: an `iap:TagDefinition` node
+or `sensitive`, stored in the multivalued `tags` property that every `data:Content` node may carry.
+Unlike free-form labels, every usable tag must first be **defined**: an `tag:Definition` node
 under `/Tags` is the single source of truth for what the tag means, where it may be placed, and
 how it behaves, instead of scattered code relying on an off-hand understanding of ad-hoc marker
 strings.
 
 ## Defining a tag
 
-A tag definition is an `iap:TagDefinition` child node of the `/Tags` homepage (an
-`iap:TagsHomepage` node created by repoinit, world-readable). Modules contribute definitions
+A tag definition is an `tag:Definition` child node of the `/Tags` homepage (an
+`tag:Homepage` node created by repoinit, world-readable). Modules contribute definitions
 through their initial content, e.g. the test-data module ships a demo set in
 `test-data/src/main/resources/SLING-INF/content/Tags/`.
 
@@ -21,7 +21,7 @@ through their initial content, e.g. the test-data module ships a demo set in
 | `description` | String | What the tag means and when it applies |
 | `category` | String[] | Grouping/filtering facets, e.g. `lifecycle`, `validation`, `privacy`. A category is a subject, not necessarily a lifecycle: some hold states a node has one of at a time, others hold tags that apply together, and the UI shows every tag a node carries in the category it was asked about |
 | `inheritable` | Boolean | The tag flows *down*: resources under a tagged node implicitly carry it too (e.g. everything inside a `sensitive` submission is sensitive) |
-| `aggregated` | Boolean | The tag bubbles *up*: a node implicitly carries it when any descendant explicitly does (e.g. a submission with an `incomplete` answer is incomplete), as far as the nearest `iap:TagBoundary` — see [How far a copy travels](#how-far-a-copy-travels) |
+| `aggregated` | Boolean | The tag bubbles *up*: a node implicitly carries it when any descendant explicitly does (e.g. a submission with an `incomplete` answer is incomplete), as far as the nearest `tag:Boundary` — see [How far a copy travels](#how-far-a-copy-travels) |
 | `targetResourceTypes` | String[] | `sling:resourceType`s the tag may be placed on, subtypes included; empty means unrestricted |
 | `color` | String | Optional CSS color the tag is displayed in; the chip's background, text and border are all derived from it, per the `variant` |
 | `variant` | String | How the tag displays: `soft` (the default) tints the background with the color and clamps the color into readable text, `outlined` draws only that readable text and a matching border on a transparent background, `filled` uses the color as a loud fill under contrasting text |
@@ -61,9 +61,9 @@ The `iap-tags-api` bundle (`modules/tags/api`) exposes a models-only API:
 
 ## Marking content taggable
 
-The **`iap:Taggable` mixin** (declared next to `iap:Content` in the content module) declares the
+The **`tag:Taggable` mixin** (declared next to `data:Content` in the content module) declares the
 tagging properties once — the explicit `tags` plus the three materialized phase properties and the
-`tagComputationState` marker. Every `iap:Content` node carries the mixin through its supertypes, so
+`tagComputationState` marker. Every `data:Content` node carries the mixin through its supertypes, so
 all domain content is taggable out of the box, and other node types, e.g. `nt:file`, become
 taggable with a plain `addMixin`. The mixin is a declaration aid, not a gate: the `Taggable`
 *model* adapts any content, and writing simply fails on nodes whose types cannot store the
@@ -79,7 +79,7 @@ at commit time** instead, one property per processing phase:
 - `computedTags` holds the tags computed for the node from its *own content*;
 - `aggregatedTags` holds every `aggregated` tag belonging to a *descendant*.
 
-All three are multivalued String properties declared by the `iap:Taggable` mixin, **maintained by
+All three are multivalued String properties declared by the `tag:Taggable` mixin, **maintained by
 the system — never write them manually**. "Belonging to" a node means both the tags a user placed explicitly and
 the ones a processor computed for it: a computed tag propagates exactly like a hand-placed one.
 
@@ -110,7 +110,7 @@ The machinery is an extensible SPI (`io.uhndata.iap.tags.spi`), not a hardcoded 
   or AI-check module contributes its own `LOCAL` ones.
 - **`TagProcessor.Scope`** — how much a processor may look at, which is the same thing as how much
   re-triggers it: `NODE` (the node and its parent, the cheap and usual case) or `ENTITY` (the whole
-  enclosing `iap:Entity`, recomputed in full whenever anything inside it changes, for a tag that
+  enclosing `data:Entity`, recomputed in full whenever anything inside it changes, for a tag that
   depends on more than one of an entity's parts). Anything wider cannot be a processor at all — a
   tag depending on a *different* entity belongs in a listener or a job placing explicit `system`
   tags after the fact, accepting the staleness that comes with it.
@@ -133,7 +133,7 @@ Propagation details worth knowing:
 - Copies travel in one direction only: an aggregated copy on an ancestor is not re-inherited by
   the source's siblings, even for a tag that is both `aggregated` and `inheritable`.
 - Derived properties are only written on nodes whose types *declare* them, which is what the
-  `iap:Taggable` mixin does and what every `iap:Content` node inherits. A type that merely tolerates
+  `tag:Taggable` mixin does and what every `data:Content` node inherits. A type that merely tolerates
   residual properties — `nt:unstructured`, and so every free-form container, the repository root
   included — has not opted in, and strict types that would reject them (file contents, access
   control entries, the system and index subtrees) never could. All of them act as propagation
@@ -151,11 +151,11 @@ Inheritance and aggregation are bounded differently, because they are asymmetric
 tag flows out of a node somebody deliberately tagged into that node's own subtree, so it is bounded
 by construction: whoever placed it chose the reach. An **aggregated** tag has no such author — every
 ancestor of every tagged node is a candidate — so it needs a declared top, and that is the
-`iap:TagBoundary` mixin. A boundary carries the aggregate of everything beneath it and contributes
+`tag:Boundary` mixin. A boundary carries the aggregate of everything beneath it and contributes
 nothing to its own ancestors. It stops what flows up and nothing else: an inheritable tag placed
 above one still reaches the content inside it.
 
-`iap:EntityHomepage` is a boundary, which puts the top where the value has a reader — a homepage is
+`data:EntityHomepage` is a boundary, which puts the top where the value has a reader — a homepage is
 what lists and filters its entities on `aggregatedTags`, and nothing above it lists anything.
 Anything else that contains content and is not an entity homepage may declare itself one too.
 

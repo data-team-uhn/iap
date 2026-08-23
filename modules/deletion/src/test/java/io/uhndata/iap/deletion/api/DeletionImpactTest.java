@@ -39,10 +39,10 @@ class DeletionImpactTest
     @Test
     void valuesAreKept()
     {
-        final DeletionImpact impact = new DeletionImpact(List.of("/a"), List.of("/b/iap:links/l"),
+        final DeletionImpact impact = new DeletionImpact(List.of("/a"), List.of("/b/link:links/l"),
             List.of(VETO), List.of(GROUP), 2, "This item is referenced by things.");
         assertEquals(List.of("/a"), impact.getItemPaths());
-        assertEquals(List.of("/b/iap:links/l"), impact.getRemovedLinkPaths());
+        assertEquals(List.of("/b/link:links/l"), impact.getRemovedLinkPaths());
         assertEquals(1, impact.getVetoes().size());
         assertEquals(1, impact.getReferrers().size());
         assertEquals(2, impact.getInaccessibleReferrerCount());

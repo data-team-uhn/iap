@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <err = 'https://iap.uhndata.io/err/'>
 
 //-----------------------------------------------------------------------------
@@ -34,12 +34,12 @@
 //-----------------------------------------------------------------------------
 // Homepage node for the /LoggedErrors root path, holding the recorded errors.
 //
-// An iap:EntityHomepage rather than a plain container: the recorded errors are
+// An data:EntityHomepage rather than a plain container: the recorded errors are
 // not entities, but the homepage's generic tools are exactly what somebody
 // working through them needs — the pagination servlet listing and filtering
 // its children, and rep:AccessControllable for the ACL that repoinit places
 // here.
-[err:LoggedErrorsHomepage] > iap:EntityHomepage
+[err:LoggedErrorsHomepage] > data:EntityHomepage
   // Attributes:
 
   // We can query the recorded errors
@@ -48,7 +48,7 @@
   // Properties:
 
   - sling:resourceType (STRING) = "err/LoggedErrorsHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
   // The type of the children listed by the pagination servlet
   - childNodeType (STRING) = "err:LoggedError" mandatory autocreated protected
@@ -78,13 +78,13 @@
 // data flows through it, which is what makes it safe never to delete any of
 // them.
 //
-// An iap:Content, so that a recorded error is an ordinary piece of content:
+// An data:Content, so that a recorded error is an ordinary piece of content:
 // readable as JSON, listable, and taggable — which is how a decision about one
-// is recorded, since nothing here is ever removed. iap:Content also brings
+// is recorded, since nothing here is ever removed. data:Content also brings
 // sling:Folder > nt:folder > nt:hierarchyNode > mix:created, so jcr:created
 // and jcr:createdBy are autocreated by the repository; jcr:created is when the
 // fault was first seen, and `lastOccurrence` when it was last seen.
-[err:LoggedError] > iap:Content
+[err:LoggedError] > data:Content
   // Attributes:
 
   // This is an abstract node type, a recording is one of the two below
@@ -97,7 +97,7 @@
 
   // Hardcode the supertype to the parent err/LoggedError type, so that both
   // kinds of recording answer to it. Without this the subtypes would inherit
-  // iap:Content's value and their resource type chain would skip straight past
+  // data:Content's value and their resource type chain would skip straight past
   // err/LoggedError — which is what the acknowledge servlet is bound to, what
   // the triage tags are targeted at, and how the container picks its children
   // out.
@@ -202,7 +202,7 @@
 // module exists for need to be able to look back at: who decided what, when,
 // why, and how much had happened by then. It is also what lets a fault
 // un-acknowledge itself — see `acknowledgedOccurrences`.
-[err:Acknowledgement] > iap:Content
+[err:Acknowledgement] > data:Content
   - sling:resourceType (STRING) = "err/Acknowledgement" mandatory autocreated protected
 
   // What was decided, the name of a tag in the error-triage category, e.g.
@@ -222,7 +222,7 @@
   // things happening in the same second, or by a clock that disagrees.
   - acknowledgedOccurrences (LONG) mandatory
 
-  // jcr:created and jcr:createdBy, from iap:Content, record when and by whom
+  // jcr:created and jcr:createdBy, from data:Content, record when and by whom
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

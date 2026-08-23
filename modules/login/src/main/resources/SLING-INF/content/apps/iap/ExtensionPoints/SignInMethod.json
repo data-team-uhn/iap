@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:ExtensionPoint",
-  "iap:extensionPointId": "iap/login/signInMethod",
-  "iap:extensionPointName": "Ways of signing in, composed into the login page's auth action area"
+  "jcr:primaryType": "ext:Point",
+  "ext:pointId": "iap/login/signInMethod",
+  "ext:pointName": "Ways of signing in, composed into the login page's auth action area"
 }

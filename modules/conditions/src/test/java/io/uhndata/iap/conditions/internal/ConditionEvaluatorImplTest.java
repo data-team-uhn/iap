@@ -73,7 +73,7 @@ class ConditionEvaluatorImplTest
         resolvers.setAccessible(true);
         resolvers.set(this.evaluator, List.of(new LiteralOperandResolver()));
         this.evaluationContext = this.context.create().resource("/Submissions/sub",
-            SLING_RESOURCE_TYPE, "iap/Entity").adaptTo(Content.class);
+            SLING_RESOURCE_TYPE, "data/Entity").adaptTo(Content.class);
     }
 
     /**

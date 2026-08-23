@@ -43,8 +43,8 @@
             <Sling-Initial-Content>
               SLING-INF/content/TestEntities.json;path:=/TestEntities;overwriteProperties:=true;uninstall:=true;checkin:=true,
               SLING-INF/content/ParticipatingInstitutions.json;path:=/libs/iap/ParticipatingInstitutions;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/Homepage/;path:=/libs/iap/Homepage/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/TestEntity/;path:=/libs/iap/TestEntity/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/app/Homepage/;path:=/libs/app/Homepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/test/Entity/;path:=/libs/test/Entity/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/healthcheck/;path:=/libs/iap/healthcheck/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Tags/;path:=/Tags/;overwriteProperties:=true;uninstall:=true,

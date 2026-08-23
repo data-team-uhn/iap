@@ -256,7 +256,7 @@ describe("ArchiveEntryView", () => {
   });
 
   it("says so when the path is not an archive entry", async () => {
-    server({ entry: () => jsonResponse(200, { "jcr:primaryType": "iap:Archive" }) });
+    server({ entry: () => jsonResponse(200, { "jcr:primaryType": "del:Archive" }) });
     view();
 
     expect(await screen.findByText("That is not an archive entry.")).toBeInTheDocument();

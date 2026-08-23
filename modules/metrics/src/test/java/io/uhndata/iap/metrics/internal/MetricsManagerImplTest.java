@@ -70,7 +70,7 @@ class MetricsManagerImplTest
         inject(this.manager, this.factory);
         try (ResourceResolver resolver = open()) {
             resolver.create(resolver.getResource("/"), "Metrics",
-                Map.of("sling:resourceType", "iap/MetricsHomepage"));
+                Map.of("sling:resourceType", "metric/Homepage"));
             resolver.commit();
         }
     }
@@ -82,12 +82,12 @@ class MetricsManagerImplTest
 
         assertEquals("simple", metric.getName());
         final ValueMap properties = properties("simple");
-        assertEquals("iap:Metric", properties.get("jcr:primaryType", String.class));
+        assertEquals("metric:Metric", properties.get("jcr:primaryType", String.class));
         assertArrayEquals(new String[] { "mix:atomicCounter" }, properties.get("jcr:mixinTypes", String[].class));
         // The protected sling:resourceType property is not set by the code, it is autocreated by the node type
         assertNull(properties.get("sling:resourceType", String.class));
         assertEquals("simple", properties.get("label", String.class));
-        assertEquals(0L, properties.get("iap:defaultOrder", Long.class));
+        assertEquals(0L, properties.get("defaultOrder", Long.class));
         assertEquals("public", properties.get("accessLevel", String.class));
         assertEquals(0L, properties.get("previousValue", Long.class));
         assertNull(properties.get("description", String.class));
@@ -111,7 +111,7 @@ class MetricsManagerImplTest
         assertEquals("Full metric", properties.get("label", String.class));
         assertEquals("Counts many things", properties.get("description", String.class));
         assertEquals("Tests", properties.get("category", String.class));
-        assertEquals(20L, properties.get("iap:defaultOrder", Long.class));
+        assertEquals(20L, properties.get("defaultOrder", Long.class));
         assertEquals("admin", properties.get("accessLevel", String.class));
         assertEquals("0 0 0 * * ?", properties.get("rolloverSchedule", String.class));
     }
@@ -321,7 +321,7 @@ class MetricsManagerImplTest
         final ResourceResolver resolver = mockedResolverWithHomepage();
         final Resource existing = Mockito.mock(Resource.class);
         Mockito.when(existing.getValueMap())
-            .thenReturn(new ValueMapDecorator(Map.of("jcr:primaryType", "iap:Metric")));
+            .thenReturn(new ValueMapDecorator(Map.of("jcr:primaryType", "metric:Metric")));
         Mockito.when(existing.adaptTo(ModifiableValueMap.class)).thenReturn(null);
         Mockito.when(resolver.getResource("/Metrics").getChild("stuck")).thenReturn(existing);
 

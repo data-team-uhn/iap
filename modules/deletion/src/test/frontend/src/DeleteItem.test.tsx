@@ -307,7 +307,7 @@ describe("DeleteItem", () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(dryRun({
       items: [ PATH, "/content/other" ],
-      removedLinks: [ "/content/holder/iap:links/link0" ]
+      removedLinks: [ "/content/holder/link:links/link0" ]
     }));
     renderButton({ permanent: true });
 
@@ -392,7 +392,7 @@ describe("DeleteItem", () => {
   it("pluralizes the links it reports", async () => {
     const user = userEvent.setup();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(dryRun({
-      removedLinks: [ "/content/a/iap:links/link0", "/content/b/iap:links/link0" ]
+      removedLinks: [ "/content/a/link:links/link0", "/content/b/link:links/link0" ]
     }));
     renderButton();
 

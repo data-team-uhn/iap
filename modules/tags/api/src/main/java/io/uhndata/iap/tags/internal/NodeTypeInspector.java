@@ -31,8 +31,8 @@ import io.uhndata.iap.tags.api.TagManager;
 /**
  * Answers the three node type questions the tag propagation needs, against the node type registry materialized at
  * {@code /jcr:system/jcr:nodeTypes}: whether a node may store the tag properties at all, whether it is the
- * {@code iap:Entity} that bounds an {@link io.uhndata.iap.tags.spi.TagProcessor.Scope#ENTITY} computation, and
- * whether it is the {@code iap:TagBoundary} that aggregated tags travel up to and no further. Verdicts are cached
+ * {@code data:Entity} that bounds an {@link io.uhndata.iap.tags.spi.TagProcessor.Scope#ENTITY} computation, and
+ * whether it is the {@code tag:Boundary} that aggregated tags travel up to and no further. Verdicts are cached
  * per type name, so one instance must not outlive the commit it was created for.
  *
  * @version $Id$
@@ -41,7 +41,7 @@ import io.uhndata.iap.tags.api.TagManager;
 public final class NodeTypeInspector
 {
     /** The node type of the standalone records that bound an entity-scoped computation. */
-    private static final String ENTITY_TYPE = "iap:Entity";
+    private static final String ENTITY_TYPE = "data:Entity";
 
     /** The mixin declaring that aggregated tags stop at a node rather than climbing past it. */
     private static final String BOUNDARY_TYPE = TagManager.BOUNDARY_MIXIN;
@@ -73,8 +73,8 @@ public final class NodeTypeInspector
 
     /**
      * Checks whether tag properties may be stored on the given node: one of the node's primary or mixin types, or one
-     * of their supertypes, must declare the tag properties by name, which is what {@code iap:Taggable} does and what
-     * every {@code iap:Content} node inherits.
+     * of their supertypes, must declare the tag properties by name, which is what {@code tag:Taggable} does and what
+     * every {@code data:Content} node inherits.
      *
      * <p>
      * Taggability has to be <em>declared</em> rather than merely tolerated. A type that happens to accept residual
@@ -94,8 +94,8 @@ public final class NodeTypeInspector
 
     /**
      * Checks whether the given node is where aggregated tags stop, i.e. whether it carries the
-     * {@code iap:TagBoundary} mixin, either directly or through one of its types' supertypes as
-     * {@code iap:EntityHomepage} does.
+     * {@code tag:Boundary} mixin, either directly or through one of its types' supertypes as
+     * {@code data:EntityHomepage} does.
      *
      * @param node the node to check
      * @return {@code true} if aggregated tags may not travel past this node
@@ -108,7 +108,7 @@ public final class NodeTypeInspector
 
     /**
      * Checks whether the given node is one of the standalone records that bound an entity-scoped computation, i.e.
-     * whether its primary type is {@code iap:Entity} or a subtype of it.
+     * whether its primary type is {@code data:Entity} or a subtype of it.
      *
      * @param node the node to check
      * @return {@code true} if the node is an entity

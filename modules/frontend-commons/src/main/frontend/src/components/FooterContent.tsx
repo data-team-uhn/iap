@@ -112,8 +112,8 @@ interface FooterContentProps {
 // /libs/iap/conf/Media), links contributed through the `iap/footer/link` extension point,
 // and the platform version and the "Built by DATA" credit.
 //
-// A footer link is a data-only extension — no component, just an `iap:extensionName` (the
-// label) and an `iap:targetURL`: paths are navigated within the app, full URLs open in a new
+// A footer link is a data-only extension — no component, just an `ext:name` (the
+// label) and an `ext:targetURL`: paths are navigated within the app, full URLs open in a new
 // tab.
 function FooterContent(
   { sx, internalLinkProps = (url: string) => ({ href: url }), credits = true }: FooterContentProps
@@ -159,8 +159,8 @@ function FooterContent(
         >
           {
             links.map((link, index) => {
-              const url = (link["iap:targetURL"] as string | undefined) ?? "";
-              const label = (link["iap:extensionName"] as string | undefined) ?? url;
+              const url = (link["ext:targetURL"] as string | undefined) ?? "";
+              const label = (link["ext:name"] as string | undefined) ?? url;
               const external = /^[a-z]+:/i.test(url);
               return (
                 <Link

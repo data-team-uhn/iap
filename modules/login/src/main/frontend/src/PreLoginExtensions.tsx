@@ -22,7 +22,7 @@ import { ExtensionList, type Extension } from "@iap/ui-extension/ExtensionList";
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
 // Renders the `iap/coreUI/frameTop` extensions that opt into pre-authentication visibility
-// with `iap:visibleBeforeLogin: true` — e.g. a maintenance notice that must reach users
+// with `ext:visibleBeforeLogin: true` — e.g. a maintenance notice that must reach users
 // before they sign in. The flag is opt-in so that the rest of the frame (the app bar and
 // anything else that assumes a session) never leaks onto the login page.
 export default function PreLoginExtensions() {
@@ -30,7 +30,7 @@ export default function PreLoginExtensions() {
 
   useEffect(() => {
     loadExtensions("FrameTop")
-      .then(list => setExtensions(list.filter(extension => extension["iap:visibleBeforeLogin"] === true)))
+      .then(list => setExtensions(list.filter(extension => extension["ext:visibleBeforeLogin"] === true)))
       .catch((err: unknown) => console.error("Something went wrong loading the pre-login extensions", err));
   }, []);
 

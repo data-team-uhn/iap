@@ -35,8 +35,8 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 describe("Dashboard", () => {
   it("lays out the widgets of the iap/dashboard/widget extension point", async () => {
     mockedLoadExtensions.mockResolvedValue([{
-      "iap:extensionName": "Welcome",
-      "iap:extensionRender": () => <div>Welcome content</div>,
+      "ext:name": "Welcome",
+      "ext:render": () => <div>Welcome content</div>,
     }]);
 
     render(<Dashboard />);

@@ -1,10 +1,10 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/adminDashboard/entry",
-  "iap:extensionName": "Submission categories",
-  "iap:subtitle": "Organize the categories submitters choose from, and bind them to schemas",
-  "iap:targetURL": "/admin/categories",
-  "iap:actionLabel": "Manage categories",
-  "iap:extensionRenderURL": "asset:iap-categories.CategoriesWidget.js",
-  "iap:defaultOrder": 10
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/adminDashboard/entry",
+  "ext:name": "Submission categories",
+  "ext:subtitle": "Organize the categories submitters choose from, and bind them to schemas",
+  "ext:targetURL": "/admin/categories",
+  "ext:actionLabel": "Manage categories",
+  "ext:renderURL": "asset:iap-categories.CategoriesWidget.js",
+  "defaultOrder": 10
 }

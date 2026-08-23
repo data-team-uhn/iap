@@ -51,7 +51,7 @@ function Count({ label, value, approximate, emphasis }: {
 /**
  * An administration console widget summarizing the recorded errors: how many still need attention,
  * and how many there are altogether. The way through to the full list is the frame's own header
- * action, from the extension's `iap:actionLabel` and `iap:targetURL`, so this renders only the
+ * action, from the extension's `ext:actionLabel` and `ext:targetURL`, so this renders only the
  * summary.
  *
  * The console is reached only by administrators, but reaching it is not the same as holding the

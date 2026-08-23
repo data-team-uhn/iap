@@ -50,7 +50,7 @@ public class MetricsManagerImpl implements MetricsManager
     private static final Pattern VALID_NAME = Pattern.compile("[A-Za-z0-9][A-Za-z0-9_-]*");
 
     /**
-     * The display order of the metrics: by category, uncategorized last, then by {@code iap:defaultOrder} within
+     * The display order of the metrics: by category, uncategorized last, then by {@code defaultOrder} within
      * each category, and by name for metrics that agree on both, so the listing is stable. This compares the
      * resources rather than {@link Metric} handles, because every handle read opens a service session of its own,
      * while the resources are already in the one session the listing has open.

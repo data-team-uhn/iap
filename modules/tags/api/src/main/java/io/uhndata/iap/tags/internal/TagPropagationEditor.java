@@ -74,10 +74,10 @@ import io.uhndata.iap.tags.spi.TagProcessor.Scope;
  *
  * <p>
  * Two rules bound where the writing reaches, both decided by the {@link NodeTypeInspector}. A node is written to only
- * if one of its types <em>declares</em> the tag properties, which is what {@code iap:Taggable} does: types that
+ * if one of its types <em>declares</em> the tag properties, which is what {@code tag:Taggable} does: types that
  * merely tolerate residual properties have not opted into tags, and strict types that would reject them (file
  * contents, access control entries...) never could. And aggregated tags climb no further than an
- * {@code iap:TagBoundary} — an entity homepage, or anything else that declares itself the top of its own content —
+ * {@code tag:Boundary} — an entity homepage, or anything else that declares itself the top of its own content —
  * which is what keeps them out of the containers above it and out of the repository root.
  * </p>
  *
@@ -111,7 +111,7 @@ public class TagPropagationEditor extends DefaultEditor
     private final boolean added;
 
     /**
-     * The editor of the nearest {@code iap:Entity} ancestor, this editor itself when its own node is one, and
+     * The editor of the nearest {@code data:Entity} ancestor, this editor itself when its own node is one, and
      * {@code null} outside any entity or when no processor needs an entity at all.
      */
     private final TagPropagationEditor entity;
@@ -417,7 +417,7 @@ public class TagPropagationEditor extends DefaultEditor
     /**
      * Whether aggregated tags stop at this node rather than flowing up to its parent.
      *
-     * @return {@code true} if this node's types declare it an {@code iap:TagBoundary}
+     * @return {@code true} if this node's types declare it an {@code tag:Boundary}
      */
     private boolean isBoundary()
     {

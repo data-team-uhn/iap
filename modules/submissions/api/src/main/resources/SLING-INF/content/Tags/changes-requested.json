@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Changes requested",
   "description": "The reviewer asked the author to revise the record before a decision can be made.",
   "category": ["lifecycle", "review"],

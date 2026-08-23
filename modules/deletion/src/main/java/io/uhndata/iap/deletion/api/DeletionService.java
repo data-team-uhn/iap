@@ -32,7 +32,7 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * All methods authorize against the session of the resource passed in — the requesting user needs the repository
  * permissions for the change on every impacted resource — while the actual changes are performed by a privileged
- * service session, since regular users cannot write to the archive. Resources bearing the {@code iap:Undeletable}
+ * service session, since regular users cannot write to the archive. Resources bearing the {@code del:Undeletable}
  * mixin, or vetoed by any registered {@link io.uhndata.iap.deletion.spi.DeletionVeto}, cannot be deleted at all.
  * </p>
  *
@@ -45,16 +45,16 @@ public interface DeletionService
     String ARCHIVE_PATH = "/Archive";
 
     /** The node type of the {@value #ARCHIVE_PATH} root. */
-    String ARCHIVE_NODETYPE = "iap:Archive";
+    String ARCHIVE_NODETYPE = "del:Archive";
 
     /** The node type of an archive entry, one per deletion operation. */
-    String ENTRY_NODETYPE = "iap:ArchiveEntry";
+    String ENTRY_NODETYPE = "del:ArchiveEntry";
 
     /** The node type of the wrapper around each archived subtree, recording where it came from. */
-    String ITEM_NODETYPE = "iap:DeletedItem";
+    String ITEM_NODETYPE = "del:DeletedItem";
 
     /** The mixin marking resources that must never be deleted. */
-    String UNDELETABLE_MIXIN = "iap:Undeletable";
+    String UNDELETABLE_MIXIN = "del:Undeletable";
 
     /** The name of the archive entry property recording the user who requested the deletion. */
     String DELETED_BY_PROPERTY = "deletedBy";
@@ -98,7 +98,7 @@ public interface DeletionService
      * its original path is occupied, or the requesting user may not create it — nothing is changed and all the
      * conflicts are reported. Links removed by the original deletion are not recreated.
      *
-     * @param archiveEntry an {@code iap:ArchiveEntry} resource
+     * @param archiveEntry an {@code del:ArchiveEntry} resource
      * @return the outcome, including the restored paths on success or the conflicts on refusal
      * @throws DeletionException if the restore fails for a non-business reason, e.g. the repository is unavailable
      * @throws IllegalArgumentException if the resource is not an archive entry
@@ -108,9 +108,9 @@ public interface DeletionService
 
     /**
      * Permanently delete an archive entry and everything in it. Vetoes are consulted again: an archived resource
-     * that acquired the {@code iap:Undeletable} mixin, or is otherwise vetoed for purging, blocks the purge.
+     * that acquired the {@code del:Undeletable} mixin, or is otherwise vetoed for purging, blocks the purge.
      *
-     * @param archiveEntry an {@code iap:ArchiveEntry} resource
+     * @param archiveEntry an {@code del:ArchiveEntry} resource
      * @return the outcome; only the status {@link DeletionResult.Status#DELETED} means the entry was removed
      * @throws DeletionException if the purge fails for a non-business reason, e.g. the repository is unavailable
      * @throws IllegalArgumentException if the resource is not an archive entry
@@ -124,7 +124,7 @@ public interface DeletionService
      * succeed — "now" being the operative word: another deletion or a concurrent restore can occupy a path in the
      * meantime, which is why the restore itself checks again rather than trusting this.
      *
-     * @param archiveEntry an {@code iap:ArchiveEntry} resource
+     * @param archiveEntry an {@code del:ArchiveEntry} resource
      * @return every conflict blocking a restore, empty if there are none
      * @throws DeletionException if the check fails for a non-business reason, e.g. the repository is unavailable
      * @throws IllegalArgumentException if the resource is not an archive entry
@@ -138,7 +138,7 @@ public interface DeletionService
      * performs before it destroys anything, with the same caveat: a guard's answer can change — a retention floor
      * expires, a mixin is added — so the purge consults them again.
      *
-     * @param archiveEntry an {@code iap:ArchiveEntry} resource
+     * @param archiveEntry an {@code del:ArchiveEntry} resource
      * @return every veto blocking a purge, empty if there are none
      * @throws DeletionException if the check fails for a non-business reason, e.g. the repository is unavailable
      * @throws IllegalArgumentException if the resource is not an archive entry

@@ -75,7 +75,7 @@ class MetricRolloverSchedulerTest
         Mockito.when(this.scheduler.schedule(Mockito.any(), Mockito.any())).thenReturn(true);
         try (ResourceResolver resolver = open()) {
             resolver.create(resolver.getResource("/"), "Metrics",
-                Map.of("sling:resourceType", "iap/MetricsHomepage"));
+                Map.of("sling:resourceType", "metric/Homepage"));
             resolver.commit();
         }
     }
@@ -105,7 +105,7 @@ class MetricRolloverSchedulerTest
     {
         try (ResourceResolver resolver = open()) {
             resolver.create(resolver.getResource("/Metrics"), "blank",
-                Map.of("jcr:primaryType", "iap:Metric", "label", "Blank", "rolloverSchedule", "   "));
+                Map.of("jcr:primaryType", "metric:Metric", "label", "Blank", "rolloverSchedule", "   "));
             resolver.commit();
         }
 

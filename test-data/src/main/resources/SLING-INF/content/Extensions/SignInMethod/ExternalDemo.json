@@ -1,10 +1,10 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/login/signInMethod",
-  "iap:extensionName": "Institutional sign-in",
-  "iap:extensionRenderURL": "asset:iap-login.RedirectSignIn.js",
-  "iap:defaultOrder": 10,
-  "iap:targetURL": "/goto-external-login",
-  "iap:actionLabel": "Continue to sign-in",
-  "iap:hint": "You will be redirected to your institution's sign-in page."
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/login/signInMethod",
+  "ext:name": "Institutional sign-in",
+  "ext:renderURL": "asset:iap-login.RedirectSignIn.js",
+  "defaultOrder": 10,
+  "ext:targetURL": "/goto-external-login",
+  "ext:actionLabel": "Continue to sign-in",
+  "ext:hint": "You will be redirected to your institution's sign-in page."
 }

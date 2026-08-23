@@ -75,7 +75,7 @@ class MetricImplTest
         this.metric = new MetricImpl(this.factory, NAME);
         try (ResourceResolver resolver = open()) {
             resolver.create(resolver.getResource("/"), "Metrics",
-                Map.of("sling:resourceType", "iap/MetricsHomepage"));
+                Map.of("sling:resourceType", "metric/Homepage"));
             resolver.commit();
         }
     }
@@ -86,11 +86,11 @@ class MetricImplTest
         final Calendar updated = calendar(2026, Calendar.JULY, 22);
         final Calendar reset = calendar(2026, Calendar.JULY, 20);
         final Map<String, Object> properties = new HashMap<>();
-        properties.put("jcr:primaryType", "iap:Metric");
+        properties.put("jcr:primaryType", "metric:Metric");
         properties.put("label", "Counted things");
         properties.put("description", "How many things were counted");
         properties.put("category", "Tests");
-        properties.put("iap:defaultOrder", 20L);
+        properties.put("defaultOrder", 20L);
         properties.put("accessLevel", "admin");
         properties.put("oak:counter", 5L);
         properties.put("previousValue", 2L);
@@ -118,7 +118,7 @@ class MetricImplTest
     @Test
     void missingMetadataGetsSaneDefaults() throws Exception
     {
-        createMetricNode(Map.of("jcr:primaryType", "iap:Metric"));
+        createMetricNode(Map.of("jcr:primaryType", "metric:Metric"));
 
         assertEquals(NAME, this.metric.getLabel());
         assertNull(this.metric.getDescription());
@@ -137,7 +137,7 @@ class MetricImplTest
     @Test
     void incrementRequestsAnAtomicIncrement() throws Exception
     {
-        createMetricNode(Map.of("jcr:primaryType", "iap:Metric"));
+        createMetricNode(Map.of("jcr:primaryType", "metric:Metric"));
 
         this.metric.increment();
         // In this test environment nothing consolidates the increment into the counter,
@@ -156,7 +156,7 @@ class MetricImplTest
     @Test
     void incrementingByZeroDoesNothing() throws Exception
     {
-        createMetricNode(Map.of("jcr:primaryType", "iap:Metric"));
+        createMetricNode(Map.of("jcr:primaryType", "metric:Metric"));
 
         this.metric.increment(0);
 
@@ -167,7 +167,7 @@ class MetricImplTest
     @Test
     void rollingOverClosesThePeriod() throws Exception
     {
-        createMetricNode(Map.of("jcr:primaryType", "iap:Metric", "oak:counter", 7L, "previousValue", 2L));
+        createMetricNode(Map.of("jcr:primaryType", "metric:Metric", "oak:counter", 7L, "previousValue", 2L));
 
         this.metric.rollOver();
 
@@ -183,7 +183,7 @@ class MetricImplTest
     @Test
     void rollingOverAFreshMetricKeepsAZeroBaseline() throws Exception
     {
-        createMetricNode(Map.of("jcr:primaryType", "iap:Metric"));
+        createMetricNode(Map.of("jcr:primaryType", "metric:Metric"));
 
         this.metric.rollOver();
 
@@ -198,11 +198,11 @@ class MetricImplTest
         final Calendar updated = calendar(2026, Calendar.JULY, 22);
         final Calendar reset = calendar(2026, Calendar.JULY, 20);
         final Map<String, Object> properties = new HashMap<>();
-        properties.put("jcr:primaryType", "iap:Metric");
+        properties.put("jcr:primaryType", "metric:Metric");
         properties.put("label", "Counted things");
         properties.put("description", "How many things were counted");
         properties.put("category", "Tests");
-        properties.put("iap:defaultOrder", 20L);
+        properties.put("defaultOrder", 20L);
         properties.put("accessLevel", "admin");
         properties.put("oak:counter", 5L);
         properties.put("previousValue", 2L);
@@ -232,7 +232,7 @@ class MetricImplTest
     @Test
     void serializesABareMetricToJson() throws Exception
     {
-        createMetricNode(Map.of("jcr:primaryType", "iap:Metric"));
+        createMetricNode(Map.of("jcr:primaryType", "metric:Metric"));
 
         final JsonObject json = this.metric.toJson();
 
@@ -358,7 +358,7 @@ class MetricImplTest
         final ModifiableValueMap properties = Mockito.mock(ModifiableValueMap.class);
         Mockito.when(resolver.getResource(PATH)).thenReturn(resource);
         Mockito.when(resource.getValueMap())
-            .thenReturn(new ValueMapDecorator(Map.of("jcr:primaryType", "iap:Metric")));
+            .thenReturn(new ValueMapDecorator(Map.of("jcr:primaryType", "metric:Metric")));
         Mockito.when(resource.adaptTo(ModifiableValueMap.class)).thenReturn(properties);
         // A mocked map returns null instead of the requested default value
         Mockito.when(properties.get("oak:counter", 0L)).thenReturn(0L);

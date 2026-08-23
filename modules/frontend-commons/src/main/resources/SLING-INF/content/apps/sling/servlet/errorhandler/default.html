@@ -19,10 +19,10 @@
      data-sly-use.contentType="io.uhndata.iap.scripting.ContentTypeSetter"></sly>
 <sly data-sly-test="${error.json}">${contentType.json}${error.json @ context='unsafe'}</sly>
 <sly data-sly-test="${!error.json}">${contentType.html}
-<sly data-sly-include="/libs/iap/Content/header.html"></sly>
+<sly data-sly-include="/libs/data/Content/header.html"></sly>
     <div id="main-error-container" data-status-code="${error.statusCode}" data-status-message="${error.statusMessage}"></div>
     <sly data-sly-use.assets="/libs/iap/resources/assets">
       <script type="module" src="/libs/iap/resources/${assets['iap-commons.GenericErrorPage.js']}"></script>
     </sly>
-<sly data-sly-include="/libs/iap/Content/footer.html"></sly>
+<sly data-sly-include="/libs/data/Content/footer.html"></sly>
 </sly>

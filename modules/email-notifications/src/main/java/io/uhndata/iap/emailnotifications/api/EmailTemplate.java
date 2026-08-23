@@ -58,7 +58,7 @@ import org.jetbrains.annotations.Nullable;
 public class EmailTemplate
 {
     /** The node type of a stored email template. */
-    public static final String NODETYPE = "iap:EmailTemplate";
+    public static final String NODETYPE = "mail:Template";
 
     /** The path holding the header, footer and attachments shared by every template. */
     public static final String COMMON_TEMPLATES_PATH = "/libs/iap/mailTemplates/";

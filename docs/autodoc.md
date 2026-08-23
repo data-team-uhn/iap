@@ -38,9 +38,9 @@ Three pieces, all provided by this module:
    `adapters = { TagsHomepage.class, AutoDocumentable.class }`, with the `resourceType` set, so
    that the serving node's resource adapts to `AutoDocumentable`.
 
-3. **Mark the node with the `iap:Documented` mixin**, either by adding it to individual nodes or
+3. **Mark the node with the `doc:Documented` mixin**, either by adding it to individual nodes or
    by declaring it as a supertype of the node's primary type
-   (`[iap:TagsHomepage] > iap:Content, ..., iap:Documented`). The mixin is what makes the
+   (`[tag:Homepage] > data:Content, ..., doc:Documented`). The mixin is what makes the
    documentation endpoint respond, and it also offers optional `title` and `description`
    properties, so a deployment can reword a catalogue's heading without touching code.
 

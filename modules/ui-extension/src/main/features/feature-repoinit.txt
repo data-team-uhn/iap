@@ -15,7 +15,7 @@
 #  limitations under the License.
 
 # Extension point finder
-create path (iap:ExtensionPointFinder) /uixp
+create path (ext:PointFinder) /uixp
 
 # Allow all users to read from the extension point finder and one of the nodes
 set ACL for everyone

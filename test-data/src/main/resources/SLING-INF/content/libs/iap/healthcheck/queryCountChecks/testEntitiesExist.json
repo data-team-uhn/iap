@@ -1,6 +1,6 @@
 {
   "jcr:primaryType": "nt:unstructured",
-  "query": "SELECT * FROM [iap:TestEntity] AS entity",
+  "query": "SELECT * FROM [test:Entity] AS entity",
   "comparator": ">",
   "compareAgainst": 0
 }

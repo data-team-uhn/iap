@@ -26,15 +26,15 @@ import { loadExtensions } from "@iap/ui-extension/extensionManager";
 import CredentialsForm from "./CredentialsForm";
 
 // A sign-in method other than the primary one: rendered collapsed, as a quiet link labelled
-// by the extension's `iap:collapsedLabel` (e.g. "Use a local account instead"). Once
+// by the extension's `ext:collapsedLabel` (e.g. "Use a local account instead"). Once
 // revealed, the method appears as its own section — separated by a divider and titled with
 // the extension's name — so it is not read as part of the primary method above it.
 function CollapsedMethod({ extension }: { extension: Extension }) {
   const [ open, setOpen ] = useState(false);
-  const label = (extension["iap:collapsedLabel"] as string | undefined)
-    ?? (extension["iap:extensionName"] as string | undefined)
+  const label = (extension["ext:collapsedLabel"] as string | undefined)
+    ?? (extension["ext:name"] as string | undefined)
     ?? "More sign-in options";
-  const title = extension["iap:extensionName"] as string | undefined;
+  const title = extension["ext:name"] as string | undefined;
 
   if (!open) {
     return (

@@ -97,7 +97,7 @@ class CategoriesDocumentationTest
             "jcr:uuid", BARE_LEAF_UUID));
         // A non-category child does not stop its parent from being a leaf
         this.context.create().resource("/Categories/Retrospective/RetrospectiveBiospecimen/attachment",
-            SLING_RESOURCE_TYPE, "iap/Content");
+            SLING_RESOURCE_TYPE, "data/Content");
         this.context.create().resource("/Categories/Quick", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
             "label", "Quick projects",
@@ -111,7 +111,7 @@ class CategoriesDocumentationTest
         this.context.create().resource("/Categories/Legacy/LegacyData", Map.of(
             SLING_RESOURCE_TYPE, Category.RESOURCE_TYPE,
             "label", "Legacy Data Studies"));
-        this.context.create().resource("/Categories/notes", SLING_RESOURCE_TYPE, "iap/Content");
+        this.context.create().resource("/Categories/notes", SLING_RESOURCE_TYPE, "data/Content");
         // LegacyData is not marked itself: it is retired because Legacy above it is
         Retirement.retire(this.context, "/Categories/Paper", "/Categories/Legacy");
         return root.adaptTo(CategoriesHomepage.class);

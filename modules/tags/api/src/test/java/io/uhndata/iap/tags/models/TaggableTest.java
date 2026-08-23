@@ -53,14 +53,14 @@ class TaggableTest
         this.context.addModelsForClasses(Content.class, Taggable.class);
         // No TagOperations service is registered in this context, e.g. a read-only rendering context
         this.taggable = this.context.create()
-            .resource("/data/entity", "sling:resourceType", "iap/Entity")
+            .resource("/data/entity", "sling:resourceType", "data/Entity")
             .adaptTo(Taggable.class);
     }
 
     @Test
     void anyContentIsViewableAsTaggable()
     {
-        // The iap:Taggable mixin is a declaration aid, not an adaptation gate: any content adapts
+        // The tag:Taggable mixin is a declaration aid, not an adaptation gate: any content adapts
         assertNotNull(this.context.create().resource("/data/plain").adaptTo(Taggable.class));
     }
 

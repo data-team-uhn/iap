@@ -37,12 +37,12 @@ afterEach(() => {
   Reflect.deleteProperty(window, STORE_KEY);
 });
 
-// Builds a widget extension as returned by loadExtensions: the parsed iap:Extension
+// Builds a widget extension as returned by loadExtensions: the parsed ext:Extension
 // JSON with the render asset already resolved to a component.
 const widget = (name: string, order: number) => ({
-  "iap:extensionName": name,
-  "iap:defaultOrder": order,
-  "iap:extensionRender": () => <div>{`${name} content`}</div>,
+  "ext:name": name,
+  "defaultOrder": order,
+  "ext:render": () => <div>{`${name} content`}</div>,
 });
 
 describe("WidgetDashboard", () => {
@@ -62,26 +62,26 @@ describe("WidgetDashboard", () => {
 
     render(<WidgetDashboard point="TestWidgets" />);
 
-    // The dashboard frames every widget itself, titling it with the extension's iap:extensionName.
+    // The dashboard frames every widget itself, titling it with the extension's ext:name.
     const content = await screen.findByText("Welcome content");
     expect(content.closest(".MuiPaper-root")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Welcome" })).toBeInTheDocument();
     expect(mockedLoadExtensions).toHaveBeenCalledWith("TestWidgets");
   });
 
-  it("renders a widget's iap:subtitle as a subtitle", async () => {
-    mockedLoadExtensions.mockResolvedValue([{ ...widget("Some widget", 0), "iap:subtitle": "A short hint" }]);
+  it("renders a widget's ext:subtitle as a subtitle", async () => {
+    mockedLoadExtensions.mockResolvedValue([{ ...widget("Some widget", 0), "ext:subtitle": "A short hint" }]);
 
     render(<WidgetDashboard point="TestWidgets" />);
 
     expect(await screen.findByText("A short hint")).toBeInTheDocument();
   });
 
-  it("renders a header action linking to the widget's target when iap:actionLabel is set", async () => {
+  it("renders a header action linking to the widget's target when ext:actionLabel is set", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      { ...widget("Categories", 0), "iap:actionLabel": "Configure", "iap:targetURL": "/admin/categories" },
+      { ...widget("Categories", 0), "ext:actionLabel": "Configure", "ext:targetURL": "/admin/categories" },
       // Without a label there is no action, even with a target
-      { ...widget("Plain", 1), "iap:targetURL": "/somewhere" },
+      { ...widget("Plain", 1), "ext:targetURL": "/somewhere" },
     ]);
 
     render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
@@ -110,8 +110,8 @@ describe("WidgetDashboard", () => {
 
   it("spans a wide widget further, and treats an unrecognised width as normal", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      { ...widget("Wide", 0), "iap:widgetWidth": "wide" },
-      { ...widget("Odd", 1), "iap:widgetWidth": "enormous" },
+      { ...widget("Wide", 0), "ext:widgetWidth": "wide" },
+      { ...widget("Odd", 1), "ext:widgetWidth": "enormous" },
       widget("Plain", 2),
     ]);
 
@@ -124,7 +124,7 @@ describe("WidgetDashboard", () => {
 
   it("renders a widget that declares no name", async () => {
     const unnamed: Record<string, unknown> = { ...widget("Unnamed", 0) };
-    delete unnamed["iap:extensionName"];
+    delete unnamed["ext:name"];
     mockedLoadExtensions.mockResolvedValue([unnamed]);
 
     render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
@@ -143,7 +143,7 @@ describe("WidgetDashboard", () => {
   describe("persona filtering", () => {
     it("shows a widget that belongs to the active persona", async () => {
       mockedLoadExtensions.mockResolvedValue([
-        { ...widget("Reviews", 0), "iap:personas": [ "submitter" ] },
+        { ...widget("Reviews", 0), "ext:personas": [ "submitter" ] },
       ]);
 
       render(<WidgetDashboard point="TestWidgets" />);
@@ -154,7 +154,7 @@ describe("WidgetDashboard", () => {
     it("hides a widget that belongs to another persona", async () => {
       mockedLoadExtensions.mockResolvedValue([
         widget("Everyone", 0),
-        { ...widget("Reviews", 1), "iap:personas": [ "reviewer" ] },
+        { ...widget("Reviews", 1), "ext:personas": [ "reviewer" ] },
       ]);
 
       render(<WidgetDashboard point="TestWidgets" />);
@@ -166,7 +166,7 @@ describe("WidgetDashboard", () => {
 
     it("re-lays out when the persona changes, without loading the widgets again", async () => {
       mockedLoadExtensions.mockResolvedValue([
-        { ...widget("Reviews", 0), "iap:personas": [ "reviewer" ] },
+        { ...widget("Reviews", 0), "ext:personas": [ "reviewer" ] },
       ]);
       // The mock is shared by every test in this file; only this render's calls should be counted.
       mockedLoadExtensions.mockClear();

@@ -39,7 +39,7 @@ import org.jetbrains.annotations.Nullable;
  * out entirely when nothing declares a category.
  *
  * <p>To serve the documentation over HTTP, implement this interface in a Sling Model registered as an adapter for
- * the resource, and mark the node with the {@code iap:Documented} mixin (directly, or as a supertype of its primary
+ * the resource, and mark the node with the {@code doc:Documented} mixin (directly, or as a supertype of its primary
  * type): the documentation then becomes available at the node's path with the {@code doc} selector and the
  * {@code json} or {@code md} extension.</p>
  *
@@ -49,7 +49,7 @@ import org.jetbrains.annotations.Nullable;
 public interface AutoDocumentable
 {
     /** The mixin marking the nodes that serve documentation. */
-    String MIXIN = "iap:Documented";
+    String MIXIN = "doc:Documented";
 
     /** The category under which items without an explicit category are documented. */
     String UNCATEGORIZED = "uncategorized";

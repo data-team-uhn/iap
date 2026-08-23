@@ -56,7 +56,7 @@ final class ArchiveEntryRow
     /**
      * Describes one archive entry.
      *
-     * @param entry the {@code iap:ArchiveEntry} resource to describe
+     * @param entry the {@code del:ArchiveEntry} resource to describe
      * @return the entry as a JSON object
      */
     static JsonObjectBuilder of(final Resource entry)

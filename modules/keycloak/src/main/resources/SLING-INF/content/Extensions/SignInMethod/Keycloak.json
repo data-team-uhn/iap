@@ -1,11 +1,11 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/login/signInMethod",
-  "iap:extensionName": "Institutional account",
-  "iap:extensionRenderURL": "asset:iap-login.RedirectSignIn.js",
-  "iap:defaultOrder": 50,
-  "iap:defaultDisabled": true,
-  "iap:targetURL": "/oidc-login",
-  "iap:actionLabel": "Continue with institutional credentials",
-  "iap:hint": "You'll be redirected to your institution's sign-in page."
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/login/signInMethod",
+  "ext:name": "Institutional account",
+  "ext:renderURL": "asset:iap-login.RedirectSignIn.js",
+  "defaultOrder": 50,
+  "ext:defaultDisabled": true,
+  "ext:targetURL": "/oidc-login",
+  "ext:actionLabel": "Continue with institutional credentials",
+  "ext:hint": "You'll be redirected to your institution's sign-in page."
 }

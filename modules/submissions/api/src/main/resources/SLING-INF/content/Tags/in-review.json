@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "In review",
   "description": "The record was picked up by its reviewers and a decision is pending.",
   "category": ["lifecycle"],

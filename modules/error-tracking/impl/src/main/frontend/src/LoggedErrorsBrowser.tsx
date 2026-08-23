@@ -33,7 +33,7 @@ import { LOGGED_ERROR_TYPE, TRIAGE_PROPERTY, UNACKNOWLEDGED } from "./errorTrack
  * The administration console page listing the recorded errors, at {@code /admin/errors}.
  *
  * Almost all of it is the shared entity grid, which the errors' homepage already answers for: it is
- * an iap:EntityHomepage, so listing, filtering, sorting and paging come from the pagination servlet
+ * an data:EntityHomepage, so listing, filtering, sorting and paging come from the pagination servlet
  * with no server-side code of this feature's own.
  *
  * The one thing added on top is the "only what needs attention" switch. The grid's own column filter

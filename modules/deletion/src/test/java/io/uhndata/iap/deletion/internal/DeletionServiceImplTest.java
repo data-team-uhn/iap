@@ -144,7 +144,7 @@ class DeletionServiceImplTest
     private Node definition(final String name, final String onDelete, final boolean weak)
         throws RepositoryException
     {
-        final Node node = this.session.getNode("/LinkTypes").addNode(name, "iap:LinkDefinition");
+        final Node node = this.session.getNode("/LinkTypes").addNode(name, "link:Definition");
         node.setProperty("onDelete", onDelete);
         node.setProperty("weak", weak);
         this.session.save();
@@ -154,10 +154,10 @@ class DeletionServiceImplTest
     private Node link(final Node owner, final Node destination, final Node definition, final boolean weak)
         throws RepositoryException
     {
-        final Node container = owner.hasNode("iap:links") ? owner.getNode("iap:links")
-            : owner.addNode("iap:links", "iap:Links");
+        final Node container = owner.hasNode("link:links") ? owner.getNode("link:links")
+            : owner.addNode("link:links", "link:Links");
         final Node link = container.addNode("link" + container.getNodes().getSize(),
-            weak ? "iap:WeakLink" : "iap:Link");
+            weak ? "link:WeakLink" : "link:Link");
         link.setProperty("type", definition);
         if (weak) {
             link.setProperty("reference", this.session.getValueFactory().createValue(destination, true));
@@ -389,7 +389,7 @@ class DeletionServiceImplTest
         final Node node = this.target(VICTIM);
         final Node vital = this.definition("vital", "RECURSIVE_DELETE", false);
         // A link node sitting directly under the root, with no owning resource two levels up
-        final Node link = this.session.getRootNode().addNode("stray", "iap:Link");
+        final Node link = this.session.getRootNode().addNode("stray", "link:Link");
         link.setProperty("type", vital);
         link.setProperty("reference", node);
         this.session.save();
@@ -408,8 +408,8 @@ class DeletionServiceImplTest
         final Node external = this.session.getNode(CONTENT).addNode("external");
         final Node externalDefinition = this.definition("ehr", "REMOVE_LINK", false);
         externalDefinition.setProperty("external", true);
-        final Node externalContainer = external.addNode("iap:links", "iap:Links");
-        final Node externalLink = externalContainer.addNode("ext", "iap:ExternalLink");
+        final Node externalContainer = external.addNode("link:links", "link:Links");
+        final Node externalLink = externalContainer.addNode("ext", "link:ExternalLink");
         externalLink.setProperty("type", externalDefinition);
         externalLink.setProperty("value", "12345");
         this.session.save();
@@ -640,13 +640,13 @@ class DeletionServiceImplTest
     void linksOfCheckedInResourcesAreRemovedWithoutCheckout() throws Exception
     {
         final Node node = this.target(VICTIM);
-        final Node holder = this.session.getNode(CONTENT).addNode("holder", "test:Entity");
+        final Node holder = this.session.getNode(CONTENT).addNode("holder", "test:Deletable");
         this.session.save();
         this.link(holder, node, this.definition("related", "REMOVE_LINK", false), false);
         this.versionManager.checkin("/content/holder");
         final DeletionResult result = this.delete(VICTIM_PATH, false, false);
         assertEquals(DeletionResult.Status.ARCHIVED, result.getStatus());
-        assertFalse(this.session.getNode("/content/holder/iap:links").getNodes().hasNext());
+        assertFalse(this.session.getNode("/content/holder/link:links").getNodes().hasNext());
         assertFalse(this.versionManager.isCheckedOut("/content/holder"));
     }
 

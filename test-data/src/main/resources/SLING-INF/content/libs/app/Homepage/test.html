@@ -1,0 +1,42 @@
+<sly data-sly-use.contentType="io.uhndata.iap.scripting.ContentTypeSetter">${contentType.html}</sly>
+<!--/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */-->
+<!--/*
+  A test-only page exercising the Sling Models: the homepage is an data:Content (through its
+  app/Homepage -> data/Content supertype chain), so it adapts into a Content model, while the
+  included sample node is a full data:Entity rendered through its own test script.
+*/-->
+<!doctype html>
+<html>
+  <head><title>Sling Models test</title></head>
+  <body>
+    <sly data-sly-use.content="io.uhndata.iap.content.models.Content">
+      <section id="content">
+        <h1>Homepage as Content</h1>
+        <dl>
+          <dt>path</dt><dd id="content-path">${content.path}</dd>
+          <dt>name</dt><dd id="content-name">${content.name}</dd>
+          <dt>type</dt><dd id="content-type">${content.type}</dd>
+          <dt>created</dt><dd id="content-created">${content.created}</dd>
+          <dt>createdBy</dt><dd id="content-createdBy">${content.createdBy}</dd>
+        </dl>
+      </section>
+    </sly>
+    <sly data-sly-resource="${'/TestEntities/SampleEntity' @ selectors='test'}"></sly>
+  </body>
+</html>

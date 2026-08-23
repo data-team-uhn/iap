@@ -155,7 +155,7 @@ shallower than BPMN's, and it is the test to apply before adding to it:
 
 ### Self-documentation, and why its shape matters
 
-`/WorkflowTypes` carries the `iap:Documented` mixin, so its catalogue is served at
+`/WorkflowTypes` carries the `doc:Documented` mixin, so its catalogue is served at
 `/WorkflowTypes.doc.json` and `/WorkflowTypes.doc.md` (see [autodoc](autodoc.md)).
 
 The JSON is **not just prose**: it is what the visual BPMN editor reads to build its toolbars, grouped by
@@ -199,7 +199,7 @@ Anything that workflows should be able to run over carries the `wf:WorkflowAttac
 autocreates the container:
 
 ```
-[sub:Submission] > iap:Entity, wf:WorkflowAttachable
+[sub:Submission] > data:Entity, wf:WorkflowAttachable
 
 [wf:WorkflowAttachable]
   mixin
@@ -209,13 +209,13 @@ autocreates the container:
 which gives `Submission.getWorkflowInstances()`. One thing may have several workflows running over it at
 once — a review process and a periodic reminder, say — so it is a list, not a single lifecycle.
 
-**`IGNORE` is load-bearing, not tidiness.** Every `iap:Entity` is `mix:versionable`, and so is a workflow
+**`IGNORE` is load-bearing, not tidiness.** Every `data:Entity` is `mix:versionable`, and so is a workflow
 instance. Under the default on-parent-version setting, checking in a submission copies the entire live
 workflow into version storage, and *restoring an earlier revision rolls the workflow back with it* — an
 editor reverting a typo would quietly un-approve a proposal. Verified against Oak both ways: with the
 default, a restore rewound the token to where it had been at check-in; with `IGNORE`, the submission
-reverted and the workflow carried on untouched. The same reasoning is why `iap:Entity` declares its
-`iap:links` child `IGNORE`.
+reverted and the workflow carried on untouched. The same reasoning is why `data:Entity` declares its
+`link:links` child `IGNORE`.
 
 Three consequences of co-locating worth knowing:
 

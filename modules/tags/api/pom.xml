@@ -41,8 +41,8 @@
             <Sling-Nodetypes>SLING-INF/nodetypes/tags.cnd</Sling-Nodetypes>
             <Sling-Model-Packages>io.uhndata.iap.tags.models</Sling-Model-Packages>
             <Sling-Initial-Content>
-              SLING-INF/content/libs/iap/TagsHomepage/;path:=/libs/iap/TagsHomepage/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/TagDefinition/;path:=/libs/iap/TagDefinition/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/tag/Homepage/;path:=/libs/tag/Homepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/tag/Definition/;path:=/libs/tag/Definition/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/oak%3Aindex/;path:=/oak:index/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
@@ -109,7 +109,7 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-model-content-api</artifactId>
+      <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

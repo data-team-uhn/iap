@@ -67,7 +67,7 @@ import org.slf4j.LoggerFactory;
 public class ArchiveEntriesServlet extends SlingJakartaSafeMethodsServlet
 {
     /** The {@code sling:resourceType} of the archive root and of the buckets under it. */
-    static final String ARCHIVE_RESOURCE_TYPE = "iap/Archive";
+    static final String ARCHIVE_RESOURCE_TYPE = "del/Archive";
 
     private static final long serialVersionUID = 1L;
 

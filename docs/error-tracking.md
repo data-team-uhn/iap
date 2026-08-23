@@ -78,7 +78,7 @@ a throwable's message is: outside the identity, inside the record.
 
 One node per **distinct fault**, under the `err:LoggedErrorsHomepage` node at `/LoggedErrors`. A
 fault something was thrown for is an `err:LoggedFailure`; one nothing was thrown for is an
-`err:LoggedProblem`. Both are `err:LoggedError`s, and both are ordinary `iap:Content`, so they read
+`err:LoggedProblem`. Both are `err:LoggedError`s, and both are ordinary `data:Content`, so they read
 as JSON, list through the pagination servlet, and carry tags like anything else.
 
 | Property | Type | Meaning |

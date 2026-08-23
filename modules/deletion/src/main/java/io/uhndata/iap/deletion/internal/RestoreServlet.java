@@ -49,8 +49,8 @@ import io.uhndata.iap.deletion.api.RestoreResult;
     selectors = { "restore" }, extensions = { "json" })
 public class RestoreServlet extends SlingJakartaAllMethodsServlet
 {
-    /** The {@code sling:resourceType} of an {@code iap:ArchiveEntry} node. */
-    static final String ENTRY_RESOURCE_TYPE = "iap/ArchiveEntry";
+    /** The {@code sling:resourceType} of an {@code del:ArchiveEntry} node. */
+    static final String ENTRY_RESOURCE_TYPE = "del/ArchiveEntry";
 
     private static final long serialVersionUID = 1L;
 

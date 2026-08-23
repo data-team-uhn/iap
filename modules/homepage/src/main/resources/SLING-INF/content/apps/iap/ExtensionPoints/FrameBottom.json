@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:ExtensionPoint",
-  "iap:extensionPointId": "iap/coreUI/frameBottom",
-  "iap:extensionPointName": "Elements of the stable screen frame: the full-width bar pinned to the bottom of the screen"
+  "jcr:primaryType": "ext:Point",
+  "ext:pointId": "iap/coreUI/frameBottom",
+  "ext:pointName": "Elements of the stable screen frame: the full-width bar pinned to the bottom of the screen"
 }

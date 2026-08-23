@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Draft",
   "description": "Work on this record is still in progress.",
   "category": ["lifecycle"],

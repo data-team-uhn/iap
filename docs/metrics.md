@@ -6,13 +6,13 @@ survive restarts and are shared by every node of a cluster.
 
 ## The data model
 
-Each metric is an `iap:Metric` node under `/Metrics`, holding descriptive metadata (`label`,
-`description`, `category`, `iap:defaultOrder`, `accessLevel`) next to its counter state. The count itself lives in the
+Each metric is an `metric:Metric` node under `/Metrics`, holding descriptive metadata (`label`,
+`description`, `category`, `defaultOrder`, `accessLevel`) next to its counter state. The count itself lives in the
 `oak:counter` property, maintained by the repository's atomic counter support: committing an
 `oak:increment` value on the node atomically adds it to the counter, so concurrent increments from
 different threads or cluster nodes are all applied without conflicting or getting lost.
 
-Both node types extend `iap:Content`, like every other definition-style type in the platform, so a
+Both node types extend `data:Content`, like every other definition-style type in the platform, so a
 metric carries the shared content properties, can be [tagged](tags.md), accepts any further
 properties and children a deployment wants to add, and is served by the standard JSON serialization.
 The atomic-counter mixin is the one thing that is *not* inherited: `mix:atomicCounter` only works
@@ -75,7 +75,7 @@ against the counter's *current* value, never against the one its handle happens 
 them — the HTTP endpoint, the status report — simply follows that order rather than sorting again:
 
 1. by **category**, alphabetically, with the **uncategorized metrics last**;
-2. by **`iap:defaultOrder`** within each category, lower values first — a plain `LONG` on the metric
+2. by **`defaultOrder`** within each category, lower values first — a plain `LONG` on the metric
    node, defaulting to `0`, and negative values are allowed;
 3. by **name**, for metrics that agree on both, so the listing is stable.
 

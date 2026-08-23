@@ -59,11 +59,11 @@ class TagPropagationEditorTest
 
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
-    private static final String CONTENT_TYPE = "iap:TestContent";
+    private static final String CONTENT_TYPE = "test:Content";
 
-    private static final String ENTITY_TYPE = "iap:TestEntity";
+    private static final String ENTITY_TYPE = "test:Entity";
 
-    private static final String BOUNDARY_TYPE = "iap:TestHomepage";
+    private static final String BOUNDARY_TYPE = "test:Homepage";
 
     private static final String COMPUTED = TagProcessor.Phase.LOCAL.getPropertyName();
 
@@ -287,7 +287,7 @@ class TagPropagationEditorTest
         // A second boundary, declared through a mixin on an otherwise ordinary node
         final NodeBuilder byMixin = start.child("container").child("mixed");
         byMixin.setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
-        byMixin.setProperty("jcr:mixinTypes", List.of("iap:TagBoundary"), Type.NAMES);
+        byMixin.setProperty("jcr:mixinTypes", List.of("tag:Boundary"), Type.NAMES);
         byMixin.child("item").setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
         final NodeState before = start.getNodeState();
 
@@ -434,10 +434,10 @@ class TagPropagationEditorTest
     {
         final NodeState before = tagged(TAGS, List.of(SENSITIVE), DATA, ENTITY);
         final NodeBuilder after = before.builder();
-        // A node whose primary type is strict, but which gains taggability through the iap:Taggable mixin
+        // A node whose primary type is strict, but which gains taggability through the tag:Taggable mixin
         final NodeBuilder mixed = descend(after, DATA, ENTITY).child("mixed");
         mixed.setProperty(PRIMARY_TYPE, "nt:file", Type.NAME);
-        mixed.setProperty("jcr:mixinTypes", List.of("iap:Taggable"), Type.NAMES);
+        mixed.setProperty("jcr:mixinTypes", List.of("tag:Taggable"), Type.NAMES);
 
         final NodeState result = process(before, after);
 
@@ -719,9 +719,9 @@ class TagPropagationEditorTest
         final EditorHook scoped = hookWith(new SecretProcessor());
         final NodeState before = base().getNodeState();
         final NodeBuilder after = before.builder();
-        // A node typed exactly iap:Entity, rather than a subtype of it, is just as much of a scope root
+        // A node typed exactly data:Entity, rather than a subtype of it, is just as much of a scope root
         final NodeBuilder plain = after.child(DATA).child("plain");
-        plain.setProperty(PRIMARY_TYPE, "iap:Entity", Type.NAME);
+        plain.setProperty(PRIMARY_TYPE, "data:Entity", Type.NAME);
         plain.child(PART).setProperty(PRIMARY_TYPE, CONTENT_TYPE, Type.NAME);
         plain.setProperty("secret", true);
 
@@ -794,27 +794,27 @@ class TagPropagationEditorTest
         // Typed as the real repository root is, which is what makes the root's own writability a real question: it
         // extends nt:unstructured, so it accepts any property, while declaring none of the tag ones itself
         root.setProperty(PRIMARY_TYPE, "rep:root", Type.NAME);
-        // A minimal node type registry backing the writability checks: the iap:Taggable mixin declaring the
+        // A minimal node type registry backing the writability checks: the tag:Taggable mixin declaring the
         // tag properties by name, content types carrying it through their expanded supertypes, a boundary type,
         // a free-form type accepting any property, and strict types
         final NodeBuilder types = root.child("jcr:system").child("jcr:nodeTypes");
-        types.child("iap:Taggable").child("rep:namedPropertyDefinitions").child(TAGS);
-        types.child("iap:Content").setProperty("rep:supertypes", List.of("iap:Taggable"), Type.NAMES);
-        types.child(CONTENT_TYPE).setProperty("rep:supertypes", List.of("iap:Content", "iap:Taggable"),
+        types.child("tag:Taggable").child("rep:namedPropertyDefinitions").child(TAGS);
+        types.child("data:Content").setProperty("rep:supertypes", List.of("tag:Taggable"), Type.NAMES);
+        types.child(CONTENT_TYPE).setProperty("rep:supertypes", List.of("data:Content", "tag:Taggable"),
             Type.NAMES);
-        types.child("iap:Entity");
+        types.child("data:Entity");
         types.child(ENTITY_TYPE)
-            .setProperty("rep:supertypes", List.of("iap:Content", "iap:Entity", "iap:Taggable"), Type.NAMES);
-        types.child("iap:TagBoundary");
+            .setProperty("rep:supertypes", List.of("data:Content", "data:Entity", "tag:Taggable"), Type.NAMES);
+        types.child("tag:Boundary");
         types.child(BOUNDARY_TYPE).setProperty("rep:supertypes",
-            List.of("iap:Content", "iap:Taggable", "iap:TagBoundary"), Type.NAMES);
+            List.of("data:Content", "tag:Taggable", "tag:Boundary"), Type.NAMES);
         types.child("nt:unstructured").child("rep:residualPropertyDefinitions");
         types.child("nt:file");
         types.child("nt:folder").setProperty("rep:supertypes", List.of("nt:base"), Type.NAMES);
         types.child("nt:base");
         types.child("rep:root").setProperty("rep:supertypes", List.of("nt:unstructured", "nt:base"), Type.NAMES);
         final NodeBuilder homepage = root.child("Tags");
-        homepage.setProperty(TYPE_PROPERTY, "iap/TagsHomepage");
+        homepage.setProperty(TYPE_PROPERTY, "tag/Homepage");
         define(homepage, INCOMPLETE, true, false);
         define(homepage, SENSITIVE, false, true);
         define(homepage, "confidential", true, true);
@@ -831,7 +831,7 @@ class TagPropagationEditorTest
         final boolean inheritable)
     {
         final NodeBuilder definition = homepage.child(name);
-        definition.setProperty(TYPE_PROPERTY, "iap/TagDefinition");
+        definition.setProperty(TYPE_PROPERTY, "tag/Definition");
         definition.setProperty("aggregated", aggregated);
         definition.setProperty("inheritable", inheritable);
     }

@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Needs attention",
   "description": "A recorded error nobody has looked at yet, or one that has happened again since somebody decided it was dealt with. Aggregated, so that /LoggedErrors itself carries this marker while anything under it still needs attention. Derived from the decisions recorded on the error, never placed by hand.",
   "category": ["error-triage"],

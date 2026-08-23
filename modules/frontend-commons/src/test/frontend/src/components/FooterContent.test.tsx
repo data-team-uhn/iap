@@ -50,7 +50,7 @@ describe("FooterContent", () => {
 
   it("leaves the target empty for a link that registers no URL", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      { "iap:extensionName": "No target" },
+      { "ext:name": "No target" },
     ]);
 
     await renderContent();
@@ -64,7 +64,7 @@ describe("FooterContent", () => {
 
   it("navigates in-app links with a plain full-page anchor by default", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      { "iap:extensionName": "FAQ", "iap:targetURL": "/faq" },
+      { "ext:name": "FAQ", "ext:targetURL": "/faq" },
     ]);
 
     await renderContent();
@@ -76,7 +76,7 @@ describe("FooterContent", () => {
 
   it("labels a link with its URL when no name is registered", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      { "iap:targetURL": "/faq" },
+      { "ext:targetURL": "/faq" },
     ]);
 
     await renderContent();
