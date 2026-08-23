@@ -106,7 +106,7 @@ invites client timeouts. Callers retry.
 | `docling_config.py` / `docling_error_detection.py` | Shared Docling pipeline options; parse-failure detection |
 | `markdown_cleanup.py` | `clean_markdown` — strip garbage lines, collapse blanks (idempotent). Called **once per document**, by the converter only |
 | **`chunker.py`** | `chunk_file` — **sole** writer of `{stem}.md` + `Chunks/`; `build_chunk_tree` is in-memory only. Leaf splitting is [chunkweaver](https://github.com/metawake/chunkweaver) |
-| `heading_helpers.py` | Identify ATX headings, match them to PDF bookmarks, catalog labels |
+| `heading_helpers.py` | Identify ATX headings, match them to PDF bookmarks |
 | `pdf_bookmarks.py` | PDF bookmark extraction (pypdf) |
 
 ---
@@ -194,13 +194,13 @@ horizontal rules inside sections, and cutting on them opens a chunk with a bare 
 What it does **not** do:
 
 - **The post-cut pass**: trailing page markers moved to the next chunk, small text tails
-  folded back, catalog heading and pages.
+  folded back, pageStart/pageEnd in the catalog.
 
 ## The outline subsystem
 
-The document **outline** is a list of PDF bookmarks `{title, level, page}` from
-``extract_bookmarks``, held in memory as ``pdf_bookmarks`` and written to
-`Chunks/outline.json` as ``bookmarks``. They come from a sibling PDF, and from nothing else.
+The document **outline** is PDF bookmark **titles** (strings) from
+``extract_bookmarks``, held in memory with level/page for heading rewrite and written to
+`Chunks/outline.json` as ``bookmarks: ["…", …]``. They come from a sibling PDF, and from nothing else.
 
 Printed-TOC detection was removed. Finding, confirming, flattening and splicing out a
 "table of contents" block, and locating the first Reference/Appendix section, were together
@@ -223,7 +223,7 @@ flowchart TD
     B --> C{"sibling stem.pdf with bookmarks?"}
     C -->|yes| D["extract_bookmarks pypdf"]
     C -->|no| E["bookmarks empty"]
-    D --> F["outline.bookmarks = extract_bookmarks"]
+    D --> F["outline.bookmarks = title strings"]
 ```
 
 Key behaviours:
@@ -256,7 +256,7 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
         Chunk-2.md
 ```
 
-``extract_bookmarks`` reaches disk as ``bookmarks`` in `Chunks/outline.json`.
+``extract_bookmarks`` reaches disk as title strings in ``bookmarks`` in `Chunks/outline.json`.
 
 ### Staleness
 

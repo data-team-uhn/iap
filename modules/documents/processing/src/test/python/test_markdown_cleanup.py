@@ -16,9 +16,8 @@
 #
 
 """Tests for markdown_cleanup: garbage-line stripping, blank collapsing, the
-cleaned marker, leading line-number removal, and source-file header helpers."""
+cleaned marker, leading line-number removal, and upload basename helpers."""
 
-from pathlib import Path
 
 import markdown_cleanup as mc
 
@@ -57,6 +56,21 @@ class TestCleanMarkdown:
 
     def test_multiple_blank_lines_collapsed(self):
         assert mc.clean_markdown("A\n\n\n\n\nB") == "A\n\nB"
+
+    def test_html_entities_are_unescaped(self):
+        result = mc.clean_markdown(
+            "## 2.0 HYPOTHESES &amp; OBJECTIVES\n\n"
+            "a &lt; b &gt; c &quot;q&quot; &#38; &#x26;"
+        )
+        assert result == (
+            "## 2.0 HYPOTHESES & OBJECTIVES\n\n"
+            'a < b > c "q" & &'
+        )
+
+    def test_unescaping_is_idempotent(self):
+        once = mc.clean_markdown("Calcium &amp; Vitamin D")
+        assert once == "Calcium & Vitamin D"
+        assert mc.clean_markdown(once) == once
 
 
 class TestLeadingLineNumbers:
@@ -109,21 +123,10 @@ class TestHelpers:
         assert lines[end_index] == "Body"
 
 
-class TestSourceFileHeader:
-    def test_resolve_prefers_explicit_name_basename(self):
-        assert mc.resolve_source_file_name(Path("/tmp/on-disk.pdf"), "Original Upload.pdf") \
-            == "Original Upload.pdf"
+class TestGetSourceFileBasename:
+    def test_strips_directories(self):
+        assert mc.get_source_file_basename("/some/dir/report.docx") == "report.docx"
+        assert mc.get_source_file_basename("C:\\dir\\file.pdf") == "file.pdf"
 
-    def test_resolve_strips_directories_from_explicit_name(self):
-        assert mc.resolve_source_file_name(Path("x.pdf"), "/some/dir/report.docx") == "report.docx"
-
-    def test_resolve_falls_back_to_path_name(self):
-        assert mc.resolve_source_file_name(Path("/tmp/on-disk.pdf"), None) == "on-disk.pdf"
-        assert mc.resolve_source_file_name(Path("/tmp/on-disk.pdf"), "   ") == "on-disk.pdf"
-
-    def test_header_escapes_double_dash(self):
-        # '--' cannot appear inside an HTML comment; it becomes an em dash.
-        header = mc.get_source_file_header("weird--name.pdf")
-        assert "--" not in header.replace("<!--", "").replace("-->", "")
-        assert header.startswith("<!-- source_file: ")
-        assert header.endswith(" -->")
+    def test_collapses_whitespace(self):
+        assert mc.get_source_file_basename("  My  Report .pdf  ") == "My Report .pdf"

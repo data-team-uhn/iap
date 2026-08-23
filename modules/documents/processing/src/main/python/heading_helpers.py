@@ -31,18 +31,10 @@ from markdown_markers import (
     RULE_LINE,
 )
 
-# Letters in any script. Digits and punctuation are dropped so ``"1.0 Background"`` and
-# ``"Background"`` share a matching key; do not narrow these to ASCII or CJK/Cyrillic titles vanish.
-# A section number at the START of a heading: "3.1 ", "2) ", "10. ". Dropped from the key so a
-# printed "3.1 Aims" matches a bookmark called "Aims". Only the leading run: a number anywhere
-# else is part of the name, and dropping those merged "Objective 1" with "Objective 2".
-_LEADING_NUMBER = re.compile(r"^[\s#*_]*\d+(?:\.\d+)*[.)]?\s+")
-
+# Letters in any script. Digits are kept so numbered siblings stay distinct keys.
+# Do not narrow these to ASCII or CJK/Cyrillic titles vanish.
 # Everything that is not a letter or digit, in any script.
 _NON_ALNUM = re.compile(r"[\W_]+", re.UNICODE)
-
-# Words that make an ATX line a caption or stamp, not a section heading.
-_REJECTED_HEADING_WORDS = ("table", "confidential")
 
 # Catalog label for Chunk-0 when the preamble has no leading ATX heading.
 DEFAULT_HEADING = "General Information"
@@ -63,8 +55,6 @@ def is_valid_heading(text: str) -> bool:
     """
     words = text.split()
     if not words or len(words) > MAX_HEADING_WORDS:
-        return False
-    if words[0].casefold() in _REJECTED_HEADING_WORDS:
         return False
     if len(_NON_ALNUM.sub("", text.casefold())) < MIN_HEADING_CHARS:
         return False
@@ -109,17 +99,12 @@ def _get_min_atx_level(lines: list[str], deeper_than: int = 0) -> int | None:
 
 
 def normalize_title(text: str) -> str:
-    """A comparison key for a heading: casefolded, leading section number dropped.
+    """A comparison key for a heading: casefolded letters and digits only.
 
-    So ``"## 1.0 Background:"`` and ``"Background"`` both key to ``"background"``, which is what
-    lets a printed heading match a PDF bookmark that carries no numbering.
-
-    Digits that are not the leading number are kept, because they are part of the name. Dropping
-    every digit merged ``"Objective 1"``, ``"Objective 2"`` and ``"Objective 3"`` into one key,
-    and the caller treats same-key lines as repeats of one heading: the first kept its markers
-    and the rest were demoted to body.
+    Digits stay in the key on both the bookmark and the Markdown side, so
+    ``"8.1.1.1 DaT-SPECT"`` and ``"9.3.1.1 DaT-SPECT"`` do not collide.
     """
-    return _NON_ALNUM.sub("", _LEADING_NUMBER.sub("", text).casefold())
+    return _NON_ALNUM.sub("", text.casefold())
 
 
 def _get_bookmark_match_text(stripped: str) -> str | None:
@@ -176,11 +161,11 @@ def _apply_bookmark_heading_levels(
     """Rewrite matched heading lines to PDF bookmark ATX levels.
 
     Each bookmark is matched to ATX, bold, or ALL-CAPS lines with the same normalized
-    title; the hit closest in page wins, and when two hits share that distance the later
-    line in the document wins. That line keeps its text and only its ``#`` count is set
-    to the bookmark level; duplicates are demoted to body, and ``line`` / ``page`` /
-    ``checked`` are written on the bookmark dict. Invalid ATX captions are demoted to
-    body before matching.
+    title (letters and digits only; section numbers are kept). The hit closest in page
+    wins, and when two hits share that distance the later line in the document wins.
+    That line keeps its text and only its ``#`` count is set to the bookmark level;
+    ``line`` / ``page`` / ``checked`` are written on the bookmark dict. Invalid ATX
+    captions are demoted to body before matching.
 
     @return: rewritten lines
     """
@@ -233,7 +218,4 @@ def _apply_bookmark_heading_levels(
         atx = _match_atx_heading(stripped)
         text = atx[1] if atx is not None else stripped
         out[chosen_index] = f"{'#' * level} {text}"
-        for index, _page in matches:
-            if index != chosen_index:
-                out[index] = out[index].replace("#", "").lstrip()
     return out

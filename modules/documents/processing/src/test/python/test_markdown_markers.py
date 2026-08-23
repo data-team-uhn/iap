@@ -85,17 +85,17 @@ class TestConsumersAgreeOnTheMarker:
 
     The outline module used to be one of them. It no longer reads page markers itself -- it
     hands the document to :func:`bookmarks.build_lines_catalog`, which is covered here through
-    the ``_get_page_range`` helper.
+    the ``_get_page_bounds`` helper.
     """
 
     def test_every_stage_reads_the_canonical_marker(self):
         assert heading_helpers.is_neutral(EMITTED) is True
-        assert chunker._get_page_range(f"body\n{EMITTED}\nmore") == "11-12"
+        assert chunker._get_page_bounds(f"body\n{EMITTED}\nmore") == (11, 12)
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{EMITTED}\nb") is not None
 
     def test_every_stage_rejects_non_canonical_spacing(self):
         assert heading_helpers.is_neutral(NON_CANONICAL) is False
-        assert chunker._get_page_range(f"body\n{NON_CANONICAL}\nmore") == ""
+        assert chunker._get_page_bounds(f"body\n{NON_CANONICAL}\nmore") == (None, None)
         assert markdown_cleanup.PAGE_MARKER_SPLIT.search(f"a\n{NON_CANONICAL}\nb") is None
 
 

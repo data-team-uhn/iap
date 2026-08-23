@@ -116,14 +116,13 @@ def parse_document(
             workers=pdf_workers,
             batch_pages=pdf_batch_pages,
             log=_log,
-            source_file=filename,
         )
     else:
         # The lock is optional (the CLI has no concurrent callers), so the two arms differed
         # only in holding it — nullcontext keeps the call itself written once
         with docx_lock if docx_lock is not None else contextlib.nullcontext():
             markdown = convert_docx_to_markdown(
-                docling_input, converter=docx_converter, source_file=filename
+                docling_input, converter=docx_converter
             )
         _log(f"Converted DOCX ({len(markdown):,} chars)")
 

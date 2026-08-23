@@ -36,11 +36,10 @@ Every chunk is listed in ``catalog.json``::
     [
       {
         "chunk_id": "Chunk-1.md",
-        "heading": "Introduction", # first line in the chunk if it is heading
         "summary": "",
         "rubric_tags": [],
-        "pages": "1-2",
-        "length": 1837 # character count of the chunk content
+        "pageStart": 1,
+        "pageEnd": 2
       }, ...
     ]
 """
@@ -59,7 +58,6 @@ from chunkweaver import Chunker
 from chunkweaver.presets import MARKDOWN_LEVELED
 from docling_batch_sizing import parse_positive_int
 from heading_helpers import (
-    DEFAULT_HEADING,
     _apply_bookmark_heading_levels,
     _get_chunk_heading,
     _get_min_atx_level,
@@ -113,25 +111,23 @@ UNCHUNKED_NOT_REQUESTED = "chunking_not_requested"
 UNCHUNKED_NO_PARTS = "splitter_returned_no_parts"
 
 
-def _get_page_range(text: str) -> str:
-    """The page range this chunk covers, as ``"11-12"`` or ``"11"``.
+def _get_page_bounds(text: str) -> tuple[int | None, int | None]:
+    """The first and last page this chunk covers, or ``(None, None)`` when unmarked.
 
     Markers inside the text set the end (and usually the start). If the first non-blank line
     is not a page marker, the chunk began mid-page, so the start is one before the first
-    marker. No markers means no range (DOCX, or a tail with no later page break).
+    marker. No markers means no bounds (DOCX, or a tail with no later page break).
     """
     pages: set[int] = set()
     for match in PAGE_MARKER.finditer(text or ""):
         pages.add(int(match.group(1)))
     if not pages:
-        return ""
+        return None, None
     start = min(pages)
     end = max(pages)
     if not _starts_with_page_marker(text):
         start = max(1, start - 1)
-    if start == end:
-        return str(start)
-    return f"{start}-{end}"
+    return start, end
 
 
 def _starts_with_page_marker(text: str) -> bool:
@@ -357,7 +353,7 @@ def build_chunk_tree(
     @return: ``{"markdown", "chunked", "outline", "catalog", "chunks"}``, where ``chunks``
         is a list of ``{"file", "text"}`` in document order, ``catalog`` is ``None`` when
         the document was left unchunked, and ``outline["bookmarks"]`` is the sibling PDF's
-        bookmarks (empty when there is no sibling PDF, or it carries none)
+        bookmark titles as strings (empty when there is no sibling PDF, or it carries none)
     """
     md_file = markdown_content
 
@@ -378,7 +374,7 @@ def build_chunk_tree(
     to_be_chunked = tokens >= min_structure_tokens
     outline = {
         "tokens": tokens,
-        "bookmarks": pdf_bookmarks,
+        "bookmarks": [bookmark["title"] for bookmark in pdf_bookmarks],
         "chunked": to_be_chunked,
     }
 
@@ -397,7 +393,6 @@ def build_chunk_tree(
     md_lines = md_file.split("\n")
     md_lines = _apply_bookmark_heading_levels(md_lines, pdf_bookmarks)
     md_file = "\n".join(md_lines)
-    outline["bookmarks"] = pdf_bookmarks
 
     catalog_chunks: list[dict] = []
     chunks: list[dict] = []
@@ -422,29 +417,22 @@ def build_chunk_tree(
 
     packed = _merge_small_text_tails(top_texts, MIN_TAIL_TOKENS)
 
-    def add(name: str, part: dict, heading: str) -> None:
+    def add(name: str, part: dict) -> None:
         text = part["text"]
+        page_start, page_end = _get_page_bounds(text)
         chunks.append({"file": name, "text": text})
         catalog_chunks.append({
             "chunk_id": name,
-            "heading": heading,
             "summary": "",
             "rubric_tags": [],
-            "pages": _get_page_range(text),
-            "length": len(text) + 1,
+            "pageStart": page_start,
+            "pageEnd": page_end,
         })
 
     # Prefer Chunk-0 when the document has a leading preamble; otherwise start at 1.
     first_number = 0 if (top_chunks and top_chunks[0]["number"] == 0) else 1
     for offset, part in enumerate(packed):
-        part_text = part["text"]
-        name = f"Chunk-{first_number + offset}.md"
-        heading = _get_chunk_heading(part_text)
-        if not heading and catalog_chunks:
-            heading = catalog_chunks[-1]["heading"]
-        if not heading and first_number == 0 and offset == 0:
-            heading = DEFAULT_HEADING
-        add(name, part, heading)
+        add(f"Chunk-{first_number + offset}.md", part)
 
     return {
         "markdown": md_file,
