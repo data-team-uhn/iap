@@ -245,10 +245,6 @@
   // no ML tokenizer is involved.
   - tokens (LONG)
 
-  // The first Reference/Appendix record that resolved to a body line.
-  // Everything from here to the end becomes one standalone backmatter chunk.
-  - backmatterLine (LONG)
-
   // Outcome of the size gate. False means the document was small enough to work
   // on whole, so there is no chunk tree.
   - chunked (BOOLEAN) = false
@@ -265,35 +261,11 @@
   // reads, and the .docx / .pdf made along the way
   + * (nt:file) = nt:file
 
-  // The document's outline, absent when no outline was found
-  + toc (sub:ToC) = sub:ToC
+  // PDF's embedded bookmarks representing table of contents, if available
+  - bookmarks (STRING) multiple
 
   // The chunk tree; absent when chunked is false
   + chunks (sub:Chunks) = sub:Chunks
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// The outline of one file: where it was read from, the records it holds, and
-// the lines the printed table of contents occupies.
-[sub:ToC] > data:EntityPart
-  - sling:resourceType (STRING) = "sub/ToC" mandatory autocreated protected
-
-  // Where the outline came from: pdf-bookmarks or md-toc
-  - source (STRING)
-
-  // Titles of the outline records, in document order
-  - titles (STRING) multiple
-
-  // Line range of the printed table of contents within the Markdown, so it can
-  // be skipped when reading the body. Absent when no printed TOC was found.
-  - startLine (LONG)
-  - endLine (LONG)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -331,9 +303,6 @@
 [sub:Chunk] > data:EntityPart, mix:referenceable
   - sling:resourceType (STRING) = "sub/Chunk" mandatory autocreated protected
 
-  // The catalog's heading: the heading path this chunk sits under
-  - headings (STRING) multiple
-
   // A short summary of the chunk, written by the summarizer in a background
   // pass. The parsing pipeline always writes this empty.
   - summary (STRING)
@@ -357,10 +326,6 @@
   // DOCX, which carry no page markers.
   - pageStart (LONG)
   - pageEnd (LONG)
-
-  // True only for the backmatter (Reference/Appendix) chunk, which is never
-  // sent to the summarizer
-  - isAppendix (BOOLEAN) = false
 
   // This chunk's Chunk-<n>.md
   + content (nt:file) = nt:file
