@@ -39,7 +39,6 @@ import io.uhndata.iap.schemas.models.Question;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -59,7 +58,7 @@ class AnswerTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class, Question.class,
-            Evidence.class);
+            Extraction.class);
     }
 
     @Test
@@ -102,71 +101,44 @@ class AnswerTest
         assertNotNull(answer);
         assertNull(answer.getQuestion());
         assertNull(answer.getValue());
-        assertFalse(answer.isExtracted());
-        assertNull(answer.getExtractedAnswer());
-        assertNull(answer.getConfidence());
-        assertNull(answer.getReasoning());
-        assertNull(answer.getEditDistance());
-        assertNull(answer.getPercentageDistance());
-        assertTrue(answer.getEvidence().isEmpty());
+        assertTrue(answer.getExtractions().isEmpty());
+        assertNull(answer.getLatestExtraction());
     }
 
     @Test
-    void exposesWhatExtractionFound()
+    void listsExtractionRunsInTheOrderTheyRan()
     {
-        final Resource resource = this.context.create().resource("/Submissions/submission/extracted", Map.of(
-            "sling:resourceType", Answer.RESOURCE_TYPE,
-            "extracted", true,
-            "extractedAnswer", "42 participants",
-            "confidence", 0.87,
-            "reasoning", "The recruitment table gives 42 in the final column",
-            "editDistance", 3L,
-            "percentageDistance", 20.0));
-        final Answer answer = resource.adaptTo(Answer.class);
-
-        assertTrue(answer.isExtracted());
-        assertEquals("42 participants", answer.getExtractedAnswer());
-        assertEquals(0.87, answer.getConfidence());
-        assertEquals("The recruitment table gives 42 in the final column", answer.getReasoning());
-        assertEquals(3L, answer.getEditDistance());
-        assertEquals(20.0, answer.getPercentageDistance());
-    }
-
-    @Test
-    void reportsThatExtractionRanAndFoundNothing()
-    {
-        final Resource resource = this.context.create().resource("/Submissions/submission/empty", Map.of(
-            "sling:resourceType", Answer.RESOURCE_TYPE,
-            "extracted", true,
-            "editDistance", -1L,
-            "percentageDistance", -1.0));
-        final Answer answer = resource.adaptTo(Answer.class);
-
-        // "ran and found nothing" is the case a null extracted answer cannot tell apart from "never ran"
-        assertTrue(answer.isExtracted());
-        assertNull(answer.getExtractedAnswer());
-        assertEquals(-1L, answer.getEditDistance());
-        assertEquals(-1.0, answer.getPercentageDistance());
-    }
-
-    @Test
-    void listsTheEvidenceBackingTheExtractedAnswer()
-    {
-        final Resource resource = this.context.create().resource("/Submissions/submission/cited",
+        final Resource resource = this.context.create().resource("/Submissions/submission/participants",
             "sling:resourceType", Answer.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/submission/cited/evidence0", Map.of(
-            "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "42 participants will be recruited"));
-        this.context.create().resource("/Submissions/submission/cited/evidence1", Map.of(
-            "sling:resourceType", Evidence.RESOURCE_TYPE, "quote", "of whom 42 complete the protocol"));
-        // Not evidence, and must not be listed as such
-        this.context.create().resource("/Submissions/submission/cited/upload",
+        this.context.create().resource("/Submissions/submission/participants/extraction0", Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "40"));
+        this.context.create().resource("/Submissions/submission/participants/extraction1", Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
+        // A file-type answer keeps its upload here too, and that is not an extraction
+        this.context.create().resource("/Submissions/submission/participants/upload",
             "sling:resourceType", "nt:file");
         final Answer answer = resource.adaptTo(Answer.class);
 
-        final List<Evidence> evidence = answer.getEvidence();
+        final List<Extraction> extractions = answer.getExtractions();
 
-        assertEquals(2, evidence.size());
-        assertEquals("42 participants will be recruited", evidence.get(0).getQuote());
-        assertEquals("of whom 42 complete the protocol", evidence.get(1).getQuote());
+        assertEquals(2, extractions.size());
+        assertEquals("40", extractions.get(0).getExtractedAnswer());
+        // The newest run is the last, and it is the one a submitter is shown
+        assertEquals("42", answer.getLatestExtraction().getExtractedAnswer());
+    }
+
+    @Test
+    void keepsAnUnapprovedExtractionOutOfTheValue()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/participants",
+            "sling:resourceType", Answer.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/participants/extraction0", Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
+        final Answer answer = resource.adaptTo(Answer.class);
+
+        // The submitter has not accepted it, so the answer is still unanswered
+        assertNull(answer.getValue());
+        assertEquals("42", answer.getLatestExtraction().getExtractedAnswer());
+        assertNull(answer.getLatestExtraction().getEditDistance());
     }
 }

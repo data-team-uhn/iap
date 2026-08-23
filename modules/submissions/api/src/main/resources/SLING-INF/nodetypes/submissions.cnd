@@ -88,20 +88,47 @@
 // expected type and meaning are dictated by the referenced question.
 // Referenceable so that review comments can target it.
 [sub:Answer] > data:EntityPart, mix:referenceable, mix:lastModified
+  // The extraction runs are orderable, so they are presented in the order they
+  // ran, the newest last.
+  orderable
+
   - sling:resourceType (STRING) = "sub/Answer" mandatory autocreated protected
 
   // The sch:Question this answers
   - question (REFERENCE) mandatory
 
-  // The submitted value(s)
+  // The submitted value(s): only what the submitter typed or approved. An
+  // extracted answer stays in its extraction until they accept or edit it, so
+  // that no answer is ever attributed to a submitter who never saw it.
   - value (UNDEFINED)
   - value (UNDEFINED) multiple
 
-  // Whether extraction ran and produced an answer. Tells "ran and found
-  // nothing" apart from "never ran", which a null extractedAnswer cannot.
-  - extracted (BOOLEAN) = false
+  // What extraction made of this question, one child per run
+  + * (sub:Extraction) = sub:Extraction
 
-  // The answer the model read out of the documents
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility;
+  // file-type answers store their upload as nt:file children
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One extraction run against one answer: what a model read out of the submitted
+// documents, and what it read to get there. The run's own existence is the
+// record that extraction happened, so a run that found nothing is a node
+// without an extractedAnswer rather than a flag, and jcr:created is when it ran.
+[sub:Extraction] > data:EntityPart
+  - sling:resourceType (STRING) = "sub/Extraction" mandatory autocreated protected
+
+  // The document revisions this run read, whether or not it found an answer in
+  // them. A revision is what a submitter replaces, so this is what tells a
+  // later reader that an extraction is stale.
+  - sources (REFERENCE) multiple
+
+  // The answer the model read out of the documents, absent when the run found
+  // nothing
   - extractedAnswer (STRING)
 
   // How sure the model is, 0..1
@@ -110,9 +137,11 @@
   // The model's explanation of how it got there
   - reasoning (STRING)
 
-  // How far extractedAnswer is from the submitter's value: the raw edit
-  // distance, and that distance as a percentage of the extracted answer's own
-  // length. Both are -1 when there is no extracted answer to compare against.
+  // How far the submitter's own value ended up from extractedAnswer: the raw
+  // edit distance, and that distance as a percentage of the extracted answer's
+  // own length. Written when the submitter accepts or edits the extracted
+  // answer, and absent until then, since an extraction nobody has acted on has
+  // nothing to be compared against.
   - editDistance (LONG)
   - percentageDistance (DOUBLE)
 
@@ -123,8 +152,7 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // Allow any other children for extensibility;
-  // file-type answers store their upload as nt:file children
+  // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
 
 //-----------------------------------------------------------------------------
