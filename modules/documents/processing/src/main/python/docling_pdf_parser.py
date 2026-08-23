@@ -45,7 +45,7 @@ from docling_batch_sizing import (
     calc_workers,
     print_parallelism_summary,
 )
-from shared_docs import open_pdf_reader
+from shared_docs import open_pdf_reader, refuse_empty_pdf
 from docling_error_detection import (
     DOCLING_PIPELINE_LOGGER,
     DoclingLogCollector,
@@ -215,6 +215,7 @@ def convert_pdf_to_markdown(
     # document themselves, and this one would otherwise stay open for the whole conversion.
     with open(input_path, "rb") as handle:
         total_pages = len(open_pdf_reader(handle).pages)
+    refuse_empty_pdf(total_pages)
 
     workers_override = workers is not None
     batch_pages_override = batch_pages is not None
