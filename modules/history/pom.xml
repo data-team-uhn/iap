@@ -21,44 +21,20 @@
 
   <parent>
     <groupId>io.uhndata.iap</groupId>
-    <artifactId>iap-parent</artifactId>
+    <artifactId>iap-modules</artifactId>
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-modules</artifactId>
+  <artifactId>iap-history</artifactId>
   <packaging>pom</packaging>
-  <name>IAP - Code modules</name>
+  <name>IAP - History</name>
 
+  <!--
+    Only the definitions and their models for now. What writes them is the workflow engine, which is where every data
+    change already goes, so there is deliberately no implementation bundle here yet: an empty one would be dead weight
+    until the engine has a post-commit phase to record from.
+  -->
   <modules>
-    <!-- Keep these alphabetical -->
-    <module>admin-console</module>
-    <module>authentication</module>
-    <module>autodoc</module>
-    <module>categories</module>
-    <module>conditions</module>
-    <module>data</module>
-    <module>deletion</module>
-    <module>email-notifications</module>
-    <module>error-tracking</module>
-    <module>favicon</module>
-    <module>frontend-commons</module>
-    <module>healthcheck</module>
-    <module>history</module>
-    <module>homepage</module>
-    <module>http-requests</module>
-    <module>java-utils</module>
-    <module>keycloak</module>
-    <module>links</module>
-    <module>login</module>
-    <module>metrics</module>
-    <module>schemas</module>
-    <module>serialization</module>
-    <module>slack-notifications</module>
-    <module>startup-customization</module>
-    <module>status</module>
-    <module>submissions</module>
-    <module>tags</module>
-    <module>ui-extension</module>
-    <module>workflows</module>
+    <module>api</module>
   </modules>
 </project>
