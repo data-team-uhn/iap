@@ -225,6 +225,22 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void saysWhetherEachDocumentIsDemandedOrMerelyOffered() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/sponsorLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Sponsor letter",
+            "required", false));
+
+        final JsonObject form = form(REQUESTER);
+
+        // Absence of the flag on the node means demanded, and the wire says so explicitly
+        assertTrue(requirement(form, "doctorsNote").getBoolean("required"));
+        assertFalse(requirement(form, "sponsorLetter").getBoolean("required"));
+        // Only document requirements carry the key; a form's optionality lives per-question in minAnswers
+        assertFalse(requirement(form, DETAILS).containsKey("required"));
+    }
+
+    @Test
     void tellsEachQuestionWhereItsAnswerGoes() throws IOException
     {
         // The path the save endpoint expects, relative to the schema version. Given rather than constructed, so
