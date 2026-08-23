@@ -27,7 +27,7 @@ import { ControlledAnswer } from "./controlled.fixture";
 function renderDate(values: string[] = []) {
   const question: FormQuestion = {
     name: "startDate", type: QUESTION, path: "details/startDate", text: "Which day does it start?",
-    dataType: "date", required: false, multiple: false, options: [], value: [],
+    dataType: "date", minAnswers: 0, maxAnswers: 1, options: [], value: [],
   };
   const onAnswered = vi.fn();
   render(<ControlledAnswer component={DateAnswer} question={question} initial={values}
