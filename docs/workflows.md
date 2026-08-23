@@ -389,10 +389,11 @@ not missing, so completeness has to be judged against the resolved form by the s
 what the form shows — done once, at save time, instead of by every reader. The tag is a system tag in its
 own `completeness` category: nobody can hand-place it, and it does not displace the lifecycle state.
 
-Four properties carry the engine's matching, authorization and dispatch, all set by hand today and by the
-BPMN parser once it exists: `messageName` on events (the domain event name), `targetResourceType` on
-versions (what a system workflow answers for), `performers` on flow nodes (who may pass through), and
-`handler` on activities (who performs a service task).
+Four properties carry the engine's matching, authorization and dispatch, derived from the diagram's
+`iap:*` attributes wherever a version says its BPMN is authoritative, and set by hand elsewhere:
+`messageName` on events (the domain event name), `targetResourceType` on versions (what a system workflow
+answers for), `performers` on flow nodes (who may pass through), and `handler` on activities (who performs
+a service task).
 
 ## User workflows: the part that persists
 
