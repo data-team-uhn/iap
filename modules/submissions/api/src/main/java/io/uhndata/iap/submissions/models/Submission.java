@@ -188,7 +188,7 @@ public class Submission extends Entity
     }
 
     /**
-     * The requirements of this submission's schema version that haven't been fulfilled yet: a
+     * The requirements of this submission's schema version that haven't been fulfilled yet: a <em>required</em>
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
      * approved {@link Review}, or a {@code FormRequirement} with a question given fewer answers than its
      * {@code minAnswers} demands. An optional question left blank fulfils it just as well. Requirements, sections
@@ -214,12 +214,15 @@ public class Submission extends Entity
     private boolean isFulfilled(final Requirement requirement)
     {
         if (requirement instanceof DocumentRequirement) {
+            // An optional document is asked for but not demanded, so nothing attached still fulfils it. Whether
+            // it is asked at all is its condition's decision, made before this is ever reached.
             // The reference is resolved into a local, both because resolving it twice would repeat the whole
             // reference lookup, and because the null check wouldn't apply to a second, separate call
-            return this.getDocuments().stream().anyMatch(document -> {
-                final Requirement fulfilled = document.getFulfills();
-                return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
-            });
+            return !((DocumentRequirement) requirement).isRequired() || this.getDocuments().stream()
+                .anyMatch(document -> {
+                    final Requirement fulfilled = document.getFulfills();
+                    return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
+                });
         }
         if (requirement instanceof ApprovalRequirement) {
             return this.getReviews().stream().anyMatch(review -> {

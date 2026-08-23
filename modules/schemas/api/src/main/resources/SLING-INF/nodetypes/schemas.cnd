@@ -293,6 +293,19 @@
 [sch:DocumentRequirement] > sch:Requirement
   - sling:resourceType (STRING) = "sch/DocumentRequirement" mandatory autocreated protected
 
+  // Whether the document must be attached before the submission is complete.
+  // A flag, deliberately not the count pair a question carries: values of one
+  // question are homogeneous and counting them means something, while several
+  // files under one requirement are usually revisions of the same deliverable,
+  // and "give me three letters" is better said as three named requirements,
+  // each with its own label, template and accepted types.
+  // Optional is not conditional: the condition inherited from sch:Requirement
+  // decides whether this is asked at all, this flag decides whether being
+  // unanswered blocks completeness.
+  // Defaults to true so that absence keeps its current meaning and a forgotten
+  // flag demands too much rather than too little.
+  - required (BOOLEAN) = true autocreated
+
   // Accepted MIME types for the uploaded document, e.g. application/pdf
   - acceptedFileTypes (STRING) multiple
 
