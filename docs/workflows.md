@@ -905,6 +905,12 @@ system tag in its own `completeness` category, so nobody can place it by hand an
 not displace the lifecycle state. A control offering to send a request refuses while it
 is there.
 
+Four properties carry the engine's matching, authorization and dispatch, derived from the diagram's
+`iap:*` attributes wherever a version says its BPMN is authoritative, and set by hand elsewhere:
+`messageName` on events (the domain event name), `targetResourceType` on versions (what a system workflow
+answers for), `performers` on flow nodes (who may pass through), and `handler` on activities (who performs
+a service task).
+
 ## Content workflows: the part that persists
 
 A content workflow outlives the request, because the next thing to happen is a person
