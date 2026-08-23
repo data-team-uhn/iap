@@ -25,7 +25,7 @@ from docling.datamodel.base_models import InputFormat
 from docling.document_converter import DocumentConverter, WordFormatOption
 
 from docling_error_detection import ensure_conversion_ok
-from markdown_cleanup import finalize_markdown
+from markdown_cleanup import clean_markdown
 
 _docx_converter: DocumentConverter | None = None
 
@@ -46,22 +46,15 @@ def convert_docx_to_markdown(
     input_path: Path,
     *,
     converter: DocumentConverter | None = None,
-    source_file: str | None = None,
 ) -> str:
     """
     Convert a DOCX file to Markdown and return the text.
 
     @param input_path: path to the source .docx file
     @param converter: optional reusable converter instance
-    @param source_file: optional original upload name for the source_file header
-        (defaults to ``input_path.name``, which may be a temp basename)
     @return: cleaned Markdown text
     """
     active_converter = converter if converter is not None else get_docx_converter()
     result = active_converter.convert(str(input_path))
     ensure_conversion_ok(result)
-    return finalize_markdown(
-        result.document.export_to_markdown(),
-        input_path,
-        source_file=source_file,
-    )
+    return clean_markdown(result.document.export_to_markdown())

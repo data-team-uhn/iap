@@ -51,7 +51,7 @@ from docling_error_detection import (
     DoclingLogCollector,
     ensure_conversion_ok,
 )
-from markdown_cleanup import finalize_markdown
+from markdown_cleanup import clean_markdown
 from markdown_markers import get_page_marker
 
 
@@ -198,7 +198,6 @@ def convert_pdf_to_markdown(
     workers: int | None = None,
     executor: ProcessPoolExecutor | None = None,
     log: LogFn | None = None,
-    source_file: str | None = None,
 ) -> str:
     """
     Convert a PDF file to Markdown and return the text.
@@ -208,8 +207,6 @@ def convert_pdf_to_markdown(
     @param workers: optional override for parallel worker process count
     @param executor: optional persistent ProcessPoolExecutor (daemon mode)
     @param log: optional log sink; defaults to print
-    @param source_file: optional original upload name for the source_file header
-        (defaults to ``input_path.name``, which may be a temp basename)
     @return: cleaned Markdown text
     """
     log_fn = log if log is not None else print
@@ -269,11 +266,7 @@ def convert_pdf_to_markdown(
         all_markdown.append(md)
 
     parallel_end = perf_counter()
-    markdown_content = finalize_markdown(
-        "".join(all_markdown),
-        input_path,
-        source_file=source_file,
-    )
+    markdown_content = clean_markdown("".join(all_markdown))
     total_end = perf_counter()
 
     log_fn("\n=== Timing ===")
