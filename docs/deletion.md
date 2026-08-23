@@ -288,3 +288,28 @@ The widget needs no persona restriction: the console is reached only by those wh
 read its extensions. Reaching the console is still not the same as being allowed to
 read the archive, so a user whose rights do not match is told the archive is
 unavailable rather than shown three zeros.
+
+### Telling a reader that a resource was deleted
+
+A link to something that has been archived is a dead link, and a bare "this page does not exist" is
+both unhelpful and untrue. The platform's 404 page says what became of the path instead, and it says
+it in the response the reader was already getting: `DeletionMetadata`
+(`io.uhndata.iap.deletion.scripting`) is a HTL Use-API that the error handler declares, which looks
+the requested path up while the page is being rendered and leaves the answer on the mount container
+as `data-deleted-at`, `data-deleted-by` and `data-entry-url`. HTL drops an attribute whose value is
+empty, so a path that was never there carries none of the three.
+
+The lookup runs through the deletion service session, because the readers it exists for are exactly
+the ones who cannot resolve `/Archive` at all, and the helper decides for itself what to disclose.
+**Any authenticated reader** is told that the path was deleted and when. **A reader who can read the
+archive entry** additionally gets `deletedBy` and a link through to the entry's own page. The test
+for the second is a plain read of the entry through the requester's own session, so there is no
+second notion of who may see the archive to keep in step with the repository's.
+
+Nothing here offers to restore anything. The entry's own page already states what a restore or a
+purge would do before either is attempted, and that is where the decision belongs; the 404 page
+links to it rather than growing a second, unguarded copy of the action.
+
+The client half is `PageNotFound`, in `frontend-commons` — a pure component that renders what the
+entry point read off the container. It knows nothing about deletion beyond those three attributes,
+a page carrying none of them is the plain "not found".
