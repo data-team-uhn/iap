@@ -18,6 +18,7 @@
 
 import { Checkbox, FormControlLabel, FormHelperText, Stack } from "@mui/material";
 
+import { isRequired } from "../submissionForm";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -32,7 +33,7 @@ function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerCompone
           <Checkbox
             checked={values[0] === "true"}
             disabled={disabled}
-            required={question.required}
+            required={isRequired(question)}
             onChange={event => onAnswered([ String(event.target.checked) ])}
           />
         }

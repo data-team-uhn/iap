@@ -20,8 +20,11 @@ import {
   QUESTION,
   SECTION,
   type FormItem,
+  type FormQuestion,
   fetchForm,
+  isMultiple,
   isQuestion,
+  isRequired,
   saveAnswer,
 } from "@iap/submissions/submissionForm";
 
@@ -41,6 +44,24 @@ describe("isQuestion", () => {
     // so this is the only place the distinction is made
     expect(isQuestion({ type: QUESTION } as FormItem)).toBe(true);
     expect(isQuestion({ type: SECTION } as FormItem)).toBe(false);
+  });
+});
+
+describe("the answer-count pair", () => {
+  const counts = (minAnswers: number, maxAnswers: number) =>
+    ({ minAnswers, maxAnswers } as FormQuestion);
+
+  // The same readings the server derives, so the two sides cannot disagree about what a count means
+  it("reads a positive minimum as required", () => {
+    expect(isRequired(counts(1, 1))).toBe(true);
+    expect(isRequired(counts(0, 1))).toBe(false);
+  });
+
+  it("reads any maximum but one as taking several values", () => {
+    expect(isMultiple(counts(0, 1))).toBe(false);
+    expect(isMultiple(counts(0, 4))).toBe(true);
+    // Zero or negative means no cap at all
+    expect(isMultiple(counts(0, 0))).toBe(true);
   });
 });
 
