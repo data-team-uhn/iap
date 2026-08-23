@@ -27,6 +27,8 @@ import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.tags.api.TagRepairService;
 import io.uhndata.iap.tags.api.TagRepairService.RepairReport;
 
@@ -75,6 +77,10 @@ public class ScheduledTagRepair
         } catch (final RuntimeException e) {
             // An unusable schedule must not stop the module from starting; repair stays available on demand
             LOGGER.error("Could not schedule the tag repair sweep: {}", e.getMessage(), e);
+            // One line at startup is the only trace that automatic repair silently never runs again, and nothing
+            // afterwards looks any different from a repository that simply never needed repairing
+            ErrorLogger.logError(e, ErrorContext.of(ScheduledTagRepair.class, "scheduleSweep")
+                .with("schedule", config.schedule()));
         }
     }
 

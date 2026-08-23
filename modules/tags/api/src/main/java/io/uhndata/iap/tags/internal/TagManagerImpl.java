@@ -50,6 +50,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.tags.api.Tag;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.models.TagDefinition;
@@ -295,6 +297,9 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
             this.definitions = List.of();
             LOGGER.error("Cannot read the tag definitions, the tags service user is not available: {}",
                 e.getMessage(), e);
+            // An empty vocabulary is not an error anybody meets head-on: every tag then reads as undefined, so
+            // placing one is refused as if nobody had ever declared it
+            ErrorLogger.logError(e, ErrorContext.of(TagManagerImpl.class, "readDefinitions"));
             return;
         }
         final Resource homepage = this.definitionsResolver.getResource(DEFINITIONS_PATH);
@@ -461,6 +466,9 @@ public class TagManagerImpl implements TagManager, TagOperations, ResourceChange
             // Describing a resource must not fail because one node could not be classified; treating it as ordinary
             // content is what the aggregation did before boundaries existed
             LOGGER.warn("Could not tell whether {} bounds tag aggregation: {}", resource.getPath(), e.getMessage());
+            // Recorded because the degradation is invisible and wrong in the unsafe direction: a boundary that
+            // cannot be recognized lets aggregated tags climb past it, which is the failure IAP-71 exists to stop
+            ErrorLogger.logError(e, ErrorContext.of(TagManagerImpl.class, "isBoundary").about(resource));
             return false;
         }
     }

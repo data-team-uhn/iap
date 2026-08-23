@@ -36,6 +36,8 @@ import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.slacknotifications.spi.SlackNotificationProducer;
 
@@ -88,6 +90,8 @@ public class ScheduledSlackNotification
         if (StringUtils.isBlank(endpoint)) {
             // Scheduling a job that can only ever fail would report a failure every night forever
             LOGGER.warn("The {} notification has no endpoint configured, it will not be scheduled", config.name());
+            ErrorLogger.logProblem("notification has no endpoint configured",
+                ErrorContext.of(ScheduledSlackNotification.class, "activate").with("notification", config.name()));
             return;
         }
         final SlackNotificationsTask task = new SlackNotificationsTask(this.httpRequests, this.producers, endpoint,
@@ -102,6 +106,8 @@ public class ScheduledSlackNotification
         } catch (final RuntimeException e) {
             // An unusable schedule expression must not stop the whole module from starting
             LOGGER.error("Could not schedule the {} notification: {}", config.name(), e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(ScheduledSlackNotification.class, "scheduleNotification")
+                .with("notification", config.name()).with("schedule", config.schedule()));
         }
     }
 
@@ -155,6 +161,8 @@ public class ScheduledSlackNotification
                 result.put(keyAndValue[0].trim(), keyAndValue[1]);
             } else {
                 LOGGER.warn("Ignoring the notification parameter {}, it is not in the key=value format", parameter);
+                ErrorLogger.logProblem("notification parameter is not in the key=value format",
+                    ErrorContext.of(ScheduledSlackNotification.class, "readParameters"));
             }
         }
         return result;

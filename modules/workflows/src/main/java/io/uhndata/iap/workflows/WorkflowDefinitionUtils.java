@@ -59,6 +59,9 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+
 /**
  * Turns the BPMN 2.0 diagram stored on a {@code wf:WorkflowVersion} into the {@code wf:FlowNode} graph the workflow
  * engine executes, so that the engine reads plain JCR nodes rather than re-reading XML.
@@ -95,6 +98,16 @@ import org.xml.sax.SAXException;
 public final class WorkflowDefinitionUtils
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(WorkflowDefinitionUtils.class);
+
+    /**
+     * What every recorded translation problem is filed under. All of these are mis-authored BPMN rather than
+     * anything broken here, and all of them end the same way: a piece of the definition is silently not translated,
+     * so the workflow the engine runs is quietly not the workflow the author drew.
+     */
+    private static final String TRANSLATION = "parseBpmn";
+
+    /** The detail naming the BPMN element a translation problem was about. */
+    private static final String ELEMENT_DETAIL = "element";
 
     private static final String BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL";
 
@@ -281,11 +294,16 @@ public final class WorkflowDefinitionUtils
         final NodeList processes = document.getElementsByTagNameNS(BPMN_NS, PROCESS_ELEMENT);
         if (processes.getLength() == 0) {
             LOGGER.warn("No <bpmn:process> element found in bpmnXml at {}", workflowVersionPath);
+            ErrorLogger.logProblem("bpmnXml declares no process element",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(workflowVersionPath));
             return null;
         }
         if (processes.getLength() > 1) {
             LOGGER.warn("bpmnXml at {} declares {} <bpmn:process> elements, only the first one is parsed",
                 workflowVersionPath, processes.getLength());
+            ErrorLogger.logProblem("bpmnXml declares more than one process element",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(workflowVersionPath)
+                    .with("processes", processes.getLength()));
         }
         return (Element) processes.item(0);
     }
@@ -425,6 +443,9 @@ public final class WorkflowDefinitionUtils
         final String attachedToRef = element.getAttribute(ATTACHED_TO_REF_ATTRIBUTE);
         if (StringUtils.isBlank(attachedToRef)) {
             LOGGER.warn("BoundaryEvent {} in {} has no attachedToRef, skipping", id, context.path());
+            ErrorLogger.logProblem("boundary event has no attachedToRef",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, id));
             return;
         }
         // Only a node this parse produced will do: any other existing child of the version, bpmn.xml above all,
@@ -432,6 +453,9 @@ public final class WorkflowDefinitionUtils
         if (!context.claimedNames().contains(attachedToRef)) {
             LOGGER.warn("BoundaryEvent {} in {} is attached to unknown node {}, skipping", id, context.path(),
                 attachedToRef);
+            ErrorLogger.logProblem("boundary event is attached to an unknown node",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, id).with("attachedTo", attachedToRef));
             return;
         }
         final FlowNodeTypeInfo flowNodeType =
@@ -468,16 +492,25 @@ public final class WorkflowDefinitionUtils
     {
         if (!isValidName(id)) {
             LOGGER.warn("BPMN element id {} in {} is not usable as a JCR node name, skipping", id, context.path());
+            ErrorLogger.logProblem("BPMN element id is not usable as a node name",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, id));
             return null;
         }
         if (!context.claimedNames().add(id)) {
             LOGGER.warn("BPMN element id {} in {} is used more than once, skipping the later element", id,
                 context.path());
+            ErrorLogger.logProblem("BPMN element id is used more than once",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, id));
             return null;
         }
         if (parent.hasChildNode(id) && !isFlowNodeOrSequenceFlow(parent.getChildNode(id), context.nodeTypesRoot())) {
             LOGGER.warn("BPMN element id {} in {} collides with an existing non-flow-node child, skipping", id,
                 context.path());
+            ErrorLogger.logProblem("BPMN element id collides with an existing child",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, id));
             return null;
         }
         final NodeBuilder node = parent.child(id);
@@ -554,6 +587,7 @@ public final class WorkflowDefinitionUtils
         if (candidates == null) {
             LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}), skipping", localName,
                 element.getAttribute(ID_ATTRIBUTE));
+            recordUntranslatable(localName, element);
             return null;
         }
         final FlowNodeTypeInfo match = candidates.stream()
@@ -564,14 +598,36 @@ public final class WorkflowDefinitionUtils
         if (match == null) {
             LOGGER.warn("No FlowNodeType configured for BPMN element <{}> (id={}), skipping", localName,
                 element.getAttribute(ID_ATTRIBUTE));
+            recordUntranslatable(localName, element);
             return null;
         }
         if (StringUtils.isBlank(match.jcrNodeType()) || StringUtils.isBlank(match.identifier())) {
             LOGGER.warn("FlowNodeType matching BPMN element <{}> declares no jcrNodeType or is not referenceable,"
                 + " skipping element {}", localName, element.getAttribute(ID_ATTRIBUTE));
+            // A gap in the platform's own vocabulary rather than in the author's file, and the one of these that
+            // nothing else validates: a FlowNodeType may be registered with no jcrNodeType at all, and the only
+            // symptom is every element of that kind quietly disappearing from every workflow that uses it
+            ErrorLogger.logProblem("FlowNodeType declares no jcrNodeType",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION)
+                    .with("bpmnElement", localName).with(ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE)));
             return null;
         }
         return match;
+    }
+
+    /**
+     * Records a BPMN element this build has no way to translate. Two callers, one story: whether no candidate type
+     * was registered for the element or none of the registered ones matched it, the element is dropped and the
+     * workflow goes on without it.
+     *
+     * @param localName the BPMN element name that could not be matched
+     * @param element the element itself, for its id
+     */
+    private static void recordUntranslatable(final String localName, final Element element)
+    {
+        ErrorLogger.logProblem("no FlowNodeType configured for a BPMN element",
+            ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION)
+                .with("bpmnElement", localName).with(ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE)));
     }
 
     private static boolean hasChildElement(final Element element, final String localName)
@@ -608,6 +664,9 @@ public final class WorkflowDefinitionUtils
             // A malformed vocabulary entry must not take the whole parse — or the commit — down with it.
             LOGGER.warn("FlowNodeType {} in {} declares jcrProperties that are not a JSON object, ignoring them",
                 flowNodeType.identifier(), context.path());
+            ErrorLogger.logProblem("FlowNodeType declares jcrProperties that are not a JSON object",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with("flowNodeType", flowNodeType.identifier()));
             return;
         }
         properties.forEach((name, value) -> setJsonProperty(node, name, value));
@@ -620,8 +679,13 @@ public final class WorkflowDefinitionUtils
             case FALSE -> node.setProperty(name, false);
             case NUMBER -> setNumberProperty(node, name, (JsonNumber) value);
             case STRING -> node.setProperty(name, ((JsonString) value).getString());
-            default -> LOGGER.warn("Ignoring jcrProperties entry {}, {} values are not supported", name,
-                value.getValueType());
+            default -> {
+                LOGGER.warn("Ignoring jcrProperties entry {}, {} values are not supported", name,
+                    value.getValueType());
+                ErrorLogger.logProblem("jcrProperties entry holds an unsupported value type",
+                    ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION)
+                        .with("property", name).with("valueType", value.getValueType()));
+            }
         }
     }
 
@@ -668,6 +732,9 @@ public final class WorkflowDefinitionUtils
         final String targetRef = element.getAttribute(TARGET_REF_PROPERTY);
         if (StringUtils.isBlank(sourceRef) || StringUtils.isBlank(targetRef)) {
             LOGGER.warn("SequenceFlow {} is missing sourceRef or targetRef, skipping", id);
+            ErrorLogger.logProblem("sequence flow is missing sourceRef or targetRef",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, id));
             return;
         }
         // Both ends must name a node this parse produced: an arc stored under some other existing child of the
@@ -675,10 +742,16 @@ public final class WorkflowDefinitionUtils
         // the engine cannot follow, which the mandatory targetRef promises it never has to.
         if (!context.claimedNames().contains(sourceRef)) {
             LOGGER.warn("SequenceFlow {} references unknown source node {}, skipping", id, sourceRef);
+            ErrorLogger.logProblem("sequence flow references an unknown node",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, id).with("references", sourceRef));
             return;
         }
         if (!context.claimedNames().contains(targetRef)) {
             LOGGER.warn("SequenceFlow {} references unknown target node {}, skipping", id, targetRef);
+            ErrorLogger.logProblem("sequence flow references an unknown node",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, id).with("references", targetRef));
             return;
         }
         final NodeBuilder source = context.workflowVersion().getChildNode(sourceRef);

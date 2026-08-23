@@ -35,6 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.SAXException;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.WorkflowDefinitionUtils;
 
 /**
@@ -290,6 +292,11 @@ public class BpmnXmlSyncEditor extends DefaultEditor
             LOGGER.debug("Synced flow nodes for WorkflowVersion {}", this.workflowVersionPath);
         } catch (final ParserConfigurationException | SAXException | IOException | RuntimeException e) {
             LOGGER.error("Failed to parse bpmnXml at {}: {}", this.workflowVersionPath, e.getMessage(), e);
+            // A failure rather than a problem: something threw where the translation expected to parse. The commit
+            // still succeeds, so the author is told nothing and the version keeps whatever flow nodes it had —
+            // which, for a first upload, is none at all
+            ErrorLogger.logError(e, ErrorContext.of(BpmnXmlSyncEditor.class, "syncFlowNodes")
+                .about(this.workflowVersionPath));
         }
     }
 

@@ -35,6 +35,9 @@ import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+
 /**
  * Check if a base version was passed in the request, and if it doesn't match the base version of the resource being
  * modified, abort the request.
@@ -78,6 +81,8 @@ public class PreventVersionOverrideServletFilter implements Filter
             }
         } catch (RepositoryException e) {
             LOGGER.warn("Failed to determine current resource version: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(PreventVersionOverrideServletFilter.class, "checkVersion")
+                .about(slingRequest.getResource().getPath()));
         }
         chain.doFilter(request, response);
     }

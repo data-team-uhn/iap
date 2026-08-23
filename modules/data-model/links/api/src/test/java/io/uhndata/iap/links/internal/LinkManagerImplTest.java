@@ -33,6 +33,7 @@ import javax.jcr.Session;
 import javax.jcr.Workspace;
 import javax.jcr.version.VersionManager;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -45,6 +46,9 @@ import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
 import io.uhndata.iap.links.models.InternalLink;
@@ -710,6 +714,61 @@ class LinkManagerImplTest
         final Session session = this.mockSession();
         Mockito.when(session.getNode("/Things/a")).thenThrow(new RepositoryException());
         assertTrue(this.linkable(thing).getBacklinks().isEmpty());
+    }
+
+    @Test
+    void recordsAVocabularyItCouldNotRead()
+        throws ReflectiveOperationException
+    {
+        // An empty vocabulary makes every link type read as undefined, so a misconfigured service user and a link
+        // type nobody declared are the same story to a caller. Only the record tells them apart
+        this.createDefinitions();
+        this.injectFactory(new TestResolverFactory(null,
+            this.context.getService(ResourceResolverFactory.class)));
+        final ErrorLoggerService recorder = this.recordInto();
+
+        try {
+            assertNull(this.manager.getDefinition(SIMPLE));
+
+            Mockito.verify(recorder).logError(Mockito.any(LoginException.class), Mockito.any(ErrorContext.class));
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+    }
+
+    @Test
+    void recordsBacklinksItCouldNotList()
+        throws RepositoryException
+    {
+        // The empty list this returns is exactly what a resource nothing points at returns, which is the one
+        // failure a reader of a backlink listing has no way to notice
+        this.createDefinitions();
+        final Resource thing = this.createThings();
+        final Session session = this.mockSession();
+        Mockito.when(session.getNode("/Things/a")).thenThrow(new RepositoryException());
+        final ErrorLoggerService recorder = this.recordInto();
+
+        try {
+            assertTrue(this.linkable(thing).getBacklinks().isEmpty());
+
+            Mockito.verify(recorder).logError(Mockito.any(RepositoryException.class),
+                Mockito.any(ErrorContext.class));
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+    }
+
+    /**
+     * Publishes a recorder to the static facade, so that a test can see what was recorded. Withdrawn in a
+     * {@code finally} by every test that calls it: the facade is process-global.
+     *
+     * @return the recorder, to verify against
+     */
+    private ErrorLoggerService recordInto()
+    {
+        final ErrorLoggerService recorder = Mockito.mock(ErrorLoggerService.class);
+        ErrorLogger.setService(recorder);
+        return recorder;
     }
 
     @Test

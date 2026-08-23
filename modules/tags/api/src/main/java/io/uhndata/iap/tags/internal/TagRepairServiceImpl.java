@@ -33,6 +33,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.tags.api.TagManager;
 import io.uhndata.iap.tags.api.TagRepairService;
 
@@ -114,6 +116,9 @@ public class TagRepairServiceImpl implements TagRepairService
             return markAll(resolver, resolver.findResources(query, "JCR-SQL2"));
         } catch (final LoginException e) {
             LOGGER.error("Cannot repair tags, the tag repair service user is not available: {}", e.getMessage(), e);
+            // A report of nothing repaired is what a healthy repository returns too, so the scheduled sweep would
+            // go on reporting success while every stale node stayed stale
+            ErrorLogger.logError(e, ErrorContext.of(TagRepairServiceImpl.class, "repair"));
             return new RepairReport(0, 0);
         }
     }
@@ -200,6 +205,10 @@ public class TagRepairServiceImpl implements TagRepairService
         } catch (final PersistenceException e) {
             LOGGER.warn("Cannot save a batch of {} tag repairs: {}", pending, e.getMessage(), e);
             resolver.revert();
+            // The count comes back in the report, which a caller who asked for a repair does read — but the
+            // scheduled sweep is nobody's to read, and that is the path this runs on unattended
+            ErrorLogger.logError(e, ErrorContext.of(TagRepairServiceImpl.class, "saveBatch")
+                .with("batchSize", pending));
             return pending;
         }
     }

@@ -38,6 +38,9 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+
 /**
  * A HTL Use-API that lists UI Extensions. To use this API, simply place the following code in a HTL file:
  *
@@ -86,6 +89,10 @@ public class ExtensionsManager implements Use
             findExtensions(uixp);
         } catch (Exception e) {
             LOGGER.error("Unexpected error while querying extensions: {}", e.getMessage(), e);
+            // The extension point renders empty, which is exactly how a point with nothing registered renders, so
+            // a whole piece of the interface can go missing without anything looking wrong
+            ErrorLogger.logError(e, ErrorContext.of(ExtensionsManager.class, "findExtensions")
+                .with("extensionPoint", uixp));
         }
     }
 
@@ -176,6 +183,8 @@ public class ExtensionsManager implements Use
             if (json == null) {
                 // A failed serialization of one extension shouldn't take down the whole extension point
                 LOGGER.warn("Could not serialize extension [{}] to JSON, skipping it", extension.getPath());
+                ErrorLogger.logProblem("extension could not be serialized",
+                    ErrorContext.of(ExtensionsManager.class, "toString").about(extension));
             } else {
                 builder.add(json);
             }

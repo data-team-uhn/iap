@@ -19,8 +19,10 @@ package io.uhndata.iap.tags.internal;
 
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import io.uhndata.iap.tags.spi.TagDefinitions;
 import io.uhndata.iap.tags.spi.TagProcessor;
@@ -46,6 +48,12 @@ public class TagPropagationConfig
     private final boolean entityScoped;
 
     /**
+     * The processor failures already recorded during this commit. A plain set: one of these is built per commit by
+     * {@code TagPropagationEditorProvider.getRootEditor}, and Oak runs an editor on a single thread.
+     */
+    private final Set<String> recordedFailures = new HashSet<>();
+
+    /**
      * Basic constructor.
      *
      * @param registered all the registered tag processors, in any order
@@ -65,6 +73,26 @@ public class TagPropagationConfig
                 .sorted(byPriority)
                 .toList());
         }
+    }
+
+    /**
+     * Whether a processor's failure in a phase is the first one this commit has seen, and so the one worth
+     * recording.
+     *
+     * <p>
+     * A commit can touch thousands of nodes, and a processor broken enough to fail on one usually fails on all of
+     * them. The repository would survive that — recordings of one fault deduplicate onto a single node — but the
+     * work of getting there happens on the commit thread, once per node. One per commit is also the more useful
+     * record: the occurrence count then counts commits that were damaged rather than nodes that were visited.
+     * </p>
+     *
+     * @param processor the processor that failed
+     * @param phase the phase it failed in
+     * @return {@code true} the first time this is asked about that pair, {@code false} every time after
+     */
+    public boolean isFirstFailure(final TagProcessor processor, final Phase phase)
+    {
+        return this.recordedFailures.add(processor.getClass().getName() + '#' + phase.name());
     }
 
     /**
