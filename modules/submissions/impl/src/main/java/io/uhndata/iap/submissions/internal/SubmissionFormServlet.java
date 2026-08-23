@@ -308,16 +308,23 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     {
         final JsonArrayBuilder value = Json.createArrayBuilder();
         answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
-        return Json.createObjectBuilder()
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME_KEY, question.getName())
             .add(TYPE_KEY, question.getType())
             .add(PATH_KEY, path)
             .add("text", Objects.toString(question.getText(), ""))
             .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))
-            .add(REQUIRED_KEY, question.isRequired())
-            .add("multiple", question.isMultiple())
+            // The answer-count pair itself rather than flags derived from it, read the way it is stored
+            .add("minAnswers", question.getMinAnswers())
+            .add("maxAnswers", question.getMaxAnswers())
             .add("value", value);
+        // Stated only where the schema states them: the editor turns them into hints, and the save enforces them
+        Optional.ofNullable(question.getMinValue()).ifPresent(bound -> json.add("minValue", bound));
+        Optional.ofNullable(question.getMaxValue()).ifPresent(bound -> json.add("maxValue", bound));
+        Optional.ofNullable(question.getPattern()).ifPresent(pattern -> json.add("pattern", pattern));
+        Optional.ofNullable(question.getPatternMessage()).ifPresent(message -> json.add("patternMessage", message));
+        return json;
     }
 
     /**
