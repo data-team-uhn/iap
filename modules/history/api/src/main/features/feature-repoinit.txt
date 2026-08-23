@@ -22,9 +22,22 @@ create path (hist:Log) /History
 # half of the record lives in JCR version storage where per-version permissions cannot be expressed at all.
 create service user iap-history
 
-# No jcr:removeNode and no jcr:removeChildNodes, deliberately: the record is append-only, and a service user that
-# cannot delete makes that a property of the deployment rather than a promise made in code. Thinning old snapshots, if
-# it is ever wanted, is a decision to take deliberately and to grant deliberately.
+# No jcr:removeNode and no jcr:removeChildNodes anywhere below, deliberately: the record is append-only, and a
+# principal that cannot delete makes that a property of the deployment rather than a promise made in code. Thinning old
+# snapshots, if it is ever wanted, is a decision to take deliberately and to grant deliberately.
+#
+# This user's own writing is confined to the prefix-tree buckets. It cannot be the one that records an action, because
+# an action is written in the session of whoever is making the change it describes -- that is what makes the record and
+# the change commit together -- and only buckets can be made out-of-band, being inert and shared.
 set ACL for iap-history
+    allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /History
+end
+
+# Whoever records an action writes it in their own session, so the privilege has to be theirs. A group rather than a
+# list of names: the store must not have to know which modules record, and a module that records says so itself by
+# joining this group in its own repoinit. Nothing is a member yet -- the workflow engine will be the first.
+create group iap-history-writers
+
+set ACL for iap-history-writers
     allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /History
 end
