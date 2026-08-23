@@ -1,4 +1,4 @@
 {
-  "jcr:primaryType": "nt:unstructured",
+  "jcr:primaryType": "app:Configuration",
   "title": "${app.name}"
 }

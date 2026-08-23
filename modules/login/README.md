@@ -29,6 +29,11 @@ All texts are content, delivered as meta tags through the standard `/libs/iap/co
 `tagline`, `signInLabel`, and `signInHeading` are seeded as repoinit defaults; `introText`
 ships as initial content (`SLING-INF/content/libs/iap/conf/LoginPage.json`).
 
+Every node in the tree is an `app:Configuration`, the root included, which is both how it is
+served as JSON (`/libs/iap/conf.1.json`, through our own serializer rather than Sling's default
+renderer) and the type a deployment adding a configuration node of its own should use. The
+property vocabulary itself is open: `ConfigMetadata` flattens whatever it finds.
+
 ### Sign-in methods
 
 The ways of signing in are `iap/login/signInMethod` extensions, rendered in their configured

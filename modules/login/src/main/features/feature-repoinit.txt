@@ -15,7 +15,7 @@
 #  limitations under the License.
 
 create path (app:LoginPage) /login
-create path (nt:unstructured) /libs/iap/conf/LoginPage
+create path (app:Configuration) /libs/iap/conf/LoginPage
 
 # The login page must be readable without a session. This is the JCR half of the access
 # setup; the HTTP half is the -/login exemption in sling.auth.requirements

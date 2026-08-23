@@ -65,6 +65,34 @@ test.describe('the bare platform', () => {
     expect(response.status()).toBe(404);
   });
 
+  test('serves its configuration through our own JSON serializer', async ({ request }) => {
+    // The conf tree is app:Configuration rather than plain JCR nodes so that it goes through the IAP
+    // serializer instead of Sling's default renderer. Both would answer with the properties, so the
+    // things asserted here are the ones only ours produces: the @path/@name identification, and a
+    // depth selector that actually descends. The tree is world-readable, hence no credentials.
+    const response = await request.get('/libs/iap/conf.1.json');
+
+    expect(response.ok()).toBeTruthy();
+    const body = (await response.json()) as {
+      '@path': string;
+      ThemeColor: { '@name': string; primaryColor: string };
+    };
+    expect(body['@path']).toBe('/libs/iap/conf');
+    expect(body.ThemeColor['@name']).toBe('ThemeColor');
+    expect(body.ThemeColor.primaryColor).toBeTruthy();
+  });
+
+  test('delivers that configuration as meta tags, and nothing else', async ({ request }) => {
+    // ConfigMetadata flattens the same tree into the page head. Everything app:Configuration
+    // autocreates on those nodes is namespaced, and namespaced names are filtered out precisely so
+    // that they do not surface here: the configuration vocabulary is unprefixed, machinery is not.
+    const html = await (await request.get('/login.html')).text();
+    const names = [...html.matchAll(/<meta name="([^"]+)"/g)].map(match => match[1]);
+
+    expect(names).toContain('primaryColor');
+    expect(names.filter(name => name.includes(':'))).toEqual([]);
+  });
+
   test('reports nothing broken in its health checks', async ({ request }) => {
     const response = await request.get('/system/health.json?tags=iap', {
       headers: { Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}` },

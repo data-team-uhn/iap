@@ -1,4 +1,4 @@
 {
-  "jcr:primaryType": "nt:unstructured",
+  "jcr:primaryType": "app:Configuration",
   "introText": "**QuorumPath** guides research studies through **institutional authorization**.\\\nDesigned to make the process **faster**: fewer forms, clearer progress, and help where the paperwork tends to pile up."
 }
