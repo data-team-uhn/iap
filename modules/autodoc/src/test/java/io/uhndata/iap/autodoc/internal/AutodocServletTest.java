@@ -80,7 +80,7 @@ class AutodocServletTest
     @BeforeEach
     void setUp()
     {
-        this.context.create().resource("/Things", "sling:resourceType", "iap/ThingsHomepage");
+        this.context.create().resource("/Things", "sling:resourceType", "test/ThingsHomepage");
     }
 
     @Test

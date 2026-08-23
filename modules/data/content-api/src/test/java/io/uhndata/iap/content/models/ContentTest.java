@@ -105,20 +105,20 @@ class ContentTest
         assertEquals("sample", content.getName());
         assertEquals(Content.RESOURCE_TYPE, content.getType());
         assertTrue(content.isOfType(Content.RESOURCE_TYPE));
-        assertFalse(content.isOfType("iap/SomethingElse"));
+        assertFalse(content.isOfType("test/SomethingElse"));
     }
 
     @Test
     void recognizesItsOwnTypeAndItsSupertypes()
     {
         final Resource resource = this.context.create().resource("/content/sample", Map.of(
-            SLING_RESOURCE_TYPE, "iap/Sample",
+            SLING_RESOURCE_TYPE, "test/Sample",
             "sling:resourceSuperType", Content.RESOURCE_TYPE));
         final Content content = resource.adaptTo(Content.class);
 
-        assertTrue(content.isOfType("iap/Sample"));
+        assertTrue(content.isOfType("test/Sample"));
         assertTrue(content.isOfType(Content.RESOURCE_TYPE));
-        assertFalse(content.isOfType("iap/Unrelated"));
+        assertFalse(content.isOfType("test/Unrelated"));
     }
 
     @Test
