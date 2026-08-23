@@ -142,7 +142,7 @@ class SubmissionFormServletTest
             "label", "Request details", "description", "When and why."));
         this.context.create().resource(VERSION_PATH + "/" + START_DATE, Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM,
-            "text", "Which day does your time off start?", "dataType", "date", "required", true));
+            "text", "Which day does your time off start?", "dataType", "date", "minAnswers", 1L));
         this.context.create().resource(VERSION_PATH + "/" + END_DATE, Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM,
             "text", "Which day are you back?", "dataType", "date"));
