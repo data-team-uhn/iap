@@ -181,6 +181,21 @@ class MarkCompletenessHandlerTest
     }
 
     @Test
+    void doesNotAskForAnOptionalDocument() throws Exception
+    {
+        // Asked for, not demanded: an optional document nobody attached leaves the request complete
+        this.context.create().resource(VERSION_PATH + "/sponsorLetter", Map.of(
+            TYPE, DocumentRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Sponsor letter",
+            "required", false));
+        answer(START_DATE, "2026-10-06");
+        answer(REASON, "A wedding");
+
+        this.handler.execute(context());
+
+        assertFalse(tags().contains(MarkCompletenessHandler.INCOMPLETE));
+    }
+
+    @Test
     void doesNotAskForAQuestionThatDoesNotApply() throws Exception
     {
         // Nobody was ever asked it, so it cannot be missing — which is why this is judged against the resolved
