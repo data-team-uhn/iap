@@ -44,6 +44,7 @@
     <module>favicon</module>
     <module>frontend-commons</module>
     <module>healthcheck</module>
+    <module>history</module>
     <module>homepage</module>
     <module>http-requests</module>
     <module>java-utils</module>
