@@ -453,9 +453,9 @@ class SubmissionTest
     void letsTheAnsweredOneWinWhenTwoNodesAddressTheSameQuestion()
         throws RepositoryException
     {
-        // Only degenerate content produces this, but the rule matters: the form renders from this index and the
-        // decision that a requirement is fulfilled reads it too, so whichever answer wins has to be the same one
-        // for both. The one carrying a value wins, which agrees with the plain reading that it was answered
+        // Only degenerate content produces this, but fulfilment, the form and the extraction intake all read this
+        // index, so whichever answer wins has to be the same one for all. The one carrying a value wins, which
+        // agrees with the plain reading that it was answered
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
@@ -499,49 +499,65 @@ class SubmissionTest
     }
 
     @Test
-    void indexesTheAnswersByTheQuestionTheyAnswer()
+    void reportsMissingWhileAQuestionHasFewerAnswersThanItDemands()
         throws RepositoryException
     {
+        // One of two is as unanswered as none, and the blank among the values gets no say in the count
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
-        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
-            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
-            new String[]{ "yes" }));
-        // No value at all, which the node type permits and which means the same as carrying nothing
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID));
-        // Answers nothing that is being asked, so it is not in the index at all
-        this.context.create().resource("/Submissions/submission/a3", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE));
+        this.demand(2);
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday", " " });
 
-        final Submission submission = Objects.requireNonNull(resource.adaptTo(Submission.class));
-        final Map<String, List<String>> answers = submission.getAnswersByQuestion();
+        final List<Requirement> missing = submission.getMissingRequirements();
 
-        assertEquals(2, answers.size());
-        assertEquals(List.of("yes"), answers.get(QUESTION_1_PATH));
-        assertEquals(List.of(), answers.get(QUESTION_2_PATH));
+        assertEquals(1, missing.size());
+        assertEquals(FormRequirement.class, missing.get(0).getClass());
     }
 
     @Test
-    void letsTheAnsweredOneWinWhenTwoNodesAddressTheSameQuestion()
+    void reportsFulfilledOnceAQuestionHasAsManyAnswersAsItDemands()
         throws RepositoryException
     {
-        // Only degenerate content produces this, but fulfilment and the extraction intake both read this index, so
-        // whichever answer wins has to be the same one for both. The one carrying a value wins, which agrees with
-        // the plain reading that it was answered
+        Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
+        this.demand(2);
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday", "tuesday" });
+
+        assertTrue(submission.getMissingRequirements().isEmpty());
+    }
+
+    /**
+     * Raises the second question's demanded count, the way a schema asking "give at least this many" would.
+     *
+     * @param minimum how many values the question is to demand
+     */
+    private void demand(final long minimum)
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource("/Schemas/schema/1.0/form/q2")
+            .adaptTo(ModifiableValueMap.class)).put("minAnswers", minimum);
+    }
+
+    /**
+     * A submission fulfilling everything the fixture schema asks except that its second question is answered with
+     * exactly the given values, so a test states only the part under test.
+     *
+     * @param q2Values the values answering the second question
+     * @return the submission to judge
+     */
+    private Submission createFulfilledExceptQ2(final String[] q2Values)
+    {
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
         this.context.create().resource("/Submissions/submission/a1", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE, new String[0]));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
-            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
             new String[]{ "yes" }));
-
-        final Submission submission = Objects.requireNonNull(resource.adaptTo(Submission.class));
-
-        assertEquals(List.of("yes"), submission.getAnswersByQuestion().get(QUESTION_1_PATH));
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", q2Values));
+        this.context.create().resource("/Submissions/submission/d1", Map.of(
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
+        this.context.create().resource("/Submissions/submission/r1", Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+        return resource.adaptTo(Submission.class);
     }
 
     @Test
