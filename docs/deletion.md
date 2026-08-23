@@ -205,8 +205,8 @@ The UI is in `modules/deletion/src/main/frontend`, and both halves are extension
 - `ArchiveWidget` is registered on `iap/adminDashboard/entry`, so it sits on the administration
   console beside the other administrative tools rather than on everybody's homepage. It shows the
   three counts; the way through to the archive is the dashboard frame's own header action, declared
-  by the extension's `iap:actionLabel` and `iap:targetURL` rather than drawn by the widget.
-- `ArchiveBrowser` is registered on `iap/coreUI/view` with `iap:targetURL` `/admin/archive` — a
+  by the extension's `ext:actionLabel` and `ext:targetURL` rather than drawn by the widget.
+- `ArchiveBrowser` is registered on `iap/coreUI/view` with `ext:targetURL` `/admin/archive` — a
   filterable, sortable table with per-entry restore and purge actions, wrapped in the console's
   `AdminScreen` chrome like every other administrative tool. Each row links through to its entry.
 - `ArchiveEntryView` is registered the same way for `/admin/archive/*`: one entry, what it holds,

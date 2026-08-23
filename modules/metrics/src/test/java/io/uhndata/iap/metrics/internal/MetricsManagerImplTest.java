@@ -87,7 +87,7 @@ class MetricsManagerImplTest
         // The protected sling:resourceType property is not set by the code, it is autocreated by the node type
         assertNull(properties.get("sling:resourceType", String.class));
         assertEquals("simple", properties.get("label", String.class));
-        assertEquals(0L, properties.get("iap:defaultOrder", Long.class));
+        assertEquals(0L, properties.get("defaultOrder", Long.class));
         assertEquals("public", properties.get("accessLevel", String.class));
         assertEquals(0L, properties.get("previousValue", Long.class));
         assertNull(properties.get("description", String.class));
@@ -111,7 +111,7 @@ class MetricsManagerImplTest
         assertEquals("Full metric", properties.get("label", String.class));
         assertEquals("Counts many things", properties.get("description", String.class));
         assertEquals("Tests", properties.get("category", String.class));
-        assertEquals(20L, properties.get("iap:defaultOrder", Long.class));
+        assertEquals(20L, properties.get("defaultOrder", Long.class));
         assertEquals("admin", properties.get("accessLevel", String.class));
         assertEquals("0 0 0 * * ?", properties.get("rolloverSchedule", String.class));
     }

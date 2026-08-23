@@ -103,7 +103,7 @@ const loadRemoteComponents = async function(extension: Extension): Promise<Exten
         const asset = await loadAsset(value);
         if (asset == null) {
           const label = (extension['jcr:path'] as string | undefined)
-            ?? (extension['iap:extensionName'] as string | undefined)
+            ?? (extension['ext:name'] as string | undefined)
             ?? 'unknown';
           throw new Error(`Asset [${value}] for extension [${label}] resolved to nothing`);
         }
@@ -115,8 +115,8 @@ const loadRemoteComponents = async function(extension: Extension): Promise<Exten
 
 // Whether an extension should be shown to someone acting as the given persona.
 //
-// An extension that declares no `iap:personas` belongs to all of them. That default is the opposite
-// of `iap:visibleBeforeLogin`, which is opt-IN, and the asymmetry is deliberate: an extension leaking
+// An extension that declares no `ext:personas` belongs to all of them. That default is the opposite
+// of `ext:visibleBeforeLogin`, which is opt-IN, and the asymmetry is deliberate: an extension leaking
 // onto a pre-authentication page is a disclosure, whereas an extension that forgot to name its
 // personas merely stays where it already was. Opt-out here also means adding personas to the platform
 // changes nothing about what any existing extension displays.
@@ -125,7 +125,7 @@ const loadRemoteComponents = async function(extension: Extension): Promise<Exten
 // ALONE: never consult what the current user is permitted to do, or an administrator would start
 // seeing controls in a persona designed without them.
 const visibleInPersona = function(extension: Extension, persona: string): boolean {
-  const personas = extension["iap:personas"];
+  const personas = extension["ext:personas"];
   if (personas === undefined || personas === null) {
     return true;
   }

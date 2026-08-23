@@ -1,8 +1,8 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/appBar/entry",
-  "iap:extensionName": "Branding",
-  "iap:extensionRenderURL": "asset:iap-homepage.Branding.js",
-  "iap:appBarSection": "start",
-  "iap:defaultOrder": 10
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/appBar/entry",
+  "ext:name": "Branding",
+  "ext:renderURL": "asset:iap-homepage.Branding.js",
+  "ext:appBarSection": "start",
+  "defaultOrder": 10
 }

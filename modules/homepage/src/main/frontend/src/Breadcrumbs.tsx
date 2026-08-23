@@ -23,7 +23,7 @@ import { matchPath, Link as RouterLink, useLocation } from "react-router";
 
 import { getRoutes } from "@iap/frontend-commons/routes";
 
-// A view as returned by getRoutes(): the parsed JSON of one `iap:Extension` registered on the
+// A view as returned by getRoutes(): the parsed JSON of one `ext:Extension` registered on the
 // `iap/coreUI/view` extension point.
 type View = Record<string, unknown>;
 
@@ -37,7 +37,7 @@ const ancestorPaths = (pathname: string): string[] => {
 
 // The breadcrumb trail, registered on the `iap/coreUI/pageTop` extension point so it appears
 // above the main content of every page. Each ancestor of the current URL that corresponds to a
-// registered view becomes a link named after that view (`iap:extensionName`); on a top-level
+// registered view becomes a link named after that view (`ext:name`); on a top-level
 // page there are no ancestors, so nothing is rendered at all. The trail is as access-controlled
 // as the views themselves: a view the user cannot read is never served, so it simply doesn't
 // appear in their trail either.
@@ -57,10 +57,10 @@ function Breadcrumbs() {
   const crumbs = ancestorPaths(pathname)
     .map(path => {
       const view = views.find(candidate => {
-        const target = candidate["iap:targetURL"] as string | undefined;
+        const target = candidate["ext:targetURL"] as string | undefined;
         return target && target !== "*" && matchPath({ path: target, end: true }, path);
       });
-      return view && { path, label: (view["iap:extensionName"] as string | undefined) ?? path };
+      return view && { path, label: (view["ext:name"] as string | undefined) ?? path };
     })
     .filter(crumb => !!crumb);
 

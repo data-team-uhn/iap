@@ -39,7 +39,7 @@ function Count({ label, value, approximate }: { label: string; value: number; ap
 
 // An administration console widget summarizing the archive: how many deletions were recorded
 // recently and in total. The way through to the full view is the frame's own header action, from
-// the extension's `iap:actionLabel` and `iap:targetURL`, so this renders only the summary.
+// the extension's `ext:actionLabel` and `ext:targetURL`, so this renders only the summary.
 //
 // The console is reached only by administrators, but reaching it is not the same as holding the
 // rights to read the archive, so the summary can still be refused. It says so plainly rather than

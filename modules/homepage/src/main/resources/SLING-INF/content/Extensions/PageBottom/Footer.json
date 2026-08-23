@@ -1,6 +1,6 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/coreUI/pageBottom",
-  "iap:extensionName": "Footer",
-  "iap:extensionRenderURL": "asset:iap-homepage.Footer.js"
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/pageBottom",
+  "ext:name": "Footer",
+  "ext:renderURL": "asset:iap-homepage.Footer.js"
 }

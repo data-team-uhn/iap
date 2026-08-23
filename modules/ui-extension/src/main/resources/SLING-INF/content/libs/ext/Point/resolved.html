@@ -20,9 +20,9 @@
 // The commented code would be better, but at the moment there's no escaping in place, so the JSON is too fragile.
 // Revisit this code later, if it turns out that we need more than the JSON.
 [
-<sly data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp=properties.iap:extensionPointId}" data-sly-list="${em.listEnabled}">
+<sly data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp=properties.ext:pointId}" data-sly-list="${em.listEnabled}">
    {"${item.path}": {"properties": <sly data-sly-resource="${item.path}.full.json"/>, "content": "<sly data-sly-resource="${item.path}.null"/>"}}${itemList.last ? '' : ','}
 </sly>
 ]
 */-->
-<sly data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp=properties.iap:extensionPointId}">${em.enabled @ context='unsafe'}</sly>
+<sly data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp=properties.ext:pointId}">${em.enabled @ context='unsafe'}</sly>

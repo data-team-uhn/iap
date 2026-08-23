@@ -52,7 +52,7 @@ login; that landing path redirects on to the app.
 
 ## Enabling the institutional sign-in button
 
-The "Institutional account" method ships **disabled** (`iap:defaultDisabled: true` in `Keycloak.json`),
+The "Institutional account" method ships **disabled** (`ext:defaultDisabled: true` in `Keycloak.json`),
 so a deployment that hasn't configured Keycloak — including the bare-platform smoke tests — shows only
 the local credentials form. Keycloak's plumbing (`core/oidc.json`) is part of the default `core_tar`
 build, so the button's visibility can't be driven by which features are present; it's a deliberate
@@ -63,7 +63,7 @@ during `keycloak_setup.sh`, which runs before IAP exists):
 
 ```bash
 curl -u admin:admin \
-  -F 'iap:defaultDisabled@TypeHint=Boolean' -F 'iap:defaultDisabled=false' \
+  -F 'ext:defaultDisabled@TypeHint=Boolean' -F 'ext:defaultDisabled=false' \
   http://localhost:8080/Extensions/SignInMethod/Keycloak
 ```
 

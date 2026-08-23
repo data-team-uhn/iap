@@ -19,20 +19,20 @@
 import { Box, Typography } from "@mui/material";
 
 interface DemoBlockProps {
-  // The parsed `iap:Extension` node registering this block, with the display parameters below.
+  // The parsed `ext:Extension` node registering this block, with the display parameters below.
   extension: Record<string, unknown>;
 }
 
 // A generic block for exercising the core UI extension points (the frame bars and rails, and the
 // page top/bottom regions) with visible, obviously-fake content. One component serves every demo extension: the
-// block labels itself with the registering extension's name, and `iap:data` can request a number
+// block labels itself with the registering extension's name, and `ext:data` can request a number
 // of filler lines, tall enough to exercise scrolling behaviour (sticky bars staying pinned, side
 // rails scrolling independently of the page).
 function DemoBlock({ extension }: DemoBlockProps) {
-  const fillerLines = Number(extension["iap:data"] ?? 0) || 0;
+  const fillerLines = Number(extension["ext:data"] ?? 0) || 0;
   return (
     <Box sx={{ p: 1, m: 0.5, border: "1px dashed", borderColor: "divider", bgcolor: "background.muted" }}>
-      <Typography variant="subtitle2">{(extension["iap:extensionName"] as string | undefined) ?? "Demo block"}</Typography>
+      <Typography variant="subtitle2">{(extension["ext:name"] as string | undefined) ?? "Demo block"}</Typography>
       {
         Array.from({ length: fillerLines }, (_, index) => (
           <Typography key={"filler-" + index} variant="body2" color="text.secondary">

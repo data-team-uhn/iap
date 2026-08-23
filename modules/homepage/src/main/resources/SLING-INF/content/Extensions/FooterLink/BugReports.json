@@ -1,7 +1,7 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/footer/link",
-  "iap:extensionName": "Report a bug",
-  "iap:targetURL": "/bug-reports",
-  "iap:defaultOrder": 40
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/footer/link",
+  "ext:name": "Report a bug",
+  "ext:targetURL": "/bug-reports",
+  "defaultOrder": 40
 }

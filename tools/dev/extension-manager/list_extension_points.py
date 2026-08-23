@@ -20,9 +20,9 @@
 """
 
 # Lists every UI extension point *defined in the source tree*, by finding the
-# iap:ExtensionPoint node definitions that modules ship as Sling-Initial-Content under
+# ext:Point node definitions that modules ship as Sling-Initial-Content under
 # `.../SLING-INF/content/apps/iap/ExtensionPoints/`. For each one it prints the JSON file,
-# its `iap:extensionPointId` (what extensions target) and its human-readable name.
+# its `ext:pointId` (what extensions target) and its human-readable name.
 #
 # Run from the repository root:
 #   python3 tools/dev/extension-manager/list_extension_points.py
@@ -43,8 +43,8 @@ def describe(json_path):
         with open(json_path, "r") as node_file:
             node = json.load(node_file)
         return "{} — {}".format(
-            node.get("iap:extensionPointId", "(no id)"),
-            node.get("iap:extensionPointName", "(no name)"),
+            node.get("ext:pointId", "(no id)"),
+            node.get("ext:pointName", "(no name)"),
         )
     except (OSError, ValueError) as error:
         return "(could not parse: {})".format(error)

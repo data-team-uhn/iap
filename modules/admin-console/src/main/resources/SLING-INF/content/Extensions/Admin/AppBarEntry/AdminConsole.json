@@ -1,8 +1,8 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/appBar/entry",
-  "iap:extensionName": "Administration",
-  "iap:extensionRenderURL": "asset:iap-admin-console.AdminConsoleButton.js",
-  "iap:appBarSection": "end",
-  "iap:defaultOrder": 5
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/appBar/entry",
+  "ext:name": "Administration",
+  "ext:renderURL": "asset:iap-admin-console.AdminConsoleButton.js",
+  "ext:appBarSection": "end",
+  "defaultOrder": 5
 }

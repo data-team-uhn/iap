@@ -1,9 +1,9 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/dashboard/widget",
-  "iap:extensionName": "Weather",
-  "iap:subtitle": "Current conditions",
-  "iap:widgetEmphasis": true,
-  "iap:extensionRenderURL": "asset:iap-test-data.WeatherWidget.js",
-  "iap:defaultOrder": 4
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "Weather",
+  "ext:subtitle": "Current conditions",
+  "ext:widgetEmphasis": true,
+  "ext:renderURL": "asset:iap-test-data.WeatherWidget.js",
+  "defaultOrder": 4
 }

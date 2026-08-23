@@ -29,13 +29,13 @@ import { ReLoginProvider } from "@iap/login/ReLoginDialog";
 
 import PageLayout from "./PageLayout";
 
-// A view is the parsed JSON of one `iap:Extension` registered on the `iap/coreUI/view`
+// A view is the parsed JSON of one `ext:Extension` registered on the `iap/coreUI/view`
 // extension point, with its `asset:` properties already resolved. A view has an
-// `iap:targetURL` (the URL it is responsible for) and an `iap:extensionRender` (the
+// `ext:targetURL` (the URL it is responsible for) and an `ext:render` (the
 // React component that displays it).
 type View = Record<string, unknown>;
 
-// The main content area: renders the registered view whose `iap:targetURL` matches the
+// The main content area: renders the registered view whose `ext:targetURL` matches the
 // current browser URL. Views are contributed by other modules through the
 // `iap/coreUI/view` extension point and retrieved via getRoutes().
 function Main() {
@@ -51,10 +51,10 @@ function Main() {
     <Routes>
       {
         views.map((view, index) => {
-          const ViewComponent = view["iap:extensionRender"] as ComponentType<{ extension: View }>;
+          const ViewComponent = view["ext:render"] as ComponentType<{ extension: View }>;
           return (
             <Route
-              path={view["iap:targetURL"] as string}
+              path={view["ext:targetURL"] as string}
               element={<ViewComponent extension={view} />}
               key={"view-" + index}
             />

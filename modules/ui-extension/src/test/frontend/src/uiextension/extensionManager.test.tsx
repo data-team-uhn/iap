@@ -54,34 +54,34 @@ function mockExtensionPointResponse(extensions: unknown[]) {
 describe("loadExtensions", () => {
   it("eagerly resolves a non-lazy asset property, storing it under the stripped key", async () => {
     mockExtensionPointResponse([
-      { "iap:extensionName": "Eager", "iap:extensionRenderURL": "asset:iap-x.Eager.js" },
+      { "ext:name": "Eager", "ext:renderURL": "asset:iap-x.Eager.js" },
     ]);
     mockedLoadAsset.mockResolvedValue("EagerComponent");
 
     const [extension] = await loadExtensions("Views");
 
     expect(mockedLoadAsset).toHaveBeenCalledWith("asset:iap-x.Eager.js");
-    expect(extension["iap:extensionRender"]).toBe("EagerComponent");
+    expect(extension["ext:render"]).toBe("EagerComponent");
   });
 
   it("resolves an asset property marked ?lazy to a component, without fetching it yet", async () => {
     mockExtensionPointResponse([
-      { "iap:extensionName": "Lazy", "iap:extensionRenderURL": "asset:iap-x.Lazy.js?lazy" },
+      { "ext:name": "Lazy", "ext:renderURL": "asset:iap-x.Lazy.js?lazy" },
     ]);
 
     const [extension] = await loadExtensions("Views");
 
     expect(mockedLoadAsset).not.toHaveBeenCalled();
-    expect(typeof extension["iap:extensionRender"]).toBe("function");
+    expect(typeof extension["ext:render"]).toBe("function");
   });
 
   it("defers a lazy asset to LazyAsset, passing on the URL and the render props", async () => {
     mockExtensionPointResponse([
-      { "iap:extensionName": "Lazy", "iap:extensionRenderURL": "asset:iap-x.Lazy.js?lazy" },
+      { "ext:name": "Lazy", "ext:renderURL": "asset:iap-x.Lazy.js?lazy" },
     ]);
 
     const [extension] = await loadExtensions("Views");
-    const Rendered = extension["iap:extensionRender"] as ComponentType<Record<string, unknown>>;
+    const Rendered = extension["ext:render"] as ComponentType<Record<string, unknown>>;
     render(<Rendered title="A lazy view" />);
 
     const placeholder = screen.getByTestId("lazy-asset");
@@ -94,9 +94,9 @@ describe("loadExtensions", () => {
   it("resolves eager and lazy asset properties independently on the same extension", async () => {
     mockExtensionPointResponse([
       {
-        "iap:extensionName": "Mixed",
-        "iap:iconUrl": "asset:iap-x.Icon.js",
-        "iap:extensionRenderURL": "asset:iap-x.Mixed.js?lazy",
+        "ext:name": "Mixed",
+        "ext:iconUrl": "asset:iap-x.Icon.js",
+        "ext:renderURL": "asset:iap-x.Mixed.js?lazy",
       },
     ]);
     mockedLoadAsset.mockResolvedValue("IconComponent");
@@ -105,21 +105,21 @@ describe("loadExtensions", () => {
 
     expect(mockedLoadAsset).toHaveBeenCalledTimes(1);
     expect(mockedLoadAsset).toHaveBeenCalledWith("asset:iap-x.Icon.js");
-    expect(extension["iap:icon"]).toBe("IconComponent");
-    expect(typeof extension["iap:extensionRender"]).toBe("function");
+    expect(extension["ext:icon"]).toBe("IconComponent");
+    expect(typeof extension["ext:render"]).toBe("function");
   });
 
   it("omits an extension whose asset fails to resolve, without affecting others", async () => {
     mockExtensionPointResponse([
-      { "iap:extensionName": "Broken", "iap:extensionRenderURL": "asset:iap-x.Broken.js" },
-      { "iap:extensionName": "Ok", "iap:extensionRenderURL": "asset:iap-x.Ok.js" },
+      { "ext:name": "Broken", "ext:renderURL": "asset:iap-x.Broken.js" },
+      { "ext:name": "Ok", "ext:renderURL": "asset:iap-x.Ok.js" },
     ]);
     mockedLoadAsset.mockResolvedValueOnce(null).mockResolvedValueOnce("OkComponent");
 
     const extensions = await loadExtensions("Views");
 
     expect(extensions).toHaveLength(1);
-    expect(extensions[0]["iap:extensionName"]).toBe("Ok");
+    expect(extensions[0]["ext:name"]).toBe("Ok");
   });
 
   it("returns an empty list when the extension point itself cannot be retrieved", async () => {
@@ -148,7 +148,7 @@ describe("loadExtensions", () => {
 
   it("names an unidentifiable extension 'unknown' when reporting its unresolved asset", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
-    mockExtensionPointResponse([{ "iap:extensionRenderURL": "asset:iap-x.Broken.js" }]);
+    mockExtensionPointResponse([{ "ext:renderURL": "asset:iap-x.Broken.js" }]);
     mockedLoadAsset.mockResolvedValue(null);
 
     expect(await loadExtensions("Views")).toEqual([]);
@@ -165,28 +165,28 @@ describe("loadExtensions", () => {
 
 describe("visibleInPersona", () => {
   it("shows an extension that names no personas to every persona", () => {
-    expect(visibleInPersona({ "iap:extensionName": "Welcome" }, "submitter")).toBe(true);
-    expect(visibleInPersona({ "iap:extensionName": "Welcome" }, "administrator")).toBe(true);
+    expect(visibleInPersona({ "ext:name": "Welcome" }, "submitter")).toBe(true);
+    expect(visibleInPersona({ "ext:name": "Welcome" }, "administrator")).toBe(true);
   });
 
   it("shows an extension to a persona it names", () => {
-    expect(visibleInPersona({ "iap:personas": [ "reviewer", "administrator" ] }, "reviewer")).toBe(true);
+    expect(visibleInPersona({ "ext:personas": [ "reviewer", "administrator" ] }, "reviewer")).toBe(true);
   });
 
   it("hides an extension from a persona it does not name", () => {
-    expect(visibleInPersona({ "iap:personas": [ "reviewer", "administrator" ] }, "submitter")).toBe(false);
+    expect(visibleInPersona({ "ext:personas": [ "reviewer", "administrator" ] }, "submitter")).toBe(false);
   });
 
   it("hides an extension that names an empty set of personas", () => {
-    expect(visibleInPersona({ "iap:personas": [] }, "submitter")).toBe(false);
+    expect(visibleInPersona({ "ext:personas": [] }, "submitter")).toBe(false);
   });
 
   it("accepts a single persona stored as a bare value rather than an array", () => {
-    expect(visibleInPersona({ "iap:personas": "reviewer" }, "reviewer")).toBe(true);
-    expect(visibleInPersona({ "iap:personas": "reviewer" }, "submitter")).toBe(false);
+    expect(visibleInPersona({ "ext:personas": "reviewer" }, "reviewer")).toBe(true);
+    expect(visibleInPersona({ "ext:personas": "reviewer" }, "submitter")).toBe(false);
   });
 
   it("treats an explicitly null property as naming no personas at all", () => {
-    expect(visibleInPersona({ "iap:personas": null }, "submitter")).toBe(true);
+    expect(visibleInPersona({ "ext:personas": null }, "submitter")).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/coreUI/view",
-  "iap:extensionName": "Submission categories",
-  "iap:targetURL": "/admin/categories",
-  "iap:extensionRenderURL": "asset:iap-categories.CategoryManager.js?lazy"
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Submission categories",
+  "ext:targetURL": "/admin/categories",
+  "ext:renderURL": "asset:iap-categories.CategoryManager.js?lazy"
 }

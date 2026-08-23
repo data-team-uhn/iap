@@ -1,7 +1,7 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/coreUI/frameStart",
-  "iap:extensionName": "Demo start-side rail entry (tall, to exercise the rail's own scrollbar)",
-  "iap:extensionRenderURL": "asset:iap-test-data.DemoBlock.js",
-  "iap:data": "80"
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/frameStart",
+  "ext:name": "Demo start-side rail entry (tall, to exercise the rail's own scrollbar)",
+  "ext:renderURL": "asset:iap-test-data.DemoBlock.js",
+  "ext:data": "80"
 }

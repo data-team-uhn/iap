@@ -28,9 +28,9 @@ import { loadExtensions } from "@iap/ui-extension/extensionManager";
 // notifications, user menu, search, ...) without this component knowing about them. The bar
 // itself is a `frameTop` extension, so it stays pinned to the top of the screen.
 //
-// An entry declares where it sits through `iap:appBarSection` — `start`, `middle`, or `end`
+// An entry declares where it sits through `ext:appBarSection` — `start`, `middle`, or `end`
 // (logical inline directions, so the whole row mirrors under a right-to-left locale) — and is
-// ordered within its section by `iap:defaultOrder`. Entries render inline in the row; an entry
+// ordered within its section by `defaultOrder`. Entries render inline in the row; an entry
 // that needs more room (a search field, ...) can flex-grow itself.
 function AppBar() {
   const [ entries, setEntries ] = useState<Extension[]>([]);
@@ -42,7 +42,7 @@ function AppBar() {
   }, []);
 
   const section = (name: string) =>
-    entries.filter(entry => (entry["iap:appBarSection"] ?? "start") === name);
+    entries.filter(entry => (entry["ext:appBarSection"] ?? "start") === name);
 
   return (
     <Toolbar

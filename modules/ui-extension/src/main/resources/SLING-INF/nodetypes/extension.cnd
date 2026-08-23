@@ -16,13 +16,14 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <iap = 'https://iap.uhndata.io/'>
+<ext = 'https://iap.uhndata.io/ext/'>
 
 //-----------------------------------------------------------------------------
 //
 // A User Interface Extension Point (UIXP) defines a place in the UI that accepts extensions
 //
 //-----------------------------------------------------------------------------
-[iap:ExtensionPoint] > nt:base, sling:Resource, mix:referenceable
+[ext:Point] > nt:base, sling:Resource, mix:referenceable
 
   // Attributes
 
@@ -32,16 +33,16 @@
   // Properties
 
   // Hardcode the resource type.
-  - sling:resourceType (STRING) = "iap/ExtensionPoint" mandatory autocreated protected
+  - sling:resourceType (STRING) = "ext/Point" mandatory autocreated protected
 
   // Hardcode the resource supertype
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
 
   // The identifier of this UIXP, which will be referenced by UIX
-  - iap:extensionPointId (STRING) mandatory
+  - ext:pointId (STRING) mandatory
 
   // A more user-friendly name for this UIXP
-  - iap:extensionPointName (STRING) mandatory
+  - ext:pointName (STRING) mandatory
 
   // And any other properties
   - * (undefined) multiple
@@ -52,7 +53,7 @@
 // A User Interface Extension (UIX) defines content that can be automatically placed in a UIXP
 //
 //-----------------------------------------------------------------------------
-[iap:Extension] > nt:base, sling:Resource, mix:referenceable
+[ext:Extension] > nt:base, sling:Resource, mix:referenceable
 
   // Attributes
 
@@ -62,56 +63,56 @@
   // Properties:
 
   // Hardcode the resource type.
-  - sling:resourceType (STRING) = "iap/Extension" mandatory autocreated protected
+  - sling:resourceType (STRING) = "ext/Extension" mandatory autocreated protected
 
   // Hardcode the resource supertype
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
 
   // The ID of the extension point targeted by this extension
-  - iap:extensionPointId (STRING) mandatory
+  - ext:pointId (STRING) mandatory
 
   // The URL to the script that can render this extension
-  - iap:extensionRenderURL (STRING)
+  - ext:renderURL (STRING)
 
   // The (optional) URL that this extension is targeting, for links and views
-  - iap:targetURL (STRING)
+  - ext:targetURL (STRING)
 
   // Whether the target URL should be matched exactly for Views
-  - iap:exactURLMatch (BOOLEAN)
+  - ext:exactURLMatch (BOOLEAN)
 
   // The name of the extension
-  - iap:extensionName (STRING) mandatory
+  - ext:name (STRING) mandatory
 
   // Optional icon associated with this extension
-  - iap:icon (STRING)
+  - ext:icon (STRING)
 
   // The order that this should appear in the list of extensions in the extension point
-  - iap:defaultOrder (LONG) = "0" mandatory autocreated
+  - defaultOrder (LONG) = "0" mandatory autocreated
 
   // Whether this extension is disabled or not by default
-  - iap:defaultDisabled (BOOLEAN) = "false" mandatory autocreated
+  - ext:defaultDisabled (BOOLEAN) = "false" mandatory autocreated
 
   // Optional short description of the extension's content
-  - iap:hint (STRING)
+  - ext:hint (STRING)
 
   // Optional data (stored in the JCR node) to be passed to the rendered component
-  - iap:data (STRING)
+  - ext:data (STRING)
 
   // Whether this extension is also displayed on pages served before authentication (currently
   // the login page, which renders opted-in frameTop extensions above its content). Opt-in, so
   // that extensions assuming a session (e.g. the app bar) never leak onto pre-auth pages.
-  - iap:visibleBeforeLogin (BOOLEAN)
+  - ext:visibleBeforeLogin (BOOLEAN)
 
   // The personas this extension belongs to, e.g. "reviewer". A user acts as one persona at a time
   // and only sees the extensions belonging to it, so that each persona's UI is designed around what
   // that role does rather than around the rights the individual happens to hold.
   //
-  // Absent means every persona, unlike iap:visibleBeforeLogin above: an extension that never
+  // Absent means every persona, unlike ext:visibleBeforeLogin above: an extension that never
   // considered personas keeps displaying exactly where it did before.
   //
   // This selects what is DISPLAYED and is never an access control; permissions are enforced by the
   // repository, independently of which persona is active.
-  - iap:personas (STRING) multiple
+  - ext:personas (STRING) multiple
 
   // And any other properties
   - * (undefined) multiple
@@ -122,7 +123,7 @@
 // A UIXP Finder locates extension points based on their ID
 //
 //-----------------------------------------------------------------------------
-[iap:ExtensionPointFinder] > sling:Resource
+[ext:PointFinder] > sling:Resource
 
   // Attributes
 
@@ -132,7 +133,7 @@
   // Properties
 
   // Hardcode the resource type.
-  - sling:resourceType (STRING) = "iap/ExtensionPointFinder" mandatory autocreated protected
+  - sling:resourceType (STRING) = "ext/PointFinder" mandatory autocreated protected
 
   // Hardcode the resource supertype: each UIXP is a resource.
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected

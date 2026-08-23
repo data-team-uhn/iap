@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Imports a content JSON file (typically an iap:Extension) into a running IAP instance,
+# Imports a content JSON file (typically an ext:Extension) into a running IAP instance,
 # without rebuilding or restarting. Wraps the Sling POST servlet's `:operation=import`,
 # the same mechanism the initial-content loader uses when a bundle starts. Useful for
 # iterating on extensions: deploy the JS asset with `mvn install -PautoInstallBundle`,
@@ -26,7 +26,7 @@
 #   ./tools/dev/extension-manager/post-extension.sh [options] <json-file> <parent-path>
 #
 # Arguments:
-#   <json-file>    Path to the JSON node definition to import (e.g. an iap:Extension).
+#   <json-file>    Path to the JSON node definition to import (e.g. an ext:Extension).
 #   <parent-path>  The JCR path of the parent the node is created under
 #                  (e.g. /Extensions/DashboardWidget). It must already exist.
 #
@@ -93,7 +93,7 @@ echo "Importing $JSON_FILE as '$NAME' under $PARENT_PATH on $URL ..."
 # :name                                           -> exact node name (idempotent target)
 # :replace / :replaceProperties                   -> recreate the node AND overwrite properties;
 #                                                    :replaceProperties is required so typed values
-#                                                    (e.g. iap:defaultOrder) override the node type's
+#                                                    (e.g. defaultOrder) override the node type's
 #                                                    autocreated defaults instead of silently keeping them
 # :content=<file                                  -> the file's text becomes the value of :content
 STATUS="$(curl -s -o /dev/null -w '%{http_code}' -u "admin:$PASSWORD" -X POST \

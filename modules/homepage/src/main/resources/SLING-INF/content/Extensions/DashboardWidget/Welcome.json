@@ -1,8 +1,8 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/dashboard/widget",
-  "iap:extensionName": "Welcome",
-  "iap:extensionRenderURL": "asset:iap-homepage.WelcomeWidget.js",
-  "iap:defaultOrder": 0,
-  "iap:personas": ["submitter", "reviewer"]
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "Welcome",
+  "ext:renderURL": "asset:iap-homepage.WelcomeWidget.js",
+  "defaultOrder": 0,
+  "ext:personas": ["submitter", "reviewer"]
 }

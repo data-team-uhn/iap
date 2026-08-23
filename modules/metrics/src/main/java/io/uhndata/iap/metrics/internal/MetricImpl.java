@@ -76,7 +76,7 @@ public class MetricImpl implements Metric
     static final String PN_CATEGORY = "category";
 
     /** The name of the property holding the placement within the category. */
-    static final String PN_DEFAULT_ORDER = "iap:defaultOrder";
+    static final String PN_DEFAULT_ORDER = "defaultOrder";
 
     /** The name of the property holding the access level. */
     static final String PN_ACCESS_LEVEL = "accessLevel";

@@ -40,9 +40,9 @@
             <Include-Resource>{maven-resources}</Include-Resource>
             <!-- Initial content to be loaded on bundle installation -->
             <Sling-Initial-Content>
-              SLING-INF/content/libs/iap/Extension/;path:=/libs/iap/Extension/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/ExtensionPoint/;path:=/libs/iap/ExtensionPoint/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/ExtensionPointFinder/;path:=/libs/iap/ExtensionPointFinder/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/ext/Extension/;path:=/libs/ext/Extension/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/ext/Point/;path:=/libs/ext/Point/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/ext/PointFinder/;path:=/libs/ext/PointFinder/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/oak%3Aindex/;path:=/oak:index/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
             <Sling-Nodetypes>SLING-INF/nodetypes/extension.cnd</Sling-Nodetypes>

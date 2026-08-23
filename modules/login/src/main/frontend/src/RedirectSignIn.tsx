@@ -22,11 +22,11 @@ import { type Extension } from "@iap/ui-extension/ExtensionList";
 
 import { loginRedirectPath } from "./loginRedirect";
 
-// The URL this method navigates to: the extension's `iap:targetURL`, with the validated
+// The URL this method navigates to: the extension's `ext:targetURL`, with the validated
 // in-app return path attached as its `resource` parameter so the authentication endpoint
 // can send the user back to where they were headed. Exported for tests.
 export function redirectSignInTarget(extension: Extension): string | null {
-  const target = extension["iap:targetURL"];
+  const target = extension["ext:targetURL"];
   if (typeof target !== "string" || !target) {
     return null;
   }
@@ -44,14 +44,14 @@ export function redirectSignInTarget(extension: Extension): string | null {
 // action navigating to the endpoint that starts the authentication round trip. The identity
 // provider integration (e.g. the keycloak module) only has to register an extension
 // node — this component is the whole frontend. The extension provides:
-// - `iap:targetURL`: the endpoint to navigate to (required; nothing renders without it);
-// - `iap:actionLabel` (optional): the button text, defaulting to "Continue to sign-in";
-// - `iap:hint` (optional): a short explanation displayed under the button, e.g. telling the
+// - `ext:targetURL`: the endpoint to navigate to (required; nothing renders without it);
+// - `ext:actionLabel` (optional): the button text, defaulting to "Continue to sign-in";
+// - `ext:hint` (optional): a short explanation displayed under the button, e.g. telling the
 //   user they are about to be redirected.
 export default function RedirectSignIn({ extension }: { extension: Extension }) {
   const target = redirectSignInTarget(extension);
-  const label = (extension["iap:actionLabel"] as string | undefined) ?? "Continue to sign-in";
-  const hint = extension["iap:hint"] as string | undefined;
+  const label = (extension["ext:actionLabel"] as string | undefined) ?? "Continue to sign-in";
+  const hint = extension["ext:hint"] as string | undefined;
 
   if (!target) {
     return null;

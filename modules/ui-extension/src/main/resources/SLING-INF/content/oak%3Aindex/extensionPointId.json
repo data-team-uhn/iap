@@ -3,9 +3,9 @@
   "type": "property",
   "tags": ["property"],
   "jcr:name:propertyNames": [
-    "iap:extensionPointId"
+    "ext:pointId"
   ],
   "jcr:name:declaringNodeTypes": [
-    "iap:ExtensionPoint"
+    "ext:Point"
   ]
 }

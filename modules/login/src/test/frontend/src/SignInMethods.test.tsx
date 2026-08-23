@@ -28,8 +28,8 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 const method = (name: string, extra: object = {}) => ({
-  "iap:extensionName": name,
-  "iap:extensionRender": () => <div>{name} content</div>,
+  "ext:name": name,
+  "ext:render": () => <div>{name} content</div>,
   ...extra,
 });
 
@@ -48,7 +48,7 @@ describe("SignInMethods", () => {
   it("collapses further methods behind their labels, revealing them on demand", async () => {
     mockedLoadExtensions.mockResolvedValue([
       method("External"),
-      method("Local", { "iap:collapsedLabel": "Use a local account instead" }),
+      method("Local", { "ext:collapsedLabel": "Use a local account instead" }),
     ]);
     render(<SignInMethods />);
 
@@ -73,14 +73,14 @@ describe("SignInMethods", () => {
 
   it("labels a collapsed method by its name, then by a generic label, when it declares neither", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      { "iap:extensionName": "Primary", "iap:extensionRender": () => <div>Primary form</div> },
-      { "iap:extensionName": "Named", "iap:extensionRender": () => <div>Named form</div> },
-      { "iap:extensionRender": () => <div>Anonymous form</div> },
+      { "ext:name": "Primary", "ext:render": () => <div>Primary form</div> },
+      { "ext:name": "Named", "ext:render": () => <div>Named form</div> },
+      { "ext:render": () => <div>Anonymous form</div> },
     ]);
 
     render(<SignInMethods />);
 
-    // No iap:collapsedLabel anywhere: the second falls back to its name, the third to the default
+    // No ext:collapsedLabel anywhere: the second falls back to its name, the third to the default
     expect(await screen.findByRole("button", { name: "Named" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "More sign-in options" })).toBeInTheDocument();
   });

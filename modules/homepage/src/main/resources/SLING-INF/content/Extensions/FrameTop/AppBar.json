@@ -1,7 +1,7 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/coreUI/frameTop",
-  "iap:extensionName": "Application bar",
-  "iap:extensionRenderURL": "asset:iap-homepage.AppBar.js",
-  "iap:defaultOrder": 20
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/frameTop",
+  "ext:name": "Application bar",
+  "ext:renderURL": "asset:iap-homepage.AppBar.js",
+  "defaultOrder": 20
 }

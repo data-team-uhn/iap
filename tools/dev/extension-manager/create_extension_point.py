@@ -19,7 +19,7 @@
    limitations under the License.
 """
 
-# Scaffolds a new UI extension point in the source tree: it writes the iap:ExtensionPoint
+# Scaffolds a new UI extension point in the source tree: it writes the ext:Point
 # node definition (shipped as Sling-Initial-Content) and generates a client-side consumer
 # component that renders whatever extensions plug into the point.
 #
@@ -60,9 +60,9 @@ def write_extension_point_json(module_dir, name, point_id, point_name):
     os.makedirs(content_dir, exist_ok=True)
 
     config = {
-        "jcr:primaryType": "iap:ExtensionPoint",
-        "iap:extensionPointId": point_id,
-        "iap:extensionPointName": point_name,
+        "jcr:primaryType": "ext:Point",
+        "ext:pointId": point_id,
+        "ext:pointName": point_name,
     }
     json_path = os.path.join(content_dir, "{}.json".format(name))
     with open(json_path, "w") as f_json:

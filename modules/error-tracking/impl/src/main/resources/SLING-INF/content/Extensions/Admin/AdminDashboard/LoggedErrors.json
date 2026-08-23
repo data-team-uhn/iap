@@ -1,10 +1,10 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/adminDashboard/entry",
-  "iap:extensionName": "Recorded errors",
-  "iap:subtitle": "Faults the instance could not deal with on its own, and what was decided about them",
-  "iap:targetURL": "/admin/errors",
-  "iap:actionLabel": "Triage errors",
-  "iap:extensionRenderURL": "asset:iap-error-tracking.LoggedErrorsWidget.js",
-  "iap:defaultOrder": 30
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/adminDashboard/entry",
+  "ext:name": "Recorded errors",
+  "ext:subtitle": "Faults the instance could not deal with on its own, and what was decided about them",
+  "ext:targetURL": "/admin/errors",
+  "ext:actionLabel": "Triage errors",
+  "ext:renderURL": "asset:iap-error-tracking.LoggedErrorsWidget.js",
+  "defaultOrder": 30
 }

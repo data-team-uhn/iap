@@ -27,11 +27,11 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// Builds an app bar entry as returned by loadExtensions: the parsed iap:Extension JSON with the
+// Builds an app bar entry as returned by loadExtensions: the parsed ext:Extension JSON with the
 // render asset already resolved to a component that displays "<name> content".
 const entry = (name: string, props: Record<string, unknown> = {}) => ({
-  "iap:extensionName": name,
-  "iap:extensionRender": () => <span>{`${name} content`}</span>,
+  "ext:name": name,
+  "ext:render": () => <span>{`${name} content`}</span>,
   ...props,
 });
 
@@ -42,10 +42,10 @@ const expectBefore = (first: Element, second: Element) =>
 describe("AppBar", () => {
   it("renders the entries grouped into their sections, in row order", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      entry("Account", { "iap:appBarSection": "end", "iap:defaultOrder": 1 }),
-      entry("Search", { "iap:appBarSection": "middle" }),
-      entry("Theme", { "iap:appBarSection": "end", "iap:defaultOrder": 2 }),
-      entry("Brand", { "iap:appBarSection": "start" }),
+      entry("Account", { "ext:appBarSection": "end", "defaultOrder": 1 }),
+      entry("Search", { "ext:appBarSection": "middle" }),
+      entry("Theme", { "ext:appBarSection": "end", "defaultOrder": 2 }),
+      entry("Brand", { "ext:appBarSection": "start" }),
     ]);
 
     render(<AppBar />);
@@ -56,14 +56,14 @@ describe("AppBar", () => {
     const account = screen.getByText("Account content");
     expectBefore(brand, search);
     expectBefore(search, theme);
-    // Within a section, iap:defaultOrder decides
+    // Within a section, defaultOrder decides
     expectBefore(account, theme);
     expect(mockedLoadExtensions).toHaveBeenCalledWith("AppBarEntry");
   });
 
   it("defaults an entry without a declared section to the start section", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      entry("End control", { "iap:appBarSection": "end" }),
+      entry("End control", { "ext:appBarSection": "end" }),
       entry("Unplaced"),
     ]);
 

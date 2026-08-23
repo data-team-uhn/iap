@@ -33,7 +33,7 @@ ships as initial content (`SLING-INF/content/libs/iap/conf/LoginPage.json`).
 
 The ways of signing in are `iap/login/signInMethod` extensions, rendered in their configured
 order: the first enabled method in place, any further ones collapsed behind a quiet link
-labelled by their `iap:collapsedLabel`. This module registers the local credentials form as
+labelled by their `ext:collapsedLabel`. This module registers the local credentials form as
 the default method; if no method is registered (or the point fails to load), the page falls
 back to the credentials form directly, so there is always a way to sign in.
 
@@ -43,21 +43,21 @@ form (100), which then collapses into its "Use a local account instead" link:
 
 ```json
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/login/signInMethod",
-  "iap:extensionName": "Institutional sign-in",
-  "iap:extensionRenderURL": "asset:iap-login.RedirectSignIn.js",
-  "iap:defaultOrder": 10,
-  "iap:targetURL": "/goto-external-login",
-  "iap:actionLabel": "Continue to sign-in",
-  "iap:hint": "You will be redirected to your institution's sign-in page."
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/login/signInMethod",
+  "ext:name": "Institutional sign-in",
+  "ext:renderURL": "asset:iap-login.RedirectSignIn.js",
+  "defaultOrder": 10,
+  "ext:targetURL": "/goto-external-login",
+  "ext:actionLabel": "Continue to sign-in",
+  "ext:hint": "You will be redirected to your institution's sign-in page."
 }
 ```
 
-The redirect method navigates to `iap:targetURL` with the validated in-app return path
+The redirect method navigates to `ext:targetURL` with the validated in-app return path
 attached as its `resource` parameter, for the authentication endpoint to round-trip. Where
 local accounts should not be offered at all, disable the credentials form with
-`iap:defaultDisabled: true` on its extension node.
+`ext:defaultDisabled: true` on its extension node.
 
 A demo registration of the redirect method (pointing at a placeholder endpoint) ships with
 the test data (`test-data/.../Extensions/SignInMethod/ExternalDemo.json`), so instances
@@ -93,6 +93,6 @@ registry, and nothing is rendered.
 
 ### Pre-login banners
 
-The page renders `iap/coreUI/frameTop` extensions that opt in with `iap:visibleBeforeLogin:
+The page renders `iap/coreUI/frameTop` extensions that opt in with `ext:visibleBeforeLogin:
 true` (e.g. a maintenance notice) above its content — see
 [docs/ui-extensions.md](../../docs/ui-extensions.md).

@@ -51,7 +51,7 @@ test.describe('the instance with test data', () => {
     await login.open();
 
     // The primary method renders in place with no heading of its own — what identifies it is its action,
-    // built from the extension's `iap:actionLabel` and `iap:hint`. Only the collapsed alternatives get a
+    // built from the extension's `ext:actionLabel` and `ext:hint`. Only the collapsed alternatives get a
     // heading, which is what the toggle below is.
     await expect(page.getByRole('button', { name: 'Continue to sign-in' })).toBeVisible();
     await expect(page.getByText("You will be redirected to your institution's sign-in page.")).toBeVisible();

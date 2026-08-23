@@ -28,7 +28,7 @@ import { usePersona } from "@iap/ui-extension/personas";
 import LoadingOverlay from "./LoadingOverlay";
 import Widget from "./Widget";
 
-// A widget extension is the parsed JSON of one `iap:Extension` registered on the dashboard's
+// A widget extension is the parsed JSON of one `ext:Extension` registered on the dashboard's
 // extension point, with its `asset:` properties already resolved.
 type WidgetExtension = Record<string, unknown>;
 
@@ -37,7 +37,7 @@ interface WidgetContentProps {
   extension: WidgetExtension;
 }
 
-// How many columns each `iap:widgetWidth` value asks for. The actual span is clamped (in JS) to the
+// How many columns each `ext:widgetWidth` value asks for. The actual span is clamped (in JS) to the
 // number of columns available at each breakpoint, so `full` fills the row and a span never exceeds
 // the grid — a span larger than the column count would otherwise make CSS Grid spawn extra columns.
 const WIDTH_SPAN: Record<string, number> = { normal: 1, wide: 2, full: 3 };
@@ -47,7 +47,7 @@ const WIDTH_SPAN: Record<string, number> = { normal: 1, wide: 2, full: 3 };
 // another as the list shrinks, remounting a widget that only moved and throwing away its state.
 function widgetKey(widget: WidgetExtension, index: number): string {
   return (widget["jcr:path"] as string | undefined)
-    ?? (widget["iap:extensionName"] as string | undefined)
+    ?? (widget["ext:name"] as string | undefined)
     ?? `widget-${index}`;
 }
 
@@ -62,19 +62,19 @@ interface WidgetDashboardProps {
 
 // The shared widget-dashboard layout: widgets contributed through the given extension point, laid
 // out in a responsive CSS grid (1/2/3 columns). Every widget is wrapped in a titled Widget frame —
-// the title from `iap:extensionName`, an optional subtitle from `iap:subtitle` — and each widget
+// the title from `ext:name`, an optional subtitle from `ext:subtitle` — and each widget
 // can tune its frame through optional properties:
-//   - `iap:widgetWidth` (normal/wide/full) — how many columns it spans (e.g. a `full` table
+//   - `ext:widgetWidth` (normal/wide/full) — how many columns it spans (e.g. a `full` table
 //     stretches across the row);
-//   - `iap:widgetEmphasis` — render on a tinted surface;
-//   - `iap:widgetBorderless` — drop the border/fill and blend into the page;
-//   - `iap:widgetHideHeader` — skip the title/subtitle header (the widget provides its own);
-//   - `iap:actionLabel` — render a header action in line with the title: a quiet text button
+//   - `ext:widgetEmphasis` — render on a tinted surface;
+//   - `ext:widgetBorderless` — drop the border/fill and blend into the page;
+//   - `ext:widgetHideHeader` — skip the title/subtitle header (the widget provides its own);
+//   - `ext:actionLabel` — render a header action in line with the title: a quiet text button
 //     with this label and a forward arrow (navigation, not an inline operation), leading to the
-//     widget's `iap:targetURL` (an in-app path); both must be set. Prefer labels naming the
+//     widget's `ext:targetURL` (an in-app path); both must be set. Prefer labels naming the
 //     destination ("Manage categories") over a generic "Configure" — the widgets show live
 //     content, and the label is what tells users there is a whole tool behind the summary.
-//   - `iap:personas` — the personas the widget belongs to (absent means all of them), see personas.ts.
+//   - `ext:personas` — the personas the widget belongs to (absent means all of them), see personas.ts.
 function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
   const [ allWidgets, setAllWidgets ] = useState<WidgetExtension[]>([]);
   const [ loading, setLoading ] = useState(true);
@@ -123,10 +123,10 @@ function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
       >
         {
           widgets.map((widget, index) => {
-            const WidgetContent = widget["iap:extensionRender"] as ComponentType<WidgetContentProps>;
-            const span = WIDTH_SPAN[(widget["iap:widgetWidth"] as string | undefined) ?? "normal"] ?? 1;
-            const actionLabel = widget["iap:actionLabel"] as string | undefined;
-            const targetURL = widget["iap:targetURL"] as string | undefined;
+            const WidgetContent = widget["ext:render"] as ComponentType<WidgetContentProps>;
+            const span = WIDTH_SPAN[(widget["ext:widgetWidth"] as string | undefined) ?? "normal"] ?? 1;
+            const actionLabel = widget["ext:actionLabel"] as string | undefined;
+            const targetURL = widget["ext:targetURL"] as string | undefined;
             const action = actionLabel && targetURL
               ? (
                 <Button
@@ -152,12 +152,12 @@ function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
                 }}
               >
                 <Widget
-                  title={(widget["iap:extensionName"] as string | undefined) ?? ""}
-                  subtitle={widget["iap:subtitle"] ? (widget["iap:subtitle"] as string) : undefined}
+                  title={(widget["ext:name"] as string | undefined) ?? ""}
+                  subtitle={widget["ext:subtitle"] ? (widget["ext:subtitle"] as string) : undefined}
                   action={action}
-                  emphasis={Boolean(widget["iap:widgetEmphasis"])}
-                  borderless={Boolean(widget["iap:widgetBorderless"])}
-                  hideHeader={Boolean(widget["iap:widgetHideHeader"])}
+                  emphasis={Boolean(widget["ext:widgetEmphasis"])}
+                  borderless={Boolean(widget["ext:widgetBorderless"])}
+                  hideHeader={Boolean(widget["ext:widgetHideHeader"])}
                 >
                   <WidgetContent extension={widget} />
                 </Widget>

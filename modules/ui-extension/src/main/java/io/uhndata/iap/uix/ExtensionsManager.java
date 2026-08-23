@@ -105,8 +105,8 @@ public class ExtensionsManager implements Use
     {
         LOGGER.debug("Looking for extensions for [{}]", extensionPointId);
         final Iterator<Resource> result = this.resourceResolver.findResources(
-            "select n from [iap:Extension] as n where n.'iap:extensionPointId' = '" + extensionPointId
-            + "' order by n.'iap:defaultOrder' OPTION (index tag property)",
+            "select n from [ext:Extension] as n where n.'ext:pointId' = '" + extensionPointId
+            + "' order by n.'defaultOrder' OPTION (index tag property)",
             "JCR-SQL2");
         result.forEachRemaining(extension -> this.matchingExtensions.add(extension));
         LOGGER.debug("Found [{}] extensions", this.matchingExtensions.size());
@@ -162,7 +162,7 @@ public class ExtensionsManager implements Use
     {
         return this.matchingExtensions.stream()
             .filter(i -> {
-                Boolean b = i.getValueMap().get("iap:defaultDisabled", Boolean.class);
+                Boolean b = i.getValueMap().get("ext:defaultDisabled", Boolean.class);
                 return b == null ? true : !b.booleanValue();
             })
             .collect(Collectors.toList());

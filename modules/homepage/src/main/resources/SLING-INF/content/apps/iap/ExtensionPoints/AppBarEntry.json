@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:ExtensionPoint",
-  "iap:extensionPointId": "iap/appBar/entry",
-  "iap:extensionPointName": "Controls displayed in the application bar"
+  "jcr:primaryType": "ext:Point",
+  "ext:pointId": "iap/appBar/entry",
+  "ext:pointName": "Controls displayed in the application bar"
 }

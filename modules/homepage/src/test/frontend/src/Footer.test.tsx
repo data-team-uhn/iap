@@ -97,8 +97,8 @@ describe("Footer", () => {
 
   it("renders the registered footer links, in-app for paths and in a new tab for full URLs", async () => {
     mockedLoadExtensions.mockResolvedValue([
-      { "iap:extensionName": "FAQ", "iap:targetURL": "/faq" },
-      { "iap:extensionName": "Report a bug", "iap:targetURL": "https://tracker.example.com" },
+      { "ext:name": "FAQ", "ext:targetURL": "/faq" },
+      { "ext:name": "Report a bug", "ext:targetURL": "https://tracker.example.com" },
     ]);
 
     await renderFooter();

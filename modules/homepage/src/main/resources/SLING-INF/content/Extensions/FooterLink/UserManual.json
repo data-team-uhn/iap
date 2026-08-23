@@ -1,7 +1,7 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/footer/link",
-  "iap:extensionName": "User manual",
-  "iap:targetURL": "/user-manual",
-  "iap:defaultOrder": 20
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/footer/link",
+  "ext:name": "User manual",
+  "ext:targetURL": "/user-manual",
+  "defaultOrder": 20
 }

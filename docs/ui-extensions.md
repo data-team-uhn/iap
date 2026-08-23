@@ -8,28 +8,28 @@ points and explains how to plug into them or define new ones.
 
 ## How the mechanism works
 
-- An **extension point** is an `iap:ExtensionPoint` node under `/apps/iap/ExtensionPoints/<Name>`,
-  carrying an `iap:extensionPointId` (e.g. `iap/coreUI/frameTop`) that extensions target.
-- An **extension** is an `iap:Extension` node (conventionally under `/Extensions/<PointName>/`)
-  with `iap:extensionPointId` matching the point, an `iap:extensionName`, and usually an
-  `iap:extensionRenderURL` naming the React component to render as an `asset:` reference
+- An **extension point** is an `ext:Point` node under `/apps/iap/ExtensionPoints/<Name>`,
+  carrying an `ext:pointId` (e.g. `iap/coreUI/frameTop`) that extensions target.
+- An **extension** is an `ext:Extension` node (conventionally under `/Extensions/<PointName>/`)
+  with `ext:pointId` matching the point, an `ext:name`, and usually an
+  `ext:renderURL` naming the React component to render as an `asset:` reference
   (see [the asset chain](#the-asset-name-chain)).
 - Consumers fetch a point's enabled extensions as JSON (`/apps/iap/ExtensionPoints/<Name>`) via
   `loadExtensions()` (`@iap/ui-extension/extensionManager`), which also resolves the `asset:`
   properties into loaded components. The loader is resilient: a broken extension is logged and
   omitted, never breaking the page.
 - The rendered component receives the parsed extension node as an `extension` prop, so any node
-  property (`iap:data`, ...) is readable at runtime.
+  property (`ext:data`, ...) is readable at runtime.
 
 Properties understood by every point:
 
 | Property | Type | Meaning |
 | --- | --- | --- |
-| `iap:extensionName` | String | Display name (some consumers show it, e.g. as a widget title) |
-| `iap:extensionRenderURL` | String | The component to render, as `asset:<entry>.js`; append `?lazy` to defer loading it until first rendered |
-| `iap:defaultOrder` | Long | Display order within the point (lower first, default 0) |
-| `iap:defaultDisabled` | Boolean | When true the extension is skipped, without deleting it |
-| `iap:personas` | String[] | The [personas](#personas) this extension belongs to; absent means all of them. **Only the dashboard filters on it today** — the other points render every extension whatever it names |
+| `ext:name` | String | Display name (some consumers show it, e.g. as a widget title) |
+| `ext:renderURL` | String | The component to render, as `asset:<entry>.js`; append `?lazy` to defer loading it until first rendered |
+| `defaultOrder` | Long | Display order within the point (lower first, default 0) |
+| `ext:defaultDisabled` | Boolean | When true the extension is skipped, without deleting it |
+| `ext:personas` | String[] | The [personas](#personas) this extension belongs to; absent means all of them. **Only the dashboard filters on it today** — the other points render every extension whatever it names |
 
 ## Extension point catalogue
 
@@ -69,9 +69,9 @@ breakpoint name or px —, bar `collapseHeight`).
 
 | Point id | Node name | Purpose |
 | --- | --- | --- |
-| `iap/coreUI/view` | `Views` | Full main-content views routed by URL: `iap:targetURL` is the path the view is responsible for; the router renders the matching view's component. Use `?lazy` on the render URL so a view is only loaded when navigated to. |
+| `iap/coreUI/view` | `Views` | Full main-content views routed by URL: `ext:targetURL` is the path the view is responsible for; the router renders the matching view's component. Use `?lazy` on the render URL so a view is only loaded when navigated to. |
 
-`iap:targetURL` is handed to the router as-is, so it takes the router's own patterns — a parameter
+`ext:targetURL` is handed to the router as-is, so it takes the router's own patterns — a parameter
 (`/Submissions/:id`) or a trailing splat (`/Submissions/:id/*`) both work, and the breadcrumb trail
 matches ancestors against the same patterns. What a pattern does **not** do is make the URLs it
 covers resolvable on the server.
@@ -103,15 +103,15 @@ The app bar is itself a `frameTop` extension, composed of entries on its own poi
 
 | Point id | Node name | Purpose |
 | --- | --- | --- |
-| `iap/appBar/entry` | `AppBarEntry` | Controls in the app bar row. `iap:appBarSection` places an entry in the `start`, `middle` (centered), or `end` section; `iap:defaultOrder` orders within the section. |
+| `iap/appBar/entry` | `AppBarEntry` | Controls in the app bar row. `ext:appBarSection` places an entry in the `start`, `middle` (centered), or `end` section; `defaultOrder` orders within the section. |
 
 Current entries: Branding (start), and the dark mode toggle, notifications bell, persona switcher,
 administration console button (admins only, see [Administration](administration.md)), and user menu
 (end). The middle section is reserved for e.g. a future search bar. A high-visibility element
-like a maintenance banner should register directly on `frameTop` with `iap:defaultOrder` below
+like a maintenance banner should register directly on `frameTop` with `defaultOrder` below
 the app bar's (20) to appear above it; the `iap-commons.NoticeBanner` asset renders such a
-data-only banner extension (markdown message in `iap:data`, optional `iap:severity`).
-Add `iap:visibleBeforeLogin: true` to such a banner to
+data-only banner extension (markdown message in `ext:data`, optional `ext:severity`).
+Add `ext:visibleBeforeLogin: true` to such a banner to
 also show it on the login page, which renders the `frameTop` extensions carrying this opt-in
 flag (and nothing else from the frame) above its content — so a notice posted once reaches
 users both before and after they sign in. The flag is an interim mechanism: once the upcoming
@@ -126,7 +126,7 @@ platform version + credit. Its links come from their own point:
 
 | Point id | Node name | Purpose |
 | --- | --- | --- |
-| `iap/footer/link` | `FooterLink` | Links in the page footer (Terms of use, User manual, FAQ, ...). **Data-only extensions**: no component, just `iap:extensionName` (the label) and `iap:targetURL` — a path navigates within the app, a full URL opens in a new tab. A link whose target page isn't ready can be hidden with `iap:defaultDisabled: true` until it is. |
+| `iap/footer/link` | `FooterLink` | Links in the page footer (Terms of use, User manual, FAQ, ...). **Data-only extensions**: no component, just `ext:name` (the label) and `ext:targetURL` — a path navigates within the app, a full URL opens in a new tab. A link whose target page isn't ready can be hidden with `ext:defaultDisabled: true` until it is. |
 
 ### The login page's sign-in methods
 
@@ -134,7 +134,7 @@ The auth action area of the login page composes the ways of signing in:
 
 | Point id | Node name | Purpose |
 | --- | --- | --- |
-| `iap/login/signInMethod` | `SignInMethod` | Sign-in methods on the login page. The first enabled method renders in place; any further methods are collapsed behind a quiet link labelled by their `iap:collapsedLabel` (falling back to `iap:extensionName`), revealed on demand. |
+| `iap/login/signInMethod` | `SignInMethod` | Sign-in methods on the login page. The first enabled method renders in place; any further methods are collapsed behind a quiet link labelled by their `ext:collapsedLabel` (falling back to `ext:name`), revealed on demand. |
 
 The login module registers the local credentials form as the default method
 (`/Extensions/SignInMethod/CredentialsForm`, order 100, collapsed label "Use a local account
@@ -143,18 +143,18 @@ back to rendering the credentials form directly, so there is always a way to sig
 
 An identity-provider integration (e.g. the planned Keycloak module) does not need frontend
 code: the generic `iap-login.RedirectSignIn` asset renders a redirect method from a data-only
-extension — `iap:targetURL` (the endpoint starting the authentication round trip; the
+extension — `ext:targetURL` (the endpoint starting the authentication round trip; the
 validated in-app return path is attached as its `resource` parameter), optional
-`iap:actionLabel` (button text, default "Continue to sign-in"), and optional `iap:hint` (a
-short explanation under the button). Register it with a lower `iap:defaultOrder` than the
+`ext:actionLabel` (button text, default "Continue to sign-in"), and optional `ext:hint` (a
+short explanation under the button). Register it with a lower `defaultOrder` than the
 credentials form to make it the primary method, and disable the credentials form entirely with
-`iap:defaultDisabled: true` where local accounts should not be offered.
+`ext:defaultDisabled: true` where local accounts should not be offered.
 
 ### The breadcrumb trail
 
 The breadcrumb trail is a `pageTop` extension (homepage module) rendered above the main content
 of every page. It links the current URL's **ancestor** pages — each ancestor path matching a
-registered view's `iap:targetURL` becomes a link labeled with that view's `iap:extensionName`.
+registered view's `ext:targetURL` becomes a link labeled with that view's `ext:name`.
 On a top-level page there are no ancestors and nothing is rendered ("home" is reached through
 the logo, and the current page's own title is the page heading, not a crumb). Access control is
 inherited from the views themselves: a view the user cannot read never reaches them, so it
@@ -164,7 +164,7 @@ doesn't appear in their trail either.
 
 | Point id | Node name | Purpose |
 | --- | --- | --- |
-| `iap/dashboard/widget` | `DashboardWidget` | Widgets tiled on the homepage dashboard in a responsive grid. Each widget is framed with a title (`iap:extensionName`) and optional subtitle (`iap:subtitle`); optional properties tune the frame: `iap:widgetWidth` (`normal`/`wide`/`full`), `iap:widgetEmphasis`, `iap:widgetBorderless`, `iap:widgetHideHeader`, and `iap:actionLabel` (a header action in line with the title — a button with this label leading to the widget's `iap:targetURL`, an in-app path; both must be set). `iap:personas` restricts a widget to some [personas](#personas). |
+| `iap/dashboard/widget` | `DashboardWidget` | Widgets tiled on the homepage dashboard in a responsive grid. Each widget is framed with a title (`ext:name`) and optional subtitle (`ext:subtitle`); optional properties tune the frame: `ext:widgetWidth` (`normal`/`wide`/`full`), `ext:widgetEmphasis`, `ext:widgetBorderless`, `ext:widgetHideHeader`, and `ext:actionLabel` (a header action in line with the title — a button with this label leading to the widget's `ext:targetURL`, an in-app path; both must be set). `ext:personas` restricts a widget to some [personas](#personas). |
 
 The layout itself — the responsive grid, the titled widget frames, and the tuning properties
 above — is the shared `WidgetDashboard` component (`@iap/frontend-commons/components/WidgetDashboard`),
@@ -177,7 +177,7 @@ for what a tool has to register.
 
 A user acts as one **persona** at a time — submitter, reviewer, administrator — chosen through the
 app bar's persona switcher, and the UI is designed around what that persona does rather than around
-the rights the individual happens to hold. `iap:personas` names the personas an extension belongs
+the rights the individual happens to hold. `ext:personas` names the personas an extension belongs
 to; naming none means all of them, so an extension that never considered personas keeps displaying
 exactly where it did before, and adding a persona to the platform changes nothing about existing
 extensions. Prefer naming nothing over naming every persona but one, or the extension silently
@@ -204,11 +204,11 @@ Three edits, all in the contributing module:
 
    ```json
    {
-     "jcr:primaryType": "iap:Extension",
-     "iap:extensionPointId": "iap/appBar/entry",
-     "iap:extensionName": "My control",
-     "iap:extensionRenderURL": "asset:iap-mymodule.MyControl.js",
-     "iap:appBarSection": "end"
+     "jcr:primaryType": "ext:Extension",
+     "ext:pointId": "iap/appBar/entry",
+     "ext:name": "My control",
+     "ext:renderURL": "asset:iap-mymodule.MyControl.js",
+     "ext:appBarSection": "end"
    }
    ```
 
@@ -234,12 +234,12 @@ cd aggregated-frontend && mvn clean install -PautoInstallBundle
 
 ## Defining a new extension point
 
-1. Ship an `iap:ExtensionPoint` node under `/apps/iap/ExtensionPoints/` (see any existing one),
-   with a unique `iap:extensionPointId` and a descriptive `iap:extensionPointName`. The
+1. Ship an `ext:Point` node under `/apps/iap/ExtensionPoints/` (see any existing one),
+   with a unique `ext:pointId` and a descriptive `ext:pointName`. The
    `create_extension_point.py` tool (below) scaffolds this plus a consumer component.
 2. Consume it: call `await loadExtensions("<NodeName>")`, and render with `ExtensionList`
    (all from `@iap/ui-extension`). Define any per-extension display properties
-   your layout needs (like the app bar's `iap:appBarSection`) and document them here.
+   your layout needs (like the app bar's `ext:appBarSection`) and document them here.
 3. Follow the naming rule for anything direction-sensitive: physical top/bottom for the vertical
    axis, logical start/end for the horizontal axis.
 

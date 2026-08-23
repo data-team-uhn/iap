@@ -90,7 +90,7 @@ class MetricImplTest
         properties.put("label", "Counted things");
         properties.put("description", "How many things were counted");
         properties.put("category", "Tests");
-        properties.put("iap:defaultOrder", 20L);
+        properties.put("defaultOrder", 20L);
         properties.put("accessLevel", "admin");
         properties.put("oak:counter", 5L);
         properties.put("previousValue", 2L);
@@ -202,7 +202,7 @@ class MetricImplTest
         properties.put("label", "Counted things");
         properties.put("description", "How many things were counted");
         properties.put("category", "Tests");
-        properties.put("iap:defaultOrder", 20L);
+        properties.put("defaultOrder", 20L);
         properties.put("accessLevel", "admin");
         properties.put("oak:counter", 5L);
         properties.put("previousValue", 2L);
