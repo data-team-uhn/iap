@@ -19,7 +19,10 @@
 import { act } from "@testing-library/react";
 
 vi.mock("@iap/frontend-commons/components/PageNotFound", () => ({
-  default: () => <div data-testid="page-not-found" />,
+  default: ({ deletedAt, deletedBy, entryUrl }: { deletedAt?: string; deletedBy?: string; entryUrl?: string }) => (
+    <div data-testid="page-not-found" data-at={deletedAt ?? ""} data-by={deletedBy ?? ""}
+      data-entry={entryUrl ?? ""} />
+  ),
 }));
 
 // The entry point renders on import, so each test re-imports a fresh copy of the module
@@ -30,14 +33,20 @@ describe("404 entry point", () => {
     document.body.innerHTML = "";
   });
 
-  it("renders the not-found page into its container", async () => {
-    document.body.innerHTML = '<div id="main-404-container"></div>';
+  // What the server found out about the requested path is on the container, not fetched, so the page is
+  // right the first time it paints rather than after a round trip.
+  it("hands the page what the server left on its container", async () => {
+    document.body.innerHTML = '<div id="main-404-container" data-deleted-at="2026-08-20T14:00:00Z" '
+      + 'data-deleted-by="alice" data-entry-url="/admin/archive/abc"></div>';
 
     await act(async () => {
       await import("@iap/frontend-commons/components/404");
     });
 
-    expect(document.querySelector('[data-testid="page-not-found"]')).toBeInTheDocument();
+    const page = document.querySelector('[data-testid="page-not-found"]');
+    expect(page).toHaveAttribute("data-at", "2026-08-20T14:00:00Z");
+    expect(page).toHaveAttribute("data-by", "alice");
+    expect(page).toHaveAttribute("data-entry", "/admin/archive/abc");
   });
 
   it("does nothing on a page without the container", async () => {
