@@ -163,11 +163,36 @@
   // Expected answer type: text, long, double, boolean, date, file
   - dataType (STRING) = "text" mandatory autocreated
 
-  // Whether an answer must be provided before submitting
-  - required (BOOLEAN) = false
+  // How many values an answer takes, as a pair of counts rather than two flags:
+  // a strictly positive minimum is what "required" means, and a maximum other
+  // than 1 is what "multiple" means, so (0,1) is an optional single value,
+  // (1,1) a mandatory one, and (2,4) reads "pick two to four". Zero or negative
+  // means unconstrained on either end.
+  // Falling short of the minimum is incompleteness, not an error - answers are
+  // saved one at a time, so a submission spends most of its life half-answered
+  // and only the completeness marking reports the shortfall. Exceeding the
+  // maximum refuses the save: a form never offers a way to do it, so a payload
+  // that does is not a submitter filling things in.
+  // Autocreated, not merely defaulted: a default only takes effect when the
+  // property is autocreated, and an absent maximum would read as "no maximum"
+  // rather than as the single value it is meant to be.
+  - minAnswers (LONG) = '0' autocreated
+  - maxAnswers (LONG) = '1' autocreated
 
-  // Whether more than one value may be provided
-  - multiple (BOOLEAN) = false
+  // For numeric answers, the smallest and largest value accepted. Both are
+  // hard bounds, enforced when an answer is saved; either may be absent.
+  - minValue (DOUBLE)
+  - maxValue (DOUBLE)
+
+  // For text answers, a regular expression every given value must match in
+  // full. Enforced when an answer is saved.
+  - pattern (STRING)
+
+  // What the submitter is told when a value does not match the pattern.
+  // A pattern without one is refused with the expression itself, which is
+  // meaningful to the schema author and to nobody else, so any schema meant
+  // for people should say what the pattern wants.
+  - patternMessage (STRING)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
