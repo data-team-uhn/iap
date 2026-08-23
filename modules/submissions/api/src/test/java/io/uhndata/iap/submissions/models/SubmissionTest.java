@@ -26,6 +26,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -489,6 +490,93 @@ class SubmissionTest
 
         assertEquals(1, missing.size());
         assertEquals(FormRequirement.class, missing.get(0).getClass());
+    }
+
+    @Test
+    void reportsMissingWhileAQuestionHasFewerAnswersThanItDemands()
+        throws RepositoryException
+    {
+        // One of two is as unanswered as none, and the blank among the values gets no say in the count
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        this.demand(2);
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday", " " });
+
+        final List<Requirement> missing = submission.getMissingRequirements();
+
+        assertEquals(1, missing.size());
+        assertEquals(FormRequirement.class, missing.get(0).getClass());
+    }
+
+    @Test
+    void reportsFulfilledOnceAQuestionHasAsManyAnswersAsItDemands()
+        throws RepositoryException
+    {
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        this.demand(2);
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday", "tuesday" });
+
+        assertTrue(submission.getMissingRequirements().isEmpty());
+    }
+
+    /**
+     * Raises the second question's demanded count, the way a schema asking "give at least this many" would.
+     *
+     * @param minimum how many values the question is to demand
+     */
+    private void demand(final long minimum)
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource("/Schemas/schema/1.0/form/q2")
+            .adaptTo(ModifiableValueMap.class)).put("minAnswers", minimum);
+    }
+
+    /**
+     * A submission fulfilling everything the fixture schema asks except that its second question is answered with
+     * exactly the given values, so a test states only the part under test.
+     *
+     * @param q2Values the values answering the second question
+     * @return the submission to judge
+     */
+    private Submission createFulfilledExceptQ2(final String[] q2Values)
+    {
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
+            new String[]{ "yes" }));
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", q2Values));
+        this.context.create().resource("/Submissions/submission/d1", Map.of(
+            SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
+        this.context.create().resource("/Submissions/submission/r1", Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+        return resource.adaptTo(Submission.class);
+    }
+
+    @Test
+    void listsTheQuestionsCurrentlyAsked()
+        throws RepositoryException
+    {
+        // Both questions, and only the questions: the document and approval requirements ask for other things
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1", "Q2"), submission.getQuestions().stream().map(Question::getText).toList());
+    }
+
+    @Test
+    void asksOnlyTheQuestionsWhoseConditionHolds()
+        throws RepositoryException
+    {
+        // A question that is not shown is not asked, so nothing downstream should judge its answer
+        this.registerConditionEvaluator();
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/form/q2/cond:condition", Map.of(
+            SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
+        final Submission submission = this.createBareSubmission();
+
+        assertEquals(List.of("Q1"), submission.getQuestions().stream().map(Question::getText).toList());
     }
 
     @Test
