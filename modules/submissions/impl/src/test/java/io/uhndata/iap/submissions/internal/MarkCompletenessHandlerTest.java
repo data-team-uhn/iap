@@ -127,14 +127,14 @@ class MarkCompletenessHandlerTest
         this.context.create().resource(VERSION_PATH + "/" + DETAILS, Map.of(
             TYPE, FormRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Request details"));
         this.context.create().resource(VERSION_PATH + "/" + START_DATE, Map.of(
-            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Which day?", "required", true));
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Which day?", "minAnswers", 1L));
         this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/note", Map.of(
             TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Anything to add?"));
         // A required question one level down, so that the walk is shown to go through a section
         this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/why", Map.of(
             TYPE, Section.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "title", "Why"));
         this.context.create().resource(VERSION_PATH + "/" + REASON, Map.of(
-            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Why?", "required", true));
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "Why?", "minAnswers", 1L));
         // A document is something its author supplies too, so an unfulfilled one holds the tag on just as an
         // unanswered question does. Fulfilled here, so that the tests below are about the questions they name
         this.context.create().resource(VERSION_PATH + "/doctorsNote", Map.of(
