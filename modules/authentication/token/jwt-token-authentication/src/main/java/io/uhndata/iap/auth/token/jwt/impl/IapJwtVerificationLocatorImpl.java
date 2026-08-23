@@ -91,7 +91,7 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
 
     /**
      * In an instance where the JWT does not belong to us, look up the peer's verification details in
-     * {@code /jcr:system/iap:jwt/}. Everything needed is read while the session is open, so the returned value is
+     * {@code /jcr:system/iap-jwt/}. Everything needed is read while the session is open, so the returned value is
      * safe to use after the session closes.
      *
      * @param keyID The ID under which to find the key
@@ -106,7 +106,7 @@ public class IapJwtVerificationLocatorImpl implements Locator<Key>
             throw new JwtException(String.format("Unsafe peer key: %s", keyID));
         }
 
-        final String resourcePath = "/jcr:system/iap:jwt/" + keyID;
+        final String resourcePath = "/jcr:system/iap-jwt/" + keyID;
         try (ResourceResolver resolver = this.rrf.getServiceResourceResolver(null)) {
             // Grab the appropriate key node, if it exists
             final Resource res = resolver.resolve(resourcePath);

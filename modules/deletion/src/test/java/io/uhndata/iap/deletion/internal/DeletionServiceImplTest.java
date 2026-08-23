@@ -640,7 +640,7 @@ class DeletionServiceImplTest
     void linksOfCheckedInResourcesAreRemovedWithoutCheckout() throws Exception
     {
         final Node node = this.target(VICTIM);
-        final Node holder = this.session.getNode(CONTENT).addNode("holder", "test:Entity");
+        final Node holder = this.session.getNode(CONTENT).addNode("holder", "test:Deletable");
         this.session.save();
         this.link(holder, node, this.definition("related", "REMOVE_LINK", false), false);
         this.versionManager.checkin("/content/holder");

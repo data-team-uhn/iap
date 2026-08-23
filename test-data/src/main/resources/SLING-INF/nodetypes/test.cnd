@@ -17,17 +17,17 @@
 //
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<test = 'https://iap.uhndata.io/test/'>
 <data = 'https://iap.uhndata.io/data/'>
 
 // Concrete subtypes of the abstract base data types, only meant for testing the base type behavior.
 
 // The homepage container for the test entities.
-[iap:TestEntityHomepage] > data:EntityHomepage
+[test:EntityHomepage] > data:EntityHomepage
   // We can use test entity homepages in a query.
   query
 
 // A minimal concrete entity.
-[iap:TestEntity] > data:Entity
+[test:Entity] > data:Entity
   // We can use test entities in a query.
   query

@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class QueryCountHealthCheckTest
 {
-    private static final String QUERY = "SELECT * FROM [iap:TestEntity] AS entity";
+    private static final String QUERY = "SELECT * FROM [test:Entity] AS entity";
 
     private final QueryCountHealthCheck check = new QueryCountHealthCheck();
 
@@ -118,7 +118,7 @@ class QueryCountHealthCheckTest
     @Test
     void resolvesDatePlaceholders() throws Exception
     {
-        final String template = "SELECT * FROM [iap:TestEntity] AS entity WHERE entity.[jcr:created] > '"
+        final String template = "SELECT * FROM [test:Entity] AS entity WHERE entity.[jcr:created] > '"
             + QueryCountHealthCheck.YESTERDAY_PLACEHOLDER + "' AND entity.[jcr:created] < '"
             + QueryCountHealthCheck.TOMORROW_PLACEHOLDER + "' AND entity.[jcr:created] <> '"
             + QueryCountHealthCheck.TODAY_PLACEHOLDER + "'";

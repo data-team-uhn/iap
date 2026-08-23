@@ -15,7 +15,6 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
 <ext = 'https://iap.uhndata.io/ext/'>
 
 //-----------------------------------------------------------------------------

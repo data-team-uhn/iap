@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<app = 'https://iap.uhndata.io/app/'>
 
 //-----------------------------------------------------------------------------
 //
@@ -26,14 +26,14 @@
 //-----------------------------------------------------------------------------
 // Simple nodetype for identifying the login page, the only page served to
 // unauthenticated visitors.
-[iap:LoginPage] > sling:Folder
+[app:LoginPage] > sling:Folder
   // Attributes:
   // We can use the login page in a query
   query
 
   // Properties:
   // Hardcode the resource type
-  - sling:resourceType (STRING) = "iap/LoginPage" mandatory autocreated protected
+  - sling:resourceType (STRING) = "app/LoginPage" mandatory autocreated protected
   // Hardcode the resource supertype: the login page is plain content
   - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected
   // Set a default title

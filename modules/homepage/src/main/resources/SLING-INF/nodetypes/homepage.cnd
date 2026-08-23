@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<app = 'https://iap.uhndata.io/app/'>
 
 //-----------------------------------------------------------------------------
 //
@@ -25,14 +25,14 @@
 
 //-----------------------------------------------------------------------------
 // Simple nodetype for identifying the homepage.
-[iap:Homepage] > sling:Folder
+[app:Homepage] > sling:Folder
   // Attributes:
   // We can use the homepage in a query
   query
 
   // Properties:
   // Hardcode the resource type
-  - sling:resourceType (STRING) = "iap/Homepage" mandatory autocreated protected
+  - sling:resourceType (STRING) = "app/Homepage" mandatory autocreated protected
   // Hardcode the resource supertype: the Homepage is a resource
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
   // Set a default title

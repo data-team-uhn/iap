@@ -97,7 +97,7 @@ public class Content
     }
 
     /**
-     * The specific type of the wrapped resource, e.g. {@code iap/Homepage}.
+     * The specific type of the wrapped resource, e.g. {@code app/Homepage}.
      *
      * @return a resource type name
      */

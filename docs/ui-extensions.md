@@ -82,7 +82,7 @@ before the SPA ever loads. So `/Submissions/123` resolves (the submission node s
 while `/Submissions/123/reviews/financial` does not, however the view's pattern is written. There
 are two ways to give a URL a resource:
 
-- **A node**, created in the owning module's repoinit — `create path (iap:Homepage) /content`. It
+- **A node**, created in the owning module's repoinit — `create path (app:Homepage) /content`. It
   also carries the page's access control, so denying it to `everyone` turns a deep link into an
   honest 404. Fine for a single virtual page; it cannot cover paths that vary.
 - **A `ResourceProvider`**, which synthesizes them. `AdminViewResourceProvider` (module

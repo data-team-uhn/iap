@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
-@SlingServletResourceTypes(resourceTypes = { "iap/Homepage" }, selectors = { "emailtest" })
+@SlingServletResourceTypes(resourceTypes = { "app/Homepage" }, selectors = { "emailtest" })
 public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
 {
     private static final long serialVersionUID = -3886647765025375822L;

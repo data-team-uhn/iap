@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-// Locate all visible iap:dataEntry nodes
+// Resolve the extension point named by the uixp request parameter
 use(function(){
     var uixp = request.getRequestParameter("uixp");
     if (!uixp) {

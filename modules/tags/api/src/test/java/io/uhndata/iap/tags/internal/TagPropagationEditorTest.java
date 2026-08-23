@@ -59,11 +59,11 @@ class TagPropagationEditorTest
 
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
-    private static final String CONTENT_TYPE = "iap:TestContent";
+    private static final String CONTENT_TYPE = "test:Content";
 
-    private static final String ENTITY_TYPE = "iap:TestEntity";
+    private static final String ENTITY_TYPE = "test:Entity";
 
-    private static final String BOUNDARY_TYPE = "iap:TestHomepage";
+    private static final String BOUNDARY_TYPE = "test:Homepage";
 
     private static final String COMPUTED = TagProcessor.Phase.LOCAL.getPropertyName();
 

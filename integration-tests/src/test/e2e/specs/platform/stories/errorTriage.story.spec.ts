@@ -34,7 +34,7 @@ import { ADMIN, adminAuth, signInAs } from '../../../support/auth';
  */
 
 /** Where the throwaway script goes: the homepage's own resource type, so `/` can be asked for it. */
-const SCRIPT_PARENT = '/libs/iap/Homepage';
+const SCRIPT_PARENT = '/libs/app/Homepage';
 
 /** Requesting `/.error` selects this script, the extension naming it exactly as `html` does. */
 const SCRIPT_NAME = 'error.esp';

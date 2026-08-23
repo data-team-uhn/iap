@@ -20,5 +20,5 @@
 // Replicates the shape of a versionable entity: the links container and
 // everything under it stay out of the version history, so links can be
 // added and removed without checking their holder out.
-[test:Entity] > nt:unstructured, mix:referenceable, mix:versionable
+[test:Deletable] > nt:unstructured, mix:referenceable, mix:versionable
   + link:links (link:Links) = link:Links IGNORE
