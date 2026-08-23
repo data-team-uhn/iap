@@ -73,11 +73,12 @@ test.describe('the time off request demo', () => {
     const question = (await response.json()) as {
       text?: string;
       dataType?: string;
-      required?: boolean;
+      minAnswers?: number;
     };
     expect(question.text).toBe('Which day does your time off start?');
     expect(question.dataType).toBe('date');
-    expect(question.required).toBe(true);
+    // "Required" is a demanded count, not a flag: one value must be given
+    expect(question.minAnswers).toBe(1);
   });
 
   test('asks for a return date only when the absence covers several days', async ({ request }) => {
@@ -457,6 +458,21 @@ test.describe('the time off request demo', () => {
 
       expect(response.status()).toBe(403);
       expect(((await response.json()) as { error?: string }).error).toContain('not allowed');
+    });
+
+    test('refuses more values than a question takes', async ({ request }) => {
+      // The duration takes a single value - the default answer-count pair - and the form offers no way to give
+      // two, so a payload that does is not the editor. What this proves end to end is that the constraint
+      // validators are wired into the save workflow's validation step, not merely present in the bundle.
+      const response = await request.post(raised, {
+        headers: { ...asRequester, 'Content-Type': 'application/x-www-form-urlencoded' },
+        data: 'details%2Fduration=full-day&details%2Fduration=half-day',
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(400);
+      expect(((await response.json()) as { error?: string }).error)
+        .toContain('Too many values for "Is this a half day, a full day, or several days?". Given: 2. Allowed: 1.');
     });
 
     test('sends the request on to the approver when its requester says it is finished', async ({ request }) => {

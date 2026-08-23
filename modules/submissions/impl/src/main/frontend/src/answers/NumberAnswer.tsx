@@ -18,6 +18,7 @@
 
 import { TextField } from "@mui/material";
 
+import { isRequired } from "../submissionForm";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -33,15 +34,21 @@ function NumberAnswer({ question, values, disabled, onChange, onAnswered }: Answ
     <TextField
       label={questionLabel(question)}
       type="number"
-      required={question.required}
+      required={isRequired(question)}
       disabled={disabled}
       fullWidth
       value={values[0] ?? ""}
       slotProps={{
         inputLabel: { shrink: true },
         // `any` is the HTML default and is what allows decimals; `1` is what makes a browser refuse
-        // them, which is the whole point of asking for a long
-        htmlInput: { step: whole ? 1 : "any", inputMode: whole ? "numeric" : "decimal" },
+        // them, which is the whole point of asking for a long.
+        // The schema's bounds become the input's own hints; the save is what enforces them.
+        htmlInput: {
+          step: whole ? 1 : "any",
+          inputMode: whole ? "numeric" : "decimal",
+          min: question.minValue,
+          max: question.maxValue,
+        },
       }}
       helperText={question.description}
       onChange={event => onChange([ event.target.value ])}

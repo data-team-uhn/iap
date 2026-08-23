@@ -47,8 +47,19 @@ export interface FormQuestion {
   description?: string;
   // One of text, long, double, boolean, date, file
   dataType: string;
-  required: boolean;
-  multiple: boolean;
+  // How many values an answer takes, as the schema stores it: a positive minimum is what "required"
+  // means, a maximum other than 1 is what allows several values, and zero or negative leaves that
+  // end unconstrained. Read through isRequired/isMultiple below rather than re-derived ad hoc.
+  minAnswers: number;
+  maxAnswers: number;
+  // Hard bounds for numeric answers, present only where the schema states them. The save is where
+  // they are enforced; here they only become the input's own hints.
+  minValue?: number;
+  maxValue?: number;
+  // A regular expression every value must match in full, with what to tell the submitter when one
+  // does not. Enforced by the save, whose refusal carries the message.
+  pattern?: string;
+  patternMessage?: string;
   // The answers this question offers, empty when it is answered freely. Always present, so that
   // "answered freely" is something the form states rather than something a reader infers.
   options: FormAnswerOption[];
@@ -93,6 +104,17 @@ export interface SubmissionForm {
 
 export function isQuestion(item: FormItem): item is FormQuestion {
   return item.type === QUESTION;
+}
+
+// Whether an answer must be provided before submitting — a reading of the answer-count pair, the
+// same one the server derives, so the two sides cannot disagree about what a count means.
+export function isRequired(question: FormQuestion): boolean {
+  return question.minAnswers > 0;
+}
+
+// Whether more than one value may be provided — the other reading of the pair.
+export function isMultiple(question: FormQuestion): boolean {
+  return question.maxAnswers !== 1;
 }
 
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
