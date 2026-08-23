@@ -55,7 +55,7 @@ const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
 function duration(value: string[] = []) {
   return {
     name: "duration", type: QUESTION, path: "details/duration", text: "Is this several days?",
-    dataType: "text", required: true, multiple: false, options: [], value,
+    dataType: "text", minAnswers: 1, maxAnswers: 1, options: [], value,
   };
 }
 
@@ -70,7 +70,7 @@ function details(items: FormItem[], overrides: Partial<FormRequirement> = {}): F
 function endDate() {
   return {
     name: "endDate", type: QUESTION, path: "details/endDate", text: "Which day are you back?",
-    dataType: "date", required: true, multiple: false, options: [], value: [] as string[],
+    dataType: "date", minAnswers: 1, maxAnswers: 1, options: [], value: [] as string[],
   };
 }
 

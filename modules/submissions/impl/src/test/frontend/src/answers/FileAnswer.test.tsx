@@ -27,7 +27,7 @@ describe("FileAnswer", () => {
   it("says a file cannot be attached yet, and offers nothing that would pretend otherwise", () => {
     const question: FormQuestion = {
       name: "note", type: QUESTION, path: "details/note", text: "Attach the note",
-      dataType: "file", required: false, multiple: false, options: [], value: [],
+      dataType: "file", minAnswers: 0, maxAnswers: 1, options: [], value: [],
     };
 
     render(<FileAnswer question={question} values={[]} disabled={false}
