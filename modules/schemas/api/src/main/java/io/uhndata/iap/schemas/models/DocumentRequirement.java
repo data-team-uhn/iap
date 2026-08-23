@@ -18,6 +18,7 @@
 package io.uhndata.iap.schemas.models;
 
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.annotations.Default;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
@@ -37,11 +38,28 @@ public class DocumentRequirement extends Requirement
     /** The {@code sling:resourceType} of a {@code sch:DocumentRequirement} node. */
     public static final String RESOURCE_TYPE = "sch/DocumentRequirement";
 
+    // Defaulted here as well as in the node type: the CND default only reaches nodes created through JCR, and a
+    // model reading absence as false would quietly stop demanding the document
+    @ValueMapValue
+    @Default(booleanValues = true)
+    private boolean required;
+
     @ValueMapValue
     private String[] acceptedFileTypes;
 
     @ValueMapValue
     private String aiCheckPrompt;
+
+    /**
+     * Whether the document must be attached before the submission is complete. An optional requirement is still
+     * asked — whether it is asked at all is its condition's decision — but being unanswered blocks nothing.
+     *
+     * @return {@code true} if the submission is incomplete without this document
+     */
+    public boolean isRequired()
+    {
+        return this.required;
+    }
 
     /**
      * The accepted MIME types for the uploaded document, e.g. {@code application/pdf}.

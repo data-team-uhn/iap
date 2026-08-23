@@ -607,6 +607,29 @@ class SubmissionTest
     }
 
     @Test
+    void doesNotMissAnOptionalDocumentNobodyAttached()
+        throws RepositoryException
+    {
+        // Optional is not conditional: it is still asked - it stays on the form - but skipping it blocks nothing
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        Objects.requireNonNull(this.context.resourceResolver().getResource("/Schemas/schema/1.0/consent")
+            .adaptTo(ModifiableValueMap.class)).put("required", false);
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
+        this.context.create().resource("/Submissions/submission/a1", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_1_ID, "value",
+            new String[]{ "yes" }));
+        this.context.create().resource("/Submissions/submission/a2", Map.of(
+            SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
+        this.context.create().resource("/Submissions/submission/r1", Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+        final Submission submission = resource.adaptTo(Submission.class);
+
+        assertTrue(submission.getMissingRequirements().isEmpty());
+    }
+
+    @Test
     void reportsMissingApprovalRequirementWhenReviewIsNotApproved()
         throws RepositoryException
     {
