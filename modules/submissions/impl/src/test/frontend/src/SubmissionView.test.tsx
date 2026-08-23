@@ -736,7 +736,7 @@ describe("SubmissionView", () => {
               path: "/Submissions/demo-1", title: "Test my drug", editable: true,
               requirements: [ { name: "details", type: "sch/FormRequirement", label: "Request details",
                 items: [ { name: "why", type: "sch/Question", path: "details/why", text: "Why?",
-                  dataType: "text", required: true, multiple: false, options: [], value: [] } ] } ],
+                  dataType: "text", minAnswers: 1, maxAnswers: 1, options: [], value: [] } ] } ],
             }),
           } as unknown as Response);
         }

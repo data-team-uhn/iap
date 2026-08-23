@@ -27,6 +27,7 @@ import {
   RadioGroup
 } from "@mui/material";
 
+import { isMultiple, isRequired } from "../submissionForm";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -40,9 +41,17 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // answer already recorded, and without changing which questions a request goes on to ask.
 function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   const label = questionLabel(question);
-  const help = question.description;
 
-  if (question.multiple) {
+  if (isMultiple(question)) {
+    // A capped list stops offering at the cap instead of letting a pick be made and refused: the
+    // unchecked boxes grey out, which also *shows* the rule rather than merely enforcing it
+    const capped = question.maxAnswers > 1;
+    const atCap = capped && values.length >= question.maxAnswers;
+    const counts = [
+      question.minAnswers > 1 ? `Choose at least ${question.minAnswers}.` : null,
+      capped ? `Choose up to ${question.maxAnswers}.` : null,
+    ].filter(Boolean).join(" ");
+    const help = [ question.description, counts ].filter(Boolean).join(" ");
     const toggle = (value: string, checked: boolean) =>
       onAnswered(checked
         // Kept in the offered order rather than the order they were clicked, so that two people
@@ -52,7 +61,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
         : values.filter(current => current !== value));
 
     return (
-      <FormControl component="fieldset" disabled={disabled} required={question.required}>
+      <FormControl component="fieldset" disabled={disabled} required={isRequired(question)}>
         <FormLabel component="legend">{label}</FormLabel>
         <FormGroup>
           {question.options.map(option => (
@@ -62,6 +71,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
               control={
                 <Checkbox
                   checked={values.includes(option.value)}
+                  disabled={atCap && !values.includes(option.value)}
                   onChange={event => toggle(option.value, event.target.checked)}
                 />
               }
@@ -73,8 +83,9 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
     );
   }
 
+  const help = question.description;
   return (
-    <FormControl disabled={disabled} required={question.required}>
+    <FormControl disabled={disabled} required={isRequired(question)}>
       <FormLabel id={`${question.path}-label`}>{label}</FormLabel>
       <RadioGroup
         aria-labelledby={`${question.path}-label`}

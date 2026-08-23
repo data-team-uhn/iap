@@ -182,8 +182,14 @@ class SubmissionFormServletTest
         final JsonObject startDate = item(details, "startDate");
         assertEquals("Which day does your time off start?", startDate.getString("text"));
         assertEquals("date", startDate.getString("dataType"));
-        assertTrue(startDate.getBoolean("required"));
-        assertFalse(startDate.getBoolean("multiple"));
+        // The pair as stored, not derived flags; an absent maximum reads as the single value it defaults to
+        assertEquals(1, startDate.getInt("minAnswers"));
+        assertEquals(1, startDate.getInt("maxAnswers"));
+        // The value constraints are stated only where the schema states them
+        assertFalse(startDate.containsKey("minValue"));
+        assertFalse(startDate.containsKey("maxValue"));
+        assertFalse(startDate.containsKey("pattern"));
+        assertFalse(startDate.containsKey("patternMessage"));
         // Stated even when there is nothing to offer, so that "answered freely" is something the form says
         assertTrue(startDate.getJsonArray("options").isEmpty());
 
@@ -198,6 +204,24 @@ class SubmissionFormServletTest
         assertEquals("2026-10-06", startDate.getJsonArray("value").getString(0));
         // Unanswered, and saying so as an empty list rather than by omission
         assertTrue(item(details, "endDate").getJsonArray("value").isEmpty());
+    }
+
+    @Test
+    void statesTheConstraintsTheSchemaStates() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/" + DETAILS + "/daysAway", Map.of(
+            TYPE, Question.RESOURCE_TYPE, SUPER_TYPE, FORM_ITEM, "text", "How many days?", "dataType", "long",
+            "maxAnswers", 3L, "minValue", 0.5d, "maxValue", 30.0d,
+            "pattern", "[0-9.]+", "patternMessage", "A number of days."));
+
+        final JsonObject question = item(requirement(form(REQUESTER), DETAILS), "daysAway");
+
+        assertEquals(0, question.getInt("minAnswers"));
+        assertEquals(3, question.getInt("maxAnswers"));
+        assertEquals(0.5d, question.getJsonNumber("minValue").doubleValue());
+        assertEquals(30.0d, question.getJsonNumber("maxValue").doubleValue());
+        assertEquals("[0-9.]+", question.getString("pattern"));
+        assertEquals("A number of days.", question.getString("patternMessage"));
     }
 
     @Test
