@@ -45,28 +45,28 @@ def _texts(parts: list[dict]) -> list[str]:
     return [part["text"] for part in parts]
 
 
-class TestPageRange:
+class TestPageBounds:
     def test_span_from_first_to_last_marker(self):
         text = "<!-- page: 11 -->\nbody\n<!-- page: 12 -->"
-        assert chunker._get_page_range(text) == "11-12"
+        assert chunker._get_page_bounds(text) == (11, 12)
 
     def test_single_page(self):
-        assert chunker._get_page_range("<!-- page: 11 -->\nbody") == "11"
+        assert chunker._get_page_bounds("<!-- page: 11 -->\nbody") == (11, 11)
 
     def test_mid_page_start_backs_up_one(self):
         text = "leftover from the previous page\n<!-- page: 12 -->\nmore"
-        assert chunker._get_page_range(text) == "11-12"
+        assert chunker._get_page_bounds(text) == (11, 12)
 
     def test_leading_blank_then_marker_is_not_mid_page(self):
-        assert chunker._get_page_range("\n<!-- page: 11 -->\nbody") == "11"
+        assert chunker._get_page_bounds("\n<!-- page: 11 -->\nbody") == (11, 11)
 
     def test_no_markers(self):
-        assert chunker._get_page_range("") == ""
-        assert chunker._get_page_range("plain text") == ""
+        assert chunker._get_page_bounds("") == (None, None)
+        assert chunker._get_page_bounds("plain text") == (None, None)
 
     def test_unordered_markers(self):
         text = "a\n<!-- page: 3 -->\nb\n<!-- page: 1 -->\n<!-- page: 3 -->"
-        assert chunker._get_page_range(text) == "1-3"
+        assert chunker._get_page_bounds(text) == (1, 3)
 
 
 class TestSplitTrailingPageMarkers:
@@ -180,9 +180,7 @@ class TestOutlineSizeGate:
 
     def test_small_document_with_pdf_bookmarks_still_gets_its_outline(self, tmp_path, monkeypatch):
         tree = self._tree(tmp_path, monkeypatch, [{"title": "Alpha", "level": 1, "page": 1}])
-        assert tree["outline"]["bookmarks"] == [
-            {"title": "Alpha", "level": 1, "page": 1}
-        ]
+        assert tree["outline"]["bookmarks"] == ["Alpha"]
         assert "bookmark_source" not in tree["outline"]
 
     def test_both_are_still_unchunked(self, tmp_path, monkeypatch):
@@ -224,8 +222,7 @@ class TestSplitIntoChunks:
         chunks = chunker._split_into_chunks(lines, chunker.DEFAULT_MAX_TOKENS)
         assert [c["number"] for c in chunks] == [0, 1, 2]
         assert chunks[0]["text"] == "preamble text"
-        # Each section keeps its own heading line at the head of its text; catalog labels
-        # come from the first non-neutral ATX line in each part.
+        # Each section keeps its own heading line at the head of its text.
         assert chunks[1]["text"] == "# Section One\nbody one"
         assert chunks[2]["text"] == "# Section Two\nbody two"
 
@@ -294,8 +291,8 @@ class TestGetChunkHeading:
         assert heading_helpers._get_chunk_heading("") == ""
 
 
-class TestFirstChunkHeading:
-    """The first catalog entry must use its real heading when it has one."""
+class TestFirstChunkNumbering:
+    """Chunk-0 is reserved for a leading preamble; otherwise numbering starts at 1."""
 
     PARAGRAPH = "Body sentence that carries the section text along. " * 40
 
@@ -304,53 +301,46 @@ class TestFirstChunkHeading:
             markdown, _md_path(tmp_path), max_tokens, 1
         )
 
-    def test_no_preamble_uses_the_real_heading(self, tmp_path):
+    def test_no_preamble_starts_at_one(self, tmp_path):
         md = f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}"
-        first = self._tree(md, tmp_path)["catalog"][0]
-        assert first["heading"] == "1.0 Introduction"
+        catalog = self._tree(md, tmp_path)["catalog"]
+        assert catalog[0]["chunk_id"] == "Chunk-1.md"
 
-    def test_preamble_with_no_atx_heading_is_empty(self, tmp_path):
+    def test_preamble_gets_chunk_zero(self, tmp_path):
         preamble = "Loose front matter carrying no heading whatsoever. " * 40
         md = (f"{preamble}{chr(10)}{chr(10)}"
               f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}")
-        chunks = self._tree(md, tmp_path, max_tokens=300)["catalog"]
-        assert chunks[0]["heading"] == heading_helpers.DEFAULT_HEADING
-        assert any(c["heading"] == "1.0 Introduction" for c in chunks[1:]), \
-            [c["heading"] for c in chunks]
+        chunks = self._tree(md, tmp_path, max_tokens=300)["chunks"]
+        assert chunks[0]["file"] == "Chunk-0.md"
+        assert any(
+            c["file"] != "Chunk-0.md" and c["text"].lstrip().startswith("# 1.0 Introduction")
+            for c in chunks
+        ), [c["file"] for c in chunks]
 
-    def test_packed_preamble_is_empty_when_prose_comes_first(self, tmp_path):
+    def test_packed_preamble_starts_at_zero(self, tmp_path):
         md = (f"One short front-matter line.{chr(10)}{chr(10)}"
               f"# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}{chr(10)}{chr(10)}"
               f"# 2.0 Methods{chr(10)}{chr(10)}{self.PARAGRAPH}")
-        first = self._tree(md, tmp_path)["catalog"][0]
-        assert first["heading"] == heading_helpers.DEFAULT_HEADING
+        assert self._tree(md, tmp_path)["catalog"][0]["chunk_id"] == "Chunk-0.md"
 
-    def test_preamble_alone_has_no_heading(self, tmp_path):
+    def test_preamble_alone_is_chunk_zero(self, tmp_path):
         md = f"One short front-matter line.{chr(10)}"
-        first = self._tree(md, tmp_path)["catalog"][0]
-        assert first["heading"] == heading_helpers.DEFAULT_HEADING
+        assert self._tree(md, tmp_path)["catalog"][0]["chunk_id"] == "Chunk-0.md"
 
-    def test_preamble_stand_out_lines_do_not_become_the_label(self, tmp_path):
-        preamble = (f"**PRINCIPAL INVESTIGATOR:**{chr(10)}{chr(10)}Dr Somebody{chr(10)}{chr(10)}"
-                    + "Front matter prose that runs on for a while. " * 40)
-        md = (f"{preamble}{chr(10)}{chr(10)}# 1.0 Introduction{chr(10)}{chr(10)}{self.PARAGRAPH}")
-        chunks = self._tree(md, tmp_path, max_tokens=300)["catalog"]
-        assert chunks[0]["heading"] == heading_helpers.DEFAULT_HEADING
-
-    def test_later_chunks_keep_atx_headings(self, tmp_path):
+    def test_later_chunks_keep_atx_headings_in_text(self, tmp_path):
         md = "".join(
             f"# {i}.0 Section Heading{chr(10)}{chr(10)}{self.PARAGRAPH}{chr(10)}{chr(10)}"
             for i in range(1, 6)
         )
-        headings = [c["heading"] for c in self._tree(md, tmp_path)["catalog"]]
-        assert all(h for h in headings), headings
+        texts = [c["text"] for c in self._tree(md, tmp_path)["chunks"]]
+        assert all(t.lstrip().startswith("#") for t in texts), texts
 
 
 class TestNormalizeTitle:
     """The comparison key for bookmark-to-heading matching."""
 
-    def test_strips_markup(self):
-        assert heading_helpers.normalize_title("## 1.0 Background:") == "background"
+    def test_strips_markup_keeps_digits(self):
+        assert heading_helpers.normalize_title("## 1.0 Background:") == "10background"
 
     def test_casefold(self):
         assert heading_helpers.normalize_title("**Introduction**") == "introduction"
@@ -362,30 +352,29 @@ class TestNormalizeTitle:
         # An ASCII-only class erased these entirely, so they could not match a bookmark.
         assert heading_helpers.normalize_title("## Введение") == "введение"
 
-    def test_the_leading_number_is_dropped_so_a_bookmark_matches(self):
-        # The point of dropping it: a PDF bookmark carries no numbering.
-        assert heading_helpers.normalize_title("3.1 Aims") == \
+    def test_leading_section_numbers_are_kept(self):
+        assert heading_helpers.normalize_title("3.1 Aims") != \
             heading_helpers.normalize_title("Aims")
+        assert heading_helpers.normalize_title("3.1 Aims") == "31aims"
 
     def test_numbered_siblings_keep_separate_keys(self):
-        # Regression: dropping every digit keyed these all to "objective", and the caller
-        # treats same-key lines as repeats of one heading -- the first kept its markers and
-        # the rest were demoted to body, losing their # and their chunk boundary.
         keys = [heading_helpers.normalize_title(title)
                 for title in ("Objective 1", "Objective 2", "Objective 3")]
         assert len(set(keys)) == 3, keys
 
+    def test_section_numbered_siblings_keep_separate_keys(self):
+        assert heading_helpers.normalize_title("8.1.1.1 DaT-SPECT") == "8111datspect"
+        assert heading_helpers.normalize_title("9.3.1.1 DaT-SPECT") == "9311datspect"
+        assert heading_helpers.normalize_title("8.1.1.1 DaT-SPECT") != \
+            heading_helpers.normalize_title("9.3.1.1 DaT-SPECT")
+
     def test_a_trailing_number_is_part_of_the_name(self):
         assert heading_helpers.normalize_title("Phase 2") == "phase2"
-        assert heading_helpers.normalize_title("2.0 Site 1") == "site1"
+        assert heading_helpers.normalize_title("2.0 Site 1") == "20site1"
 
 
 class TestApplyBookmarkHeadingLevels:
     """Bookmark titles are matched to lines; the closest page wins."""
-
-    def test_atx_table_caption_is_not_a_match_candidate(self):
-        assert heading_helpers._get_bookmark_match_text("# TABLE OF CONTENTS") is None
-        assert heading_helpers._get_bookmark_match_text("# Background") == "Background"
 
     PDF_BOOKMARKS = [
         {"title": "Background", "level": 1, "page": 5},
@@ -399,13 +388,7 @@ class TestApplyBookmarkHeadingLevels:
             "# Alpha", "body"
         ]
 
-    def test_no_pdf_bookmarks_still_demotes_invalid_atx(self):
-        lines = ["## TABLE OF CONTENTS", "# Methods", "body"]
-        assert heading_helpers._apply_bookmark_heading_levels(lines, []) == [
-            "TABLE OF CONTENTS", "# Methods", "body"
-        ]
-
-    def test_closest_page_is_kept_and_the_rest_demoted(self):
+    def test_closest_page_is_rewritten_other_hits_keep_hashes(self):
         lines = [
             "<!-- page: 1 -->",
             "# Background",
@@ -422,8 +405,9 @@ class TestApplyBookmarkHeadingLevels:
         ]
         pdf_bookmarks = [{**bookmark} for bookmark in self.PDF_BOOKMARKS]
         out = heading_helpers._apply_bookmark_heading_levels(lines, pdf_bookmarks)
-        assert out[1] == "Background"
-        assert out[2] == "Methods"
+        # Earlier same-title hits keep their hashes; only the chosen line gets the bookmark level.
+        assert out[1] == "# Background"
+        assert out[2] == "# Methods"
         assert out[4] == "# Background"
         assert out[7] == "## Design"
         assert out[10] == "# Methods"
@@ -445,26 +429,31 @@ class TestApplyBookmarkHeadingLevels:
         ]
         pdf_bookmarks = [{"title": "Background", "level": 1, "page": 5}]
         out = heading_helpers._apply_bookmark_heading_levels(lines, pdf_bookmarks)
-        assert out[1] == "Background"
+        assert out[1] == "# Background"
         assert out[3] == "# Background"
         assert pdf_bookmarks[0]["line"] == 4
 
-    def test_noisy_atx_is_demoted_before_matching(self):
+    def test_numbered_titles_match_only_the_same_section_number(self):
         lines = [
-            "# Table 1: Overview Here",
-            "# Confidential",
-            "# 12",
-            "# Methods",
+            "<!-- page: 49 -->",
+            "##### 6.5.1.1.1 DaT-SPECT",
+            "body",
+            "<!-- page: 58 -->",
+            "##### 8.1.1.1 DaT-SPECT",
+            "body",
+            "<!-- page: 81 -->",
+            "##### 9.3.1.1 DaT-SPECT",
             "body",
         ]
-        pdf_bookmarks = [{"title": "Methods", "level": 2, "page": None}]
+        pdf_bookmarks = [
+            {"title": "8.1.1.1 DaT-SPECT", "level": 4, "page": 58},
+            {"title": "9.3.1.1 DaT-SPECT", "level": 4, "page": 81},
+        ]
         out = heading_helpers._apply_bookmark_heading_levels(lines, pdf_bookmarks)
-        assert out[0] == "Table 1: Overview Here"
-        assert out[1] == "Confidential"
-        assert out[2] == "12"
-        assert out[3] == "## Methods"
-        assert pdf_bookmarks[0]["checked"] is True
-        assert pdf_bookmarks[0]["line"] == 4
+        assert out[1] == "##### 6.5.1.1.1 DaT-SPECT"
+        assert out[4] == "#### 8.1.1.1 DaT-SPECT"
+        assert out[7] == "#### 9.3.1.1 DaT-SPECT"
+        assert [bookmark["line"] for bookmark in pdf_bookmarks] == [5, 8]
 
     def test_unmatched_atx_is_left_as_heading(self):
         lines = ["# Methods", "body", "# Random Caption Here"]
@@ -490,7 +479,7 @@ class TestApplyBookmarkHeadingLevels:
 
     def test_keeps_original_heading_text_when_fixing_level(self):
         lines = ["<!-- page: 5 -->", "### 1.0 Background:", "prose"]
-        pdf_bookmarks = [{"title": "Background", "level": 1, "page": 5}]
+        pdf_bookmarks = [{"title": "1.0 Background", "level": 1, "page": 5}]
         out = heading_helpers._apply_bookmark_heading_levels(lines, pdf_bookmarks)
         assert out[1] == "# 1.0 Background:"
 
@@ -513,8 +502,10 @@ class TestApplyBookmarkHeadingLevels:
             if isinstance(bookmark.get("level"), int) and bookmark["level"] > 0
         ) == 1
         chunks = chunker._split_into_chunks(out, chunker.DEFAULT_MAX_TOKENS)
-        assert [chunk["number"] for chunk in chunks] == [0, 1, 2]
-        assert "Background" in chunks[0]["text"]
+        # Both Background hits keep ATX hashes, so each starts its own chunk (no preamble).
+        assert [chunk["number"] for chunk in chunks] == [1, 2, 3]
+        assert chunks[0]["text"].startswith("<!-- page: 1 -->")
+        assert "\n# Background" in chunks[0]["text"]
         # The page marker that ended the part before is carried onto the head of this one, so
         # the heading follows it rather than opening the chunk (see _move_trailing_page_markers).
         assert chunks[1]["text"].startswith("<!-- page: 5 -->")
@@ -522,8 +513,8 @@ class TestApplyBookmarkHeadingLevels:
         assert "\n# Methods" in chunks[2]["text"]
 
 
-class TestCatalogHeadingsFromBookmarks:
-    """End-to-end: catalog heading comes from the first ATX line after bookmark promotion."""
+class TestCatalogFromBookmarks:
+    """End-to-end: bookmark promotion puts ATX headings into chunk text."""
 
     PARAGRAPH = "Body sentence that carries the section text along. " * 40
 
@@ -532,7 +523,7 @@ class TestCatalogHeadingsFromBookmarks:
         monkeypatch.setattr("chunker.extract_bookmarks", lambda *a, **k: pdf_bookmarks)
         return chunker.build_chunk_tree(md, _md_path(tmp_path), max_tokens, 1)
 
-    def test_bookmark_titles_label_each_chunk(self, tmp_path, monkeypatch):
+    def test_bookmark_titles_promote_each_section(self, tmp_path, monkeypatch):
         md = (
             f"<!-- page: 5 -->\n# Background\n\n{self.PARAGRAPH}\n\n"
             f"<!-- page: 8 -->\n# Methods\n\n{self.PARAGRAPH}\n"
@@ -541,18 +532,19 @@ class TestCatalogHeadingsFromBookmarks:
             {"title": "Background", "level": 1, "page": 5},
             {"title": "Methods", "level": 1, "page": 8},
         ]
-        catalog = self._tree(
+        chunks = self._tree(
             tmp_path, monkeypatch, md, pdf_bookmarks, max_tokens=300
-        )["catalog"]
-        assert len(catalog) >= 2
-        assert catalog[0]["heading"] == "Background"
-        assert any(entry["heading"] == "Methods" for entry in catalog[1:])
+        )["chunks"]
+        assert len(chunks) >= 2
+        assert any("# Background" in c["text"] for c in chunks)
+        assert any("# Methods" in c["text"] for c in chunks)
 
-    def test_a_bold_section_still_gets_the_bookmark_label(self, tmp_path, monkeypatch):
+    def test_a_bold_section_is_promoted_to_atx(self, tmp_path, monkeypatch):
         md = f"<!-- page: 5 -->\n**Background**\n\n{self.PARAGRAPH}\n"
         pdf_bookmarks = [{"title": "Background", "level": 1, "page": 5}]
-        catalog = self._tree(tmp_path, monkeypatch, md, pdf_bookmarks)["catalog"]
-        assert catalog[0]["heading"] == "Background"
+        chunks = self._tree(tmp_path, monkeypatch, md, pdf_bookmarks)["chunks"]
+        assert any(c["text"].lstrip().startswith("# **Background**")
+                   or "\n# **Background**" in c["text"] for c in chunks)
 
 
 class TestBookmarksStorage:

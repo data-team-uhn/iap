@@ -17,6 +17,7 @@
 
 """Post-processing cleanup for generated markdown output."""
 
+import html
 import re
 from pathlib import Path
 
@@ -116,68 +117,24 @@ def cleanup_leading_line_numbers(md: str) -> str:
     return "".join(cleaned_parts)
 
 
-def _escape_comment(value: str) -> str:
-    """Escape HTML-comment-hostile sequences (``--`` cannot appear inside an HTML comment)."""
-    return value.replace("--", "\u2014")
-
-
 def get_source_file_basename(source_file: str) -> str:
     """Return the final component of a client-supplied file name.
 
     Upload names can come from another operating system, so normalize Windows separators before
     :class:`Path` sees them -- otherwise a Windows path reaching the Linux daemon leaks its
-    directory components into the metadata.
-
-    Whitespace is collapsed because the result goes in the one-line
-    ``<!-- source_file: ... -->`` header. ``Path`` keeps a newline in a name, and one there split
-    the comment and injected a second Markdown line.
+    directory components into the metadata. Whitespace is collapsed in the result.
     """
     name = Path(source_file.replace("\\", "/")).name
     return " ".join(name.split())
 
 
-def resolve_source_file_name(input_path: Path, source_file: str | None = None) -> str:
-    """Return the display name for a ``source_file`` header.
-
-    Prefer an explicit original name (e.g. the upload basename) when provided;
-    otherwise fall back to the on-disk path name. Always returns a basename so a
-    full path cannot leak into the markdown comment.
-    """
-    if source_file and source_file.strip():
-        return get_source_file_basename(source_file.strip())
-    return input_path.name
-
-
-def get_source_file_header(source_file: str) -> str:
-    """The reserved ``<!-- source_file: ... -->`` header naming a document's original input file.
-
-    Prepended by the PDF/DOCX parsers after cleanup, not by :func:`clean_markdown`.
-    """
-    return f"<!-- source_file: {_escape_comment(source_file)} -->"
-
-
-def finalize_markdown(
-    raw_markdown: str,
-    input_path: Path,
-    *,
-    source_file: str | None = None,
-) -> str:
-    """Clean Docling export and prepend the ``source_file`` header.
-
-    @param raw_markdown: Markdown as exported by Docling (may be empty)
-    @param input_path: on-disk path used when ``source_file`` is omitted
-    @param source_file: optional original upload name for the header
-    @return: cleaned Markdown with a leading ``<!-- source_file: ... -->`` line
-    """
-    cleaned = clean_markdown(raw_markdown)
-    display_name = resolve_source_file_name(input_path, source_file)
-    return f"{get_source_file_header(display_name)}\n{cleaned}"
-
-
 def clean_markdown(md: str) -> str:
     """
-    Collapse blank lines, remove empty headings / image placeholders, and strip
-    decorative garbage lines.
+    Unescape HTML entities, collapse blank lines, remove empty headings / image
+    placeholders, and strip decorative garbage lines.
+
+    Docling often emits ``&amp;``, ``&lt;``, and numeric entities; turning those
+    back into real characters keeps bookmark matching and chunk text readable.
 
     @param md: Markdown as exported by Docling, or an empty value
     @return: the cleaned text; ``""`` for empty input
@@ -185,8 +142,10 @@ def clean_markdown(md: str) -> str:
     if not md:
         return ""
 
+    # Named and numeric entities (&amp;, &#38;, &#x26;, …) before other cleanup.
+    unescaped = html.unescape(md)
     # Special case: cleanup leading line numbers at every line
-    without_line_numbers = cleanup_leading_line_numbers(md)
+    without_line_numbers = cleanup_leading_line_numbers(unescaped)
     kept_lines = [
         line
         for line in without_line_numbers.split("\n")

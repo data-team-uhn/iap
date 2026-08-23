@@ -35,9 +35,6 @@ class TestValidHeading:
     def test_too_short_rejected(self):
         assert heading_helpers.is_valid_heading("Hi") is False
 
-    def test_table_caption_rejected(self):
-        assert heading_helpers.is_valid_heading("Table 1: Baseline characteristics") is False
-
     def test_too_many_words_rejected(self):
         line = "one two three four five six seven eight nine ten eleven"
         assert heading_helpers.is_valid_heading(line) is False
@@ -61,9 +58,6 @@ class TestValidHeading:
     def test_digits_only_is_rejected(self):
         assert heading_helpers.is_valid_heading("4.2") is False
 
-    def test_confidential_is_rejected(self):
-        assert heading_helpers.is_valid_heading("Confidential") is False
-
     def test_an_unnumbered_short_title_is_still_rejected(self):
         assert heading_helpers.is_valid_heading("Aims") is False
 
@@ -84,10 +78,8 @@ class TestHeadingMatching:
     def test_match_atx_heading_plain_line(self):
         assert heading_helpers._match_atx_heading("plain text line") is None
 
-    def test_heading_level_filters_invalid_headings(self):
+    def test_heading_level_for_valid_atx(self):
         assert heading_helpers._get_heading_level("## Introduction") == 2
-        # A "Table ..." caption is a heading syntactically but not a chunk boundary.
-        assert heading_helpers._get_heading_level("## Table 1: Overview") is None
 
     def test_min_atx_level(self):
         lines = "# Alpha\n## Bravo\n### Gamma".split("\n")
@@ -139,20 +131,18 @@ class TestChunkFile:
         catalog = json.loads((chunks_dir / chunker.CATALOG_NAME).read_text(encoding="utf-8"))
         assert len(catalog) == summary["chunks"]
 
-    def test_catalog_length_matches_the_chunk_file(self, tmp_path):
-        # "length" is the character count of the chunk file on disk, including the trailing
-        # newline the writer appends.
+    def test_catalog_entries_omit_heading_and_length(self, tmp_path):
         path = self._write_large(tmp_path)
         chunker.chunk_file(str(path))
         chunks_dir = path.parent / chunker.CHUNKS_DIRNAME
         catalog = json.loads((chunks_dir / chunker.CATALOG_NAME).read_text(encoding="utf-8"))
         assert catalog
-        # The catalog no longer names its file, so the lengths are compared as a multiset:
-        # every entry still has to match some chunk file, and the counts still have to agree.
-        written = sorted(
-            len(f.read_text(encoding="utf-8")) for f in chunks_dir.glob("Chunk-*.md")
-        )
-        assert sorted(entry["length"] for entry in catalog) == written
+        for entry in catalog:
+            assert "heading" not in entry
+            assert "length" not in entry
+            assert "chunk_id" in entry
+            assert "pageStart" in entry
+            assert "pageEnd" in entry
 
     def test_huge_threshold_forces_unchunked(self, tmp_path):
         path = self._write_large(tmp_path)
@@ -168,8 +158,7 @@ class TestOutlineBookmarks:
     """``Chunks/outline.json`` ``bookmarks`` come from a sibling PDF and from nothing else.
 
     Markdown headings are not harvested into them. A document with no sibling PDF reports an
-    empty list, and the caller decides what to send in its place; the document's own headings
-    are still in ``catalog.json`` per chunk.
+    empty list, and the caller decides what to send in its place.
     """
 
     PARAGRAPH = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 60
@@ -189,18 +178,6 @@ class TestOutlineBookmarks:
         assert outline["bookmarks"] == []
         assert "bookmark_source" not in outline
 
-    def test_a_printed_toc_is_not_a_chunk_heading(self, tmp_path):
-        # The reason the outline no longer harvests Markdown: a printed TOC line looks exactly
-        # like a heading. It still must not end up labelling a chunk.
-        path = tmp_path / "proto.md"
-        self._proposal_with_a_printed_toc(path)
-        chunker.chunk_file(str(path))
-        catalog_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.CATALOG_NAME
-        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-        headings = [entry["heading"] for entry in catalog]
-        assert "TABLE OF CONTENTS" not in headings
-        assert any(h.startswith("Section ") and h.endswith(" Heading") for h in headings)
-
     def test_pdf_bookmarks_on_the_unchunked_path(self, tmp_path, monkeypatch):
         pdf_bookmarks = [{"title": "Alpha Section", "level": 1, "page": 1}]
         monkeypatch.setattr(
@@ -212,9 +189,7 @@ class TestOutlineBookmarks:
         assert chunker.chunk_file(str(path), min_structure_tokens=10 ** 9)["chunks"] == 0
         outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
         outline = json.loads(outline_path.read_text(encoding="utf-8"))
-        assert outline["bookmarks"] == [
-            {"title": "Alpha Section", "level": 1, "page": 1}
-        ]
+        assert outline["bookmarks"] == ["Alpha Section"]
 
     def test_bookmarks_keep_headings_up_to_the_level_ceiling(self, tmp_path, monkeypatch):
         pdf_bookmarks = [
@@ -231,10 +206,7 @@ class TestOutlineBookmarks:
         chunker.chunk_file(str(path), min_structure_tokens=10 ** 9)
         outline_path = path.parent / chunker.CHUNKS_DIRNAME / chunker.OUTLINE_NAME
         outline = json.loads(outline_path.read_text(encoding="utf-8"))
-        assert outline["bookmarks"] == [
-            {"title": "Aims", "level": 1, "page": 1},
-            {"title": "Specific", "level": chunker.MAX_HEADING_LEVEL, "page": 2},
-        ]
+        assert outline["bookmarks"] == ["Aims", "Specific"]
 
 
 class TestUnchunkedOutline:
