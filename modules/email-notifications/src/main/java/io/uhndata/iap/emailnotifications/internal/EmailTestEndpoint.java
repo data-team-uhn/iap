@@ -36,6 +36,7 @@ import org.apache.sling.commons.messaging.mail.MessageBuilder;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +81,11 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
 
     private static final String STILL_SENDING = "The message is still being sent. " + SEE_THE_LOG;
 
-    @Reference
+    // Greedy, so that a higher-ranked mail service actually wins. A static reference is RELUCTANT by default:
+    // once bound it stays bound, and a service registered later with a higher service.ranking is silently
+    // ignored for the life of the component. That makes ranking inert, which is a trap for any deployment that
+    // means to substitute one — a development instance filing mail instead of sending it, most immediately.
+    @Reference(policyOption = ReferencePolicyOption.GREEDY)
     private transient MailService mailService;
 
     /**

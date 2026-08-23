@@ -76,7 +76,13 @@ public class CaughtMailServlet extends SlingJakartaSafeMethodsServlet
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         final List<Resource> caught = new ArrayList<>();
-        request.getResource().getChildren().forEach(caught::add);
+        // Only the messages: the access control policy protecting this folder is a child node of it too, and a
+        // reader counting children would be told one message had been sent before anything was
+        request.getResource().getChildren().forEach(child -> {
+            if (CaughtMailService.MESSAGE_TYPE.equals(child.getValueMap().get("jcr:primaryType", String.class))) {
+                caught.add(child);
+            }
+        });
         // Newest first: reversed rather than a descending comparator on a nullable key, so a message somehow
         // written without a date sorts last instead of throwing
         caught.sort(Comparator.comparing(CaughtMailServlet::caughtAt).reversed());

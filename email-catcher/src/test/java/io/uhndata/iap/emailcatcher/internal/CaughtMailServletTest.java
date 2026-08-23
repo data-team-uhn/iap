@@ -115,6 +115,19 @@ class CaughtMailServletTest
         assertEquals("recipient@example.com", message.getJsonArray("to").getString(0));
     }
 
+    // The ACL protecting the folder is a child node of it. Counting children rather than messages reported one
+    // had been sent before anything had, which is the failure this exists to keep from coming back.
+    @Test
+    void doesNotCountTheFoldersOwnAccessPolicy() throws IOException
+    {
+        this.context.create().resource(HOME + "/rep:policy", Map.of("jcr:primaryType", "rep:ACL"));
+
+        final JsonObject answer = this.read();
+
+        assertEquals(0, answer.getInt("total"));
+        assertTrue(answer.getJsonArray("messages").isEmpty());
+    }
+
     // What a test or a developer wants is almost always the message that was just sent
     @Test
     void putsTheNewestFirst() throws IOException
