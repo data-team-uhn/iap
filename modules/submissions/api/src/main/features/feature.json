@@ -22,11 +22,11 @@
     }
   ],
   "configurations": {
-    // Lets a submission be addressed as /Submissions/<uuid>, without the prefix tree it is filed in. Inert until
-    // something files submissions in one; a submission stored directly under the homepage keeps resolving the way
-    // it always did, because overlay mode answers from the repository first.
+    // Lets a submission be addressed as /Submissions/by-id/<uuid>, without the prefix tree it is filed in.
+    // Mounted beside the tree rather than over it: a provider at /Submissions would be handed every create under
+    // it and could only refuse, which is how raising a submission would stop working.
     "io.uhndata.iap.utils.internal.PrefixTreeResourceProvider~submissions": {
-      "provider.root": "/Submissions",
+      "provider.root": "/Submissions/by-id",
       "provider.mode": "overlay"
     },
     "org.apache.sling.jcr.repoinit.RepositoryInitializer~submissions": {

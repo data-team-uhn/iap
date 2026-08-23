@@ -101,7 +101,7 @@ for the layout and its contract. Nothing should assume the depth: use the entry 
 the service, or look entries up by node type.
 
 The tree is a storage concern, and it does not have to reach the people reading a URL: an entry can
-also be addressed as **`/Archive/<uuid>`**, without its buckets. `PrefixTreeResourceProvider`
+also be addressed as **`/Archive/by-id/<uuid>`**, without its buckets. `PrefixTreeResourceProvider`
 (`io.uhndata.iap.utils.internal`, in `iap-java-utils`) translates the short form back, and it needs
 no lookup, index or state to do it, because `PrefixTree.pathFor` computes a bucket path from the
 node's own name. Registered in overlay mode, so stored paths always win and nothing under the
@@ -218,7 +218,7 @@ their own: `/admin/**` is served by the console's own resource provider, which r
 application shell for any path under it.
 
 **The console route and the repository path are different strings, deliberately.** The browser sits
-at `/admin/archive/<entry>` while the endpoints answer on `/Archive/<entry>`; `archiveApi.ts` owns
+at `/admin/archive/<entry>` while the endpoints answer on `/Archive/by-id/<entry>`; `archiveApi.ts` owns
 both constants and the two conversions between them, so they cannot drift into a route that
 navigates somewhere real and fetches from somewhere that is not.
   That route also covers the prefix-tree buckets, which are not entries; the endpoint says so and
@@ -273,7 +273,12 @@ failures (repository errors, missing service user).
 | `GET /Archive.summary.json` | Count the entries archived in the last day, last week, and in total |
 | `GET /Archive/<xx>/<yy>/<zz>/<entry>.entry.json` | Describe one entry, and whether restoring or purging it would work |
 
-Every endpoint addressing an entry also accepts the short form, e.g. `POST /Archive/<uuid>.restore.json`.
+Every endpoint addressing an entry also accepts the short form, e.g.
+`POST /Archive/by-id/<uuid>.restore.json`. The addressing provider is mounted at `/Archive/by-id`,
+beside the tree rather than over it: a provider is chosen by the longest matching root for writes as
+much as for reads, so one mounted at `/Archive` itself would be handed every `create` under it and
+could only refuse. `by-id` cannot collide with a bucket, since a bucket is named after exactly two
+characters of the name it files.
 
 The deletion endpoint is bound to the `data/Content` resource type, i.e. every content resource;
 the archive endpoints are bound to `del/ArchiveEntry`, and are implicitly restricted to users who

@@ -118,6 +118,11 @@ export interface ArchiveEntryDetail extends ArchiveEntry {
 /** The archive root. The entries themselves live in buckets under it and are addressed by path. */
 const ARCHIVE_PATH = "/Archive";
 
+// Where an entry answers to its bare name, beside the prefix tree rather than over it. Mirrors
+// PrefixTreeResourceProvider.ADDRESS_SEGMENT; the tree itself stays a server-side concern, and this
+// is only ever appended to a name the server already handed back.
+const ADDRESS_SEGMENT = "by-id";
+
 /**
  * Where the archive is browsed, which is a page of the administration console rather than the
  * repository path the entries actually live at.
@@ -144,7 +149,9 @@ export const entryRoute = (path: string): string => `${ARCHIVE_ROUTE}/${entryNam
  */
 export const entryResourcePath = (route: string): string | null => {
   const name = entryName(route);
-  return name === null || `${ARCHIVE_ROUTE}/${name}` !== route ? null : `${ARCHIVE_PATH}/${name}`;
+  return name === null || `${ARCHIVE_ROUTE}/${name}` !== route
+    ? null
+    : `${ARCHIVE_PATH}/${ADDRESS_SEGMENT}/${name}`;
 };
 
 /**

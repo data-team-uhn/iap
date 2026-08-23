@@ -91,7 +91,7 @@ describe("fetchArchiveEntries", () => {
 
   it("returns the page as the server described it", async () => {
     const page = { ...emptyPage, totalrows: 7, rows: [ {
-      path: "/Archive/ab/cd/ef/one", shortPath: "/Archive/one", requestedPath: "/content/one", deletedBy: "alice",
+      path: "/Archive/ab/cd/ef/one", shortPath: "/Archive/by-id/one", requestedPath: "/content/one", deletedBy: "alice",
       created: "2026-08-14T00:00:00.000+00:00", originalPaths: [ "/content/one" ], itemCount: 1,
     } ] };
     const doFetch = vi.fn().mockResolvedValue(jsonResponse(200, page));
@@ -164,7 +164,7 @@ describe("an answer this page cannot read", () => {
 
 describe("fetchArchiveEntry", () => {
   const detail = {
-    path: "/Archive/ab/cd/ef/one", shortPath: "/Archive/one", requestedPath: "/content/one", deletedBy: "alice",
+    path: "/Archive/ab/cd/ef/one", shortPath: "/Archive/by-id/one", requestedPath: "/content/one", deletedBy: "alice",
     created: "2026-08-14T00:00:00.000+00:00", originalPaths: [ "/content/one" ], itemCount: 1,
     restorable: true, restoreConflicts: [], purgeable: true, purgeVetoes: [],
   };
@@ -209,7 +209,7 @@ describe("the console route and the repository path", () => {
   });
 
   it("converts a console route back to the path the endpoints answer on", () => {
-    expect(entryResourcePath(`${ARCHIVE_ROUTE}/one`)).toBe("/Archive/one");
+    expect(entryResourcePath(`${ARCHIVE_ROUTE}/one`)).toBe("/Archive/by-id/one");
   });
 
   it("refuses a route that does not name exactly one entry", () => {
@@ -220,7 +220,7 @@ describe("the console route and the repository path", () => {
   });
 
   it("tolerates a trailing slash on either side", () => {
-    expect(entryRoute("/Archive/one/")).toBe(`${ARCHIVE_ROUTE}/one`);
+    expect(entryRoute("/Archive/by-id/one/")).toBe(`${ARCHIVE_ROUTE}/one`);
     expect(entryResourcePath(`${ARCHIVE_ROUTE}/one/`)).toBeNull();
   });
 });

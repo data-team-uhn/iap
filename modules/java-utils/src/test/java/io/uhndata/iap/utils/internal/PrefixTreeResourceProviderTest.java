@@ -17,8 +17,6 @@
  */
 package io.uhndata.iap.utils.internal;
 
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -50,6 +48,11 @@ class PrefixTreeResourceProviderTest
 {
     /** A name long enough to be filed in the prefix tree, i.e. the UUID both trees name their nodes with. */
     private static final String NAME = "3fa91c48-0000-4000-8000-000000000000";
+
+    /** Where each provider is mounted: beside its tree, never over it. */
+    private static final String ARCHIVE_MOUNT = "/Archive/" + PrefixTree.ADDRESS_SEGMENT;
+
+    private static final String SUBMISSIONS_MOUNT = "/Submissions/" + PrefixTree.ADDRESS_SEGMENT;
 
     private ResolveContext<Object> context;
 
@@ -90,81 +93,70 @@ class PrefixTreeResourceProviderTest
     }
 
     @Test
-    void aStoredPathIsAnsweredByTheRepositoryUntouched()
-    {
-        final String path = "/Archive/3f/a9/1c/" + NAME;
-        when(this.repository.getResource(any(), eq(path), any(), any())).thenReturn(this.stored);
-        assertSame(this.stored, this.resolve(this.mountedAt("/Archive"), path));
-    }
-
-    @Test
     void aShortPathFindsTheNodeInItsBucket()
     {
-        when(this.repository.getResource(any(), eq("/Archive/" + NAME), any(), any())).thenReturn(null);
         when(this.repository.getResource(any(), eq("/Archive/3f/a9/1c/" + NAME), any(), any()))
             .thenReturn(this.stored);
 
         // The same resource the stored path resolves to, not a stand-in: the short form is an address, and the
         // node keeps its own identity, path included
-        assertSame(this.stored, this.resolve(this.mountedAt("/Archive"), "/Archive/" + NAME));
+        assertSame(this.stored, this.resolve(this.mountedAt(ARCHIVE_MOUNT), ARCHIVE_MOUNT + "/" + NAME));
     }
 
     @Test
     void theSameComponentServesAnyTreeItIsMountedAt()
     {
         // Nothing about it is specific to the archive; a second configuration is all another tree needs
-        when(this.repository.getResource(any(), eq("/Submissions/" + NAME), any(), any())).thenReturn(null);
         when(this.repository.getResource(any(), eq("/Submissions/3f/a9/1c/" + NAME), any(), any()))
             .thenReturn(this.stored);
 
-        assertSame(this.stored, this.resolve(this.mountedAt("/Submissions"), "/Submissions/" + NAME));
+        assertSame(this.stored, this.resolve(this.mountedAt(SUBMISSIONS_MOUNT), SUBMISSIONS_MOUNT + "/" + NAME));
+    }
+
+    @Test
+    void theRealTreeIsLeftEntirelyToTheRepository()
+    {
+        // The whole reason this mounts beside the tree rather than over it. A provider is picked by the longest
+        // provider.root matching the path, for writes as much as reads, so one mounted at /Archive would be handed
+        // every create under it and could only refuse — which is a 500 on filing anything, from a component that
+        // only ever meant to shorten a URL.
+        when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
+        final PrefixTreeResourceProvider provider = this.mountedAt(ARCHIVE_MOUNT);
+
+        assertNull(this.resolve(provider, "/Archive"));
+        assertNull(this.resolve(provider, "/Archive/3f"));
+        assertNull(this.resolve(provider, "/Archive/3f/a9/1c/" + NAME));
+        // Not merely unanswered: never even asked about, so nothing it does can affect a stored path
+        verify(this.repository, never()).getResource(any(), any(), any(), any());
     }
 
     @Test
     void aTreeOnlyAnswersForItsOwnRoot()
     {
         when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
-        assertNull(this.resolve(this.mountedAt("/Submissions"), "/Archive/" + NAME));
+        assertNull(this.resolve(this.mountedAt(SUBMISSIONS_MOUNT), ARCHIVE_MOUNT + "/" + NAME));
     }
 
     @Test
     void theBucketPathIsTheOnePrefixTreeComputes()
     {
-        when(this.repository.getResource(any(), eq("/Archive/" + NAME), any(), any())).thenReturn(null);
         when(this.repository.getResource(any(), eq(PrefixTree.pathFor("/Archive", NAME)), any(), any()))
             .thenReturn(this.stored);
-        assertSame(this.stored, this.resolve(this.mountedAt("/Archive"), "/Archive/" + NAME));
+        assertSame(this.stored, this.resolve(this.mountedAt(ARCHIVE_MOUNT), ARCHIVE_MOUNT + "/" + NAME));
     }
 
     @Test
     void aShortPathForSomethingThatIsNotThereStaysNotThere()
     {
         when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
-        assertNull(this.resolve(this.mountedAt("/Archive"), "/Archive/" + NAME));
-    }
-
-    @Test
-    void bucketsAreNeverMistakenForFiledNodes()
-    {
-        // A bucket name is two characters, shorter than anything the tree can file, so translating one would ask
-        // for a nonsensical path
-        when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
-        assertNull(this.resolve(this.mountedAt("/Archive"), "/Archive/3f"));
-        verify(this.repository, never()).getResource(any(), eq("/Archive/3f/3f/3f/3f"), any(), any());
-    }
-
-    @Test
-    void theRootItselfIsLeftAlone()
-    {
-        when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
-        assertNull(this.resolve(this.mountedAt("/Archive"), "/Archive"));
+        assertNull(this.resolve(this.mountedAt(ARCHIVE_MOUNT), ARCHIVE_MOUNT + "/" + NAME));
     }
 
     @Test
     void aDeeperPathIsLeftToTheRepository()
     {
         when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
-        assertNull(this.resolve(this.mountedAt("/Archive"), "/Archive/" + NAME + "/0/victim"));
+        assertNull(this.resolve(this.mountedAt(ARCHIVE_MOUNT), ARCHIVE_MOUNT + "/" + NAME + "/0/victim"));
     }
 
     @Test
@@ -173,9 +165,9 @@ class PrefixTreeResourceProviderTest
         // Resolution offers `<root>/<name>.entry.json` before `<root>/<name>`, and a page script includes a
         // relative `.html`. Answering those with the node is how a provider talks itself into a recursion.
         when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
-        final PrefixTreeResourceProvider provider = this.mountedAt("/Archive");
-        assertNull(this.resolve(provider, "/Archive/" + NAME + ".entry.json"));
-        assertNull(this.resolve(provider, "/Archive/" + NAME + "/.html"));
+        final PrefixTreeResourceProvider provider = this.mountedAt(ARCHIVE_MOUNT);
+        assertNull(this.resolve(provider, ARCHIVE_MOUNT + "/" + NAME + ".entry.json"));
+        assertNull(this.resolve(provider, ARCHIVE_MOUNT + "/" + NAME + "/.html"));
     }
 
     @Test
@@ -186,46 +178,20 @@ class PrefixTreeResourceProviderTest
         when(this.repository.getResource(any(), any(), any(), any())).thenReturn(null);
         final PrefixTreeResourceProvider provider = new PrefixTreeResourceProvider();
         provider.activate(Map.of());
-        assertNull(this.resolve(provider, "/Archive/" + NAME));
+        assertNull(this.resolve(provider, ARCHIVE_MOUNT + "/" + NAME));
     }
 
     @Test
     void nothingBelowMeansNothingToAnswerWith()
     {
         doReturn(null).when(this.context).getParentResourceProvider();
-        assertNull(this.resolve(this.mountedAt("/Archive"), "/Archive/" + NAME));
+        assertNull(this.resolve(this.mountedAt(ARCHIVE_MOUNT), ARCHIVE_MOUNT + "/" + NAME));
     }
 
     @Test
     void aParentWithoutAContextIsAlsoRefused()
     {
         doReturn(null).when(this.context).getParentResolveContext();
-        assertNull(this.resolve(this.mountedAt("/Archive"), "/Archive/" + NAME));
-    }
-
-    @Test
-    void childrenAreWhateverTheRepositoryHolds()
-    {
-        // Being mounted over the tree makes this the provider asked about every path inside it, so what it answers
-        // here is what the whole subtree looks like. Answering for the repository is the only right answer: the
-        // short forms are addresses, not children, and this provider has no children of its own to add.
-        final Iterator<Resource> children = List.of(this.stored).iterator();
-        doReturn(children).when(this.repository).listChildren(eq(this.belowContext), eq(this.stored));
-
-        assertSame(children, this.mountedAt("/Archive").listChildren(this.context, this.stored));
-    }
-
-    @Test
-    void childrenWithoutARepositoryBelowAreRefused()
-    {
-        doReturn(null).when(this.context).getParentResourceProvider();
-        assertNull(this.mountedAt("/Archive").listChildren(this.context, this.stored));
-    }
-
-    @Test
-    void childrenWithoutAContextAreAlsoRefused()
-    {
-        doReturn(null).when(this.context).getParentResolveContext();
-        assertNull(this.mountedAt("/Archive").listChildren(this.context, this.stored));
+        assertNull(this.resolve(this.mountedAt(ARCHIVE_MOUNT), ARCHIVE_MOUNT + "/" + NAME));
     }
 }

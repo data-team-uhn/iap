@@ -62,6 +62,17 @@ public final class PrefixTree
     /** The length of the shortest name that can be filed in a prefix tree: {@value}. */
     public static final int MINIMUM_NAME_LENGTH = LEVELS * SEGMENT_LENGTH;
 
+    /**
+     * The segment under which a filed node can be addressed by name alone, as {@code <root>/by-id/<name>}:
+     * {@value}.
+     *
+     * <p>Beside the tree rather than over it, so that whatever serves these addresses never stands between the
+     * tree and the code that writes to it. It cannot collide with a bucket, and not by luck: a bucket is named
+     * after exactly {@link #SEGMENT_LENGTH} characters of the name it files, so any segment of a different length
+     * is one the tree can never produce.</p>
+     */
+    public static final String ADDRESS_SEGMENT = "by-id";
+
     private PrefixTree()
     {
         // Prevent instantiation of a utility class
