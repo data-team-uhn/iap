@@ -46,10 +46,10 @@ import io.uhndata.iap.submissions.models.Submission;
  * </p>
  *
  * <p><strong>The submission is the boundary, and it is deliberately the submission rather than any
- * {@code iap:Entity}.</strong> This resolver used to live in the conditions module, which cannot name a
+ * {@code data:Entity}.</strong> This resolver used to live in the conditions module, which cannot name a
  * submission — it depends on content and entities only, while schemas and submissions depend on it — so it
  * stopped at the generic entity as a stand-in. That stand-in was wrong in a way that mattered: a workflow
- * instance is an {@code iap:Entity} too, and it holds no answers, so a gateway guard asking about an answer was
+ * instance is an {@code data:Entity} too, and it holds no answers, so a gateway guard asking about an answer was
  * stopped at the instance and never reached the request it was guarding. "Requests over thirty days need a second
  * approval" could not be written.</p>
  *
