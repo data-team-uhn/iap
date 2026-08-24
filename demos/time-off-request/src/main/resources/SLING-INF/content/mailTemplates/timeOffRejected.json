@@ -1,0 +1,23 @@
+{
+  "jcr:primaryType": "iap:EmailTemplate",
+  "senderAddress": "time-off@example.com",
+  "senderName": "Time off requests",
+  "subject": "Your time off request was not approved",
+  "decision": "refused",
+  "bodyTemplate.txt": {
+    "jcr:primaryType": "nt:file",
+    "jcr:content": {
+      "jcr:primaryType": "nt:resource",
+      "jcr:mimeType": "text/plain",
+      "jcr:data": "Your time off request \"${subjectTitle}\" was not approved.\n\nYou can read it at ${subjectPath}.\n"
+    }
+  },
+  "bodyTemplate.html": {
+    "jcr:primaryType": "nt:file",
+    "jcr:content": {
+      "jcr:primaryType": "nt:resource",
+      "jcr:mimeType": "text/html",
+      "jcr:data": "<p>Your time off request <strong>${subjectTitle}</strong> was not approved.</p><p>You can read it at ${subjectPath}.</p>"
+    }
+  }
+}
