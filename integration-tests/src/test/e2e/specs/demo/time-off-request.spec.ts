@@ -114,7 +114,7 @@ test.describe('the time off request demo', () => {
 
     expect(response.ok()).toBeTruthy();
     const tag = (await response.json()) as { category?: string[]; 'jcr:primaryType'?: string };
-    expect(tag['jcr:primaryType']).toBe('iap:TagDefinition');
+    expect(tag['jcr:primaryType']).toBe('tag:Definition');
     expect(tag.category).toEqual([ 'timeliness' ]);
   });
 
@@ -125,7 +125,7 @@ test.describe('the time off request demo', () => {
 
     expect(response.ok()).toBeTruthy();
     const tag = (await response.json()) as { category?: string[]; 'jcr:primaryType'?: string };
-    expect(tag['jcr:primaryType']).toBe('iap:TagDefinition');
+    expect(tag['jcr:primaryType']).toBe('tag:Definition');
     expect(tag.category).toEqual([ 'priority' ]);
   });
 
