@@ -237,7 +237,7 @@ class DaemonState:
         running = []
         for future, (job_id, callback_url, token) in pending.items():
             if future.cancelled():
-                _stderr(f"Parse job {job_id} never started; failing it to the caller")
+                _log_stderr(f"Parse job {job_id} never started; failing it to the caller")
                 parse_callbacks.deliver(
                     callback_url,
                     parse_callbacks.failure_payload(
@@ -249,17 +249,17 @@ class DaemonState:
                     # is evidently not answering
                     attempts=1,
                     timeout=SHUTDOWN_DELIVERY_TIMEOUT_SECONDS,
-                    log=_stderr,
+                    log=_log_stderr,
                 )
             else:
                 running.append(future)
         if running:
-            _stderr(
+            _log_stderr(
                 f"Waiting up to {timeout:.0f}s for {len(running)} parse(s) to call back"
             )
             unfinished = wait(running, timeout=timeout).not_done
             if unfinished:
-                _stderr(
+                _log_stderr(
                     f"{len(unfinished)} parse(s) are still running; their callbacks are "
                     "delivered before the process exits"
                 )
@@ -313,7 +313,7 @@ def _run_parse(
             # Echo progress to stderr as well: on failure the HTTP reply carries only the
             # summary message, so the container log is the only place the per-batch
             # diagnostics (e.g. "FAILED pages 4-6: ...") survive.
-            log=_stderr,
+            log=_log_stderr,
         )
     except (BrokenProcessPool, StuckWorkerError) as exc:
         # A wedged batch is answered as a dead pool for the same reason: its worker is still
@@ -373,7 +373,7 @@ def _parse_and_call_back(
         # The callback carries only the summary message; the traceback goes to the log
         traceback.print_exc(file=sys.stderr)
         payload = parse_callbacks.failure_payload(job_id, str(exc) or type(exc).__name__)
-    parse_callbacks.deliver(callback_url, payload, token=token, log=_stderr)
+    parse_callbacks.deliver(callback_url, payload, token=token, log=_log_stderr)
 
 
 class DoclingDaemonHandler(BaseHTTPRequestHandler):
