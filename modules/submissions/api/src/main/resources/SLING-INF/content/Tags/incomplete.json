@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Incomplete",
   "description": "Something this record is asked for has not been answered yet, so it cannot be sent.",
   "category": ["completeness"],

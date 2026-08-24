@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Expired",
   "description": "Nobody acted on this in the time its process allowed, so it ended without a decision.",
   "category": ["lifecycle"],
