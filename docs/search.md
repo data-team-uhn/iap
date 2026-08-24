@@ -59,9 +59,9 @@ The response is the standard paginated shape:
 ```
 
 `totalrows` is counted result by result, because the repository doesn't report a total. Counting
-stops ten pages past the requested one, and `totalIsApproximate` then says the real total is larger.
-A match that cannot be serialized is left out of `rows` but still counted, so `returnedrows` may be
-smaller than the page.
+stops a hundred pages past the requested one, and `totalIsApproximate` then says the real total is
+larger. A match that cannot be serialized is left out of `rows` but still counted, so `returnedrows`
+may be smaller than the page.
 
 No request reads more than **10 000 matches**, however large a page it asks for and however far into
 the results it starts. `limit=0` counts up to that ceiling, which is what makes it useful for asking
