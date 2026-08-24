@@ -20,6 +20,7 @@ import { expect, test } from '@playwright/test';
 
 import { AppShell } from '../../../pages/appShell.page';
 import { LoginPage } from '../../../pages/login.page';
+import { uniqueTitle } from '../../../support/titles';
 
 /**
  * THE STORIES: two ways a request goes through, told end to end.
@@ -72,6 +73,12 @@ test.describe('a story: asking for time off, and getting it', () => {
     const login = new LoginPage(page);
     const shell = new AppShell(page);
 
+    // The request as Priya leaves it, which her approver and then she herself have to find again by
+    // name. Unique per attempt: the instance outlives the test, so on a retry a fixed title would also
+    // match the request the failed attempt left behind, and the lookup would fail on two rows rather
+    // than on whatever went wrong first.
+    const REQUEST = uniqueTitle('The last week of November');
+
     await test.step('she signs in', async () => {
       await login.open();
       await login.signInAs('demo-requester', 'demo-requester');
@@ -82,11 +89,11 @@ test.describe('a story: asking for time off, and getting it', () => {
       await page.getByRole('button', { name: 'New submission' }).click();
       const dialog = page.getByRole('dialog');
       await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
-      await dialog.getByLabel(/Title/).fill('The last week of November');
+      await dialog.getByLabel(/Title/).fill(REQUEST);
       await dialog.getByRole('button', { name: 'Create' }).click();
       // The heading, not the text: the dashboard she came from lists the request too, so a bare text
       // match is satisfied without her having left it
-      await expect(page.getByRole('heading', { name: 'The last week of November' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: REQUEST })).toBeVisible();
     });
 
     await test.step('she fills it in, and the form asks for more as she does', async () => {
@@ -166,10 +173,6 @@ test.describe('a story: asking for time off, and getting it', () => {
     await test.step('she signs out', async () => {
       await shell.signOut();
     });
-
-    // The request as Priya left it, which the approver has to be able to find without being told
-    // where it is
-    const REQUEST = 'The last week of November';
 
     await test.step('her approver signs in and finds it waiting for him', async () => {
       await login.signInAs('demo-approver', 'demo-approver');
@@ -251,8 +254,6 @@ test.describe('a story: being off sick, and having to prove it', () => {
 
   const SICK_DAY = '2026-09-14';
 
-  const REQUEST = 'A day off sick';
-
   test('Priya cannot send her sick day until the doctor\'s note is attached, and then she can',
     async ({ page }) => {
       // One sign-in and an autosaving form, but each answer is a workflow event followed by a re-read
@@ -262,6 +263,11 @@ test.describe('a story: being off sick, and having to prove it', () => {
 
       const login = new LoginPage(page);
       const shell = new AppShell(page);
+
+      // Unique per attempt, for the reason the other story gives: a retry runs against an instance that
+      // still holds what the failed attempt created. Declared inside the test rather than beside the
+      // describe so it is re-made for every attempt, whichever worker runs it.
+      const REQUEST = uniqueTitle('A day off sick');
 
       await test.step('she signs in', async () => {
         await login.open();
