@@ -294,13 +294,16 @@ unavailable rather than shown three zeros.
 A link to something that has been archived is a dead link, and a bare "this page does not exist" is
 both unhelpful and untrue. The platform's 404 page says what became of the path instead, and it says
 it in the response the reader was already getting: `DeletionMetadata`
-(`io.uhndata.iap.deletion.scripting`) is a HTL Use-API that the error handler declares, which looks
-the requested path up while the page is being rendered and leaves the answer on the mount container
-as `data-deleted-at`, `data-deleted-by` and `data-entry-url`. HTL drops an attribute whose value is
+(`io.uhndata.iap.deletion.scripting`) is a HTL helper that the error handler declares, which looks the
+requested path up while the page is being rendered and leaves the answer on the mount container as
+`data-deleted-at`, `data-deleted-by` and `data-entry-url`. HTL drops an attribute whose value is
 empty, so a path that was never there carries none of the three.
 
+**It is split in two.** `DeletionMetadata` handles the request; `DeletedPathDisclosure` reads the
+archive and decides what this reader may be told, an OSGi service implemented in this bundle.
+
 The lookup runs through the deletion service session, because the readers it exists for are exactly
-the ones who cannot resolve `/Archive` at all, and the helper decides for itself what to disclose.
+the ones who cannot resolve `/Archive` at all, and the service decides for itself what to disclose.
 **Any authenticated reader** is told that the path was deleted and when. **A reader who can read the
 archive entry** additionally gets `deletedBy` and a link through to the entry's own page. The test
 for the second is a plain read of the entry through the requester's own session, so there is no
