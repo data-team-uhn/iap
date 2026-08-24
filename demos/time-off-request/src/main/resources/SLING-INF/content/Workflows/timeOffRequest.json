@@ -157,7 +157,7 @@
     // these name the same handler - what differs is the wording and the audience, which is the whole point of
     // there being one notification action rather than one per message.
     "notifyApproved": {
-      "jcr:primaryType": "wf:ServiceTask",
+      "jcr:primaryType": "wf:Activity",
       "elementId": "notifyApproved",
       "label": "Tell them it was approved",
       "handler": "notify",
@@ -175,7 +175,7 @@
       }
     },
     "notifyRejected": {
-      "jcr:primaryType": "wf:ServiceTask",
+      "jcr:primaryType": "wf:Activity",
       "elementId": "notifyRejected",
       "label": "Tell them it was refused",
       "handler": "notify",
