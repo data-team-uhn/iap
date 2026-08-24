@@ -202,18 +202,75 @@ class TestOutlineSizeGate:
         assert tree["chunked"] is True
 
 
-class TestMergeSmallTextTails:
-    def test_small_text_tail_folded_into_previous(self):
-        assert _texts(chunker._merge_small_text_tails(_parts("First part body.", "tiny"), 500)) == \
-            ["First part body.\n\ntiny"]
+class TestMergeSmallChunks:
+    """A small part folds into a neighbour, but never across a boundary that changes branch.
 
-    def test_tail_with_heading_never_merged(self):
-        parts = ["First", "## Second Heading"]
-        assert _texts(chunker._merge_small_text_tails(_parts(*parts), 500)) == parts
+    Dissolving the wrong boundary files a heading under a section it does not belong to: a
+    ``### 3.5.7`` merged into the ``## 3.6`` after it is labelled, and summarised, as 3.6.
+    """
 
-    def test_large_tail_not_merged(self):
-        big = "w" * 4000  # 1000 tokens
-        assert _texts(chunker._merge_small_text_tails(_parts("First", big), 500)) == ["First", big]
+    BIG = "w" * 4000  # 1000 tokens: not small, so never a merge candidate
+
+    def _fold(self, *texts):
+        return _texts(chunker._merge_small_chunks(_parts(*texts), 500))
+
+    def test_a_headingless_tail_folds_back(self):
+        assert self._fold("First part body.", "tiny") == ["First part body.\n\ntiny"]
+
+    def test_a_large_part_is_left_alone(self):
+        assert self._fold("First", self.BIG) == ["First", self.BIG]
+
+    def test_forward_into_a_deeper_heading(self):
+        # "## 3.5" is the parent of "### 3.5.1", so they belong in one chunk.
+        assert self._fold("## 3.5 Data Elements", "### 3.5.1 Details Here\n\n" + self.BIG) == \
+            ["## 3.5 Data Elements\n\n### 3.5.1 Details Here\n\n" + self.BIG]
+
+    def test_forward_into_a_sibling(self):
+        assert self._fold("### 3.5.4 Alpha Section", "### 3.5.5 Beta Section") == \
+            ["### 3.5.4 Alpha Section\n\n### 3.5.5 Beta Section"]
+
+    def test_never_forward_into_a_shallower_heading(self):
+        # "### 3.5.7" must not be filed inside the "## 3.6" that follows it.
+        parts = ["### 3.5.7 Adherence Here", "## 3.6 Ethical Considerations\n\n" + self.BIG]
+        assert self._fold(*parts) == parts
+
+    def test_backward_into_the_parent_branch(self):
+        # Forward is blocked by the shallower "# 4.0", so it folds back into its own parent.
+        folded = self._fold(
+            "## 3.5 Data Elements\n\n" + self.BIG,
+            "### 3.5.9 Trailing Detail",
+            "# 4.0 STATISTICS SECTION\n\n" + self.BIG,
+        )
+        assert len(folded) == 2
+        assert folded[0].endswith("### 3.5.9 Trailing Detail")
+
+    def test_backward_into_a_sibling(self):
+        # Forward is blocked by the shallower "## 3.6", so it folds back onto the sibling it
+        # shares a parent with rather than being left as a 60-token chunk.
+        folded = self._fold(
+            "### 3.5.5 Alpha Section\n\n" + self.BIG,
+            "### 3.5.7 Adherence Here",
+            "## 3.6 Ethical Considerations\n\n" + self.BIG,
+        )
+        assert len(folded) == 2
+        assert folded[0].endswith("### 3.5.7 Adherence Here")
+
+    def test_never_backward_into_a_headingless_part(self):
+        # No heading before it means no way to tell which branch it would be joining.
+        parts = ["plain continuation body", "## 3.7 Knowledge Plan Here"]
+        assert self._fold(*parts) == parts
+
+    def test_forward_into_a_headingless_body(self):
+        # A heading must not be separated from the body it introduces.
+        assert self._fold("# 6.0 Beta Section", "the body of section six") == \
+            ["# 6.0 Beta Section\n\nthe body of section six"]
+
+    def test_a_run_of_small_siblings_coalesces(self):
+        folded = self._fold(
+            "### 3.5.3 Alpha Section", "### 3.5.4 Beta Section",
+            "### 3.5.5 Gamma Section", "### 3.5.6 Delta Section",
+        )
+        assert len(folded) == 1
 
 
 class TestSplitIntoChunks:
