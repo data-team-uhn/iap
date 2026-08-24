@@ -1,0 +1,25 @@
+{
+  "jcr:primaryType": "iap:EmailTemplate",
+  "senderAddress": "time-off@example.com",
+  "senderName": "Time off requests",
+  "subject": "Your time off request was approved",
+  // Every other property is a variable the bodies can substitute, alongside the ones the notification
+  // always carries: subjectTitle, subjectPath and event.
+  "decision": "approved",
+  "bodyTemplate.txt": {
+    "jcr:primaryType": "nt:file",
+    "jcr:content": {
+      "jcr:primaryType": "nt:resource",
+      "jcr:mimeType": "text/plain",
+      "jcr:data": "Your time off request \"${subjectTitle}\" has been approved.\n\nYou can read it at ${subjectPath}.\n"
+    }
+  },
+  "bodyTemplate.html": {
+    "jcr:primaryType": "nt:file",
+    "jcr:content": {
+      "jcr:primaryType": "nt:resource",
+      "jcr:mimeType": "text/html",
+      "jcr:data": "<p>Your time off request <strong>${subjectTitle}</strong> has been approved.</p><p>You can read it at ${subjectPath}.</p>"
+    }
+  }
+}
