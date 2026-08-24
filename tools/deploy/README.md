@@ -35,8 +35,26 @@ needs to reach it.
 
 The rest only describe the IAP container itself: `--image` (default `iap/iap`), `--port` (default
 8080), `--dev` to mount `~/.m2` read-only, as the developer flavour of the image needs in order to
-resolve third-party artifacts, `--debug` to publish the JDWP port, and `--output` to write the file
+resolve third-party artifacts, `--debug` to open the JDWP port, and `--output` to write the file
 somewhere other than here.
+
+## Debugging
+
+`--debug` publishes JDWP on `127.0.0.1:5005`, in one of two modes:
+
+```bash
+python3 generate_compose.py --debug attach   # start normally, attach whenever
+python3 generate_compose.py --debug wait     # do not start until a debugger attaches
+python3 generate_compose.py --debug          # same as --debug wait
+```
+
+`attach` is what debugging a running instance wants: everything comes up as usual and
+`jdb -attach 5005` connects whenever you get round to it.
+
+`wait` is for debugging startup itself — the JVM stops before it does anything at all and stays
+there until a debugger connects. Worth knowing before you use it in a detached stack: a container
+waiting like this is indistinguishable from one that has hung, and anything ordered after IAP
+waits with it. It says what it is waiting for in `docker compose logs iap`.
 
 ## Storage
 

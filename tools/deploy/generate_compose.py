@@ -89,8 +89,11 @@ def parse_args(argv):
     parser.add_argument('--dev', action='store_true',
                         help="Mount ~/.m2 into the container, which the developer flavour of the "
                              "image needs in order to resolve third-party artifacts")
-    parser.add_argument('--debug', action='store_true',
-                        help="Publish the JDWP debugger on 127.0.0.1:5005")
+    parser.add_argument('--debug', nargs='?', choices=['wait', 'attach'], const='wait',
+                        help="Publish the JDWP debugger on 127.0.0.1:5005. `wait` (the default "
+                             "when the flag is given alone) holds the JVM until a debugger "
+                             "attaches, for debugging startup itself; `attach` starts normally "
+                             "and lets a debugger connect whenever it likes")
     parser.add_argument('--output', default='docker-compose.yml',
                         help="Where to write the generated file [default: docker-compose.yml]")
 
@@ -294,7 +297,14 @@ def iap_environment(args):
         environment['SLING_COMMONS_CRYPTO_PASSWORD'] = 'password'
 
     if args.debug:
-        environment['DEBUG'] = 'true'
+        if args.debug == 'wait':
+            comment(environment, "The JVM will not start until a debugger attaches to 5005, so")
+            comment(environment, "until one does, this container looks like it is hanging.")
+            comment(environment, "Regenerate with --debug attach to start without waiting.")
+        else:
+            comment(environment, "A debugger may attach to 5005 at any point; startup does not")
+            comment(environment, "wait for one.")
+        environment['DEBUG'] = args.debug
 
     return environment
 
@@ -433,6 +443,10 @@ def next_steps(args, compose_directory):
     steps.append("IAP will be at http://localhost:{}".format(args.port))
     if args.mail:
         steps.append("Messages IAP sends land in ./mail as .eml files.")
+    if args.debug == 'wait':
+        steps.append("IAP will not start until a debugger attaches: jdb -attach 5005")
+    elif args.debug == 'attach':
+        steps.append("A debugger can attach whenever you like: jdb -attach 5005")
     return steps
 
 
