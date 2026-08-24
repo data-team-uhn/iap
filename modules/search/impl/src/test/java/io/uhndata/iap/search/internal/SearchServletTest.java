@@ -56,6 +56,7 @@ import org.mockito.Mockito;
 
 import io.uhndata.iap.search.api.SearchParameters;
 import io.uhndata.iap.search.spi.QuickSearchEngine;
+import io.uhndata.iap.utils.PaginatedJsonResponse;
 
 /**
  * Unit tests for {@link SearchServlet}.
@@ -444,15 +445,16 @@ public class SearchServletTest
         withParameter("limit", "5");
         withEngines(engine);
         this.servlet.doGet(this.request, this.response);
-        // Ten pages of five, plus the one result that shows the total is not exact
-        Assertions.assertEquals(51, engine.maxResults);
+        // A whole lookahead of pages of five, plus the one result that shows the total is not exact
+        Assertions.assertEquals(PaginatedJsonResponse.LOOKAHEAD_PAGES * 5 + 1, engine.maxResults);
     }
 
     @Test
     public void enginesAreNotAskedOnceThePageIsFull() throws Exception
     {
         final StubEngine first = new StubEngine(List.of(SUBMISSION),
-            IntStream.range(0, 60).mapToObj(i -> "s" + i).toArray(String[]::new));
+            IntStream.rangeClosed(1, (int) (PaginatedJsonResponse.LOOKAHEAD_PAGES * 5 + 10))
+                .mapToObj(i -> "s" + i).toArray(String[]::new));
         final StubEngine second = new StubEngine(List.of("sch:Schema"), "sc1");
         withParameter("quick", "diabetes");
         withParameter("limit", "5");
@@ -645,7 +647,8 @@ public class SearchServletTest
         withParameter("limit", "1");
         // More matches than the paginator will ever count for a page this size, so the reading stops part-way
         final StubEngine engine = new StubEngine(List.of(SUBMISSION),
-            IntStream.rangeClosed(1, 20).mapToObj(i -> "r" + i).toArray(String[]::new));
+            IntStream.rangeClosed(1, (int) (PaginatedJsonResponse.LOOKAHEAD_PAGES + 10))
+                .mapToObj(i -> "r" + i).toArray(String[]::new));
         withEngines(engine);
 
         this.servlet.doGet(this.request, this.response);
