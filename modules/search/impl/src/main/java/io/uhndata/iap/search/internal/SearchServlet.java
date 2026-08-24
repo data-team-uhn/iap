@@ -61,7 +61,7 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
 
 /**
  * A servlet running a query against the repository and returning the results as JSON. It is registered on the
- * {@code iap/Search} resource type with the {@code json} extension, so it serves {@code /search.json}. The
+ * {@code data/Search} resource type with the {@code json} extension, so it serves {@code /search.json}. The
  * extension is not optional: without one, the default renderer of the {@code /search} node itself wins the
  * resolution.
  *
@@ -99,7 +99,7 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
-@SlingServletResourceTypes(resourceTypes = { "iap/Search" }, methods = { "GET" }, extensions = { "json" })
+@SlingServletResourceTypes(resourceTypes = { "data/Search" }, methods = { "GET" }, extensions = { "json" })
 public class SearchServlet extends SlingJakartaSafeMethodsServlet
 {
     private static final long serialVersionUID = -6002540580101127991L;
