@@ -27,16 +27,28 @@
     "emailnotifications.messageidprovider.host": "localhost"
   },
   "bundles":[
+    // Jakarta Mail 2.1 moved the implementation out of the API jar, and the API finds its
+    // providers through ServiceLoader, which only crosses a bundle boundary when the framework
+    // carries an osgi.serviceloader mediator. This launcher carries none, so the combined bundle
+    // Angus publishes is what keeps the API and the SMTP provider in one classloader. Installing
+    // jakarta.mail:jakarta.mail-api next to it is not belt and braces but a coin flip: both
+    // export jakarta.mail 2.1.5, install order decides which one everything else wires to, and
+    // sending fails outright when the API-only bundle wins. It stays a compile dependency only.
     {
-      "id":"jakarta.mail:jakarta.mail-api:2.0.2",
+      "id":"org.eclipse.angus:jakarta.mail:2.0.5",
       "start-order":"24"
     },
+    // Jakarta Activation 2.1 split the same way, and the split leaves the API unable to find the
+    // classes that write each part of a message. Rather than mediate that lookup -- which takes a
+    // ServiceLoader extender, the angus-activation registry provider, and a fragment carrying a
+    // mailcap file, all so a class name in a text file can be resolved -- the handlers are named at
+    // compile time in AngusContentHandlers, which installs itself as the default command map. The
+    // API bundle alone is then all the runtime needs. The one thing given up is the other registry:
+    // with no MimeTypeRegistryProvider, FileTypeMap cannot guess a media type from a file name and
+    // answers application/octet-stream, which costs nothing here because every attachment is sent
+    // with an explicit type.
     {
-      "id":"jakarta.activation:jakarta.activation-api:2.0.1",
-      "start-order":"24"
-    },
-    {
-      "id":"com.sun.mail:jakarta.mail:2.0.2",
+      "id":"jakarta.activation:jakarta.activation-api:2.1.4",
       "start-order":"24"
     },
     {

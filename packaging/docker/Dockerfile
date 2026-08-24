@@ -54,7 +54,6 @@ COPY target/context/artifacts/ artifacts/
 COPY target/context/metadata/ /metadata/
 
 COPY logback.xml ./.iap-data/
-COPY mailcap /root/.mailcap
 COPY get_project_dependency_features.py /get_project_dependency_features.py
 COPY sling-features.json /sling-features.json
 
