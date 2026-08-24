@@ -4,6 +4,8 @@ IAP is a software tool for streamlining research proposal authorization.
 
 It runs as an [Apache Sling](https://sling.apache.org/) application (OSGi on Apache Felix, with an Apache Jackrabbit Oak content repository), assembled and launched through the Sling Feature Model. The user interface is a React single-page app.
 
+How the platform works, mechanism by mechanism, is documented in **[docs/](./docs/README.md)**. This file covers building, running and deploying an instance.
+
 ## Prerequisites
 
 - **Java 21**
