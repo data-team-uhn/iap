@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:TagDefinition",
+  "jcr:primaryType": "tag:Definition",
   "label": "Urgent",
   "description": "The time off asked for starts today or tomorrow, so whoever has to decide this has hours rather than days.",
   "category": ["priority"],

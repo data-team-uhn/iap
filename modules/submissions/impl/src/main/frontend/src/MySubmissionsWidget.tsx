@@ -54,7 +54,7 @@ interface MySubmissionsWidgetProps {
 // The dashboard widget listing the current user's own submissions, newest activity first,
 // registered on the `iap/dashboard/widget` extension point.
 //
-// It draws its own header — the extension asks the dashboard for `iap:widgetHideHeader` — so that
+// It draws its own header — the extension asks the dashboard for `ext:widgetHideHeader` — so that
 // the action for raising a submission sits on the title's line, where it reads as something the
 // widget offers, rather than floating in a band of its own above the table. Title and subtitle
 // still come from the extension, so they are declared in exactly one place.
@@ -101,11 +101,11 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           {/* Only when there is one: an empty heading is markup a screen reader still announces */}
-          { text(extension, "iap:extensionName") && (
-            <Typography variant="h6">{text(extension, "iap:extensionName")}</Typography>
+          { text(extension, "ext:name") && (
+            <Typography variant="h6">{text(extension, "ext:name")}</Typography>
           ) }
-          { text(extension, "iap:subtitle") && (
-            <Typography variant="body2" color="text.secondary">{text(extension, "iap:subtitle")}</Typography>
+          { text(extension, "ext:subtitle") && (
+            <Typography variant="body2" color="text.secondary">{text(extension, "ext:subtitle")}</Typography>
           ) }
         </Box>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>

@@ -2134,7 +2134,7 @@
               <!-- Both hierarchy roots belong in this list as well as in the one below: with tests compiled
                    they read as used only by tests, and with tests skipped they read as unused outright, so a
                    build that skips tests needs the same reconciliation -->
-              <ignoredUnusedDeclaredDependency>io.uhndata.iap:iap-data-model-entities-api</ignoredUnusedDeclaredDependency>
+              <ignoredUnusedDeclaredDependency>io.uhndata.iap:iap-data-entities-api</ignoredUnusedDeclaredDependency>
             </ignoredUnusedDeclaredDependencies>
             <ignoredNonTestScopedDependencies>
               <!-- Models extending Entity inherit from Content without referencing it directly in main code,
