@@ -1,0 +1,3 @@
+Your time off request "${subjectTitle}" was not approved.
+
+You can read it at ${subjectPath}.
