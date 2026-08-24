@@ -9,6 +9,12 @@ mvn clean install -Pdocker              # developer flavor: small and fast
 mvn clean install -Pdocker,production   # production flavor: fully self-contained
 ```
 
+Running the image on its own is only ever half a deployment: it still needs a database to store
+the repository in, an identity provider to sign people in, and somewhere for its mail to go.
+`tools/deploy/generate_compose.py` writes a Docker Compose file with the image and whichever of
+those are wanted, already wired together — see `tools/deploy/README.md`. The environment variables
+it sets are the ones documented below.
+
 ## How the image works
 
 The container starts the Sling Feature Launcher on the aggregated feature

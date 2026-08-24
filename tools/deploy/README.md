@@ -1,0 +1,134 @@
+# Deploying IAP with the services it talks to
+
+`generate_compose.py` writes a Docker Compose file running the IAP container together with
+whatever it needs to talk to — a database, an identity provider, a mail server. It needs
+Python 3 and nothing else; the file it writes is commented and meant to be
+edited afterwards, so the generator is a starting point rather than something to keep in the loop.
+
+```bash
+# The simplest thing that runs: repository on the container filesystem, nothing else
+python3 generate_compose.py
+docker compose up -d
+
+# A realistic deployment: PostgreSQL for storage, Keycloak for sign-in
+python3 generate_compose.py --storage postgres --keycloak
+
+# Everything a developer might want to poke at
+python3 generate_compose.py --storage postgres --keycloak --mail --dev --debug
+```
+
+Each run rewrites `docker-compose.yml` in this directory. Stop and clean up with
+`docker compose down`, or `docker compose down -v` to discard the repository along with it.
+
+## What the options do
+
+Every option chooses **a container to run alongside IAP**, and sets the environment variables IAP
+needs to reach it.
+
+| Option | Adds | Wires IAP to it with |
+| --- | --- | --- |
+| `--storage tar` (default) | nothing — the repository lives in the container | `OAK_STORAGE=tar` |
+| `--storage postgres` | a PostgreSQL container | `OAK_STORAGE=rdb`, `EXTERNAL_RDB_URI`, `RDB_USER`, `RDB_PASSWORD` |
+| `--storage mongo` | a MongoDB container | `OAK_STORAGE=mongo`, `EXTERNAL_MONGO_URI`, `CUSTOM_MONGO_DB_NAME` |
+| `--keycloak` | a Keycloak container | the two realm URLs, `KEYCLOAK_CLIENT_ID`/`SECRET`, `IAP_PUBLIC_URL` |
+| `--mail` | an SMTPS server that files messages away | `SMTPS_LOCAL_TEST_CONTAINER`, and the certificate to trust |
+
+The rest only describe the IAP container itself: `--image` (default `iap/iap`), `--port` (default
+8080), `--dev` to mount `~/.m2` read-only, as the developer flavour of the image needs in order to
+resolve third-party artifacts, `--debug` to publish the JDWP port, and `--output` to write the file
+somewhere other than here.
+
+## Storage
+
+`tar` keeps the repository in the container's own filesystem, on a Docker volume. It needs no
+second container and is the right choice for trying something out.
+
+`postgres` and `mongo` are document stores, and both carry a wrinkle the generated file handles for
+you:
+
+- **PostgreSQL must use `C` collation.** Oak orders node ids by Unicode code point, so a locale
+  collation — including the `en_US.utf8` the official image would otherwise pick — appears to work
+  until the first restart and then wedges the instance for good. The generated file passes
+  `POSTGRES_INITDB_ARGS=--encoding=UTF8 --lc-collate=C --lc-ctype=C`, and IAP's entrypoint refuses
+  to launch against a database that got it wrong. Collation is fixed when the database is created,
+  so correcting it means `docker compose down -v` and starting over.
+- **A restart has to reclaim its cluster node.** Both stores identify a cluster node by hardware
+  address, which a container changes on every run, so a quick restart would otherwise strand the
+  old entry as permanently active. The generated file sets `OAK_MACHINE_ID` to pin it. That is only
+  safe because this file runs exactly one instance — see `docs/docker.md` before copying it into
+  anything that runs several.
+
+IAP does not start until the database reports healthy, because the entrypoint checks the collation
+before launching and needs something to connect to.
+
+## Keycloak
+
+Keycloak has to be running before its realm can be created, so this one is a two-step affair:
+
+```bash
+python3 generate_compose.py --storage postgres --keycloak
+docker compose up -d keycloak
+ENV_FILE=$PWD/.env ../dev/keycloak/keycloak_setup.sh --write-env
+docker compose up -d
+```
+
+`keycloak_setup.sh` (in `tools/dev/keycloak/`) creates the realm, the client and the roles,
+then writes the client id and secret into `.env`, which Compose reads by itself. The secret
+stays out of `docker-compose.yml` so the generated file can be shared without leaking it. Until
+that step has run, IAP starts but no one can sign in.
+
+The two realm URLs differ on purpose: IAP resolves `keycloak:8080` inside the Docker network, while
+the browser is redirected to the published `localhost:8084`. `docs/keycloak-oidc.md` explains the
+front/back-channel split in full.
+
+## Mail
+
+`--mail` adds a small SMTPS server (`mailcatcher/`) that writes every message it is handed into
+`./mail` as an `.eml` file instead of delivering it. Nothing leaves the machine, which is the
+point.
+
+The server is about a hundred lines of standard-library Python: it accepts any credentials,
+says yes to everything, and files the result away. That also makes it something to keep well away
+from any machine that is not a development one.
+
+The generator creates a self-signed certificate under `SSL_CONFIG/` on first use and never
+regenerates it. The certificate is mounted into the IAP container at `/load_certs`, where the
+entrypoint imports it into Java's truststore; the private key goes only to the mail server.
+
+To send something through it:
+
+```bash
+curl -u admin:admin \
+  "http://localhost:8080/content.emailtest.html?fromEmail=iap@example.org&fromName=IAP&toEmail=you@example.org&toName=You"
+ls mail/
+```
+
+**Read the files, not the response.** IAP hands a message to a thread pool and answers `200`
+whether or not it was ever built and sent, so an empty `mail/` is the only way to find out that
+mail is broken. `docker compose logs smtps_test_container` names each message as it arrives.
+
+## What was left behind
+
+This is a slimmed-down port of
+[cards-deploy-tool](https://github.com/data-team-uhn/cards-deploy-tool). Most of what that tool
+does has no counterpart here:
+
+- **MS SQL, for Clarity imports.** IAP has no Clarity integration and no relational-import module
+  at all, so the container would have had nothing to connect to. Worth revisiting if one is ever
+  written.
+- **Adminer, the web database browser.** With no external database for IAP to talk to, the only
+  thing left to point it at was Oak's own tables, which are not meant to be read by hand. Left out
+  until there is a database worth browsing; `docker compose exec postgres psql -U iap` covers the
+  occasional look in the meantime.
+- **MongoDB shards and replicas, Percona, encryption at rest, Vault.** A cluster is a production
+  concern, and IAP has no production deployment yet to shape it.
+- **The SSL/SAML reverse proxy, the split admin/user ports, the forward proxy.** IAP authenticates
+  through OIDC rather than SAML, and terminating TLS is the job of whatever fronts a real
+  deployment.
+- **MinIO/S3, NeuralCR, the backup recorder, Slack performance webhooks.** No module reads any of
+  them. Chat notifications are configured in the repository, not through the container — see
+  `docs/notifications.md`.
+
+These were dropped because nothing in IAP consumes them today, not because they were bad ideas.
+Adding one back means adding the container *and* the environment variables IAP would read it
+through — and `packaging/docker/docker_entry.sh` is where the second half lives.

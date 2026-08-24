@@ -1,0 +1,6 @@
+# Everything generate_compose.py produces: the Compose file itself, the secrets Compose reads
+# alongside it, the mail server's certificate and key, and the messages it catches.
+/docker-compose.yml
+/.env
+/SSL_CONFIG/
+/mail/
