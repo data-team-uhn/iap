@@ -19,34 +19,22 @@ package io.uhndata.iap.deletion.scripting;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Map;
 
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-import javax.script.Bindings;
+import javax.annotation.PostConstruct;
 
 import jakarta.servlet.RequestDispatcher;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
-import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.api.scripting.SlingBindings;
-import org.apache.sling.api.scripting.SlingScriptHelper;
-import org.apache.sling.scripting.sightly.pojo.Use;
-import org.jetbrains.annotations.NotNull;
+import org.apache.sling.models.annotations.DefaultInjectionStrategy;
+import org.apache.sling.models.annotations.Model;
+import org.apache.sling.models.annotations.injectorspecific.OSGiService;
+import org.apache.sling.models.annotations.injectorspecific.Self;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.deletion.internal.DeletedPathLookup;
-import io.uhndata.iap.deletion.internal.DeletionServiceImpl;
-import io.uhndata.iap.errortracking.api.ErrorContext;
-import io.uhndata.iap.errortracking.api.ErrorLogger;
-import io.uhndata.iap.utils.DateUtils;
-
 /**
- * A HTL Use-API for the 404 page: it answers "was something that used to live here deleted?" about the path the
+ * A HTL helper for the 404 page: it answers "was something that used to live here deleted?" about the path the
  * request was for, so that a dead link can say the resource was deleted rather than that it never existed. To use
  * it, place the following in the error handler HTL file:
  *
@@ -58,40 +46,40 @@ import io.uhndata.iap.utils.DateUtils;
  *
  * <p>
  * The page renders the answer into the markup it was already sending, so a reader who followed a dead link is told
- * what became of it in the first response rather than after a second round trip. Every getter here is
- * {@code null} when there is nothing to say, which is what HTL needs to leave the attribute carrying it out of the
- * markup altogether.
+ * what became of it in the first response rather than after a second round trip. Every getter here is {@code null}
+ * when there is nothing to say, which is what HTL needs to leave the attribute carrying it out of the markup
+ * altogether.
  * </p>
  *
  * <p>
- * What it discloses is deliberately narrow. <b>Any authenticated reader</b> is told that the path was deleted and
- * when. Anonymous readers never arrive here — the platform requires authentication for everything outside a small
- * allowlist, so a logged-out request for content is redirected to the login page and never reaches a 404 — which
- * is what keeps this from announcing to the world that a path once existed. What is disclosed to a reader who
- * could not have read the resource is a date, and the fact that a path they had to know in advance was once in use.
+ * A <b>Sling Model</b> rather than a {@code Use} POJO, and that is not a stylistic choice: a model's
+ * {@code @OSGiService} field is injected on behalf of the bundle declaring the model, whereas a POJO reaching for
+ * the same service through its script's {@code sling} binding asks on behalf of
+ * {@code org.apache.sling.scripting.core} — which is wired to neither this package nor the service user this
+ * lookup needs. HTL is happy either way: its {@code JavaUseProvider} adapts a model from the request before it
+ * ever considers the {@code Use} interface.
  * </p>
  *
  * <p>
- * <b>A reader who can read the archive entry</b> — administrators — additionally learns who deleted it and
- * where to look at it. The test is a plain read through the requester's own session, so it is the repository's
- * answer rather than a second, parallel notion of who may see the archive. Nothing here offers to restore
- * anything: the entry's own page already states what a restore or a purge would do before either is attempted,
- * and that is where the decision belongs.
+ * The reading of the archive, and the decision about how much of it this reader may be told, belong to
+ * {@link DeletedPathDisclosure}. What is left here is the request: which path was asked for, and how to say the
+ * answer.
  * </p>
  *
  * @version $Id$
  * @since 0.1.0
  */
-public class DeletionMetadata implements Use
+@Model(adaptables = SlingJakartaHttpServletRequest.class,
+    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
+public class DeletionMetadata
 {
-    /**
-     * Where the archive browser shows one entry. The console route and the repository path parted company on
-     * purpose, so this is not derivable from {@code DeletionService.ARCHIVE_PATH}; it is the {@code ext:targetURL}
-     * of {@code Extensions/Admin/Views/ArchiveEntry.json}, and has to move with it.
-     */
-    static final String ENTRY_ROUTE = "/admin/archive/";
-
     private static final Logger LOGGER = LoggerFactory.getLogger(DeletionMetadata.class);
+
+    @Self
+    private SlingJakartaHttpServletRequest request;
+
+    @OSGiService
+    private DeletedPathDisclosure disclosure;
 
     private String deletedAt;
 
@@ -99,34 +87,24 @@ public class DeletionMetadata implements Use
 
     private String entryUrl;
 
-    @Override
-    public void init(@NotNull final Bindings bindings)
+    @PostConstruct
+    protected void init()
     {
-        final SlingJakartaHttpServletRequest request = (SlingJakartaHttpServletRequest) bindings.get("jakartaRequest");
-        final SlingScriptHelper sling = (SlingScriptHelper) bindings.get(SlingBindings.SLING);
-        final String path = requestedPath(request);
+        final String path = requestedPath(this.request);
         if (path == null) {
             return;
         }
-        final ResourceResolverFactory factory = sling.getService(ResourceResolverFactory.class);
-        if (factory == null) {
-            // An error page is the worst place to raise an error of its own, so a platform missing the service
-            // every other part of it depends on still gets a plain, working 404
-            LOGGER.warn("Cannot look up whether {} was deleted: there is no resource resolver factory", path);
+        if (this.disclosure == null) {
+            // An error page is the worst place to raise an error of its own, so a platform whose deletion module
+            // is not running still gets a plain, working 404
+            LOGGER.warn("Cannot look up whether {} was deleted: the deletion module is not available", path);
             return;
         }
-        try (ResourceResolver serviceResolver = factory
-            .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, DeletionServiceImpl.SUBSERVICE))) {
-            final Session serviceSession = serviceResolver.adaptTo(Session.class);
-            if (serviceSession == null) {
-                throw new RepositoryException("The deletion service resolver is not backed by a repository session");
-            }
-            DeletedPathLookup.find(serviceSession, path).ifPresent(archived -> describe(archived, request));
-        } catch (final LoginException | RepositoryException e) {
-            // The page falls back to a plain "does not exist", so this failure is invisible to the reader — an
-            // administrator only finds out if it is recorded here
-            LOGGER.warn("Failed to look up whether {} was deleted: {}", path, e.getMessage(), e);
-            ErrorLogger.logError(e, ErrorContext.of(DeletionMetadata.class, "deletedPathLookup").about(path));
+        final DeletedPathDisclosure.Disclosure told = this.disclosure.describe(this.request, path);
+        if (told != null) {
+            this.deletedAt = told.deletedAt();
+            this.deletedBy = told.deletedBy();
+            this.entryUrl = told.entryUrl();
         }
     }
 
@@ -169,8 +147,8 @@ public class DeletionMetadata implements Use
      * <p>
      * An error handler runs on the request that failed, so the path is the one the error dispatch recorded rather
      * than anything the page has to be told: no query parameter carries it, and so nothing has to encode it to get
-     * it here. What arrives is a request URI — percent-encoded, and still carrying whatever selectors and
-     * extension the reader's link had on it, which is what {@code DeletedPathLookup} peels apart.
+     * here. What arrives is a request URI — percent-encoded, and still carrying whatever selectors and extension
+     * the reader's link had on it, which is what {@code DeletedPathLookup} peels apart.
      * </p>
      *
      * <p>
@@ -198,22 +176,6 @@ public class DeletionMetadata implements Use
             // Not a path anything could ever have been archived at, so there is nothing to look up and nothing
             // worth recording
             return null;
-        }
-    }
-
-    /**
-     * Record what a reader is allowed to learn about one deletion. Words are left to the page — this says what
-     * happened, not how to phrase it.
-     *
-     * @param archived the deletion that took the requested path away
-     * @param request the request the error handler is running on, whose own session decides what may be disclosed
-     */
-    private void describe(final DeletedPathLookup.Archived archived, final SlingJakartaHttpServletRequest request)
-    {
-        this.deletedAt = DateUtils.toString(archived.deletedAt());
-        if (request.getResourceResolver().getResource(archived.entryPath()) != null) {
-            this.deletedBy = archived.deletedBy();
-            this.entryUrl = ENTRY_ROUTE + archived.entryName();
         }
     }
 }
