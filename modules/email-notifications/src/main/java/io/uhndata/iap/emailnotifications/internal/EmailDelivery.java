@@ -125,7 +125,14 @@ public class EmailDelivery implements NotificationDelivery
             final Email email = template.getEmailBuilder(variables(notification))
                 .withRecipient(address, recipient.name())
                 .build();
-            EmailUtils.sendHtmlEmail(email, this.mailService);
+            // Whichever the template actually has. Always sending as HTML would refuse a plain-text-only
+            // template — and refuse it quietly, since the caller is a workflow that carries on regardless, so
+            // the wording an author wrote would simply never arrive.
+            if (email.getHtmlBody() == null) {
+                EmailUtils.sendTextEmail(email, this.mailService);
+            } else {
+                EmailUtils.sendHtmlEmail(email, this.mailService);
+            }
             LOGGER.info("Emailed the {} notification about {} to {}", notification.getEvent(),
                 subject.getPath(), recipient.userId());
             return true;
