@@ -17,8 +17,9 @@ python3 generate_compose.py --storage postgres --keycloak
 python3 generate_compose.py --storage postgres --keycloak --mail --dev --debug
 ```
 
-Each run rewrites `docker-compose.yml` in this directory. Stop and clean up with
-`docker compose down`, or `docker compose down -v` to discard the repository along with it.
+Each run rewrites `docker-compose.yml` in this directory. `docker compose down` stops everything
+and keeps the repository; `./cleanup.sh` throws the whole thing away and leaves the directory as
+git has it.
 
 ## What the options do
 
@@ -124,6 +125,31 @@ ls mail/
 **Read the files, not the response.** IAP hands a message to a thread pool and answers `200`
 whether or not it was ever built and sent, so an empty `mail/` is the only way to find out that
 mail is broken. `docker compose logs smtps_test_container` names each message as it arrives.
+
+## Cleaning up
+
+`docker compose down` stops the containers and keeps everything else, which is what you want
+between runs — the repository survives, so the next `up` carries on where it left off.
+
+`./cleanup.sh` is for when you want none of it any more:
+
+```bash
+./cleanup.sh              # asks first
+./cleanup.sh --yes        # does not
+./cleanup.sh --yes ../..  # for a Compose file written elsewhere with --output
+```
+
+It removes the containers and the network, the volumes holding the repository, the image built
+for the mail server, and then the generated files — `docker-compose.yml`, `.env`, `SSL_CONFIG/`
+and `mail/`. Pulled images like `postgres` and `iap/iap` are left alone; they are shared with
+everything else on the machine and cost nothing to keep.
+
+What is left is a directory holding only what git tracks, so the next `generate_compose.py` starts
+from nothing — including a new mail certificate and, if Keycloak is in use, a realm that has to be
+set up again.
+
+It is safe to run when there is nothing to do, and on a machine without Docker it removes the
+files and says which containers it could not reach.
 
 ## What was left behind
 
