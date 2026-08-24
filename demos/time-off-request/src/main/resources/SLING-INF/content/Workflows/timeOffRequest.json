@@ -127,7 +127,7 @@
       "toApproved": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toApproved",
-        "targetRef": "requestApproved",
+        "targetRef": "notifyApproved",
         // The same structured condition mechanism a schema item uses to say when it applies, asked here of the
         // running instance: the `variable` operand source reads what the execution knows, and what it knows at
         // this point is the outcome the approver recorded when they completed their task.
@@ -148,8 +148,46 @@
       "toRejected": {
         "jcr:primaryType": "wf:SequenceFlow",
         "elementId": "toRejected",
-        "targetRef": "requestRejected",
+        "targetRef": "notifyRejected",
         "isDefault": true
+      }
+    },
+    // Telling the requester is a step of the process, not a side effect of one: it is on the diagram, it can be
+    // moved or removed by whoever draws it, and what it says lives in a template rather than in Java. Both of
+    // these name the same handler - what differs is the wording and the audience, which is the whole point of
+    // there being one notification action rather than one per message.
+    "notifyApproved": {
+      "jcr:primaryType": "wf:ServiceTask",
+      "elementId": "notifyApproved",
+      "label": "Tell them it was approved",
+      "handler": "notify",
+      "event": "approved",
+      "template": "/libs/iap/mailTemplates/timeOffApproved",
+      // The same role vocabulary the performers use, so `@creator` means the same person in both places
+      "notify": [ "@creator" ],
+      // A decision is worth interrupting somebody for; a reply to a comment would not be
+      "urgency": "immediate",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toApprovedEnd": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApprovedEnd",
+        "targetRef": "requestApproved"
+      }
+    },
+    "notifyRejected": {
+      "jcr:primaryType": "wf:ServiceTask",
+      "elementId": "notifyRejected",
+      "label": "Tell them it was refused",
+      "handler": "notify",
+      "event": "rejected",
+      "template": "/libs/iap/mailTemplates/timeOffRejected",
+      "notify": [ "@creator" ],
+      "urgency": "immediate",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toRejectedEnd": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejectedEnd",
+        "targetRef": "requestRejected"
       }
     },
     "requestApproved": {

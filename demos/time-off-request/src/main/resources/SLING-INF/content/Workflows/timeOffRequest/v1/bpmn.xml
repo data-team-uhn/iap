@@ -77,7 +77,7 @@
       <bpmn:outgoing>toApproved</bpmn:outgoing>
       <bpmn:outgoing>toRejected</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="requestApproved">
+    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="notifyApproved">
       <!-- extensionElements comes first: tBaseElement declares it ahead of anything tSequenceFlow adds. The
            expression below stays as the human-readable form a BPMN tool shows; the subtree here is what the
            engine evaluates, written as JCR System View so the node names, types and the multi-valued operand
@@ -113,12 +113,30 @@
       </bpmn:extensionElements>
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">outcome == 'approved'</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
-    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="requestRejected" />
-    <bpmn:endEvent id="requestApproved" iap:hostTag="approved" name="Time off approved">
+    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="notifyRejected" />
+    <!-- Telling the requester is a step of the process, not a side effect of one: it is on the diagram, whoever
+         draws it can move or remove it, and what it says lives in a template rather than in Java. Both tasks name
+         the same handler - only the wording and the audience differ, which is why there is one notification
+         action rather than one per message. -->
+    <bpmn:serviceTask id="notifyApproved" name="Tell them it was approved" iap:handler="notify"
+        iap:event="approved" iap:template="/libs/iap/mailTemplates/timeOffApproved" iap:notify="@creator"
+        iap:urgency="immediate">
       <bpmn:incoming>toApproved</bpmn:incoming>
+      <bpmn:outgoing>toApprovedEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toApprovedEnd" sourceRef="notifyApproved" targetRef="requestApproved" />
+    <bpmn:serviceTask id="notifyRejected" name="Tell them it was refused" iap:handler="notify"
+        iap:event="rejected" iap:template="/libs/iap/mailTemplates/timeOffRejected" iap:notify="@creator"
+        iap:urgency="immediate">
+      <bpmn:incoming>toRejected</bpmn:incoming>
+      <bpmn:outgoing>toRejectedEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toRejectedEnd" sourceRef="notifyRejected" targetRef="requestRejected" />
+    <bpmn:endEvent id="requestApproved" iap:hostTag="approved" name="Time off approved">
+      <bpmn:incoming>toApprovedEnd</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:endEvent id="requestRejected" iap:hostTag="rejected" name="Time off refused">
-      <bpmn:incoming>toRejected</bpmn:incoming>
+      <bpmn:incoming>toRejectedEnd</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:endEvent id="reminded" name="Reminder sent">
       <bpmn:incoming>toReminded</bpmn:incoming>
@@ -185,16 +203,22 @@
           <dc:Bounds x="704" y="143" width="53" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notifyApprovedShape" bpmnElement="notifyApproved">
+        <dc:Bounds x="790" y="78" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="notifyRejectedShape" bpmnElement="notifyRejected">
+        <dc:Bounds x="790" y="238" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestApprovedShape" bpmnElement="requestApproved">
-        <dc:Bounds x="822" y="100" width="36" height="36" />
+        <dc:Bounds x="940" y="100" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="800" y="143" width="81" height="14" />
+          <dc:Bounds x="918" y="143" width="81" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="requestRejectedShape" bpmnElement="requestRejected">
-        <dc:Bounds x="822" y="260" width="36" height="36" />
+        <dc:Bounds x="940" y="260" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="802" y="303" width="77" height="14" />
+          <dc:Bounds x="920" y="303" width="77" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="toExpiredEdge" bpmnElement="toExpired">
@@ -220,12 +244,20 @@
       <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
         <di:waypoint x="730" y="173" />
         <di:waypoint x="730" y="118" />
-        <di:waypoint x="822" y="118" />
+        <di:waypoint x="790" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toApprovedEndEdge" bpmnElement="toApprovedEnd">
+        <di:waypoint x="890" y="118" />
+        <di:waypoint x="940" y="118" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
         <di:waypoint x="730" y="223" />
         <di:waypoint x="730" y="278" />
-        <di:waypoint x="822" y="278" />
+        <di:waypoint x="790" y="278" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRejectedEndEdge" bpmnElement="toRejectedEnd">
+        <di:waypoint x="890" y="278" />
+        <di:waypoint x="940" y="278" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
