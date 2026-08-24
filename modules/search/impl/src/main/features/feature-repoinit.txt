@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-create path (iap:Search) /search
+create path (data:Search) /search
 
 # Everybody may run a search; what a search finds is still decided by the access rights of
 # whoever is running it, since the query runs in that user's own session.

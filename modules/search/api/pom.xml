@@ -28,7 +28,7 @@
   <artifactId>iap-search-api</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Search - Definitions, APIs and SPIs</name>
-  <description>The iap:Search nodetype and the quick search extension point.</description>
+  <description>The data:Search nodetype and the quick search extension point.</description>
 
   <build>
     <plugins>
@@ -41,7 +41,7 @@
             <Include-Resource>{maven-resources}</Include-Resource>
             <Sling-Nodetypes>SLING-INF/nodetypes/search.cnd</Sling-Nodetypes>
             <Sling-Initial-Content>
-              SLING-INF/content/libs/iap/Search/;path:=/libs/iap/Search/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/data/Search/;path:=/libs/data/Search/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

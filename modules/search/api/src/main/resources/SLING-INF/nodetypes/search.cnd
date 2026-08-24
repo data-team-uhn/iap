@@ -17,7 +17,7 @@
 //
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 
 //-----------------------------------------------------------------------------
 //
@@ -36,8 +36,8 @@
 //
 //-----------------------------------------------------------------------------
 
-[iap:Search] > sling:Folder
+[data:Search] > sling:Folder
   // Properties:
 
   // Hardcode the resource type, this is what the search servlet is registered on.
-  - sling:resourceType (STRING) = "iap/Search" mandatory autocreated protected
+  - sling:resourceType (STRING) = "data/Search" mandatory autocreated protected

@@ -41,7 +41,7 @@ public final class SearchUtils
      * The property holding the match description on a returned result. Not a real repository property: it is added
      * to the serialized result, alongside the node's own properties.
      */
-    public static final String MATCH_KEY = "iap:queryMatch";
+    public static final String MATCH_KEY = "data:queryMatch";
 
     /** How many characters of context to include on either side of the matched text. */
     private static final int MAX_CONTEXT = 8;

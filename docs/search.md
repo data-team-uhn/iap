@@ -9,8 +9,8 @@ The query runs in the session of whoever sent the request, so a search never rev
 user could not read anyway. It does *not* limit what the query may cost, though — see
 [Unindexed queries](#unindexed-queries).
 
-The endpoint is a plain repository node, `/search`, of type `iap:Search`, world-readable, served by
-`SearchServlet`, registered on the `iap/Search` resource type with the `json` extension. The extension is
+The endpoint is a plain repository node, `/search`, of type `data:Search`, world-readable, served by
+`SearchServlet`, registered on the `data/Search` resource type with the `json` extension. The extension is
 not optional: `/search` without one resolves to the default rendering of the node itself, not to the
 search.
 
@@ -162,7 +162,7 @@ the match:
 ```json
 {
   "…": "the serialized node",
-  "iap:queryMatch": {
+  "data:queryMatch": {
     "label": "Project title",
     "@path": "/Submissions/s1/title",
     "before": "…study of ",
