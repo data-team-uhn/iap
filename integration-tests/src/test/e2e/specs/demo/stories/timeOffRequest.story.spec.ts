@@ -218,8 +218,16 @@ test.describe('a story: asking for time off, and getting it', () => {
       // reading "Search…", so the placeholder alone matches both.
       await page.getByRole('searchbox', { name: 'Search my submissions' }).fill(REQUEST);
 
+      // Wait for the search to have happened before clicking what it found. Filtering is server-side
+      // and debounced, so typing and clicking with nothing in between races the re-fetch: the row
+      // under the cursor may be the unfiltered list's, or one being re-rendered out from under it.
+      // Asserting the count is what makes the wait explicit, and says the search worked at the same
+      // time.
+      const row = page.getByRole('row', { name: new RegExp(REQUEST) });
+      await expect(row).toHaveCount(1);
+
       // Scoped to a row, which is also what keeps it off the box she just typed the title into
-      await page.getByRole('row', { name: new RegExp(REQUEST) }).getByText(REQUEST).click();
+      await row.getByText(REQUEST).click();
 
       await expect(page.getByRole('heading', { name: REQUEST })).toBeVisible();
       await expect(page.getByText('Approved')).toBeVisible();
