@@ -49,6 +49,7 @@
               SLING-INF/content/Workflows;path:=/Workflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
               SLING-INF/content/Schemas;path:=/Schemas;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
               SLING-INF/content/Tags;path:=/Tags;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/mailTemplates;path:=/libs/iap/mailTemplates;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
