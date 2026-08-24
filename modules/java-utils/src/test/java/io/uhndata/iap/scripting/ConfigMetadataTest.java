@@ -59,7 +59,8 @@ class ConfigMetadataTest
     @Test
     void collectsPropertiesFromConfRoot()
     {
-        this.context.create().resource("/libs/iap/conf", Map.of("themeColor", "blue"));
+        this.context.create().resource("/libs/iap/conf",
+            Map.of("sling:resourceType", "app/Configuration", "themeColor", "blue"));
         final Resource resource = this.context.create().resource("/content/page");
 
         final ConfigMetadata config = resource.adaptTo(ConfigMetadata.class);
@@ -70,8 +71,10 @@ class ConfigMetadataTest
     @Test
     void collectsPropertiesFromNestedNodesIntoAFlatMap()
     {
-        this.context.create().resource("/libs/iap/conf/Version", Map.of("version", "1.0.0"));
-        this.context.create().resource("/libs/iap/conf/Media", Map.of("logoDark", "/logo.png"));
+        this.context.create().resource("/libs/iap/conf/Version",
+            Map.of("sling:resourceType", "app/Configuration", "version", "1.0.0"));
+        this.context.create().resource("/libs/iap/conf/Media",
+            Map.of("sling:resourceType", "app/Configuration", "logoDark", "/logo.png"));
         final Resource resource = this.context.create().resource("/content/page");
 
         final Map<String, String> properties = resource.adaptTo(ConfigMetadata.class).getProperties();
@@ -81,16 +84,19 @@ class ConfigMetadataTest
     }
 
     @Test
-    void excludesJcrPrefixedProperties()
+    void excludesNamespacedProperties()
     {
+        // The sling: pair is what app:Configuration autocreates on every node in the tree, so it is present on
+        // real configuration and would otherwise be rendered as two meta tags on every page.
         this.context.create().resource("/libs/iap/conf/Version",
-            Map.of("jcr:primaryType", "nt:unstructured", "version", "1.0.0"));
+            Map.of("jcr:primaryType", "app:Configuration", "sling:resourceType", "app/Configuration",
+                "sling:resourceSuperType", "data/Content", "version", "1.0.0"));
         final Resource resource = this.context.create().resource("/content/page");
 
         final Map<String, String> properties = resource.adaptTo(ConfigMetadata.class).getProperties();
 
         assertEquals("1.0.0", properties.get("version"));
-        assertTrue(properties.keySet().stream().noneMatch(name -> name.startsWith("jcr:")));
+        assertTrue(properties.keySet().stream().noneMatch(name -> name.contains(":")));
     }
 
     @Test

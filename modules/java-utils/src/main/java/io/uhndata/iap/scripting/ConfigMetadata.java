@@ -36,8 +36,8 @@ import org.jetbrains.annotations.NotNull;
  * A Sling Model that gathers all the metadata to be exposed as {@code <meta>} tags in the HTML source.
  *
  * <p>
- * This automatically collects every property, from every node in the {@code /libs/iap/conf} tree, into a single flat
- * map. Properties in the {@code jcr:} namespace, and blank properties, are skipped. As a Sling Model, it can be adapted
+ * This automatically collects every property, from every {@code app:Configuration} node in the {@code /libs/iap/conf}
+ * tree, into a single flat map. Namespaced properties, and blank ones, are skipped. As a Sling Model, it can be adapted
  * from any {@code Resource}, in HTL as well as in Java or ESP code. For example, to use from HTL:
  * </p>
  *
@@ -60,6 +60,9 @@ public class ConfigMetadata
     /** The JCR node under which all the config nodes to be collected live. */
     public static final String CONF_ROOT = "/libs/iap/conf";
 
+    /** The JCR node under which all the config nodes to be collected live. */
+    public static final String CONF_RESOURCE_TYPE = "app/Configuration";
+
     @SlingObject
     private ResourceResolver resourceResolver;
 
@@ -77,15 +80,20 @@ public class ConfigMetadata
 
     private void collect(final Resource resource, final Map<String, String> out)
     {
-        final ValueMap values = resource.getValueMap();
-        for (Map.Entry<String, Object> entry : values.entrySet()) {
-            final String name = entry.getKey();
-            if (name.startsWith("jcr:")) {
-                continue;
-            }
-            final String value = values.get(name, String.class);
-            if (StringUtils.isNotBlank(value)) {
-                out.put(name, value);
+        if (resource.isResourceType(CONF_RESOURCE_TYPE)) {
+            final ValueMap values = resource.getValueMap();
+            for (Map.Entry<String, Object> entry : values.entrySet()) {
+                final String name = entry.getKey();
+                // A namespaced name is machinery, not configuration: jcr:created and the sling:resourceType pair that
+                // app:Configuration autocreates would otherwise reach the page as meta tags. The configuration
+                // vocabulary is deliberately unprefixed, so this needs no list of namespaces to keep up to date.
+                if (name.indexOf(':') >= 0) {
+                    continue;
+                }
+                final String value = values.get(name, String.class);
+                if (StringUtils.isNotBlank(value)) {
+                    out.put(name, value);
+                }
             }
         }
         for (Resource child : resource.getChildren()) {

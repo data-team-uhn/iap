@@ -37,3 +37,18 @@
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
   // Set a default title
   - title (String) = "${platform.name}" mandatory autocreated
+
+//-----------------------------------------------------------------------------
+// A node holding platform configuration, delivered to the browser as <meta>
+// tags: everything under /libs/iap/conf, flattened into one map by
+// ConfigMetadata and rendered by the shared page header.
+[app:Configuration] > sling:Folder
+  // Attributes:
+  // We can look configuration up in a query
+  query
+
+  // Properties:
+  // Hardcode the resource type
+  - sling:resourceType (STRING) = "app/Configuration" mandatory autocreated protected
+  // Hardcode the resource supertype: configuration is plain content
+  - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected
