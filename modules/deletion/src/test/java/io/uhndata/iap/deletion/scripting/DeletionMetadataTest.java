@@ -17,44 +17,31 @@
  */
 package io.uhndata.iap.deletion.scripting;
 
+import java.util.ArrayList;
 import java.util.List;
-
-import javax.jcr.Node;
-import javax.jcr.Session;
-import javax.script.Bindings;
-import javax.script.SimpleBindings;
 
 import jakarta.servlet.RequestDispatcher;
 
-import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
-import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.api.scripting.SlingBindings;
-import org.apache.sling.api.scripting.SlingScriptHelper;
-import org.apache.sling.api.wrappers.ResourceResolverWrapper;
-import org.apache.sling.testing.mock.sling.NodeTypeDefinitionScanner;
-import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
-import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
-import io.uhndata.iap.deletion.internal.TestResolverFactory;
-import io.uhndata.iap.utils.DateUtils;
+import io.uhndata.iap.deletion.scripting.DeletedPathDisclosure.Disclosure;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link DeletionMetadata}.
  *
  * <p>
- * The two disclosure levels differ only in whether the requester's own resolver can read the archive entry, so the
- * privileged case is the plain test resolver and the ordinary case is a wrapper that hides the archive from it —
- * which is exactly what the repository does to everyone who has not been granted it.
+ * What is left in this class once the archive is somebody else's problem is the request: which path the error
+ * dispatch was about, and how the answer reaches the page. The disclosure service is therefore a stand-in that
+ * records what it was asked about, which is what the encoding tests assert against.
  * </p>
  *
  * @version $Id$
@@ -62,75 +49,43 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @ExtendWith(SlingContextExtension.class)
 class DeletionMetadataTest
 {
-    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
+    private static final Disclosure DELETED = new Disclosure("2026-08-20T14:00:00.000-04:00", "alice",
+        "/admin/archive/one");
 
-    private Session session;
+    private final SlingContext context = new SlingContext();
 
-    private ResourceResolverFactory serviceFactory;
+    /** The paths the page asked the archive about, in order. */
+    private final List<String> asked = new ArrayList<>();
 
     @BeforeEach
-    void setup() throws Exception
+    void setup()
     {
-        this.session = this.context.resourceResolver().adaptTo(Session.class);
-        NodeTypeDefinitionScanner.get().register(this.session, List.of("SLING-INF/nodetypes/deletion.cnd"),
-            ResourceResolverType.JCR_OAK.getNodeTypeMode());
-        this.session.getRootNode().addNode("Archive", "del:Archive");
-        this.session.save();
-        this.serviceFactory = new TestResolverFactory(this.context.resourceResolver());
+        this.context.addModelsForClasses(DeletionMetadata.class);
     }
 
-    private Node entry(final String name, final String deletedBy, final String originalPath) throws Exception
+    /** Register a stand-in archive that always answers the same way, and records what it was asked. */
+    private void serving(final Disclosure answer)
     {
-        final Node bucket = this.session.nodeExists("/Archive/ab")
-            ? this.session.getNode("/Archive/ab")
-            : this.session.getNode("/Archive").addNode("ab", "del:Archive");
-        final Node entry = bucket.addNode(name, "del:ArchiveEntry");
-        entry.setProperty("deletedBy", deletedBy);
-        entry.setProperty("requestedPath", originalPath);
-        entry.addNode("item", "del:DeletedItem").setProperty("originalPath", originalPath);
-        this.session.save();
-        return entry;
-    }
-
-    /** A reader who can read the archive: the test's own resolver, which bypasses access control. */
-    private DeletionMetadata about(final String uri)
-    {
-        return this.about(uri, this.context.resourceResolver());
-    }
-
-    /** A reader the archive is invisible to, which is everyone the archive has not been granted to. */
-    private DeletionMetadata aboutAsOrdinaryUser(final String uri)
-    {
-        return this.about(uri, new ResourceResolverWrapper(this.context.resourceResolver())
-        {
-            @Override
-            public Resource getResource(final String requested)
-            {
-                return requested.startsWith("/Archive") ? null : super.getResource(requested);
-            }
+        this.context.registerService(DeletedPathDisclosure.class, (request, path) -> {
+            this.asked.add(path);
+            return answer;
         });
     }
 
-    private DeletionMetadata about(final String uri, final ResourceResolver resolver)
+    /** Adapt the model the way HTL's provider does, from the request the error handler is running on. */
+    private DeletionMetadata render()
     {
-        final MockSlingJakartaHttpServletRequest request =
-            new MockSlingJakartaHttpServletRequest(resolver, this.context.bundleContext());
-        request.setAttribute(RequestDispatcher.ERROR_REQUEST_URI, uri);
-        return render(request, this.serviceFactory);
+        final DeletionMetadata metadata = this.context.jakartaRequest().adaptTo(DeletionMetadata.class);
+        assertNotNull(metadata, "The model should always be adaptable from a request");
+        return metadata;
     }
 
-    /** Run the helper the way HTL would, over the bindings a script is given. */
-    private static DeletionMetadata render(final MockSlingJakartaHttpServletRequest request,
-        final ResourceResolverFactory factory)
+    /** A request the error dispatch recorded a URI for, which is how a real 404 arrives. */
+    private DeletionMetadata about(final String uri, final Disclosure answer)
     {
-        final SlingScriptHelper sling = Mockito.mock(SlingScriptHelper.class);
-        Mockito.when(sling.getService(ResourceResolverFactory.class)).thenReturn(factory);
-        final Bindings bindings = new SimpleBindings();
-        bindings.put("jakartaRequest", request);
-        bindings.put(SlingBindings.SLING, sling);
-        final DeletionMetadata metadata = new DeletionMetadata();
-        metadata.init(bindings);
-        return metadata;
+        this.serving(answer);
+        this.context.jakartaRequest().setAttribute(RequestDispatcher.ERROR_REQUEST_URI, uri);
+        return this.render();
     }
 
     /** Nothing to say: the three getters a page reads are all absent, so it renders a plain not-found. */
@@ -142,133 +97,98 @@ class DeletionMetadataTest
     }
 
     @Test
-    void aPathNobodyDeletedIsNotReportedAsDeleted() throws Exception
+    void aDeletedPathIsReportedWithEverythingTheReaderMayKnow()
     {
-        this.entry("one", "alice", "/Submissions/one");
+        final DeletionMetadata metadata = this.about("/Submissions/one", DELETED);
 
-        assertSaysNothing(this.about("/Submissions/two"));
-    }
-
-    @Test
-    void anOrdinaryReaderLearnsThatItWasDeletedAndWhen() throws Exception
-    {
-        final Node entry = this.entry("one", "alice", "/Submissions/one");
-
-        final DeletionMetadata metadata = this.aboutAsOrdinaryUser("/Submissions/one");
-
-        assertEquals(DateUtils.toString(entry.getProperty("jcr:created").getDate()), metadata.getDeletedAt());
-        // Who deleted it, and where it now is, are not theirs to know
-        assertNull(metadata.getDeletedBy());
-        assertNull(metadata.getEntryUrl());
-    }
-
-    @Test
-    void aReaderOfTheArchiveAlsoLearnsWhoDeletedItAndWhereToLook() throws Exception
-    {
-        this.entry("one", "alice", "/Submissions/one");
-
-        final DeletionMetadata metadata = this.about("/Submissions/one");
-
+        assertEquals("2026-08-20T14:00:00.000-04:00", metadata.getDeletedAt());
         assertEquals("alice", metadata.getDeletedBy());
         assertEquals("/admin/archive/one", metadata.getEntryUrl());
     }
 
     @Test
-    void theRequestUriIsAskedAboutAsResourceResolutionWouldHaveSplitIt() throws Exception
+    void aReaderWhoMayNotSeeTheArchiveIsToldOnlyWhen()
     {
-        final Node entry = this.entry("one", "alice", "/Submissions/one");
+        final DeletionMetadata metadata =
+            this.about("/Submissions/one", new Disclosure("2026-08-20T14:00:00.000-04:00", null, null));
 
-        assertEquals(DateUtils.toString(entry.getProperty("jcr:created").getDate()),
-            this.about("/Submissions/one.html").getDeletedAt());
+        assertEquals("2026-08-20T14:00:00.000-04:00", metadata.getDeletedAt());
+        assertNull(metadata.getDeletedBy());
+        assertNull(metadata.getEntryUrl());
     }
 
     @Test
-    void aPathInsideADeletedSubtreeIsAnsweredAgainstTheSubtree() throws Exception
+    void aPathNobodyDeletedIsNotReportedAsDeleted()
     {
-        this.entry("one", "alice", "/Submissions/one");
+        assertSaysNothing(this.about("/Submissions/one", null));
 
-        assertEquals("/admin/archive/one", this.about("/Submissions/one/answers/first").getEntryUrl());
+        assertEquals(List.of("/Submissions/one"), this.asked);
     }
 
     @Test
-    void theEncodingTheRequestUriCarriesIsUndone() throws Exception
+    void theEncodingTheRequestUriCarriesIsUndoneBeforeAsking()
     {
         // An error handler is handed the request URI, which is still percent-encoded; no second layer is involved,
         // because nothing had to carry the path through a query string to get here
-        this.entry("one", "alice", "/Submissions/one two");
+        this.about("/Submissions/one%20two", null);
 
-        assertEquals("/admin/archive/one", this.about("/Submissions/one%20two").getEntryUrl());
+        assertEquals(List.of("/Submissions/one two"), this.asked);
     }
 
     @Test
-    void aPlusInAPathIsAPlus() throws Exception
+    void aPlusInAPathIsAPlus()
     {
         // The character the form decoder and the URI decoder disagree about: URLDecoder would read this as a
         // space, and a browser never escapes a + in a path, so a reader cannot escape it for us
-        this.entry("one", "alice", "/Submissions/a+b");
+        this.about("/Submissions/a+b", null);
 
-        assertEquals("/admin/archive/one", this.about("/Submissions/a+b").getEntryUrl());
+        assertEquals(List.of("/Submissions/a+b"), this.asked);
+    }
+
+    @Test
+    void selectorsAndExtensionsAreLeftOnForTheLookupToPeel()
+    {
+        this.about("/Submissions/one.sel.html", null);
+
+        assertEquals(List.of("/Submissions/one.sel.html"), this.asked);
     }
 
     @Test
     void aUriWhoseEscapesAreMalformedIsNotAskedAbout()
     {
-        assertSaysNothing(this.about("/Submissions/%zz"));
+        assertSaysNothing(this.about("/Submissions/%zz", DELETED));
+
+        assertTrue(this.asked.isEmpty());
     }
 
     @Test
     void aUriThatIsNotAnAbsolutePathIsNotAskedAbout()
     {
-        assertSaysNothing(this.about("Submissions/one"));
+        assertSaysNothing(this.about("Submissions/one", DELETED));
+
+        assertTrue(this.asked.isEmpty());
     }
 
     @Test
-    void aDispatchThatRecordedNoUriFallsBackToTheRequestsOwn() throws Exception
+    void aDispatchThatRecordedNoUriFallsBackToTheRequestsOwn()
     {
-        this.entry("one", "alice", "/Submissions/one");
-        final MockSlingJakartaHttpServletRequest request =
-            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
         // A script rendered without an error dispatch: the request's own URI is the one that failed
-        request.setPathInfo("/Submissions/one");
+        this.serving(null);
+        this.context.jakartaRequest().setPathInfo("/Submissions/one");
 
-        assertEquals("/admin/archive/one", render(request, this.serviceFactory).getEntryUrl());
+        this.render();
+
+        assertEquals(List.of("/Submissions/one"), this.asked);
     }
 
     @Test
-    void theRootIsNotAskedAbout()
+    void aPlatformWithoutTheDeletionModuleLeavesThePageAPlainNotFound()
     {
-        // Nothing can have been deleted from above the root, so a 404 on it has no ancestor to ask about
-        assertSaysNothing(this.about("/"));
-    }
+        // No disclosure service registered at all, which is what a distribution without this module looks like
+        this.context.jakartaRequest().setAttribute(RequestDispatcher.ERROR_REQUEST_URI, "/Submissions/one");
 
-    @Test
-    void anUnavailableServiceUserLeavesThePageAPlainNotFound()
-    {
-        this.serviceFactory = new TestResolverFactory(null);
+        assertSaysNothing(this.render());
 
-        assertSaysNothing(this.about("/Submissions/one"));
-    }
-
-    @Test
-    void aServiceResolverWithNoRepositoryBehindItLeavesThePageAPlainNotFound()
-    {
-        this.serviceFactory = new TestResolverFactory(new ResourceResolverWrapper(this.context.resourceResolver())
-        {
-            @Override
-            public <T> T adaptTo(final Class<T> type)
-            {
-                return Session.class.equals(type) ? null : super.adaptTo(type);
-            }
-        });
-
-        assertSaysNothing(this.about("/Submissions/one"));
-    }
-
-    @Test
-    void aPlatformWithNoResolverFactoryLeavesThePageAPlainNotFound()
-    {
-        this.serviceFactory = null;
-
-        assertSaysNothing(this.about("/Submissions/one"));
+        assertTrue(this.asked.isEmpty());
     }
 }
