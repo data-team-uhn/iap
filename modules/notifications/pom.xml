@@ -25,92 +25,48 @@
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-email-notifications</artifactId>
+  <artifactId>iap-notifications</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Email Notifications</name>
-  <description>Sending emails built from templates stored in the repository</description>
-
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.apache.felix</groupId>
-        <artifactId>maven-bundle-plugin</artifactId>
-        <extensions>true</extensions>
-        <configuration>
-          <instructions>
-            <Sling-Nodetypes>SLING-INF/nodetypes/email.cnd</Sling-Nodetypes>
-          </instructions>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
+  <name>IAP - Notifications</name>
+  <description>Telling the people something concerns, by whatever means each of them is reached by: the workflow
+    action, the recipient roles, and the delivery extension point.</description>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API/SPI -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>jakarta.mail</groupId>
-      <artifactId>jakarta.mail-api</artifactId>
-    </dependency>
-    <!-- For the content handlers, which have to be named at compile time inside OSGi; see
-         AngusContentHandlers -->
-    <dependency>
-      <groupId>org.eclipse.angus</groupId>
-      <artifactId>jakarta.mail</artifactId>
-    </dependency>
-    <!-- CommandMap and DataContentHandler, which Jakarta Mail only exposes as return types -->
-    <dependency>
-      <groupId>jakarta.activation</groupId>
-      <artifactId>jakarta.activation-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>jakarta.servlet</groupId>
-      <artifactId>jakarta.servlet-api</artifactId>
     </dependency>
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-jackrabbit-api</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
-    <!-- The delivery extension point this module's email sender implements -->
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-notifications</artifactId>
+      <artifactId>iap-workflows</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.commons.messaging</artifactId>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-content-api</artifactId>
+      <version>${project.version}</version>
     </dependency>
+    <!-- The EntityPart the flow node models extend, which a test adapting one has to register -->
     <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.commons.messaging.mail</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.servlets.annotations</artifactId>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-model-entities-api</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.service.component.annotations</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-lang3</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.commons</groupId>
-      <artifactId>commons-text</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>commons-io</groupId>
-      <artifactId>commons-io</artifactId>
     </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
@@ -132,11 +88,6 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.osgi</groupId>
-      <artifactId>org.osgi.framework</artifactId>
-      <scope>test</scope>
     </dependency>
   </dependencies>
 </project>
