@@ -19,6 +19,7 @@ package io.uhndata.iap.utils;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,6 +55,17 @@ public final class SelectorUtils
      */
     private static final Pattern DEPTH_SELECTOR = Pattern.compile("-?\\d{1,9}");
 
+    /**
+     * Selectors supplied by the request outside its path, set for the duration of one request by
+     * {@code SelectorParameterFilter}.
+     *
+     * <p>
+     * A thread-local rather than a parameter because <b>nothing that reads selectors has the request</b>, and the
+     * {@code resolutionPathInfo} cannot be modified after Sling resolved the request resource.
+     * </p>
+     */
+    private static final ThreadLocal<List<String>> REQUEST_SELECTORS = new ThreadLocal<>();
+
     private SelectorUtils()
     {
         // Prevent instantiation of a utility class
@@ -63,6 +75,12 @@ public final class SelectorUtils
      * Parse a selectors string into a list of selectors. This unescapes the URL-encoded string, and considers escaped
      * dots and escaped backslashes.
      *
+     * <p>
+     * The selectors the current request supplied outside its path, if any, are included as well; see
+     * {@link #setRequestSelectors}. They come last, so a depth or an option given that way overrides one in the
+     * path, which is what an explicit parameter should do.
+     * </p>
+     *
      * @param resolutionPathInfo the resolution path info, as received from Sling, may be URL-encoded
      * @return a list of selectors, dots not included
      */
@@ -70,7 +88,7 @@ public final class SelectorUtils
     public static List<String> parseSelectors(@Nullable final String resolutionPathInfo)
     {
         if (StringUtils.isBlank(resolutionPathInfo)) {
-            return Collections.emptyList();
+            return requestSelectors();
         }
         // Parse the selectors string into individual selectors.
         // Split by unescaped dots. A backslash escapes a dot, but two backslashes are just one escaped backslash.
@@ -84,7 +102,7 @@ public final class SelectorUtils
         // Each backslash, except the \., is escaped twice, once as a special escape char inside a Java string, and
         // once as a special escape char inside a RegExp. The one before the dot is escaped only once as a special
         // char inside a Java string, since it must retain its escaping meaning in the RegExp.
-        return Arrays
+        final List<String> fromPath = Arrays
             .asList(URLDecoder.decode(resolutionPathInfo, StandardCharsets.UTF_8)
                 .split("(?<=([^\\\\]|^)(\\\\\\\\){0,10})\\."))
             .stream()
@@ -101,7 +119,9 @@ public final class SelectorUtils
                 // Finally, unescape escaped backslashes
                 .replace("\\\\", "\\"))
             .filter(StringUtils::isNotBlank)
-            .collect(Collectors.toList());
+            .collect(Collectors.toCollection(ArrayList::new));
+        fromPath.addAll(requestSelectors());
+        return fromPath;
     }
 
     /**
@@ -138,7 +158,7 @@ public final class SelectorUtils
     public static List<Pair<String, String>> parseOptions(@NotNull final String optionPrefix,
         @Nullable final String resolutionPathInfo)
     {
-        if (StringUtils.isAnyBlank(optionPrefix, resolutionPathInfo)) {
+        if (StringUtils.isBlank(optionPrefix)) {
             return Collections.emptyList();
         }
         final String prefix = Strings.CS.appendIfMissing(optionPrefix, ":");
@@ -174,6 +194,36 @@ public final class SelectorUtils
         Map<String, String> result = new HashMap<>();
         allOptions.stream().forEach(pair -> result.put(pair.getKey(), pair.getValue()));
         return result;
+    }
+
+    /**
+     * Record selectors that the current request supplied outside its path, so that every parse during this request
+     * includes them. The caller must {@link #clearRequestSelectors() clear} them when the request ends.
+     *
+     * @param selectors the selectors, each one whole and unescaped; blank ones are ignored
+     */
+    public static void setRequestSelectors(@Nullable final List<String> selectors)
+    {
+        REQUEST_SELECTORS.set(selectors == null ? List.of()
+            : selectors.stream().filter(StringUtils::isNotBlank).collect(Collectors.toList()));
+    }
+
+    /** Forget the selectors recorded for this thread. Must be called when the request ends, or they leak. */
+    public static void clearRequestSelectors()
+    {
+        REQUEST_SELECTORS.remove();
+    }
+
+    /**
+     * The selectors the current request supplied outside its path, empty outside a request that supplied any.
+     *
+     * @return the recorded selectors, never {@code null}
+     */
+    @NotNull
+    private static List<String> requestSelectors()
+    {
+        final List<String> recorded = REQUEST_SELECTORS.get();
+        return recorded == null ? List.of() : recorded;
     }
 
     private static boolean isDepthSelector(final String selector)

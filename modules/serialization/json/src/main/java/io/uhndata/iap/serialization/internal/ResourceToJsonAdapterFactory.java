@@ -66,6 +66,15 @@ import io.uhndata.iap.utils.SelectorUtils;
  * selector the depth is unlimited, so {@code .deep.json} still serializes the whole subtree.
  * </p>
  *
+ * <p>
+ * A selector may also be passed as a {@code selector} <b>query parameter</b>, repeated once per selector:
+ * <code>http://server.example/path/to/resource.json?selector=deep&amp;selector=simple</code> means the same as
+ * {@code .deep.simple.json}. That exists for the selectors a path cannot carry — an option value containing a dot
+ * would have to escape it with a backslash, and Jetty refuses a path containing one, encoded or not, unless the
+ * whole deployment loosens its URI compliance. In the parameter each selector is taken whole, so nothing needs
+ * escaping at all. See {@code SelectorParameterFilter}, which records them for the duration of the request.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
