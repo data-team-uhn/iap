@@ -214,7 +214,7 @@
 // condition compares against, so renaming one changes the meaning of every
 // answer already recorded with it. The label is only what the submitter reads
 // and can be reworded, or translated, without touching anything else.
-[sch:AnswerOption] > iap:EntityPart
+[sch:AnswerOption] > data:EntityPart
   - sling:resourceType (STRING) = "sch/AnswerOption" mandatory autocreated protected
 
   // What an answer picking this option stores

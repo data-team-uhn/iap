@@ -57,14 +57,14 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-model-content-api</artifactId>
+      <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- A Submission is an Entity, so reading one back through the model needs the hierarchy on the
          compile classpath even where this code never names Entity itself -->
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-model-entities-api</artifactId>
+      <artifactId>iap-data-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- The handlers are service tasks the workflow engine calls, and a submission is raised and

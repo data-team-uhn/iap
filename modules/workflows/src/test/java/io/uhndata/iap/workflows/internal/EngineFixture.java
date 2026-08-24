@@ -111,7 +111,7 @@ final class EngineFixture
     /**
      * A stand-in for the tag vocabulary, knowing only the lifecycle states these tests use.
      *
-     * <p>The mock repository holds no {@code iap:TagDefinition} nodes, so the service the {@code Taggable} model
+     * <p>The mock repository holds no {@code tag:Definition} nodes, so the service the {@code Taggable} model
      * reads the vocabulary through is what has to be supplied. It keeps the tags in the node's own {@code tags}
      * property, which is where the real one puts them, so the assertions read the same place production writes.</p>
      *
