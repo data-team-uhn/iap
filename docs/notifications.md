@@ -225,10 +225,15 @@ whether an address was visible to the others is usually the point of looking. At
 stored: what they were is in the headers, and their bytes are not what anybody reads a caught message
 to check.
 
-**It cannot reach production, and not because anything checks.** The feature lives in the `dev` group,
-which only the `test_tar` and `demo_tar` aggregates include; the three production aggregates take
-`core` and nothing else, so a deployable distribution contains no bundle registering it. A bundle
-cannot tell what it was deployed into, so composition is the only place that safeguard can live.
+**It ships everywhere and is inert everywhere, because activating it takes a configuration.** The
+component declares `configurationPolicy = REQUIRE`, so the bundle registers no mail service until one
+exists; the only feature supplying it is `dev/email-catcher-enabled.json`, which the `test_tar` and
+`demo_tar` aggregates include and the three production aggregates do not.
+
+That is deliberately not the same as leaving the bundle out of production. One set of artifacts is
+built rather than two, the difference between environments is a configuration a deployment can read
+back, and catching mail on some new instance is a configuration rather than a rebuild — which is
+exactly what somebody debugging a staging environment would want.
 
 ## Future work
 

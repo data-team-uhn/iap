@@ -14,15 +14,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Files what would have been sent into /CaughtMail instead of delivering it, so that email can be
-// exercised without a mail server. It outranks Sling's own mail service rather than replacing it.
+// Switches the email catcher on. The bundle ships in every distribution and registers nothing until
+// this configuration exists, so this file — included only by the test and demo aggregates — is the
+// whole of the difference between an instance that sends mail and one that files it.
 //
-// This lives in `dev` because that group is included only by the test and demo aggregates: the
-// production ones take `core` and nothing else, so a distribution that could be deployed has no
-// bundle registering a mail service that swallows mail. That composition IS the safeguard — the
-// bundle itself cannot tell what it was deployed into.
+// Empty on purpose: the catcher has nothing to configure, and its presence is the setting. Adding
+// this to a deployment's own feature is how somebody would catch mail on an instance of their own.
 {
-    "prototype":{
-        "id": "${project.groupId}:iap-email-catcher:slingosgifeature:${project.version}"
+    "configurations":{
+        "io.uhndata.iap.emailcatcher.internal.CaughtMailService":{
+        }
     }
 }

@@ -43,6 +43,7 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.messaging.mail.MailService;
 import org.apache.sling.commons.messaging.mail.MessageBuilder;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.ConfigurationPolicy;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,11 +52,11 @@ import org.slf4j.LoggerFactory;
  * A mail service that files what would have been sent, instead of sending it.
  *
  * <p>
- * <strong>This is a development facility and must never reach a production distribution.</strong> Nothing about
- * the bundle enforces that — an OSGi service cannot know what it was deployed into — so it is kept out by
- * composition: the feature declaring it belongs to the {@code dev} group, which only the test and demo aggregates
- * include. A production aggregate has no bundle registering this service, and mail goes wherever it is configured
- * to go.
+ * <strong>This is a development facility, and what keeps it out of the way is configuration.</strong> The
+ * component requires one to activate, and only the test and demo distributions supply it, so the bundle ships
+ * everywhere and registers nothing unless somebody has said it should. That is a better safeguard than leaving
+ * the bundle out of some distributions: there is one set of artifacts rather than two, the difference between
+ * environments is a configuration a deployment can read, and switching it on somewhere new needs no rebuild.
  * </p>
  *
  * <p>
@@ -78,6 +79,9 @@ import org.slf4j.LoggerFactory;
  */
 @Component(
     service = MailService.class,
+    // No configuration, no catcher: this is what keeps a bundle that ships everywhere from swallowing mail
+    // anywhere it was not asked to
+    configurationPolicy = ConfigurationPolicy.REQUIRE,
     // Above Sling's own mail service, which registers without one and so ranks at zero
     property = { "service.ranking:Integer=1000" })
 public class CaughtMailService implements MailService
