@@ -203,7 +203,7 @@ class AnswerOperandResolverTest
     @Test
     void reachesTheRequestFromInsideItsWorkflow()
     {
-        // The gap this boundary was changed for. A workflow instance is an iap:Entity and holds no answers, so
+        // The gap this boundary was changed for. A workflow instance is a data:Entity and holds no answers, so
         // stopping at the first entity stopped a gateway guard at the instance and it never saw the request it
         // was guarding — "requests over thirty days need a second approval" could not be written.
         final ConditionOperand operand = this.createOperand(QUESTION_ID);

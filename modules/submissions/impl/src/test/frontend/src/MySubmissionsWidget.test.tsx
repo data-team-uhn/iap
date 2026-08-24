@@ -26,8 +26,8 @@ import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 // The extension the dashboard hands the widget, which is where its title and subtitle come from
 const EXTENSION = {
-  "iap:extensionName": "My Submissions",
-  "iap:subtitle": "The submissions you created",
+  "ext:name": "My Submissions",
+  "ext:subtitle": "The submissions you created",
 };
 
 const SUBMISSION_PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
