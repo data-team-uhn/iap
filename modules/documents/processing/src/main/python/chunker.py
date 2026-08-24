@@ -216,25 +216,65 @@ def _move_trailing_page_markers(parts: list[dict]) -> list[dict]:
     return [part for part in result if part["text"].strip()]
 
 
-def _merge_small_text_tails(parts: list[dict], min_tokens: int) -> list[dict]:
-    """Fold a text-only continuation part smaller than ``min_tokens`` back into the part
-    before it, so a small tail cut off from the previous part is not emitted as its own file.
-    A part that carries any *cut-worthy* ATX heading (see :func:`_get_heading_level` /
-    :func:`is_valid_heading`) is never merged; lines that look like headings but fail
-    validation (e.g. ``## Table …``) do not block the merge. The merge is applied even
-    when it pushes the preceding part over the token budget.
+def _merge_small_chunks(parts: list[dict], min_tokens: int) -> list[dict]:
+    """Fold a part smaller than ``min_tokens`` into a neighbour, without changing branch.
+
+    A part's level is its shallowest cut-worthy ATX heading (see :func:`_get_heading_level`
+    / :func:`is_valid_heading`); lines that look like headings but fail validation, e.g.
+    ``## Table …``, do not count. A part with no heading has no level.
+
+    Which way a small part folds is decided by that level, because dissolving the wrong
+    boundary files a heading under a section it does not belong to -- a ``### 3.5.7`` merged
+    into the ``## 3.6`` that follows it is labelled, and summarised, as part of 3.6:
+
+    * **forward**, into the next part, when the next level is the same or deeper (a sibling or
+      a child), or the next part has no heading at all -- that part is the body this heading
+      introduces, and a heading must not be separated from it.
+    * **backward**, into the previous part, when the previous level is the same or shallower: a
+      sibling shares this part's parent, and anything shallower is that parent. Not when the
+      previous part has no heading, because then there is no way to tell which branch it is
+      the tail of.
+    * a part with **no heading** always folds backward: it is a continuation, so it belongs to
+      whatever it continues.
+
+    Forward is tried first, so a small parent goes with the children under it rather than back
+    into the section before. Repeated to a fixpoint, so a run of small siblings coalesces
+    instead of merging one at a time. The merge is applied even when it pushes the result over
+    the token budget: a 62-token chunk holding one sub-heading is worse than an over-budget one.
     """
-    merged: list[dict] = []
-    for part in parts:
-        if merged and _get_min_atx_level(part["text"].split("\n")) is None \
-                and count_tokens(part["text"]) < min_tokens:
-            previous = merged[-1]
-            merged[-1] = {
-                "text": previous["text"].rstrip() + "\n\n" + part["text"].lstrip(),
-            }
-        else:
-            merged.append(part)
-    return merged
+    def joined(left: dict, right: dict) -> dict:
+        return {"text": left["text"].rstrip() + "\n\n" + right["text"].lstrip()}
+
+    def level_of(part: dict) -> int | None:
+        return _get_min_atx_level(part["text"].split("\n"))
+
+    result = [dict(part) for part in parts]
+    merging = True
+    while merging:
+        merging = False
+        for index, part in enumerate(result):
+            if count_tokens(part["text"]) >= min_tokens:
+                continue
+            level = level_of(part)
+            if level is None:
+                if index > 0:
+                    result[index - 1:index + 1] = [joined(result[index - 1], part)]
+                    merging = True
+                    break
+                continue
+            if index + 1 < len(result):
+                following = level_of(result[index + 1])
+                if following is None or following >= level:
+                    result[index:index + 2] = [joined(part, result[index + 1])]
+                    merging = True
+                    break
+            if index > 0:
+                previous = level_of(result[index - 1])
+                if previous is not None and previous <= level:
+                    result[index - 1:index + 1] = [joined(result[index - 1], part)]
+                    merging = True
+                    break
+    return result
 
 
 def _write_json(path: Path, data: object) -> None:
@@ -415,7 +455,7 @@ def build_chunk_tree(
             "chunks": [],
         }
 
-    packed = _merge_small_text_tails(top_texts, MIN_TAIL_TOKENS)
+    packed = _merge_small_chunks(top_texts, MIN_TAIL_TOKENS)
 
     def add(name: str, part: dict) -> None:
         text = part["text"]
