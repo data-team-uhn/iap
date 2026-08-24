@@ -1,9 +1,9 @@
 {
-  "jcr:primaryType": "iap:Extension",
-  "iap:extensionPointId": "iap/dashboard/widget",
-  "iap:extensionName": "Waiting for you",
-  "iap:subtitle": "Requests with something you still have to do",
-  "iap:extensionRenderURL": "asset:iap-submissions.MyTasksWidget.js",
-  "iap:defaultOrder": 2,
-  "iap:widgetWidth": "full"
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "Waiting for you",
+  "ext:subtitle": "Requests with something you still have to do",
+  "ext:renderURL": "asset:iap-submissions.MyTasksWidget.js",
+  "defaultOrder": 2,
+  "ext:widgetWidth": "full"
 }
