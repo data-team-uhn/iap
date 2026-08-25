@@ -16,7 +16,9 @@
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <rep = 'internal'>
-<iap = 'https://iap.uhndata.io/'>
+<doc = 'https://iap.uhndata.io/doc/'>
+<profile = 'https://iap.uhndata.io/profile/'>
+<data = 'https://iap.uhndata.io/data/'>
 
 //-----------------------------------------------------------------------------
 //
@@ -34,14 +36,14 @@
 // type for authorizable resources and would never dispatch on ours.
 //
 // Definitions are platform vocabulary rather than user data, so, like
-// iap:TagDefinition and iap:LinkDefinition, they extend iap:Content directly
+// tag:Definition and link:Definition, they extend data:Content directly
 // and are deliberately neither referenceable nor versionable.
 //
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /ProfileFields root path, holding the field definitions.
-[iap:ProfileFieldsHomepage] > iap:Content, rep:AccessControllable, iap:Documented
+[profile:FieldsHomepage] > data:Content, rep:AccessControllable, doc:Documented
   // Attributes:
 
   // We can query field definitions
@@ -49,13 +51,13 @@
 
   // Properties:
 
-  - sling:resourceType (STRING) = "iap/ProfileFieldsHomepage" mandatory autocreated protected
+  - sling:resourceType (STRING) = "profile/FieldsHomepage" mandatory autocreated protected
 
   // The type of the children listed by the pagination servlet
-  - childNodeType (STRING) = "iap:ProfileFieldDefinition" mandatory autocreated protected
+  - childNodeType (STRING) = "profile:FieldDefinition" mandatory autocreated protected
 
   // The heading of the served documentation, overriding the empty defaults of
-  // the iap:Documented mixin. Autocreated rather than hardcoded in the model
+  // the doc:Documented mixin. Autocreated rather than hardcoded in the model
   // serving the catalogue, but still editable, so that a deployment can reword
   // the heading without touching code.
   - title (STRING) = "Profile fields" autocreated
@@ -66,7 +68,7 @@
   - * (UNDEFINED) multiple
 
   // Contains field definitions
-  + * (iap:ProfileFieldDefinition) = iap:ProfileFieldDefinition
+  + * (profile:FieldDefinition) = profile:FieldDefinition
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
@@ -74,8 +76,8 @@
 //-----------------------------------------------------------------------------
 // The definition of one profile field: what it means, where its value lives on
 // the account, and who may read and change it.
-[iap:ProfileFieldDefinition] > iap:Content
-  - sling:resourceType (STRING) = "iap/ProfileFieldDefinition" mandatory autocreated protected
+[profile:FieldDefinition] > data:Content
+  - sling:resourceType (STRING) = "profile/FieldDefinition" mandatory autocreated protected
 
   // The field's identifier, as used by the profile API. When absent, the name
   // of this definition node itself is used; setting an explicit name allows

@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:ProfileFieldDefinition",
+  "jcr:primaryType": "profile:FieldDefinition",
   "label": "Full name",
   "description": "How your name is shown to other people on this platform.",
   "kind": "profile",
