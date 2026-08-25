@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:ProfileFieldDefinition",
+  "jcr:primaryType": "profile:FieldDefinition",
   "label": "Email address",
   "description": "Where this platform sends you notifications.",
   "kind": "profile",

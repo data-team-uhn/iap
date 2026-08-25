@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:ProfileFieldDefinition",
+  "jcr:primaryType": "profile:FieldDefinition",
   "label": "Default persona",
   "description": "Which hat you start the session wearing. You can still switch at any time from the app bar, and a persona you do not hold is ignored.",
   "kind": "preference",
