@@ -151,6 +151,32 @@ set up again.
 It is safe to run when there is nothing to do, and on a machine without Docker it removes the
 files and says which containers it could not reach.
 
+## Keeping the images current
+
+The images the generator deploys are pinned in `images/docker-compose.yml`, and read back from
+there at generation time. That file is never run: it exists so the versions live somewhere
+Dependabot can see them. Dependabot reads image versions out of Compose files and Dockerfiles and
+would never find them in a Python constant, so a pin kept in the script would quietly go stale.
+
+Two entries in `.github/dependabot.yml` cover it, weekly:
+
+| Watches | Ecosystem | For |
+| --- | --- | --- |
+| `/tools/deploy/images` | `docker-compose` | `postgres`, `mongo`, `keycloak` |
+| `/tools/deploy/mailcatcher` | `docker` | the mail server's `python` base image |
+
+A Dependabot pull request against `images/docker-compose.yml` therefore changes what the next
+`generate_compose.py` actually deploys, rather than editing a file nobody reads. Regenerate after
+merging one; a `docker-compose.yml` already generated keeps whatever it was written with.
+
+The file has to be called `docker-compose.yml` and live in a directory of its own — Dependabot
+looks for that name, and does not pick up other `docker-compose*.yml` variants
+([dependabot-core#12134](https://github.com/dependabot/dependabot-core/issues/12134)). It is in
+`images/` rather than beside the script because the generated file next door claims the same name.
+
+The IAP image is deliberately not pinned there: it is built from this repository rather than
+pulled, and `--image` decides which one to run.
+
 ## What was left behind
 
 This is a slimmed-down port of

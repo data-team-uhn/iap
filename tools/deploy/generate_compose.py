@@ -30,6 +30,7 @@ file is plain YAML, commented, meant to be read and edited afterwards.
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -37,10 +38,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# Pinned so that regenerating does not silently change what gets deployed.
-POSTGRES_IMAGE = "postgres:18-alpine"
-MONGO_IMAGE = "mongo:8"
-KEYCLOAK_IMAGE = "quay.io/keycloak/keycloak:26.7.0"
+# The companion images are pinned in images/docker-compose.yml rather than here, so that
+# Dependabot can watch them: it reads image versions out of Compose files and Dockerfiles, and
+# would never find them in a Python constant. Reading them back means its pull requests change
+# what is actually deployed instead of only editing a file nobody consults.
+IMAGE_PINS = HERE / 'images' / 'docker-compose.yml'
 
 # The `oak_persistence_rdb` feature already defaults to these, but a generated file should say out
 # loud what it connects to rather than leaning on a default defined three modules away.
@@ -98,6 +100,42 @@ def parse_args(argv):
                         help="Where to write the generated file [default: docker-compose.yml]")
 
     return parser.parse_args(argv)
+
+
+### Reading the pinned image versions
+
+def image_for(service):
+    """The image pinned for one service in images/docker-compose.yml.
+
+    Deliberately not a YAML parse: the file has one shape, this repository ships no YAML library,
+    and Dependabot edits only the tag inside an `image:` line, leaving everything around it alone.
+    """
+    if not hasattr(image_for, 'pins'):
+        try:
+            text = IMAGE_PINS.read_text(encoding='utf-8')
+        except OSError as error:
+            sys.exit("ERROR: cannot read the pinned image versions from {}: {}".format(
+                IMAGE_PINS, error))
+
+        pins = {}
+        current = None
+        for line in text.splitlines():
+            if line.startswith('#') or not line.strip():
+                continue
+            service_match = re.match(r'^  ([A-Za-z0-9._-]+):\s*$', line)
+            if service_match:
+                current = service_match.group(1)
+                continue
+            image_match = re.match(r'^\s+image:\s*"?([^"\s]+)"?\s*$', line)
+            if image_match and current:
+                pins[current] = image_match.group(1)
+        image_for.pins = pins
+
+    if service not in image_for.pins:
+        sys.exit("ERROR: no image pinned for '{}' in {}. Every service the generator can "
+                 "produce needs one there, so that Dependabot keeps it up to date.".format(
+                     service, IMAGE_PINS))
+    return image_for.pins[service]
 
 
 ### Emitting YAML
@@ -316,7 +354,7 @@ def postgres_service():
     comment(service, "wedges the instance, so the entrypoint refuses to launch against one. The")
     comment(service, "collation is fixed when the database is created: changing it needs a fresh")
     comment(service, "volume (docker compose down -v).")
-    service['image'] = POSTGRES_IMAGE
+    service['image'] = image_for('postgres')
     service['container_name'] = 'postgres'
     service['networks'] = ['iap']
     service['environment'] = {
@@ -339,7 +377,7 @@ def postgres_service():
 def mongo_service():
     service = {}
     comment(service, "The document store IAP writes the repository into.")
-    service['image'] = MONGO_IMAGE
+    service['image'] = image_for('mongo')
     service['container_name'] = 'mongo'
     service['networks'] = ['iap']
     service['healthcheck'] = {
@@ -359,7 +397,7 @@ def keycloak_service():
     comment(service, "KC_HOSTNAME_BACKCHANNEL_DYNAMIC lets IAP reach the token endpoint")
     comment(service, "in-network. Realm, client and roles are created by")
     comment(service, "tools/dev/keycloak/keycloak_setup.sh once this container is up.")
-    service['image'] = KEYCLOAK_IMAGE
+    service['image'] = image_for('keycloak')
     service['container_name'] = 'keycloak'
     service['command'] = ['start-dev']
     service['networks'] = ['iap']
@@ -455,6 +493,11 @@ def main(argv=None):
     args = parse_args(argv)
 
     output = Path(args.output).resolve()
+    if output == IMAGE_PINS:
+        # It is also a docker-compose.yml, and overwriting it would throw away the pins this
+        # very run just read, along with what Dependabot watches.
+        sys.exit("ERROR: {} is where the image versions are pinned, not somewhere to generate "
+                 "into. Pick another --output.".format(IMAGE_PINS))
     compose_directory = output.parent
     compose_directory.mkdir(parents=True, exist_ok=True)
 

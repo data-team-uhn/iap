@@ -1,0 +1,41 @@
+# Copyright 2026 DATA @ UHN. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# THIS FILE IS NOT RUN. It is where the companion images ../generate_compose.py deploys are
+# pinned, and it is a Compose file purely so that Dependabot can see them: Dependabot reads
+# image versions out of Dockerfiles and Compose files, and would never find them in a Python
+# constant. It watches this directory (see .github/dependabot.yml) and opens a pull request
+# here when one of these images has a newer tag.
+#
+# generate_compose.py reads the versions back out of this file, so a Dependabot pull request
+# changes what actually gets deployed. Keep the two in step: a service named here that the
+# generator does not know is ignored, but one the generator wants and cannot find is an error.
+#
+# `mail` is the odd one out -- it is built from ../mailcatcher/Dockerfile rather than pulled, so
+# its base image is pinned in that Dockerfile and Dependabot watches it as a Dockerfile instead.
+#
+# The IAP image itself is deliberately absent: it is built from this repository, not pulled, and
+# which one to run is the caller's business (generate_compose.py --image).
+
+services:
+  postgres:
+    image: "postgres:18-alpine"
+
+  mongo:
+    image: "mongo:8"
+
+  keycloak:
+    image: "quay.io/keycloak/keycloak:26.7.0"

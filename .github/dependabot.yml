@@ -37,3 +37,15 @@ updates:
     directory: "/packaging/docker"
     schedule:
       interval: "weekly"
+  # The base image of the mail server tools/deploy builds.
+  - package-ecosystem: "docker"
+    directory: "/tools/deploy/mailcatcher"
+    schedule:
+      interval: "weekly"
+  # The companion images tools/deploy/generate_compose.py deploys alongside IAP. They are pinned
+  # in a Compose file that is never run, purely so that they are somewhere Dependabot can see and
+  # edit them -- the generator reads its versions back out of it. See tools/deploy/images/.
+  - package-ecosystem: "docker-compose"
+    directory: "/tools/deploy/images"
+    schedule:
+      interval: "weekly"
