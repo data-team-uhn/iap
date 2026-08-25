@@ -258,6 +258,42 @@ public class PaginatedJsonResponseTest
     }
 
     @Test
+    public void aPageEndingOnTheCountingCeilingStaysConsistentWithItsTotal()
+    {
+        // A page starting just short of the ceiling reaches it part-way through: the result that only proves there
+        // are more then falls inside the requested page, and returning it would put a row in the response that the
+        // total reported alongside it does not count
+        final long offset = PaginatedJsonResponse.MAX_COUNT - 5;
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, offset, 10));
+        int offered = 0;
+        while (!page.isFull()) {
+            page.offer("/r" + offered++, () -> row("/x"));
+        }
+        final JsonObject result = finish(page, null);
+        Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT, result.getInt(TOTAL));
+        Assertions.assertTrue(result.getBoolean(APPROXIMATE));
+        // Five rows, not six: the page stops at the total it reports rather than one past it
+        Assertions.assertEquals(5, result.getInt(RETURNED));
+        Assertions.assertEquals(5, result.getJsonArray(ROWS).size());
+        Assertions.assertTrue(offset + result.getInt(RETURNED) <= result.getInt(TOTAL),
+            "A returned row is missing from the reported total");
+    }
+
+    @Test
+    public void anExtremeLimitDoesNotOverflow()
+    {
+        // The lookahead is derived from the page size, so an unchecked one multiplied by the lookahead depth used to
+        // wrap, leaving a negative lookahead that reported every total as 0 and handed callers no capacity at all
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, Long.MAX_VALUE));
+        Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT + 1, page.getRemainingCapacity());
+        offerAll(page, 3);
+        final JsonObject result = finish(page, null);
+        Assertions.assertEquals(3, result.getInt(TOTAL));
+        Assertions.assertEquals(3, result.getJsonArray(ROWS).size());
+        Assertions.assertFalse(result.getBoolean(APPROXIMATE));
+    }
+
+    @Test
     public void aPageThatCouldNotBeReadInFullSaysSo()
     {
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 10));
