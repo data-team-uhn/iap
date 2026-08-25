@@ -712,6 +712,26 @@ describe("EntityDataGrid", () => {
     expect(sorted).toEqual(["0/status"]);
   });
 
+  it("names its search box, so a reader is told what it searches", async () => {
+    // "Search…" is a placeholder, not a name. Without this the control announces itself identically
+    // wherever it appears, to a screen reader and to anything else that addresses the page by its
+    // accessible names.
+    render(
+      <EntityDataGrid entityType={TEST_TYPE} searchLabel="Search my submissions" disableVirtualization />,
+      { wrapper: MemoryRouter },
+    );
+
+    // A searchbox rather than a textbox: the quick filter control says so, and the role is what a reader
+    // and a locator both go by
+    expect(await screen.findByRole("searchbox", { name: "Search my submissions" })).toBeInTheDocument();
+  });
+
+  it("falls back on a plain name when the caller does not say", async () => {
+    render(<EntityDataGrid entityType={TEST_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    expect(await screen.findByRole("searchbox", { name: "Search" })).toBeInTheDocument();
+  });
+
   it("recovers from a fetch error through the retry button, keeping its controls", async () => {
     let failing = true;
     const page = { rows: [], offset: 0, limit: 5, returnedrows: 0, totalrows: 0, totalIsApproximate: false };
