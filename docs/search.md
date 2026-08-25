@@ -38,9 +38,9 @@ GET /search.json?quick=diab&allowedResourceTypes=sub:Submission
 | --- | --- | --- |
 | `offset` | `0` | How many matches to skip |
 | `limit` | `10` | How many matches to return, capped at `1000`; `0` counts without returning any |
-| `resourceSelectors` | none | Extra selectors used when serializing each match, e.g. `deep` or `2` for children, `dereference`; only meaningful with `query`, and only without `rawResults` |
+| `resourceSelectors` | none | Extra selectors used when serializing each match, e.g. `deep` or `2` for children, `dereference`; ignored by `quick`, and by `rawResults` |
 | `req` | none | An opaque token echoed back, so a client can discard an out-of-order response |
-| `rawResults` | `false` | Return the columns the query selected instead of serializing the matched nodes; only meaningful with `query` |
+| `rawResults` | `false` | Return the columns the query selected instead of serializing the matched nodes; only useful with `query`, the one mode where the client chooses the columns, though it is honoured for `fulltext` too; ignored by `quick` |
 | `doNotEscapeQuery` | `false` | Treat the `fulltext` input as a full-text expression, operators and all |
 | `allowedResourceTypes` | all | Repeatable; the node types a `quick` search may return |
 
@@ -102,6 +102,11 @@ column is there and leaves its contents to be fetched from the node itself.
 `fulltext=…` becomes `select n.* from [nt:base] as n where contains(n.*, '…')`. By default the
 input is escaped so that it is found verbatim, operators and all. `doNotEscapeQuery=true` leaves
 the full-text operators alone, so a user can write `heart -failure` or `diabet*` and mean it.
+
+The text is stripped first, in both modes: a full-text expression has to start with a term, so a
+leading space — which a paste or an autocompletion routinely leaves in front of what was typed —
+would otherwise come back as a `400`. Space *between* the words is the expression's own separator
+and is left alone.
 
 Quotes are escaped either way — both the double quote that opens a phrase and the apostrophe that
 does the same, which the statement's own escaping would otherwise hand straight to the full-text
