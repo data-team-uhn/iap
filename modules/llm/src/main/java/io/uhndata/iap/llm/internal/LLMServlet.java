@@ -35,6 +35,8 @@ import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletPaths;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMClientFactory;
@@ -65,6 +67,8 @@ public class LLMServlet extends SlingJakartaAllMethodsServlet
 {
     /** The path this servlet answers on. */
     public static final String PATH = "/system/llm/chat";
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(LLMServlet.class);
 
     private static final long serialVersionUID = 4938271560024819437L;
 
@@ -107,7 +111,10 @@ public class LLMServlet extends SlingJakartaAllMethodsServlet
                 out.write(Json.createObjectBuilder().add("response", reply).build().toString());
             }
         } catch (IOException e) {
-            sendError(response, 502, e.getMessage());
+            // What went wrong can name the endpoint that was unreachable, or quote the provider's own
+            // answer, so it is logged rather than sent to whoever asked.
+            LOGGER.warn("An LLM chat request failed", e);
+            sendError(response, 502, "The LLM request could not be completed");
         }
     }
 
