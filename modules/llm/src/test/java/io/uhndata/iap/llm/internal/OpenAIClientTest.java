@@ -78,7 +78,7 @@ class OpenAIClientTest
     /**
      * An OpenAI client wired to the stand-in endpoint, with the environment under the test's control.
      */
-    private final class TestClient extends OpenAIClient
+    private static final class TestClient extends OpenAIClient
     {
         private final Map<String, String> variables;
 
