@@ -195,7 +195,12 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
                 } else if (StringUtils.isNotBlank(quick)) {
                     writeQuickResults(page, request, quick);
                 }
-            } catch (final RepositoryException e) {
+            } catch (final RepositoryException | RuntimeException e) {
+                // Unchecked as much as checked: a result set is lazy, and the repository signals a good part of what
+                // can go wrong while it is being read — a read or memory limit reached, an index failing under it —
+                // with an unchecked exception. Letting one out here would abandon the response half-written, with no
+                // way back: the generator would be closed on an incomplete document, and by then too much of the
+                // body may already be on the wire for an error status to replace it.
                 LOGGER.warn("Failed to read the results of a search: {}", e.getMessage(), e);
                 error = "Failed to read all the results";
             }
@@ -285,15 +290,23 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
     /**
      * Builds the statement looking for a text anywhere in the repository.
      *
+     * <p>
+     * The text is stripped first. A full-text expression must start with a term, so a leading space — which is what
+     * a paste, or an autocompletion, routinely leaves in front of what the user typed — makes the expression fail to
+     * parse and the request come back as a bad one, for input that is perfectly good. A trailing space, and any
+     * amount of space between the words, are already fine.
+     * </p>
+     *
      * @param request the current request
-     * @param query the text to look for
+     * @param query the text to look for, not blank
      * @return a JCR-SQL2 statement
      */
     private String fullTextStatement(final SlingJakartaHttpServletRequest request, final String query)
     {
+        final String text = query.strip();
         // Whether the input is a full-text expression the user wrote, or a text to be found as it is
         final boolean verbatim = !"true".equals(request.getParameter("doNotEscapeQuery"));
-        final String expression = verbatim ? FULL_TEXT_SPECIAL.matcher(query).replaceAll("\\\\$1") : query;
+        final String expression = verbatim ? FULL_TEXT_SPECIAL.matcher(text).replaceAll("\\\\$1") : text;
         // The quotes are escaped either way: they delimit the string in the statement, so leaving them to the client
         // would let it write the rest of the query
         return String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, '%2$s')", SELECTOR,
@@ -379,10 +392,12 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
      * requested node types is asked, until enough results have been collected.
      *
      * <p>
-     * Each node type is searched by a single engine, the first registered one that claims it. That is what makes the
-     * results of the engines disjoint, and so what makes it safe not to look for duplicates among them: two engines
-     * claiming the same type would otherwise return the same node twice, and count it twice. The engines are an
-     * extension point, so nothing stops that from being configured — it is caught here rather than assumed away.
+     * Each node type is searched by a single engine, the first registered one that takes it on. That is what makes
+     * the results of the engines disjoint, and so what makes it safe not to look for duplicates among them: two
+     * engines claiming the same type would otherwise return the same node twice, and count it twice. The engines are
+     * an extension point, so nothing stops that from being configured — it is caught here rather than assumed away.
+     * An engine that fails before returning anything does not take its types with it, so a second engine that can
+     * search them still gets asked.
      * </p>
      *
      * @param page the paginator for the requested page
@@ -438,7 +453,6 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
         if (types.isEmpty()) {
             return;
         }
-        alreadySearched.addAll(types);
 
         final SearchParameters parameters = SearchParametersFactory.newSearchParameters()
             .withQuery(query)
@@ -450,6 +464,10 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
             // Declared never to be null, so an engine that returns one anyway is an engine that is broken, and is
             // handled as one: it lands in the same guard as every other way of misbehaving
             results = engine.quickSearch(parameters, request.getResourceResolver());
+            // A type is claimed once an engine has actually taken the search on, not merely because it said it could
+            // serve the type: an engine that fails outright returned nothing, so there is nothing for a later engine
+            // to duplicate, and leaving the type claimed would only mean answering with nothing at all
+            alreadySearched.addAll(types);
             boolean more = true;
             while (results.hasNext() && more) {
                 more = page.offer(null, results::next, results::skip);

@@ -251,6 +251,18 @@ public class SearchServletTest
     }
 
     @Test
+    public void aFullTextSearchIgnoresSurroundingWhitespace() throws Exception
+    {
+        // A full text expression has to start with a term, so a leading space -- what a paste, or an
+        // autocompletion, routinely leaves in front of what the user typed -- used to come back as a bad request
+        withParameter("fulltext", "  diabetes \t");
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')",
+            executedStatement());
+    }
+
+    @Test
     public void fullTextOperatorsAreEscapedByDefault() throws Exception
     {
         withParameter("fulltext", "a-b OR c*");
@@ -691,6 +703,26 @@ public class SearchServletTest
         Assertions.assertEquals(1, getResponseJson().getJsonArray(ROWS).size());
         Assertions.assertEquals(List.of("found"), first.served);
         Assertions.assertNull(second.searchedTypes);
+    }
+
+    @Test
+    public void anEngineThatFailsDoesNotTakeItsTypesWithIt() throws Exception
+    {
+        // The first engine returned nothing, so there is nothing for the second one to duplicate; leaving the type
+        // claimed by the engine that broke would answer a request that could have been served with nothing at all
+        withParameter("quick", "diabetes");
+        final QuickSearchEngine broken = Mockito.mock(QuickSearchEngine.class);
+        Mockito.when(broken.getSupportedTypes()).thenReturn(List.of(SUBMISSION));
+        Mockito.when(broken.quickSearch(Mockito.any(), Mockito.any()))
+            .thenThrow(new IllegalStateException("Not today"));
+        final StubEngine fallback = new StubEngine(List.of(SUBMISSION), "found anyway");
+        withEngines(broken, fallback);
+
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(1, result.getJsonArray(ROWS).size());
+        Assertions.assertEquals(List.of(SUBMISSION), fallback.searchedTypes);
+        Assertions.assertEquals(List.of("found anyway"), fallback.served);
     }
 
     @Test
