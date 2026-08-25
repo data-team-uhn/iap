@@ -276,7 +276,12 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             String error = null;
             try {
                 writeRows(page, rows, request);
-            } catch (final RepositoryException e) {
+            } catch (final RepositoryException | RuntimeException e) {
+                // Unchecked as much as checked: the repository signals a good part of what can go wrong while a lazy
+                // result set is being read — a read or memory limit reached, an index failing under it — with an
+                // unchecked exception. Letting one out here would abandon the response half-written, leaving the
+                // generator closed on an incomplete document and too much of the body already on the wire for an
+                // error status to replace it.
                 LOGGER.warn("Failed to read the results of a pagination query: {}", e.getMessage(), e);
                 error = "Failed to read all the results";
             }
