@@ -56,11 +56,6 @@
       <artifactId>annotations</artifactId>
     </dependency>
     <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-content-api</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
