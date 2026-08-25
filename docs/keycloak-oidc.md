@@ -5,9 +5,17 @@ is the source of truth for users and their **realm roles**; a role becomes an Oa
 that content ACLs are written against.
 
 This is implemented with the Apache Sling OAuth client
-(`org.apache.sling.auth.oauth-client`, pinned to **0.1.6**). That bundle ships an Oak
+(`org.apache.sling.auth.oauth-client`, pinned to **0.1.6**). That bundle carries an Oak
 `ExternalIdentityProvider` (`OidcIdentityProvider`), so a user who signs in through Keycloak is
 provisioned into Oak by Oak's own `DefaultSyncHandler` — no custom identity-provider code.
+
+`OidcIdentityProvider` is **not** a declarative-services component and no configuration creates it:
+it has no descriptor in the bundle, and `OidcAuthenticationHandler.activate()` registers it
+programmatically under the handler's `idp` property. The IdP service therefore exists **if and only
+if that handler activates** — including its *mandatory* `CryptoService` reference. If anything stops
+the handler activating, the only symptom is Oak logging `No IDP found with name keycloak` on every
+login attempt (and a login loop), far from the actual cause; see
+[Troubleshooting](#troubleshooting-no-idp-found-with-name-keycloak).
 
 Almost everything is configuration; the only Java is the logout handling (see [Sign-out flow](#sign-out-flow)) in the `iap-oidc-support` module. Keycloak sign-in is **opt-in** — its features are not in the default aggregates and are loaded only when asked (see [Enabling Keycloak sign-in](#enabling-keycloak-sign-in)). The pieces:
 
@@ -239,6 +247,41 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 7. Confirm authorization once ACLs are written: the user can read/write the granted path; a user
    without the role gets `403` (not a login bounce).
 8. Regression: local login still works via "Use a local account instead".
+
+## Troubleshooting: `No IDP found with name keycloak`
+
+```
+*ERROR* ...external.impl.ExternalLoginModule No IDP found with name keycloak. Will not be used for login.
+```
+
+Sign-in loops back to `/login`: Keycloak authenticates and the callback sets `sling.oidcauth`, but
+`extractCredentials` cannot produce a session without the IdP, so Sling re-gates the request.
+
+This never means the IdP is *misconfigured* — there is no IdP configuration (see above). It means
+`OidcAuthenticationHandler` did not activate. Search the log for the real cause, which is always
+earlier in the startup, and always a reference the handler could not satisfy:
+
+```
+OidcAuthenticationHandler(...) : Error during instantiation of the implementation object:
+    Unable to get service for reference $005
+```
+
+`$005` is the mandatory `CryptoService`. The usual reason is the Jasypt stack failing to activate:
+
+```
+JasyptStandardPbeStringCryptoService(...) : The activate method has thrown an exception
+    (java.lang.RuntimeException: environment variable 'SLING_COMMONS_CRYPTO_PASSWORD' not set)
+```
+
+**Read the env var name in that message carefully.** `IAP_OAUTH_ENCRYPTION_PASSWORD` is this
+feature's variable; `SLING_COMMONS_CRYPTO_PASSWORD` belongs to `iap-email-notifications`, which
+configures a second, independent Jasypt stack and is part of the default build — so the two always
+coexist. Seeing the *other* feature's variable named here means the crypto services cross-bound each
+other's `PasswordProvider`: `JasyptStandardPbeStringCryptoService`'s `passwordProvider` reference is
+a mandatory 1..1, so an untargeted one binds whichever provider has the lowest `service.id`, i.e.
+whichever feature was installed first. Both features now pin their references with
+`passwordProvider.target` / `ivGenerator.target` filters; if you add a third crypto stack, or
+copy one of these configs, keep the filters.
 
 ## Caveats
 
