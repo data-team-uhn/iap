@@ -237,21 +237,38 @@ final class QueryBuilder
     /**
      * Escapes a full text search term before it is interpolated into a {@code contains()} call. On top of the
      * string literal escaping, the full text search grammar has its own layer, where the backslash escapes and
-     * the double quote opens a phrase: both have to be neutralized, the backslash so that a trailing one does
-     * not escape the closing quote, and the double quote so that an odd number of them — one apostrophe's worth
-     * of ordinary typing — does not leave a phrase unterminated and fail the whole query to parse.
+     * both quote characters open a phrase: all three have to be neutralized, the backslash so that a trailing one
+     * does not escape the closing quote, and the quotes so that an odd number of them — one inch mark, or one
+     * apostrophe's worth of ordinary typing — does not leave a phrase unterminated and fail the whole query to
+     * parse.
+     *
+     * <p>
+     * The grammar's escaping goes on <em>before</em> the string literal's, because the literal's is undone again
+     * when the statement is parsed: doubling an apostrophe hides it from the statement but hands it straight to the
+     * full text parser, where it opens a phrase that never ends. What reaches that parser is whatever was escaped
+     * before the doubling, so that is where the backslash has to be added.
+     * </p>
      *
      * <p>
      * What this deliberately leaves alone is the grammar's <em>meaning</em>, as opposed to its syntax: a leading
      * {@code -} still excludes a term and {@code OR} still reads as the operator, so a search reaching those is
      * answered oddly rather than refused. Making them literal would take away the only way to ask for them.
+     * </p>
      *
-     * @param value the value to escape, may be {@code null}
-     * @return the escaped search expression, or an empty string if the value was {@code null}
+     * <p>
+     * The term is stripped first. A full text expression has to start with a term, so a leading space — which is
+     * what a paste into the search box, or an autocompletion, routinely leaves in front of what was typed — makes
+     * the expression fail to parse and the whole listing come back as a bad request, for input that is perfectly
+     * good. A trailing space, and any amount of space between the words, are already fine.
+     * </p>
+     *
+     * @param value the value to escape, never {@code null} and never blank: the only caller has already established
+     *            that there is a term to search for
+     * @return the escaped search expression
      */
     private static String escapeFullText(final String value)
     {
         // Backslash first, or it would escape the escapes added after it
-        return escape(value).replace("\\", "\\\\").replace("\"", "\\\"");
+        return escape(value.strip().replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'"));
     }
 }
