@@ -283,8 +283,9 @@ public class PaginatedJsonResponseTest
     public void anExtremeLimitDoesNotOverflow()
     {
         // The lookahead is derived from the page size, so an unchecked one multiplied by the lookahead depth used to
-        // wrap, leaving a negative lookahead that reported every total as 0 and handed callers no capacity at all
-        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, Long.MAX_VALUE));
+        // wrap, leaving a lookahead of 1: the first result offered filled the page, the total came back as 0, and
+        // there was no capacity left to give a caller that asked. forRequest caps the limit, forPage trusts it.
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 1L << 57));
         Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT + 1, page.getRemainingCapacity());
         offerAll(page, 3);
         final JsonObject result = finish(page, null);
