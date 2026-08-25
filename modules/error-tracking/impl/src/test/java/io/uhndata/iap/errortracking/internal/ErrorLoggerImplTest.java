@@ -76,7 +76,8 @@ class ErrorLoggerImplTest
 
     private ErrorLoggerImpl logger;
 
-    private long now = 1_000_000L;
+    /** Volatile because a running component reads it from its own writer thread, and must see it move. */
+    private volatile long now = 1_000_000L;
 
     @BeforeEach
     void setUp() throws ReflectiveOperationException
@@ -399,6 +400,7 @@ class ErrorLoggerImplTest
         // due() deliberately holds back a fault written within the window, so the last occurrences of a burst are
         // due only once it is over — and nothing arrives then to notice. Without a clock of its own the writer would
         // leave one occurrence and a stale date in the repository for as long as the instance kept running
+        final AtomicInteger commits = new AtomicInteger();
         final CountDownLatch written = new CountDownLatch(2);
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
         TestResolvers.inject(running, new ResourceResolverWrapper(this.context.resourceResolver())
@@ -407,6 +409,7 @@ class ErrorLoggerImplTest
             public void commit() throws PersistenceException
             {
                 super.commit();
+                commits.incrementAndGet();
                 written.countDown();
             }
 
@@ -419,12 +422,23 @@ class ErrorLoggerImplTest
         TestResolvers.set(running, "clock", (LongSupplier) () -> this.now);
         TestResolvers.set(running, "writeInterval", 20L);
         running.activate();
+        final ScheduledExecutorService writer = (ScheduledExecutorService) TestResolvers.get(running, "ownWriter");
         try {
             final Throwable error = new IllegalStateException(BOOM);
+            // Each occurrence is handed over before the next step is taken, because a burst and the clock both move
+            // faster than a freshly started writer thread: raced, the two occurrences become one tally written once,
+            // and then no tick can find anything left to write. Which of the two happened decided whether this test
+            // passed, and it is the far likelier one that fails it
             running.logError(error);
+            awaitTheWriter(writer);
+            assertEquals(1, commits.get(), "the first occurrence of the burst was never written");
+
             running.logError(error);
-            // Nothing else fails from here on: only the writer's own clock can notice that the second occurrence is
-            // now due
+            awaitTheWriter(writer);
+            assertEquals(1, commits.get(), "the tail went out inside the window instead of being held back");
+
+            // Nothing else fails from here on, and nothing is queued: only the writer's own clock can notice that
+            // the second occurrence is now due
             passTheWriteWindow();
 
             assertTrue(written.await(5, TimeUnit.SECONDS), "the tail of the burst was never written");
@@ -818,6 +832,21 @@ class ErrorLoggerImplTest
     private void passTheWriteWindow()
     {
         this.now += ErrorLoggerImpl.WRITE_INTERVAL_MS + 1;
+    }
+
+    /**
+     * Waits for the writer to catch up with everything it has already been handed, so that a test driving a running
+     * component can tell what it has done from what it has not got to yet. The writer is one thread, so a task of the
+     * test's own reaching it means every task queued before it has finished.
+     *
+     * @param writer the writer the component made for itself
+     * @throws Exception if the writer does not get through its queue in time
+     */
+    private static void awaitTheWriter(final ScheduledExecutorService writer) throws Exception
+    {
+        writer.submit(() -> {
+            // Being run at all is this task's whole purpose
+        }).get(5, TimeUnit.SECONDS);
     }
 
     /**
