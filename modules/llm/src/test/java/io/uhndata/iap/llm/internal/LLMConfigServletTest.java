@@ -205,7 +205,9 @@ class LLMConfigServletTest
         this.servlet.doPost(request, response);
 
         assertEquals(400, response.getStatus());
-        assertTrue(responseBody(response).getString("error").contains("anthropic"));
+        assertTrue(responseBody(response).getString("error").contains("provider"));
+        assertFalse(responseBody(response).getString("error").contains("anthropic"),
+            "what was asked for is not echoed back");
     }
 
     @Test
@@ -220,7 +222,9 @@ class LLMConfigServletTest
         this.servlet.doPost(request, response);
 
         assertEquals(400, response.getStatus());
-        assertTrue(responseBody(response).getString("error").contains("absent"));
+        assertTrue(responseBody(response).getString("error").contains("model"));
+        assertFalse(responseBody(response).getString("error").contains("absent"),
+            "what was asked for is not echoed back");
     }
 
     @Test
