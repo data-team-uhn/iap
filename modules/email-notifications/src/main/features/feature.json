@@ -23,7 +23,7 @@
     "emailnotifications.smtps.checkserveridentity": "true",
     "emailnotifications.smtps.from":"",
     "emailnotifications.smtps.username":"username",
-    "emailnotifications.smtps.password":"",
+    "emailnotifications.smtps.password":"DFMeLL3AOICFmg4+uUoOx16clt6Xe0BMdNSBFqcuKiaVKMqfFudz3KOwM5Gj3t/g",
     "emailnotifications.messageidprovider.host": "localhost"
   },
   "bundles":[
