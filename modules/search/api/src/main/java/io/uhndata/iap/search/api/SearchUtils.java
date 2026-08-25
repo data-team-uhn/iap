@@ -17,7 +17,9 @@
  */
 package io.uhndata.iap.search.api;
 
+import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Objects;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -104,9 +106,17 @@ public final class SearchUtils
         if (value == null) {
             return null;
         }
-        if (value instanceof Object[]) {
-            return getMatchFromArray(Arrays.stream((Object[]) value).map(String::valueOf).toArray(String[]::new),
-                query);
+        // Any array, not only an Object[]: a value map is free to hand back a long[] or a boolean[] for a
+        // multi-valued property, and those are not Object[], so testing for one would send the array itself to
+        // toString() and match the query against something like "[J@6b884d57"
+        if (value.getClass().isArray()) {
+            final String[] values = new String[Array.getLength(value)];
+            for (int i = 0; i < values.length; ++i) {
+                // A missing value is not a value that contains anything, so it stands in as the empty string rather
+                // than as the four characters of "null", which a search for "nul" would otherwise match
+                values[i] = Objects.toString(Array.get(value, i), "");
+            }
+            return getMatchFromArray(values, query);
         }
         return Strings.CI.contains(value.toString(), query) ? value.toString() : null;
     }
