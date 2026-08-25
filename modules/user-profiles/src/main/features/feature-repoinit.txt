@@ -14,7 +14,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-create path (iap:ProfileFieldsHomepage) /ProfileFields
+create path (profile:FieldsHomepage) /ProfileFields
 
 # The catalogue says what may be recorded about a person and who may change it, not what is recorded about anyone.
 # It is readable by everyone because the profile form has to render the fields, and because a field whose existence

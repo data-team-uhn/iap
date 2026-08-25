@@ -31,8 +31,8 @@ import io.uhndata.iap.autodoc.api.AutoDocumentable;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping the {@code iap:ProfileFieldsHomepage} node, the root container holding the profile field
- * definitions. The homepage documents the whole catalogue: the node carries the {@code iap:Documented} mixin through
+ * A Sling Model wrapping the {@code profile:FieldsHomepage} node, the root container holding the profile field
+ * definitions. The homepage documents the whole catalogue: the node carries the {@code doc:Documented} mixin through
  * its primary type, so the catalogue is served at {@code /ProfileFields.doc.json} and {@code /ProfileFields.doc.md}
  * without any code of its own. Its heading comes from the {@code title} and {@code description} properties,
  * autocreated from the defaults declared by the node type and editable by a deployment wanting to reword it.
@@ -44,8 +44,8 @@ import io.uhndata.iap.content.models.Content;
     resourceType = ProfileFieldsHomepage.RESOURCE_TYPE, defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class ProfileFieldsHomepage extends Content implements AutoDocumentable
 {
-    /** The {@code sling:resourceType} of an {@code iap:ProfileFieldsHomepage} node. */
-    public static final String RESOURCE_TYPE = "iap/ProfileFieldsHomepage";
+    /** The {@code sling:resourceType} of an {@code profile:FieldsHomepage} node. */
+    public static final String RESOURCE_TYPE = "profile/FieldsHomepage";
 
     /** The repository path this homepage lives at. */
     public static final String PATH = "/ProfileFields";

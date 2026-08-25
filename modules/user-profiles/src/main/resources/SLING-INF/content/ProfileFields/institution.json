@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:ProfileFieldDefinition",
+  "jcr:primaryType": "profile:FieldDefinition",
   "label": "Institution",
   "description": "The organization you are affiliated with.",
   "kind": "profile",

@@ -1,5 +1,5 @@
 {
-  "jcr:primaryType": "iap:ProfileFieldDefinition",
+  "jcr:primaryType": "profile:FieldDefinition",
   "label": "Role",
   "description": "Your role or job title, shown alongside your name.",
   "kind": "profile",

@@ -1,7 +1,7 @@
 # User profiles and settings
 
 What IAP records about a person is **configurable content**, not a fixed set of columns. An
-`iap:ProfileFieldDefinition` node under `/ProfileFields` declares one thing that may be recorded —
+`profile:FieldDefinition` node under `/ProfileFields` declares one thing that may be recorded —
 of what type, who may read it, and who may change it — and the profile API projects the catalogue
 together with a given account's values and the rights the requester actually has over each of them.
 
@@ -13,8 +13,8 @@ has two unrelated profiles.
 
 ## Defining a field
 
-A definition is an `iap:ProfileFieldDefinition` child of the `/ProfileFields` homepage (an
-`iap:ProfileFieldsHomepage` created by repoinit, world-readable). Modules contribute definitions
+A definition is an `profile:FieldDefinition` child of the `/ProfileFields` homepage (an
+`profile:FieldsHomepage` created by repoinit, world-readable). Modules contribute definitions
 through their initial content.
 
 | Property | Type | Meaning |
@@ -112,11 +112,11 @@ their own home through Oak's self-grant, so the self-service page needs nothing 
 - **The drift health check.** Nothing yet compares each definition's `idpClaim` and `storage` against
   the live `user.propertyMapping` of the identity provider synchronisation, so a definition pointing
   at a path the provider does not write to is only found by noticing that the value never appears.
-- **History.** `iap:Entity` is versionable but a user home is not; a `profile` node can take
+- **History.** `data:Entity` is versionable but a user home is not; a `profile` node can take
   `mix:versionable` itself, or a person can become a domain entity keyed by authorizable ID. The API
   is a projection rather than a serialization, so neither choice changes it.
 - **Condition-based rules.** `writableBy`/`readableBy` are flat vocabularies. `cond:Conditionable`
-  would express "editable when …" but `ConditionEvaluator` needs an `iap:Content` context, and a user
+  would express "editable when …" but `ConditionEvaluator` needs an `data:Content` context, and a user
   home cannot be adapted to one; that needs either a person entity or an `OperandResolver` for
   account properties.
 - **Admin configuration UI.** The catalogue is content and already reads itself.

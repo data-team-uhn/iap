@@ -42,7 +42,7 @@ import io.uhndata.iap.autodoc.api.DocumentedItem;
 import io.uhndata.iap.content.models.Content;
 
 /**
- * A Sling Model wrapping an {@code iap:ProfileFieldDefinition} node, the definition of one thing this instance records
+ * A Sling Model wrapping an {@code profile:FieldDefinition} node, the definition of one thing this instance records
  * about a person: what it means, where its value lives on the account, and who may read and change it. The value
  * itself is not held here, but as a property under the account's home node at {@link #getStorage()}.
  *
@@ -61,8 +61,8 @@ import io.uhndata.iap.content.models.Content;
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
 public class ProfileFieldDefinition extends Content implements DocumentedItem
 {
-    /** The {@code sling:resourceType} of an {@code iap:ProfileFieldDefinition} node. */
-    public static final String RESOURCE_TYPE = "iap/ProfileFieldDefinition";
+    /** The {@code sling:resourceType} of an {@code profile:FieldDefinition} node. */
+    public static final String RESOURCE_TYPE = "profile/FieldDefinition";
 
     /**
      * Sorts field definitions in their intended display sequence: by their explicit {@link #getOrder() order} first,
