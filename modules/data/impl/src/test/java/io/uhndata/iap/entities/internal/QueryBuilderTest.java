@@ -224,8 +224,30 @@ public class QueryBuilderTest
     {
         // On top of quote doubling, the full text grammar treats the backslash as its escape
         // character, so literal backslashes are doubled to keep the term inert
-        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'O''Brien \\\\ ties') order by n.[jcr:created] ASC",
+        Assertions.assertEquals(
+            BASE_QUERY + " and contains(n.*, 'O\\''Brien \\\\ ties') order by n.[jcr:created] ASC",
             new QueryBuilder(SUBMISSION, SCOPE).withFullText("O'Brien \\ ties").build());
+    }
+
+    @Test
+    public void fullTextSearchIgnoresSurroundingWhitespace()
+    {
+        // A full text expression has to start with a term, so a leading space -- what a paste into the search box
+        // leaves in front of what was typed -- used to fail the whole listing as a bad request. The space between
+        // the words is the parser's own separator and is left as it is.
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'renal biopsy') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("  renal biopsy \t").build());
+    }
+
+    @Test
+    public void fullTextSearchEscapesApostrophesThatWouldOpenAPhrase()
+    {
+        // An apostrophe opens a quoted phrase for the full text parser exactly as the double quote does. Doubling
+        // it is not enough: that only hides it from the statement, and parsing the statement hands the single
+        // apostrophe straight to the full text parser, which then looks for a phrase that never ends and fails the
+        // whole query. So it is escaped for the parser first, and the escaped form is what gets doubled.
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'it\\''s') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("it's").build());
     }
 
     @Test
@@ -275,7 +297,7 @@ public class QueryBuilderTest
             "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Sub''missions')"
                 + " and (n.[title] = 'It''s a \\ test')"
                 + " and (n.[status] = '')"
-                + " and contains(n.*, 'some''text')"
+                + " and contains(n.*, 'some\\''text')"
                 + " order by n.[jcr:created] ASC", query);
     }
 
