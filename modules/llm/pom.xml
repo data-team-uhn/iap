@@ -77,9 +77,11 @@
                  contained fat bundle resolves without demanding LangChain4j's optional integrations. -->
             <Import-Package>
               jakarta.json,
+              jakarta.servlet,
               org.apache.commons.lang3,
               org.apache.sling.api,
               org.apache.sling.api.resource,
+              org.apache.sling.api.servlets,
               org.slf4j,
               *;resolution:=optional
             </Import-Package>
@@ -110,6 +112,14 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.servlets.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>
@@ -183,6 +193,16 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <!-- The bundle context the servlet tests build their mock requests with -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.framework</artifactId>
+      <scope>test</scope>
     </dependency>
     <!-- The jakarta.json implementation the tests need at runtime, loaded through the ServiceLoader -->
     <dependency>
