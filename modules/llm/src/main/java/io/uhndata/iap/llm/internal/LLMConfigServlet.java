@@ -93,8 +93,12 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
         }
 
         final Resource providerResource = config.getChild(provider);
-        if (providerResource == null || providerResource.getChild(model) == null) {
-            sendError(response, 400, "Unknown provider '" + provider + "' or model '" + model + "'");
+        if (providerResource == null) {
+            sendError(response, 400, "The requested provider is not in the catalog");
+            return;
+        }
+        if (providerResource.getChild(model) == null) {
+            sendError(response, 400, "The requested model is not offered by that provider");
             return;
         }
 

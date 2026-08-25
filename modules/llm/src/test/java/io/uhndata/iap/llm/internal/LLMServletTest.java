@@ -41,6 +41,7 @@ import io.uhndata.iap.llm.LLMMessage;
 import io.uhndata.iap.llm.LLMRequestOptions;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -235,7 +236,9 @@ class LLMServletTest
         post("{\"message\":\"Hello\"}");
 
         assertEquals(502, this.lastResponse.getStatus());
-        assertEquals("the model is unreachable", responseBody().getString("error"));
+        assertEquals("The LLM request could not be completed", responseBody().getString("error"));
+        assertFalse(responseBody().getString("error").contains("unreachable"),
+            "the client's own account of the failure stays in the log");
     }
 
     @Test
@@ -246,6 +249,6 @@ class LLMServletTest
         post("{\"message\":\"Hello\"}");
 
         assertEquals(502, this.lastResponse.getStatus());
-        assertEquals("no client for the active provider", responseBody().getString("error"));
+        assertEquals("The LLM request could not be completed", responseBody().getString("error"));
     }
 }
