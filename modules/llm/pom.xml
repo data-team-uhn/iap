@@ -40,6 +40,11 @@
           <instructions>
             <!-- Only the public API package is exported; the internal package stays private to this bundle. -->
             <Export-Package>io.uhndata.iap.llm</Export-Package>
+            <Sling-Nodetypes>SLING-INF/nodetypes/llms.cnd</Sling-Nodetypes>
+            <!-- overwrite:=false so redeploying never resets the provider and model picked at runtime -->
+            <Sling-Initial-Content>
+              SLING-INF/content/apps/iap/config/;path:=/apps/iap/config/;overwrite:=false,
+            </Sling-Initial-Content>
           </instructions>
         </configuration>
       </plugin>
@@ -48,12 +53,25 @@
 
   <dependencies>
     <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
   </dependencies>
 </project>
