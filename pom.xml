@@ -339,7 +339,21 @@
       <dependency>
         <groupId>jakarta.mail</groupId>
         <artifactId>jakarta.mail-api</artifactId>
-        <version>2.0.2</version>
+        <version>2.1.5</version>
+      </dependency>
+      <!-- Jakarta Mail 2.1 keeps the implementation out of the API jar, and this is the bundle that carries
+           both, the one the launcher installs. It is a compile dependency because the content handlers that
+           write each part of a message live in it, and inside OSGi they have to be named at compile time; see
+           AngusContentHandlers. Keep the version aligned with the email-notifications feature. -->
+      <dependency>
+        <groupId>org.eclipse.angus</groupId>
+        <artifactId>jakarta.mail</artifactId>
+        <version>2.0.5</version>
+      </dependency>
+      <dependency>
+        <groupId>jakarta.activation</groupId>
+        <artifactId>jakarta.activation-api</artifactId>
+        <version>2.1.4</version>
       </dependency>
       <dependency>
         <groupId>org.osgi</groupId>
@@ -588,8 +602,6 @@
             <exclude>bnd.bnd</exclude>
             <!-- Ignore email template files since we do not send a license in emails -->
             <exclude>**/mailTemplates/**</exclude>
-            <!-- No license in mailcap file -->
-            <exclude>**/mailcap</exclude>
           </inputExcludes>
         </configuration>
         <executions>
