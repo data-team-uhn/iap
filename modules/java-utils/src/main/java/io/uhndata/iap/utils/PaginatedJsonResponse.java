@@ -145,12 +145,13 @@ public final class PaginatedJsonResponse
         // Count until the end of the batch of pages containing the requested page, plus one more result to know
         // whether the reported total is exact. A limit of 0 asks for a count only, so it counts as far as a request
         // ever may; anything else would make the count-only mode stop after a single default page.
-        final long batch = limit > 0 ? limit : MAX_LIMIT;
+        final long batch = limit > 0 ? Math.min(limit, MAX_LIMIT) : MAX_LIMIT;
         final long pageSize = LOOKAHEAD_PAGES * batch;
-        // The offset is bounded here rather than where it is read, so that the summary still echoes back what the
-        // client actually asked for. Bounding it at both ends is also what keeps the sum below in range: with both
-        // terms known to be small and positive, the arithmetic cannot wrap into a negative lookahead, whichever way
-        // this instance was built.
+        // Both the offset and the page size are bounded here rather than where they are read, so that the summary
+        // still echoes back what the client actually asked for. Bounding them here is also what keeps the sum below
+        // in range: with both terms known to be small and positive, the arithmetic cannot wrap into a negative
+        // lookahead, whichever way this instance was built — including through forPage, whose caller is trusted with
+        // the values but cannot be trusted not to have computed a wild one.
         final long wanted = Math.max(0, Math.min(offset, MAX_COUNT)) + batch;
         this.lookahead = Math.min(MAX_COUNT, ((wanted + pageSize - 1) / pageSize) * pageSize) + 1;
     }
@@ -292,7 +293,11 @@ public final class PaginatedJsonResponse
             return true;
         }
         ++this.counted;
-        if (this.counted > this.offset && this.returned < this.limit) {
+        // The result at the lookahead is the one that only proves there are more, and the summary leaves it out of
+        // the total, so it must not be written either: for a page starting close enough to MAX_COUNT the lookahead
+        // lands inside the requested page, and returning it there would put a row in the response that the total it
+        // is reported against does not include.
+        if (this.counted < this.lookahead && this.counted > this.offset && this.returned < this.limit) {
             final JsonObject row = serializer.get();
             if (row != null) {
                 this.json.write(row);
