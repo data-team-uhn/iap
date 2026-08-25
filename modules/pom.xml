@@ -49,6 +49,7 @@
     <module>java-utils</module>
     <module>keycloak</module>
     <module>links</module>
+    <module>llm</module>
     <module>login</module>
     <module>metrics</module>
     <module>schemas</module>
