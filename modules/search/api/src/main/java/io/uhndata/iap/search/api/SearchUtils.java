@@ -17,7 +17,9 @@
  */
 package io.uhndata.iap.search.api;
 
+import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.Objects;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
@@ -28,9 +30,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Helpers for writing a {@link io.uhndata.iap.search.spi.QuickSearchEngine quick search engine}: escaping the user's
- * input so it can safely go into a query, finding which of a property's values matched, and describing that match so
- * that the client can highlight it.
+ * Helpers for writing a {@link io.uhndata.iap.search.spi.QuickSearchEngine quick search engine}. They escape the
+ * user's input for a query, find which of a property's values matched, and describe that match for the client to
+ * highlight.
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,8 +40,8 @@ import org.jetbrains.annotations.Nullable;
 public final class SearchUtils
 {
     /**
-     * The property holding the match description on a returned result. Not a real repository property: it is added
-     * to the serialized result, alongside the node's own properties.
+     * The property holding the match description on a returned result. Not a repository property. It is added to the
+     * serialized result, alongside the node's own properties.
      */
     public static final String MATCH_KEY = "data:queryMatch";
 
@@ -61,13 +63,13 @@ public final class SearchUtils
 
     private SearchUtils()
     {
-        // This is a utility class, it should not be instantiated
+        // Utility class, never instantiated
     }
 
     /**
-     * Escapes the characters that have a special meaning in the pattern of a {@code like} condition, so that the
-     * input only matches itself. This does not make the result safe to place in a query: it is a pattern, not a
-     * string literal, so it still has to go through {@link #escapeQueryArgument} as well.
+     * Escapes the characters that have a special meaning in the pattern of a {@code like} condition, leaving input
+     * that matches only itself. The result is a pattern, not a string literal. Placing it in a query still needs
+     * {@link #escapeQueryArgument}.
      *
      * @param input the text to escape
      * @return an escaped version of the input
@@ -79,7 +81,7 @@ public final class SearchUtils
     }
 
     /**
-     * Escapes the input string so that it can be used inside a single-quoted string literal in a query.
+     * Escapes the input for use inside a single-quoted string literal in a query.
      *
      * @param input the text to escape
      * @return an escaped version of the input
@@ -91,8 +93,8 @@ public final class SearchUtils
     }
 
     /**
-     * Finds which of a property's values contains the searched text. A property may hold a single value or several,
-     * of any type, so this accepts whatever a value map returns for it.
+     * Finds which of a property's values contains the searched text. A property holds one value or several, of any
+     * type, and this accepts whatever a value map returns for it.
      *
      * @param value the raw property value, a single value or an array, of any type
      * @param query the text to look for, matched case-insensitively
@@ -104,9 +106,16 @@ public final class SearchUtils
         if (value == null) {
             return null;
         }
-        if (value instanceof Object[]) {
-            return getMatchFromArray(Arrays.stream((Object[]) value).map(String::valueOf).toArray(String[]::new),
-                query);
+        // Any array, not only an Object[]: a value map hands back a long[] or a boolean[] for a multi-valued
+        // property of those types. An instanceof Object[] test misses them and matches the query against "[J@6b88"
+        if (value.getClass().isArray()) {
+            final String[] values = new String[Array.getLength(value)];
+            for (int i = 0; i < values.length; ++i) {
+                // A null element stands in as the empty string. The default rendering of "null" would make a
+                // search for "nul" match it
+                values[i] = Objects.toString(Array.get(value, i), "");
+            }
+            return getMatchFromArray(values, query);
         }
         return Strings.CI.contains(value.toString(), query) ? value.toString() : null;
     }
@@ -130,12 +139,13 @@ public final class SearchUtils
     /**
      * Adds a description of the match to an already serialized result, under {@value #MATCH_KEY}.
      *
-     * @param result the serialized result to describe, returned unchanged if the match cannot be described
+     * @param result the serialized result to describe
      * @param matchedValue the value that matched, as returned by {@link #getMatch}
      * @param query the text that was searched for
      * @param label a human-readable name for what matched, e.g. the label of the field holding the value
      * @param path the path of the node holding the matched value
-     * @return a copy of the result, with the match description added
+     * @return a copy of the result with the match description added, or the result itself when there is nothing to
+     *         describe
      */
     @NotNull
     public static JsonObject addMatchMetadata(@NotNull final JsonObject result, @NotNull final String matchedValue,
@@ -174,7 +184,7 @@ public final class SearchUtils
         final String before = matchedValue.substring(0, matchIndex);
         builder.add(BEFORE_KEY, trimmed(before, false));
 
-        // The query is matched case-insensitively, so the text as stored may differ from the text as typed
+        // Taken from the stored value, not from the query: the match is case-insensitive and the two can differ
         builder.add(TEXT_KEY, matchedValue.substring(matchIndex, matchIndex + query.length()));
 
         final String after = matchedValue.substring(matchIndex + query.length());
@@ -185,9 +195,8 @@ public final class SearchUtils
 
     /**
      * Cuts a piece of context down to {@value #MAX_CONTEXT} characters, marking with {@value #ELLIPSIS} that there
-     * was more. The count is in characters as a reader sees them, not in the units a string is stored in: cutting an
-     * emoji or any other character outside the basic plane in half would leave the response holding an unpaired
-     * surrogate, which is not text any more.
+     * was more. The count is in code points, not in {@code char}s. Cutting an emoji in half would leave the response
+     * holding an unpaired surrogate.
      *
      * @param context the text to cut down
      * @param fromStart {@code true} to keep the beginning of the text, {@code false} to keep the end

@@ -70,6 +70,23 @@ public class SearchUtilsTest
     }
 
     @Test
+    public void primitiveArraysAreSearchedValueByValue()
+    {
+        // A value map may hand back a long[] or a boolean[] for a multi-valued property, and neither is an Object[]
+        Assertions.assertEquals("42", SearchUtils.getMatch(new long[] { 7L, 42L }, "4"));
+        Assertions.assertNull(SearchUtils.getMatch(new long[] { 7L, 42L }, "@"));
+        Assertions.assertEquals("true", SearchUtils.getMatch(new boolean[] { false, true }, "TRU"));
+    }
+
+    @Test
+    public void aMissingValueMatchesNothing()
+    {
+        // Not the four characters of "null", which a search for "nul" would otherwise match
+        Assertions.assertNull(SearchUtils.getMatch(new String[] { null, "second" }, "nul"));
+        Assertions.assertEquals("second", SearchUtils.getMatch(new String[] { null, "second" }, "eco"));
+    }
+
+    @Test
     public void arrayMatchingHandlesNoValues()
     {
         Assertions.assertNull(SearchUtils.getMatchFromArray(null, "anything"));
@@ -103,8 +120,7 @@ public class SearchUtilsTest
     @Test
     public void contextIsNotCutThroughTheMiddleOfACharacter()
     {
-        // Counting in the units a string is stored in rather than in characters would cut one of these emoji in
-        // half, leaving the response holding an unpaired surrogate, which is not text any more
+        // Counting in the units a string is stored in would cut one of these emoji in half
         final String emoji = "😀";
         final JsonObject match = SearchUtils
             .addMatchMetadata(RESULT, emoji.repeat(10) + "needle" + emoji.repeat(10), "needle", null, null)
@@ -131,8 +147,8 @@ public class SearchUtilsTest
     @Test
     public void aValueThatDoesNotMatchIsNotDescribed()
     {
-        // The caller is expected to pass a value that matched, but a description of a match that isn't there would
-        // be nonsense, so the result is returned as it is rather than made up
+        // The caller passes a value that matched. There is nothing to describe when it did not, so the result comes
+        // back unchanged.
         Assertions.assertEquals(RESULT, SearchUtils.addMatchMetadata(RESULT, "nothing here", "needle", null, null));
     }
 }
