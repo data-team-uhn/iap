@@ -70,6 +70,24 @@ public class SearchUtilsTest
     }
 
     @Test
+    public void primitiveArraysAreSearchedValueByValue()
+    {
+        // A value map may hand back a primitive array for a multi-valued property, which is not an Object[]:
+        // treating it as a single value would match the query against the array's identity, "[J@6b884d57"
+        Assertions.assertEquals("42", SearchUtils.getMatch(new long[] { 7L, 42L }, "4"));
+        Assertions.assertNull(SearchUtils.getMatch(new long[] { 7L, 42L }, "@"));
+        Assertions.assertEquals("true", SearchUtils.getMatch(new boolean[] { false, true }, "TRU"));
+    }
+
+    @Test
+    public void aMissingValueMatchesNothing()
+    {
+        // Not the four characters of "null", which a search for "nul" would otherwise match
+        Assertions.assertNull(SearchUtils.getMatch(new String[] { null, "second" }, "nul"));
+        Assertions.assertEquals("second", SearchUtils.getMatch(new String[] { null, "second" }, "eco"));
+    }
+
+    @Test
     public void arrayMatchingHandlesNoValues()
     {
         Assertions.assertNull(SearchUtils.getMatchFromArray(null, "anything"));
