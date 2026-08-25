@@ -35,6 +35,7 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.status.api.StatusReportManager;
 import io.uhndata.iap.status.spi.StatusReport;
+import io.uhndata.iap.utils.UserIds;
 
 /**
  * Serves the {@link StatusReportManager}'s reports at {@code /system/status} (JSON) and {@code /system/status.txt}
@@ -60,7 +61,7 @@ public class StatusReportEndpoint extends SlingJakartaSafeMethodsServlet
         throws IOException
     {
         response.setCharacterEncoding("UTF-8");
-        final boolean unprivileged = !("admin".equals(request.getRemoteUser()));
+        final boolean unprivileged = !"admin".equals(UserIds.canonical(request.getResourceResolver()));
         final String requestedStatus = request.getParameter("targetStatus");
         final StatusReport.Status targetStatus;
         try {
