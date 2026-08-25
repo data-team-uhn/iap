@@ -50,15 +50,14 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.utils.PaginatedJsonResponse;
 
 /**
- * A servlet that lists, in pages, the entities stored under an entity homepage. It is registered on
- * {@code data/EntityHomepage} with the {@code paginate} selector, so, through the {@code sling:resourceSuperType}
- * chain of the concrete homepage types, it serves e.g. {@code /Submissions.paginate.json} or
- * {@code /Schemas.paginate.json}.
+ * Lists, in pages, the entities stored under an entity homepage. Registered on {@code data/EntityHomepage} with the
+ * {@code paginate} selector. The {@code sling:resourceSuperType} chain of the concrete homepage types brings it e.g.
+ * {@code /Submissions.paginate.json} and {@code /Schemas.paginate.json}.
  *
  * <p>
- * The type of the listed entities is, by convention, derived from the homepage's resource type (e.g.
- * {@code sub/SubmissionsHomepage} lists {@code sub:Submission} nodes), unless the homepage node explicitly names
- * another type in a {@code childNodeType} property.
+ * The type of the listed entities is derived from the homepage's resource type: {@code sub/SubmissionsHomepage}
+ * lists {@code sub:Submission} nodes. A {@code childNodeType} property on the homepage node names another type
+ * instead.
  * </p>
  *
  * <p>
@@ -77,8 +76,8 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * {@code LIKE}), {@code NOT ILIKE}, {@code IS NULL} and {@code IS NOT NULL}; if no
  * comparators are sent, {@code =} is used; the special value {@code @me} is replaced with the current user's id</li>
  * <li>{@code fieldGroup}: optional group identifiers aligned with the field triples; conditions sharing a
- * (non-empty) group are ORed together, while distinct groups and ungrouped conditions are ANDed, so e.g.
- * {@code status = a OR status = b} is expressed as two conditions sharing a group</li>
+ * (non-empty) group are ORed together, while distinct groups and ungrouped conditions are ANDed, e.g.
+ * {@code status = a OR status = b} is two conditions sharing a group</li>
  * <li>{@code childType}, {@code childFieldName}, {@code childFieldComparator}, {@code childFieldValue},
  * {@code childFieldGroup}: same, but the conditions apply to a descendant of the entity, e.g. only submissions
  * having a {@code sub:Review} descendant with {@code reviewer = @me}; multiple independent descendant conditions
@@ -155,9 +154,9 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * The type of nodes listed by the targeted homepage: the explicit {@code childNodeType} property if the
-     * homepage node has one, otherwise the type derived from the homepage's resource type by the
-     * {@code sub/SubmissionsHomepage} holds {@code sub:Submission} naming convention.
+     * The type of nodes listed by the targeted homepage: the {@code childNodeType} property if the homepage node has
+     * one, otherwise the resource type with {@code /} replaced by {@code :} and a trailing {@code sHomepage} cut,
+     * turning {@code sub/SubmissionsHomepage} into {@code sub:Submission}.
      *
      * @param homepage the homepage resource targeted by the request
      * @return a node type name
@@ -174,16 +173,16 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     /**
      * Collects the descendant condition families present in the request: the empty suffix for the plain
      * {@code childType}/{@code childField*} parameters, and one numeric suffix per
-     * {@code childTypeN}/{@code childFieldN*} family. The suffixes are returned in numeric order, with the plain
-     * family first, so the mapping of families onto query joins is deterministic.
+     * {@code childTypeN}/{@code childFieldN*} family. The suffixes come back in numeric order, the plain family
+     * first. The mapping of families onto query joins is then deterministic.
      *
      * @param request the current request
      * @return the family suffixes present in the request, possibly empty
      */
     private Collection<String> getChildFilterSuffixes(final SlingJakartaHttpServletRequest request)
     {
-        // Shorter digit strings are smaller numbers, so length-then-lexicographic is numeric order without the
-        // overflow risk of actually parsing untrusted numbers
+        // Shorter digit strings are smaller numbers. Length then lexicographic is numeric order, without parsing
+        // untrusted numbers that may overflow.
         final Set<String> suffixes =
             new TreeSet<>(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
         for (final String name : request.getParameterMap().keySet()) {
@@ -254,9 +253,9 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * pagination status.
      *
      * <p>
-     * The query has already been executed by the time this is called, but the result set it returned is lazy, so
-     * reading the rows can still fail once part of the response has gone out. That is reported in the summary rather
-     * than as an error response, which by then could only be appended to a body that already holds one.
+     * The query has already run, but its result set is lazy. Reading the rows can still fail once part of the
+     * response has gone out. Such a failure is reported in the summary, not as an error response, which by then
+     * could only be appended to a body that already holds one.
      * </p>
      *
      * @param request the current request
@@ -268,7 +267,7 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         final SlingJakartaHttpServletResponse response, final RowIterator rows)
         throws IOException
     {
-        // The writer doesn't need to be explicitly closed, closing the generator closes it too
+        // Closing the generator closes the writer too
         try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
             json.writeStartObject();
             json.writeStartArray("rows");
@@ -276,7 +275,11 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             String error = null;
             try {
                 writeRows(page, rows, request);
-            } catch (final RepositoryException e) {
+            } catch (final RepositoryException | RuntimeException e) {
+                // Unchecked as much as checked. Oak signals much of what can go wrong while a lazy result set is
+                // read, such as a read or memory limit reached, with an unchecked exception. Letting one out here
+                // would abandon the response half-written: the generator closed on an incomplete document, with too
+                // much of the body already on the wire for an error status to replace it.
                 LOGGER.warn("Failed to read the results of a pagination query: {}", e.getMessage(), e);
                 error = "Failed to read all the results";
             }
@@ -287,9 +290,9 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Feeds the query results to the paginator, which writes the requested page and counts the matches. Oak queries
-     * can't request distinct results, so when a descendant join produces the same entity multiple times the
-     * duplicates have to be dropped here, by path.
+     * Feeds the query results to the paginator, which writes the requested page and counts the matches. An Oak query
+     * cannot ask for distinct results. A descendant join returns the same entity once per matching descendant, and
+     * the paginator drops those duplicates by path.
      *
      * @param page the paginator for the requested page, positioned inside the {@code rows} array
      * @param rows the query results to paginate over
