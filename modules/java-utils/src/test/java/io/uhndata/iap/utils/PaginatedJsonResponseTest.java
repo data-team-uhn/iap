@@ -214,8 +214,8 @@ public class PaginatedJsonResponseTest
     @Test
     public void zeroLimitCountsPastASinglePage()
     {
-        // The count-only mode is there to answer "how many are there?", which it cannot do if it stops at a default
-        // page's worth
+        // The count-only mode answers "how many are there?", which it cannot do if it stops at a default page's
+        // worth
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 0));
         offerAll(page, 500);
         final JsonObject result = finish(page, null);
@@ -227,8 +227,8 @@ public class PaginatedJsonResponseTest
     @Test
     public void aHugeOffsetDoesNotUnboundTheCounting()
     {
-        // The limit is capped, but the offset comes from the client too, and the counting used to scale with it: one
-        // request asking for a far enough page would read every match in the repository
+        // The offset comes from the client as well as the limit, and MAX_COUNT is what bounds the reads it can ask
+        // for
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 100000000, 10));
         Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT + 1, page.getRemainingCapacity());
         int offered = 0;
@@ -246,8 +246,8 @@ public class PaginatedJsonResponseTest
     @Test
     public void anExtremeOffsetDoesNotOverflow()
     {
-        // The arithmetic used to wrap for an offset this large, leaving a negative lookahead that reported every
-        // total as 0 and handed callers a remaining capacity of 0 while the page still said it wanted more
+        // An offset this large wraps the lookahead arithmetic unless it is bounded first. A negative lookahead
+        // reports every total as 0 and leaves no remaining capacity while the page still asks for more.
         final PaginatedJsonResponse page =
             startPage(PaginatedJsonResponse.forPage(this.json, Long.MAX_VALUE, 10));
         Assertions.assertTrue(page.getRemainingCapacity() > 0);
@@ -260,9 +260,8 @@ public class PaginatedJsonResponseTest
     @Test
     public void aPageEndingOnTheCountingCeilingStaysConsistentWithItsTotal()
     {
-        // A page starting just short of the ceiling reaches it part-way through: the result that only proves there
-        // are more then falls inside the requested page, and returning it would put a row in the response that the
-        // total reported alongside it does not count
+        // A page starting just short of the ceiling reaches it part-way through, so the result that only proves
+        // there are more falls inside the requested page
         final long offset = PaginatedJsonResponse.MAX_COUNT - 5;
         final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, offset, 10));
         int offered = 0;
@@ -282,9 +281,10 @@ public class PaginatedJsonResponseTest
     @Test
     public void anExtremeLimitDoesNotOverflow()
     {
-        // The lookahead is derived from the page size, so an unchecked one multiplied by the lookahead depth used to
-        // wrap, leaving a negative lookahead that reported every total as 0 and handed callers no capacity at all
-        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, Long.MAX_VALUE));
+        // The lookahead is the page size times the lookahead depth, which wraps for a limit this large unless it is
+        // capped first. A lookahead of 1 fills the page on the first result and reports a total of 0. forRequest
+        // caps the limit, forPage trusts its caller.
+        final PaginatedJsonResponse page = startPage(PaginatedJsonResponse.forPage(this.json, 0, 1L << 57));
         Assertions.assertEquals(PaginatedJsonResponse.MAX_COUNT + 1, page.getRemainingCapacity());
         offerAll(page, 3);
         final JsonObject result = finish(page, null);
@@ -313,8 +313,7 @@ public class PaginatedJsonResponseTest
     @Test
     public void aCommittedResponseIsLeftAloneRatherThanAppendedTo()
     {
-        // Once the beginning of a response has gone out, its status is on the wire and a second JSON object would
-        // only leave the client with something it cannot parse
+        // The status is on the wire once the response is committed
         final SlingJakartaHttpServletResponse response = Mockito.mock(SlingJakartaHttpServletResponse.class);
         Mockito.when(response.isCommitted()).thenReturn(true);
         Assertions.assertDoesNotThrow(() -> PaginatedJsonResponse.writeError(response,
