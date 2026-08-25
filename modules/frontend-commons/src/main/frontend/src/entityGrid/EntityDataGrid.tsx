@@ -90,6 +90,8 @@ interface EntityDataGridProps {
   emptyMessage?: string;
   // The message shown when a search is active but matches nothing
   noResultsMessage?: string;
+  // An ARIA label for this grid's search box, say which list is being searched.
+  searchLabel?: string;
   // Render all rows at once instead of virtualizing; needed in test environments with no layout
   disableVirtualization?: boolean;
 }
@@ -104,6 +106,8 @@ declare module "@mui/x-data-grid" {
     onSortModelChange?: (model: GridSortModel) => void;
     // Only the list mode needs the menu; regular headers already sort on click
     showSortMenu?: boolean;
+    // What this grid's search box is called, an ARIA label
+    searchLabel?: string;
   }
 }
 
@@ -112,6 +116,7 @@ interface EntityGridToolbarProps {
   sortModel?: GridSortModel;
   onSortModelChange?: (model: GridSortModel) => void;
   showSortMenu?: boolean;
+  searchLabel?: string;
 }
 
 // The grid's toolbar. User feedback (on a sibling product with the same audience) singled out
@@ -120,7 +125,8 @@ interface EntityGridToolbarProps {
 // visibly tinted and outlined in the primary color. The panel toggles (columns, filters) stay
 // compact at the trailing end, dropping to their own row when width runs out.
 function EntityGridToolbar(props: EntityGridToolbarProps) {
-  const { sortableColumns = [], sortModel = [], onSortModelChange, showSortMenu = false } = props;
+  const { sortableColumns = [], sortModel = [], onSortModelChange, showSortMenu = false,
+    searchLabel = "Search" } = props;
   const [sortAnchor, setSortAnchor] = useState<HTMLElement | null>(null);
   const currentSort = sortModel.at(0);
 
@@ -195,6 +201,7 @@ function EntityGridToolbar(props: EntityGridToolbarProps) {
               }}
               slotProps={{
                 ...slotProps,
+                htmlInput: { ...slotProps?.htmlInput, "aria-label": searchLabel },
                 input: {
                   startAdornment: (
                     <InputAdornment position="start">
@@ -507,6 +514,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     height = 400,
     emptyMessage = "Nothing to show",
     noResultsMessage = "No results found",
+    searchLabel = "Search",
     disableVirtualization = false,
   } = props;
   const config = getEntityTypeConfig(entityType);
@@ -779,6 +787,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
               .map(column => ({ field: column.field, headerName: column.headerName })),
             sortModel,
             onSortModelChange: setSortModel,
+            searchLabel,
           },
         }}
         columnVisibilityModel={columnVisibilityModel}
