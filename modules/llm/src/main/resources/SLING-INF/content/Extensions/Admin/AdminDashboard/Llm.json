@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/adminDashboard/entry",
+  "ext:name": "LLM configuration",
+  "ext:subtitle": "Choose the provider and model every LLM request goes to",
+  "ext:targetURL": "/admin/llm",
+  "ext:actionLabel": "Configure LLM",
+  "ext:renderURL": "asset:iap-llm.LlmConfigWidget.js",
+  "defaultOrder": 30
+}

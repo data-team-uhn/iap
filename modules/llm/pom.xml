@@ -89,6 +89,7 @@
             <!-- overwrite:=false so redeploying never resets the provider and model picked at runtime -->
             <Sling-Initial-Content>
               SLING-INF/content/apps/iap/config/;path:=/apps/iap/config/;overwrite:=false,
+              SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>

@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "LLM configuration",
+  "ext:targetURL": "/admin/llm",
+  "ext:renderURL": "asset:iap-llm.LlmConfigManager.js?lazy"
+}
