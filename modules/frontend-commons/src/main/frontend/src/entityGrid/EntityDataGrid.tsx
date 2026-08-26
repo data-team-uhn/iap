@@ -75,6 +75,11 @@ interface EntityDataGridProps {
   // The entity type to list, e.g. "sub/Submission"; its presentation (homepage, columns, default
   // sort) must have been registered beforehand with registerEntityType
   entityType: string;
+  // The homepage to list from, when it is not the type's registered one: several homepages may
+  // hold the same kind of entity (a location's workflows and the platform's own, say), and a
+  // caller listing one of the others names it here. Omitted — the normal case — the type's
+  // registered homepage is used.
+  homepage?: string;
   // Extra conditions on the entities' own properties, e.g. only the current user's submissions
   filters?: PropertyFilter[];
   // Extra conditions on a descendant node, e.g. only submissions with a review by the current user
@@ -121,6 +126,7 @@ const APPROXIMATE_META = { hasNextPage: true };
 function EntityDataGrid(props: EntityDataGridProps) {
   const {
     entityType,
+    homepage,
     filters,
     childFilter,
     pageSize = 5,
@@ -158,8 +164,8 @@ function EntityDataGrid(props: EntityDataGridProps) {
   const [columnVisibilityModel, changeColumnVisibility] = useColumnVisibility(entityType);
   const local = givenRows !== undefined;
   const page = useEntityPage({
-    config: local ? undefined : config, columns, paginationModel, sortModel, filters, childFilter, columnFilters,
-    fullText, refreshToken,
+    config: local ? undefined : config, homepage, columns, paginationModel, sortModel, filters, childFilter,
+    columnFilters, fullText, refreshToken,
   });
   const rows = givenRows ?? page.rows;
   const { rowCount, approximate, error, retry } = page;
