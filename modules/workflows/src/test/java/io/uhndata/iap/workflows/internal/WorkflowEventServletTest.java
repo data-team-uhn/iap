@@ -26,6 +26,7 @@ import org.apache.sling.api.request.RequestParameter;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.apache.sling.testing.mock.sling.servlet.MockRequestPathInfo;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,13 +39,16 @@ import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
+import io.uhndata.iap.workflows.api.WorkflowConflictException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -153,6 +157,113 @@ class WorkflowEventServletTest
         Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
         assertEquals(TaskCompletion.COMPLETE_EVENT, sent.getValue().getName());
         assertEquals("approved", sent.getValue().get(TaskCompletion.OUTCOME_PARAMETER));
+    }
+
+    @Test
+    void translatesAPostToAnEntityIntoASaveEvent() throws WorkflowException, IOException
+    {
+        // Aimed at one submission rather than at the homepage holding them: that means changing this one, not
+        // making another, which is the difference between filling a request in and raising it
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource submission = this.context.create().resource(
+            "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000", WorkflowFixture.TYPE, "sub/Submission");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("details/startDate", "2026-10-06"));
+        request.setResource(submission);
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals(WorkflowEventServlet.SAVE_EVENT, sent.getValue().getName());
+        assertEquals("2026-10-06", sent.getValue().get("details/startDate"));
+    }
+
+    @Test
+    void translatesAPostToTheSystemWorkflowsHomepageIntoACreateEvent() throws WorkflowException, IOException
+    {
+        // The other homepage holding workflow definitions. Left off the servlet's bindings it did not 404 -- the
+        // POST reached the Sling POST servlet, which set `title` on the homepage node itself, so asking for a
+        // system workflow renamed the tree that holds them. Being bound, an event that nothing catches is a 409.
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource homepage = this.context.create().resource("/SystemWorkflows",
+            WorkflowFixture.TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE,
+            WorkflowFixture.SUPER_TYPE, "data/EntityHomepage");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("title", "Announce approvals"));
+        request.setResource(homepage);
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals(WorkflowEventServlet.CREATE_EVENT, sent.getValue().getName());
+        assertEquals("Announce approvals", sent.getValue().get("title"));
+    }
+
+    @Test
+    void translatesAPostToAWorkflowVersionIntoASaveEvent() throws WorkflowException, IOException
+    {
+        // A version is an entity, so the default is to change this one -- which is how the editor saves a diagram.
+        // The moves of its lifecycle name their events outright, being the less obvious things to do to it.
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource version = this.context.create().resource("/Workflows/review/1-0",
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, WorkflowFixture.SUPER_TYPE, "data/Entity");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("bpmn.xml", "<bpmn:definitions/>"));
+        request.setResource(version);
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals(WorkflowEventServlet.SAVE_EVENT, sent.getValue().getName());
+    }
+
+    @Test
+    void mapsAConflictingTargetStateToConflict() throws WorkflowException, IOException
+    {
+        // The neighbour of "nothing was waiting for this": something was, and the target has moved past it
+        assertEquals(409, statusFor(new WorkflowConflictException("a retired version cannot be made active")));
+    }
+
+    @Test
+    void letsASelectorNameTheEventInstead() throws WorkflowException, IOException
+    {
+        // An entity has one obvious thing that happens to it and any number of less obvious ones, and no reading of
+        // the URL tells `save` from `attachDocument`. Naming it changes nothing about who may fire it: the engine
+        // still answers 409 when nothing is waiting for that message
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource submission = this.context.create().resource(
+            "/Submissions/ab/cd/ef/0a1b2c3d-1111-1111-1111-111111111111", WorkflowFixture.TYPE, "sub/Submission");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("requirement", "doctorsNote"));
+        request.setResource(submission);
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("attachDocument");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals("attachDocument", sent.getValue().getName());
+        assertEquals("doctorsNote", sent.getValue().get("requirement"));
+    }
+
+    @Test
+    void ignoresAnEmptySelectorRatherThanSendingAnEventWithNoName() throws WorkflowException, IOException
+    {
+        // Sling reports "no selectors" as an empty string in some paths and as null in others, and an event named
+        // "" would be a 409 blaming the definitions for a URL quirk
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("title", "My cool workflow"));
+        ((MockRequestPathInfo) request.getRequestPathInfo()).setSelectorString("");
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals(WorkflowEventServlet.CREATE_EVENT, sent.getValue().getName());
     }
 
     @Test
