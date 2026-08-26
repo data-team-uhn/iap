@@ -68,7 +68,7 @@ class CreateEntityHandlerTest
     {
         WorkflowFixture.setUp(this.context);
         this.target = EngineFixture.createTarget(this.context);
-        EngineFixture.createSystemWorkflow(this.context, true, true, "wf/WorkflowsHomepage");
+        EngineFixture.createSystemWorkflow(this.context, "wf/WorkflowsHomepage");
         EngineFixture.createBootstrapGraph(this.context);
     }
 
