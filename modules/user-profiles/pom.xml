@@ -105,6 +105,20 @@
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>oak-jackrabbit-api</artifactId>
     </dependency>
+    <!-- The authorizable action that prepares a new account's profile containers: the SPI it implements, the Root/Tree
+         API it writes through, and the name/path mapper it resolves the account's home with. -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-security-spi</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-core-spi</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>jackrabbit-jcr-commons</artifactId>
