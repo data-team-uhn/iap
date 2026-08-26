@@ -470,6 +470,81 @@ class StartupGateFilterTest
     }
 
     @Test
+    void staysClosedUntilTheCeilingIsReached() throws Exception
+    {
+        everythingPassesExcept(BUNDLES_CHECK);
+
+        this.filter.poll(0);
+        this.filter.poll(StartupGateFilter.CEILING_NANOS - 1);
+
+        assertFalse(letsRequestsThrough());
+        assertStillGated();
+    }
+
+    @Test
+    void opensAndStandsDownOnceItHasBeenClosedForTheWholeCeiling() throws Exception
+    {
+        // The instance must not be left unreachable by a check that only an administrator can clear, so the gate
+        // gives up rather than waiting for something that will never happen on its own.
+        everythingPassesExcept(BUNDLES_CHECK);
+
+        this.filter.poll(0);
+        this.filter.poll(StartupGateFilter.CEILING_NANOS);
+
+        assertTrue(letsRequestsThrough());
+        verify(this.componentContext).disableComponent(StartupPlaceholderServlet.class.getName());
+        verify(this.componentContext).disableComponent(StartupPlaceholderContext.class.getName());
+        verify(this.componentContext).disableComponent(StartupGateFilter.class.getName());
+        verify(this.poller).shutdown();
+    }
+
+    @Test
+    void reachesTheCeilingOnAFailingCheckThatIsNotEvenRequired() throws Exception
+    {
+        // The case the ceiling exists for: content that failed to load reports a failure rather than vanishing, and
+        // leaving the check off the required list does nothing about that.
+        checksReport(Stream.concat(REQUIRED.stream(), Stream.of(CONTENT_CHECK)).toList(), CONTENT_CHECK);
+
+        this.filter.poll(0);
+        this.filter.poll(StartupGateFilter.CEILING_NANOS);
+
+        assertTrue(letsRequestsThrough());
+        verify(this.componentContext).disableComponent(StartupGateFilter.class.getName());
+    }
+
+    @Test
+    void measuresTheCeilingFromTheFirstPollRatherThanFromZero() throws Exception
+    {
+        // The timer has no epoch, so a gate whose first poll lands on a large value must not read as long overdue.
+        final long late = StartupGateFilter.CEILING_NANOS * 3;
+        everythingPassesExcept(BUNDLES_CHECK);
+
+        this.filter.poll(late);
+
+        assertFalse(letsRequestsThrough());
+        assertStillGated();
+
+        this.filter.poll(late + StartupGateFilter.CEILING_NANOS);
+
+        assertTrue(letsRequestsThrough());
+    }
+
+    @Test
+    void doesNotReachTheCeilingWhileReadinessOnlyDipsBriefly() throws Exception
+    {
+        // A regression closes the gate again, but that is not a reason to give up: the ceiling bounds the whole
+        // startup, so a dip late in a slow one must not be mistaken for a system that never came up.
+        everythingPasses();
+        this.filter.poll(0);
+
+        everythingPassesExcept(LOGIN_CHECK);
+        this.filter.poll(StartupGateFilter.CEILING_NANOS - 1);
+
+        assertFalse(letsRequestsThrough());
+        assertStillGated();
+    }
+
+    @Test
     void pollsWithTheCurrentTime() throws Exception
     {
         everythingPasses();

@@ -53,7 +53,8 @@ import org.slf4j.LoggerFactory;
  * Serves the static "starting up" page instead of half-working pages until the system is actually ready to face
  * visitors, everywhere except under {@code /system/}, which stays reachable throughout so that a stuck startup can be
  * diagnosed through the console and the health checks. Ready means that every one of the {@link #REQUIRED_CHECKS} is
- * registered and passing.
+ * registered and passing. A gate that has stayed shut for {@link #CEILING_NANOS} opens anyway, so a startup that
+ * cannot finish degrades to working badly rather than to unreachable.
  *
  * <p>
  * Naming the checks, rather than trusting the {@code systemalive} tag to bring them all in, is what makes the gate
@@ -118,6 +119,25 @@ public final class StartupGateFilter implements Filter
      */
     static final long SETTLE_NANOS = TimeUnit.SECONDS.toNanos(30);
 
+    /**
+     * How long the gate may hold requests before it opens regardless, measured from its first evaluation.
+     *
+     * <p>
+     * A gate that can never open is worse than the half-working pages it exists to hide, because some of what it waits
+     * on can only be cleared by an administrator working inside the application. Content that failed to load because
+     * an upgrade left merge conflicts is the case that actually happens, and it is a deadlock rather than a risk: the
+     * check can only pass once someone resolves the conflicts, and the tooling to resolve them is not under
+     * {@link #SYSTEM_PATH}. Diagnosis survives a stuck gate, since the console and the health checks are exempt;
+     * repair does not.
+     * </p>
+     *
+     * <p>
+     * Long enough that no legitimately slow startup reaches it -- the gate normally opens in some fifteen seconds and
+     * retires half a minute after that -- and short enough that nobody facing a broken upgrade is locked out for long.
+     * </p>
+     */
+    static final long CEILING_NANOS = TimeUnit.MINUTES.toNanos(5);
+
     /** How often readiness is evaluated, in milliseconds, for as long as the gate is up. */
     static final long POLL_INTERVAL_MS = 500;
 
@@ -138,6 +158,23 @@ public final class StartupGateFilter implements Filter
      * is the case today for the content loader's {@code Bundle Content Loaded}: it is configured and tagged, but its
      * component is only sometimes satisfied, and on the runs where it is not it never registers at all. Left out of
      * this list it still gates whenever it is there, and costs nothing when it is not.
+     * </p>
+     *
+     * <p>
+     * That check is also out of this list for a second and stronger reason, which outlives the registration problem:
+     * content that failed to load is a state only an administrator can clear, and after an upgrade whose content
+     * merges conflicted it is an expected one, so requiring it would keep the instance unreachable until someone
+     * resolved conflicts they had no way to reach. <strong>Do not re-require it if its registration is ever made
+     * reliable</strong> -- that fixes the lesser half of why it is here. The general rule it stands for: a check whose
+     * remedy needs someone logged in must never gate logging in.
+     * </p>
+     *
+     * <p>
+     * Note also what leaving a check off this list does not buy. {@link #findProblem} reports any tagged check that
+     * comes back not-OK, required or not, so one that registers and then fails still holds the gate shut -- which for
+     * this check is precisely the upgrade case above, since a not-loaded bundle is reported as {@code CRITICAL} or
+     * {@code WARN} depending on its configuration and neither is OK. {@link #CEILING_NANOS} is what bounds that, and
+     * it is the only thing that does.
      * </p>
      */
     private static final Set<String> REQUIRED_CHECKS = Set.of(
@@ -183,6 +220,12 @@ public final class StartupGateFilter implements Filter
 
     /** When the current ready stretch started; meaningless unless {@link #settling}, since any value is a valid one. */
     private long readySinceNanos;
+
+    /** Whether {@link #firstPollNanos} has been taken, since the timer can legitimately read zero. */
+    private boolean polled;
+
+    /** When the gate started evaluating readiness, which is what {@link #CEILING_NANOS} is measured from. */
+    private long firstPollNanos;
 
     /**
      * What the log last said about readiness, so that a situation that is not changing is reported once rather than
@@ -271,12 +314,17 @@ public final class StartupGateFilter implements Filter
     }
 
     /**
-     * Evaluates readiness once: opens or closes the gate, and retires it once it has been open long enough.
+     * Evaluates readiness once: opens or closes the gate, retires it once it has been open long enough, and gives up
+     * on it once it has been shut for too long.
      *
      * @param nowNanos the current value of the nanosecond timer
      */
     void poll(final long nowNanos)
     {
+        if (!this.polled) {
+            this.polled = true;
+            this.firstPollNanos = nowNanos;
+        }
         final String problem = findProblem();
         report(problem);
         final boolean ready = problem == null;
@@ -284,6 +332,9 @@ public final class StartupGateFilter implements Filter
         this.open = ready;
         if (!ready) {
             this.settling = false;
+            if (nowNanos - this.firstPollNanos >= CEILING_NANOS) {
+                giveUp(problem);
+            }
         } else if (!this.settling) {
             this.settling = true;
             this.readySinceNanos = nowNanos;
@@ -293,12 +344,37 @@ public final class StartupGateFilter implements Filter
     }
 
     /**
-     * Takes the whole gate out of the way, now that the system has proven itself started: no more polling, and none of
-     * the three components that make up the gate are left registered.
+     * Takes the whole gate out of the way, now that the system has proven itself started.
      */
     private void retire()
     {
         LOGGER.info("The system is fully started, retiring the startup gate");
+        standDown();
+    }
+
+    /**
+     * Opens the gate on a system that has not started, because staying shut would be worse: whatever is wrong needs
+     * someone to come in and fix it. Logged at error, since the pages behind the gate are not expected to work and
+     * this is the only record of why they are being served anyway.
+     *
+     * @param problem what readiness was still waiting for when the ceiling was reached
+     */
+    private void giveUp(final String problem)
+    {
+        LOGGER.error("The startup gate has been holding requests for {} seconds and the system is still not ready:"
+            + " {}. Opening it anyway, because a gate that never opens leaves the instance permanently unreachable,"
+            + " and clearing this may need an administrator to log in. Expect pages that do not work until it is"
+            + " resolved.", TimeUnit.NANOSECONDS.toSeconds(CEILING_NANOS), problem);
+        this.open = true;
+        standDown();
+    }
+
+    /**
+     * Leaves nothing of the gate on the request path: no more polling, and none of the three components that make it
+     * up left registered. They are disabled rather than removed, so a restart arms the gate again.
+     */
+    private void standDown()
+    {
         this.poller.shutdown();
         this.componentContext.disableComponent(StartupPlaceholderServlet.class.getName());
         this.componentContext.disableComponent(StartupPlaceholderContext.class.getName());
