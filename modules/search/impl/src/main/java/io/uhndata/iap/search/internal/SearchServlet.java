@@ -376,8 +376,8 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
         throws RepositoryException
     {
         final String[] selectors = results.getSelectorNames();
-        final String[] columns = results.getColumnNames();
         final RowIterator rows = results.getRows();
+        final String[] columns = results.getColumnNames();
         boolean more = true;
         while (rows.hasNext() && more) {
             final Row row = rows.nextRow();
