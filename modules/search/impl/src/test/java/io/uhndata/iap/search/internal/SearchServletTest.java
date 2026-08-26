@@ -76,6 +76,13 @@ public class SearchServletTest
 
     private static final String INDEXED_PLAN = "[sub:Submission] as [n] /* property submissionIndex */";
 
+    /**
+     * The exclusion every generated full-text statement carries. Spelled out in full, rather than reused from the
+     * servlet, by {@link #aFullTextSearchStaysOutOfTheRepositorysBookkeeping()}.
+     */
+    private static final String OUTSIDE_SYSTEM =
+        " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')";
+
     private SearchServlet servlet;
 
     private SlingJakartaHttpServletRequest request;
@@ -246,8 +253,36 @@ public class SearchServletTest
         withParameter("fulltext", "diabetes");
         mockNodeResults("/Submissions/s1");
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')",
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')" + OUTSIDE_SYSTEM,
             executedStatement());
+    }
+
+    @Test
+    public void aFullTextSearchStaysOutOfTheRepositorysBookkeeping() throws Exception
+    {
+        // Checking a versionable node in leaves a frozen copy of all its properties under
+        // /jcr:system/jcr:versionStorage, and the node type registry answers an ordinary word with the property
+        // definitions that declare it. Measured against Oak 2.4.0 with a Lucene full-text index: a search matching
+        // one submission that had been checked in twice came back with three rows, two of them frozen copies, and
+        // one for "versionable" came back with thirty, twenty-nine of them node type definitions. Adding this left
+        // the query plan byte for byte the same, so the exclusion costs nothing in index selection.
+        withParameter("fulltext", "diabetes");
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')"
+            + " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')",
+            executedStatement());
+    }
+
+    @Test
+    public void aQueryIsRunAsItWasSentEvenIntoTheSystemTree() throws Exception
+    {
+        // The exclusion is added to the statement this endpoint builds, not to one the client wrote: a client
+        // asking for version storage in its own JCR-SQL2 asked for it on purpose
+        withParameter(QUERY, "select * from [nt:frozenNode]");
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select * from [nt:frozenNode]", executedStatement());
     }
 
     @Test
@@ -258,7 +293,7 @@ public class SearchServletTest
         withParameter("fulltext", "  diabetes \t");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')",
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')" + OUTSIDE_SYSTEM,
             executedStatement());
     }
 
@@ -268,7 +303,7 @@ public class SearchServletTest
         withParameter("fulltext", "a-b OR c*");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'a\\-b OR c\\*')",
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'a\\-b OR c\\*')" + OUTSIDE_SYSTEM,
             executedStatement());
     }
 
@@ -279,7 +314,7 @@ public class SearchServletTest
         withParameter("doNotEscapeQuery", "true");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'a-b OR c*')",
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'a-b OR c*')" + OUTSIDE_SYSTEM,
             executedStatement());
     }
 
@@ -292,7 +327,7 @@ public class SearchServletTest
         withParameter("doNotEscapeQuery", "true");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'it''s')",
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'it''s')" + OUTSIDE_SYSTEM,
             executedStatement());
     }
 
@@ -592,7 +627,8 @@ public class SearchServletTest
         withParameter("fulltext", "'tis");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, '\\''tis')", executedStatement());
+        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, '\\''tis')" + OUTSIDE_SYSTEM,
+            executedStatement());
     }
 
     @Test

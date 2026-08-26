@@ -70,7 +70,8 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * </p>
  * <ul>
  * <li>{@code query}, a full query in the JCR-SQL2 syntax</li>
- * <li>{@code fulltext}, a text to look for anywhere in the repository</li>
+ * <li>{@code fulltext}, a text to look for anywhere in the content, the repository's own {@code /jcr:system}
+ * bookkeeping excepted</li>
  * <li>{@code quick}, a text to be matched by the registered
  * {@link QuickSearchEngine quick search engines}</li>
  * </ul>
@@ -108,6 +109,28 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
 
     /** The selector the generated queries use for the node being matched. */
     private static final String SELECTOR = "n";
+
+    /**
+     * The tree the repository keeps its own bookkeeping in, left out of a generated search.
+     *
+     * <p>
+     * None of it is content anyone searched for, and a good part of it is a copy of content that is: checking a node
+     * in leaves a frozen copy of all its properties under {@code /jcr:system/jcr:versionStorage}, so a submission
+     * edited twenty times would answer a search for its own text twenty-one times over. The rest is worse than
+     * useless — the node type registry alone puts every property definition it declares in front of a search for an
+     * ordinary word, and none of those paths is one the client can do anything with.
+     * </p>
+     */
+    private static final String SYSTEM_TREE = "/jcr:system";
+
+    /**
+     * Keeps a generated statement out of the {@link #SYSTEM_TREE}. The tree's own node is named separately from its
+     * descendants because {@code isdescendantnode} is strictly about the latter, and {@code /jcr:system} itself
+     * carries a primary type that answers a search for "system".
+     */
+    private static final String OUTSIDE_SYSTEM_TREE =
+        " and not issamenode(" + SELECTOR + ", '" + SYSTEM_TREE + "')"
+            + " and not isdescendantnode(" + SELECTOR + ", '" + SYSTEM_TREE + "')";
 
     /**
      * The characters that mean something other than themselves in a full-text expression. The apostrophe is one of
@@ -297,6 +320,13 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
      * amount of space between the words, are already fine.
      * </p>
      *
+     * <p>
+     * The statement is the only one in the endpoint that spans every node type, so it is also the only one that
+     * reaches the repository's own {@link #SYSTEM_TREE bookkeeping}, which it is kept out of. A typed query cannot
+     * get there on its own: a frozen node stores the type it was a copy of in a property and takes
+     * {@code nt:frozenNode} as its own, so it never matches the type its original would.
+     * </p>
+     *
      * @param request the current request
      * @param query the text to look for, not blank
      * @return a JCR-SQL2 statement
@@ -309,8 +339,8 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
         final String expression = verbatim ? FULL_TEXT_SPECIAL.matcher(text).replaceAll("\\\\$1") : text;
         // The quotes are escaped either way: they delimit the string in the statement, so leaving them to the client
         // would let it write the rest of the query
-        return String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, '%2$s')", SELECTOR,
-            SearchUtils.escapeQueryArgument(expression));
+        return String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, '%2$s')%3$s", SELECTOR,
+            SearchUtils.escapeQueryArgument(expression), OUTSIDE_SYSTEM_TREE);
     }
 
     /**
