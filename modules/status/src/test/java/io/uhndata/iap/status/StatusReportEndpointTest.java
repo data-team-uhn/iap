@@ -26,6 +26,8 @@ import java.util.Set;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
 
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.apache.sling.testing.mock.sling.servlet.MockRequestPathInfo;
@@ -141,21 +143,36 @@ class StatusReportEndpointTest
         Mockito.when(this.manager.getReports(Mockito.anyBoolean(), Mockito.any(), Mockito.any()))
             .thenReturn(List.of());
 
-        final MockSlingJakartaHttpServletRequest request = request(null, Map.of());
-        request.setRemoteUser("admin");
-        this.endpoint.service(request, new MockSlingJakartaHttpServletResponse());
+        this.endpoint.service(request(null, Map.of(), "admin"), new MockSlingJakartaHttpServletResponse());
         Mockito.verify(this.manager).getReports(false, StatusReport.Status.INFO, Set.of());
 
-        final MockSlingJakartaHttpServletRequest other = request(null, Map.of());
-        other.setRemoteUser("visitor");
-        this.endpoint.service(other, new MockSlingJakartaHttpServletResponse());
+        this.endpoint.service(request(null, Map.of(), "visitor"), new MockSlingJakartaHttpServletResponse());
         Mockito.verify(this.manager).getReports(true, StatusReport.Status.INFO, Set.of());
     }
 
     private MockSlingJakartaHttpServletRequest request(final String extension, final Map<String, Object> parameters)
     {
+        return request(extension, parameters, null);
+    }
+
+    /**
+     * A request from a named caller. Who that is comes from the session, not from the request's remote user: a
+     * login resolves case-insensitively, so the remote user is the spelling that was typed while only the
+     * repository's answer identifies an account.
+     */
+    private MockSlingJakartaHttpServletRequest request(final String extension, final Map<String, Object> parameters,
+        final String user)
+    {
+        final ResourceResolver resolver = new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return user;
+            }
+        };
         final MockSlingJakartaHttpServletRequest request =
-            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
+            new MockSlingJakartaHttpServletRequest(resolver, this.context.bundleContext());
         ((MockRequestPathInfo) request.getRequestPathInfo()).setExtension(extension);
         request.setParameterMap(parameters);
         return request;

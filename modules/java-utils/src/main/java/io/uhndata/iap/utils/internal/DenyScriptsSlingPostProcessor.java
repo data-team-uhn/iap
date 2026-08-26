@@ -27,6 +27,8 @@ import org.apache.sling.servlets.post.Modification;
 import org.apache.sling.servlets.post.SlingJakartaPostProcessor;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.utils.UserIds;
+
 /**
  * For security purposes, deny uploading HTML or JavaScript files for anybody other than the admin.
  *
@@ -39,11 +41,11 @@ public class DenyScriptsSlingPostProcessor implements SlingJakartaPostProcessor
     @Override
     public void process(final SlingJakartaHttpServletRequest request, final List<Modification> changes) throws Exception
     {
-        if ("admin".equalsIgnoreCase(request.getRemoteUser())) {
+        ResourceResolver rr = request.getResourceResolver();
+        if ("admin".equals(UserIds.canonical(rr))) {
             return;
         }
 
-        ResourceResolver rr = request.getResourceResolver();
         for (Modification m : changes) {
             final Resource r = rr.getResource(m.getSource());
             if (r == null || r.getResourceMetadata() == null) {

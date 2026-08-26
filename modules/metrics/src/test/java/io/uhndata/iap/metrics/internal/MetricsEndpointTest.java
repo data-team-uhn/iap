@@ -24,6 +24,8 @@ import java.util.List;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
@@ -128,11 +130,23 @@ class MetricsEndpointTest
         return mocked;
     }
 
-    private MockSlingJakartaHttpServletResponse get(final String remoteUser) throws Exception
+    /**
+     * A GET from a named caller. Who that is comes from the session, not from the request's remote user: a login
+     * resolves case-insensitively, so the remote user is the spelling that was typed while only the repository's
+     * answer identifies an account.
+     */
+    private MockSlingJakartaHttpServletResponse get(final String user) throws Exception
     {
+        final ResourceResolver resolver = new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return user;
+            }
+        };
         final MockSlingJakartaHttpServletRequest request =
-            new MockSlingJakartaHttpServletRequest(this.context.resourceResolver(), this.context.bundleContext());
-        request.setRemoteUser(remoteUser);
+            new MockSlingJakartaHttpServletRequest(resolver, this.context.bundleContext());
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
         this.endpoint.service(request, response);
         return response;
