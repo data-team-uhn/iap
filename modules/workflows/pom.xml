@@ -196,7 +196,6 @@
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
     </dependency>
-    <dependency>
     <!-- The query language the homepage discovery endpoint asks in, and the JCR API the model tests mock -->
     <dependency>
       <groupId>javax.jcr</groupId>
