@@ -13,7 +13,7 @@ has two unrelated profiles.
 
 ## Defining a field
 
-A definition is an `profile:FieldDefinition` child of the `/ProfileFields` homepage (an
+A definition is a `profile:FieldDefinition` child of the `/ProfileFields` homepage (an
 `profile:FieldsHomepage` created by repoinit, world-readable). Modules contribute definitions
 through their initial content.
 
@@ -103,6 +103,21 @@ in `systemPrincipalNames` and is therefore the only writer.
 > administrative change goes through the profile API. When debugging a synchronisation problem, set
 > `protectExternalIdentities: "Warn"`, which logs instead of failing.
 
+**The writer's grant is restricted to the two subtrees, and that is why the containers are created up
+front.** `iap-userprofile` is granted `rep:write` on `/home/users` restricted by glob to the `profile`
+and `preferences` subtrees, plus `rep:fullname`, so it can maintain what a person's profile says and
+nothing else — not their password, not their group membership, not the tokens an identity provider
+keeps under the same home. A restriction of that shape cannot cover the containers themselves: adding
+a child is authorized against the **parent**, the account's home node, and no glob ending in a
+container name matches that. `rep:itemNames` cannot express it either, so the gap is not one a
+different restriction closes.
+
+So an [authorizable action](https://jackrabbit.apache.org/oak/docs/security/user/authorizableactionprovider.html)
+gives every new account both containers at creation, and the grant stays as narrow as it was. It
+implements only the password-carrying `onCreate` overload, which is the one every real account arrives
+through — a synced one included, since the synchronisation creates it with no password. Oak reserves
+the password-less overload for *system* users, which are service accounts that no profile describes.
+
 **Reads are mediated.** `/home/users` is not readable by everyone: reading anybody else's values goes
 through the profile service, which applies `readableBy` per field. A person keeps read access to
 their own home through Oak's self-grant, so the self-service page needs nothing special.
@@ -116,7 +131,7 @@ their own home through Oak's self-grant, so the self-service page needs nothing 
   `mix:versionable` itself, or a person can become a domain entity keyed by authorizable ID. The API
   is a projection rather than a serialization, so neither choice changes it.
 - **Condition-based rules.** `writableBy`/`readableBy` are flat vocabularies. `cond:Conditionable`
-  would express "editable when …" but `ConditionEvaluator` needs an `data:Content` context, and a user
+  would express "editable when …" but `ConditionEvaluator` needs a `data:Content` context, and a user
   home cannot be adapted to one; that needs either a person entity or an `OperandResolver` for
   account properties.
 - **Admin configuration UI.** The catalogue is content and already reads itself.
