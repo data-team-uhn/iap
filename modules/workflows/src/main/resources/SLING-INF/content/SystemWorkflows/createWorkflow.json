@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Create a workflow",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "state": "ACTIVE",
     "targetResourceType": "wf/WorkflowsHomepage",
     "description": "What happens when a new workflow is asked for: create the definition, empty and inactive, ready for the editor. Being itself a workflow, this behavior can be extended per deployment - a validation step, a notification - by editing this definition rather than the platform. Authoring workflows is an administrative act, so the start event admits only iap-administrators; a deployment that wants a wider group changes that one property.",
     "requested": {

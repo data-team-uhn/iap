@@ -67,8 +67,9 @@ class WorkflowVersionTest
             TYPE, WorkflowVersion.RESOURCE_TYPE,
             "version", "1.0",
             "description", "The first cut",
-            "active", true,
+            "state", "ACTIVE",
             "bpmnXmlParsedHash", "abc123",
+            "bpmnAuthoritative", true,
             "targetResourceType", "wf/WorkflowsHomepage"));
         // The source is a file child, not a property, so it is loaded as one
         this.context.load().binaryFile(new ByteArrayInputStream(BPMN.getBytes(StandardCharsets.UTF_8)),
@@ -78,9 +79,11 @@ class WorkflowVersionTest
         assertNotNull(version);
         assertEquals("1.0", version.getVersion());
         assertEquals("The first cut", version.getDescription());
+        assertEquals(WorkflowVersion.State.ACTIVE, version.getState());
         assertTrue(version.isActive());
         assertEquals(BPMN, read(version.getBpmnFile()));
         assertEquals("abc123", version.getBpmnXmlParsedHash());
+        assertTrue(version.isBpmnAuthoritative());
         assertEquals("wf/WorkflowsHomepage", version.getTargetResourceType());
     }
 
@@ -112,11 +115,78 @@ class WorkflowVersionTest
         assertNull(version.getDescription());
         assertNull(version.getBpmnFile());
         assertNull(version.getBpmnXmlParsedHash());
+        // A version says nothing about owning its graph until something says so: the diagram derives
+        // nothing for it, which is the safe reading for a graph that may have been authored by hand
+        assertFalse(version.isBpmnAuthoritative());
         assertNull(version.getTargetResourceType());
+        // A version whose state never made it into the repository is read as an unfinished one, never as something
+        // instances may be created from
+        assertEquals(WorkflowVersion.State.DRAFT, version.getState());
         assertFalse(version.isActive());
         assertTrue(version.getFlowNodes().isEmpty());
         assertTrue(version.getStartEvents().isEmpty());
         assertNull(version.getFlowNode("nothing"));
+    }
+
+    @Test
+    void readsEachOfTheLifecycleStates()
+    {
+        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("DRAFT"));
+        assertEquals(WorkflowVersion.State.TRIAL, this.stateOf("TRIAL"));
+        assertEquals(WorkflowVersion.State.ACTIVE, this.stateOf("ACTIVE"));
+        assertEquals(WorkflowVersion.State.RETIRED, this.stateOf("RETIRED"));
+    }
+
+    @Test
+    void reportsAVersionOnTrialAsNotAcceptingInstances()
+    {
+        final Resource resource = this.context.create().resource(VERSION_PATH, Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", "TRIAL"));
+        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
+
+        assertNotNull(version);
+        // A trial is being tried out, which is not the same as being the version a workflow runs
+        assertEquals(WorkflowVersion.State.TRIAL, version.getState());
+        assertFalse(version.isActive());
+    }
+
+    @Test
+    void reportsARetiredVersionAsNotAcceptingInstances()
+    {
+        final Resource resource = this.context.create().resource(VERSION_PATH, Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", "RETIRED"));
+        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
+
+        assertNotNull(version);
+        // Retired is not draft, but it is just as much a "no new instances" answer
+        assertEquals(WorkflowVersion.State.RETIRED, version.getState());
+        assertFalse(version.isActive());
+    }
+
+    @Test
+    void readsAnUnrecognizedStateAsADraft()
+    {
+        // Not a state this platform knows: guessing at what a hand-edited or newer value was meant to mean could
+        // make an unfinished version instantiable, so it is read as the state that runs nothing
+        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("PUBLISHED"));
+        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("active"));
+        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf(""));
+    }
+
+    /**
+     * The lifecycle state a version carrying the given raw {@code state} property is read as.
+     *
+     * @param state the property value to store, as it would arrive from the repository
+     * @return the state the model reports
+     */
+    private WorkflowVersion.State stateOf(final String state)
+    {
+        // A path of its own per call, so the cases don't overwrite each other's node
+        final Resource resource = this.context.create().resource(VERSION_PATH + "-" + state.hashCode(), Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", state));
+        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
+        assertNotNull(version);
+        return version.getState();
     }
 
     @Test
