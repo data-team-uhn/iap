@@ -98,18 +98,16 @@ logout-confirmation page instead of returning to IAP. The endpoint uses the **fr
 
 ## Enabling Keycloak sign-in
 
-The "Institutional account" method ships **disabled** (`ext:defaultDisabled: true` in `Keycloak.json`),
-so a deployment that hasn't configured Keycloak — including the bare-platform smoke tests — shows only
-the local credentials form. Keycloak's plumbing (`core/oidc.json`) is part of the default `core_tar`
-build, so the button's visibility can't be driven by which features are present; it's a deliberate
-per-deployment switch, flipped once Keycloak is actually wired up.
+Keycloak sign-in is **opt-in**: `iap-oidc-support` and `iap-keycloak` are not in the default
+aggregates, so a deployment that hasn't configured Keycloak — including the bare-platform smoke
+tests — has neither the OIDC plumbing nor the button, and shows only the local credentials form.
 
 - **Docker:** set `KEYCLOAK_ENABLED=true` in the container's environment. `docker_entry.sh` then adds
   both features to the launcher (the same additive `-f` mechanism used by `SMTPS_ENABLED`).
 - **Dev (`start.sh`/`start.py`):** pass `--keycloak`.
 
-When the features are loaded, the "Institutional account" button is shown by default (no per-deployment
-POST needed); when they are not, it does not exist. Set the [runtime environment
+Loading the features is the whole switch — the "Institutional account" button is then shown by
+default, and does not exist otherwise. Set the [runtime environment
 variables](#runtime-environment-variables) as well — the OIDC handler will not come up without them.
 
 ## Runtime environment variables
@@ -160,8 +158,8 @@ separate so Keycloak runs detached while IAP runs in the foreground) plus an env
 
 - `docker-compose.keycloak.yml` — Keycloak on the shared `iap` network, published to the host at
   `127.0.0.1:8084`, with `KC_HOSTNAME` pinned so the issuer/front-channel URL is stable and
-  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` so IAP can reach it in-network (see the front/back-channel
-  split under [Caveats](#caveats) below).
+  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` so IAP can reach it in-network (the front/back-channel split
+  is explained below).
 - `docker-compose.iap.yml` — IAP on the same network.
 - `.env.example` — the environment both files read; `keycloak_setup.sh --write-env` fills in a `.env`
   from it (client id, secret, front-channel URL). The real `.env` is gitignored — it holds the secret.
@@ -233,7 +231,7 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 
 1. Bring up Keycloak; create realm `iap`, client `iap-sling`, the `groups` mapper, and a test user
    with a role (e.g. `test`/`test` with `reader`) — `keycloak_setup.sh` does all of this.
-2. Set the five env vars and start IAP (`mvn clean install` then `./start.sh`).
+2. Set the six env vars and start IAP (`mvn clean install` then `./start.sh --keycloak`).
 3. In Keycloak's token inspector (or decode the ID token), confirm the `groups` claim is a flat
    list containing the role **before** wiring anything else — this is the most common failure point.
 4. Load the Keycloak features (`./start.sh --keycloak`, or `KEYCLOAK_ENABLED=true` in Docker — see
@@ -275,13 +273,24 @@ JasyptStandardPbeStringCryptoService(...) : The activate method has thrown an ex
 
 **Read the env var name in that message carefully.** `IAP_OAUTH_ENCRYPTION_PASSWORD` is this
 feature's variable; `SLING_COMMONS_CRYPTO_PASSWORD` belongs to `iap-email-notifications`, which
-configures a second, independent Jasypt stack and is part of the default build — so the two always
-coexist. Seeing the *other* feature's variable named here means the crypto services cross-bound each
-other's `PasswordProvider`: `JasyptStandardPbeStringCryptoService`'s `passwordProvider` reference is
-a mandatory 1..1, so an untargeted one binds whichever provider has the lowest `service.id`, i.e.
-whichever feature was installed first. Both features now pin their references with
-`passwordProvider.target` / `ivGenerator.target` filters; if you add a third crypto stack, or
-copy one of these configs, keep the filters.
+configures a second, independent Jasypt stack and is part of the default build — so the two coexist
+whenever Keycloak sign-in is enabled. Every reference involved is an untargeted mandatory `1..1`,
+which OSGi resolves by lowest `service.id` — i.e. by feature install order, which a rebase can flip.
+That bites at two levels, and both are now pinned explicitly:
+
+- **Which `PasswordProvider` each crypto service uses** — `passwordProvider.target`,
+  `ivGenerator.target` and `saltGenerator.target` on both stacks.
+- **Which `CryptoService` each consumer uses** — the `oauth-client`'s consumers have
+  compiler-generated reference names (`$000`, `$005`, …) that cannot be targeted stably across
+  upgrades, so `~iapoauth` carries a `service.ranking` that steers them to it. `SimpleMailService`'s
+  `cryptoService` reference is *greedy*, so `iap-email-notifications` pins it with
+  `cryptoService.target` to stop it following that ranking and decrypting the SMTP password with the
+  wrong key.
+
+Symptoms of the second level: `JcrUserHomeOAuthTokenStore`, `OAuthCallbackServlet` and
+`OAuthEntryPointServlet` sit at `failed activation` in `/system/console/components.json` while
+`OidcAuthenticationHandler` stays `satisfied` and never reaches `active`. Keep the filters and the
+ranking if you add a third crypto stack or copy one of these configs.
 
 ## Caveats
 
