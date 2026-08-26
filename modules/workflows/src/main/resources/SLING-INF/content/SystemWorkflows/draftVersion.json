@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Draft a copy of a workflow version",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "state": "ACTIVE",
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "What happens when a version is carried forward: a new draft is opened beside it with a copy of its diagram, and of its graph where the diagram does not own one. This is how an active or retired version is changed at all - neither may be edited where it stands, because instances are following it, so what the manager offers instead is a copy that may be.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Copy requested",
+      "messageName": "draft",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toDraft": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDraft",
+        "targetRef": "draft"
+      }
+    },
+    "draft": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "draft",
+      "label": "Copy the version into a new draft",
+      "handler": "draftWorkflowVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Draft created",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

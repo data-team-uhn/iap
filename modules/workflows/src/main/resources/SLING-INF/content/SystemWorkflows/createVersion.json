@@ -1,0 +1,42 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Open a new version of a workflow",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "state": "ACTIVE",
+    "targetResourceType": "wf/WorkflowDefinition",
+    "description": "What happens when another version of an existing workflow is asked for: a draft is created beside the versions already there, carrying whatever diagram the request brought to start from. A draft rather than anything else, because a version that instances could be created from should be one somebody has decided to activate. Being itself a workflow, a deployment that wants a new version to be announced, or to be refused while another draft is open, edits this definition rather than the platform.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Version requested",
+      "messageName": "createVersion",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toCreate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toCreate",
+        "targetRef": "create"
+      }
+    },
+    "create": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "create",
+      "label": "Create the version",
+      "handler": "createWorkflowVersion",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Version created",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

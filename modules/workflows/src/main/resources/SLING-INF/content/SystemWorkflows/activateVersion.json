@@ -1,0 +1,56 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Activate a workflow version",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "state": "ACTIVE",
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "What happens when a version becomes the one new instances are created from: whichever version was current is retired, and then this one is promoted in its place. Two steps of one run, so the two writes are one commit and there is no moment at which two versions of a workflow both claim to be current. Which versions may be promoted is the `fromStates` of the promote step - a draft or a trial - rather than a table in code, and who may do it is this start event's performers, which is why activating is a definition of its own rather than a parameter of a general one: a deployment can let an author return their own trial to a draft while keeping promotion to administrators.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Activation requested",
+      "messageName": "activate",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toRetire": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRetire",
+        "targetRef": "retire"
+      }
+    },
+    "retire": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "retire",
+      "label": "Retire the version this one supersedes",
+      "handler": "retireActiveVersions",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toPromote": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toPromote",
+        "targetRef": "promote"
+      }
+    },
+    "promote": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "promote",
+      "label": "Make this the active version",
+      "handler": "setVersionState",
+      "toState": "ACTIVE",
+      "fromStates": ["DRAFT", "TRIAL"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Version activated",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

@@ -646,6 +646,10 @@ class BpmnXmlSyncEditorTest
     {
         final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
 
+        // What the editor tests a root child by, rather than its name: a homepage's own statement of what it
+        // holds, which wf:WorkflowsHomepage and wf:SystemWorkflowsHomepage both autocreate and protect.
+        homepage(root, WORKFLOWS_PATH);
+
         final NodeBuilder types = root.child("WorkflowTypes");
         flowNodeType(types, "StartEvent", this.startEventTypeId, "bpmn:startEvent", null, "wf:StartEvent", 0);
         flowNodeType(types, "UserTask", this.userTaskTypeId, "bpmn:userTask", null, "wf:Activity", 0);
@@ -759,6 +763,18 @@ class BpmnXmlSyncEditorTest
     private NodeState version(final NodeState root)
     {
         return descend(root, WORKFLOWS_PATH, DEFINITION_NAME, VERSION_NAME);
+    }
+
+    /**
+     * Declares a root child to be a homepage holding workflow definitions.
+     *
+     * @param root the repository root builder
+     * @param name the homepage's node name
+     * @return the homepage builder
+     */
+    private NodeBuilder homepage(final NodeBuilder root, final String name)
+    {
+        return root.child(name).setProperty("childNodeType", "wf:WorkflowDefinition");
     }
 
     private NodeBuilder descend(final NodeBuilder root, final String... names)
@@ -1514,5 +1530,60 @@ class BpmnXmlSyncEditorTest
 
         assertEquals(sha256(START_EVENT_XML), version.getProperty(HASH_PROPERTY).getValue(Type.STRING));
         assertTrue(version.getChildNode(START_1).exists());
+    }
+
+    @Test
+    void parsesDiagramsUnderEveryHomepageThatHoldsWorkflowDefinitions() throws Exception
+    {
+        // The platform's own workflows live under /SystemWorkflows, and a deployment may add a third tree. While
+        // this editor matched the name "Workflows", a diagram saved anywhere else was stored and never parsed —
+        // leaving a version that looks authored, has no flow nodes, and says nothing about it.
+        final NodeBuilder root = base();
+        homepage(root, "SystemWorkflows");
+        final NodeState before = root.getNodeState();
+        final NodeBuilder after = before.builder();
+        final NodeBuilder version = descend(after, "SystemWorkflows", DEFINITION_NAME, VERSION_NAME);
+        version.setProperty(PRIMARY_TYPE, "wf:WorkflowVersion", Type.NAME);
+        version.setProperty(AUTHORITATIVE, true);
+        final NodeBuilder content = version.child(BPMN_XML).child(JCR_CONTENT);
+        version.getChildNode(BPMN_XML).setProperty(PRIMARY_TYPE, "nt:file", Type.NAME);
+        content.setProperty(PRIMARY_TYPE, "nt:resource", Type.NAME);
+        content.setProperty(JCR_DATA, START_EVENT_XML);
+
+        final NodeState parsed = descend(process(before, after).builder(),
+            "SystemWorkflows", DEFINITION_NAME, VERSION_NAME).getNodeState();
+
+        assertEquals(sha256(START_EVENT_XML), parsed.getProperty(HASH_PROPERTY).getValue(Type.STRING));
+        assertTrue(parsed.getChildNode(START_1).exists());
+    }
+
+    @Test
+    void staysOutOfRootChildrenThatHoldSomethingElse() throws Exception
+    {
+        // Asking the content what it is cuts both ways: a tree that holds submissions, and one that says nothing
+        // about what it holds, are both walked past — an editor that descended into everything would be reading
+        // node types on every commit in the repository.
+        final NodeBuilder root = base();
+        root.child("Submissions").setProperty("childNodeType", "sub:Submission");
+        final NodeState before = root.getNodeState();
+        final NodeBuilder after = before.builder();
+        for (final String tree : List.of("Submissions", "Unlabelled")) {
+            final NodeBuilder version = descend(after, tree, DEFINITION_NAME, VERSION_NAME);
+            version.setProperty(PRIMARY_TYPE, "wf:WorkflowVersion", Type.NAME);
+            version.setProperty(AUTHORITATIVE, true);
+            final NodeBuilder content = version.child(BPMN_XML).child(JCR_CONTENT);
+            version.getChildNode(BPMN_XML).setProperty(PRIMARY_TYPE, "nt:file", Type.NAME);
+            content.setProperty(PRIMARY_TYPE, "nt:resource", Type.NAME);
+            content.setProperty(JCR_DATA, START_EVENT_XML);
+        }
+
+        final NodeBuilder result = process(before, after).builder();
+
+        for (final String tree : List.of("Submissions", "Unlabelled")) {
+            final NodeState untouched =
+                descend(result, tree, DEFINITION_NAME, VERSION_NAME).getNodeState();
+            assertFalse(untouched.hasProperty(HASH_PROPERTY));
+            assertFalse(untouched.getChildNode(START_1).exists());
+        }
     }
 }
