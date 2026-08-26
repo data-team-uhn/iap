@@ -98,8 +98,9 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * </p>
  *
  * <p>
- * A {@code query} may start with {@code explain} or {@code measure}, which report on the query instead of running
- * it.
+ * A {@code query} may name a referenced node by its path where the UUID it holds is expected, for example
+ * {@code a.question = '/Schemas/Consent/1.0/hasCapacity'}; see {@link QueryPathResolver}. It may also start with
+ * {@code explain} or {@code measure}, which report on the query instead of running it.
  * </p>
  *
  * @version $Id$
@@ -210,13 +211,15 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
         final QueryResult results;
         final boolean reporting;
         if (StringUtils.isNotBlank(jcrQuery)) {
-            reporting = REPORTING_QUERY.matcher(jcrQuery).find();
+            final Session session = session(request);
+            final String statement = QueryPathResolver.resolveReferencePaths(session, jcrQuery);
+            reporting = REPORTING_QUERY.matcher(statement).find();
             // Asking for the plan of a statement that is itself about a plan is either the same question again or,
             // for an explain, not something the repository will parse
-            results = runQuery(request, jcrQuery, !reporting);
+            results = runQuery(session, statement, !reporting);
         } else if (StringUtils.isNotBlank(fullText)) {
             reporting = false;
-            results = runQuery(request, fullTextStatement(request, fullText), true);
+            results = runQuery(session(request), fullTextStatement(request, fullText), true);
         } else {
             reporting = false;
             results = null;
@@ -256,22 +259,33 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * Executes a JCR-SQL2 statement in the session of the user making the request.
+     * The session of the user making the request, which every query runs in.
      *
      * @param request the current request
-     * @param statement the statement to execute
-     * @param checkPlan whether to report the statement if it has no index to work with
-     * @return the query results
-     * @throws RepositoryException if the statement is invalid, or the resource resolver is not backed by a JCR
-     *             session
+     * @return the session behind the request's resource resolver
+     * @throws RepositoryException if the resource resolver is not backed by a JCR session
      */
-    private QueryResult runQuery(final SlingJakartaHttpServletRequest request, final String statement,
-        final boolean checkPlan) throws RepositoryException
+    private static Session session(final SlingJakartaHttpServletRequest request) throws RepositoryException
     {
         final Session session = request.getResourceResolver().adaptTo(Session.class);
         if (session == null) {
             throw new RepositoryException("The resource resolver is not backed by a JCR session");
         }
+        return session;
+    }
+
+    /**
+     * Executes a JCR-SQL2 statement.
+     *
+     * @param session the session to run the statement in
+     * @param statement the statement to execute
+     * @param checkPlan whether to report the statement if it has no index to work with
+     * @return the query results
+     * @throws RepositoryException if the statement is invalid
+     */
+    private QueryResult runQuery(final Session session, final String statement, final boolean checkPlan)
+        throws RepositoryException
+    {
         // Parsed first, so that the error a client gets back is about the statement it sent, not about the
         // decorated one the plan is asked for below
         final Query query = session.getWorkspace().getQueryManager().createQuery(statement, Query.JCR_SQL2);
