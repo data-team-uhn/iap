@@ -23,7 +23,7 @@ empty result set rather than an error.
 | Parameter | Meaning |
 | --- | --- |
 | `query` | A complete JCR-SQL2 statement, run as it is |
-| `fulltext` | A text to look for anywhere in the repository |
+| `fulltext` | A text to look for anywhere in the content, [bar the repository's own bookkeeping](#what-a-full-text-search-does-not-look-at) |
 | `quick` | A text to be matched by the registered [quick search engines](#quick-search) |
 
 ```
@@ -99,9 +99,45 @@ column is there and leaves its contents to be fetched from the node itself.
 
 ## Full-text search
 
-`fulltext=…` becomes `select n.* from [nt:base] as n where contains(n.*, '…')`. By default the
-input is escaped so that it is found verbatim, operators and all. `doNotEscapeQuery=true` leaves
-the full-text operators alone, so a user can write `heart -failure` or `diabet*` and mean it.
+`fulltext=…` becomes
+
+```sql
+select n.* from [nt:base] as n where contains(n.*, '…')
+  and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')
+```
+
+By default the input is escaped so that it is found verbatim, operators and all.
+`doNotEscapeQuery=true` leaves the full-text operators alone, so a user can write `heart -failure`
+or `diabet*` and mean it.
+
+### What a full-text search does not look at
+
+This is the only mode that spans every node type, so it is the only one that reaches the
+repository's own bookkeeping under `/jcr:system`, and it is kept out of it. Two things live there
+that would otherwise crowd out the results:
+
+- **Version storage.** `data:Entity` is `mix:versionable` and the Sling POST servlet is configured
+  to check versionable nodes in automatically, so every edit leaves a frozen copy of all the node's
+  properties under `/jcr:system/jcr:versionStorage`. A submission edited twenty times would answer
+  a search for its own text twenty-one times over, on paths the client can do nothing with.
+- **The node type registry.** Every type, property definition and child definition under
+  `/jcr:system/jcr:nodeTypes` is a node with a searchable name. Measured against Oak 2.4.0, a
+  search for `versionable` in a repository holding a single matching submission returned thirty
+  rows, twenty-nine of them node type definitions.
+
+The `/jcr:system` node itself is excluded alongside its descendants: `isdescendantnode` is strictly
+about the descendants, and the node carries a `rep:system` primary type that answers a search for
+`system`.
+
+The exclusion costs nothing. Measured against Oak 2.4.0 with a Lucene full-text index, the query
+plan is byte for byte the same with it and without it — Oak picks the same index and applies the
+path restriction to the rows it returns.
+
+Neither of the other two modes needs this. A `query` is run exactly as it was sent, version storage
+and all: a client writing its own JCR-SQL2 asked for what it asked for. A `quick` search is
+whatever its engines make it, and a typed query cannot reach version storage by accident — a frozen
+node takes `nt:frozenNode` as its own primary type and records the original's in a property, so it
+never matches the type its original would.
 
 The text is stripped first, in both modes: a full-text expression has to start with a term, so a
 leading space — which a paste or an autocompletion routinely leaves in front of what was typed —
@@ -223,6 +259,11 @@ instead, as described under [Shaping the response](#shaping-the-response).
   are not configured anywhere in `packaging/`, and would bound it at the source.
 - If arbitrary JCR-SQL2 turns out not to be needed by the frontend, restricting the `query` mode to
   administrators would close that off entirely.
+- `/jcr:system` is kept out of a `fulltext` search, but the two other trees that are not content
+  are not: `/oak:index` answers a search for the property names its definitions list, and
+  `/rep:security/rep:authorizables` puts every user and group account in reach of a search for a
+  name. The user store is the one worth deciding about — either it is content, and a search should
+  find people, or it is not, and it belongs in the same exclusion.
 - `resourceSelectors` is only honoured when whole nodes are serialized. Passing it through to the
   engines, as a field on `SearchParameters`, would let `quick` results respect it too.
 - Making the default `fulltext` mode literal for whitespace and `OR`, as noted under
