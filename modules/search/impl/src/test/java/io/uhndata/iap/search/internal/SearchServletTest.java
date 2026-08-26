@@ -27,7 +27,9 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 import javax.jcr.PropertyType;
@@ -75,6 +77,10 @@ public class SearchServletTest
     private static final String SUBMISSION = "sub:Submission";
 
     private static final String INDEXED_PLAN = "[sub:Submission] as [n] /* property submissionIndex */";
+
+    private static final String SUBMISSION_QUERY = "select * from [sub:Submission]";
+
+    private static final String EXPLAIN_QUERY = "explain " + SUBMISSION_QUERY;
 
     /**
      * The exclusion every generated full-text statement carries. Spelled out in full, rather than reused from the
@@ -163,6 +169,76 @@ public class SearchServletTest
         Assertions.assertEquals(2, result.getJsonArray(ROWS).size());
         Assertions.assertEquals("/Submissions/s1", result.getJsonArray(ROWS).getJsonObject(0).getString("path"));
         Assertions.assertEquals(2, result.getInt(TOTAL));
+    }
+
+    @Test
+    public void anExplainQueryReturnsThePlanItAskedFor() throws Exception
+    {
+        // Such a row is about the query, not about a node: asking it for a path fails, and the columns the result
+        // set declares are the ones the explained statement would have returned, which the row does not hold.
+        // Measured against Oak 2.4.0, where reading either drops every row and answers with nothing at all.
+        withParameter(QUERY, EXPLAIN_QUERY);
+        mockReportingResults(Map.of("plan", "[sub:Submission] as [n] /* traverse */",
+            "statement", SUBMISSION_QUERY));
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject row = getResponseJson().getJsonArray(ROWS).getJsonObject(0);
+        Assertions.assertEquals("[sub:Submission] as [n] /* traverse */", row.getString("plan"));
+        Assertions.assertEquals(SUBMISSION_QUERY, row.getString("statement"));
+    }
+
+    @Test
+    public void aMeasureQueryReturnsWhatItScanned() throws Exception
+    {
+        withParameter(QUERY, "measure " + SUBMISSION_QUERY);
+        mockReportingResults(Map.of("selector", "n", "scanCount", "42"));
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject row = getResponseJson().getJsonArray(ROWS).getJsonObject(0);
+        Assertions.assertEquals("n", row.getString("selector"));
+        Assertions.assertEquals("42", row.getString("scanCount"));
+    }
+
+    @Test
+    public void aReportingQueryNeedsNoRawResultsParameter() throws Exception
+    {
+        // There is nothing else it could be rendered as, so asking for it would only be a way to get it wrong
+        withParameter(QUERY, EXPLAIN_QUERY);
+        withParameter("rawResults", "false");
+        mockReportingResults(Map.of("plan", "p", "statement", SUBMISSION_QUERY));
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("p", getResponseJson().getJsonArray(ROWS).getJsonObject(0).getString("plan"));
+    }
+
+    @Test
+    public void aReportingQueryIsNotAskedForAPlanOfItsOwn() throws Exception
+    {
+        // Putting an explain in front of a client's explain is not a statement the repository will parse, and the
+        // plan of a measure is the plan it already reports on
+        withParameter(QUERY, EXPLAIN_QUERY);
+        mockReportingResults(Map.of("plan", "p", "statement", SUBMISSION_QUERY));
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(List.of(EXPLAIN_QUERY), this.statements);
+    }
+
+    @Test
+    public void theColumnsOfAReportOnlyArriveOnceItsRowsHaveBeenAskedFor() throws Exception
+    {
+        // Reading the columns before the rows names the ones the reported-on statement would have returned, which
+        // no row of the report holds, and every row is then dropped for a column it cannot produce
+        withParameter(QUERY, EXPLAIN_QUERY);
+        mockReportingResults(Map.of("plan", "p", "statement", SUBMISSION_QUERY));
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject result = getResponseJson();
+        Assertions.assertEquals(1, result.getJsonArray(ROWS).size());
+        Assertions.assertTrue(result.getJsonArray(ROWS).getJsonObject(0).containsKey("plan"));
+    }
+
+    @Test
+    public void anExplainOfAMeasureIsStillAnExplain() throws Exception
+    {
+        withParameter(QUERY, "explain measure " + SUBMISSION_QUERY);
+        mockReportingResults(Map.of("plan", "p", "statement", "measure " + SUBMISSION_QUERY));
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("p", getResponseJson().getJsonArray(ROWS).getJsonObject(0).getString("plan"));
     }
 
     @Test
@@ -863,6 +939,48 @@ public class SearchServletTest
         Mockito.when(value.getString()).thenReturn("value of subject");
         Mockito.when(row.getValue("f.subject")).thenReturn(value);
         mockResults(singleRow(row), new String[] { "f" }, new String[] { "f.subject" });
+    }
+
+    /**
+     * Mocks the query infrastructure for a statement that reports on itself: one row carrying the given columns,
+     * and nothing that would answer a request for a path or for a declared column, which is how the repository
+     * behaves for such a statement.
+     *
+     * @param columns the value of each column the row holds
+     */
+    private void mockReportingResults(final Map<String, String> columns) throws RepositoryException
+    {
+        final Row row = Mockito.mock(Row.class);
+        // Asking such a row for a path fails without a selector and gives nothing with one
+        Mockito.doThrow(new RepositoryException("This query does not have a selector")).when(row).getPath();
+        Mockito.doReturn(null).when(row).getPath(Mockito.anyString());
+        Mockito.doThrow(new RepositoryException("Column not found")).when(row).getValue(Mockito.anyString());
+        for (final Map.Entry<String, String> column : columns.entrySet()) {
+            final Value value = Mockito.mock(Value.class);
+            Mockito.when(value.getString()).thenReturn(column.getValue());
+            Mockito.doReturn(value).when(row).getValue(column.getKey());
+        }
+
+        final QueryResult result = Mockito.mock(QueryResult.class);
+        Mockito.when(result.getSelectorNames()).thenReturn(new String[] { "n" });
+        // The order dependency the repository really has, reproduced so that reading the columns before the rows
+        // fails here too: until the rows are taken, it names the columns of the statement being reported on, which
+        // no row of the report has a value for
+        final AtomicBoolean rowsTaken = new AtomicBoolean();
+        Mockito.when(result.getRows()).thenAnswer(invocation -> {
+            rowsTaken.set(true);
+            return singleRow(row);
+        });
+        Mockito.when(result.getColumnNames()).thenAnswer(invocation -> rowsTaken.get()
+            ? columns.keySet().toArray(new String[0]) : new String[] { "n.jcr:primaryType" });
+
+        final Query query = Mockito.mock(Query.class);
+        Mockito.when(query.execute()).thenReturn(result);
+        Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
+            .thenAnswer(invocation -> {
+                this.statements.add(invocation.getArgument(0, String.class));
+                return query;
+            });
     }
 
     private RowIterator singleRow(final Row row)

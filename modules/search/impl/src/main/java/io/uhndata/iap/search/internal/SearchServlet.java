@@ -84,7 +84,8 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * <li>{@code offset}, {@code limit}, {@code resourceSelectors} and {@code req}: as for every paginated response, see
  * {@link PaginatedJsonResponse}</li>
  * <li>{@code rawResults=true}: return the columns the query selected, as they are, instead of serializing the nodes
- * the query matched; only meaningful together with {@code query}</li>
+ * the query matched; only meaningful together with {@code query}, and used whether or not it was asked for when the
+ * query reports on itself, which leaves no nodes to serialize</li>
  * <li>{@code doNotEscapeQuery=true}: treat the {@code fulltext} input as a full-text expression written by the user,
  * operators and all, instead of as a text to be found verbatim</li>
  * <li>{@code allowedResourceTypes}: repeatable, the node types a {@code quick} search may return; by default every
@@ -94,6 +95,11 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * <p>
  * The query runs in the session of the user making the request, so a search never reveals content that user could
  * not read anyway.
+ * </p>
+ *
+ * <p>
+ * A {@code query} may start with {@code explain} or {@code measure}, which report on the query instead of running
+ * it.
  * </p>
  *
  * @version $Id$
@@ -139,6 +145,14 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
      * a phrase that never ends.
      */
     private static final Pattern FULL_TEXT_SPECIAL = Pattern.compile("([\\\\+\\-&|!(){}\\[\\]^\"'~*?:/])");
+
+    /**
+     * Matches a statement that reports on itself instead of matching nodes: {@code explain} gives the plan the
+     * repository would run, {@code measure} how much it had to scan. Either may be written in front of any
+     * statement, and both together are allowed.
+     */
+    private static final Pattern REPORTING_QUERY =
+        Pattern.compile("^\\s*+(explain|measure)\\s", Pattern.CASE_INSENSITIVE);
 
     /** How much of a statement to write into a log message. */
     private static final int MAX_LOGGED_STATEMENT = 500;
@@ -194,11 +208,17 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
         final String fullText = request.getParameter("fulltext");
         final String quick = request.getParameter("quick");
         final QueryResult results;
+        final boolean reporting;
         if (StringUtils.isNotBlank(jcrQuery)) {
-            results = runQuery(request, jcrQuery);
+            reporting = REPORTING_QUERY.matcher(jcrQuery).find();
+            // Asking for the plan of a statement that is itself about a plan is either the same question again or,
+            // for an explain, not something the repository will parse
+            results = runQuery(request, jcrQuery, !reporting);
         } else if (StringUtils.isNotBlank(fullText)) {
-            results = runQuery(request, fullTextStatement(request, fullText));
+            reporting = false;
+            results = runQuery(request, fullTextStatement(request, fullText), true);
         } else {
+            reporting = false;
             results = null;
         }
 
@@ -210,7 +230,9 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
             String error = null;
             try {
                 if (results != null) {
-                    if ("true".equals(request.getParameter("rawResults"))) {
+                    // The rows of a reporting query describe the query, and have no node to serialize, so the raw
+                    // output is the only one that can render them
+                    if (reporting || "true".equals(request.getParameter("rawResults"))) {
                         writeRawResults(page, results);
                     } else {
                         writeNodeResults(page, request, results);
@@ -238,12 +260,13 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
      *
      * @param request the current request
      * @param statement the statement to execute
+     * @param checkPlan whether to report the statement if it has no index to work with
      * @return the query results
      * @throws RepositoryException if the statement is invalid, or the resource resolver is not backed by a JCR
      *             session
      */
-    private QueryResult runQuery(final SlingJakartaHttpServletRequest request, final String statement)
-        throws RepositoryException
+    private QueryResult runQuery(final SlingJakartaHttpServletRequest request, final String statement,
+        final boolean checkPlan) throws RepositoryException
     {
         final Session session = request.getResourceResolver().adaptTo(Session.class);
         if (session == null) {
@@ -252,7 +275,9 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
         // Parsed first, so that the error a client gets back is about the statement it sent, not about the
         // decorated one the plan is asked for below
         final Query query = session.getWorkspace().getQueryManager().createQuery(statement, Query.JCR_SQL2);
-        warnIfUnindexed(session, statement);
+        if (checkPlan) {
+            warnIfUnindexed(session, statement);
+        }
         return query.execute();
     }
 
@@ -397,6 +422,13 @@ public class SearchServlet extends SlingJakartaSafeMethodsServlet
      * Writes the query results as they are: one object per row, holding the path of each selector and the value of
      * each column the query asked for. This is what a client that only needs a few properties, or the result of an
      * aggregation, uses instead of paying for the serialization of whole nodes.
+     *
+     * <p>
+     * The columns are read <em>after</em> the rows, and the order is load-bearing: for a query that reports on
+     * itself, the repository answers {@code getColumnNames()} with the columns of the statement being reported on
+     * until the rows have been asked for, and only then with the ones its rows actually hold. Asking first yields
+     * names no row has a value for, which drops every row.
+     * </p>
      *
      * @param page the paginator for the requested page
      * @param results the query results
