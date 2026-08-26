@@ -1,0 +1,13 @@
+{
+  "jcr:primaryType": "profile:FieldDefinition",
+  "label": "Email address",
+  "description": "Where this platform sends you notifications.",
+  "kind": "profile",
+  "dataType": "text",
+  "idpClaim": "email",
+  "pattern": "[^@\\s]+@[^@\\s]+\\.[^@\\s]+",
+  "readableBy": "authenticated",
+  "writableBy": "owner",
+  "category": ["Identity"],
+  "order": 20
+}

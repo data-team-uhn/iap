@@ -1,0 +1,13 @@
+{
+  "jcr:primaryType": "profile:FieldDefinition",
+  "label": "Full name",
+  "description": "How your name is shown to other people on this platform.",
+  "kind": "profile",
+  "dataType": "text",
+  "storage": "rep:fullname",
+  "idpClaim": "name",
+  "readableBy": "authenticated",
+  "writableBy": "owner",
+  "category": ["Identity"],
+  "order": 10
+}
