@@ -241,6 +241,20 @@ describe("EntityDataGrid", () => {
     expect(url.searchParams.getAll("childFieldName")).toEqual(["reviewer"]);
   });
 
+  it("lists from the homepage it is given rather than the registered one", async () => {
+    // Several homepages may hold the same kind of entity — this location's workflows and the
+    // platform's own — and a grid listing one of the others is told which one
+    const fetchMock = mockPage([{ "@path": "/Elsewhere/e1", title: "Borrowed entity", status: "draft" }]);
+
+    render(
+      <EntityDataGrid entityType={TEST_TYPE} homepage="/Elsewhere" disableVirtualization />,
+      { wrapper: MemoryRouter }
+    );
+
+    expect(await screen.findByText("Borrowed entity")).toBeInTheDocument();
+    expect(new URL(fetchMock.mock.calls[0][0], "http://localhost").pathname).toBe("/Elsewhere.paginate.json");
+  });
+
   it("shows an error when the server rejects the request", async () => {
     vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
       () => Promise.resolve({ ok: false, url: "", status: 503 } as unknown as Response)));
