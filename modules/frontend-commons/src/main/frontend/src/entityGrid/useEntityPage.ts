@@ -28,6 +28,8 @@ import type { GridPaginationModel, GridSortModel } from "@mui/x-data-grid-pro";
 
 export interface EntityPageRequest {
   config?: EntityGridConfig;
+  // The homepage to list from, when it is not the config's own
+  homepage?: string;
   columns: EntityGridColumn[];
   paginationModel: GridPaginationModel;
   sortModel: GridSortModel;
@@ -52,7 +54,7 @@ export interface EntityPage {
 
 // One page of entities from the pagination servlet, read again whenever what it asks for changes.
 export default function useEntityPage(request: EntityPageRequest): EntityPage {
-  const { config, columns, paginationModel, sortModel, filters, childFilter, columnFilters, fullText,
+  const { config, homepage, columns, paginationModel, sortModel, filters, childFilter, columnFilters, fullText,
     refreshToken } = request;
   const [rows, setRows] = useState<EntityRow[]>([]);
   const [rowCount, setRowCount] = useState(0);
@@ -63,8 +65,10 @@ export default function useEntityPage(request: EntityPageRequest): EntityPage {
   const fetchUtil = useAuthenticatedFetch();
 
   // The props holding the fixed filters are typically fresh objects on every render, so effects
-  // depend on their content instead of their identity
-  const filterKey = JSON.stringify([filters, childFilter, columnFilters]);
+  // depend on their content instead of their identity. The homepage belongs here too: a caller
+  // that discovers it asynchronously hands it over once the discovery lands, and that has to
+  // re-fetch.
+  const filterKey = JSON.stringify([filters, childFilter, columnFilters, homepage]);
 
   useEffect(() => {
     if (!config) {
@@ -77,7 +81,7 @@ export default function useEntityPage(request: EntityPageRequest): EntityPage {
     setLoading(true);
     const sortColumn = sortModel[0] && columns.find(column => column.field === sortModel[0].field);
     fetchEntityPage(fetchUtil, {
-      homepage: config.homepage,
+      homepage: homepage ?? config.homepage,
       offset: paginationModel.page * paginationModel.pageSize,
       limit: paginationModel.pageSize,
       sortBy: sortColumn ? sortColumn.sortProperty ?? sortColumn.field : undefined,
