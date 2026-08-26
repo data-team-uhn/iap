@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -35,10 +37,9 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-import org.apache.felix.hc.api.Result;
+import org.apache.felix.hc.api.execution.HealthCheckExecutionOptions;
 import org.apache.felix.hc.api.execution.HealthCheckExecutionResult;
 import org.apache.felix.hc.api.execution.HealthCheckExecutor;
-import org.apache.felix.hc.api.execution.HealthCheckMetadata;
 import org.apache.felix.hc.api.execution.HealthCheckSelector;
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Activate;
@@ -51,16 +52,24 @@ import org.slf4j.LoggerFactory;
 /**
  * Serves the static "starting up" page instead of half-working pages until the system is actually ready to face
  * visitors, everywhere except under {@code /system/}, which stays reachable throughout so that a stuck startup can be
- * diagnosed through the console and the health checks. Ready means that all the health checks tagged
- * {@code systemalive} pass, and that among them is the one verifying that the login page renders. Requiring that
- * specific check is what makes the gate fail closed: during startup the check components themselves flicker in and out
- * of existence while their configurations are delivered, and a transiently empty or partial set of checks must keep
- * the gate shut, not open it.
+ * diagnosed through the console and the health checks. Ready means that every one of the {@link #REQUIRED_CHECKS} is
+ * registered and passing.
+ *
+ * <p>
+ * Naming the checks, rather than trusting the {@code systemalive} tag to bring them all in, is what makes the gate
+ * fail closed. The executor builds its results from the checks registered at that instant, so a check that is not
+ * registered contributes no result at all rather than a failing one, and "every result passes" is trivially true of a
+ * set that is empty or partial. That is not a rare race: the configured checks are absent for the whole early part of
+ * startup, until their configurations have been delivered, and absent again on every redelivery, since none of them
+ * declares a {@code modified} method and so SCR has to deactivate and reactivate them even for an identical one --
+ * which is exactly what the JCR installer does on the way up. An earlier version of this class pinned one check and
+ * required the rest only to pass if they happened to be there, which says nothing at all about a set that is merely
+ * incomplete, and the gate could open on a single passing check.
+ * </p>
  *
  * <p>
  * Readiness is evaluated by a background poller rather than on the request thread, because running the checks is
- * expensive: the executor caches results for two seconds only, so one request every two seconds would pay for a full
- * re-execution, including rendering the whole login page internally. Requests only read a volatile flag. Once the
+ * expensive: it includes rendering the whole login page internally. Requests only read a volatile flag. Once the
  * system has been continuously ready for {@link #SETTLE_NANOS}, the gate retires for good: it disables the
  * placeholder context and servlet it needs during startup, then itself, leaving nothing behind on the request path.
  * The components are disabled, not permanently removed, so a restart arms the gate again.
@@ -78,6 +87,16 @@ import org.slf4j.LoggerFactory;
  * window.
  * </p>
  *
+ * <p>
+ * Two alternatives were considered and rejected. Discovering the required checks at runtime, by remembering every
+ * name ever seen, removes the hardcoded list but does not work: at the very beginning only a couple of checks exist,
+ * they all pass, and the gate opens immediately. From in here, "not registered yet" and "registered a moment ago and
+ * briefly gone again" are the same observation. Never retiring, and keeping the gate as a permanent safety net, would
+ * cost a login page render twice a second forever; the filter itself is one volatile read per request and free, but
+ * the poller behind it is not, so widening the settle window is the proportionate answer to a regression arriving
+ * late.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -90,8 +109,14 @@ import org.slf4j.LoggerFactory;
 })
 public final class StartupGateFilter implements Filter
 {
-    /** How long the system must be continuously ready before the gate retires. */
-    static final long SETTLE_NANOS = TimeUnit.SECONDS.toNanos(5);
+    /**
+     * How long the system must be continuously ready before the gate retires. Deliberately longer than the window in
+     * which the JCR installer re-delivers configurations and bundles finish activating, because retiring is final: a
+     * gate that stepped aside inside that window would be gone by the time the next activation invalidates the
+     * scripting classloader. Retiring late costs nothing a visitor can see, since what they wait for is the gate
+     * opening, not the gate retiring; retiring early costs them a raw 500.
+     */
+    static final long SETTLE_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     /** How often readiness is evaluated, in milliseconds, for as long as the gate is up. */
     static final long POLL_INTERVAL_MS = 500;
@@ -99,12 +124,41 @@ public final class StartupGateFilter implements Filter
     private static final Logger LOGGER = LoggerFactory.getLogger(StartupGateFilter.class);
 
     /**
-     * The name of the health check that must be present and passing before the gate opens: the LoginPageReadyCheck in
-     * the healthcheck module, which renders the login page internally. The name is duplicated here rather than
-     * referenced because the two bundles are otherwise independent, and a compile-time dependency just for a constant
-     * would force this early-starting bundle to wait for the whole Sling stack.
+     * The health checks that must all be registered and passing before the gate opens. They are listed by name,
+     * rather than counted or discovered, because a check that is not registered is invisible to the executor, so only
+     * knowing what to expect can tell a partial set apart from a passing one. The names are duplicated here rather
+     * than referenced because the checks live in bundles that start much later, and a compile-time dependency just
+     * for a constant would force this early-starting bundle to wait for the whole Sling stack.
+     *
+     * <p>
+     * This is not the same list as the {@code systemalive} tag, and deliberately so. The tag decides which checks the
+     * gate consults, so a check added to it starts gating on its own; this list decides which of them must be there
+     * before an all-clear can be believed. A check that cannot be relied on to register belongs in the former and not
+     * in the latter, since requiring it would hold the gate shut forever on the runs where it does not turn up. That
+     * is the case today for the content loader's {@code Bundle Content Loaded}: it is configured and tagged, but its
+     * component is only sometimes satisfied, and on the runs where it is not it never registers at all. Left out of
+     * this list it still gates whenever it is there, and costs nothing when it is not.
+     * </p>
      */
-    private static final String REQUIRED_CHECK = "Login Page Ready Check";
+    private static final Set<String> REQUIRED_CHECKS = Set.of(
+        // io.uhndata.iap.healthcheck.internal.LoginPageReadyCheck, in the healthcheck module
+        "Login Page Ready Check",
+        // The four below are configured in packaging/slingfeature/src/main/features/healthcheck.json, which sets
+        // hc.name explicitly for each of them so that an upstream default cannot change these names under us
+        "OSGi Framework Ready Check",
+        "Bundles Started",
+        "Authentication Handler Ready Check",
+        "Services Ready Check");
+
+    /**
+     * Runs the checks for real on every poll. The executor caches results for two seconds by default, which at this
+     * poll interval would leave the settle window resting on a handful of fresh observations and one that may predate
+     * it entirely. Doing it properly costs nothing in steady state, since the gate retires. The global timeout is
+     * deliberately left alone: a check slower than it yields an error result, which keeps the gate shut for another
+     * poll and recovers by itself, whereas a longer timeout would block this thread and delay the gate closing again.
+     */
+    private static final HealthCheckExecutionOptions INSTANT_EXECUTION =
+        new HealthCheckExecutionOptions().setForceInstantExecution(true);
 
     /** The tag selecting the health checks that make up the gate. */
     private static final String GATE_TAG = "systemalive";
@@ -129,6 +183,13 @@ public final class StartupGateFilter implements Filter
 
     /** When the current ready stretch started; meaningless unless {@link #settling}, since any value is a valid one. */
     private long readySinceNanos;
+
+    /**
+     * What the log last said about readiness, so that a situation that is not changing is reported once rather than
+     * twice a second. Starts as a value no evaluation can produce, so that the first one is always reported: a gate
+     * that never opens must still say what it is waiting for.
+     */
+    private String reportedProblem = "not evaluated yet";
 
     /**
      * Constructor injection for OSGi.
@@ -216,7 +277,9 @@ public final class StartupGateFilter implements Filter
      */
     void poll(final long nowNanos)
     {
-        final boolean ready = isReady();
+        final String problem = findProblem();
+        report(problem);
+        final boolean ready = problem == null;
         // Not a one-way latch: a system that stops being ready mid-startup gets the stub back
         this.open = ready;
         if (!ready) {
@@ -243,16 +306,56 @@ public final class StartupGateFilter implements Filter
         this.componentContext.disableComponent(StartupGateFilter.class.getName());
     }
 
-    private boolean isReady()
+    /**
+     * Evaluates the gating health checks. Package private so that the tests can assert on the reason directly, which
+     * is also what keeps the reason and the gate from ever disagreeing: this is the only thing that decides either.
+     *
+     * @return {@code null} if every required check is registered and passing, otherwise a description of what is not,
+     *         worded so that a situation that has not changed produces the same description again
+     */
+    String findProblem()
     {
-        final List<HealthCheckExecutionResult> results =
-            this.healthCheckExecutor.execute(HealthCheckSelector.tags(GATE_TAG));
-        return results.stream()
-            .map(HealthCheckExecutionResult::getHealthCheckMetadata)
-            .map(HealthCheckMetadata::getName)
-            .anyMatch(REQUIRED_CHECK::equals)
-            && results.stream()
-                .map(HealthCheckExecutionResult::getHealthCheckResult)
-                .allMatch(Result::isOk);
+        final Set<String> missing = new TreeSet<>(REQUIRED_CHECKS);
+        final Set<String> failing = new TreeSet<>();
+        try {
+            final List<HealthCheckExecutionResult> results =
+                this.healthCheckExecutor.execute(HealthCheckSelector.tags(GATE_TAG), INSTANT_EXECUTION);
+            for (final HealthCheckExecutionResult result : results) {
+                // getName reads the hc.name service property raw, so a check registered without one reads as null
+                final String name = Objects.toString(result.getHealthCheckMetadata().getName(), "(unnamed)");
+                missing.remove(name);
+                if (!result.getHealthCheckResult().isOk()) {
+                    // The status only, never the result message: those carry timings and stack traces, which would
+                    // make a situation that is not changing look different on every poll
+                    failing.add(name + " is " + result.getHealthCheckResult().getStatus());
+                }
+            }
+        } catch (final Exception e) {
+            // An exception escaping into the scheduler cancels every further poll, which would leave the gate shut
+            // for the life of the process with nothing in the log to say why
+            return "the health checks cannot be executed: " + e;
+        }
+        if (missing.isEmpty() && failing.isEmpty()) {
+            return null;
+        }
+        return "waiting for " + missing + ", failing " + failing;
+    }
+
+    /**
+     * Logs what the gate is doing, on change only: a handful of lines over a startup, and none at all once it is over.
+     *
+     * @param problem what is keeping the gate shut, or {@code null} if the system is ready
+     */
+    private void report(final String problem)
+    {
+        if (Objects.equals(problem, this.reportedProblem)) {
+            return;
+        }
+        this.reportedProblem = problem;
+        if (problem == null) {
+            LOGGER.info("Every startup check passes, letting requests through");
+        } else {
+            LOGGER.info("Serving the startup page, {}", problem);
+        }
     }
 }
