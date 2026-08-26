@@ -25,7 +25,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.osgi.service.component.annotations.Component;
 
 /**
- * Provides a {@link BpmnXmlSyncEditor} for the commits that touch {@code /Workflows}.
+ * Provides a {@link BpmnXmlSyncEditor} for the commits that touch a homepage holding workflow definitions
+ * — {@code /Workflows}, {@code /SystemWorkflows}, or any other a deployment adds.
  *
  * @version $Id$
  * @since 0.1.0
@@ -38,8 +39,9 @@ public class BpmnXmlSyncEditorProvider implements EditorProvider
         final CommitInfo info)
     {
         // Every commit in the repository comes through here, and the overwhelming majority touch nothing under
-        // /Workflows, so the roots this editor needs are passed as the committed state to look them up in rather than
-        // resolved here: Oak only descends into children that actually changed, so a commit elsewhere never asks.
+        // a workflow homepage, so the roots this editor needs are passed as the committed state to look them up in
+        // rather than resolved here: Oak only descends into children that actually changed, so a commit elsewhere
+        // never asks.
         return new BpmnXmlSyncEditor(builder, after, info.getUserId());
     }
 }

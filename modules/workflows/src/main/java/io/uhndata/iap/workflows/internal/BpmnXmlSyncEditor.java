@@ -73,7 +73,14 @@ public class BpmnXmlSyncEditor extends DefaultEditor
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(BpmnXmlSyncEditor.class);
 
-    private static final String WORKFLOWS_ROOT_NAME = "Workflows";
+    /**
+     * What a homepage holding workflow definitions declares its entities to be. Both {@code wf:WorkflowsHomepage}
+     * and {@code wf:SystemWorkflowsHomepage} autocreate it, protected, with exactly this value.
+     */
+    private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
+
+    /** The property a homepage names the type of its entities in. */
+    private static final String CHILD_NODE_TYPE_PROPERTY = "childNodeType";
 
     private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
 
@@ -104,9 +111,9 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      */
     private enum Stage
     {
-        /** The repository root; only descends into {@code /Workflows}. */
+        /** The repository root; only descends into homepages that hold workflow definitions. */
         ROOT,
-        /** Somewhere under {@code /Workflows}, not yet known to be a {@code wf:WorkflowVersion}. */
+        /** Somewhere under such a homepage, not yet known to be a {@code wf:WorkflowVersion}. */
         WORKFLOWS_SUBTREE,
         /** A {@code wf:WorkflowVersion} node; only descends into its {@code bpmn.xml} child. */
         WORKFLOW_VERSION,
@@ -206,7 +213,8 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     private Editor childEditor(final String name)
     {
         return switch (this.stage) {
-            case ROOT -> WORKFLOWS_ROOT_NAME.equals(name) ? descend(name, Stage.WORKFLOWS_SUBTREE, null, null) : null;
+            case ROOT -> holdsWorkflowDefinitions(this.node.getChildNode(name))
+                ? descend(name, Stage.WORKFLOWS_SUBTREE, null, null) : null;
             case WORKFLOWS_SUBTREE -> {
                 final NodeBuilder child = this.node.getChildNode(name);
                 yield isWorkflowVersion(child) ? descend(name, Stage.WORKFLOW_VERSION, child, childPath(name))
@@ -336,9 +344,33 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     }
 
     /**
+     * Whether a child of the root is a tree this editor has any business in: a homepage whose entities are workflow
+     * definitions.
+     *
+     * <p>Asked of the node rather than of its name. Naming {@code /Workflows} was enough while it was the only
+     * tree, but the platform's own workflows live under {@code /SystemWorkflows}, and a deployment is free to add
+     * a third — and a diagram in a tree this editor does not enter is stored and never parsed, which leaves a
+     * version that looks authored and has no graph the engine can run. {@code childNodeType} is the homepage's own
+     * statement of what it holds, autocreated and protected by both homepage node types, so this asks the content
+     * what it is instead of keeping a list of where to look. It is also the question
+     * {@code WorkflowHomepagesServlet} already answers to decide which homepages the manager lists, which makes a
+     * tree that can be listed exactly a tree whose diagrams are parsed.</p>
+     *
+     * @param node the root child to consider
+     * @return {@code true} if it is a homepage holding workflow definitions
+     */
+    private static boolean holdsWorkflowDefinitions(final NodeBuilder node)
+    {
+        return WORKFLOW_DEFINITION_TYPE.equals(node.getString(CHILD_NODE_TYPE_PROPERTY));
+    }
+
+    /**
      * Whether this node is a workflow version, accepting subtypes: the node types in
-     * {@code workflowDefinitions.cnd} are meant to be extended, and a subtype whose diagram is silently never parsed
-     * would be the least visible way to fail.
+     * {@code workflowDefinitions.cnd} are meant to be extended, and a subtype whose diagram is silently never
+     * parsed would be the least visible way to fail.
+     *
+     * @param node the node to consider
+     * @return {@code true} if it is a {@code wf:WorkflowVersion}, or a subtype of one
      */
     private boolean isWorkflowVersion(final NodeBuilder node)
     {

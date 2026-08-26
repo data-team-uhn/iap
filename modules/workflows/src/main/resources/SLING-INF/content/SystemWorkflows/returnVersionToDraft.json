@@ -1,0 +1,44 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Return a workflow version to a draft",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "state": "ACTIVE",
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "What happens when a trial needs another look: it goes back to being a draft, and so becomes editable again. Only a trial can, which is what this move's `fromStates` says - an active version is what running instances are following and a retired one is what the instances that outlived it are still following, so neither goes back to being edited; a copy of either is drafted instead.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Redraft requested",
+      "messageName": "returnToDraft",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toMove": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMove",
+        "targetRef": "move"
+      }
+    },
+    "move": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "move",
+      "label": "Return the version to a draft",
+      "handler": "setVersionState",
+      "toState": "DRAFT",
+      "fromStates": ["TRIAL"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Version returned to a draft",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
