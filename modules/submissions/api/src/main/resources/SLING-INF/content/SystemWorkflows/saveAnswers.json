@@ -1,11 +1,10 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Save a submission's answers",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
-    "active": true,
+    "state": "ACTIVE",
     "targetResourceType": "sub/Submission",
     "description": "What happens when a submitter saves their answers: each answered question is written onto the submission, the rules about what they may say are applied, and whether anything the schema asks for is still unanswered is recorded as a tag - so that a control offering to send the request can refuse while something is missing, without asking for the whole form. This is how filling in a submission stays a workflow rather than a write - the editor posts to the submission itself, and what a save is allowed to do is decided here. The start event admits everyone because the rule that actually matters cannot be written as a performer: it is the *person who raised this particular submission*, which the handler checks against what the engine recorded when it created it. A deployment that lets a coordinator fill requests in on someone's behalf changes that check, not this definition.",
     "requested": {

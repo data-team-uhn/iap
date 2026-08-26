@@ -24,6 +24,7 @@ import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.Entity;
 
@@ -45,9 +46,6 @@ public class WorkflowDefinition extends Entity
     @ValueMapValue
     private String title;
 
-    @ValueMapValue
-    private boolean active;
-
     /**
      * The human-readable name of this workflow.
      *
@@ -60,18 +58,20 @@ public class WorkflowDefinition extends Entity
     }
 
     /**
-     * Whether new instances may be created from this workflow at all. Each {@link WorkflowVersion version} carries
-     * its own flag as well, and both must be set for a version to accept new instances.
+     * Whether new instances may be created from this workflow at all, which is exactly whether one of its
+     * {@link WorkflowVersion versions} is {@link WorkflowVersion.State#ACTIVE active}: a workflow runs through a
+     * version or not at all, so there is nothing left for a flag of its own to say. Computed rather than stored for
+     * that reason — a stored flag and the versions could disagree, and the flag would be the side nothing enforces.
      *
      * @return {@code true} if this workflow accepts new instances
      */
     public boolean isActive()
     {
-        return this.active;
+        return this.getActiveVersion() != null;
     }
 
     /**
-     * Every version of this workflow, whether active or not.
+     * Every version of this workflow, whatever state each one is in.
      *
      * @return a list of versions, empty if none
      */
@@ -79,5 +79,22 @@ public class WorkflowDefinition extends Entity
     public List<WorkflowVersion> getVersions()
     {
         return this.getChildren(WorkflowVersion.RESOURCE_TYPE, WorkflowVersion.class);
+    }
+
+    /**
+     * The version of this workflow that new instances are currently created from. At most one version is expected
+     * to be {@link WorkflowVersion.State#ACTIVE active} at a time: promoting a draft retires the version it
+     * supersedes, in the same save.
+     *
+     * @return the active version, or {@code null} if this workflow has none — every version is still a draft, or
+     *         the last active one was retired without a replacement
+     */
+    @Nullable
+    public WorkflowVersion getActiveVersion()
+    {
+        return this.getVersions().stream()
+            .filter(WorkflowVersion::isActive)
+            .findFirst()
+            .orElse(null);
     }
 }

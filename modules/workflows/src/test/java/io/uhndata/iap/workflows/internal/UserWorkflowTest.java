@@ -56,6 +56,8 @@ import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.STATE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -128,9 +130,9 @@ class UserWorkflowTest
     private void createProcess(final String... performers)
     {
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(PROCESS, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", STATE, ACTIVE));
         this.context.create().resource(PROCESS + "/requestSubmitted", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "requestSubmitted"));
         this.context.create().resource(PROCESS + "/requestSubmitted/toApproval", Map.of(
@@ -405,9 +407,9 @@ class UserWorkflowTest
     {
         this.context.create().resource("/SystemWorkflows", TYPE, "wf/SystemWorkflowsHomepage");
         this.context.create().resource("/SystemWorkflows/putUnderWorkflow", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Put a submission under its workflow", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Put a submission under its workflow"));
         this.context.create().resource(BOOTSTRAP, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true,
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", STATE, ACTIVE,
             "targetResourceType", "sub/Submission"));
         this.context.create().resource(BOOTSTRAP + "/raised", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, ELEMENT_ID, "raised", "messageName", "start",
@@ -879,11 +881,11 @@ class UserWorkflowTest
     }
 
     @Test
-    void refusesToStartAnInactiveProcess() throws Exception
+    void refusesToStartARetiredProcess() throws Exception
     {
         createProcess(EngineFixture.REQUESTERS);
         this.context.resourceResolver().getResource(PROCESS)
-            .adaptTo(ModifiableValueMap.class).put("active", false);
+            .adaptTo(ModifiableValueMap.class).put(STATE, WorkflowVersion.State.RETIRED.name());
 
         final WorkflowDefinitionException rejection =
             assertThrows(WorkflowDefinitionException.class, this::started);

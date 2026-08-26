@@ -48,6 +48,34 @@ public class WorkflowVersion extends Entity
     /** The name of the {@code nt:file} child holding the BPMN source. */
     private static final String BPMN_FILE = "bpmn.xml";
 
+    /**
+     * Where a version stands in its lifecycle. A version is authored as a draft, may be put on trial before it is
+     * committed to, is promoted to active once it is ready to be run, and is retired when a later version takes
+     * over — at which point the instances already running against it carry on, but no new ones are created.
+     *
+     * <p>
+     * The diagram may only be edited in {@link #DRAFT}: every other state is one something may be following, or
+     * about to follow, and editing it would change a process out from under whatever is executing it.
+     * </p>
+     *
+     * @since 0.1.0
+     */
+    public enum State
+    {
+        /** Still being authored: the only state in which the diagram may be edited, and never instantiated. */
+        DRAFT,
+        /**
+         * Being tried out before the workflow commits to it: the diagram is frozen, as in every state past
+         * {@link #DRAFT}, but this is not the version new instances are created from. A trial goes back to
+         * {@link #DRAFT} to be changed again, or on to {@link #ACTIVE}.
+         */
+        TRIAL,
+        /** The version new instances are created from. At most one version of a definition is active at a time. */
+        ACTIVE,
+        /** Superseded by a later version: existing instances keep running, no new ones are created. */
+        RETIRED
+    }
+
     @ValueMapValue
     private String version;
 
@@ -55,10 +83,13 @@ public class WorkflowVersion extends Entity
     private String description;
 
     @ValueMapValue
-    private boolean active;
+    private String state;
 
     @ValueMapValue
     private String bpmnXmlParsedHash;
+
+    @ValueMapValue
+    private boolean bpmnAuthoritative;
 
     @ValueMapValue
     private String targetResourceType;
@@ -86,13 +117,35 @@ public class WorkflowVersion extends Entity
     }
 
     /**
-     * Whether new instances may be created from this version.
+     * Where this version stands in its lifecycle: whether it is still being drafted, is the one new instances are
+     * created from, or has been superseded.
+     *
+     * @return a lifecycle state, {@link State#DRAFT} if not set or unrecognized — an unfinished version is the
+     *         safest thing an unreadable state can be taken for, since nothing is ever instantiated from a draft
+     */
+    @NotNull
+    public State getState()
+    {
+        if (this.state == null) {
+            return State.DRAFT;
+        }
+        try {
+            return State.valueOf(this.state);
+        } catch (final IllegalArgumentException ex) {
+            return State.DRAFT;
+        }
+    }
+
+    /**
+     * Whether new instances may be created from this version, i.e. whether it is the {@link State#ACTIVE active}
+     * one. A {@link State#TRIAL trial} version is not: it is being tried out, and starting one is a deliberate
+     * choice about that version rather than what the workflow does when something asks it to run.
      *
      * @return {@code true} if this version accepts new instances
      */
     public boolean isActive()
     {
-        return this.active;
+        return this.getState() == State.ACTIVE;
     }
 
     /**
@@ -122,6 +175,24 @@ public class WorkflowVersion extends Entity
     public Resource getBpmnFile()
     {
         return this.resource.getChild(BPMN_FILE);
+    }
+
+    /**
+     * Whether this version's diagram owns its flow nodes. When set, the commit editor derives them from the
+     * {@link #getBpmnFile BPMN source} and removes whatever the diagram no longer says; when not, the graph was
+     * authored by hand and is left exactly as it was written, because the translation cannot yet carry everything
+     * such a graph holds.
+     *
+     * <p>
+     * It is what a version was authored as rather than a state it moves through, so it travels with the version:
+     * a draft copied from another one is authored the way its source was, and carries the same answer.
+     * </p>
+     *
+     * @return {@code true} if the diagram is the source of this version's graph
+     */
+    public boolean isBpmnAuthoritative()
+    {
+        return this.bpmnAuthoritative;
     }
 
     /**
