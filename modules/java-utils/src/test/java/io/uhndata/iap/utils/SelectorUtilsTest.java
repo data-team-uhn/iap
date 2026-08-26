@@ -258,4 +258,110 @@ public class SelectorUtilsTest
                     + ".dataOption:descendantData=5"
                     + ".dataOption:descendantData=2"));
     }
+
+    @Test
+    public void testRequestSelectorsAreIncludedAndComeLast()
+    {
+        try {
+            SelectorUtils.setRequestSelectors(List.of("deep", "-labels"));
+
+            Assertions.assertEquals(List.of("data", "csv", "deep", "-labels"),
+                SelectorUtils.parseSelectors(".data.csv"));
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+    }
+
+    @Test
+    public void testRequestSelectorsApplyWithNoPathInfoAtAll()
+    {
+        try {
+            SelectorUtils.setRequestSelectors(List.of("deep"));
+
+            Assertions.assertEquals(List.of("deep"), SelectorUtils.parseSelectors(""));
+            Assertions.assertEquals(List.of("deep"), SelectorUtils.parseSelectors(null));
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+    }
+
+    @Test
+    public void testBlankRequestSelectorsAreIgnored()
+    {
+        try {
+            SelectorUtils.setRequestSelectors(List.of("", "  ", "deep"));
+
+            Assertions.assertEquals(List.of("deep"), SelectorUtils.parseSelectors(null));
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+    }
+
+    @Test
+    public void testNoRequestSelectorsChangesNothing()
+    {
+        SelectorUtils.setRequestSelectors(null);
+        try {
+            Assertions.assertEquals(List.of("data", "csv"), SelectorUtils.parseSelectors(".data.csv"));
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+        // And with nothing ever recorded on this thread
+        Assertions.assertEquals(List.of("data", "csv"), SelectorUtils.parseSelectors(".data.csv"));
+    }
+
+    @Test
+    public void testARequestSelectorNeedsNoEscaping()
+    {
+        // The whole point: the dots belong to the value, and in a query parameter nothing splits on them
+        try {
+            SelectorUtils.setRequestSelectors(List.of("dataOption:formSelectors=-dereference.simple.deep"));
+
+            Assertions.assertEquals(Map.of("formSelectors", "-dereference.simple.deep"),
+                SelectorUtils.parseOptionsToMap("dataOption:", ".data.csv"));
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+    }
+
+    @Test
+    public void testARequestOptionAppliesWithNoOptionsInThePath()
+    {
+        try {
+            SelectorUtils.setRequestSelectors(List.of("dataFilter:status=SUBMITTED"));
+
+            Assertions.assertEquals(List.of(Pair.of("status", "SUBMITTED")),
+                SelectorUtils.parseOptions("dataFilter:", ".json"));
+            // Even when there is no path info to parse at all
+            Assertions.assertEquals(List.of(Pair.of("status", "SUBMITTED")),
+                SelectorUtils.parseOptions("dataFilter:", null));
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+    }
+
+    @Test
+    public void testARequestDepthOverridesThePathDepth()
+    {
+        // Request selectors come last, and the last depth wins, so an explicit parameter takes precedence
+        try {
+            SelectorUtils.setRequestSelectors(List.of("2"));
+
+            Assertions.assertEquals(2, SelectorUtils.parseDepth(".5.json").getAsInt());
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+    }
+
+    @Test
+    public void testAnEmptyOptionPrefixIsStillRefused()
+    {
+        try {
+            SelectorUtils.setRequestSelectors(List.of("dataFilter:status=SUBMITTED"));
+
+            Assertions.assertEquals(List.of(), SelectorUtils.parseOptions("", ".json"));
+        } finally {
+            SelectorUtils.clearRequestSelectors();
+        }
+    }
 }
