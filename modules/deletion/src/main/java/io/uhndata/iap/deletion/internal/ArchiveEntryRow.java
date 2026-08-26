@@ -32,6 +32,7 @@ import org.apache.sling.api.resource.ValueMap;
 
 import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.utils.DateUtils;
+import io.uhndata.iap.utils.PrefixTree;
 
 /**
  * One archive entry, as the archive browser's table displays it: when it was archived, who asked, what they asked to
@@ -65,8 +66,10 @@ final class ArchiveEntryRow
         final JsonObjectBuilder row = Json.createObjectBuilder()
             .add("path", entry.getPath())
             // Where a reader can address it, which is the same entry without the storage layout in the way.
-            // Emitted rather than left to the client so that the prefix tree stays a server-side concern.
-            .add("shortPath", DeletionService.ARCHIVE_PATH + "/" + entry.getName())
+            // Emitted rather than left to the client so that the prefix tree stays a server-side concern, and
+            // built from the addressing provider's own segment so the two cannot disagree about where it answers.
+            .add("shortPath", DeletionService.ARCHIVE_PATH + "/" + PrefixTree.ADDRESS_SEGMENT
+                + "/" + entry.getName())
             .add("requestedPath", properties.get("requestedPath", ""))
             .add("deletedBy", properties.get("deletedBy", ""));
         final Calendar created = properties.get("jcr:created", Calendar.class);

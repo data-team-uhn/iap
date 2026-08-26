@@ -28,7 +28,7 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 const ROUTE = "/admin/archive/one";
 
 /** The entry's short repository address, which is what the page asks the endpoints about. */
-const ENTRY = "/Archive/one";
+const ENTRY = "/Archive/by-id/one";
 
 /** Where the entry is really stored, which is what the endpoint reports back as its path. */
 const STORED = "/Archive/ab/cd/ef/one";

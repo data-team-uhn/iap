@@ -22,10 +22,11 @@
     }
   ],
   "configurations": {
-    // Lets an entry be addressed as /Archive/<uuid>, without the prefix tree it is stored in. Overlay mode, so
-    // the stored paths keep answering exactly as before.
+    // Lets an entry be addressed as /Archive/by-id/<uuid>, without the prefix tree it is stored in. Mounted
+    // beside the tree rather than over it, so nothing writing into the archive is routed through a provider that
+    // has no storage to write to.
     "io.uhndata.iap.utils.internal.PrefixTreeResourceProvider~archive": {
-      "provider.root": "/Archive",
+      "provider.root": "/Archive/by-id",
       "provider.mode": "overlay"
     },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapdeletion": {
