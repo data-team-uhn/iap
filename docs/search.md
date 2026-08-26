@@ -97,6 +97,27 @@ A column holding a binary is reported as `null`. Reading a binary means reading 
 statement is free to select the data of every file in the repository, so the response says the
 column is there and leaves its contents to be fetched from the node itself.
 
+### Naming a referenced node by its path
+
+A reference property stores the UUID of the node it points to, and a UUID is generated when the node
+is created, so it differs between instances. A statement kept in the sources cannot spell one out,
+and names the node by its path instead:
+
+```
+GET /search.json?query=select%20*%20from%20%5Bsub%3AAnswer%5D%20as%20a%20where%20a.question%20%3D%20'%2FSchemas%2FConsent%2F1.0%2FhasCapacity'
+```
+
+The path is replaced by the UUID that the property actually holds before the statement runs. Only a
+literal compared against a property the node type declares as a `REFERENCE` or `WEAKREFERENCE` is
+translated, which is what leaves alone both a property whose own value is a path and a path given to
+a function, as in `isdescendantnode(n, '/Submissions')`.
+
+Anything that cannot be made sense of is left exactly as it was sent, so the statement runs as
+written: an unregistered node type, an unqualified property in a statement that declares more than
+one selector, a path with no node at it, or a target that is not `mix:referenceable` and therefore
+cannot be the value of a reference. The last three are logged, because the statement then matches
+nothing and the response cannot say why.
+
 ### Asking about a query instead of running it
 
 A `query` may start with `explain`, which returns the plan the repository would run, or `measure`,
