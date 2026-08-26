@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Version",
+  "ext:hint": "One version's diagram, read-only: no palette, no context pad, nothing that could write. A ?page=edit query opens the same page in editing mode - the same view and the same crumb, since editing a version is not a page below looking at it.",
+  "ext:targetURL": "/admin/workflows/:homepage/:workflow/:version",
+  "ext:renderURL": "asset:iap-workflows.WorkflowConsole.js?lazy",
+  "defaultOrder": 30
+}

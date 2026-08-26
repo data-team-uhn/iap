@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "ext:Point",
+  "ext:pointId": "wf/workflowVersion/actions",
+  "ext:pointName": "Actions available on a workflow version"
+}
