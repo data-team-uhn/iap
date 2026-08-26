@@ -40,7 +40,7 @@ GET /search.json?quick=diab&allowedResourceTypes=sub:Submission
 | `limit` | `10` | How many matches to return, capped at `1000`; `0` counts without returning any |
 | `resourceSelectors` | none | Extra selectors used when serializing each match, e.g. `deep` or `2` for children, `dereference`; ignored by `quick`, and by `rawResults` |
 | `req` | none | An opaque token echoed back, so a client can discard an out-of-order response |
-| `rawResults` | `false` | Return the columns the query selected instead of serializing the matched nodes; only useful with `query`, the one mode where the client chooses the columns, though it is honoured for `fulltext` too; ignored by `quick` |
+| `rawResults` | `false` | Return the columns the query selected instead of serializing the matched nodes; only useful with `query`, the one mode where the client chooses the columns, though it is honoured for `fulltext` too; ignored by `quick`, and used whether or not it was asked for by a [reporting query](#asking-about-a-query-instead-of-running-it) |
 | `doNotEscapeQuery` | `false` | Treat the `fulltext` input as a full-text expression, operators and all |
 | `allowedResourceTypes` | all | Repeatable; the node types a `quick` search may return |
 
@@ -96,6 +96,32 @@ GET /search.json?rawResults=true&query=SELECT%20s.category%20FROM%20%5Bsub%3ASub
 A column holding a binary is reported as `null`. Reading a binary means reading all of it, and a
 statement is free to select the data of every file in the repository, so the response says the
 column is there and leaves its contents to be fetched from the node itself.
+
+### Asking about a query instead of running it
+
+A `query` may start with `explain`, which returns the plan the repository would run, or `measure`,
+which returns how much it had to scan. Both may be combined, as `explain measure …`.
+
+```
+GET /search.json?query=explain%20select%20*%20from%20%5Bsub%3ASubmission%5D
+```
+
+```json
+{ "rows": [ { "n": null, "plan": "[sub:Submission] as [n] /* traverse … */",
+              "statement": "select * from [sub:Submission]" } ], … }
+```
+
+Such a row is about the query rather than about a node, so there is nothing to serialize from it and
+the raw format is used whether or not `rawResults` was asked for. The selector is reported with no
+path, which is what the repository gives for a row that has no node behind it. A reporting query is
+not asked for a plan of its own either: prefixing an `explain` with another one is not a statement
+the repository will parse, and the plan of a `measure` is the plan it already reports on.
+
+One thing to know when working on this: the repository answers `getColumnNames()` for a reporting
+query with the columns of the statement being reported on, and only names the columns its rows
+really hold once the rows have been asked for. `writeRawResults` therefore reads the rows first, and
+`SearchServletTest` reproduces the same order dependency so that swapping the two lines back fails
+the build rather than quietly returning nothing.
 
 ## Full-text search
 
