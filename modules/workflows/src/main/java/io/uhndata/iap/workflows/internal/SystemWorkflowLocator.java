@@ -36,7 +36,6 @@ import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.StartEvent;
 import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
-import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 /**
@@ -145,7 +144,8 @@ final class SystemWorkflowLocator
         final SystemWorkflowsHomepage homepage = home == null ? null : home.adaptTo(SystemWorkflowsHomepage.class);
         return homepage == null ? List.of()
             : homepage.getWorkflows().stream()
-                .filter(WorkflowDefinition::isActive)
+                // Only the versions are asked about: a definition is active exactly when one of its versions is,
+                // so asking it first would walk every version to answer what the next filter answers anyway
                 .flatMap(definition -> definition.getVersions().stream())
                 .filter(WorkflowVersion::isActive)
                 .filter(version -> version.getTargetResourceType() != null
