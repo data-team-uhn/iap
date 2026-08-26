@@ -37,6 +37,9 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.Value;
 import javax.jcr.Workspace;
+import javax.jcr.nodetype.NodeType;
+import javax.jcr.nodetype.NodeTypeManager;
+import javax.jcr.nodetype.PropertyDefinition;
 import javax.jcr.query.InvalidQueryException;
 import javax.jcr.query.Query;
 import javax.jcr.query.QueryManager;
@@ -76,11 +79,20 @@ public class SearchServletTest
 
     private static final String SUBMISSION = "sub:Submission";
 
+    /** The text a search is for, wherever the text itself does not matter. */
+    private static final String TERM = "diabetes";
+
+    private static final String SUBMISSION_ANSWER = "sub:Answer";
+
     private static final String INDEXED_PLAN = "[sub:Submission] as [n] /* property submissionIndex */";
 
     private static final String SUBMISSION_QUERY = "select * from [sub:Submission]";
 
     private static final String EXPLAIN_QUERY = "explain " + SUBMISSION_QUERY;
+
+    private static final String SCHEMA_PATH = "/Schemas/Consent/1.0/hasCapacity";
+
+    private static final String SCHEMA_UUID = "d1f5a0e2-4b0a-4a3a-9f6b-0c2d1e3f4a5b";
 
     /**
      * The exclusion every generated full-text statement carries. Spelled out in full, rather than reused from the
@@ -98,6 +110,10 @@ public class SearchServletTest
     private ResourceResolver resolver;
 
     private QueryManager queryManager;
+
+    private Session session;
+
+    private NodeTypeManager nodeTypes;
 
     private StringWriter output;
 
@@ -119,12 +135,14 @@ public class SearchServletTest
         this.statements = new ArrayList<>();
         this.planColumns = new String[] { INDEXED_PLAN };
 
-        final Session session = Mockito.mock(Session.class);
+        this.session = Mockito.mock(Session.class);
+        this.nodeTypes = Mockito.mock(NodeTypeManager.class);
         final Workspace workspace = Mockito.mock(Workspace.class);
         Mockito.when(this.request.getResourceResolver()).thenReturn(this.resolver);
-        Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(session);
-        Mockito.when(session.getWorkspace()).thenReturn(workspace);
+        Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(this.session);
+        Mockito.when(this.session.getWorkspace()).thenReturn(workspace);
         Mockito.when(workspace.getQueryManager()).thenReturn(this.queryManager);
+        Mockito.when(workspace.getNodeTypeManager()).thenReturn(this.nodeTypes);
         Mockito.when(this.response.getWriter()).thenReturn(new PrintWriter(this.output));
 
         // Every resolved resource serializes to a small JSON object identifying it by path
@@ -169,6 +187,31 @@ public class SearchServletTest
         Assertions.assertEquals(2, result.getJsonArray(ROWS).size());
         Assertions.assertEquals("/Submissions/s1", result.getJsonArray(ROWS).getJsonObject(0).getString("path"));
         Assertions.assertEquals(2, result.getInt(TOTAL));
+    }
+
+    @Test
+    public void aQueryMayNameAReferencedNodeByItsPath() throws Exception
+    {
+        // A reference property holds a UUID, and a UUID is generated per instance, so a statement kept in the
+        // sources has to name its target by path
+        withReferenceProperty();
+        withReferencedNode(SCHEMA_PATH, SCHEMA_UUID);
+        withParameter(QUERY, "select * from [sub:Answer] as a where a.question = '" + SCHEMA_PATH + "'");
+        mockNodeResults("/Submissions/s1/a1");
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals("select * from [sub:Answer] as a where a.question = '" + SCHEMA_UUID + "'",
+            executedStatement());
+        Assertions.assertEquals(1, getResponseJson().getJsonArray(ROWS).size());
+    }
+
+    @Test
+    public void aGeneratedFullTextStatementIsNotSearchedForPaths() throws Exception
+    {
+        // Nothing in it compares a property to a path, so the node types are never consulted
+        withParameter("fulltext", TERM);
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Mockito.verifyNoInteractions(this.nodeTypes);
     }
 
     @Test
@@ -326,7 +369,7 @@ public class SearchServletTest
     @Test
     public void aFullTextSearchLooksEverywhere() throws Exception
     {
-        withParameter("fulltext", "diabetes");
+        withParameter("fulltext", TERM);
         mockNodeResults("/Submissions/s1");
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')" + OUTSIDE_SYSTEM,
@@ -342,7 +385,7 @@ public class SearchServletTest
         // one submission that had been checked in twice came back with three rows, two of them frozen copies, and
         // one for "versionable" came back with thirty, twenty-nine of them node type definitions. Adding this left
         // the query plan byte for byte the same, so the exclusion costs nothing in index selection.
-        withParameter("fulltext", "diabetes");
+        withParameter("fulltext", TERM);
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')"
@@ -411,8 +454,8 @@ public class SearchServletTest
     public void aQueryPreemptsAFullTextSearch() throws Exception
     {
         withParameter(QUERY, "select * from [sub:Submission]");
-        withParameter("fulltext", "diabetes");
-        withParameter("quick", "diabetes");
+        withParameter("fulltext", TERM);
+        withParameter("quick", TERM);
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals("select * from [sub:Submission]", executedStatement());
@@ -487,7 +530,7 @@ public class SearchServletTest
     @Test
     public void quickSearchCollectsFromEveryEngine() throws Exception
     {
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         withEngines(new StubEngine(List.of(SUBMISSION), "s1"), new StubEngine(List.of("sch:Schema"), "sc1"));
         this.servlet.doGet(this.request, this.response);
         final JsonObject result = getResponseJson();
@@ -502,7 +545,7 @@ public class SearchServletTest
     {
         final StubEngine submissions = new StubEngine(List.of(SUBMISSION), "s1");
         final StubEngine schemas = new StubEngine(List.of("sch:Schema"), "sc1");
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         withParameter("allowedResourceTypes", SUBMISSION);
         withEngines(submissions, schemas);
         this.servlet.doGet(this.request, this.response);
@@ -515,7 +558,7 @@ public class SearchServletTest
     public void anEngineIsOnlyAskedForTheTypesItWasAllowed() throws Exception
     {
         final StubEngine engine = new StubEngine(List.of(SUBMISSION, "sch:Schema"), "s1");
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         withParameter("allowedResourceTypes", SUBMISSION);
         withEngines(engine);
         this.servlet.doGet(this.request, this.response);
@@ -526,7 +569,7 @@ public class SearchServletTest
     public void withoutARestrictionAnEngineSearchesEverythingItCan() throws Exception
     {
         final StubEngine engine = new StubEngine(List.of(SUBMISSION, "sch:Schema"), "s1");
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         withEngines(engine);
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(List.of(SUBMISSION, "sch:Schema"), engine.searchedTypes);
@@ -536,7 +579,7 @@ public class SearchServletTest
     public void anEmptyTypeRestrictionIsNoRestriction() throws Exception
     {
         final StubEngine engine = new StubEngine(List.of(SUBMISSION), "s1");
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         Mockito.when(this.request.getParameterValues("allowedResourceTypes")).thenReturn(new String[0]);
         withEngines(engine);
         this.servlet.doGet(this.request, this.response);
@@ -547,7 +590,7 @@ public class SearchServletTest
     public void quickSearchResultsOutsideThePageAreSkippedNotSerialized() throws Exception
     {
         final StubEngine engine = new StubEngine(List.of(SUBMISSION), "s1", "s2", "s3");
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         withParameter("offset", "1");
         withParameter("limit", "1");
         withEngines(engine);
@@ -564,7 +607,7 @@ public class SearchServletTest
     public void anEngineIsNotAskedForMoreResultsThanCanBeUsed() throws Exception
     {
         final StubEngine engine = new StubEngine(List.of(SUBMISSION), "s1");
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         withParameter("limit", "5");
         withEngines(engine);
         this.servlet.doGet(this.request, this.response);
@@ -579,7 +622,7 @@ public class SearchServletTest
             IntStream.rangeClosed(1, (int) (PaginatedJsonResponse.LOOKAHEAD_PAGES * 5 + 10))
                 .mapToObj(i -> "s" + i).toArray(String[]::new));
         final StubEngine second = new StubEngine(List.of("sch:Schema"), "sc1");
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         withParameter("limit", "5");
         withEngines(first, second);
         this.servlet.doGet(this.request, this.response);
@@ -590,7 +633,7 @@ public class SearchServletTest
     @Test
     public void quickSearchWithoutAnyEngineReturnsNothing() throws Exception
     {
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         setEngines(null);
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(0, getResponseJson().getJsonArray(ROWS).size());
@@ -730,7 +773,7 @@ public class SearchServletTest
     {
         // The SPI says the results are never null, so an engine returning one is broken; it is handled the same way
         // as any other engine that misbehaves, rather than taking the response down
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         final QuickSearchEngine broken = Mockito.mock(QuickSearchEngine.class);
         Mockito.when(broken.getSupportedTypes()).thenReturn(List.of(SUBMISSION));
         Mockito.when(broken.quickSearch(Mockito.any(), Mockito.any())).thenReturn(null);
@@ -747,7 +790,7 @@ public class SearchServletTest
     @Test
     public void anEngineThatFailsDoesNotFailTheSearch() throws Exception
     {
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         final QuickSearchEngine broken = Mockito.mock(QuickSearchEngine.class);
         Mockito.when(broken.getSupportedTypes()).thenReturn(List.of(SUBMISSION));
         Mockito.when(broken.quickSearch(Mockito.any(), Mockito.any()))
@@ -767,7 +810,7 @@ public class SearchServletTest
     {
         // Stopping early is what happens for any search with more matches than fit on a page, so an engine holding a
         // session for the search has to be told about it then, not only when its results run out
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         withParameter("limit", "1");
         // More matches than the paginator will ever count for a page this size, so the reading stops part-way
         final StubEngine engine = new StubEngine(List.of(SUBMISSION),
@@ -785,7 +828,7 @@ public class SearchServletTest
     @Test
     public void anEngineThatCannotEvenLetGoDoesNotFailTheSearch() throws Exception
     {
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         final QuickSearchEngine clingy = Mockito.mock(QuickSearchEngine.class);
         Mockito.when(clingy.getSupportedTypes()).thenReturn(List.of(SUBMISSION));
         final QuickSearchEngine.Results results = Mockito.mock(QuickSearchEngine.Results.class);
@@ -806,7 +849,7 @@ public class SearchServletTest
     {
         // Nothing stops two engines from claiming the same node type, and if both were asked the same node would be
         // returned twice and counted twice, since results from different engines are not deduplicated
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         final StubEngine first = new StubEngine(List.of(SUBMISSION), "found");
         final StubEngine second = new StubEngine(List.of(SUBMISSION), "found again");
         withEngines(first, second);
@@ -822,7 +865,7 @@ public class SearchServletTest
     {
         // The first engine returned nothing, so there is nothing for the second one to duplicate; leaving the type
         // claimed by the engine that broke would answer a request that could have been served with nothing at all
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         final QuickSearchEngine broken = Mockito.mock(QuickSearchEngine.class);
         Mockito.when(broken.getSupportedTypes()).thenReturn(List.of(SUBMISSION));
         Mockito.when(broken.quickSearch(Mockito.any(), Mockito.any()))
@@ -840,7 +883,7 @@ public class SearchServletTest
     @Test
     public void anEngineIsStillAskedForTheTypesNoOneElseClaimed() throws Exception
     {
-        withParameter("quick", "diabetes");
+        withParameter("quick", TERM);
         final StubEngine first = new StubEngine(List.of(SUBMISSION), "one");
         final StubEngine second = new StubEngine(List.of(SUBMISSION, "sub:Review"), "two");
         withEngines(first, second);
@@ -981,6 +1024,28 @@ public class SearchServletTest
                 this.statements.add(invocation.getArgument(0, String.class));
                 return query;
             });
+    }
+
+    /** Declares {@code sub:Answer} as having a {@code question} reference property. */
+    private void withReferenceProperty() throws RepositoryException
+    {
+        final PropertyDefinition definition = Mockito.mock(PropertyDefinition.class);
+        Mockito.when(definition.getName()).thenReturn("question");
+        Mockito.when(definition.getRequiredType()).thenReturn(PropertyType.REFERENCE);
+        final NodeType nodeType = Mockito.mock(NodeType.class);
+        Mockito.when(nodeType.getPropertyDefinitions()).thenReturn(new PropertyDefinition[] { definition });
+        Mockito.when(this.nodeTypes.hasNodeType(SUBMISSION_ANSWER)).thenReturn(true);
+        Mockito.when(this.nodeTypes.getNodeType(SUBMISSION_ANSWER)).thenReturn(nodeType);
+    }
+
+    /** Puts a referenceable node at a path. */
+    private void withReferencedNode(final String path, final String uuid) throws RepositoryException
+    {
+        final javax.jcr.Node node = Mockito.mock(javax.jcr.Node.class);
+        Mockito.when(node.isNodeType("mix:referenceable")).thenReturn(true);
+        Mockito.when(node.getIdentifier()).thenReturn(uuid);
+        Mockito.when(this.session.nodeExists(path)).thenReturn(true);
+        Mockito.when(this.session.getNode(path)).thenReturn(node);
     }
 
     private RowIterator singleRow(final Row row)
