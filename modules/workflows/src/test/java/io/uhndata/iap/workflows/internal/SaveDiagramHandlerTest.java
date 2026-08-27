@@ -98,7 +98,7 @@ class SaveDiagramHandlerTest
 
         assertEquals(REPLACEMENT, AuthoringFixture.read(version.getChild("bpmn.xml")));
         assertEquals("text/xml", version.getChild("bpmn.xml/jcr:content").getValueMap().get("jcr:mimeType"));
-        // The file node is reused rather than replaced, so a diagram keeps its identity across a save
+        // The file node is reused across a save, so a diagram keeps its identity
         assertEquals(fileId, version.getChild("bpmn.xml").getPath());
     }
 
@@ -118,8 +118,7 @@ class SaveDiagramHandlerTest
     @Test
     void refusesADiagramForAnythingButADraft()
     {
-        // The states a version cannot be edited in, each for its own reason: a trial is tried as it stands, an
-        // active version is what running instances follow, a retired one what the instances that outlived it do
+        // Trial, active, and retired versions are all frozen against edits, each for a different reason
         for (final WorkflowVersion.State frozen : new WorkflowVersion.State[] {
             WorkflowVersion.State.TRIAL, WorkflowVersion.State.ACTIVE, WorkflowVersion.State.RETIRED }) {
             final String name = frozen.name().toLowerCase(java.util.Locale.ROOT);

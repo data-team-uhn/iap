@@ -45,11 +45,13 @@ import io.uhndata.iap.workflows.models.WorkflowsHomepage;
  * entity homepage the caller can read that holds {@code wf:WorkflowDefinition} entities, the queried one first.
  *
  * <p>
- * This is what lets a listing show the workflows of more than one tree — the ordinary ones and, for whoever may read
- * them, the platform's own under {@code /SystemWorkflows} — without either end hardcoding which trees exist. A
- * deployment that adds another (a second location's workflows, mirrored locally) is picked up by having created it,
- * with nothing to configure; the paths this returns are the ones a client hands back as the pagination servlet's
- * {@code scope} parameters.
+ * This lets a listing span more than one homepage tree — the ordinary ones, and (for whoever may read them)
+ * {@code /SystemWorkflows} — without hardcoding which trees exist.
+ * </p>
+ *
+ * <p>
+ * A deployment adds a tree just by creating it; the paths returned here are what a client hands back as the
+ * pagination servlet's {@code scope} parameter.
  * </p>
  *
  * <p>
@@ -68,10 +70,9 @@ public class WorkflowHomepagesServlet extends SlingJakartaSafeMethodsServlet
     private static final long serialVersionUID = 1L;
 
     /**
-     * Every entity homepage, of any concrete type. {@code data:EntityHomepage} is declared queryable exactly so this
-     * kind of question can be asked, and a node type query is served by Oak's own type index, needing none of its
-     * own. Which of them hold workflows is decided afterwards, on a handful of nodes, rather than by adding an index
-     * for a property only this endpoint reads.
+     * Every entity homepage, of any concrete type: {@code data:EntityHomepage} is declared queryable so a node type
+     * query can use Oak's own type index directly. Which of them hold workflows is filtered afterwards, on a
+     * handful of nodes, avoiding an index for a property only this endpoint reads.
      */
     private static final String HOMEPAGE_QUERY = "select * from [data:EntityHomepage]";
 
@@ -92,8 +93,8 @@ public class WorkflowHomepagesServlet extends SlingJakartaSafeMethodsServlet
                 homepages.add(homepage);
             }
         }
-        // The homepage that was asked leads the list, since it is the one the caller already knows about and the one
-        // a listing is anchored on; the rest are ordered by path, so the answer does not depend on the query's own
+        // The queried homepage leads the list, since the caller is anchored on it. The rest are ordered by path,
+        // independent of the query's own ordering.
         homepages.sort(Comparator.comparing((final Resource homepage) -> !queried.equals(homepage.getPath()))
             .thenComparing(Resource::getPath));
 

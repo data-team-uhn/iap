@@ -32,12 +32,12 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Opens a new draft beside an existing version, copying the diagram it starts from. This is how an active or
- * retired version is carried forward: neither may be edited where it stands, because instances are following it,
- * so what the manager offers next to it is a copy that may be.
+ * Opens a new draft beside an existing version, copying the diagram it starts from.
+ * This is how an active or retired version is carried forward: neither may be edited in place while instances
+ * are following it.
  *
- * <p>Any version may be drafted from, whatever state it is in. Branching from a draft breaks no invariant; it is
- * merely not something the manager offers.</p>
+ * <p>Any version may be drafted from, including a draft: that breaks no invariant, it is merely not something
+ * the manager offers.</p>
  *
  * <p>{@code bpmnXmlParsedHash} is deliberately not copied, so a draft never claims a parse that has not happened
  * for it — and that missing hash is also what has the commit editor look at the copied diagram in the first
@@ -112,9 +112,8 @@ public class DraftVersionHandler implements ServiceTaskHandler
         if (source.getTargetResourceType() != null) {
             properties.put(VersionEdits.TARGET_RESOURCE_TYPE, source.getTargetResourceType());
         }
-        // How a version was authored, which a copy of it shares: a draft of a diagram-owned version has its graph
-        // derived from the copied diagram, exactly as its source did, and a draft of a hand-authored one keeps the
-        // graph that is copied along with it instead of having a lossier one derived over the top.
+        // bpmnAuthoritative describes how a version was authored, not a state it moves through, so the copy
+        // carries it over unchanged.
         if (source.isBpmnAuthoritative()) {
             properties.put(VersionEdits.BPMN_AUTHORITATIVE, true);
         }

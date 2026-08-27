@@ -89,11 +89,8 @@
   // Human-readable name for this workflow
   - title (STRING) mandatory
 
-  // Deliberately no `active` property: whether a workflow may run is not a fact
-  // of its own, it is a fact about its versions -- it may run exactly while one
-  // of them is ACTIVE. Stored, the two could disagree, and the stored one would
-  // be the one nothing enforces; computed, the question has one answer. See
-  // WorkflowDefinition.isActive().
+  // No 'active' property: whether a definition may run is computed from its versions' state
+  // (see WorkflowDefinition.isActive()), not stored, so the two can't disagree.
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -135,25 +132,12 @@
   - bpmnAuthoritative (BOOLEAN) = false
 
   // Where this version stands in its lifecycle. Accepted values:
-  // - DRAFT -> still being authored; the only state in which the diagram may be
-  //   edited, and no instances may be created from it (default)
-  // - TRIAL -> being tried out before it is committed to: the diagram is frozen,
-  //   as it is for anything that is no longer a draft, but the version is not the
-  //   one new instances are created from. A trial goes back to DRAFT to be changed
-  //   again, or on to ACTIVE
-  // - ACTIVE -> the version new instances are created from; at most one version
-  //   of a definition is active at a time
-  // - RETIRED -> superseded by a later version: existing instances carry on
-  //   running against it, but no new ones are created
-  // Autocreated, not merely defaulted: a default only takes effect when the
-  // property is autocreated, so without this a version created without a state
-  // would read as stateless everywhere outside the Sling Model -- the .json the
-  // manager loads, a query, the engine's own ValueMap.
-  // Deliberately not protected, and deliberately without a value constraint: the
-  // transitions are enforced where they can be enforced as a whole, by the
-  // state/draft servlets, which retire the outgoing version in the same save
-  // that promotes the incoming one. A constraint here would reject a typo without
-  // saying anything about the invariant that actually matters.
+  // - DRAFT -> still being authored; editable.
+  // - TRIAL -> in testing: not editable, can be returned to DRAFT or progressed to ACTIVE
+  // - ACTIVE -> used by any new instances; unique and no longer editable
+  // - RETIRED -> no longer active: existing instances continue, but no new ones are created
+  // Autocreated so every consumer (JSON export, queries) sees a value, not just the Sling Model default.
+  // No value constraint: transitions are enforced atomically by the state/draft servlets, not listed here.
   - state (STRING) = "DRAFT" mandatory autocreated
 
   // The resource type of the node whose events this version handles, e.g.

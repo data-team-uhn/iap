@@ -31,12 +31,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 /**
  * Stores the diagram a version was just authored as, replacing whatever it held.
  *
- * <p>This is where <em>only a draft may be edited</em> stops being something the editor declines to offer and
- * becomes something the repository declines to do. An active version is what running instances are following, a
- * retired one is what the instances that outlived it are still following, and a trial is being tried as it stands,
- * so a diagram arriving for any of them would change a process out from under whatever is reading it. The editor
- * refuses to open them, but a refusal that lives only in the client is a convention rather than a rule, and this
- * is the one door a diagram can now come through.</p>
+ * <p>Enforces server-side what the editor only declines to offer client-side.</p>
+ *
+ * <p>A diagram arriving for an active, retired, or trial version would change a process something is already
+ * following or relying on. A client-side refusal alone is a convention, not a rule.</p>
  *
  * @version $Id$
  * @since 0.1.0
