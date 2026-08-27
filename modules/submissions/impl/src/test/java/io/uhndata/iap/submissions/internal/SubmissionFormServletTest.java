@@ -19,12 +19,16 @@ package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 import javax.jcr.Node;
@@ -66,6 +70,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
+import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,6 +97,13 @@ class SubmissionFormServletTest
     private static final String SUPER_TYPE = "sling:resourceSuperType";
 
     private static final String REQUIREMENT = "sch/Requirement";
+
+    private static final String APPROVAL = "approval";
+
+    private static final String APPROVERS = "time-off-approvers";
+
+    /** The review whose fixture carries a creation date, so that the date's spelling can be asserted. */
+    private static final String DECIDED_AT = "dated";
 
     private static final String FORM_ITEM = "sch/FormItem";
 
@@ -122,7 +134,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, Submission.class);
+            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, Review.class,
+            Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -160,6 +173,9 @@ class SubmissionFormServletTest
             "acceptedFileTypes", new String[] {"application/pdf", "image/png"}));
         this.context.create().resource(VERSION_PATH + "/signedForm/template", Map.of(
             "jcr:primaryType", "nt:file"));
+        this.context.create().resource(VERSION_PATH + "/" + APPROVAL, Map.of(
+            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "Approval",
+            "approverGroup", APPROVERS));
 
         this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend", "createdBy", REQUESTER,
@@ -264,6 +280,7 @@ class SubmissionFormServletTest
     {
         this.hidden.add("doctorsNote");
         this.hidden.add("signedForm");
+        this.hidden.add(APPROVAL);
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
     }
@@ -466,6 +483,108 @@ class SubmissionFormServletTest
         return entries.getValuesAs(JsonObject.class).stream()
             .map(entry -> entry.getString("name"))
             .collect(Collectors.toSet());
+    }
+
+    @Test
+    void saysWhoAnApprovalWaitsOnWhileNobodyHasDecided() throws IOException
+    {
+        // Nobody fills an approval in here, so the honest thing to project is where it stands. Saying only that
+        // it cannot be completed here reads the same as a part of the form that is broken
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertEquals(ApprovalRequirement.RESOURCE_TYPE, approval.getString("type"));
+        assertEquals(APPROVERS, approval.getString("approverGroup"));
+        assertFalse(approval.getBoolean("approved"));
+        assertFalse(approval.containsKey("decidedBy"));
+        assertFalse(approval.containsKey("decidedAt"));
+    }
+
+    @Test
+    void reportsTheDecisionOnceSomebodyHasMadeIt() throws IOException
+    {
+        review(DECIDED_AT, "priya", true);
+
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertTrue(approval.getBoolean("approved"));
+        assertEquals("priya", approval.getString("decidedBy"));
+        // Spelled the way every other date in the JSON is, numeric offset and all, so a reader parses one format
+        assertEquals("2026-08-27T09:15:30.500-05:00", approval.getString("decidedAt"));
+    }
+
+    @Test
+    void reportsARefusalAsADecisionThatDidNotApprove() throws IOException
+    {
+        // A rejection is a review that is not approved, which is why who decided is reported whenever a review
+        // exists rather than only when it granted the approval
+        review("r1", "priya", false);
+
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertFalse(approval.getBoolean("approved"));
+        assertEquals("priya", approval.getString("decidedBy"));
+    }
+
+    @Test
+    void reportsTheLastWordWhenAnApprovalWasRevisited() throws IOException
+    {
+        review("r1", "priya", false);
+        review("r2", "sam", true);
+
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertTrue(approval.getBoolean("approved"));
+        assertEquals("sam", approval.getString("decidedBy"));
+    }
+
+    @Test
+    void leavesOutAReviewOfSomethingElse() throws IOException
+    {
+        // A review naming another requirement, or naming none at all, is not this approval's decision
+        final Resource elsewhere = this.context.create().resource(SUBMISSION_PATH + "/r1", Map.of(
+            TYPE, Review.RESOURCE_TYPE, "reviewer", "priya", "tags", new String[] {"approved"}));
+        reference(elsewhere.getPath(), VERSION_PATH + "/doctorsNote", "requirement");
+        this.context.create().resource(SUBMISSION_PATH + "/r2", Map.of(
+            TYPE, Review.RESOURCE_TYPE, "reviewer", "sam", "tags", new String[] {"approved"}));
+
+        final JsonObject approval = requirement(form(REQUESTER), APPROVAL);
+
+        assertFalse(approval.getBoolean("approved"));
+        assertFalse(approval.containsKey("decidedBy"));
+    }
+
+    @Test
+    void saysAnApprovalIsNotNarrowedToAGroupRatherThanOmittingIt() throws IOException
+    {
+        this.context.create().resource(VERSION_PATH + "/rebApproval", Map.of(
+            TYPE, ApprovalRequirement.RESOURCE_TYPE, SUPER_TYPE, REQUIREMENT, "label", "REB approval"));
+
+        assertEquals("", requirement(form(REQUESTER), "rebApproval").getString("approverGroup"));
+    }
+
+    /**
+     * Records one review against the standing approval requirement.
+     *
+     * @param name the node name to give it
+     * @param reviewer who decided
+     * @param approved whether they granted the approval
+     */
+    private void review(final String name, final String reviewer, final boolean approved)
+    {
+        final Map<String, Object> properties = new HashMap<>(Map.of(
+            TYPE, Review.RESOURCE_TYPE, "reviewer", reviewer,
+            "tags", approved ? new String[] {"approved"} : new String[0]));
+        // A mock resource carries no jcr:created, which is also the case this projection has to survive: the date
+        // is given only where a test is about it
+        final Resource review = this.context.create().resource(SUBMISSION_PATH + "/" + name, properties);
+        if (DECIDED_AT.equals(name)) {
+            final Calendar decided = new GregorianCalendar(TimeZone.getTimeZone("GMT-05:00"));
+            decided.clear();
+            decided.set(2026, Calendar.AUGUST, 27, 9, 15, 30);
+            decided.set(Calendar.MILLISECOND, 500);
+            modify(review.getPath(), "jcr:created", decided);
+        }
+        reference(review.getPath(), VERSION_PATH + "/" + APPROVAL, "requirement");
     }
 
     private void answer(final String questionPath, final String value)

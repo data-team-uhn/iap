@@ -38,9 +38,13 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
+import ApprovalState from "./ApprovalState";
 import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
 import SubmissionEditor from "./SubmissionEditor";
-import { DOCUMENT_REQUIREMENT, type FormRequirement, type SubmissionForm, fetchForm } from "./submissionForm";
+import {
+  APPROVAL_REQUIREMENT, DOCUMENT_REQUIREMENT, type FormRequirement, type SubmissionForm, fetchForm,
+  formatDate,
+} from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
 
@@ -91,11 +95,6 @@ function fileHref(path: unknown, name: string): string {
 // naming whoever did write it, which for seeded content is all there is to say.
 function createdBy(submission: JsonNode): unknown {
   return submission.createdBy ?? submission["jcr:createdBy"];
-}
-
-// JCR dates are serialized as ISO 8601 strings; anything else is not a date
-function formatDate(value: unknown): string {
-  return typeof value === "string" && value !== "" ? new Date(value).toLocaleString() : "";
 }
 
 // One question with its answer (or a placeholder when unanswered).
@@ -183,33 +182,13 @@ function Attachment({ document, named }: { document: JsonNode; named: boolean })
 // that says where things stand rather than a second way to change them.
 //
 // The requirements come from the form projection rather than from the submission this page already
-// holds, because a document requirement can be conditional: the demo asks for a doctor's note only
-// for sick leave, and conditions are resolved on the server by design. Reading them off the schema
-// instead would list a doctor's note on a holiday request.
-function Documents({ path, documents }: { path: string; documents: JsonNode[] }) {
-  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
-
-  useEffect(() => {
-    let cancelled = false;
-    // A projection that cannot be read leaves the section showing what is attached and saying
-    // nothing about what was asked, which is the half that can still be trusted
-    fetchForm(path).then(
-      next => {
-        if (!cancelled) {
-          setForm(next);
-        }
-      },
-      () => {
-        if (!cancelled) {
-          setForm(undefined);
-        }
-      }
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [path]);
-
+// holds, because a requirement can be conditional: the demo asks for a doctor's note only for sick
+// leave, and conditions are resolved on the server by design. Reading them off the schema instead
+// would list a doctor's note on a holiday request.
+function Documents({ form, documents }: {
+  form: SubmissionForm | undefined;
+  documents: JsonNode[];
+}) {
   const requirements = (form?.requirements ?? [])
     .filter(requirement => requirement.type === DOCUMENT_REQUIREMENT);
   const fulfilling = (requirement: FormRequirement) => documents.filter(document =>
@@ -243,6 +222,28 @@ function Documents({ path, documents }: { path: string; documents: JsonNode[] })
       })}
       {unattributed.map((document, index) =>
         <Attachment key={"other-" + index} document={document} named />)}
+    </Stack>
+  );
+}
+
+// The approvals this request needs, and where each of them stands. Read from the same projection the
+// editor reads, so the two modes cannot disagree about what is still waiting — and shown in view mode
+// because a request parked on somebody else's decision is exactly what a reader has come to find out.
+function Approvals({ requirements }: { requirements: FormRequirement[] }) {
+  if (requirements.length === 0) {
+    return <Typography color="text.secondary">This request needs no approvals</Typography>;
+  }
+  return (
+    <Stack spacing={2} divider={<Divider />}>
+      {requirements.map(requirement => (
+        <Stack key={requirement.name} spacing={1}>
+          <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+          {requirement.description
+            ? <Typography color="text.secondary">{requirement.description}</Typography>
+            : null}
+          <ApprovalState requirement={requirement} />
+        </Stack>
+      ))}
     </Stack>
   );
 }
@@ -299,6 +300,11 @@ function SubmissionView() {
   const editing = address.endsWith(EDIT);
   const path = editing ? address.slice(0, -EDIT.length) : address;
   const [submission, setSubmission] = useState<JsonNode>();
+  // The form projection, read once for the whole page: two sections ask what this request is being
+  // asked for — the documents and the approvals — and a requirement can be conditional, so neither
+  // can read it off the schema. Fetching it in each of them would ask the server the same question
+  // twice and let the two disagree while one of the answers was still in flight.
+  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
   const [error, setError] = useState<string>();
   // Loading is derived, not toggled inside the fetch effect: the view is loading until the
   // fetch for the currently displayed path has settled, one way or the other
@@ -308,6 +314,27 @@ function SubmissionView() {
   // Bumped when something else on the page changes the submission, so that the fetch below runs
   // again for a path it has already loaded — which is the one thing its own dependencies cannot say
   const [reloads, setReloads] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    // A projection that cannot be read leaves those sections showing what is there and saying nothing
+    // about what was asked, which is the half that can still be trusted
+    fetchForm(path).then(
+      next => {
+        if (!cancelled) {
+          setForm(next);
+        }
+      },
+      () => {
+        if (!cancelled) {
+          setForm(undefined);
+        }
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [path, reloads]);
 
   // Read in both modes, because the step offered above the two of them is decided by what the request
   // is still missing, and that changes while somebody is filling it in. Skipping the read while the
@@ -455,7 +482,12 @@ function SubmissionView() {
         </Section>
       ))}
       <Section title="Documents">
-        <Documents path={path} documents={documents} />
+        <Documents form={form} documents={documents} />
+      </Section>
+      <Section title="Approvals">
+        <Approvals requirements={(form?.requirements ?? [])
+          .filter(requirement => requirement.type === APPROVAL_REQUIREMENT)}
+        />
       </Section>
       <Section title="Reviews">
         {reviews.length > 0
