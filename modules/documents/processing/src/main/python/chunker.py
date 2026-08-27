@@ -474,6 +474,22 @@ def build_chunk_tree(
     for offset, part in enumerate(packed):
         add(f"Chunk-{first_number + offset}.md", part)
 
+    # Fill missing page bounds from surrounding chunks: chunks without explicit page markers
+    # inherit the page number from the previous chunk's end, or the next chunk's start.
+    for i in range(len(catalog_chunks)):
+        chunk = catalog_chunks[i]
+        if chunk["pageStart"] is None and chunk["pageEnd"] is None:
+            # Try to infer from previous chunk
+            if i > 0 and catalog_chunks[i - 1]["pageEnd"] is not None:
+                inferred_page = catalog_chunks[i - 1]["pageEnd"]
+                chunk["pageStart"] = inferred_page
+                chunk["pageEnd"] = inferred_page
+            # Fall back to next chunk's start if previous had nothing
+            elif i < len(catalog_chunks) - 1 and catalog_chunks[i + 1]["pageStart"] is not None:
+                inferred_page = catalog_chunks[i + 1]["pageStart"]
+                chunk["pageStart"] = inferred_page
+                chunk["pageEnd"] = inferred_page
+
     return {
         "markdown": md_file,
         "chunked": True,
