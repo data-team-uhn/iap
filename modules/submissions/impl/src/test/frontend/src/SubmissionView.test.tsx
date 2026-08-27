@@ -513,6 +513,11 @@ describe("SubmissionView", () => {
       return { ...EMPTY_FORM, requirements };
     }
 
+    // One approval requirement, with whatever the projection is saying about it
+    function approval(state: Record<string, unknown>) {
+      return { name: "reb", type: "sch/ApprovalRequirement", label: "REB approval", ...state };
+    }
+
     function attachment(title: string, extra: Record<string, unknown> = {}) {
       return {
         "@path": "/Submissions/demo-1/d1",
@@ -542,6 +547,35 @@ describe("SubmissionView", () => {
       renderAt("/Submissions/demo-1");
 
       expect(await screen.findByText("Nothing attached yet — optional")).toBeInTheDocument();
+    });
+
+    it("says which approvals the request is waiting on, and on whom", async () => {
+      // In view mode as much as in the editor: a request parked on somebody else's decision is what a
+      // reader has come to find out, and switching to edit to learn it would be absurd
+      vi.stubGlobal("fetch", serving(projection([ approval({ approverGroup: "reb-members" }) ])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("REB approval")).toBeInTheDocument();
+      expect(screen.getByText("Waiting for approval from reb-members")).toBeInTheDocument();
+    });
+
+    it("reports the decision once one has been made", async () => {
+      vi.stubGlobal("fetch", serving(projection([ approval({
+        approved: true, decidedBy: "priya", decidedAt: "2026-08-27T09:15:30.500-05:00",
+      }) ])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText(/Approved by priya on /)).toBeInTheDocument();
+    });
+
+    it("says so plainly when the request needs no approval at all", async () => {
+      vi.stubGlobal("fetch", serving(projection()));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("This request needs no approvals")).toBeInTheDocument();
     });
 
     it("never offers to attach one, whoever is reading", async () => {

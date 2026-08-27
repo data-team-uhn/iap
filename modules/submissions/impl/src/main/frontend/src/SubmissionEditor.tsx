@@ -24,6 +24,7 @@ import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import AnswerField, { type SaveState } from "./AnswerField";
+import ApprovalState from "./ApprovalState";
 import DocumentUpload from "./DocumentUpload";
 import {
   type FormItem,
@@ -31,6 +32,7 @@ import {
   type Requirement,
   type SubmissionForm,
   fetchForm,
+  isApprovalRequirement,
   isDocumentRequirement,
   isFormRequirement,
   isQuestion,
@@ -81,8 +83,9 @@ function Items({ items, disabled, states, onAnswered }: {
   );
 }
 
-// One requirement. One that holds no questions is still shown, and answered here where it can be: a
-// document is uploaded, and any other kind says it cannot be completed here yet.
+// One requirement. A requirement that holds no questions is still shown, and where it can be
+// answered it is answered here: a document is uploaded, and an approval says where it stands
+// because it is somebody else who grants it.
 function RequirementPanel({ path, requirement, disabled, states, onAnswered, onAttached }: {
   path: string;
   requirement: Requirement;
@@ -104,11 +107,13 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
               onAttached={onAttached}
             />
           )
-          : (
-            <Typography variant="placeholder">
-              This part of the request cannot be completed here yet.
-            </Typography>
-          ) }
+          : isApprovalRequirement(requirement)
+            ? <ApprovalState requirement={requirement} />
+            : (
+              <Typography variant="placeholder">
+                This part of the request cannot be completed here yet.
+              </Typography>
+            ) }
     </Panel>
   );
 }
