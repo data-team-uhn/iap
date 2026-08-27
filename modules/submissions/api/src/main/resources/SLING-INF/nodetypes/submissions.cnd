@@ -168,6 +168,9 @@
   // The quoted text
   - quote (STRING)
 
+  // The nearest detected header of the quoted text
+  - header (STRING)
+
   // Page in the source PDF, when known. Absent for documents that carry no
   // page markers, e.g. anything that came in as DOCX.
   - page (LONG)
