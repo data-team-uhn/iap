@@ -168,16 +168,66 @@ describe("SubmissionEditor", () => {
 
   it("shows a requirement that holds no questions, rather than dropping it", async () => {
     // An approval is still something the request is waiting on, and leaving it out would say the
-    // request asks less than it does — but it is somebody else's step, so it is only reported
+    // request asks less than it does
     vi.stubGlobal("fetch", serving(form({
-      requirements: [ { name: "approval", type: "sch/ApprovalRequirement", label: "Approval" } ],
+      requirements: [ approval({}) ],
     })));
 
     render(<SubmissionEditor path={PATH} />);
 
     expect(await screen.findByText("Approval")).toBeInTheDocument();
-    expect(screen.getByText(/somebody else's step/)).toBeInTheDocument();
   });
+
+  describe("an approval", () => {
+    it("says who it is waiting on while nobody has decided", async () => {
+      vi.stubGlobal("fetch", serving(form({
+        requirements: [ approval({ approverGroup: "time-off-approvers", approved: false }) ],
+      })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("Waiting for approval from time-off-approvers")).toBeInTheDocument();
+    });
+
+    it("says only that it is waiting when nobody is named", async () => {
+      // An approval nobody has been assigned still waits, and saying so beats saying nothing
+      vi.stubGlobal("fetch", serving(form({
+        requirements: [ approval({ approverGroup: "", approved: false }) ],
+      })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("Waiting for approval")).toBeInTheDocument();
+    });
+
+    it("reports the decision once somebody has made it", async () => {
+      vi.stubGlobal("fetch", serving(form({
+        requirements: [ approval({
+          approved: true, decidedBy: "priya", decidedAt: "2026-08-27T09:15:30.500-05:00",
+        }) ],
+      })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText(/Approved by priya on /)).toBeInTheDocument();
+    });
+
+    it("reports a refusal as a decision rather than as silence", async () => {
+      // Without this a refused request looks like one nobody has looked at yet
+      vi.stubGlobal("fetch", serving(form({
+        requirements: [ approval({ approved: false, decidedBy: "priya" }) ],
+      })));
+
+      render(<SubmissionEditor path={PATH} />);
+
+      expect(await screen.findByText("Reviewed by priya, and not approved")).toBeInTheDocument();
+    });
+  });
+
+  // One approval requirement, with whatever the projection is saying about it
+  function approval(state: Record<string, unknown>) {
+    return { name: "approval", type: "sch/ApprovalRequirement", label: "Approval", ...state };
+  }
 
   describe("answering a document requirement", () => {
     const NOTE = {
