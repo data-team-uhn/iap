@@ -20,11 +20,11 @@ package io.uhndata.iap.search.internal;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.jcr.Value;
 import javax.jcr.query.InvalidQueryException;
 import javax.jcr.query.Query;
 import javax.jcr.query.QueryResult;
@@ -37,7 +37,6 @@ import jakarta.json.stream.JsonGenerator;
 import jakarta.servlet.Servlet;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Strings;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -51,11 +50,8 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.errortracking.api.ErrorContext;
-import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.search.api.SearchContext;
 import io.uhndata.iap.search.api.SearchContextFactory;
-import io.uhndata.iap.search.api.SearchUtils;
 import io.uhndata.iap.search.spi.QuickSearchEngine;
 import io.uhndata.iap.utils.PaginatedJsonResponse;
 
@@ -147,8 +143,8 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
 
     /**
      * The characters that mean something other than themselves in a full-text expression. The apostrophe is one of
-     * them: it opens a quoted phrase. Escaping it for the statement's own string literal is not enough, since parsing
-     * the statement undoes that again and an unescaped apostrophe then reaches the full-text parser.
+     * them: it opens a quoted phrase. An unescaped one leaves the full-text parser looking for a phrase that
+     * never ends. Binding does not help. The grammar is applied to whatever the variable holds.
      */
     private static final Pattern FULL_TEXT_SPECIAL = Pattern.compile("([\\\\+\\-&|!(){}\\[\\]^\"'~*?:/])");
 
@@ -159,15 +155,8 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
     private static final Pattern REPORTING_QUERY =
         Pattern.compile("^\\s*+(explain|measure)\\s", Pattern.CASE_INSENSITIVE);
 
-    /** How much of a statement to write into a log message. */
-    private static final int MAX_LOGGED_STATEMENT = 500;
-
-    /**
-     * What an unindexed query is recorded as. A phrase fixed in code, never one built from the statement: the
-     * component, the operation and this phrase are what make two records the same fault, so a statement in here would
-     * mint a permanent record per distinct search. The statement itself is a detail below.
-     */
-    private static final String UNINDEXED_PROBLEM = "A search query has no index to use and walks the repository";
+    /** The bind variable a generated full-text statement holds its expression in. */
+    private static final String FULL_TEXT_VARIABLE = "text";
 
     /** Transient because a servlet is serializable and a bound service is not. SCR sets it again on activation. */
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC,
@@ -246,7 +235,7 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
             reporting = REPORTING_QUERY.matcher(statement).find();
             // Asking for the plan of a statement that is itself about a plan is either the same question again or,
             // for an explain, not something Oak will parse
-            results = runQuery(session, statement, !reporting);
+            results = runQuery(session, new BoundStatement(statement, Map.of()), !reporting);
         } else if (StringUtils.isNotBlank(fullText)) {
             reporting = false;
             results = runQuery(session(request), fullTextStatement(request, fullText), true);
@@ -308,77 +297,21 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * Executes a JCR-SQL2 statement.
      *
      * @param session the session to run the statement in
-     * @param statement the statement to execute
+     * @param bound the statement to execute, with the values of any variables it names
      * @param checkPlan whether to report the statement if it has no index to work with
      * @return the query results
      * @throws RepositoryException if the statement is invalid
      */
-    private QueryResult runQuery(final Session session, final String statement, final boolean checkPlan)
+    private QueryResult runQuery(final Session session, final BoundStatement bound, final boolean checkPlan)
         throws RepositoryException
     {
         // Parsed first, so the error a client gets back is about the statement it sent, not about the decorated one
         // the plan is asked for below
-        final Query query = session.getWorkspace().getQueryManager().createQuery(statement, Query.JCR_SQL2);
+        final Query query = bound.createQuery(session);
         if (checkPlan) {
-            warnIfUnindexed(session, statement);
+            QueryPlanChecker.warnIfUnindexed(session, bound);
         }
         return query.execute();
-    }
-
-    /**
-     * Logs a warning if the query has no index to work with. Oak logs its own traversal warnings, but only once the
-     * read is under way, and without naming the request that asked.
-     *
-     * <p>
-     * This plans the query a second time. A plan is cheap next to the traversal it reports.
-     * </p>
-     *
-     * @param session the session to plan the query in
-     * @param statement the statement about to be executed, already known to parse
-     */
-    private void warnIfUnindexed(final Session session, final String statement)
-    {
-        try {
-            final RowIterator plan = session.getWorkspace().getQueryManager()
-                .createQuery("explain " + statement, Query.JCR_SQL2).execute().getRows();
-            if (!plan.hasNext()) {
-                return;
-            }
-            final Value[] columns = plan.nextRow().getValues();
-            if (columns.length > 0 && Strings.CI.contains(columns[0].getString(), "traverse")) {
-                LOGGER.warn("The search query [{}] has no index to use and will walk the repository: {}",
-                    forLog(statement), columns[0].getString());
-                // A problem, not a failure: nothing is broken and the query is served. A log line reaches only
-                // whoever is reading the log at the time. A missing index is a standing fact about the instance,
-                // and the statements collected under this one record are what say which index to add.
-                ErrorLogger.logProblem(UNINDEXED_PROBLEM,
-                    ErrorContext.of(SearchServlet.class, "checkQueryPlan")
-                        .actingFor(session.getUserID())
-                        .with("statement", forLog(statement))
-                        .with("plan", columns[0].getString()));
-            }
-        } catch (final RepositoryException | RuntimeException e) {
-            // Everything here is diagnostics. Never fail a request Oak would have served. Unchecked exceptions
-            // matter as much as the checked ones: a malformed full-text expression reaches Oak's parser as an
-            // IllegalArgumentException.
-            LOGGER.debug("Could not obtain the plan of the search query [{}]: {}", forLog(statement), e.getMessage(),
-                e);
-        }
-    }
-
-    /**
-     * Prepares a statement for a log message. In {@code fulltext} mode the statement is built around the text the
-     * user typed, which carries two problems into the log: search terms end up outside the access control this
-     * endpoint runs under, and a line break in them would let a client write log entries of its own.
-     *
-     * @param statement the statement to log
-     * @return the statement on a single line, no longer than {@value #MAX_LOGGED_STATEMENT} characters
-     */
-    static String forLog(final String statement)
-    {
-        final String oneLine = statement.replaceAll("\\s+", " ");
-        return oneLine.length() > MAX_LOGGED_STATEMENT
-            ? oneLine.substring(0, MAX_LOGGED_STATEMENT) + "..." : oneLine;
     }
 
     /**
@@ -402,16 +335,20 @@ public class SearchServlet extends SlingJakartaAllMethodsServlet
      * @param query the text to look for, not blank
      * @return a JCR-SQL2 statement
      */
-    private String fullTextStatement(final SlingJakartaHttpServletRequest request, final String query)
+    private BoundStatement fullTextStatement(final SlingJakartaHttpServletRequest request, final String query)
     {
         final String text = query.strip();
         // Whether the input is a full-text expression the user wrote, or a text to be found as it is
         final boolean verbatim = !"true".equals(request.getParameter("doNotEscapeQuery"));
+        // The full-text grammar is applied to whatever the variable holds, so escaping it is still this method's
+        // job. What binding takes away is the layer around that one: the expression is no longer written into a
+        // string literal, so there is no longer a literal for a quote to close and a client to continue past --
+        // which is what makes doNotEscapeQuery safe to offer rather than safe only while one escape stays correct.
         final String expression = verbatim ? FULL_TEXT_SPECIAL.matcher(text).replaceAll("\\\\$1") : text;
-        // The apostrophes are escaped either way. They delimit the string literal in the statement, and leaving them
-        // to the client would let it write the rest of the query.
-        return String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, '%2$s')%3$s", SELECTOR,
-            SearchUtils.escapeQueryArgument(expression), OUTSIDE_SYSTEM_TREE);
+        return new BoundStatement(
+            String.format("select %1$s.* from [nt:base] as %1$s where contains(%1$s.*, $%2$s)%3$s", SELECTOR,
+                FULL_TEXT_VARIABLE, OUTSIDE_SYSTEM_TREE),
+            Map.of(FULL_TEXT_VARIABLE, expression));
     }
 
     /**
