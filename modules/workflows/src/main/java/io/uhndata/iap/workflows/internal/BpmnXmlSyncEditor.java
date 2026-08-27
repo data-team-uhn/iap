@@ -73,14 +73,11 @@ public class BpmnXmlSyncEditor extends DefaultEditor
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(BpmnXmlSyncEditor.class);
 
-    /**
-     * What a homepage holding workflow definitions declares its entities to be. Both {@code wf:WorkflowsHomepage}
-     * and {@code wf:SystemWorkflowsHomepage} autocreate it, protected, with exactly this value.
-     */
-    private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
-
-    /** The property a homepage names the type of its entities in. */
+    /** The property a homepage uses to name child nodes that it stores. */
     private static final String CHILD_NODE_TYPE_PROPERTY = "childNodeType";
+
+    /** The child node type that workflow definitions homepages store. */
+    private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
 
     private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
 
@@ -344,17 +341,9 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     }
 
     /**
-     * Whether a child of the root is a tree this editor has any business in: a homepage whose entities are workflow
-     * definitions.
-     *
-     * <p>Asked of the node rather than of its name. Naming {@code /Workflows} was enough while it was the only
-     * tree, but the platform's own workflows live under {@code /SystemWorkflows}, and a deployment is free to add
-     * a third — and a diagram in a tree this editor does not enter is stored and never parsed, which leaves a
-     * version that looks authored and has no graph the engine can run. {@code childNodeType} is the homepage's own
-     * statement of what it holds, autocreated and protected by both homepage node types, so this asks the content
-     * what it is instead of keeping a list of where to look. It is also the question
-     * {@code WorkflowHomepagesServlet} already answers to decide which homepages the manager lists, which makes a
-     * tree that can be listed exactly a tree whose diagrams are parsed.</p>
+     * Whether a child of the root is a homepage holding workflow definitions, identified by its own
+     * {@code childNodeType} property so a deployment can add trees beyond {@code /Workflows} and
+     * {@code /SystemWorkflows}.
      *
      * @param node the root child to consider
      * @return {@code true} if it is a homepage holding workflow definitions

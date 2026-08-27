@@ -20,18 +20,16 @@ package io.uhndata.iap.workflows.api;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The event was expected, the user was entitled to fire it and what it carried was usable, but the thing it is
- * aimed at is not in a state that admits it — promoting a version that has already been retired, or drafting a
- * label some other version already carries. HTTP channels answer 409.
+ * The event was expected, valid, and usable, but its target is not in a state that admits it — e.g. promoting an
+ * already-retired version, or drafting a label another version already carries. HTTP channels answer 409.
  *
- * <p>Distinct from {@link NoApplicableWorkflowException}, which answers the same status for the neighbouring
- * question: that one says nothing was waiting for this event at all, this one that something was and the target
- * is the wrong shape for it. A client can act on the difference — the first is a stale UI offering a button that
- * does not exist here, the second a stale UI offering one whose moment has passed.</p>
+ * <p>Distinct from {@link NoApplicableWorkflowException} (also 409): that one means nothing was waiting for the
+ * event at all, while this one means something was, but the target's shape was wrong for it. To a client, that's
+ * the difference between a stale UI offering a button that doesn't exist, and one offering a button whose moment
+ * has passed.</p>
  *
- * <p>Distinct from {@link InvalidPayloadException} for the same reason a 409 is not a 400: nothing about the
- * request would be improved by sending it differently. What has to change is the target, or the request has to
- * be abandoned.</p>
+ * <p>Distinct from {@link InvalidPayloadException} for the same reason 409 isn't 400: resending the request
+ * differently wouldn't help. What has to change is the target, or the request must be abandoned.</p>
  *
  * @version $Id$
  * @since 0.1.0

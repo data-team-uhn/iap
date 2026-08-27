@@ -125,8 +125,8 @@ class WorkflowHomepagesServletTest
     @Test
     void answersWithAnEmptyListWhenTheCallerCanSeeNone() throws IOException
     {
-        // A caller who may read no workflow homepage at all: the query finds nothing, which is an empty list rather
-        // than an error — the client falls back to listing nothing rather than to guessing at paths
+        // A caller who can read no workflow homepage gets an empty list, not an error, so the client falls back to
+        // listing nothing instead of guessing at paths.
         this.createHomepage(WORKFLOWS, "wf/WorkflowsHomepage", WORKFLOW_DEFINITION, null);
         this.stubQuery();
 

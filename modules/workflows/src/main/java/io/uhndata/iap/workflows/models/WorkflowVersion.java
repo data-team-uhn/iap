@@ -49,9 +49,8 @@ public class WorkflowVersion extends Entity
     private static final String BPMN_FILE = "bpmn.xml";
 
     /**
-     * Where a version stands in its lifecycle. A version is authored as a draft, may be put on trial before it is
-     * committed to, is promoted to active once it is ready to be run, and is retired when a later version takes
-     * over — at which point the instances already running against it carry on, but no new ones are created.
+     * Where a version stands in its lifecycle: authored as a {@link #DRAFT}, optionally put on {@link #TRIAL},
+     * promoted to {@link #ACTIVE} once ready to run, and {@link #RETIRED} when a later version takes over.
      *
      * <p>
      * The diagram may only be edited in {@link #DRAFT}: every other state is one something may be following, or
@@ -137,9 +136,9 @@ public class WorkflowVersion extends Entity
     }
 
     /**
-     * Whether new instances may be created from this version, i.e. whether it is the {@link State#ACTIVE active}
-     * one. A {@link State#TRIAL trial} version is not: it is being tried out, and starting one is a deliberate
-     * choice about that version rather than what the workflow does when something asks it to run.
+     * Whether new instances may be created from this version, i.e. whether it is {@link State#ACTIVE active}. A
+     * {@link State#TRIAL trial} version is not: starting one is a deliberate action on that version, not the
+     * workflow's default response to being asked to run.
      *
      * @return {@code true} if this version accepts new instances
      */

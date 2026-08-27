@@ -32,11 +32,8 @@ import { draftFromVersion } from "./workflowWrites";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
-// Starts a new draft from a version that can no longer be edited itself: the active one, or one
-// already retired. This is how a running process is changed — the copy is authored while the original
-// keeps running, and takes over only when it is activated.
-//
-// Not offered for a draft, which can simply be edited.
+// Copies an active or retired version into a new draft: the copy is authored while the original keeps
+// running, and takes over only once activated. Not offered for a draft, which can simply be edited.
 function WorkflowVersionDraftAction({ version, workflow, reload }: WorkflowVersionActionProps) {
   const [ naming, setNaming ] = useState(false);
   const [ label, setLabel ] = useState("");

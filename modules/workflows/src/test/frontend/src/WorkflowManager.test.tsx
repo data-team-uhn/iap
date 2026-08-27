@@ -32,7 +32,6 @@ vi.mock("@iap/ui-extension/extensionManager", () => ({ loadExtensions: vi.fn() }
 
 const mockedLoadExtensions = vi.mocked(loadExtensions);
 
-// A stubbed fetch: the URL, and the request options a write carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
 const WORKFLOW_PATH = "/Workflows/review";

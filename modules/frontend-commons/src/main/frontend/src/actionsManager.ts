@@ -16,18 +16,17 @@
  * limitations under the License.
  */
 
-// The components contributed as the actions available on one kind of thing: the buttons a page
-// offers for a workflow version, a submission, a review. A page renders whatever it is handed,
-// which is what lets a module add an action to another module's page by shipping an `ext:Extension`
-// and nothing else.
+// Resolves the action buttons a page renders for one kind of thing (a workflow version, a submission,
+// a review). A module adds an action to another module's page by shipping an `ext:Extension`, with
+// no code change to that page.
 
 import { type ComponentType } from "react";
 
 import { loadExtensions } from "@iap/ui-extension/extensionManager";
 
-// An action component receives whatever the page it appears on passes: the thing being acted on,
-// and a way to tell the page that something about it changed. The props are the page's contract
-// with its actions, so they are typed at each call site rather than here.
+// A contributed action component. Each page defines its own props contract for its actions —
+// typically the thing being acted on, and a way to report back — so props are typed at the call
+// site, not here.
 export type ActionComponent = ComponentType<Record<string, unknown>>;
 
 // The resolved components, per extension point, and the in-flight request for the ones being
@@ -38,9 +37,8 @@ const requests = new Map<string, Promise<ActionComponent[]>>();
 // The action components registered on an extension point, in the order the repository lists them
 // (by `defaultOrder`).
 //
-// A broken extension is dropped by the loader rather than taking the others with it, and a failure
-// to reach the extension point at all resolves to no actions: a page whose action bar cannot be
-// built still displays the thing itself, which is the part its reader came for.
+// Failures are absorbed, not surfaced: a broken extension is skipped, and an unreadable extension
+// point yields no actions. A page's action bar failing never hides the page itself.
 //
 // @param extensionPoint the extension point node name, e.g. "WorkflowVersionActions"
 // @return the components to render, empty if the point has none or could not be read
@@ -70,8 +68,7 @@ export async function getActions(extensionPoint: string): Promise<ActionComponen
   return request;
 }
 
-// Forgets what has been resolved so far. For tests, which would otherwise inherit one another's
-// extension points.
+// Resets resolved actions between tests, so one test's extension points don't leak into the next.
 export function clearActions(): void {
   actions.clear();
   requests.clear();

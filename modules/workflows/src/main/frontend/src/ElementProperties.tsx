@@ -17,7 +17,7 @@
  */
 
 import {
-  useEffect,
+  useState,
 } from "react";
 
 import {
@@ -31,8 +31,6 @@ import type { Element } from "bpmn-js/lib/model/Types";
 
 interface ElementPropertiesProps {
   element: Element;
-  // The canvas the element belongs to. Only a Modeler can be asked to change it, which is why
-  // editing is not offered when the properties are read-only.
   viewer: BaseViewer;
   readOnly?: boolean;
 }
@@ -44,16 +42,14 @@ export default function ElementProperties(props: ElementPropertiesProps) {
     readOnly = false
   } = props;
 
-  useEffect(() => {
-    // Do nothing: need a useEffect on element to trigger a re-render
-  }, [element])
+  // Local copy of name: bpmn-js mutates the businessObject in place, so it wouldn't otherwise trigger a re-render.
+  const [ name, setName ] = useState(() => (element.businessObject as { name?: string } | undefined)?.name ?? "");
 
-  const updateName = (name: string) => {
+  const updateName = (value: string) => {
+    setName(value);
     const modeling = viewer.get<BpmnModeling>('modeling');
-    modeling.updateLabel(element, name);
+    modeling.updateLabel(element, value);
   }
-
-  const name = (element.businessObject as { name?: string } | undefined)?.name ?? "";
 
   return (
     <div key={ element.id }>

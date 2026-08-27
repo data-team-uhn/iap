@@ -529,9 +529,9 @@ final class EngineFixture
 
     /**
      * Creates {@code /SystemWorkflows} holding one definition with one version in the given lifecycle state,
-     * targeting {@code wf/WorkflowsHomepage} — without any flow nodes yet. The definition carries no state of its
-     * own: whether it accepts instantiation is exactly whether one of its versions is
-     * {@link WorkflowVersion.State#ACTIVE active}, so the version's state is the only thing to set.
+     * targeting {@code wf/WorkflowsHomepage}, without any flow nodes yet. Only the version's state is settable
+     * here, since a definition accepts instantiation exactly when one of its versions is
+     * {@link WorkflowVersion.State#ACTIVE active}.
      *
      * @param context the Sling context to build in
      * @param state the lifecycle state the version is in

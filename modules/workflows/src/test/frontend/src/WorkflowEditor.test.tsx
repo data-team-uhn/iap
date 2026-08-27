@@ -25,9 +25,8 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import WorkflowEditor from "@iap/workflows/WorkflowEditor";
 
-// The canvas is covered by its own suite, and it talks to bpmn-js and the repository on mount. Here
-// it stands in as something that reports itself ready and serializes a known diagram, so that these
-// tests are about the page around it: the identity of what is open, and the save.
+// The canvas is covered by its own suite; here it just reports itself ready and serializes a known
+// diagram. That keeps these tests about the page around it -- what's open, and the save.
 const { canvasProps } = vi.hoisted(() => ({ canvasProps: [] as Record<string, unknown>[] }));
 
 vi.mock("@iap/workflows/BpmnEditor", () => ({
@@ -131,8 +130,8 @@ describe("WorkflowEditor", () => {
   });
 
   it("offers to edit a draft it is only showing, at the same URL asked the other way", async () => {
-    // The editor is not a page below this one: it is this version, opened for editing, which is what
-    // makes offering it here the same move the workflow's own listing offers
+    // The editor is this version opened for editing, not a page below it -- the same move the
+    // workflow's own listing offers.
     stubFetch();
 
     renderEditor();
@@ -187,8 +186,7 @@ describe("WorkflowEditor", () => {
     await waitFor(() => expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument());
     const save = fetchMock.mock.calls.find(call => call[1]?.method === "POST");
     expect(save?.[0]).toBe(VERSION_PATH);
-    // The diagram is a payload part of the version's save event, under the name of the file it will
-    // be stored as -- not a Sling POST servlet path with a type hint
+    // The diagram is a plain payload part of the save request, named after the file it becomes.
     expect((save?.[1]?.body as FormData).get("bpmn.xml")).toBeInstanceOf(File);
     expect(await screen.findByText("The diagram was saved")).toBeInTheDocument();
 

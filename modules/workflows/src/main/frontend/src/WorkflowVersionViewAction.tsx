@@ -24,8 +24,8 @@ import { adminUrl } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
-// Opens a version's diagram in the editor's read-only mode. Offered for every version, whatever
-// state it is in: looking at what a workflow does is never a change to it.
+// Opens a version's diagram in the editor's read-only mode. Offered for every state, since viewing a
+// workflow is never a change to it.
 function WorkflowVersionViewAction({ version }: WorkflowVersionActionProps) {
   return (
     <Button

@@ -33,7 +33,6 @@ const homepages = [
   { path: "/SystemWorkflows", title: "System workflows" },
 ];
 
-// A stubbed fetch: the URL, and the request options a write carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
 const stubFetch = () => {

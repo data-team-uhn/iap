@@ -38,8 +38,8 @@ import {
 import WorkflowStateChip from "./WorkflowStateChip";
 import { saveDiagram } from "./workflowWrites";
 
-// How each state reads in the sentence explaining why the diagram is not editable. Only the states
-// that are not editable are ever named by it; a draft is there for completeness.
+// Text for the read-only notice, one phrase per non-editable state. DRAFT is included only for
+// completeness — it's never actually shown, since a draft is always editable.
 const STATE_PHRASES: Record<WorkflowState, string> = {
   DRAFT: "a draft",
   TRIAL: "on trial",
@@ -50,8 +50,8 @@ const STATE_PHRASES: Record<WorkflowState, string> = {
 interface WorkflowEditorProps {
   // The version's repository path, read out of the URL by the console (see WorkflowConsole)
   path: string;
-  // Whether the URL asked for the editing mode, i.e. carried ?page=edit. Whether it is granted is
-  // still this page's decision: only a draft may be edited.
+  // Whether the URL asked for edit mode (?page=edit). Granting it is still this page's decision:
+  // only a draft is editable.
   editing: boolean;
 }
 
@@ -119,22 +119,17 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
 
   const version: WorkflowVersionSummary | undefined =
     workflow?.versions.find(candidate => candidate.path === path);
-  // Editing is for drafts only: an active version is what running instances are following, a retired
-  // one is what the instances that outlived it are still following, and a trial is being tried as it
-  // stands. A URL asking to edit anything else is answered with the diagram, read-only, and told why.
+  // Editable only for a draft. An active or retired version already has other instances relying on
+  // it, and a trial is meant to be tried as-is, so anything else opens read-only with an explanation.
   const editable = requestedEdit && version?.state === "DRAFT";
 
-  // Saves the diagram, and goes to `destination` afterwards if one was named — which is what
-  // separates the three save buttons from each other, the save itself being the same. Only a save
-  // that landed navigates: a refused one leaves the page where the unsaved diagram still is, saying
-  // so, and offering to try the same thing again.
-  //
-  // Declared rather than assigned, so that the report it raises on failure can offer to run it again
+  // Saves the diagram, then navigates to `destination` if one was given and the save succeeded. A
+  // refused save stays on the page, reports itself, and offers to retry.
+  // Declared rather than assigned, so the failure report can offer to call it again.
   function save(destination?: string): void {
     const serialize = serializeRef.current;
     if (!serialize) {
-      // Nothing to serialize is nothing drawn yet — the canvas hands this over before anything can
-      // change — so there is nothing to save, and a save on its way somewhere still goes there
+      // Nothing to serialize, so there is nothing to save, and a save on its way somewhere still goes there
       if (destination !== undefined) {
         void navigate(destination);
       }

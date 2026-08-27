@@ -35,18 +35,15 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * Retires whichever versions of the target's workflow are currently active, to make room for the target being
  * promoted in their place. The step before {@code setVersionState} in the activation workflow.
  *
- * <p><strong>Why it is a step rather than a second request.</strong> At most one version of a definition is active
- * at a time, and that is an invariant of the transition rather than of the node type. Retiring the outgoing version
- * in its own request would leave a window in which two versions of one workflow both claim to be current, and a
- * client that failed between the two would leave it that way for good. Here both writes are steps of one run, and
- * the engine commits a run once, at its end — so there is no moment at which the invariant does not hold, and a
- * promotion that cannot complete retires nothing.</p>
+ * <p>At most one version of a definition may be active at a time. Retiring and promoting happen as two steps of
+ * one workflow run, committed together at its end, so a promotion that can't complete retires nothing and the
+ * invariant never lapses.</p>
  *
- * <p>Every active version is retired rather than the first one found. More than one being active is already a
- * broken invariant, and a promotion is the natural moment to repair it.</p>
+ * <p>Every active version is retired, not only the first one found, since more than one being active is already
+ * a broken invariant that a promotion is the natural moment to repair.</p>
  *
- * <p>The paths retired are left behind as the {@code retiredVersions} variable, for a later step or the channel
- * that fired the event.</p>
+ * <p>The retired paths are recorded in the {@code retiredVersions} variable, for a later step or the channel that
+ * fired the event.</p>
  *
  * @version $Id$
  * @since 0.1.0

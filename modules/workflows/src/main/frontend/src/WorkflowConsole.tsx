@@ -85,9 +85,8 @@ function WorkflowConsole() {
     case "version":
       return <WorkflowEditor path={target.path} editing={consolePage(location.search) === "edit"} />;
     case "unknown":
-      // A URL under the console that names nothing it can show: a homepage that is not one, or more
-      // segments than a version can account for. Said plainly rather than rendered as an empty
-      // workflow, which is what asking the repository for it would have produced.
+      // A URL that names nothing showable says so plainly, rather than rendering the empty workflow that
+      // querying the repository for it would produce.
       return (
         <AdminScreen title="Workflows">
           <Alert severity="warning">

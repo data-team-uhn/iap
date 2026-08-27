@@ -48,9 +48,8 @@ describe("the registered workflow grid configuration", () => {
   });
 
   it("does not claim to say whether a workflow runs", () => {
-    // Whether a workflow runs is whether one of its versions is active, and a listing serializes the
-    // definition nodes alone — the versions are not in the page it is built from. The workflow's own
-    // page, which loads them, is where that is answered.
+    // Whether a workflow runs is whether one of its versions is active. This listing's definition-node
+    // page doesn't carry that; it's answered on the workflow's own page instead.
     expect(config?.columns.map(column => column.field)).not.toContain("active");
   });
 

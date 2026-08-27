@@ -105,8 +105,8 @@ describe("loadWorkflow", () => {
   });
 
   it("reads a workflow as running exactly while one of its versions is active", async () => {
-    // Not a property of the definition: the same question asked of the versions, so the two can
-    // never disagree. A trial is not the version instances are created from, and does not count.
+    // Not a property of the definition: the same question asked of the versions, so the two can never
+    // disagree. A trial doesn't count, since instances are never created from one.
     const running = await loadWorkflow(answering(definition), "/Workflows/review");
     expect(running.active).toBe(true);
 
@@ -274,9 +274,8 @@ describe("loadWorkflowCounts", () => {
   });
 
   it("still names a homepage whose count was refused, without a number for it", async () => {
-    // The homepages are independent of each other: one that cannot be counted loses its own number
-    // and nothing else, where joining them would have cost every other homepage its count as well.
-    // That the homepage exists is half of what a summary is for, and is known either way
+    // The homepages are independent, so one that can't be counted loses only its own number.
+    // That it exists is still worth reporting, and is known either way.
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const fetchUtil = vi.fn<FetchStub>(url => {
       if (url === "/Workflows.homepages.json") {
@@ -300,8 +299,8 @@ describe("loadWorkflowCounts", () => {
 });
 
 describe("the console's URLs", () => {
-  // What this instance has, as the console discovers it. Two of them, one inside the other, because
-  // the nesting is the case that decides how the homepage is found.
+  // What this instance has, as the console discovers it: two homepages, one nested inside the other.
+  // That's the case that decides how the homepage is found.
   const HOMEPAGES = [ "/Workflows", "/SystemWorkflows", "/Content/Workflows" ];
 
   it("carries the repository path, and names only the page that needs naming", () => {
@@ -339,8 +338,8 @@ describe("the console's URLs", () => {
   });
 
   it("counts depth from the homepage, since a homepage may be anywhere", () => {
-    // Counting from the root would read this workflow as a version of /Content/Workflows. The
-    // homepage is the only fixed point: below one it is always homepage / workflow / version.
+    // Counting from the root would read this workflow as a version of /Content/Workflows.
+    // The homepage is the only fixed point: below one it's always homepage/workflow/version.
     expect(consoleTarget("/admin/workflows/Content/Workflows/review", HOMEPAGES))
       .toEqual({ kind: "workflow", path: "/Content/Workflows/review" });
     expect(consoleTarget("/admin/workflows/Content/Workflows/review/1-0", HOMEPAGES))
@@ -367,8 +366,8 @@ describe("the console's URLs", () => {
   });
 
   it("knows nothing about a URL it cannot place", () => {
-    // A tree that is not a homepage here, and more segments than a version can account for.
-    // Rendering an empty workflow for any of them would be worse than saying so.
+    // A tree that isn't a homepage here, and more segments than a version can account for.
+    // Rendering an empty workflow for either would be worse than saying so.
     expect(consoleTarget("/admin/workflows/Elsewhere/review", HOMEPAGES)).toEqual({ kind: "unknown" });
     expect(consoleTarget("/admin/workflows/Workflows/review/2-0/rename", HOMEPAGES))
       .toEqual({ kind: "unknown" });

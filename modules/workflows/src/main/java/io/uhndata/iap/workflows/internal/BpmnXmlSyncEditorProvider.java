@@ -38,9 +38,8 @@ public class BpmnXmlSyncEditorProvider implements EditorProvider
     public Editor getRootEditor(final NodeState before, final NodeState after, final NodeBuilder builder,
         final CommitInfo info)
     {
-        // Every commit in the repository comes through here, and the overwhelming majority touch nothing under
-        // a workflow homepage, so the roots this editor needs are passed as the committed state to look them up in
-        // rather than resolved here: Oak only descends into children that actually changed, so a commit elsewhere
+        // The roots this editor needs are passed in as the committed state to look them up from.
+        // Oak only descends into children that actually changed, so a commit touching no workflow homepage
         // never asks.
         return new BpmnXmlSyncEditor(builder, after, info.getUserId());
     }

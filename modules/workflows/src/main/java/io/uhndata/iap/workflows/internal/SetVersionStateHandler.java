@@ -40,12 +40,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * rather than the payload's: {@code toState} is where the version ends up, and {@code fromStates} are the states
  * it may be moved there from.
  *
- * <p><strong>The lifecycle table lives in content.</strong> A version's states are four and their permitted moves
- * are five, and every one of them used to be a row of a map in Java — which meant that saying "an author may
- * return their own trial to a draft, but only an administrator may activate one" could not be said at all, since
- * one endpoint served every move and one property could only admit one set of people. Now each move is a system
- * workflow of its own, naming its own performers, and this handler is the step those workflows have in common. A
- * fifth state is a new definition rather than a new row here.</p>
+ * <p><strong>The lifecycle table lives in content.</strong> Each move is its own system workflow, naming its own
+ * performers, so different moves can require different people: an author may return their own trial to a draft,
+ * while only an administrator may activate one. This handler is the step those workflows have in common; a fifth
+ * state is a new definition rather than a new row here.</p>
  *
  * <p>Refusing when the version is not in one of {@code fromStates} is what keeps the moves that do not exist from
  * happening: an active version is retired by another being promoted in its place and a retired one is carried

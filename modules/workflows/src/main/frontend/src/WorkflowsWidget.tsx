@@ -25,9 +25,8 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { adminUrl, loadWorkflowCounts, type WorkflowHomepageCount } from "./workflowModel";
 
-// What a homepage's chip says: how many workflows are in it, as a lower bound when the server stopped
-// short of counting them all, and as a question where the count could not be read at all — that the
-// homepage exists is the other half of what this widget answers, and is known either way.
+// The chip's label: the count, marked with a "+" when the server only gave a lower bound, or "?" when
+// the count could not be read at all.
 function countLabel(homepage: WorkflowHomepageCount): string {
   if (homepage.count == undefined) {
     return "?";
@@ -79,9 +78,8 @@ function WorkflowsWidget() {
                 label={countLabel(homepage)}
                 title={homepage.count == undefined ? "The workflows here could not be counted" : undefined}
               />
-              {/* Each homepage is its own page of the console, so its name is the way to the one
-                  being counted; the frame's "Manage workflows" action leads to the homepage every
-                  deployment has, which is where somebody with no particular one in mind is going. */}
+              {/* Each homepage's name links to its own listing; the frame's "Manage workflows" action
+                  leads to the homepage every deployment has, for when no particular one is in mind. */}
               <MuiLink
                 component={RouterLink}
                 to={adminUrl(homepage.path)}
