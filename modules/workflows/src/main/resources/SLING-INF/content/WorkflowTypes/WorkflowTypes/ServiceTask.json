@@ -18,6 +18,11 @@
     "{https://iap.uhndata.io/bpmn}skipProperties=skipProperties[]",
     "{https://iap.uhndata.io/bpmn}dropTagCategories=dropTagCategories[]",
     "{https://iap.uhndata.io/bpmn}editable=editable[]",
-    "{https://iap.uhndata.io/bpmn}required=required[]"
+    "{https://iap.uhndata.io/bpmn}required=required[]",
+    "{https://iap.uhndata.io/bpmn}event=event",
+    "{https://iap.uhndata.io/bpmn}template=template",
+    "{https://iap.uhndata.io/bpmn}urgency=urgency",
+    "{https://iap.uhndata.io/bpmn}notify=notify[]",
+    "{https://iap.uhndata.io/bpmn}requirement=requirement"
   ]
 }
