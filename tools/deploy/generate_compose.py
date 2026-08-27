@@ -331,24 +331,80 @@ def generate_mail_certificate(ssl_directory):
     say_wrote(brief_path(certificate), "self-signed, 10 years, for SMTPS")
 
 
-def generate_env_file(env_file):
-    """Leave a .env for keycloak_setup.sh to fill in.
+def env_entries(args, env_file):
+    """Every credential the generated file refers to, as (key, value, explanation lines).
 
-    Compose reads .env by itself, and the generated file takes the client secret from it rather
-    than inlining it: a secret does not belong in a file this easy to paste into a ticket.
+    None of these are in docker-compose.yml, because that is the file which gets read, shared and
+    pasted into a ticket, while .env is not -- and Compose reads .env by itself, so a ${VAR} in
+    the compose file needs nothing extra run to resolve. The values are development defaults and
+    are meant to be edited here.
     """
-    if env_file.exists():
+    entries = []
+    if args.storage == 'postgres':
+        entries.append(('RDB_PASSWORD', RDB_PASSWORD, [
+            "Used by both PostgreSQL and IAP, so the two cannot drift apart. Changing it after",
+            "the first start needs a fresh volume: it is set when the database is created.",
+        ]))
+    if args.mail:
+        entries.append(('SLING_COMMONS_CRYPTO_PASSWORD', 'password', [
+            "The mail feature registers a crypto service that does not start without this.",
+        ]))
+    if args.keycloak:
+        entries.append(('KC_BOOTSTRAP_ADMIN_PASSWORD', 'admin', [
+            "The Keycloak admin console login, as `admin` with this password.",
+        ]))
+        entries.append(('KEYCLOAK_CLIENT_ID', 'iap-sling', []))
+        entries.append(('KEYCLOAK_CLIENT_SECRET', '', [
+            "Filled in by: ENV_FILE={} {} --write-env".format(
+                brief_path(env_file),
+                brief_path(HERE.parent / 'dev' / 'keycloak' / 'keycloak_setup.sh')),
+            "Until then IAP starts, but no one can sign in.",
+        ]))
+        entries.append(('IAP_OAUTH_ENCRYPTION_PASSWORD', 'devpassword', [
+            "Any value will do for development; it encrypts the stored OAuth tokens.",
+        ]))
+    return entries
+
+
+def generate_env_file(env_file, entries):
+    """Write the .env holding the credentials, or top up one that is already there.
+
+    An existing file is never rewritten. `keycloak_setup.sh --write-env` fills the client secret
+    into it, and a developer may have changed a password, so only missing keys are appended --
+    which is also what makes it safe to add `--mail` or `--storage postgres` to a deployment that
+    already exists, instead of leaving the compose file pointing at a variable nothing defines.
+    """
+    if not entries:
+        return
+
+    def block(entry):
+        key, value, explanation = entry
+        return ''.join("# {}\n".format(line) for line in explanation) \
+            + "{}={}\n".format(key, value)
+
+    if not env_file.exists():
+        env_file.write_text(
+            "# Read by Compose, and by the generated docker-compose.yml through ${...}. The\n"
+            "# credentials live here rather than there so that the compose file can be shared.\n\n"
+            + '\n'.join(block(entry) for entry in entries),
+            encoding='utf-8')
+        say_wrote(brief_path(env_file), "{} credentials".format(len(entries)))
+        return
+
+    existing = env_file.read_text(encoding='utf-8')
+    defined = {line.split('=', 1)[0].strip()
+               for line in existing.splitlines()
+               if '=' in line and not line.lstrip().startswith('#')}
+    missing = [entry for entry in entries if entry[0] not in defined]
+    if not missing:
         say_kept(brief_path(env_file))
         return
-    env_file.write_text(
-        "# Filled in by: ENV_FILE={} tools/dev/keycloak/keycloak_setup.sh --write-env\n"
-        "# Until then IAP starts without a working OIDC client.\n"
-        "KEYCLOAK_CLIENT_ID=iap-sling\n"
-        "KEYCLOAK_CLIENT_SECRET=\n"
-        "# Any password will do for local development; it encrypts the stored OAuth tokens.\n"
-        "IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword\n".format(env_file),
-        encoding='utf-8')
-    say_wrote(brief_path(env_file), "for keycloak_setup.sh to fill in")
+
+    separator = '' if existing.endswith('\n') else '\n'
+    with env_file.open('a', encoding='utf-8') as handle:
+        handle.write(separator + '\n' + '\n'.join(block(entry) for entry in missing))
+    say_wrote(brief_path(env_file),
+              "added {}".format(', '.join(entry[0] for entry in missing)))
 
 
 ### Building the services
@@ -409,7 +465,8 @@ def iap_environment(args):
         environment['OAK_STORAGE'] = 'rdb'
         environment['EXTERNAL_RDB_URI'] = "jdbc:postgresql://postgres:5432/{}".format(RDB_DATABASE)
         environment['RDB_USER'] = RDB_USER
-        environment['RDB_PASSWORD'] = RDB_PASSWORD
+        # From .env, like every other credential here: this file is the one that gets shared.
+        environment['RDB_PASSWORD'] = '${RDB_PASSWORD}'
     elif args.storage == 'mongo':
         environment['OAK_STORAGE'] = 'mongo'
         environment['EXTERNAL_MONGO_URI'] = 'mongo:27017'
@@ -430,12 +487,12 @@ def iap_environment(args):
             "http://keycloak:8080/realms/{}".format(KEYCLOAK_REALM)
         environment['FRONTEND_KEYCLOAK_REALM_URL'] = \
             "http://localhost:{}/realms/{}".format(KEYCLOAK_PORT, KEYCLOAK_REALM)
-        # Both come from .env, which keycloak_setup.sh --write-env fills in.
-        environment['KEYCLOAK_CLIENT_ID'] = '${KEYCLOAK_CLIENT_ID:-iap-sling}'
-        environment['KEYCLOAK_CLIENT_SECRET'] = '${KEYCLOAK_CLIENT_SECRET:-}'
+        # All from .env; the secret is what keycloak_setup.sh --write-env fills in. No inline
+        # fallbacks, so .env is the one place a credential is written down.
+        environment['KEYCLOAK_CLIENT_ID'] = '${KEYCLOAK_CLIENT_ID}'
+        environment['KEYCLOAK_CLIENT_SECRET'] = '${KEYCLOAK_CLIENT_SECRET}'
         environment['IAP_PUBLIC_URL'] = "http://localhost:{}".format(args.port)
-        environment['IAP_OAUTH_ENCRYPTION_PASSWORD'] = \
-            '${IAP_OAUTH_ENCRYPTION_PASSWORD:-devpassword}'
+        environment['IAP_OAUTH_ENCRYPTION_PASSWORD'] = '${IAP_OAUTH_ENCRYPTION_PASSWORD}'
 
     if args.mail:
         comment(environment, "Points the mail service at {} port 465 and stops".format(
@@ -444,8 +501,8 @@ def iap_environment(args):
         comment(environment, "certificate cannot satisfy.")
         environment['SMTPS_LOCAL_TEST_CONTAINER'] = 'true'
         # The mail feature registers a crypto service that reads its password from this variable,
-        # and does not start without it.
-        environment['SLING_COMMONS_CRYPTO_PASSWORD'] = 'password'
+        # and does not start without it. The value is in .env.
+        environment['SLING_COMMONS_CRYPTO_PASSWORD'] = '${SLING_COMMONS_CRYPTO_PASSWORD}'
 
     if args.features:
         comment(environment, "Started in addition to the distribution the image already carries.")
@@ -484,7 +541,9 @@ def postgres_service():
     service['environment'] = {
         'POSTGRES_DB': RDB_DATABASE,
         'POSTGRES_USER': RDB_USER,
-        'POSTGRES_PASSWORD': RDB_PASSWORD,
+        # The same .env value IAP is given, so the two cannot drift apart. An empty one makes
+        # this image refuse to start, which is the right way for a missing .env to fail.
+        'POSTGRES_PASSWORD': '${RDB_PASSWORD}',
         'POSTGRES_INITDB_ARGS': '--encoding=UTF8 --lc-collate=C --lc-ctype=C',
     }
     service['healthcheck'] = {
@@ -535,7 +594,9 @@ def keycloak_service():
         'KC_HOSTNAME': "http://localhost:{}".format(KEYCLOAK_PORT),
         'KC_HOSTNAME_BACKCHANNEL_DYNAMIC': 'true',
         'KC_BOOTSTRAP_ADMIN_USERNAME': 'admin',
-        'KC_BOOTSTRAP_ADMIN_PASSWORD': 'admin',
+        # In .env with the rest of the credentials; that is where to read it from when signing
+        # in to the admin console.
+        'KC_BOOTSTRAP_ADMIN_PASSWORD': '${KC_BOOTSTRAP_ADMIN_PASSWORD}',
     }
     service['restart'] = 'unless-stopped'
     return service
@@ -646,8 +707,10 @@ def main(argv=None):
     if args.mail:
         generate_mail_certificate(compose_directory / 'SSL_CONFIG')
         (compose_directory / 'mail').mkdir(parents=True, exist_ok=True)
-    if args.keycloak:
-        generate_env_file(compose_directory / '.env')
+    # Not only for --keycloak any more: a Postgres or mail deployment has credentials of its own,
+    # and they are kept out of the compose file the same way.
+    env_file = compose_directory / '.env'
+    generate_env_file(env_file, env_entries(args, env_file))
 
     header = [
         "Generated by tools/deploy/generate_compose.py -- edit freely, or regenerate with:",

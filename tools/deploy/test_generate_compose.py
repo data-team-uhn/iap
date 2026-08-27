@@ -67,13 +67,17 @@ def environment(doc, name='iap'):
     return settings(service(doc, name).get('environment', {}))
 
 
-def generate(*argv):
-    """Run the generator end to end in a scratch directory; returns the file's text."""
-    directory = tempfile.mkdtemp()
+def generate_into(directory, *argv):
+    """Run the generator end to end into a directory; returns the compose file's text."""
     output = Path(directory) / 'docker-compose.yml'
     with contextlib.redirect_stdout(io.StringIO()):
         gc.main(list(argv) + ['--output', str(output)])
     return output.read_text(encoding='utf-8')
+
+
+def generate(*argv):
+    """Run the generator end to end in a scratch directory; returns the file's text."""
+    return generate_into(tempfile.mkdtemp(), *argv)
 
 
 class PostgresStorage(unittest.TestCase):
@@ -179,6 +183,75 @@ class AdditionalFeatures(unittest.TestCase):
         # copy rather than trusting it, since a leak would only show up on a second run.
         gc.parse_args(['--feature', 'mvn:g/a/1/slingosgifeature'])
         self.assertEqual([], gc.parse_args([]).features)
+
+
+class Credentials(unittest.TestCase):
+    """Nothing secret belongs in docker-compose.yml, which is the file that gets shared."""
+
+    def test_the_compose_file_stores_no_password_in_clear_text(self):
+        # What CodeQL flagged on PR #161: a password literal reaching the file write. Every
+        # credential is a ${...} reference into .env now, which is the reason generate_env_file
+        # already gave for keeping the Keycloak client secret out of this file.
+        text = generate('--storage', 'postgres', '--keycloak')
+        lines = [line.strip() for line in text.splitlines()
+                 if 'PASSWORD' in line and not line.lstrip().startswith('#')]
+        self.assertTrue(lines, 'expected the file to set some passwords')
+        for line in lines:
+            self.assertRegex(line, r':\s*"\$\{[A-Z_]+\}"$', line)
+
+    def test_iap_and_postgres_read_the_same_password_variable(self):
+        # Two literals could drift apart; one variable cannot.
+        doc = document('--storage', 'postgres')
+        self.assertEqual('${RDB_PASSWORD}', environment(doc)['RDB_PASSWORD'])
+        self.assertEqual('${RDB_PASSWORD}',
+                         settings(service(doc, 'postgres')['environment'])['POSTGRES_PASSWORD'])
+
+    def test_an_env_file_is_written_for_credentials_other_than_keycloak(self):
+        with tempfile.TemporaryDirectory() as directory:
+            generate_into(directory, '--storage', 'postgres')
+            self.assertIn('RDB_PASSWORD=',
+                          (Path(directory) / '.env').read_text(encoding='utf-8'))
+
+    def test_no_env_file_when_nothing_needs_a_credential(self):
+        with tempfile.TemporaryDirectory() as directory:
+            generate_into(directory)
+            self.assertFalse((Path(directory) / '.env').exists())
+
+    def test_an_existing_env_file_is_topped_up_and_never_rewritten(self):
+        # keycloak_setup.sh --write-env fills the client secret into this file, and a developer
+        # may have changed a password by hand. Adding an option to a deployment that already
+        # exists has to keep both, while still defining what the new services refer to.
+        with tempfile.TemporaryDirectory() as directory:
+            generate_into(directory, '--keycloak')
+            env_file = Path(directory) / '.env'
+            env_file.write_text(
+                env_file.read_text(encoding='utf-8')
+                .replace('KEYCLOAK_CLIENT_SECRET=', 'KEYCLOAK_CLIENT_SECRET=filled-in')
+                .replace('IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword',
+                         'IAP_OAUTH_ENCRYPTION_PASSWORD=hand-edited'),
+                encoding='utf-8')
+
+            generate_into(directory, '--keycloak', '--storage', 'postgres')
+            env = env_file.read_text(encoding='utf-8')
+
+        self.assertIn('KEYCLOAK_CLIENT_SECRET=filled-in', env)
+        self.assertIn('IAP_OAUTH_ENCRYPTION_PASSWORD=hand-edited', env)
+        self.assertIn('RDB_PASSWORD=', env)
+        # A second definition would be read instead of the filled-in one.
+        self.assertEqual(1, env.count('KEYCLOAK_CLIENT_SECRET='))
+
+    def test_every_variable_the_compose_file_reads_is_defined_in_the_env_file(self):
+        # A ${VAR} with nothing behind it is substituted empty, and the container starts
+        # misconfigured rather than failing to start.
+        import re
+        with tempfile.TemporaryDirectory() as directory:
+            text = generate_into(directory, '--storage', 'postgres', '--keycloak', '--mail')
+            env = (Path(directory) / '.env').read_text(encoding='utf-8')
+        referenced = set(re.findall(r'\$\{([A-Z_]+)\}', text))
+        defined = {line.split('=', 1)[0] for line in env.splitlines()
+                   if '=' in line and not line.startswith('#')}
+        self.assertTrue(referenced)
+        self.assertEqual(set(), referenced - defined)
 
 
 class Companions(unittest.TestCase):

@@ -134,9 +134,10 @@ docker compose up -d
 ```
 
 `keycloak_setup.sh` (in `tools/dev/keycloak/`) creates the realm, the client and the roles,
-then writes the client id and secret into `.env`, which Compose reads by itself. The secret
-stays out of `docker-compose.yml` so the generated file can be shared without leaking it. Until
-that step has run, IAP starts but no one can sign in.
+then writes the client id and secret into `.env` (see [Credentials](#credentials)). Until that
+step has run, IAP starts but no one can sign in.
+
+The admin console is at `localhost:8084` as `admin`, with the password in `.env`.
 
 The two realm URLs differ on purpose: IAP resolves `keycloak:8080` inside the Docker network, while
 the browser is redirected to the published `localhost:8084`. `docs/keycloak-oidc.md` explains the
@@ -167,6 +168,30 @@ ls mail/
 **Read the files, not the response.** IAP hands a message to a thread pool and answers `200`
 whether or not it was ever built and sent, so an empty `mail/` is the only way to find out that
 mail is broken. `docker compose logs smtps_test_container` names each message as it arrives.
+
+## Credentials
+
+Every password the deployment uses lives in `.env`, and `docker-compose.yml` refers to it as
+`${RDB_PASSWORD}` and so on. That split is the point: the compose file is the one that gets read,
+diffed and pasted into a ticket, and it can be now, because there is nothing in it to leak.
+Compose reads `.env` on its own, so there is nothing extra to run.
+
+Which entries appear depends on what was asked for — `RDB_PASSWORD` for `--storage postgres`,
+`SLING_COMMONS_CRYPTO_PASSWORD` for `--mail`, and the Keycloak admin password, client id, client
+secret and OAuth encryption password for `--keycloak`. With none of those, there is no `.env` at
+all. The values are development defaults and are meant to be edited there.
+
+**An existing `.env` is never rewritten, only topped up.** `keycloak_setup.sh --write-env` fills
+the client secret into it and you may have changed a password, so re-running the generator adds
+only the keys that are missing — which is what makes it safe to add `--mail` to a deployment that
+is already running. It says which keys it added.
+
+`cleanup.sh` deletes `.env` along with everything else generated, so a fresh deployment starts
+from fresh credentials — and, for Keycloak, a realm that has to be set up again.
+
+A missing `.env` fails loudly rather than quietly: Compose substitutes an empty password, and the
+PostgreSQL image refuses to initialise a database without one. On a volume that already exists it
+would start and then reject IAP's login instead, which is why `cleanup.sh` removes both together.
 
 ## Cleaning up
 
