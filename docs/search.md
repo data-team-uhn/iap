@@ -190,13 +190,17 @@ plan it already reports on.
 `fulltext=…` becomes:
 
 ```sql
-select n.* from [nt:base] as n where contains(n.*, '…')
+select n.* from [nt:base] as n where contains(n.*, $text)
   and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')
 ```
 
+The text is **bound to `$text`** rather than written into the statement, so the statement
+is the same however strange the input, and nothing a user types can become query syntax.
+
 By default the input is escaped so it is found verbatim, operators and all.
 `doNotEscapeQuery=true` leaves the full-text operators alone, so a user can write
-`heart -failure` or `diabet*` and mean it.
+`heart -failure` or `diabet*` and mean it. That escaping is about the full-text grammar,
+which is applied to whatever the variable holds; binding does not do it for you.
 
 Input handling in both modes:
 
@@ -204,10 +208,12 @@ Input handling in both modes:
   term, so a space left in front by a paste or an autocompletion would otherwise come
   back as `400`. Space *between* words is the expression's own separator and is left
   alone.
-- **Quotes are escaped either way** — the double quote that opens a phrase and the
-  apostrophe that does the same, which the statement's own escaping would otherwise hand
-  straight to the full-text parser. They delimit the string in the statement, so leaving
-  them to the client would let it write the rest of the query.
+- **Both quote characters are full-text operators** — the double quote opens a phrase
+  and the apostrophe does the same — so the default escapes them along with everything
+  else, and `doNotEscapeQuery=true` leaves them alone along with everything else. Nothing
+  is escaped on the statement's behalf: the expression is bound to a variable rather than
+  written into the statement, so there is no string literal for a quote to close and no
+  way for the input to become query syntax.
 - **Whitespace and `OR` are not yet escaped by default**, so `cats OR dogs` still reads
   as two alternatives rather than as that text. Making it literal means quoting each
   term, which changes what multi-word searches match, so it waits for a caller whose
@@ -300,6 +306,13 @@ for an engine with nothing to say.
 | `getMatch`, `getMatchFromArray` | Finding which of a property's values matched |
 | `addMatchMetadata` | Describing the match, under the `MATCH_KEY` (`data:queryMatch`) property |
 
+**Prefer a bind variable to either escape.** An engine writing `where n.[title] like
+$text` and calling `Query.bindValue("text", …)` never puts the user's input into the
+statement, so there is no string literal to escape it for, and the index selection is
+identical — the endpoint's own full-text search works this way. `escapeLikeText` is still
+needed, since the `like` pattern grammar applies to whatever the variable holds;
+`escapeQueryArgument` is only for an engine that writes the value into the statement.
+
 ```json
 {
   "…": "the serialized node",
@@ -338,10 +351,11 @@ asked for is not quite the one the client sent, so the client's own statement is
 first — that way a syntax error is reported against what was actually sent.
 
 The logged statement is put on one line and cut to `MAX_LOGGED_STATEMENT` (500)
-characters. In `fulltext` mode it is built around the text the user typed, and a line
-break there would otherwise let a client write log entries of its own choosing. Nothing
-here can fail a request: obtaining a plan is diagnostics, and a request the repository
-would have served is served.
+characters. In `query` mode it is the statement the client sent, so a line break in it
+would otherwise let a client write log entries of its own choosing. A generated statement
+carries nothing the user typed — the text is bound, and bound values are never logged — so
+a search term stays out of the log whatever it contains. Nothing here can fail a request:
+obtaining a plan is diagnostics, and a request the repository would have served is served.
 
 ## Errors
 
