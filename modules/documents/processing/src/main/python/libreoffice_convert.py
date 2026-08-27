@@ -315,11 +315,8 @@ def prepare_office_document(input_path: Path, *, log: LogFn | None = None) -> Pa
     source = Path(input_path)
     suffix = source.suffix.lower()
     if suffix == ".doc":
-        docx_path = convert(source, "docx", source.parent)
-        # From the .docx, not the .doc: that is the document Docling parses to .md
-        _convert_sibling_pdf(docx_path, log)
-        return docx_path
-    if suffix == ".docx":
+        # Convert to .docx: that is the document Docling parses to .md
+        source = convert(source, "docx", source.parent)
+    if suffix in (".doc", ".docx"):
         _convert_sibling_pdf(source, log)
-        return source
     return source
