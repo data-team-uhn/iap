@@ -108,12 +108,10 @@ def cleanup_leading_line_numbers(md: str) -> str:
         return cleanup_page_leading_line_numbers(md)
 
     cleaned_parts: list[str] = [parts[0]]
-    index = 1
-    while index < len(parts):
-        cleaned_parts.append(parts[index])
-        body = parts[index + 1] if index + 1 < len(parts) else ""
+    for i in range(1, len(parts), 2):
+        cleaned_parts.append(parts[i])
+        body = parts[i + 1] if i + 1 < len(parts) else ""
         cleaned_parts.append(cleanup_page_leading_line_numbers(body))
-        index += 2
     return "".join(cleaned_parts)
 
 
