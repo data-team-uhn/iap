@@ -33,6 +33,13 @@ const AUTHORIZATION = `Basic ${Buffer.from('admin:admin').toString('base64')}`;
 const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAILABLE'];
 
 /**
+ * The tag the startup gate itself watches. Every check carrying it has to be OK — a WARN included —
+ * before the gate stops serving the startup page, so this is the one question whose answer decides
+ * whether the instance serves anything at all.
+ */
+const GATE_TAG = 'systemalive';
+
+/**
  * Whether an instance is ready to be tested.
  *
  * The launcher plugin only waits for the OSGi framework to come up, which happens well before the
@@ -43,6 +50,13 @@ const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAI
  *
  * A WARN is deliberately not blocking. It means something is worth looking at, not that the instance is
  * unusable, and treating it as fatal here would turn a passing suite into a startup timeout.
+ *
+ * Except for the checks the startup gate watches, where a WARN means exactly "not yet". The gate holds
+ * until every `systemalive` check is OK and answers 503 to everything meanwhile, so an instance judged
+ * ready on the looser rule serves its pages while every asset those pages import fails: the dashboard
+ * renders without its widgets, and the test that waits for one of them times out. Measured 2026-08-27,
+ * with `Bundle Content Loaded is WARN` in the gate's log at the moment the browser was refused the
+ * shared chunks. Asking the gate's own question is what keeps the two from disagreeing.
  */
 const isReady = async (instance: ActiveInstance): Promise<boolean> => {
   try {
@@ -54,6 +68,16 @@ const isReady = async (instance: ActiveInstance): Promise<boolean> => {
     }
     const body = (await health.json()) as { results?: { status?: string }[] };
     if ((body.results ?? []).some(result => BLOCKING_STATUSES.includes(result.status ?? ''))) {
+      return false;
+    }
+    const gate = await fetch(`${instance.baseURL}/system/health.json?tags=${GATE_TAG}`, {
+      headers: { Authorization: AUTHORIZATION },
+    });
+    if (!gate.ok) {
+      return false;
+    }
+    const gateBody = (await gate.json()) as { results?: { status?: string }[] };
+    if ((gateBody.results ?? []).some(result => result.status !== 'OK')) {
       return false;
     }
     const loginPage = await fetch(`${instance.baseURL}/login`);
