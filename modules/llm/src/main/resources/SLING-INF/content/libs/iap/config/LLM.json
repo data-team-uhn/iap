@@ -11,7 +11,7 @@
       "contextLimitTokens": 131072,
       "maxOutputTokens": 1024,
       "temperature": 0.0,
-      "chunkTokenSize": 8000,
+      "chunksBatchTokenSize": 8000,
       "wholeDocumentTokenLimit": 20000,
       "developer": "meta"
     }
@@ -29,7 +29,7 @@
       "contextLimitTokens": 131072,
       "maxOutputTokens": 2000,
       "temperature": 0.0,
-      "chunkTokenSize": 30000,
+      "chunksBatchTokenSize": 30000,
       "wholeDocumentTokenLimit": 20000,
       "developer": "openai"
     },
@@ -38,7 +38,7 @@
       "contextLimitTokens": 131072,
       "maxOutputTokens": 2000,
       "temperature": 0.0,
-      "chunkTokenSize": 30000,
+      "chunksBatchTokenSize": 30000,
       "wholeDocumentTokenLimit": 20000,
       "developer": "google"
     },
@@ -47,7 +47,7 @@
       "contextLimitTokens": 131072,
       "maxOutputTokens": 2000,
       "temperature": 0.0,
-      "chunkTokenSize": 30000,
+      "chunksBatchTokenSize": 30000,
       "wholeDocumentTokenLimit": 20000,
       "developer": "meta"
     },
@@ -56,7 +56,7 @@
       "contextLimitTokens": 131072,
       "maxOutputTokens": 2000,
       "temperature": 0.0,
-      "chunkTokenSize": 30000,
+      "chunksBatchTokenSize": 30000,
       "wholeDocumentTokenLimit": 20000,
       "developer": "deepseek"
     },
@@ -65,7 +65,7 @@
       "contextLimitTokens": 131072,
       "maxOutputTokens": 2000,
       "temperature": 0.0,
-      "chunkTokenSize": 30000,
+      "chunksBatchTokenSize": 30000,
       "wholeDocumentTokenLimit": 20000,
       "developer": "qwen"
     },
@@ -74,7 +74,7 @@
       "contextLimitTokens": 131072,
       "maxOutputTokens": 2000,
       "temperature": 0.0,
-      "chunkTokenSize": 30000,
+      "chunksBatchTokenSize": 30000,
       "wholeDocumentTokenLimit": 20000,
       "developer": "qwen"
     }

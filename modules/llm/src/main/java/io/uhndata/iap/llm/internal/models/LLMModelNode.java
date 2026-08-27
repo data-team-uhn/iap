@@ -64,7 +64,7 @@ public class LLMModelNode
     private double temperature;
 
     @ValueMapValue
-    private long chunkTokenSize;
+    private long chunksBatchTokenSize;
 
     @ValueMapValue
     @Default(longValues = DEFAULT_WHOLE_DOCUMENT_TOKEN_LIMIT)
@@ -107,13 +107,14 @@ public class LLMModelNode
     }
 
     /**
-     * The number of input tokens to send per chunk when the input exceeds the context window.
+     * How many tokens' worth of chunks to batch into one extraction call, when a document has more chunks
+     * than fit in a single one.
      *
-     * @return the chunk token size, or 0 if not set
+     * @return the chunk batch token size, or 0 if not set
      */
-    public long getChunkTokenSize()
+    public long getChunksBatchTokenSize()
     {
-        return this.chunkTokenSize;
+        return this.chunksBatchTokenSize;
     }
 
     /**

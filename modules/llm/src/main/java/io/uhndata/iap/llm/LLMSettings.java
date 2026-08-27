@@ -161,13 +161,14 @@ public final class LLMSettings
     }
 
     /**
-     * The number of input tokens to send per chunk when the input exceeds the context window.
+     * How many tokens' worth of chunks to batch into one extraction call, when a document has more chunks
+     * than fit in a single one.
      *
-     * @return the chunk token size
+     * @return the chunk batch token size, or 0 if not set
      */
-    public long getChunkTokenSize()
+    public long getChunksBatchTokenSize()
     {
-        return this.model.getChunkTokenSize();
+        return this.model.getChunksBatchTokenSize();
     }
 
     /**
@@ -356,7 +357,7 @@ public final class LLMSettings
 
         private final double temperature;
 
-        private final long chunkTokenSize;
+        private final long chunksBatchTokenSize;
 
         private final long wholeDocumentTokenLimit;
 
@@ -370,20 +371,20 @@ public final class LLMSettings
          * @param contextLimitTokens the maximum context window, in tokens
          * @param maxOutputTokens the maximum number of tokens to generate in the response
          * @param temperature the sampling temperature
-         * @param chunkTokenSize the number of input tokens to send per chunk when the input exceeds the context
-         *            window
+         * @param chunksBatchTokenSize how many tokens' worth of chunks to batch into one extraction call, when a
+         *            document has more chunks than fit in a single one
          * @param wholeDocumentTokenLimit the whole-document token limit
          * @param developer the organization that developed the model, or {@code null} if not set
          * @param extra format-specific extras with no dedicated field of their own, or {@code null} for none
          */
         public ModelSettings(final long contextLimitTokens, final long maxOutputTokens, final double temperature,
-            final long chunkTokenSize, final long wholeDocumentTokenLimit, @Nullable final String developer,
+            final long chunksBatchTokenSize, final long wholeDocumentTokenLimit, @Nullable final String developer,
             @Nullable final Map<String, Object> extra)
         {
             this.contextLimitTokens = contextLimitTokens;
             this.maxOutputTokens = maxOutputTokens;
             this.temperature = temperature;
-            this.chunkTokenSize = chunkTokenSize;
+            this.chunksBatchTokenSize = chunksBatchTokenSize;
             this.wholeDocumentTokenLimit = wholeDocumentTokenLimit;
             this.developer = developer;
             this.extra = extra == null ? Collections.emptyMap() : new HashMap<>(extra);
@@ -420,13 +421,14 @@ public final class LLMSettings
         }
 
         /**
-         * The number of input tokens to send per chunk when the input exceeds the context window.
+         * How many tokens' worth of chunks to batch into one extraction call, when a document has more chunks
+         * than fit in a single one.
          *
-         * @return the chunk token size
+         * @return the chunk batch token size, or 0 if not set
          */
-        public long getChunkTokenSize()
+        public long getChunksBatchTokenSize()
         {
-            return this.chunkTokenSize;
+            return this.chunksBatchTokenSize;
         }
 
         /**
@@ -477,7 +479,7 @@ public final class LLMSettings
             return this.contextLimitTokens == that.contextLimitTokens
                 && this.maxOutputTokens == that.maxOutputTokens
                 && Double.compare(this.temperature, that.temperature) == 0
-                && this.chunkTokenSize == that.chunkTokenSize
+                && this.chunksBatchTokenSize == that.chunksBatchTokenSize
                 && this.wholeDocumentTokenLimit == that.wholeDocumentTokenLimit
                 && Objects.equals(this.developer, that.developer) && this.extra.equals(that.extra);
         }
@@ -486,7 +488,7 @@ public final class LLMSettings
         public int hashCode()
         {
             return Objects.hash(this.contextLimitTokens, this.maxOutputTokens, this.temperature,
-                this.chunkTokenSize, this.wholeDocumentTokenLimit, this.developer, this.extra);
+                this.chunksBatchTokenSize, this.wholeDocumentTokenLimit, this.developer, this.extra);
         }
     }
 }

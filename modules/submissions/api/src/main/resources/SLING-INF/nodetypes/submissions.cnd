@@ -261,11 +261,25 @@
   // Why no chunks were produced, set only when chunked is false
   - unchunkedReason (STRING)
 
+  // Set when this document cannot be processed at all: unchunkedReason is not
+  // "below_min_structure_tokens" (so tokens says nothing about its size), and
+  // it is still past the active model's whole-document token limit -- the same
+  // threshold that decides whether a document is small enough to leave whole
+  // in the first place. Computed once at ingest; nothing safe can be shown for
+  // a document like this, not even its own bookmarks.
+  - unchunkedOverLimit (BOOLEAN) = false
+
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
-  // The renditions LibreOffice and Docling produced: the .md and other
-  // versions of the document created during the parsing process
+  // What the parse produced and is worth keeping: the Markdown the extraction
+  // reads, and the PDF Docling read it out of. pdfFile is only there when
+  // LibreOffice rendered one; a PDF upload is the PDF, kept once as
+  // uploadedFile. The .docx and anything else made along the way is not kept.
+  + markdownFile (nt:file) = nt:file
+  + pdfFile (nt:file) = nt:file
+
+  // Any other rendition the pipeline produces, keyed by whatever name it chooses
   + * (nt:file) = nt:file
 
   // Extracted bookmarks representing table of contents, if available

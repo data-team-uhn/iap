@@ -91,7 +91,7 @@ class LLMSettingsTest
         assertEquals(2000, settings.getMaxOutputTokens());
         assertEquals(0.7d, settings.getTemperature());
         assertEquals(131072, settings.getContextLimitTokens());
-        assertEquals(30000, settings.getChunkTokenSize());
+        assertEquals(30000, settings.getChunksBatchTokenSize());
         assertEquals(15000, settings.getWholeDocumentTokenLimit());
         assertEquals("openai", settings.getDeveloper());
         assertEquals("true", settings.getModelProperty("tuned"));

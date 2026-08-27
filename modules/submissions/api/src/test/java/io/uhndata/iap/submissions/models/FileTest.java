@@ -49,19 +49,29 @@ class FileTest
 
     private static final String NT_FILE = "nt:file";
 
+    private static final String SLING_RESOURCE_TYPE = "sling:resourceType";
+
     private final SlingContext context = new SlingContext();
 
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class, Chunks.class, Chunk.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class, Chunks.class,
+            Chunk.class);
+    }
+
+    private void uploadOfType(final String mimeType)
+    {
+        this.context.create().resource(FILE_PATH + "/uploadedFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/uploadedFile/jcr:content",
+            Map.of("jcr:primaryType", "nt:resource", "jcr:mimeType", mimeType));
     }
 
     @Test
     void adaptsResourceToModel()
     {
         final Resource resource = this.context.create().resource(FILE_PATH,
-            "sling:resourceType", File.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
         assertNotNull(resource.adaptTo(File.class));
     }
 
@@ -69,14 +79,16 @@ class FileTest
     void exposesWhatTheParsingPipelineRecorded()
     {
         final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
-            "sling:resourceType", File.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE,
             "parseStatus", "completed",
             "tokens", 12000L,
+            "bookmarks", new String[]{ "Background", "Methods" },
             "chunked", true));
         final File file = resource.adaptTo(File.class);
 
         assertEquals("completed", file.getParseStatus());
         assertEquals(12000L, file.getTokens());
+        assertEquals(List.of("Background", "Methods"), file.getBookmarks());
         assertTrue(file.isChunked());
         assertNull(file.getParseError());
         assertNull(file.getUnchunkedReason());
@@ -86,7 +98,7 @@ class FileTest
     void saysWhyAFileHasNoChunkTree()
     {
         final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
-            "sling:resourceType", File.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE,
             "chunked", false,
             "unchunkedReason", "below_min_structure_tokens"));
         final File file = resource.adaptTo(File.class);
@@ -94,14 +106,30 @@ class FileTest
         // A deliberate skip rather than a failure, which is why a missing chunk tree has to say which it was
         assertFalse(file.isChunked());
         assertEquals("below_min_structure_tokens", file.getUnchunkedReason());
+        assertFalse(file.isUnchunkedOverLimit(), "small by the chunker's own accounting, not merely by luck");
         assertNull(file.getChunks());
+    }
+
+    @Test
+    void saysNothingIsSafeToShowForADocumentThatIsBothUnchunkedAndOverLimit()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE,
+            "chunked", false,
+            "unchunkedReason", "splitter_returned_no_parts",
+            "unchunkedOverLimit", true,
+            "bookmarks", new String[]{ "1 Background" }));
+        final File file = resource.adaptTo(File.class);
+
+        // Bookmarks make no difference here - this is a flat "cannot process", not a per-input-form decision
+        assertTrue(file.isUnchunkedOverLimit());
     }
 
     @Test
     void reportsAFailedParse()
     {
         final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
-            "sling:resourceType", File.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE,
             "parseStatus", "failed",
             "parseError", "LibreOffice exited with 139"));
         final File file = resource.adaptTo(File.class);
@@ -111,38 +139,85 @@ class FileTest
     }
 
     @Test
-    void tellsTheUploadApartFromTheRenditions()
+    void tellsTheUploadApartFromWhatTheParseProduced()
     {
         final Resource resource = this.context.create().resource(FILE_PATH,
-            "sling:resourceType", File.RESOURCE_TYPE);
-        this.context.create().resource(FILE_PATH + "/uploadedFile", "sling:resourceType", NT_FILE);
-        this.context.create().resource(FILE_PATH + "/consent.md", "sling:resourceType", NT_FILE);
-        this.context.create().resource(FILE_PATH + "/consent.pdf", "sling:resourceType", NT_FILE);
-        this.context.create().resource(FILE_PATH + "/chunks", "sling:resourceType", Chunks.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        this.context.create().resource(FILE_PATH + "/uploadedFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/markdownFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/pdfFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/chunks", SLING_RESOURCE_TYPE, Chunks.RESOURCE_TYPE);
         final File file = resource.adaptTo(File.class);
 
         assertEquals("uploadedFile", file.getUploadedFile().getName());
+        assertEquals("markdownFile", file.getFileMarkdown().getName());
+        assertEquals("pdfFile", file.getFilePdf().getName());
+    }
+
+    @Test
+    void takesAPdfUploadAsThePdfItself()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        uploadOfType("application/pdf");
+        final File file = resource.adaptTo(File.class);
+
+        assertEquals("uploadedFile", file.getFilePdf().getName(),
+            "a PDF upload is the PDF, and is not copied a second time");
+    }
+
+    @Test
+    void hasNoPdfWhenTheUploadIsNotOneAndNoneWasRendered()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        uploadOfType("application/msword");
+        final File file = resource.adaptTo(File.class);
+
+        assertNull(file.getFilePdf());
+    }
+
+    @Test
+    void prefersTheRenderedPdfOverTheUpload()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        uploadOfType("application/pdf");
+        this.context.create().resource(FILE_PATH + "/pdfFile", SLING_RESOURCE_TYPE, NT_FILE);
+        final File file = resource.adaptTo(File.class);
+
+        assertEquals("pdfFile", file.getFilePdf().getName());
+    }
+
+    @Test
+    void tellsTheUploadApartFromTheRenditions()
+    {
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
+        this.context.create().resource(FILE_PATH + "/uploadedFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/markdownFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/pdfFile", SLING_RESOURCE_TYPE, NT_FILE);
+        this.context.create().resource(FILE_PATH + "/chunks", SLING_RESOURCE_TYPE, Chunks.RESOURCE_TYPE);
+        final File file = resource.adaptTo(File.class);
 
         final List<Resource> renditions = file.getRenditions();
 
         assertEquals(2, renditions.size());
-        assertEquals("consent.md", renditions.get(0).getName());
-        assertEquals("consent.pdf", renditions.get(1).getName());
+        assertEquals("markdownFile", renditions.get(0).getName());
+        assertEquals("pdfFile", renditions.get(1).getName());
     }
 
     @Test
-    void exposesTheOutlineAndTheChunkTree()
+    void exposesTheChunkTree()
     {
-        final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
-            "sling:resourceType", File.RESOURCE_TYPE,
-            "bookmarks", new String[]{ "Background", "Methods", "Recruitment" }));
+        final Resource resource = this.context.create().resource(FILE_PATH,
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
         this.context.create().resource(FILE_PATH + "/chunks",
-            "sling:resourceType", Chunks.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, Chunks.RESOURCE_TYPE);
         this.context.create().resource(FILE_PATH + "/chunks/chunk001",
-            "sling:resourceType", Chunk.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, Chunk.RESOURCE_TYPE);
         final File file = resource.adaptTo(File.class);
 
-        assertEquals(List.of("Background", "Methods", "Recruitment"), file.getBookmarks());
         assertEquals(1, file.getChunks().getChunks().size());
     }
 
@@ -150,18 +225,21 @@ class FileTest
     void toleratesAFileNothingHasBeenDoneToYet()
     {
         final Resource resource = this.context.create().resource(FILE_PATH,
-            "sling:resourceType", File.RESOURCE_TYPE);
+            SLING_RESOURCE_TYPE, File.RESOURCE_TYPE);
         final File file = resource.adaptTo(File.class);
 
         assertNotNull(file);
         assertNull(file.getParseStatus());
         assertNull(file.getParseError());
         assertNull(file.getTokens());
+        assertTrue(file.getBookmarks().isEmpty());
         assertFalse(file.isChunked());
         assertNull(file.getUnchunkedReason());
+        assertFalse(file.isUnchunkedOverLimit());
         assertNull(file.getUploadedFile());
+        assertNull(file.getFileMarkdown());
+        assertNull(file.getFilePdf());
         assertTrue(file.getRenditions().isEmpty());
-        assertTrue(file.getBookmarks().isEmpty());
         assertNull(file.getChunks());
     }
 }

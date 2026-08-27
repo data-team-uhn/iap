@@ -79,7 +79,7 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
 
     /** Model properties with a dedicated {@link LLMModelNode} field, left out of {@code extra}. */
     private static final Set<String> KNOWN_MODEL_PROPERTIES = Set.of("contextLimitTokens", "maxOutputTokens",
-        "temperature", "chunkTokenSize", "wholeDocumentTokenLimit", "developer");
+        "temperature", "chunksBatchTokenSize", "wholeDocumentTokenLimit", "developer");
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -135,7 +135,7 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
             throw new IOException("Could not read the LLM model at " + model.getPath());
         }
         return new ModelSettings(node.getContextLimitTokens(), node.getMaxOutputTokens(), node.getTemperature(),
-            node.getChunkTokenSize(), node.getWholeDocumentTokenLimit(), node.getDeveloper(),
+            node.getChunksBatchTokenSize(), node.getWholeDocumentTokenLimit(), node.getDeveloper(),
             extra(model.getValueMap(), KNOWN_MODEL_PROPERTIES));
     }
 

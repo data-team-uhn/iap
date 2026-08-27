@@ -63,14 +63,14 @@ class LLMModelNodeTest
             "contextLimitTokens", 131072L,
             "maxOutputTokens", 2000L,
             "temperature", 0.7d,
-            "chunkTokenSize", 30000L,
+            "chunksBatchTokenSize", 30000L,
             "wholeDocumentTokenLimit", 15000L,
             "developer", "openai"));
 
         assertEquals(131072, node.getContextLimitTokens());
         assertEquals(2000, node.getMaxOutputTokens());
         assertEquals(0.7d, node.getTemperature());
-        assertEquals(30000, node.getChunkTokenSize());
+        assertEquals(30000, node.getChunksBatchTokenSize());
         assertEquals(15000, node.getWholeDocumentTokenLimit());
         assertEquals("openai", node.getDeveloper());
     }
@@ -83,7 +83,7 @@ class LLMModelNodeTest
         assertEquals(0, node.getContextLimitTokens());
         assertEquals(2000, node.getMaxOutputTokens());
         assertEquals(0.0d, node.getTemperature());
-        assertEquals(0, node.getChunkTokenSize());
+        assertEquals(0, node.getChunksBatchTokenSize());
         assertEquals(20000, node.getWholeDocumentTokenLimit());
         assertNull(node.getDeveloper());
     }

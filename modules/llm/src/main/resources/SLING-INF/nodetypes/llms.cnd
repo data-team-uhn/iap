@@ -108,8 +108,8 @@
   // The sampling temperature passed to the model.
   - temperature (DOUBLE) = '0.0' autocreated
 
-  // The number of input tokens to send per chunk when the input exceeds the context window.
-  - chunkTokenSize (LONG)
+  // How many tokens' worth of chunks to batch into one extraction call.
+  - chunksBatchTokenSize (LONG)
 
   // Documents estimated at fewer tokens than this are sent to the model whole, never chunked.
   - wholeDocumentTokenLimit (LONG) = '20000' autocreated
