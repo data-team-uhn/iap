@@ -26,6 +26,15 @@ since the order matters when Keycloak is involved. Colour is used when the outpu
 terminal and dropped when it is redirected; `NO_COLOR=1` turns it off regardless and
 `FORCE_COLOR=1` keeps it through a pipe.
 
+```bash
+python3 -m unittest discover -s tools/deploy   # from the repository root
+```
+
+The tests assert what the generated file gets *silently* wrong — a volume mounted where the image
+does not keep its data, a missing collation argument, a variable Compose would consume before the
+container saw it. None of those fail loudly, so an assertion is the only thing that catches them.
+They run in CI ahead of the Maven build, since the reactor never touches this directory.
+
 ## What the options do
 
 Every option chooses **a container to run alongside IAP**, and sets the environment variables IAP

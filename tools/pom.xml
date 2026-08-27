@@ -31,4 +31,43 @@
 
   <modules>
   </modules>
+
+  <build>
+    <plugins>
+      <!-- The tools here are standalone Python, so nothing else in the reactor would compile or
+           run them; without this they would only ever be tested by hand. Bound to `test` and
+           skipped through the same maven.test.skip the rest of the build uses, so `-Ptests` is
+           what turns them on, exactly like every other test in this repository. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <inherited>false</inherited>
+        <executions>
+          <execution>
+            <id>python-tests</id>
+            <phase>test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <skip>${maven.test.skip}</skip>
+              <executable>python3</executable>
+              <workingDirectory>${project.basedir}</workingDirectory>
+              <arguments>
+                <!-- -B: leave no __pycache__ behind. It is gitignored, so it would not be
+                     committed, but a build that writes into the source tree still shows up in
+                     unrelated greps and in apache-rat's binary count. -->
+                <argument>-B</argument>
+                <argument>-m</argument>
+                <argument>unittest</argument>
+                <argument>discover</argument>
+                <argument>--start-directory</argument>
+                <argument>deploy</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>
