@@ -21,6 +21,11 @@ Each run rewrites `docker-compose.yml` in this directory. `docker compose down` 
 and keeps the repository; `./cleanup.sh` throws the whole thing away and leaves the directory as
 git has it.
 
+Every run ends by printing the commands still to be typed, numbered and set apart from the prose,
+since the order matters when Keycloak is involved. Colour is used when the output is going to a
+terminal and dropped when it is redirected; `NO_COLOR=1` turns it off regardless and
+`FORCE_COLOR=1` keeps it through a pipe.
+
 ## What the options do
 
 Every option chooses **a container to run alongside IAP**, and sets the environment variables IAP

@@ -102,6 +102,88 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
+### Terminal presentation
+#
+# The point of all of this is that the few lines the reader has to *act on* -- the commands --
+# should be findable at a glance in what is otherwise a page of prose. Colour is decoration; the
+# markers, the indentation and the rules are what carry the structure, which is why the plain
+# output has to stand on its own.
+
+# Whether to emit ANSI at all. Colour goes to a terminal and nowhere else, or it ends up as
+# escape codes in a log, a pipe or a CI transcript. NO_COLOR/FORCE_COLOR are the cross-tool
+# conventions (no-color.org): NO_COLOR wins, and any value counts, including empty.
+if 'NO_COLOR' in os.environ:
+    COLOR = False
+elif os.environ.get('FORCE_COLOR'):
+    COLOR = True
+else:
+    COLOR = sys.stdout.isatty() and os.environ.get('TERM') != 'dumb'
+
+# A box-drawing character crashes the script outright on a stdout that cannot encode it -- an
+# ASCII locale with no PEP 538 coercion, which minimal containers still manage -- so the glyphs
+# degrade instead of raising.
+try:
+    '─┈✓·'.encode(sys.stdout.encoding or 'ascii')
+    GLYPH = {'rule': '─', 'soft': '┈', 'tick': '✓', 'dot': '·'}
+except (UnicodeEncodeError, LookupError):
+    GLYPH = {'rule': '-', 'soft': '-', 'tick': '*', 'dot': '-'}
+
+# Width for the rules. Terminal width when there is one, and get_terminal_size falls back to 80
+# off a terminal; capped so a maximised window does not draw a 300-column line.
+WIDTH = min(shutil.get_terminal_size().columns, 78)
+
+ANSI = {
+    'bold': '1', 'dim': '2', 'green': '32',
+    'yellow': '33', 'blue': '34', 'cyan': '96', 'reset': '0',
+}
+
+
+def paint(text, *styles):
+    """Wrap text in ANSI styles, or return it untouched when colour is off."""
+    if not COLOR or not styles:
+        return text
+    codes = ';'.join(ANSI[style] for style in styles)
+    return "\033[{}m{}\033[{}m".format(codes, text, ANSI['reset'])
+
+
+def say_wrote(what, detail=''):
+    """Report something this run created. One line, ticked, so the writes read as a group."""
+    print("{} {}{}".format(paint(GLYPH['tick'], 'green'), what,
+                           paint(' ' + detail, 'dim') if detail else ''))
+
+
+def say_kept(what):
+    """Report something this run deliberately left alone -- not a write, and not a failure."""
+    print("{} {} {}".format(paint(GLYPH['dot'], 'dim'), what, paint('(kept)', 'dim', 'yellow')))
+
+
+def heading(title):
+    """A titled horizontal rule, opening a block."""
+    bar = GLYPH['rule'] * max(WIDTH - len(title) - 3, 3)
+    print("\n{} {}".format(paint(title.upper(), 'bold', 'blue'), paint(bar, 'dim')))
+
+
+def command(text):
+    """The lines the reader actually has to run: prompt marker, indented, and the only cyan."""
+    print("     {} {}".format(paint('$', 'dim', 'green'), paint(text, 'bold', 'cyan')))
+
+
+def brief_path(path):
+    """The shorter of the absolute path and one relative to the working directory.
+
+    A command is only readable if it fits on a line, and these paths are the reason they did not:
+    the absolute path to keycloak_setup.sh inside a worktree is on its own wider than a terminal.
+    Relative is usually far shorter, but not when it climbs out through a chain of `..`, hence
+    picking rather than always relativising.
+    """
+    absolute = str(path)
+    try:
+        relative = os.path.relpath(str(path))
+    except ValueError:
+        # Different drive on Windows; there is no relative form.
+        return absolute
+    return relative if len(relative) < len(absolute) else absolute
+
 ### Reading the pinned image versions
 
 def image_for(service):
@@ -199,7 +281,7 @@ def generate_mail_certificate(ssl_directory):
     certificate = ssl_directory / 'certs' / 'mail.crt'
     key = ssl_directory / 'mail.key'
     if certificate.exists() and key.exists():
-        print("Keeping the existing mail certificate in {}".format(ssl_directory))
+        say_kept("Mail certificate in {}".format(brief_path(ssl_directory)))
         return
 
     if shutil.which('openssl') is None:
@@ -207,7 +289,6 @@ def generate_mail_certificate(ssl_directory):
                  "not on the PATH.")
 
     certificate.parent.mkdir(parents=True, exist_ok=True)
-    print("Generating a self-signed certificate for the mail server")
     subprocess.run(
         ['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '3650',
          '-subj', '/CN={}'.format(MAIL_SERVICE),
@@ -216,6 +297,7 @@ def generate_mail_certificate(ssl_directory):
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # The container reads the key as root, but the host copy should not be world-readable.
     key.chmod(0o600)
+    say_wrote(brief_path(certificate), "self-signed, 10 years, for SMTPS")
 
 
 def generate_env_file(env_file):
@@ -225,7 +307,7 @@ def generate_env_file(env_file):
     than inlining it: a secret does not belong in a file this easy to paste into a ticket.
     """
     if env_file.exists():
-        print("Keeping the existing {}".format(env_file))
+        say_kept(brief_path(env_file))
         return
     env_file.write_text(
         "# Filled in by: ENV_FILE={} tools/dev/keycloak/keycloak_setup.sh --write-env\n"
@@ -235,7 +317,7 @@ def generate_env_file(env_file):
         "# Any password will do for local development; it encrypts the stored OAuth tokens.\n"
         "IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword\n".format(env_file),
         encoding='utf-8')
-    print("Wrote {} for keycloak_setup.sh to fill in".format(env_file))
+    say_wrote(brief_path(env_file), "for keycloak_setup.sh to fill in")
 
 
 ### Building the services
@@ -475,22 +557,35 @@ def build_document(args, compose_directory):
 
 
 def next_steps(args, compose_directory):
-    steps = []
+    """What the reader must do, as (title, [commands]) pairs, and what to expect afterwards.
+
+    Returned as data rather than ready-made lines so that the renderer can set the commands
+    apart from the prose -- finding them was the whole difficulty with a flat list. The order is
+    meaningful: Keycloak has to be running before its realm can be created.
+    """
+    actions = []
     if args.keycloak:
-        steps.append("Start Keycloak on its own first, then create the realm and client:")
-        steps.append("  docker compose up -d keycloak")
-        steps.append("  ENV_FILE={} {} --write-env".format(
-            compose_directory / '.env', HERE.parent / 'dev' / 'keycloak' / 'keycloak_setup.sh'))
-    steps.append("Bring everything up with:")
-    steps.append("  docker compose up -d --build" if args.mail else "  docker compose up -d")
-    steps.append("IAP will be at http://localhost:{}".format(args.port))
+        actions.append(("Start Keycloak on its own, then create the realm and client", [
+            "docker compose up -d keycloak",
+            "ENV_FILE={} {} --write-env".format(
+                brief_path(compose_directory / '.env'),
+                brief_path(HERE.parent / 'dev' / 'keycloak' / 'keycloak_setup.sh')),
+        ]))
+    actions.append(("Bring everything up", [
+        "docker compose up -d --build" if args.mail else "docker compose up -d",
+    ]))
+
+    notes = ["IAP will be at {}".format(
+        paint("http://localhost:{}".format(args.port), 'bold', 'blue'))]
     if args.mail:
-        steps.append("Messages IAP sends land in ./mail as .eml files.")
+        notes.append("Messages IAP sends land in ./mail as .eml files.")
     if args.debug == 'wait':
-        steps.append("IAP will not start until a debugger attaches: jdb -attach 5005")
+        notes.append("IAP will {} until a debugger attaches: {}".format(
+            paint("not start", 'bold', 'yellow'), paint("jdb -attach 5005", 'cyan')))
     elif args.debug == 'attach':
-        steps.append("A debugger can attach whenever you like: jdb -attach 5005")
-    return steps
+        notes.append("A debugger can attach whenever you like: {}".format(
+            paint("jdb -attach 5005", 'cyan')))
+    return actions, notes
 
 
 def main(argv=None):
@@ -518,9 +613,19 @@ def main(argv=None):
     ]
     output.write_text(dump(build_document(args, compose_directory), header), encoding='utf-8')
 
-    print("Wrote {}".format(output))
-    for line in next_steps(args, compose_directory):
-        print("  {}".format(line))
+    say_wrote(brief_path(output))
+
+    actions, notes = next_steps(args, compose_directory)
+    heading("Next steps")
+    for number, (title, commands) in enumerate(actions, start=1):
+        print("\n  {} {}".format(paint("{}.".format(number), 'bold', 'yellow'), title))
+        for line in commands:
+            command(line)
+
+    print("\n{}".format(paint(GLYPH['soft'] * WIDTH, 'dim')))
+    for note in notes:
+        print("  {}".format(note))
+    print()
     return 0
 
 
