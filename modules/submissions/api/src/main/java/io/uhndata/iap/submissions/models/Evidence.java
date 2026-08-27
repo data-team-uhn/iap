@@ -47,6 +47,9 @@ public class Evidence extends EntityPart
     private String quote;
 
     @ValueMapValue
+    private String header;
+
+    @ValueMapValue
     private Long page;
 
     /**
@@ -69,6 +72,17 @@ public class Evidence extends EntityPart
     public String getQuote()
     {
         return this.quote;
+    }
+
+    /**
+     * The nearest header above the quoted text, so a citation can name the section it came from.
+     *
+     * @return a header, or {@code null} if none was detected
+     */
+    @Nullable
+    public String getHeader()
+    {
+        return this.header;
     }
 
     /**

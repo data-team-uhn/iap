@@ -82,10 +82,12 @@ class EvidenceTest
             "sling:resourceType", Evidence.RESOURCE_TYPE,
             "chunk", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
             "quote", "42 participants will be recruited",
+            "header", "3.2 Recruitment",
             "page", 7L));
         final Evidence evidence = resource.adaptTo(Evidence.class);
 
         assertEquals("42 participants will be recruited", evidence.getQuote());
+        assertEquals("3.2 Recruitment", evidence.getHeader());
         assertEquals(7L, evidence.getPage());
         assertEquals("chunk001", evidence.getChunk().getName());
         assertEquals("The recruitment plan", evidence.getChunk().getSummary());
@@ -101,6 +103,7 @@ class EvidenceTest
         assertNotNull(evidence);
         assertNull(evidence.getChunk());
         assertNull(evidence.getQuote());
+        assertNull(evidence.getHeader());
         // A quote from a source with no page markers, e.g. anything that came in as DOCX
         assertNull(evidence.getPage());
     }

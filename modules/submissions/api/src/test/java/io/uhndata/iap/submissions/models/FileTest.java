@@ -54,8 +54,7 @@ class FileTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class, ToC.class, Chunks.class,
-            Chunk.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class, Chunks.class, Chunk.class);
     }
 
     @Test
@@ -73,13 +72,11 @@ class FileTest
             "sling:resourceType", File.RESOURCE_TYPE,
             "parseStatus", "completed",
             "tokens", 12000L,
-            "backmatterLine", 840L,
             "chunked", true));
         final File file = resource.adaptTo(File.class);
 
         assertEquals("completed", file.getParseStatus());
         assertEquals(12000L, file.getTokens());
-        assertEquals(840L, file.getBackmatterLine());
         assertTrue(file.isChunked());
         assertNull(file.getParseError());
         assertNull(file.getUnchunkedReason());
@@ -136,17 +133,16 @@ class FileTest
     @Test
     void exposesTheOutlineAndTheChunkTree()
     {
-        final Resource resource = this.context.create().resource(FILE_PATH,
-            "sling:resourceType", File.RESOURCE_TYPE);
-        this.context.create().resource(FILE_PATH + "/toc", Map.of(
-            "sling:resourceType", ToC.RESOURCE_TYPE, "source", "pdf-bookmarks"));
+        final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
+            "sling:resourceType", File.RESOURCE_TYPE,
+            "bookmarks", new String[]{ "Background", "Methods", "Recruitment" }));
         this.context.create().resource(FILE_PATH + "/chunks",
             "sling:resourceType", Chunks.RESOURCE_TYPE);
         this.context.create().resource(FILE_PATH + "/chunks/chunk001",
             "sling:resourceType", Chunk.RESOURCE_TYPE);
         final File file = resource.adaptTo(File.class);
 
-        assertEquals("pdf-bookmarks", file.getToc().getSource());
+        assertEquals(List.of("Background", "Methods", "Recruitment"), file.getBookmarks());
         assertEquals(1, file.getChunks().getChunks().size());
     }
 
@@ -161,12 +157,11 @@ class FileTest
         assertNull(file.getParseStatus());
         assertNull(file.getParseError());
         assertNull(file.getTokens());
-        assertNull(file.getBackmatterLine());
         assertFalse(file.isChunked());
         assertNull(file.getUnchunkedReason());
         assertNull(file.getUploadedFile());
         assertTrue(file.getRenditions().isEmpty());
-        assertNull(file.getToc());
+        assertTrue(file.getBookmarks().isEmpty());
         assertNull(file.getChunks());
     }
 }

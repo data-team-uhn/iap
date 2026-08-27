@@ -46,9 +46,6 @@ public class File extends EntityPart
     /** The name of the child node holding the upload as it was received. */
     private static final String UPLOADED_FILE_CHILD = "uploadedFile";
 
-    /** The name of the child node holding the outline. */
-    private static final String TOC_CHILD = "toc";
-
     /** The name of the child node holding the chunk tree. */
     private static final String CHUNKS_CHILD = "chunks";
 
@@ -64,13 +61,13 @@ public class File extends EntityPart
     private Long tokens;
 
     @ValueMapValue
-    private Long backmatterLine;
-
-    @ValueMapValue
     private boolean chunked;
 
     @ValueMapValue
     private String unchunkedReason;
+
+    @ValueMapValue
+    private String[] bookmarks;
 
     /**
      * Where the parse got to: queued, active, completed or failed. Kept here as well as on the parse job so that a
@@ -104,18 +101,6 @@ public class File extends EntityPart
     public Long getTokens()
     {
         return this.tokens;
-    }
-
-    /**
-     * The line of the first Reference or Appendix record that resolved to a body line. Everything from there to
-     * the end of the document becomes one standalone backmatter chunk.
-     *
-     * @return a line number, or {@code null} if the document has no backmatter
-     */
-    @Nullable
-    public Long getBackmatterLine()
-    {
-        return this.backmatterLine;
     }
 
     /**
@@ -171,14 +156,14 @@ public class File extends EntityPart
     }
 
     /**
-     * The document's outline.
+     * The document's outline, as the bookmarks embedded in the source PDF.
      *
-     * @return an outline, or {@code null} if none was found
+     * @return a list of bookmark titles, in document order, empty if the source carried no bookmarks
      */
-    @Nullable
-    public ToC getToc()
+    @NotNull
+    public List<String> getBookmarks()
     {
-        return this.getChild(TOC_CHILD, ToC.RESOURCE_TYPE, ToC.class);
+        return this.bookmarks == null ? List.of() : List.of(this.bookmarks);
     }
 
     /**

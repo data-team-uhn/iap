@@ -79,7 +79,6 @@ class ChunkTest
     {
         final Resource resource = this.context.create().resource(CHUNK_PATH, Map.of(
             "sling:resourceType", Chunk.RESOURCE_TYPE,
-            "headings", new String[]{ "Methods", "Recruitment" },
             "summary", "How participants are found and consented",
             "rubricTags", new String[]{ "recruitment", "consent" },
             "tagBasis", "fulltext",
@@ -88,14 +87,12 @@ class ChunkTest
             "pageEnd", 9L));
         final Chunk chunk = resource.adaptTo(Chunk.class);
 
-        assertEquals(List.of("Methods", "Recruitment"), chunk.getHeadings());
         assertEquals("How participants are found and consented", chunk.getSummary());
         assertEquals(List.of("recruitment", "consent"), chunk.getRubricTags());
         assertEquals("fulltext", chunk.getTagBasis());
         assertFalse(chunk.isUncertain());
         assertEquals(7L, chunk.getPageStart());
         assertEquals(9L, chunk.getPageEnd());
-        assertFalse(chunk.isAppendix());
     }
 
     @Test
@@ -111,17 +108,6 @@ class ChunkTest
         // Only "fulltext" and "deep" count as content-based
         assertEquals("heading", chunk.getTagBasis());
         assertTrue(chunk.isUncertain());
-    }
-
-    @Test
-    void marksTheBackmatterChunk()
-    {
-        final Resource resource = this.context.create().resource(CHUNK_PATH, Map.of(
-            "sling:resourceType", Chunk.RESOURCE_TYPE,
-            "isAppendix", true));
-        final Chunk chunk = resource.adaptTo(Chunk.class);
-
-        assertTrue(chunk.isAppendix());
     }
 
     @Test
@@ -143,7 +129,6 @@ class ChunkTest
         final Chunk chunk = resource.adaptTo(Chunk.class);
 
         assertNotNull(chunk);
-        assertTrue(chunk.getHeadings().isEmpty());
         assertNull(chunk.getSummary());
         assertTrue(chunk.getRubricTags().isEmpty());
         assertNull(chunk.getTagBasis());
@@ -151,7 +136,6 @@ class ChunkTest
         // Absent for documents that came in as DOCX, which carry no page markers
         assertNull(chunk.getPageStart());
         assertNull(chunk.getPageEnd());
-        assertFalse(chunk.isAppendix());
         assertNull(chunk.getContent());
     }
 }

@@ -47,9 +47,6 @@ public class Chunk extends EntityPart
     private static final String CONTENT_CHILD = "content";
 
     @ValueMapValue
-    private String[] headings;
-
-    @ValueMapValue
     private String summary;
 
     @ValueMapValue
@@ -66,20 +63,6 @@ public class Chunk extends EntityPart
 
     @ValueMapValue
     private Long pageEnd;
-
-    @ValueMapValue
-    private boolean isAppendix;
-
-    /**
-     * The heading path this chunk sits under.
-     *
-     * @return a list of headings, outermost first, empty if the chunk sits under none
-     */
-    @NotNull
-    public List<String> getHeadings()
-    {
-        return this.headings == null ? List.of() : List.of(this.headings);
-    }
 
     /**
      * A short summary of the chunk, written by the summarizer in a background pass.
@@ -147,16 +130,6 @@ public class Chunk extends EntityPart
     public Long getPageEnd()
     {
         return this.pageEnd;
-    }
-
-    /**
-     * Whether this is the backmatter (Reference or Appendix) chunk, which is never sent to the summarizer.
-     *
-     * @return {@code true} for the one backmatter chunk
-     */
-    public boolean isAppendix()
-    {
-        return this.isAppendix;
     }
 
     /**
