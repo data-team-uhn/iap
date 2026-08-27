@@ -43,6 +43,8 @@ services:
     init: true
     user: "${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}"
     environment:
+      # Listed, not inherited: Compose passes nothing that is not named here, so setting these
+      # in .env or the shell had no effect and the container kept the Python defaults.
       IAP_SHARED_DOCS: /shared-docs
       # Optional shared secret. When set, /parse requires "Authorization: Bearer <token>",
       # so reaching the port is not by itself authority to use it. Left empty the published
@@ -58,8 +60,6 @@ services:
       # the document: one that arrives mid-conversion is told 503 busy first, and 400 on retry.
       # 0 disables the limit.
       IAP_MAX_INPUT_PAGES: ${IAP_MAX_INPUT_PAGES:-1500}
-      # Listed, not inherited: Compose passes nothing that is not named here, so setting these
-      # in .env or the shell had no effect and the container kept the Python defaults.
       IAP_MAX_INPUT_BYTES: ${IAP_MAX_INPUT_BYTES:-67108864}
       # Per soffice *run*, not per document: a .doc does two (to .docx, then the sibling .pdf),
       # so prep can take twice this. Both together still sit well inside stop_grace_period, and
