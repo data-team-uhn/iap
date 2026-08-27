@@ -67,6 +67,30 @@ MAIL_SERVICE = "smtps_test_container"
 OAK_MACHINE_ID = "ca2d50000001"
 
 
+def feature_coordinate(value):
+    """Check one --feature value for the two things that break the entrypoint outright.
+
+    The format itself is deliberately not policed: the launcher's -f takes Maven coordinates,
+    file paths and URLs, and a pass-through option that second-guesses it would block a
+    legitimate value later. What is rejected here is only what cannot survive the trip --
+    docker_entry.sh tests the variable unquoted, so whitespace turns into `[: too many
+    arguments`, and the coordinates are joined with commas, so an embedded comma would read as a
+    separator.
+    """
+    coordinate = value.strip()
+    if not coordinate:
+        raise argparse.ArgumentTypeError("a feature coordinate cannot be empty")
+    if any(character.isspace() for character in coordinate):
+        raise argparse.ArgumentTypeError(
+            "feature coordinates cannot contain whitespace, and the container's entrypoint reads "
+            "them unquoted: {!r}".format(value))
+    if ',' in coordinate:
+        raise argparse.ArgumentTypeError(
+            "commas separate coordinates, so one cannot contain a comma; pass --feature again "
+            "instead: {!r}".format(value))
+    return coordinate
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description="Generate a Docker Compose file for IAP and the services it talks to.",
@@ -96,6 +120,13 @@ def parse_args(argv):
                              "when the flag is given alone) holds the JVM until a debugger "
                              "attaches, for debugging startup itself; `attach` starts normally "
                              "and lets a debugger connect whenever it likes")
+    parser.add_argument('--feature', dest='features', action='append', metavar='COORD',
+                        type=feature_coordinate, default=[],
+                        help="A feature to start on top of the distribution the image already "
+                             "carries, e.g. "
+                             "mvn:io.uhndata.iap/iap-something/0.1.0-SNAPSHOT/slingosgifeature. "
+                             "Repeatable; the coordinates reach the container as the "
+                             "comma-separated ADDITIONAL_SLING_FEATURES it expects")
     parser.add_argument('--output', default='docker-compose.yml',
                         help="Where to write the generated file [default: docker-compose.yml]")
 
@@ -415,6 +446,17 @@ def iap_environment(args):
         # The mail feature registers a crypto service that reads its password from this variable,
         # and does not start without it.
         environment['SLING_COMMONS_CRYPTO_PASSWORD'] = 'password'
+
+    if args.features:
+        comment(environment, "Started in addition to the distribution the image already carries.")
+        comment(environment, "The entrypoint expands this value as a bash prompt string, so a")
+        comment(environment, "coordinate may refer to a container-side variable such as")
+        comment(environment, "PLATFORM_VERSION. Any $ below is doubled, which is how Compose is")
+        comment(environment, "told to pass it through rather than substituting it itself.")
+        # Hence the doubling: Compose interpolates $VAR in this file, and these coordinates are
+        # meant to arrive at the entrypoint exactly as they were typed.
+        environment['ADDITIONAL_SLING_FEATURES'] = \
+            ','.join(args.features).replace('$', '$$')
 
     if args.debug:
         if args.debug == 'wait':

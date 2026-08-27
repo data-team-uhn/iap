@@ -41,8 +41,36 @@ needs to reach it.
 
 The rest only describe the IAP container itself: `--image` (default `iap/iap`), `--port` (default
 8080), `--dev` to mount `~/.m2` read-only, as the developer flavour of the image needs in order to
-resolve third-party artifacts, `--debug` to open the JDWP port, and `--output` to write the file
-somewhere other than here.
+resolve third-party artifacts, `--debug` to open the JDWP port, `--feature` to start something the
+core distribution does not carry (below), and `--output` to write the file somewhere other than
+here.
+
+## Extra features
+
+`--feature` names a feature to launch on top of the distribution the image already carries, and is
+repeatable:
+
+```bash
+python3 generate_compose.py \
+  --feature mvn:io.uhndata.iap/iap-something/0.1.0-SNAPSHOT/slingosgifeature \
+  --feature mvn:com.example/example-jdbc-driver/1.0.0/slingosgifeature
+```
+
+The coordinates arrive as the comma-separated `ADDITIONAL_SLING_FEATURES` the entrypoint expects,
+and go straight to the launcher's `-f`. This is **not** how to switch IAP's own modules on: the
+image ships every one of them already, and nothing here needs enabling. It is for what the image
+does not contain — another vendor's JDBC driver, say, for `--storage postgres` against a different
+database (see `RDB_DRIVER` in `docs/docker.md`).
+
+Every feature in the repository is embedded in the image, so an `io.uhndata.iap` coordinate
+resolves without network access; anything else has to be reachable from inside the container.
+
+Two constraints come from the entrypoint rather than from here, and the generator refuses a value
+that trips either: a coordinate cannot contain whitespace, because `docker_entry.sh` tests the
+variable unquoted, and it cannot contain a comma, because that is the separator. A `$` is passed
+through — it appears doubled in the generated file, which is how Compose is told not to substitute
+it, so that the entrypoint's own expansion sees it and a coordinate can refer to a container-side
+variable such as `PLATFORM_VERSION`.
 
 ## Debugging
 
