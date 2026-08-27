@@ -133,6 +133,29 @@ public class Submission extends Entity
     }
 
     /**
+     * The reviews recorded against one requirement, in the order they were added.
+     *
+     * <p>A review that names no requirement is about the submission as a whole and is not returned here, and one
+     * naming a requirement of some other schema version is not either: the comparison is by path, so a
+     * requirement that was replaced does not collect the reviews of the one that replaced it.</p>
+     *
+     * @param requirement the requirement to collect the reviews of
+     * @return the reviews about it, empty when nobody has reviewed it
+     */
+    @NotNull
+    public List<Review> getReviewsOf(@NotNull final Requirement requirement)
+    {
+        return this.getReviews().stream()
+            .filter(review -> {
+                // Resolved into a local: the reference lookup is not free, and a null check would not apply to a
+                // second, separate call
+                final Requirement reviewed = review.getRequirement();
+                return reviewed != null && requirement.getPath().equals(reviewed.getPath());
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
      * The workflows running over this submission, held in the container the {@code wf:WorkflowAttachable} mixin
      * autocreates. Several may run at once — a review process and a periodic reminder, say — which is why this is
      * a list rather than a single lifecycle.
@@ -225,13 +248,7 @@ public class Submission extends Entity
                 });
         }
         if (requirement instanceof ApprovalRequirement) {
-            return this.getReviews().stream().anyMatch(review -> {
-                if (!review.isApproved()) {
-                    return false;
-                }
-                final Requirement reviewed = review.getRequirement();
-                return reviewed != null && requirement.getPath().equals(reviewed.getPath());
-            });
+            return this.getReviewsOf(requirement).stream().anyMatch(Review::isApproved);
         }
         // FormRequirement is the only other concrete requirement type today. Only questions demanding at least one
         // value can leave it unfulfilled: an optional one is asked, not demanded, and a submission is not
