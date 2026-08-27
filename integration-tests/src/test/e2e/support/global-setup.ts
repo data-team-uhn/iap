@@ -46,6 +46,13 @@ const GATE_TAG = 'systemalive';
 const GATE_SETTLED_MS = 40_000;
 
 /**
+ * The tag the startup gate itself watches. Every check carrying it has to be OK — a WARN included —
+ * before the gate stops serving the startup page, so this is the one question whose answer decides
+ * whether the instance serves anything at all.
+ */
+const GATE_TAG = 'systemalive';
+
+/**
  * Whether an instance is ready to be tested.
  *
  * The launcher plugin only waits for the OSGi framework to come up, which happens well before the
