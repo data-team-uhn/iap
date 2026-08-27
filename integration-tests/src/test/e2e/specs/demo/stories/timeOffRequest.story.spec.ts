@@ -230,10 +230,15 @@ test.describe('a story: asking for time off, and getting it', () => {
       const row = page.getByRole('row', { name: new RegExp(REQUEST) });
       await expect(row).toHaveCount(1);
 
-      // Scoped to a row, which is also what keeps it off the box she just typed the title into
-      await row.getByText(REQUEST).click();
-
-      await expect(page.getByRole('heading', { name: REQUEST })).toBeVisible();
+      // Scoped to a row, which is also what keeps it off the box she just typed the title into.
+      // Retried as a pair, because the grid re-renders on its own schedule after a server-side
+      // search and a click landing mid-render is swallowed by the row being replaced under it: the
+      // cell takes focus, nothing navigates, and the failure surfaces as a missing heading with no
+      // hint of what went wrong. Clicking again is what the reader would do.
+      await expect(async () => {
+        await row.getByText(REQUEST).click();
+        await expect(page.getByRole('heading', { name: REQUEST })).toBeVisible({ timeout: 5_000 });
+      }).toPass({ timeout: 30_000 });
       // Two things tell her, and both are the point: the request itself carries the approved
       // lifecycle tag, and the decision is now written down against the approval the schema asked
       // for, so the page names who granted it rather than only that it ended up approved
