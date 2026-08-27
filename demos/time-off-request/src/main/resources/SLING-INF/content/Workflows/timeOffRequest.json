@@ -77,10 +77,10 @@
         "rejected"
       ],
       "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
-      "toDecision": {
+      "toRecordReview": {
         "jcr:primaryType": "wf:SequenceFlow",
-        "elementId": "toDecision",
-        "targetRef": "decision"
+        "elementId": "toRecordReview",
+        "targetRef": "recordReview"
       },
       // Two deadlines on this task, both stored inside the activity they watch - which is what makes them
       // boundary events: they listen only for as long as the task is open, and the engine starts their clocks
@@ -117,6 +117,24 @@
           "elementId": "toExpired",
           "targetRef": "requestExpired"
         }
+      }
+    },
+    // Writing the decision down is a step of the process rather than something the engine does behind it. The
+    // outcome the approver recorded already routes the gateway below, but routing leaves no record of what was
+    // decided about *what*: the schema asks for an approval, and only a review naming that requirement fulfils
+    // it. Which requirement is named here, in the definition, because a process may raise several decisions and
+    // only the diagram knows which is which.
+    "recordReview": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "recordReview",
+      "label": "Write the decision down",
+      "handler": "recordReview",
+      "requirement": "approval",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDecision": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDecision",
+        "targetRef": "decision"
       }
     },
     "decision": {
