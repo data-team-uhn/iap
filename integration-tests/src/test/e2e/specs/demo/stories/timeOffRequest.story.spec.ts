@@ -196,8 +196,12 @@ test.describe('a story: asking for time off, and getting it', () => {
       await page.getByRole('button', { name: 'Record decision' }).click();
 
       // The end event the gateway routed to said what approving means to the request, so the page
-      // says it too — and there is nothing left for him to decide
-      await expect(page.getByText('Approved')).toBeVisible();
+      // says it too — and the approval the schema asked for now names him and the note he left,
+      // where a moment ago it said it was waiting on his team
+      await expect(page.getByText('Approved', { exact: true })).toBeVisible();
+      await expect(page.getByText(/^Approved by demo-approver on /)).toBeVisible();
+      await expect(page.getByText('Cover arranged with the rest of the team')).toBeVisible();
+      // And there is nothing left for him to decide
       await expect(page.getByRole('button', { name: 'Approved' })).toHaveCount(0);
     });
 
@@ -230,7 +234,11 @@ test.describe('a story: asking for time off, and getting it', () => {
       await row.getByText(REQUEST).click();
 
       await expect(page.getByRole('heading', { name: REQUEST })).toBeVisible();
-      await expect(page.getByText('Approved')).toBeVisible();
+      // Two things tell her, and both are the point: the request itself carries the approved
+      // lifecycle tag, and the decision is now written down against the approval the schema asked
+      // for, so the page names who granted it rather than only that it ended up approved
+      await expect(page.getByText('Approved', { exact: true }).first()).toBeVisible();
+      await expect(page.getByText(/^Approved by demo-approver on /)).toBeVisible();
       // And nothing is waiting for her either: the process is over
       await expect(page.getByRole('button', { name: /Say when you want to be away/ })).toHaveCount(0);
     });
