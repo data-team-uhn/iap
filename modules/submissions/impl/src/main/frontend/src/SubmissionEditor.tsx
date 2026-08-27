@@ -24,8 +24,10 @@ import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import AnswerField, { type SaveState } from "./AnswerField";
+import ApprovalState from "./ApprovalState";
 import DocumentUpload from "./DocumentUpload";
 import {
+  APPROVAL_REQUIREMENT,
   DOCUMENT_REQUIREMENT,
   type FormItem,
   type FormQuestion,
@@ -82,8 +84,8 @@ function Items({ items, disabled, states, onAnswered }: {
 }
 
 // One requirement. A requirement that holds no questions is still shown, and where it can be
-// answered it is answered here: a document is uploaded, and an approval is somebody else's step and
-// so says only that it is waiting on them.
+// answered it is answered here: a document is uploaded, and an approval says where it stands
+// because it is somebody else who grants it.
 function RequirementPanel({ path, requirement, disabled, states, onAnswered, onAttached }: {
   path: string;
   requirement: Requirement;
@@ -105,11 +107,13 @@ function RequirementPanel({ path, requirement, disabled, states, onAnswered, onA
               onAttached={onAttached}
             />
           )
-          : (
-            <Typography variant="placeholder">
-              This part of the request is somebody else&apos;s step, and cannot be completed here.
-            </Typography>
-          ) }
+          : requirement.type === APPROVAL_REQUIREMENT
+            ? <ApprovalState requirement={requirement} />
+            : (
+              <Typography variant="placeholder">
+                This part of the request is somebody else&apos;s step, and cannot be completed here.
+              </Typography>
+            ) }
     </Panel>
   );
 }
