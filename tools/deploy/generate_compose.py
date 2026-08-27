@@ -369,7 +369,12 @@ def postgres_service():
         'timeout': '5s',
         'retries': 20,
     }
-    service['volumes'] = ['postgres-data:/var/lib/postgresql/data']
+    comment(service, "PostgreSQL 18 moved PGDATA into a version-specific subdirectory,")
+    comment(service, "and the image's VOLUME up to the parent, so the directory to mount")
+    comment(service, "is /var/lib/postgresql. Mounting .../data -- correct before 18, and")
+    comment(service, "still what most examples show -- puts the database outside the")
+    comment(service, "volume with no warning at all, so the data does not survive.")
+    service['volumes'] = ['postgres-data:/var/lib/postgresql']
     service['restart'] = 'unless-stopped'
     return service
 
