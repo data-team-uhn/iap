@@ -29,8 +29,17 @@ import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 // vocabulary of its own, so a requirement kind added later arrives here without a release.
 export const FORM_REQUIREMENT = "sch/FormRequirement";
 export const DOCUMENT_REQUIREMENT = "sch/DocumentRequirement";
+export const APPROVAL_REQUIREMENT = "sch/ApprovalRequirement";
 export const SECTION = "sch/Section";
 export const QUESTION = "sch/Question";
+
+/**
+ * A date as the reader's locale writes it. JCR dates are serialized as ISO 8601 strings; anything
+ * else is not a date and formats as nothing rather than as "Invalid Date".
+ */
+export function formatDate(value: unknown): string {
+  return typeof value === "string" && value !== "" ? new Date(value).toLocaleString() : "";
+}
 
 // One of the answers a question offers. The value is what an answer stores and what a condition
 // compares against; the label is only what the submitter reads.
@@ -122,6 +131,17 @@ export function toFileUrl(path: string): string {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
+// The kind somebody else grants. Nobody answers one in the form, so what it carries is where it stands.
+export interface ApprovalRequirement extends Requirement {
+  // The group whose members decide, empty when it is not narrowed to one
+  approverGroup?: string;
+  approved?: boolean;
+  // Present once somebody has reviewed it. A review that did not approve is still a decision, so
+  // these say who and when regardless of `approved`.
+  decidedBy?: string;
+  decidedAt?: string;
+}
+
 export interface SubmissionForm {
   path: string;
   title: string;
@@ -145,6 +165,10 @@ export function isDocumentRequirement(requirement: Requirement): requirement is 
 // What an empty document slot says. An optional one says so, or it reads as a gap.
 export function describeNothingAttached(requirement: DocumentRequirement): string {
   return requirement.required ? "Nothing attached yet" : "Nothing attached yet — optional";
+}
+
+export function isApprovalRequirement(requirement: Requirement): requirement is ApprovalRequirement {
+  return requirement.type === APPROVAL_REQUIREMENT;
 }
 
 // Whether an answer must be provided before submitting — a reading of the answer-count pair, the
