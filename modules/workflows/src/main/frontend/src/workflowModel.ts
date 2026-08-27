@@ -23,26 +23,23 @@ import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
 
-// The workflow definitions' canonical home. Others may exist — the platform's own under
-// /SystemWorkflows, another location's mirrored locally — and are discovered rather than listed
-// here; this one is the entry point that discovery is asked through, and always exists.
+// The workflow definitions' canonical home; others may exist (the platform's own under
+// /SystemWorkflows, another location's mirrored locally) but are discovered rather than listed here —
+// this one is only the entry point discovery is asked through, and always exists.
 export const WORKFLOWS_ROOT = "/Workflows";
 
-// The lifecycle of a workflow version, as stored in its `state` property. A version is authored as
-// a DRAFT, may go on TRIAL before the workflow commits to it, is promoted to ACTIVE once it is ready
-// to run, and is RETIRED when a later version takes over: the instances already running against it
-// carry on, but no new ones start.
+// The lifecycle of a workflow version, stored in its `state` property: authored as a DRAFT, optionally
+// trialled, promoted to ACTIVE to run, and RETIRED once a later version supersedes it — a retired
+// version's own running instances carry on, but no new ones start from it.
 //
-// Only a DRAFT may be edited. Every later state is one something may be following, or about to
-// follow, so changing its diagram would change a process out from under whatever is executing it —
-// which is why a trial that needs another look goes back to being a draft rather than being edited
-// where it stands.
+// Only a DRAFT may be edited: every later state may already be driving a running process, so a trial
+// that needs changes goes back to being a draft rather than being edited in place.
 export const WORKFLOW_STATES = [ "DRAFT", "TRIAL", "ACTIVE", "RETIRED" ] as const;
 
 export type WorkflowState = typeof WORKFLOW_STATES[number];
 
-// How each state is named on screen, and the chip colour that carries it. Active is the one thing
-// running, so it is the only state given a colour with weight behind it.
+// How each state is named on screen, and how much colour weight its chip gets — Active alone carries
+// weight, since it's the one state actually running.
 export const STATE_LABELS: Record<WorkflowState, string> = {
   DRAFT: "Draft",
   TRIAL: "Trial",
@@ -50,9 +47,8 @@ export const STATE_LABELS: Record<WorkflowState, string> = {
   RETIRED: "Retired",
 };
 
-// The state a version is in. Anything unrecognized — an absent property on older content, a value
-// from a newer platform — reads as a draft, which is the state nothing is ever instantiated from:
-// the same reading the server's own model takes, and for the same reason.
+// Anything unrecognized — an absent property on older content, a value from a newer platform — reads
+// as a draft, the state nothing is ever instantiated from, matching how the server's own model reads it.
 export function stateOf(raw: unknown): WorkflowState {
   return WORKFLOW_STATES.includes(raw as WorkflowState) ? raw as WorkflowState : "DRAFT";
 }
@@ -69,9 +65,9 @@ export interface WorkflowHomepage {
   title: string;
 }
 
-// One homepage and how many workflows it holds, as a summary displays it. The server stops
-// counting once it is far enough past the page it was asked for, so a very large collection is
-// reported as a lower bound rather than making it count everything for a number in a widget.
+// One homepage and how many workflows it holds, as a summary displays it — capped at a lower bound
+// once the server is far enough past the requested page, rather than counting a very large collection
+// in full just for a widget.
 export interface WorkflowHomepageCount extends WorkflowHomepage {
   // Absent when the count could not be read: that this homepage exists is worth reporting on its
   // own, and is known independently of how many workflows are in it
@@ -96,9 +92,8 @@ export interface WorkflowSummary {
   path: string;
   name: string;
   title: string;
-  // Whether new instances may be created from this workflow, which is exactly whether one of its
-  // versions is active. Not a property of the definition: a workflow runs through a version or not
-  // at all, so a stored flag would only be a second answer to the same question, free to disagree.
+  // Whether new instances may be created from this workflow — derived from whether one of its
+  // versions is active, rather than stored separately, so the two can never disagree.
   active: boolean;
   created: string;
   lastModified: string;
@@ -130,12 +125,10 @@ function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVer
     });
 }
 
-// Reads one workflow definition and the versions under it.
-//
-// Two levels is exactly what the page renders: the definition's own properties, and the versions
-// under it. The depth selector both turns child serialization on and stops the traversal there, so a
-// version's own children -- the diagram file, and the parsed flow nodes -- are left as bare paths
-// instead of being dragged into the listing.
+// Two levels is exactly what the page renders — the definition's own properties and the versions
+// under it — so the depth selector both turns on child serialization and stops it there, leaving a
+// version's own children (the diagram file, the parsed flow nodes) as bare paths instead of dragging
+// them into the response.
 //
 // The status is read off the response before the body is parsed, because a refusal answers with an
 // error page rather than with JSON: parsing it first reports how the body disappointed the parser,
@@ -162,23 +155,17 @@ export function loadWorkflow(fetchUtil: AuthenticatedFetch, path: string): Promi
     });
 }
 
-// The discovery, kept for the rest of the session once it has landed.
-//
-// Every console URL below /admin/workflows is read against this list — which of the three things a
-// path is, is a question about how deep it sits below its homepage — so it is asked for on every
-// navigation rather than once per page. Homepages are created by a bundle's repoinit and change only
-// when one is installed or removed, which is a restart and so a new session; caching them for the
-// life of this one is therefore not a staleness this can observe. An in-flight request is shared, so
-// several pages mounting at once ask once between them.
+// Cached for the life of the session: every console URL below /admin/workflows is resolved against
+// this list, so asking once per navigation would be wasteful. Homepages change only when a bundle
+// installs or is removed — a restart, hence a new session — so this cache is never stale. An
+// in-flight request is shared, so concurrent page mounts ask the server only once.
 let discovered: WorkflowHomepage[] | null = null;
 let discovery: Promise<WorkflowHomepage[]> | null = null;
 
-// The homepages the current user may list workflows from, the queried one first.
-//
-// Asked of /Workflows, which always exists, and answered with every homepage holding workflow
-// definitions that the user can read — so a deployment that adds one (the platform's own system
-// workflows, another location's) needs nothing configured here. A failure to ask leaves the caller
-// with the one homepage everybody has, rather than with nothing at all.
+// The homepages the current user may list workflows from, the queried one first — asked of
+// /Workflows (which always exists) and answered with every homepage the user can read, so a
+// deployment that adds one (the platform's own system workflows, another location's) needs nothing
+// configured here. A failed ask falls back to the one homepage everybody has, rather than to nothing.
 export function loadWorkflowHomepages(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepage[]> {
   if (discovered) {
     return Promise.resolve(discovered);
@@ -214,15 +201,10 @@ function fetchHomepages(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepage
     });
 }
 
-// How many workflows each homepage the current user may read holds.
-//
-// One count per homepage, asked of the same pagination endpoint the grids list through: a page of
-// no rows at all, which is a count and nothing else. A summary wanting the numbers without the
-// listings is exactly what that answers.
-// Counted one homepage at a time, and settled rather than joined: the homepages are independent of
-// each other, so one that cannot be counted — a tree this user may list but not read into, a request
-// that failed on its own — costs its own number and nothing else. Joining them would let it blank
-// every other count too, which is the opposite of what discovering homepages separately is for.
+// One count per homepage, asked of the pagination endpoint with a page of no rows — exactly a count
+// and nothing else, which is what a summary needs. Counted independently and settled rather than
+// joined, so a homepage that can't be counted (unreadable, or a failed request) loses only its own
+// number instead of blanking every other homepage's count too.
 export function loadWorkflowCounts(fetchUtil: AuthenticatedFetch): Promise<WorkflowHomepageCount[]> {
   return loadWorkflowHomepages(fetchUtil).then(homepages => Promise.allSettled(
     homepages.map(homepage => fetchEntityPage(fetchUtil, { homepage: homepage.path, limit: 0 }))
@@ -236,23 +218,21 @@ export function loadWorkflowCounts(fetchUtil: AuthenticatedFetch): Promise<Workf
   })));
 }
 
-// The diagram is an nt:file child of the version node rather than one of its properties, so it is
-// fetched and posted on its own path; listing the versions no longer carries every diagram with it.
-// The extension earns its keep: Sling types a file from its name, so without it every diagram the
-// repository serves would be an untyped binary.
+// The diagram is an nt:file child of the version node rather than a property, so listing the versions
+// no longer drags every diagram along. The `.xml` extension matters: Sling types a served file from
+// its name, so without it the diagram would be served as an untyped binary.
 export const BPMN_FILE = "bpmn.xml";
 
-// The diagram as a multipart part of an event's payload, under the name of the file it will be
-// stored as. Not a Sling POST servlet path (`./bpmn.xml`) and no type hint: these requests are
-// events handed to the workflow engine rather than writes, so what the part is called is a payload
-// key the handler looks up, and where it ends up in the repository is the handler's business.
+// Named as a multipart payload key rather than a Sling POST path with a type hint, because this is an
+// event handed to the workflow engine, not a write — the handler looks up the key, and decides for
+// itself where the diagram lands in the repository.
 export function bpmnUpload(xml: string, body: FormData = new FormData()): FormData {
   body.set(BPMN_FILE, new File([xml], BPMN_FILE, { type: "application/xml" }));
   return body;
 }
 
-// The diagram a brand new workflow version starts from: a start event, one user task, an end event.
-// Something to open the editor on, rather than an empty canvas.
+// The diagram a brand-new workflow version starts from — a start event, one user task, an end event —
+// so the editor opens on something rather than an empty canvas.
 export const STARTING_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_07212ml" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.16.0">
   <bpmn:process id="Process_1ajiizs" isExecutable="false">
@@ -294,19 +274,16 @@ export const STARTING_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
 
-// Where a workflow, one of its versions, or a version's editor lives in the administration console.
-// The repository path is carried in the URL, which is what lets one page serve the workflows of any
-// homepage: /admin/workflows/Workflows/review, /admin/workflows/SystemWorkflows/newEntity/1-0.
+// Where a workflow, a version, or a version's editor lives in the console — the repository path rides
+// along in the URL, letting one page serve any homepage's workflows, e.g.
+// /admin/workflows/Workflows/review or /admin/workflows/SystemWorkflows/newEntity/1-0.
 export const ADMIN_ROOT = "/admin/workflows";
 
-// The page a console URL opens on top of a repository path. Only the editor names itself: viewing a
-// workflow or a version is what its own path means, so there is nothing for those to say.
-//
-// It is named in the query rather than in the path because the two are not one inside the other:
-// viewing a version and editing it are the same thing seen two ways, reached from the same place and
-// neither reporting more than the other. A path segment would have said otherwise everywhere a URL's
-// ancestors are read as a hierarchy — the breadcrumb trail most of all, which showed the editor as a
-// page below the viewer.
+// The page a console URL opens on top of a repository path — only the editor names itself, since
+// viewing a workflow or version is just what its own path means. It's a query parameter rather than a
+// path segment because viewing and editing a version are the same thing seen two ways, not one nested
+// in the other; a path segment would have made the breadcrumb trail show the editor as a page below
+// the viewer, which it isn't.
 export type WorkflowPage = "edit";
 
 // The query parameter each page is asked for by, so that what the console links to and what it reads
@@ -320,18 +297,16 @@ export function adminUrl(repositoryPath: string, page?: WorkflowPage): string {
   return page === undefined ? url : `${url}?${PAGE_PARAM}=${page}`;
 }
 
-// The page a console URL's query asks for, given the query string (location.search) as it stands. A
-// parameter naming no page this knows of asks for nothing, the same as a URL that named none: what a
+// An unrecognized (or absent) page parameter asks for nothing, same as a URL that named none — what a
 // version's own path means is the version, so there is always something to show.
 export function consolePage(search: string): WorkflowPage | undefined {
   const asked = new URLSearchParams(search).get(PAGE_PARAM);
   return asked === "edit" ? asked : undefined;
 }
 
-// What a console URL below ADMIN_ROOT is about. The repository path alone does not say which of
-// these it is — a homepage sits at no predictable depth, so /Content/Workflows/review could be read
-// as a version of /Content/Workflows just as well as a workflow of /Content/Workflows — which is why
-// resolving one takes the homepages this instance actually has.
+// What a console URL below ADMIN_ROOT is about — not decidable from the repository path alone, since
+// a homepage can sit at any depth (/Content/Workflows/review could be a version of /Content/Workflows
+// or a workflow of /Content/Workflows) — so resolving one needs the homepages this instance actually has.
 export type ConsoleTarget =
   | { kind: "homepage"; path: string }
   | { kind: "workflow"; path: string }
@@ -340,15 +315,12 @@ export type ConsoleTarget =
 
 const UNKNOWN: ConsoleTarget = { kind: "unknown" };
 
-// What a console URL addresses, resolved against the homepages workflows are stored in.
-//
-// Depth is counted from the homepage rather than from the root, because that is the only part of the
-// shape that is fixed: a homepage may be anywhere, but below one it is always homepage / workflow /
-// version. So the homepage is found first — the longest one the URL starts with, since one homepage
-// may be stored inside another — and what remains says which of the three the URL is about.
-//
-// Nothing below a version is a page: which page is opened on a version is asked for in the query
-// (see consolePage), so every segment of the path is repository content and no name is reserved.
+// What a console URL addresses, resolved against the homepages workflows are stored in. Depth is
+// counted from the homepage rather than the root — the only fixed part of the shape, since below a
+// homepage it's always homepage/workflow/version — found as the longest homepage the URL starts with
+// (in case one is nested inside another), with what remains saying which of the three it is about.
+// Nothing below a version is a page, since which page opens on a version is asked for in the query
+// (see consolePage) — so no path segment is reserved and every one is repository content.
 export function consoleTarget(url: string, homepages: readonly string[]): ConsoleTarget {
   const withoutSuffix = url.replace(/\.html$/, "").replace(/\/+$/, "");
   if (withoutSuffix !== ADMIN_ROOT && !withoutSuffix.startsWith(`${ADMIN_ROOT}/`)) {

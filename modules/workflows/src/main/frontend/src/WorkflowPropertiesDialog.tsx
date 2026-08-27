@@ -35,9 +35,8 @@ interface WorkflowPropertiesDialogProps {
   onSaved: () => void;
 }
 
-// Editing what belongs to the workflow itself rather than to one of its versions, which is its title
-// and nothing else so far. Whether the workflow runs is deliberately absent: that is read off its
-// versions — it runs while one of them is active — and is changed by the actions on them.
+// Edits the workflow's own properties — currently just the title.
+// Whether it runs isn't one of them: that's read from its versions, and changed through their own actions.
 function WorkflowPropertiesDialog({ workflow, onClose, onSaved }: WorkflowPropertiesDialogProps) {
   const [ title, setTitle ] = useState(workflow.title);
   const fetchUtil = useAuthenticatedFetch();

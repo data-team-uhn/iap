@@ -93,8 +93,7 @@ class DraftVersionHandlerTest
         assertEquals("DRAFT", draft.getValueMap().get("state"));
         assertEquals("The one in use", draft.getValueMap().get("description"));
         assertEquals(AuthoringFixture.BPMN, AuthoringFixture.read(draft.getChild("bpmn.xml")));
-        // Never copied: a draft must not claim a parse that has not happened for it, and the missing hash is what
-        // has the commit editor look at the copied diagram at all
+        // Never copied: a draft must not claim a parse that has not happened for it
         assertNull(draft.getValueMap().get("bpmnXmlParsedHash"));
         // The source is untouched: drafting from a version is not a move
         assertEquals(WorkflowVersion.State.ACTIVE, this.stateOf(FIRST));
@@ -178,10 +177,8 @@ class DraftVersionHandlerTest
     @Test
     void copiesTheGraphAndNothingElseTheVersionHolds() throws WorkflowException, PersistenceException
     {
-        // Every wf:WorkflowVersion is a data:Entity, and so autocreates a link:links container. The draft has one
-        // of its own the moment it is created, so copying the source's over it is an ItemExistsException -- and a
-        // draft is not a place to carry another version's relationships to anyway. Anything else stored beside the
-        // graph is left behind for the same reason: what is copied is the process, not the node.
+        // link:links is autocreated on every version, so copying the source's over the draft's own would collide.
+        // The same reasoning excludes anything else stored beside the graph — only the process itself is copied.
         AuthoringFixture.createVersion(this.context, FIRST, "1.0", WorkflowVersion.State.ACTIVE, Map.of());
         this.context.create().resource(AuthoringFixture.path(FIRST) + "/link:links",
             Map.of(WorkflowFixture.TYPE, "link/Links"));

@@ -234,8 +234,8 @@ final class AuthoringFixture
     }
 
     /**
-     * A version whose diagram cannot be read to the end: the file hands out a stream that fails while it is being
-     * consumed, standing in for a binary the repository cannot deliver.
+     * A version whose diagram fails partway through reading, standing in for a binary the repository cannot
+     * deliver.
      *
      * @param context the Sling context the version lives in
      * @param versionPath the path of the version to wrap

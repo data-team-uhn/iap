@@ -646,8 +646,8 @@ class BpmnXmlSyncEditorTest
     {
         final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
 
-        // What the editor tests a root child by, rather than its name: a homepage's own statement of what it
-        // holds, which wf:WorkflowsHomepage and wf:SystemWorkflowsHomepage both autocreate and protect.
+        // The editor identifies a homepage by this declared childNodeType, which wf:WorkflowsHomepage and
+        // wf:SystemWorkflowsHomepage both autocreate and protect.
         homepage(root, WORKFLOWS_PATH);
 
         final NodeBuilder types = root.child("WorkflowTypes");
@@ -1535,9 +1535,9 @@ class BpmnXmlSyncEditorTest
     @Test
     void parsesDiagramsUnderEveryHomepageThatHoldsWorkflowDefinitions() throws Exception
     {
-        // The platform's own workflows live under /SystemWorkflows, and a deployment may add a third tree. While
-        // this editor matched the name "Workflows", a diagram saved anywhere else was stored and never parsed —
-        // leaving a version that looks authored, has no flow nodes, and says nothing about it.
+        // A deployment may add trees beyond /Workflows and /SystemWorkflows.
+        // Matching only by name would silently skip their diagrams, leaving a version that looks authored but
+        // has no flow nodes.
         final NodeBuilder root = base();
         homepage(root, "SystemWorkflows");
         final NodeState before = root.getNodeState();
@@ -1560,9 +1560,8 @@ class BpmnXmlSyncEditorTest
     @Test
     void staysOutOfRootChildrenThatHoldSomethingElse() throws Exception
     {
-        // Asking the content what it is cuts both ways: a tree that holds submissions, and one that says nothing
-        // about what it holds, are both walked past — an editor that descended into everything would be reading
-        // node types on every commit in the repository.
+        // A tree declaring a different childNodeType, and one declaring none, are both skipped.
+        // Descending into everything would mean reading node types on every commit in the repository.
         final NodeBuilder root = base();
         root.child("Submissions").setProperty("childNodeType", "sub:Submission");
         final NodeState before = root.getNodeState();

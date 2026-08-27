@@ -131,7 +131,7 @@ class CreateVersionHandlerTest
     @Test
     void findsAFreeNodeNameWhenTheDerivedOneIsTaken() throws WorkflowException, PersistenceException
     {
-        // Two labels that reduce to the same node name are told apart by a counter rather than by refusing one
+        // Two labels that reduce to the same node name are told apart by an appended counter
         AuthoringFixture.createVersion(this.context, "1-0", "1/0", WorkflowVersion.State.DRAFT, Map.of());
 
         this.handler.execute(this.request(Map.of("version", "1.0"), new HashMap<>()));

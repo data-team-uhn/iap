@@ -24,13 +24,12 @@ import { getActions, type ActionComponent } from "@iap/frontend-commons/actionsM
 
 import type { WorkflowSummary, WorkflowVersionSummary } from "./workflowModel";
 
-// The extension point contributing the actions. A module adding an action to this bar ships an
-// `ext:Extension` on this point and nothing else; the manager page never learns of it.
+// A module contributes an action here by shipping an `ext:Extension` on this point.
+// The manager page never learns of it.
 export const VERSION_ACTIONS_POINT = "WorkflowVersionActions";
 
-// What every action receives. The version and the workflow it belongs to, and the two things an
-// action may need to do afterwards: have the page read the workflow again, and say what happened —
-// an action that navigates away, or that changed nothing, uses neither.
+// Props every action receives. `reload` and `report` are optional to call: an action that navigates
+// away or changes nothing may use neither.
 export interface WorkflowVersionActionProps {
   version: WorkflowVersionSummary;
   workflow: WorkflowSummary;
@@ -39,10 +38,8 @@ export interface WorkflowVersionActionProps {
 }
 
 // The actions available on one workflow version, in the order the repository lists them.
-//
-// Each action decides for itself whether it applies to the version it is handed — editing is for
-// drafts, drafting a copy is for what has already been active — so the bar is the same component on
-// every row, and a version with nothing to offer renders an empty one.
+// Each action decides for itself whether it applies, so a version with nothing to offer renders an
+// empty bar.
 function WorkflowVersionActions(props: WorkflowVersionActionProps) {
   const [ actions, setActions ] = useState<ActionComponent[]>([]);
 
@@ -61,8 +58,7 @@ function WorkflowVersionActions(props: WorkflowVersionActionProps) {
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
       { actions.map((Action, index) => (
-        // Actions come from the repository in an order, and are keyed by it: there is nothing else
-        // stable to key them by, and the list only changes when the page is loaded again
+        // Keyed by position: nothing else is stable to key by, and the list only changes on reload.
         <Fragment key={`action-${index}`}>
           <Action {...props} />
         </Fragment>
