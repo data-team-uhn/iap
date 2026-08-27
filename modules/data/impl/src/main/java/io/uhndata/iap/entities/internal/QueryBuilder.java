@@ -22,14 +22,21 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
  * Assembles the JCR-SQL2 statement for a pagination request: nodes of one type under a scope path, optionally
  * filtered by their own properties and by the properties of descendant nodes, ordered by one of their properties.
- * Every name interpolated into the statement is validated, and every value is escaped, so the resulting statement
- * only queries what the caller declared.
+ *
+ * <p>
+ * Requested values never reach the statement. Each one becomes a bind variable, so nothing the caller sends has to
+ * be escaped to be safe, and the statement a request produces depends only on the <em>shape</em> of that request.
+ * What a caller can still put into the statement itself is a name — a node type, a property, the property to order
+ * by — and those are checked against {@link #SAFE_NAME} rather than escaped, since JCR-SQL2 offers no way to bind
+ * them.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -62,11 +69,13 @@ final class QueryBuilder
      * @param nodeType the node type of the queried nodes, e.g. {@code sub:Submission}
      * @param scopePath the repository path under which the nodes are looked for
      * @throws IllegalArgumentException if the node type is not a valid name
+     * @throws NullPointerException if no scope path is given; a query with no scope would list the whole
+     *             repository, so this fails where the mistake is rather than where it would be noticed
      */
     QueryBuilder(final String nodeType, final String scopePath)
     {
         this.nodeType = checkName(nodeType);
-        this.scopePath = scopePath;
+        this.scopePath = Objects.requireNonNull(scopePath, "A pagination query needs a scope path");
     }
 
     /**
@@ -139,12 +148,13 @@ final class QueryBuilder
     }
 
     /**
-     * Assembles the final JCR-SQL2 statement.
+     * Assembles the final JCR-SQL2 statement and the values to bind into it.
      *
-     * @return a valid JCR-SQL2 statement
+     * @return a valid JCR-SQL2 statement together with the value of every bind variable it names
      */
-    String build()
+    BoundQuery build()
     {
+        final Map<String, String> bindings = new LinkedHashMap<>();
         final StringBuilder query = new StringBuilder("select n.* from [").append(this.nodeType).append("] as n");
         int childIndex = 0;
         for (final String childType : this.childFilters.keySet()) {
@@ -152,27 +162,46 @@ final class QueryBuilder
             query.append(" inner join [").append(childType).append("] as ").append(alias)
                 .append(" on isdescendantnode(").append(alias).append(", n)");
         }
+        // The scope path is the one value that has to stay in the statement: isdescendantnode takes a path, not a
+        // static operand, so JCR-SQL2 will not accept a bind variable there. It is the resolved path of the
+        // homepage being listed rather than anything a caller sends, and it is escaped for the literal it is.
         query.append(" where isdescendantnode(n, '").append(escape(this.scopePath)).append("')");
-        appendConditions(query, "n", this.filters);
+        appendConditions(query, "n", this.filters, bindings);
         childIndex = 0;
         for (final List<Filter> filtersForChild : this.childFilters.values()) {
-            appendConditions(query, "c" + childIndex++, filtersForChild);
+            appendConditions(query, "c" + childIndex++, filtersForChild, bindings);
         }
         if (this.fullText != null && !this.fullText.isBlank()) {
-            query.append(" and contains(n.*, '").append(escapeFullText(this.fullText)).append("')");
+            query.append(" and contains(n.*, ").append(bind(bindings, escapeFullText(this.fullText))).append(')');
         }
         query.append(" order by n.[").append(this.sortBy).append(this.descending ? "] DESC" : "] ASC");
-        return query.toString();
+        return new BoundQuery(query.toString(), Map.copyOf(bindings));
     }
 
-    private static void appendConditions(final StringBuilder query, final String source, final List<Filter> filters)
+    private static void appendConditions(final StringBuilder query, final String source, final List<Filter> filters,
+        final Map<String, String> bindings)
     {
         for (final List<Filter> group : groupFilters(filters)) {
             query.append(" and (")
-                .append(group.stream().map(filter -> condition(source, filter))
+                .append(group.stream().map(filter -> condition(source, filter, bindings))
                     .collect(Collectors.joining(" or ")))
                 .append(')');
         }
+    }
+
+    /**
+     * Records a value to bind and returns the reference naming it. Variables are numbered in the order they are
+     * added, so the same request always produces the same statement.
+     *
+     * @param bindings the values collected so far, extended by one
+     * @param value the value to bind
+     * @return the bind variable reference to write into the statement, e.g. {@code $p0}
+     */
+    private static String bind(final Map<String, String> bindings, final String value)
+    {
+        final String name = "p" + bindings.size();
+        bindings.put(name, value);
+        return "$" + name;
     }
 
     /**
@@ -200,10 +229,26 @@ final class QueryBuilder
         return groups;
     }
 
-    private static String condition(final String source, final Filter filter)
+    private static String condition(final String source, final Filter filter, final Map<String, String> bindings)
     {
-        return filter.getComparator()
-            .apply(source + ".[" + checkName(filter.getName()) + "]", escape(filter.getValue()));
+        final Operator comparator = filter.getComparator();
+        final String property = source + ".[" + checkName(filter.getName()) + "]";
+        if (comparator.isValueless()) {
+            return comparator.apply(property, null);
+        }
+        return comparator.apply(property, bind(bindings, comparator.prepareValue(value(filter))));
+    }
+
+    /**
+     * The value a filter compares against, as a string. A filter with no value compares against an empty one, which
+     * is what an absent request parameter used to mean once it had been escaped into the statement.
+     *
+     * @param filter the filter whose value is wanted
+     * @return the value, never {@code null}
+     */
+    private static String value(final Filter filter)
+    {
+        return filter.getValue() == null ? "" : filter.getValue();
     }
 
     /**
@@ -226,28 +271,25 @@ final class QueryBuilder
      * only string escape: backslashes are ordinary characters in a string literal, and a {@code \'} sequence is
      * a parse error, which used to turn every value containing an apostrophe into a failed query.
      *
-     * @param value the value to escape, may be {@code null}
-     * @return the value with quotes doubled, or an empty string if the value was {@code null}
+     * <p>
+     * Only the scope path is still written into the statement, every other value being bound instead, so this is
+     * the one place the escaping has to be right rather than one of several.
+     * </p>
+     *
+     * @param value the value to escape
+     * @return the value with quotes doubled
      */
     private static String escape(final String value)
     {
-        return value == null ? "" : value.replace("'", "''");
+        return value.replace("'", "''");
     }
 
     /**
-     * Escapes a full text search term before it is interpolated into a {@code contains()} call. On top of the
-     * string literal escaping, the full text search grammar has its own layer, where the backslash escapes and
-     * both quote characters open a phrase: all three have to be neutralized, the backslash so that a trailing one
-     * does not escape the closing quote, and the quotes so that an odd number of them — one inch mark, or one
-     * apostrophe's worth of ordinary typing — does not leave a phrase unterminated and fail the whole query to
-     * parse.
-     *
-     * <p>
-     * The grammar's escaping goes on <em>before</em> the string literal's, because the literal's is undone again
-     * when the statement is parsed: doubling an apostrophe hides it from the statement but hands it straight to the
-     * full text parser, where it opens a phrase that never ends. What reaches that parser is whatever was escaped
-     * before the doubling, so that is where the backslash has to be added.
-     * </p>
+     * Escapes a full text search term before it is bound into a {@code contains()} call. Binding removes the string
+     * literal's escaping, not this: the full text grammar is applied to whatever the bind variable holds, so its own
+     * layer still has to be neutralized. The backslash escapes, and both quote characters open a phrase — a trailing
+     * backslash would escape the closing quote, and an odd number of quotes, one inch mark or one apostrophe's worth
+     * of ordinary typing, would leave a phrase unterminated and fail the query to parse.
      *
      * <p>
      * What this deliberately leaves alone is the grammar's <em>meaning</em>, as opposed to its syntax: a leading
@@ -269,6 +311,20 @@ final class QueryBuilder
     private static String escapeFullText(final String value)
     {
         // Backslash first, or it would escape the escapes added after it
-        return escape(value.strip().replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'"));
+        return value.strip().replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
+    }
+
+    /**
+     * A JCR-SQL2 statement together with the value of every bind variable it names. Keeping the two together is what
+     * lets the statement be assembled without ever holding a requested value.
+     *
+     * @param statement the statement, naming one bind variable per value
+     * @param bindings the value of each bind variable, keyed by name without the {@code $}
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    record BoundQuery(String statement, Map<String, String> bindings)
+    {
     }
 }
