@@ -40,6 +40,13 @@ def normalize_status(status) -> ConversionStatus | None:
         return None
 
 
+def get_status_label(status) -> str:
+    """Extract the string representation of a status enum or value."""
+    if status is None:
+        return "unknown"
+    return getattr(status, "value", status)
+
+
 def is_pipeline_failure_log(message: str) -> bool:
     lowered = message.lower()
     return any(marker in lowered for marker in PIPELINE_FAILURE_MARKERS)
@@ -80,12 +87,10 @@ def get_conversion_failure_message(
 
     if not details:
         if status in (ConversionStatus.FAILURE, ConversionStatus.PARTIAL_SUCCESS):
-            status_label = getattr(status, "value", status)
-            return f"status={status_label}: no error details"
+            return f"status={get_status_label(status)}: no error details"
         return None
 
-    status_label = getattr(status, "value", status) if status is not None else "unknown"
-    return f"status={status_label}: {'; '.join(details)}"
+    return f"status={get_status_label(status)}: {'; '.join(details)}"
 
 
 def ensure_conversion_ok(

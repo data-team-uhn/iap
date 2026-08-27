@@ -22,7 +22,6 @@ Splits the document into page-range batches processed in parallel.
 Each worker process loads the converter once via _init_worker(); page batches are reused.
 """
 
-import gc
 import logging
 import multiprocessing
 import os
@@ -369,6 +368,3 @@ def parse_pdf_chunk(
     except Exception as e:
         elapsed = perf_counter() - chunk_start
         return start_page, end_page, "failed", "", 0, elapsed, str(e)
-
-    finally:
-        gc.collect()
