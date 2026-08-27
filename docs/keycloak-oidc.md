@@ -12,18 +12,18 @@ provisioned into Oak by Oak's own `DefaultSyncHandler` — no custom identity-pr
 `OidcIdentityProvider` is **not** a declarative-services component and no configuration creates it:
 it has no descriptor in the bundle, and `OidcAuthenticationHandler.activate()` registers it
 programmatically under the handler's `idp` property. The IdP service therefore exists **if and only
-if that handler activates** — including its *mandatory* `CryptoService` reference. If anything stops
+if that handler activates** — including its _mandatory_ `CryptoService` reference. If anything stops
 the handler activating, the only symptom is Oak logging `No IDP found with name keycloak` on every
 login attempt (and a login loop), far from the actual cause; see
 [Troubleshooting](#troubleshooting-no-idp-found-with-name-keycloak).
 
 Almost everything is configuration; the only Java is the logout handling (see [Sign-out flow](#sign-out-flow)) in the `iap-oidc-support` module. Keycloak sign-in is **opt-in** — its features are not in the default aggregates and are loaded only when asked (see [Enabling Keycloak sign-in](#enabling-keycloak-sign-in)). The pieces:
 
-| Concern                                                                                                                                                                                                           | Where                                                                                                           |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module, logout) **and** the `/oidc-login` trigger node (repoinit)                                                 | [oidc/support feature.json](../modules/authentication/oidc/support/src/main/features/feature.json)              |
-| `ExternalPrincipalConfiguration` added to the security provider's required services                                                                                                                               | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json)                              |
-| "Institutional account" sign-in button (targets `/oidc-login`, renders login's generic `RedirectSignIn`) — shown by default whenever the Keycloak features are loaded                                             | [Keycloak.json](../modules/keycloak/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
+| Concern                                                                                                                                                               | Where                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Bundles + all OSGi config (connection, handler, claim mapping, crypto, Oak sync, external login module, logout) **and** the `/oidc-login` trigger node (repoinit)     | [oidc/support feature.json](../modules/authentication/oidc/support/src/main/features/feature.json)              |
+| `ExternalPrincipalConfiguration` added to the security provider's required services                                                                                   | [oak/oak_base.json](../packaging/slingfeature/src/main/features/oak/oak_base.json)                              |
+| "Institutional account" sign-in button (targets `/oidc-login`, renders login's generic `RedirectSignIn`) — shown by default whenever the Keycloak features are loaded | [Keycloak.json](../modules/keycloak/src/main/resources/SLING-INF/content/Extensions/SignInMethod/Keycloak.json) |
 
 ## Sign-in flow
 
@@ -183,6 +183,10 @@ IAP's in-network view (`http://keycloak:8080/...`, Keycloak's **container** port
 the **host-published** port). Getting the back-channel port wrong (using `8084`) is a common trip-up
 — that port only exists on the host, not inside the Docker network.
 
+The Keycloak comes with a test user by default (username/password test/test). This can be disabled by
+modifying `tools/dev/keycloak/docker-compose.yml` CREATE_TEST_USER, or by setting the environment
+variable KEYCLOAK_GENERATE_TEST_USER.
+
 ## How the names line up
 
 Three independent names are wired across the configs; the defaults use `keycloak` for all three:
@@ -255,7 +259,7 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 Sign-in loops back to `/login`: Keycloak authenticates and the callback sets `sling.oidcauth`, but
 `extractCredentials` cannot produce a session without the IdP, so Sling re-gates the request.
 
-This never means the IdP is *misconfigured* — there is no IdP configuration (see above). It means
+This never means the IdP is _misconfigured_ — there is no IdP configuration (see above). It means
 `OidcAuthenticationHandler` did not activate. Search the log for the real cause, which is always
 earlier in the startup, and always a reference the handler could not satisfy:
 
@@ -283,7 +287,7 @@ That bites at two levels, and both are now pinned explicitly:
 - **Which `CryptoService` each consumer uses** — the `oauth-client`'s consumers have
   compiler-generated reference names (`$000`, `$005`, …) that cannot be targeted stably across
   upgrades, so `~iapoauth` carries a `service.ranking` that steers them to it. `SimpleMailService`'s
-  `cryptoService` reference is *greedy*, so `iap-email-notifications` pins it with
+  `cryptoService` reference is _greedy_, so `iap-email-notifications` pins it with
   `cryptoService.target` to stop it following that ranking and decrypting the SMTP password with the
   wrong key.
 
