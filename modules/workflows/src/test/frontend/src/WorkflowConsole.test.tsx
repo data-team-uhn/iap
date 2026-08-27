@@ -111,8 +111,7 @@ describe("WorkflowConsole", () => {
   });
 
   it("waits for the discovery before deciding what a URL is about", () => {
-    // Which of the three a path is takes the homepages, so nothing can be shown until they land;
-    // guessing and correcting would open one page and replace it with another
+    // Which of the three a path is depends on the homepages, so nothing is shown until they land.
     renderAt("/admin/workflows/Workflows/review");
 
     expect(screen.getByLabelText("Loading the workflows")).toBeInTheDocument();

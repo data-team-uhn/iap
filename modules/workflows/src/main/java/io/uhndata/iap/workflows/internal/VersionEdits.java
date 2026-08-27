@@ -205,13 +205,12 @@ final class VersionEdits
         if (sourceFile == null) {
             return;
         }
-        // Read through the file rather than through its jcr:content: adapting an nt:file to a stream is the
-        // documented way to its contents, and it is what every other reader of a diagram here uses
+        // Adapting the nt:file directly to a stream is the documented way to reach its contents, and what every
+        // other diagram reader here does.
         try (InputStream data = sourceFile.adaptTo(InputStream.class)) {
             if (data != null) {
-                // The content type the source recorded, or the XML a BPMN diagram is when it has none. Read
-                // through ResourceUtil, which answers with an empty map for a file stored without a jcr:content
-                // at all.
+                // ResourceUtil.getValueMap tolerates a missing jcr:content, answering with an empty map rather
+                // than throwing.
                 createFile(draft, data, ResourceUtil.getValueMap(sourceFile.getChild(JCR_CONTENT))
                     .get(JCR_MIME_TYPE, DEFAULT_MIME_TYPE), resolver);
             }
@@ -243,13 +242,13 @@ final class VersionEdits
     /**
      * Copies a version's parsed graph onto a new version: its flow nodes, and nothing else it happens to hold.
      *
-     * <p>Named positively rather than by exclusion, because a version's children are not all graph. The diagram is
-     * one of them, and is copied separately as the file it is. So is {@code link:links}, which every
-     * {@code data:Entity} autocreates — copying that one onto a node that already has it is an
-     * {@code ItemExistsException}, and a draft is not a place to carry another version's relationships to
-     * anyway. A deployment is free to store more beside them: {@code wf:WorkflowVersion} admits any child, so a
-     * list of what to skip would have to be kept in step with whatever anyone adds, where a list of what the
-     * graph <em>is</em> does not.</p>
+     * <p>A version's other children are copied elsewhere or not at all. The diagram is copied separately as the
+     * file it is, and {@code link:links} — autocreated on every {@code data:Entity} — can't be copied onto a node
+     * that already has one without an {@code ItemExistsException}; a draft shouldn't carry another version's
+     * relationships anyway.</p>
+     *
+     * <p>Because {@code wf:WorkflowVersion} admits any child, listing flow nodes by type stays correct as
+     * deployments add more children — a list of what to skip would not.</p>
      *
      * @param source the version being drafted from
      * @param draft the version to copy onto

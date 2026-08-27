@@ -182,9 +182,8 @@ class WorkflowEventServletTest
     @Test
     void translatesAPostToTheSystemWorkflowsHomepageIntoACreateEvent() throws WorkflowException, IOException
     {
-        // The other homepage holding workflow definitions. Left off the servlet's bindings it did not 404 -- the
-        // POST reached the Sling POST servlet, which set `title` on the homepage node itself, so asking for a
-        // system workflow renamed the tree that holds them. Being bound, an event that nothing catches is a 409.
+        // Unbound, a POST here would reach the Sling POST servlet and rename the tree by setting `title` on the
+        // homepage node. Bound, an unmatched event is a 409 instead.
         Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
             .thenReturn(new WorkflowResult(Map.of()));
         final Resource homepage = this.context.create().resource("/SystemWorkflows",

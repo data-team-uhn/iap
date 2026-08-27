@@ -16,19 +16,16 @@
  * limitations under the License.
  */
 
-// Every write the workflow screens make: creating a workflow or a version, editing a workflow's
-// properties, saving a diagram, and the lifecycle transitions.
+// Every write here posts a domain event at the thing it concerns. The workflow engine runs the
+// matching system workflow under /SystemWorkflows to its end event, in one commit.
 //
-// None of them writes to the repository. Each is a domain event posted at the thing it concerns,
-// which the workflow engine matches against the system workflow waiting for it under
-// /SystemWorkflows and runs to its end event in one commit. That is not a detour: nobody holds
-// repository rights on workflow content, so what a user may do here is what those definitions say
-// rather than what an ACL allows, and a promotion that retires the version it supersedes, or a
-// draft that arrives with its diagram, is one run rather than two requests that could half happen.
+// Nobody holds repository rights on workflow content, so what a user may do here is exactly what
+// those definitions say. A multi-step change — a promotion that retires the version it supersedes, a
+// draft that arrives with its diagram — happens as one atomic run rather than two requests that could
+// half-complete.
 //
-// Which event each of these sends is the only thing this module decides. A POST with no selector
-// means the target's default event -- `create` at a homepage, `save` at an entity -- and a selector
-// names any other event outright: `.activate.json`, `.draft.json`.
+// A POST with no selector fires the target's default event (`create` at a homepage, `save` at an
+// entity). A selector names any other event outright, e.g. `.activate.json`, `.draft.json`.
 
 import type { AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { RequestError } from "@iap/frontend-commons/requestFailure";
@@ -42,9 +39,8 @@ interface EngineRefusal {
   error?: string;
 }
 
-// A refusal from the workflow engine, carrying the explanation it gave. Separate from RequestError
-// because the engine answers a refused event with a reason worth reading, where a bare status code
-// would leave the caller inventing one.
+// A refusal from the workflow engine, carrying the reason it gave.
+// Kept separate from RequestError so that reason reaches the caller directly.
 export class OperationError extends Error {
   constructor(message: string) {
     super(message);
@@ -65,10 +61,9 @@ Promise<Response> {
   return response;
 }
 
-// Where an event that created something says it put it. The engine answers with a redirect to the
-// new entity, so the final URL of the followed request is where it lives -- the same thing the
-// submissions screens read, and the only answer that survives fetch following the redirect on its
-// own.
+// The engine answers a create with a redirect to the new entity, so the followed request's final URL
+// is where it lives. The same thing the submissions screens read, and the only answer that survives
+// fetch following the redirect on its own.
 function createdPath(response: Response): string {
   if (!response.redirected) {
     throw new OperationError("It was created, but the server did not say where");
@@ -76,7 +71,6 @@ function createdPath(response: Response): string {
   return new URL(response.url).pathname;
 }
 
-// The fields a new workflow is created with.
 export interface NewWorkflow {
   // The homepage to create it in, e.g. "/Workflows"
   homepage: string;
@@ -85,15 +79,11 @@ export interface NewWorkflow {
   description: string;
 }
 
-// Creates a workflow and its first version.
+// Fires two events, not one: a deployment may want createWorkflow and createVersion to behave
+// differently, so each can grow its own validation step or notification independently.
 //
-// Two events rather than one, because they are two things a deployment may want to say something
-// different about: what happens when a workflow is asked for, and what happens when a version of
-// one is. The first is /SystemWorkflows/createWorkflow, the second /SystemWorkflows/createVersion,
-// and either can grow a validation step or a notification without the other.
-//
-// Nothing marks the workflow as runnable: that is read off its versions, and the only one it has
-// starts as a draft, so a new workflow runs nothing until a version of it is activated.
+// Nothing marks the workflow as runnable directly. That's read off its versions, and the one this
+// creates starts as a draft, so the workflow runs nothing until a version is activated.
 //
 // @return the path of the created draft version
 export async function createWorkflow(fetchUtil: AuthenticatedFetch, fields: NewWorkflow): Promise<string> {
@@ -107,19 +97,18 @@ export async function createWorkflow(fetchUtil: AuthenticatedFetch, fields: NewW
   });
 }
 
-// The fields a new version is created with.
 export interface NewVersion {
   version: string;
   description: string;
 }
 
-// Creates a draft version of an existing workflow, starting from the shipped starting diagram -- the
-// "another version, from scratch" case, as against drafting a copy of an existing one.
+// Creates a draft version from the shipped starting diagram — the "start from scratch" case, as
+// opposed to drafting a copy of an existing version.
 //
-// The diagram travels with the request rather than following it: the handler creates the version and
-// stores the diagram under it in one run, so a version with no diagram is never a state anything can
-// observe. Posting directly could not do that -- Sling creates the node a file part's path implies
-// before it applies jcr:primaryType, so a combined write left a sling:Folder behind.
+// The diagram travels with the request instead of being posted afterward, so a version with no
+// diagram is never an observable state. Posting it separately wouldn't work anyway: Sling creates the
+// node a file part's path implies before applying jcr:primaryType, leaving a stray sling:Folder
+// behind.
 //
 // @return the path of the created draft version
 export async function createVersion(fetchUtil: AuthenticatedFetch, definitionPath: string, fields: NewVersion):
@@ -132,14 +121,14 @@ Promise<string> {
   return createdPath(await send(fetchUtil, `${definitionPath}.createVersion.json`, requested));
 }
 
-// The editable properties of a workflow itself, as against those of its versions. Whether it runs
-// is not among them: that is read off its versions, and is changed by activating one of them.
+// The editable properties of a workflow itself, as opposed to those of its versions.
+// Whether it runs isn't among them: that's read off the versions, and changed by activating one.
 export interface WorkflowFields {
   title: string;
 }
 
-// Saves a workflow's own properties. Which properties a save is allowed to touch is the definition's
-// `editable` list rather than whatever this request happens to name.
+// Which properties a save is allowed to touch is the definition's `editable` list, rather than
+// whatever this request happens to name.
 export async function updateWorkflow(fetchUtil: AuthenticatedFetch, path: string, fields: WorkflowFields):
 Promise<void> {
   const body = new URLSearchParams();
@@ -147,21 +136,19 @@ Promise<void> {
   await send(fetchUtil, path, body);
 }
 
-// Saves a version's diagram, replacing whatever it held. Refused for anything but a draft -- by the
-// server, now, rather than only by the editor declining to open one.
+// Replaces a version's diagram outright. The server refuses this for anything but a draft — not just
+// the editor declining to open one.
 export async function saveDiagram(fetchUtil: AuthenticatedFetch, versionPath: string, xml: string): Promise<void> {
   await send(fetchUtil, versionPath, bpmnUpload(xml));
 }
 
-// The moves a version's lifecycle has, named as the events that make them happen. Each is a system
-// workflow of its own, so which versions a move applies to and who may make it are that definition's
-// business -- there is no state parameter to send, because asking for a state rather than for a move
-// is what made "an author may redraft their own trial, but only an administrator may activate one"
-// impossible to say.
+// Each move is its own system workflow, so which versions it applies to and who may perform it is
+// that definition's business — different moves can require different people, e.g. an author
+// redrafting their own trial but only an administrator activating one.
 export type VersionTransition = "activate" | "startTrial" | "returnToDraft";
 
-// Moves a version to another state of its lifecycle. Activation retires whichever version was
-// current in the same commit, so the workflow is never between the two.
+// Activation retires whichever version was current in the same commit, so the workflow is never
+// between the two.
 export async function moveVersion(fetchUtil: AuthenticatedFetch, versionPath: string,
   transition: VersionTransition): Promise<void> {
   await send(fetchUtil, `${versionPath}.${transition}.json`, new URLSearchParams());

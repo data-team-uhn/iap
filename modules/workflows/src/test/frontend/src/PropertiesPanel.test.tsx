@@ -128,7 +128,7 @@ describe("PropertiesPanel", () => {
   });
 
   it("shows a selected element's properties as text when they are read-only", async () => {
-    // A read-only panel is not an editable one with its field disabled: there is no field
+    // Read-only renders plain text. There is no field at all.
     const { viewer, fire } = createViewer();
     renderPanel(viewer, true);
 

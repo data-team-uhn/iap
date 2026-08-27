@@ -20,10 +20,9 @@ import { Chip, type ChipProps } from "@mui/material";
 
 import { STATE_LABELS, type WorkflowState } from "./workflowModel";
 
-// How each state is coloured. Only one version of a workflow is the one that runs, so active is the
-// only state given a filled colour; a draft is unremarkable by design, a trial is coloured but left
-// outlined — something is being tried, not relied upon — and retired is the muted warning that
-// something is still referenced but no longer chosen.
+// Active is the only state with a filled colour, since only one version of a workflow ever runs.
+// Draft is unremarkable by design. Trial is coloured but outlined: it's being tried, not relied upon.
+// Retired is a muted warning — still referenced, but no longer chosen.
 const STATE_STYLES: Record<WorkflowState, Pick<ChipProps, "color" | "variant">> = {
   DRAFT: { color: "default", variant: "outlined" },
   TRIAL: { color: "info", variant: "outlined" },
@@ -36,8 +35,8 @@ interface WorkflowStateChipProps {
   size?: ChipProps["size"];
 }
 
-// A workflow version's lifecycle state, as a chip. One component so the states read the same
-// wherever they appear: in the version table, on the editor's header, on an action's confirmation.
+// Renders a version's lifecycle state so it reads the same everywhere it appears: the version table,
+// the editor's header, an action's confirmation.
 function WorkflowStateChip({ state, size = "small" }: WorkflowStateChipProps) {
   return <Chip size={size} label={STATE_LABELS[state]} {...STATE_STYLES[state]} />;
 }

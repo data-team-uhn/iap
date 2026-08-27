@@ -43,8 +43,8 @@ import { adminUrl, loadWorkflowHomepages, type WorkflowHomepage } from "./workfl
 // keeps every listing a plain query over one tree, so a page of workflows always says where its
 // workflows are stored, and only the tab being looked at is fetched.
 interface WorkflowsViewProps {
-  // The homepage to open on, when the URL named one: /admin/workflows/SystemWorkflows. Absent at
-  // /admin/workflows itself, which opens on whichever homepage was discovered first.
+  // The homepage the URL named (e.g. /admin/workflows/SystemWorkflows).
+  // Absent at /admin/workflows itself, which opens on whichever homepage was discovered first.
   homepage?: string;
 }
 
@@ -88,10 +88,8 @@ function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
 
   // A lone homepage is the page's own subject: a single tab would name what the heading already says
   const several = (homepages?.length ?? 0) > 1;
-  // The tab that is open, resolved against what was actually discovered rather than trusted: nothing
-  // is open until the discovery lands, and a homepage that stopped being readable stops being shown.
-  // Read from the URL rather than held here, so that there is one answer rather than two that can
-  // disagree — picking a tab navigates, and what comes back is what is shown.
+  // Resolved against the homepages actually discovered, not just trusted. Read from the URL rather
+  // than held in state, so there's one answer instead of two that could disagree.
   const listed = homepages?.some(homepage => homepage.path === opened) ? opened : homepages?.[0]?.path;
 
   return (

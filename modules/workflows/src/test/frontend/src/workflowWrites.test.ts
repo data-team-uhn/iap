@@ -28,9 +28,9 @@ import {
 // A stubbed fetch: the URL, and the request options an event carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
-// An engine that runs every event it is given. One that created something answers with a redirect to
-// it, which fetch follows on its own -- so what the caller sees is a response whose final URL is the
-// created entity, exactly as it is in the browser.
+// An engine that runs every event it's given. One that created something answers with a redirect,
+// which fetch follows on its own — so the caller sees a response whose final URL is the created
+// entity, exactly as in the browser.
 const acceptingFetch = (created = (url: string) => `${url.split(".")[0]}/created`) =>
   vi.fn<FetchStub>(url => Promise.resolve({
     ok: true,

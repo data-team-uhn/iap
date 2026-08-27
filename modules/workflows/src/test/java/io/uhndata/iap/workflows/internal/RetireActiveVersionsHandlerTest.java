@@ -117,8 +117,8 @@ class RetireActiveVersionsHandlerTest
     @Test
     void leavesAloneWhateverIsNotAVersion() throws WorkflowException, PersistenceException
     {
-        // A definition's children are its versions, but nothing stops something else being stored beside them,
-        // and a version's model declining to adapt is what a half-started bundle looks like
+        // A definition's children need not all be versions, and adaptTo can return null if the bundle exposing
+        // WorkflowVersion isn't fully started. Both are skipped rather than treated as active.
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
         this.context.create().resource(AuthoringFixture.path("notes"),
             Map.of(WorkflowFixture.TYPE, "nt:unstructured", "state", "ACTIVE"));

@@ -36,9 +36,8 @@ interface NewVersionDialogProps {
   onCreated: (versionPath: string) => void;
 }
 
-// Adding a version to a workflow from scratch, as against drafting a copy of one that already exists:
-// this one starts from the shipped starting diagram, and is the way to begin a version that has
-// nothing to do with its predecessors.
+// Starts a version from the shipped starting diagram.
+// Carrying an existing version's diagram forward instead is the separate "draft a copy" flow.
 function NewVersionDialog({ workflow, onClose, onCreated }: NewVersionDialogProps) {
   const [ version, setVersion ] = useState("");
   const [ description, setDescription ] = useState("");

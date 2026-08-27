@@ -58,10 +58,10 @@ public class WorkflowDefinition extends Entity
     }
 
     /**
-     * Whether new instances may be created from this workflow at all, which is exactly whether one of its
-     * {@link WorkflowVersion versions} is {@link WorkflowVersion.State#ACTIVE active}: a workflow runs through a
-     * version or not at all, so there is nothing left for a flag of its own to say. Computed rather than stored for
-     * that reason — a stored flag and the versions could disagree, and the flag would be the side nothing enforces.
+     * Whether new instances may be created from this workflow at all: exactly whether one of its
+     * {@link WorkflowVersion versions} is {@link WorkflowVersion.State#ACTIVE active}.
+     *
+     * <p>Computed on every call, so it can never disagree with the versions themselves.</p>
      *
      * @return {@code true} if this workflow accepts new instances
      */

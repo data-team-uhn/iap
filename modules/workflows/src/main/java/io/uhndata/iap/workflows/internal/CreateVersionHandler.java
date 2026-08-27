@@ -33,15 +33,13 @@ import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
- * Opens a new version of the workflow the event was aimed at: an empty draft, carrying whatever diagram the
- * request brought with it. The natural companion of {@code createEntity} one level down — that one creates the
- * workflow, this one creates a version of it.
+ * Opens a new draft version of the workflow the event targets, carrying whatever diagram the request brought.
+ * The natural companion of {@code createEntity} one level down, which creates the workflow itself.
  *
- * <p>The version node and its diagram are written together rather than in two requests. That was not a choice
- * available to a client posting directly, since Sling creates the node a file part's path implies before it
- * applies {@code jcr:primaryType} and a combined POST would leave a {@code sling:Folder} behind; here the handler
- * creates the version first and the file underneath it, so a draft with no diagram is never a state anything can
- * observe.</p>
+ * <p>The version and its diagram are created in one write — the version first, then the file beneath it — so a
+ * draft with no diagram is never an observable state. A client can't do this by posting directly: Sling creates
+ * the node a file part's path implies before applying {@code jcr:primaryType}, which would leave a
+ * {@code sling:Folder} behind.</p>
  *
  * <p>The draft is marked {@link WorkflowVersion#isBpmnAuthoritative() bpmnAuthoritative}: a version authored this
  * way starts from whatever diagram arrived and has no hand-written flow nodes for a reparse to throw away, so the

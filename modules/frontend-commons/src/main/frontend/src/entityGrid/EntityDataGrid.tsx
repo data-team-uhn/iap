@@ -77,10 +77,9 @@ interface EntityDataGridProps {
   // The entity type to list, e.g. "sub/Submission"; its presentation (homepage, columns, default
   // sort) must have been registered beforehand with registerEntityType
   entityType: string;
-  // The homepage to list from, when it is not the type's registered one: several homepages may
-  // hold the same kind of entity (a location's workflows and the platform's own, say), and a
-  // caller listing one of the others names it here. Omitted — the normal case — the type's
-  // registered homepage is used.
+  // Overrides the entity type's registered homepage. Several homepages may hold the same kind of
+  // entity (a location's workflows and the platform's own, say); this lists from one of the others.
+  // Defaults to the type's registered homepage.
   homepage?: string;
   // Extra conditions on the entities' own properties, e.g. only the current user's submissions
   filters?: PropertyFilter[];

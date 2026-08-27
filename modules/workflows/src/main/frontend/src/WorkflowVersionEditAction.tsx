@@ -24,12 +24,8 @@ import { adminUrl } from "./workflowModel";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
-// Opens a draft's diagram in the editor, for editing.
-//
-// Only a draft: an active version is what running instances are following, and a retired one is what
-// the instances that outlived it are still following, so editing either would change a process out
-// from under the things executing it. Carrying one forward means drafting a copy, which is the
-// action next to this one.
+// Only a draft can be edited here. An active or retired version has instances following it, so editing
+// would change a process out from under them; carrying either forward means drafting a copy instead.
 function WorkflowVersionEditAction({ version }: WorkflowVersionActionProps) {
   if (version.state !== "DRAFT") {
     return null;

@@ -27,10 +27,8 @@ function dateValue(value: unknown): Date | null {
   return typeof value === "string" || typeof value === "number" ? new Date(value) : null;
 }
 
-// The columns of a workflow listing. Deliberately no "enabled" column: whether a workflow runs is
-// whether one of its versions is active, and a listing serializes the definition nodes only — the
-// versions are not in the page it is built from. The workflow's own page, which loads them, is where
-// that question is answered.
+// The columns of a workflow listing. Deliberately no "enabled" column: that reads off a workflow's
+// versions, which this listing's definition-node page does not carry.
 const WORKFLOW_COLUMNS: EntityGridColumn[] = [
   {
     field: "title",
@@ -38,8 +36,8 @@ const WORKFLOW_COLUMNS: EntityGridColumn[] = [
     flex: 2,
     minWidth: 160,
     cardSlot: "title",
-    // Unlike a grid cell, the card cannot leave an untitled workflow blank: the title is the card's
-    // identity and its tap target, so it falls back to the node name
+    // The title is the card's identity and tap target, so it can't be left blank the way a grid cell
+    // can. Falls back to the node name when there's no title.
     cardValue: row => (row.title as string | undefined) ?? (row["@name"] as string | undefined),
   },
   {
@@ -63,11 +61,9 @@ const WORKFLOW_COLUMNS: EntityGridColumn[] = [
   },
 ];
 
-// Registering at import time means any component importing anything from this file can render an
-// EntityDataGrid for workflows.
-//
-// The registered homepage is the one every deployment has. A listing that has discovered others
-// passes them to the grid, which then addresses them all; nothing here needs to know they exist.
+// Registering at import time means any component importing this module can render an EntityDataGrid
+// for workflows. This registers only the homepage every deployment has; a listing that discovers
+// others passes them to the grid directly.
 registerEntityType(WORKFLOW_TYPE, {
   homepage: WORKFLOWS_ROOT,
   columns: WORKFLOW_COLUMNS,

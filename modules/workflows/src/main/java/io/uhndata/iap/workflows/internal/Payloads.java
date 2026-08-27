@@ -22,13 +22,11 @@ import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 
 /**
- * Reading an event's payload the way every handler wants to read it. An event carries whatever the channel that
- * built it put in, so a handler asking for a string has to cope with the entry being absent, being blank, or being
- * something else entirely — and the answer to all three is the same refusal.
+ * Reads one payload entry the way every handler wants to read it: an absent, blank, or non-string value is the
+ * same refusal.
  *
- * <p>Blank counts as absent throughout. A form field left empty arrives as an empty string rather than not
- * arriving, so a handler that told the two apart would refuse one caller and quietly accept the other for what the
- * person doing it experienced as the same mistake.</p>
+ * <p>Blank counts as absent because an empty form field arrives as an empty string, not as a missing one — from
+ * the caller's perspective it's the same mistake either way.</p>
  *
  * @version $Id$
  * @since 0.1.0

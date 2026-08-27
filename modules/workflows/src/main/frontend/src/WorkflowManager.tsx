@@ -53,7 +53,6 @@ function formatDate(value: string): string {
   return value === "" ? "" : new Date(value).toLocaleString();
 }
 
-// One labelled property of the workflow.
 function Property({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>

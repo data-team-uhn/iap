@@ -81,9 +81,7 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
       viewer.on('selection.changed', handleSelectionChanged);
       viewer.on('elements.changed', handleElementsChanged);
     }
-    // handleSelectionChanged/handleElementsChanged intentionally excluded: they close over
-    // `element`, which is exactly what this effect already re-subscribes on via `element?.id`;
-    // including the handlers themselves would just resubscribe on every render instead.
+    // handleSelectionChanged/handleElementsChanged excluded: element?.id already covers what they'd resubscribe on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer, element?.id]);
 
@@ -91,7 +89,13 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
     <div>
       {
         selectedElements.length === 1 && element && viewer
-          && <ElementProperties viewer={ viewer } element={ element } readOnly={ readOnly } />
+          && <ElementProperties
+            // Remount on element change so ElementProperties' local name state resets.
+            key={ element.id }
+            viewer={ viewer }
+            element={ element }
+            readOnly={ readOnly }
+          />
       }
 
       {

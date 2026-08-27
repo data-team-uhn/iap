@@ -23,10 +23,9 @@ import { appTheme } from "@iap/frontend-commons/appTheme";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
 
-// bpmn-js drives an SVG canvas that jsdom cannot lay out, and this component only ever talks to it
-// through importXML/saveXML/destroy/on/off. Standing in for both classes keeps these tests about the
-// component's own behaviour -- which class it chooses, what it loads, what it hands back -- rather
-// than about bpmn-js. Hoisted so the stand-ins exist by the time the mocked modules are imported.
+// bpmn-js drives an SVG canvas that jsdom can't lay out, so both classes are stood in for. That keeps
+// these tests about the component's own behaviour -- which class it picks, what it loads, what it
+// hands back -- rather than about bpmn-js. Hoisted so the stand-ins exist when the mocked modules load.
 const { ModelerMock, ViewerMock, instances, refuseImports } = vi.hoisted(() => {
   // What a test needs of a canvas: which class it came from, and the calls made on it
   interface Canvas {
@@ -143,7 +142,7 @@ describe("BpmnEditor", () => {
     renderEditor();
 
     await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(DIAGRAM));
-    // Not an editor with its controls disabled: a class with no editing in it at all
+    // A plain viewer instance, with no editing capability at all.
     expect(instances).toHaveLength(1);
     expect(instances[0].kind).toBe("viewer");
     // The diagram is a file of its own, fetched on its own path
@@ -261,9 +260,8 @@ describe("BpmnEditor", () => {
   });
 
   it("stops caring about the diagram it asked for once it is gone", async () => {
-    // The fetch outliving the canvas is the ordinary case when a version is closed while it loads.
-    // The request is not called off — the answer still reaches the canvas that asked for it — but the
-    // component it would have reported to is gone, so nothing is recorded and nothing is shown
+    // The fetch outliving the canvas is the ordinary case when a version closes mid-load: the request
+    // is not called off, but the component it would report to is gone, so nothing is recorded or shown.
     const { settle } = deferredFetch();
     const { unmount } = renderEditor();
     await waitFor(() => expect(instances).toHaveLength(1));

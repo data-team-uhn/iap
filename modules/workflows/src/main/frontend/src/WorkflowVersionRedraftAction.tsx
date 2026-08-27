@@ -28,12 +28,9 @@ import { moveVersion } from "./workflowWrites";
 
 import type { WorkflowVersionActionProps } from "./WorkflowVersionActions";
 
-// Takes a version off trial and back to being a draft, which is how a trial that needs more work is
-// changed: the same node becomes editable again, rather than a copy of it being drafted beside it.
-//
-// Offered for a trial only. An active version has instances following it and a retired one has
-// instances that outlived it, so neither goes back this way — carrying either forward means drafting
-// a copy, which is the action next to this one.
+// Takes a trial back to draft, so the same node becomes editable again rather than a copy being
+// drafted beside it. Offered for a trial only: an active or retired version already has instances
+// following it, so carrying either forward means drafting a copy instead.
 function WorkflowVersionRedraftAction({ version, workflow, reload, report }: WorkflowVersionActionProps) {
   const [ confirming, setConfirming ] = useState(false);
   const fetchUtil = useAuthenticatedFetch();

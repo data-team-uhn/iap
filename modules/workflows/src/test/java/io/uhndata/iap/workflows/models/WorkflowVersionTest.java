@@ -166,8 +166,8 @@ class WorkflowVersionTest
     @Test
     void readsAnUnrecognizedStateAsADraft()
     {
-        // Not a state this platform knows: guessing at what a hand-edited or newer value was meant to mean could
-        // make an unfinished version instantiable, so it is read as the state that runs nothing
+        // An unrecognized state -- hand-edited, or written by a newer platform version -- is read as the one that
+        // runs nothing. Assuming anything else could make an unfinished version instantiable.
         assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("PUBLISHED"));
         assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("active"));
         assertEquals(WorkflowVersion.State.DRAFT, this.stateOf(""));
