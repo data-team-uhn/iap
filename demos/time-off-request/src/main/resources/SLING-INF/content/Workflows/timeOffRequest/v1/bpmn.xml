@@ -50,9 +50,18 @@
     <bpmn:sequenceFlow id="toApprovalTask" sourceRef="markUrgency" targetRef="approveRequest" />
     <bpmn:userTask id="approveRequest" iap:performers="time-off-approvers" iap:outcomeOptions="approved, rejected" iap:hostTag="submitted" name="Approve the request">
       <bpmn:incoming>toApprovalTask</bpmn:incoming>
-      <bpmn:outgoing>toDecision</bpmn:outgoing>
+      <bpmn:outgoing>toRecordReview</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:sequenceFlow id="toDecision" sourceRef="approveRequest" targetRef="decision" />
+    <bpmn:sequenceFlow id="toRecordReview" sourceRef="approveRequest" targetRef="recordReview" />
+    <!-- The decision is written down before the gateway routes on it, so that it is recorded whichever way the
+         request goes. iap:requirement names what was decided: the outcome alone says "approved" without saying
+         approved *what*, and a schema may ask for more than one approval. -->
+    <bpmn:serviceTask id="recordReview" name="Write the decision down" iap:handler="recordReview"
+        iap:requirement="approval">
+      <bpmn:incoming>toRecordReview</bpmn:incoming>
+      <bpmn:outgoing>toDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDecision" sourceRef="recordReview" targetRef="decision" />
     <!-- Two deadlines on the same task, and the only thing that tells them apart is cancelActivity. This one
          nudges: at two days the request is marked overdue and stays exactly where it is, on the same person's
          desk. The one below gives up. -->
