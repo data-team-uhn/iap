@@ -195,7 +195,26 @@ then
   OAK_MACHINE_ID_FLAG=" -Dorg.apache.jackrabbit.oak.plugins.document.ClusterNodeInfo.HWADDRESS=${OAK_MACHINE_ID}"
 fi
 
-export JAVA_OPTS="${JAVA_MEMORY_LIMIT_MB:+ -Xmx${JAVA_MEMORY_LIMIT_MB}m} ${DEBUG:+ -Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=*:5005} -Djdk.xml.entityExpansionLimit=0${OAK_MACHINE_ID_FLAG}"
+#The JDWP listener on port 5005, and whether the JVM waits for a debugger before doing anything.
+#`wait` is for debugging startup itself: nothing runs until a debugger attaches, so a container
+#left in this mode looks like one that hung. `attach` starts normally and lets a debugger connect
+#whenever it likes, which is what most debugging actually wants.
+#Anything else true-ish means `wait`, so that the plain `DEBUG=true` older deployments pass keeps
+#doing exactly what it always did.
+DEBUG_FLAGS=""
+case "$(echo "$DEBUG" | tr '[:upper:]' '[:lower:]')" in
+  ''|false|no|off|0)
+    ;;
+  attach|nosuspend)
+    DEBUG_FLAGS=" -Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=*:5005"
+    ;;
+  *)
+    DEBUG_FLAGS=" -Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=*:5005"
+    echo "Waiting for a debugger to attach to port 5005 before starting. Set DEBUG=attach to start without waiting."
+    ;;
+esac
+
+export JAVA_OPTS="${JAVA_MEMORY_LIMIT_MB:+ -Xmx${JAVA_MEMORY_LIMIT_MB}m}${DEBUG_FLAGS} -Djdk.xml.entityExpansionLimit=0${OAK_MACHINE_ID_FLAG}"
 # Resolve artifacts from the repositories baked into the image first: the project artifacts
 # (including all the feature files) in mvnrepo/, and, in the self-contained production
 # flavor, the complete third-party repository in artifacts/. A volume-mounted ~/.m2 and the

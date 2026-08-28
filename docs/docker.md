@@ -9,6 +9,12 @@ mvn clean install -Pdocker              # developer flavor: small and fast
 mvn clean install -Pdocker,production   # production flavor: fully self-contained
 ```
 
+Running the image on its own is only ever half a deployment: it still needs a database to store
+the repository in, an identity provider to sign people in, and somewhere for its mail to go.
+`tools/deploy/generate_compose.py` writes a Docker Compose file with the image and whichever of
+those are wanted, already wired together — see `tools/deploy/README.md`. The environment variables
+it sets are the ones documented below.
+
 ## How the image works
 
 The container starts the Sling Feature Launcher on the aggregated feature
@@ -54,8 +60,16 @@ Other supported environment variables: `OAK_STORAGE` (`tar`, `mongo` or `rdb`) a
 `OAK_FILESYSTEM` (TAR segment store instead of MongoDB),
 `EXTERNAL_MONGO_URI`/`MONGO_AUTH`/`CUSTOM_MONGO_DB_NAME`,
 `EXTERNAL_RDB_URI`/`RDB_DRIVER`/`RDB_USER`/`RDB_PASSWORD`, `OAK_MACHINE_ID` (see below),
-`SMTPS_*` (mail), `DEBUG` (JDWP on port 5005), `JAVA_MEMORY_LIMIT_MB`, and a
+`SMTPS_*` (mail), `DEBUG` (JDWP on port 5005, see below), `JAVA_MEMORY_LIMIT_MB`, and a
 `/volume_mounted_init.sh` hook.
+
+`DEBUG` opens a JDWP listener on port 5005, in one of two modes. `DEBUG=attach` starts the
+instance normally and lets a debugger connect whenever it likes, which is what debugging a
+running system wants. `DEBUG=wait` — or `true`, or any other value that is not plainly false —
+holds the JVM before it does anything at all, until a debugger attaches; that is the mode for
+debugging startup itself, and a container left in it is indistinguishable from one that has hung,
+so it says on stdout what it is waiting for. `DEBUG=false`, `no`, `off`, `0` and the empty value
+all leave debugging off.
 
 With `OAK_STORAGE=rdb` the repository lives in a relational database, which must be reachable
 and must hold a database named `iap` the connecting user may create tables in — Oak creates
