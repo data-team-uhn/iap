@@ -32,8 +32,8 @@
 # "My submissions"; reviews alternate between admin and another (fake) reviewer, so only some
 # submissions show up in admin's "My review queue".
 #
-# Re-running the script is safe: nodes are imported with :replace, so the same names are
-# overwritten in place.
+# Re-running the script is safe: the schema is kept as it is, and every submission is removed
+# and recreated, so the same names are reused instead of accumulating.
 #
 # Usage (run from the repository root):
 #   ./tools/dev/test-data/generate-test-data.sh [options]
@@ -108,14 +108,21 @@ trap 'rm -f "$SAMPLE_FILE"' EXIT
 printf 'This is a sample study protocol document, attached by generate-test-data.sh.\n' > "$SAMPLE_FILE"
 
 # Creates one node with the Sling POST servlet; $1 = node path, then the remaining arguments
-# are curl -F property assignments. The node is deleted first (if present), because a plain
+# are curl -F property assignments. The node is removed first (if present), because a plain
 # POST cannot change the primary type of an existing node, and the submission and its review
 # must be created in separate requests: combining them makes the POST servlet auto-create the
 # parent as nt:unstructured before the submission's own properties are applied.
+#
+# Removal is an HTTP DELETE rather than `:operation=delete`, because a POST to a submission is
+# a workflow event: the POST servlet never sees the parameter, the engine reads the request as
+# an attempt to change the submission, and refuses anything past `draft` with a 403. DELETE is
+# answered by the deletion servlet, which is bound to every content resource whatever lifecycle
+# state it is in, and `permanent` keeps repeated runs from filling the archive with copies of
+# the previous one.
 post_node() {
   local nodepath="$1"
   shift
-  curl -s -o /dev/null -u "admin:$PASSWORD" -X POST -F ":operation=delete" "$URL$nodepath" || true
+  curl -s -o /dev/null -u "admin:$PASSWORD" -X DELETE "$URL$nodepath?permanent=true" || true
   local status
   status="$(curl -s -o /dev/null -w '%{http_code}' -u "admin:$PASSWORD" -X POST "$@" \
     "$URL$nodepath")"
