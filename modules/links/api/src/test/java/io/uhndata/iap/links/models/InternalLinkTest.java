@@ -359,7 +359,6 @@ class InternalLinkTest
     @Test
     void nonLinkNodesAdaptToNothing()
     {
-        assertNull(Link.toLink(null));
         assertNull(Link.toLink(this.context.create().resource("/Things/c")));
     }
 

@@ -68,15 +68,12 @@ public abstract class Link extends Content
      * nodes, where the autocreated {@code sling:resourceType} driving the generic {@code adaptTo(Link.class)}
      * dispatch is not materialized yet.
      *
-     * @param resource a resource, may be {@code null}
+     * @param resource a resource
      * @return the link, or {@code null} if the resource is not a link node
      */
     @Nullable
     public static Link toLink(@NotNull final Resource resource)
     {
-        if (resource == null) {
-            return null;
-        }
         if (isLinkKind(resource, InternalLink.RESOURCE_TYPE, "link:Link")
             || isLinkKind(resource, InternalLink.WEAK_RESOURCE_TYPE, "link:WeakLink")) {
             return resource.adaptTo(InternalLink.class);
