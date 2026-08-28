@@ -42,11 +42,17 @@
 //-----------------------------------------------------------------------------
 // The container of the workflow instances running over one resource.
 //
-// IGNORE, on both this node and the instances inside it, is load-bearing. Hosts
-// are typically versionable (every data:Entity is), and under the default
-// on-parent-version setting checking one in would copy the whole live workflow
-// into version storage, and restoring an earlier version would roll the workflow
-// back with it — quietly un-approving things. Verified against Oak, not assumed.
+// IGNORE, on both this node and the instances inside it. Hosts are typically
+// versionable (every data:Entity is), and under the default on-parent-version
+// setting checking one in would copy the whole live workflow into version
+// storage, and restoring an earlier version would roll the workflow back with
+// it — quietly un-approving things. Verified against Oak, not assumed.
+//
+// Belt and braces since instances became entity *parts*: a part is not
+// versionable in its own right, so there is less to copy. Kept because what a
+// child of a versionable host does on check-in is decided by this setting and
+// not by the child's own type, and because "nothing here is versionable today"
+// is a fact about the current types rather than a rule anybody stated.
 [wf:WorkflowInstances] > data:Content, rep:AccessControllable
   - sling:resourceType (STRING) = "wf/WorkflowInstances" mandatory autocreated protected
 
@@ -68,7 +74,7 @@
 
 //-----------------------------------------------------------------------------
 // A running or completed execution of a workflow definition.
-[wf:WorkflowInstance] > data:Entity
+[wf:WorkflowInstance] > data:EntityPart
   - sling:resourceType (STRING) = "wf/WorkflowInstance" mandatory autocreated protected
 
   // The definition this instance was created from
@@ -117,7 +123,7 @@
 
 //-----------------------------------------------------------------------------
 // A running instance of a user task within a workflow instance.
-[wf:TaskInstance] > data:Entity
+[wf:TaskInstance] > data:EntityPart
   - sling:resourceType (STRING) = "wf/TaskInstance" mandatory autocreated protected
 
   // elementId of the wf:Activity this task was created from

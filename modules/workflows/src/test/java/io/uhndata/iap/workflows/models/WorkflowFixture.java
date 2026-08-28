@@ -96,9 +96,9 @@ public final class WorkflowFixture
         registerType(context, "EventBasedGateway", Gateway.RESOURCE_TYPE);
         registerType(context, "SequenceFlow", "data/EntityPart");
         registerType(context, "WorkflowInstances", "data/Content");
-        registerType(context, "WorkflowInstance", "data/Entity");
+        registerType(context, "WorkflowInstance", "data/EntityPart");
         registerType(context, "WorkflowToken", "data/EntityPart");
-        registerType(context, "TaskInstance", "data/Entity");
+        registerType(context, "TaskInstance", "data/EntityPart");
         registerType(context, "Variable", "data/EntityPart");
     }
 
