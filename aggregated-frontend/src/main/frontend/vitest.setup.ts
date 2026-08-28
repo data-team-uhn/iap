@@ -39,7 +39,12 @@ if (!globalThis.ResizeObserver) {
 // process runs with --localstorage-file, and which prevents Vitest from exposing jsdom's
 // localStorage on the global scope. Components under test only need Storage semantics, so give
 // them a simple in-memory implementation.
-if (!globalThis.localStorage) {
+//
+// Ask the property descriptor rather than reading the value: Node's global is an accessor that
+// emits an ExperimentalWarning the first time it is read, so the obvious `!globalThis.localStorage`
+// prints a warning per test process — one per test file, since setup files run per file. A
+// descriptor with no `value` is either absent or that accessor; either way ours is needed.
+if (!Object.getOwnPropertyDescriptor(globalThis, "localStorage")?.value) {
   const stored = new Map<string, string>();
   const memoryStorage: Storage = {
     get length() {
