@@ -7,6 +7,13 @@ once it is up.
 The documents explain the reasoning as much as the mechanics — why a thing is shaped the way it is,
 and which alternatives were rejected — so that a change to one of them can be made deliberately.
 
+## Start here
+
+**[overview.md](overview.md)** — what the platform is meant to be, and the two paradigms almost
+every structural decision follows from: everything the platform knows is content, and everything
+that changes it is a workflow. The pages below each go one mechanism deep; this one explains what
+they have in common.
+
 ## The domain model
 
 How content is shaped, related, and moved through its process.
