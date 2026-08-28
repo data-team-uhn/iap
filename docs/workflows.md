@@ -218,9 +218,13 @@ A **variable** is named by its node name, so looking one up is a child lookup, a
 value lives in the typed property its `dataType` names, so the repository indexes it as
 what it is.
 
-A **task instance** is an entity rather than a part of the instance, because people look
-for tasks: "what is on my desk" is a query over task instances, not a walk of every
-running workflow. Its `status` says the task is over and its `outcome` says how;
+An instance is a **part** of what it drives, and a task a part of its instance: neither
+exists without the thing it belongs to, and nothing references, versions or identifies
+one. That is also what lets a guard read the host: a condition asks for the enclosing
+entity, and the walk from an instance or a task carries on past them to the host. A
+**task instance** is still a node type of its own, because people look for tasks: "what
+is on my desk" is a query over task instances, not a walk of every running workflow.
+Its `status` says the task is over and its `outcome` says how;
 gateways route on the outcome. `outcomeOptions` and `performers` are copied from the
 defining activity when the task is raised, so it is decided on the terms it was raised
 with, and whoever owes the decision can see them without reading the definition. The
@@ -241,8 +245,8 @@ autocreates the container:
 which gives `Submission.getWorkflowInstances()` — a list, since one thing may have
 several workflows running over it at once.
 
-**`IGNORE` is load-bearing.** Every `data:Entity` is `mix:versionable`, and so is a
-workflow instance. Under the default on-parent-version setting, checking in a submission
+**`IGNORE` is load-bearing.** Every `data:Entity` is `mix:versionable`, and a workflow
+lives inside one. Under the default on-parent-version setting, checking in a submission
 would copy its live workflow into version storage, and restoring an earlier revision
 would roll the workflow back with it: an editor reverting a typo would quietly
 un-approve a proposal.
@@ -1044,9 +1048,11 @@ each completed on its own.
   onto a homepage or a task.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
-- **A gateway's guards can only ask about the execution.** They are evaluated against
-  the instance, so the `variable` operand reaches what the run knows, and nothing yet
-  reaches the host, which routing on a request's own answers would need.
+- **A gateway's guards cannot name a question by its path.** They are evaluated against
+  the instance, which is a part of its host, so `variable` reaches what the run knows,
+  and `tags` and `property` read the host. An `answer` operand resolves a relative
+  question path against the definition it sits in, and a workflow holds no questions,
+  so routing on a request's own answers needs the question's identifier.
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem is recorded; a guard is written as a `cond:condition` in
   the arc's `extensionElements`.
