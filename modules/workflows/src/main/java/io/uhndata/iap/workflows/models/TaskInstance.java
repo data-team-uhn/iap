@@ -28,19 +28,20 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code wf:TaskInstance} node: a concrete piece of work raised by a running workflow and
- * waiting on a person. An entity in its own right rather than a part of the instance, because a task is something
- * people go looking for — "what is on my desk" is a query over these, not a walk of the workflows that raised them.
+ * waiting on a person. A part of its instance, as the instance is of what it drives, and still a node of its own,
+ * because a task is something people go looking for — "what is on my desk" is a query over these, not a walk of the
+ * workflows that raised them.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @Model(adaptables = Resource.class, resourceType = TaskInstance.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class TaskInstance extends Entity
+public class TaskInstance extends EntityPart
 {
     /** The {@code sling:resourceType} of a {@code wf:TaskInstance} node. */
     public static final String RESOURCE_TYPE = "wf/TaskInstance";

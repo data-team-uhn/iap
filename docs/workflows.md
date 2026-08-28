@@ -213,9 +213,13 @@ A **variable** takes its name from its node name, so looking one up is a child l
 rather than a scan, and its value lives in whichever typed property its `dataType` names
 — the repository then indexes it as what it is.
 
-A **task instance** is an entity in its own right rather than a part of the instance,
-because a task is something people go looking for: "what is on my desk" should be a
-query over these, not a walk of every running workflow. Its `outcome` is recorded
+An instance is a **part** of what it drives, and a task a part of its instance: neither
+exists without the thing it belongs to, and nothing references, versions or identifies
+one. That is also what lets a guard read the host: a condition asks for the enclosing
+entity, and the walk from an instance or a task carries on past them to the host. A
+**task instance** is still a node type of its own, because a task is something people go
+looking for: "what is on my desk" should be a query over these, not a walk of every
+running workflow. Its `outcome` is recorded
 separately from its `status` because the two answer different questions — the status
 says the task is over, the outcome says how, and the gateway downstream routes on the
 latter. The terms it is decided on — `outcomeOptions` and `performers` — are copied
@@ -241,8 +245,8 @@ running over it at once — a review process and a periodic reminder, say — so
 list, not a single lifecycle.
 
 **`IGNORE` is load-bearing, not tidiness.** Every `data:Entity` is `mix:versionable`,
-and so is a workflow instance. Under the default on-parent-version setting, checking in
-a submission copies the entire live workflow into version storage, and *restoring an
+and a workflow lives inside one. Under the default on-parent-version setting, checking
+in a submission copies the entire live workflow into version storage, and *restoring an
 earlier revision rolls the workflow back with it* — an editor reverting a typo would
 quietly un-approve a proposal.
 
@@ -724,10 +728,12 @@ completed on its own.
 - **Read access is granted for the life of the instance**, not only while a task is
   open, and is never revoked. Narrowing it as state changes is a refinement for when
   there is a reason to want it.
-- **A gateway's guards can only ask about the execution.** They are evaluated against
-  the instance, so the `variable` operand source reaches what the run knows — the
-  outcome a task recorded — and nothing yet reaches the host it is attached to, which is
-  what routing on a request's own answers would need.
+- **A gateway's guards cannot name a question by its path.** They are evaluated against
+  the instance, which is a part of its host, so `variable` reaches what the run knows —
+  the outcome a task recorded — and the operand sources that read the enclosing entity,
+  `tags` and `property`, read the host. An `answer` operand resolves a relative question
+  path against the definition it sits in, though, and a workflow holds no questions, so
+  routing on a request's own answers needs the question's identifier.
 - **The parser cannot yet fill in an event's payload.** A timer's duration now has
   somewhere to live — `timerDuration` on the catching event — but BPMN keeps it in a
   nested `timeDuration` element, and a message event records its `messageRef` without
