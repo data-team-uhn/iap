@@ -28,7 +28,7 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code wf:TaskInstance} node: a concrete piece of work raised by a running workflow and
@@ -40,7 +40,7 @@ import io.uhndata.iap.entities.models.Entity;
  */
 @Model(adaptables = Resource.class, resourceType = TaskInstance.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class TaskInstance extends Entity
+public class TaskInstance extends EntityPart
 {
     /** The {@code sling:resourceType} of a {@code wf:TaskInstance} node. */
     public static final String RESOURCE_TYPE = "wf/TaskInstance";
