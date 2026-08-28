@@ -1,303 +1,290 @@
 # Deletion
 
-Deleting an IAP resource is more than removing one node: other resources may reference it, link to
-it, or depend on it. The **deletion service** resolves the complete set of impacted resources
-first, then either refuses with an explanation, or carries the whole set over in one operation. By
-default nothing is removed outright: deleted resources are moved into the **archive** at
-`/Archive`, from where they can later be **restored** to their original places or **purged** for
-good. Resources marked as **undeletable** cannot be deleted at all.
+**Module:** `modules/deletion` · **Bundle:** `iap-deletion` (start-order 24) ·
+**Packages:** `…deletion.api` (`DeletionService`), `…deletion.spi` (`DeletionVeto`)
+
+Deleting a resource is more than removing a node: others may reference it, link to
+it, or depend on it. The deletion service resolves the complete impacted set first,
+then either refuses with an explanation or carries the whole set over in one
+operation. By default nothing is removed outright — deleted resources move into the
+**archive** at `/Archive`, to be **restored** or **purged** later.
 
 ## What a deletion impacts
 
-Starting from the requested resource, the service follows, transitively:
+From the requested resource, the service follows transitively:
 
-- **Containment**: a deleted node takes its whole subtree with it.
-- **Incoming references**: any `REFERENCE` or `WEAKREFERENCE` property pointing at a deleted node
-  drags its holder into the analysis. In the default, non-recursive mode such referencing
-  resources *block* the deletion, and are reported grouped by type, e.g. *"This item is referenced
-  by 3 submissions (S-1, S-2, S-3) and 1 schema (Onboarding)."*; with `recursive`, they are
-  deleted along with the target instead.
-- **Links** (see [links](links.md)): a link pointing at a deleted resource follows its
-  definition's `onDelete` policy — `REMOVE_LINK` removes just the link (with its backlink, if the
-  pair is complete), `RECURSIVE_DELETE` deletes the linking resource too (reported like a
-  referrer in non-recursive mode), and `IGNORE` leaves a weak link dangling. A hard link cannot
-  ignore its target's deletion, so an illegal `IGNORE` on a hard link is downgraded to
-  `REMOVE_LINK`, with a warning. Links never outlive their definition: deleting an
-  `link:Definition` removes the links of that type, regardless of policy.
+- **Containment** — a deleted node takes its whole subtree.
+- **Incoming references** — any `REFERENCE` or `WEAKREFERENCE` pointing at a deleted
+  node drags its holder in. Non-recursively those referrers **block** the deletion and
+  are reported grouped by type ("referenced by 3 submissions (S-1, S-2, S-3) and 1
+  schema (Onboarding)"); with `recursive` they are deleted too.
+- **[Links](links.md)** — a link at a deleted resource follows its definition's
+  `onDelete`:
 
-The analysis is cycle-safe — mutually referencing resources, like a completed backlink pair whose
-definitions both cascade, resolve in one bounded pass — and the set of deleted subtrees is kept
-maximal, so a resource dragged in twice is processed once.
+| Policy | Effect |
+|---|---|
+| `REMOVE_LINK` | Removes just the link, with its backlink if the pair is complete |
+| `RECURSIVE_DELETE` | Deletes the linking resource too; reported like a referrer when non-recursive |
+| `IGNORE` | Leaves a weak link dangling. **Illegal on a hard link** — downgraded to `REMOVE_LINK` with a warning |
 
-## Never delete
+Links never outlive their definition: deleting a `link:Definition` removes the links
+of that type whatever the policy.
 
-The `del:Undeletable` mixin marks a resource that must never be deleted: not archived, not
-permanently removed, and not purged if it somehow ends up in the archive. The protection is
-lifted only by explicitly removing the mixin. A marked node *anywhere* in the impacted set —
-including descendants of the deleted resource — blocks the whole operation, and every objection
-is reported with its path and reason.
+The analysis is cycle-safe — mutually referencing resources, such as a completed
+backlink pair whose definitions both cascade, resolve in one bounded pass — and the
+set of deleted subtrees is kept maximal, so a resource dragged in twice is processed
+once.
 
-The mixin check is one instance of the pluggable **`DeletionVeto`** SPI
-(`io.uhndata.iap.deletion.spi`): any bundle may register a veto service that gets asked about
-every impacted node, with the kind of deletion under consideration (`ARCHIVE`, `PERMANENT`,
-`PURGE`) and **the requesting user's session**. A veto that fails is counted as a veto — when a
-guard cannot decide, the data stays. A typical future use is protecting workflow versions that have
-ever been activated.
+## Java API
 
-A guard enforcing a blanket policy rather than judging resources one by one overrides
-`judgesWholeOperation()` to return `true`, and is then asked only about the resource whose deletion
-was requested. Without that, a policy that refuses everything reports one identical objection per
-node of every impacted subtree; with it, the report carries one objection naming the resource the
-user actually asked about.
+```java
+@NotNull DeletionImpact  analyze(Resource item, DeletionOptions options);   // dry run
+@NotNull DeletionResult  delete(Resource item, DeletionOptions options);
+@NotNull RestoreResult   restore(Resource archiveEntry);
+@NotNull DeletionResult  purge(Resource archiveEntry);
 
-The requester's session is what lets a guard answer "*who* may do this", as opposed to "*what* may
-be done": identity through `getUserID()`, and what the session acts as through
-`JackrabbitSession.getBoundPrincipals()`. Note the two sessions in play — the node is read through
-the privileged `iap-deletion` session and may well be invisible to the requester, whose own rights
-are checked separately, node by node, before any guard is consulted. Guards must not write through
-either.
+// Preflights, sharing their evaluation with the operations above
+@NotNull List<RestoreConflict> checkRestore(Resource archiveEntry);
+@NotNull List<Veto>            checkPurge(Resource archiveEntry);
+```
 
-> Prefer bound principals to a `UserManager` membership lookup when a guard asks what a user
-> belongs to. With `user.dynamicMembership` enabled — which is how this platform is configured —
-> an identity provider's roles reach the repository as principals with **no local group node**
-> behind them, so `getAuthorizable(id).memberOf()` reports that a Keycloak role's members belong
-> to nothing at all. Bound principals cover local groups and provider-supplied roles alike.
+`DeletionOptions.recoverable()` or `DeletionOptions.of(recursive, permanent)`:
+`recursive` cascades over referring resources, `permanent` skips the archive.
+`DeletionImpact` carries the deleted subtrees, removed links, vetoes, blocking
+referrers and a human-readable summary.
 
-### Permanent deletion
+`DeletionResult.Status` is `ARCHIVED` (with the entry path), `DELETED`, `VETOED`,
+`REQUIRES_CONFIRMATION` (blocking referrers) or `DENIED` (missing permissions).
+**Business outcomes are return values, never exceptions**; `DeletionException`
+signals actual failures — repository errors, a missing service user.
 
-`Permanent deletion policy` (`PermanentDeletionConfiguration`) can refuse the two deletions that
-leave nothing to restore — `PERMANENT`, which never reaches the archive, and `PURGE`, which removes
-what is already in it — while leaving archiving untouched: a user refused here can still delete the
-resource in the ordinary, recoverable way. It is off by default, leaving the decision to access
-control alone.
+`DeletionService` also holds the path and node type constants (`ARCHIVE_PATH`,
+`ENTRY_NODETYPE`, `UNDELETABLE_MIXIN`, `DELETED_BY_PROPERTY`, …); use those rather
+than string literals.
 
-**Both modes, deliberately.** Guarding only `PERMANENT` would leave the ban defeatable in two
-ordinary steps: delete to the archive, then purge the entry. Note this is a property of *this*
-policy, not of the retention floor below, which keys on the archive entry's own type precisely
-because only the entry carries the timestamp it needs.
+**Two sessions are in play.** Every operation authorizes against the session of the
+resource passed in: the requester needs `remove` on every node leaving the live tree,
+and `add_node` at the original locations for a restore. The scan and all writes are
+performed by the `iap-deletion` service user, which is what finds referrers hidden
+from the requester and writes the archive. Link removal is a platform side effect and
+does **not** require the requester to have write access to the resources holding the
+links, mirroring backlink completion.
 
-`allowedPrincipals` lists user ids and principal names exempt from the ban, group and
-identity-provider principals included. It is an **exemption, never a grant**: a veto can only
-refuse, so an exempt user still needs exactly the access rights any deletion requires, and with
-the ban off the list means nothing. An empty list with the ban on refuses everybody.
+## HTTP API
 
-This guard judges the operation rather than the resource, so it declares
-`judgesWholeOperation() == true` and a refusal reports **one** objection, against the resource whose
-deletion was requested — not one per node of the subtree.
+| Request | Meaning |
+|---|---|
+| `DELETE <path>` | Archive it, refusing if referenced by more than links |
+| `DELETE <path>?recursive=true` | Also delete the referring resources |
+| `DELETE <path>?permanent=true` | Skip the archive, remove for good |
+| `DELETE <path>?dryRun=true` | Report what would happen, change nothing |
+| `POST <entry>.restore.json` | Restore an archive entry |
+| `DELETE <entry>` | Purge an archive entry |
+| `GET /Archive.entries.json` | List entries, paged, filtered, sorted |
+| `GET /Archive.summary.json` | Counts for the last day, last week, and total |
+| `GET <entry>.entry.json` | Describe one entry, and whether restoring or purging would work |
+
+The deletion endpoint is bound to `data/Content`, i.e. every content resource; the
+archive endpoints to `del/ArchiveEntry`, so users who cannot see the archive get a
+plain 404 from resource resolution rather than a permission check.
+
+All responses are JSON with `status.code`, a machine-readable `status` word, and
+`status.message` where there is something to explain:
+
+| Code | Statuses |
+|---|---|
+| 200 | `archived` (with `archiveEntry`, `items`, `removedLinks`), `deleted`, `dryRun` (full impact + `executable`), `restored` (restored paths) |
+| 409 | `referenced` (`referrers` by type, `inaccessibleReferrers` count, summary), `vetoed` (each veto's path, reason, guard name), `conflict` (each `originalPath` with `PARENT_MISSING`, `OCCUPIED` or `NO_RIGHTS`) |
+| 401/403 | The requester may not delete everything impacted |
+| 400 | Unprocessable target — deleting `/Archive` content directly instead of purging, restoring a non-entry |
+| 500 | Unexpected failure, with the exception's message |
+
+A confirmation dialog is expected to send the plain `DELETE` first and, on a 409,
+offer the listed consequences and retry with `recursive=true` — or start with
+`dryRun=true` and present the impact up front.
+
+## Vetoes
+
+Any bundle may refuse a deletion by registering a `DeletionVeto`:
+
+```java
+public interface DeletionVeto
+{
+    @NotNull String getName();
+
+    // Returns the reason to refuse, or null to allow
+    @Nullable String veto(Node node, DeletionMode mode, Session requester) throws RepositoryException;
+
+    default boolean judgesWholeOperation() { return false; }
+}
+```
+
+Every impacted node is offered to every guard, with the kind of deletion under
+consideration (`ARCHIVE`, `PERMANENT`, `PURGE`). **A veto that throws counts as a
+veto** — when a guard cannot decide, the data stays.
+
+`judgesWholeOperation() == true` marks a guard enforcing a blanket policy rather than
+judging resources one by one; it is then asked only about the resource whose deletion
+was requested. Without it, a policy refusing everything reports one identical
+objection per node of every impacted subtree.
+
+The requester's session is what lets a guard answer "*who* may do this" as opposed to
+"*what* may be done": `getUserID()`, and `JackrabbitSession.getBoundPrincipals()` for
+what the session acts as. The node itself is read through the privileged
+`iap-deletion` session and may well be invisible to the requester, whose own rights
+are checked separately, node by node, before any guard is consulted. **Guards must not
+write through either session.**
+
+> Prefer bound principals to a `UserManager` membership lookup. With
+> `user.dynamicMembership` enabled — which is how this platform is configured — an
+> identity provider's roles reach the repository as principals with **no local group
+> node**, so `getAuthorizable(id).memberOf()` reports that a Keycloak role's members
+> belong to nothing at all. Bound principals cover local groups and provider-supplied
+> roles alike.
+
+Three guards ship with the module.
+
+**`UndeletableVeto`** — the `del:Undeletable` mixin marks a resource that must never
+be deleted: not archived, not permanently removed, not purged if it somehow reaches
+the archive. Lifted only by removing the mixin. A marked node *anywhere* in the
+impacted set, descendants included, blocks the whole operation, and every objection is
+reported with its path and reason.
+
+**`PermanentDeletionVeto`** (`Permanent deletion policy`) refuses the two deletions
+that leave nothing to restore, while leaving archiving untouched — a user refused here
+can still delete the resource recoverably.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `preventPermanentDeletion` | `false` | Ban `PERMANENT` **and** `PURGE`. Guarding only `PERMANENT` would leave the ban defeatable in two ordinary steps: archive, then purge |
+| `allowedPrincipals` | `{}` | User ids and principal names exempt, groups and IdP principals included. An **exemption, never a grant** — an exempt user still needs the rights any deletion requires, and with the ban off the list means nothing. Empty with the ban on refuses everybody |
+
+It judges the operation, so it declares `judgesWholeOperation()` and a refusal reports
+one objection against the requested resource.
+
+**`ArchiveRetentionVeto`** (`Archive retention`) sets `minimumRetentionDays`, the
+minimum age in calendar days an entry must reach before it may be purged. Default `0`
+imposes no floor. Raising it only ever prevents destruction — nothing purges anything
+automatically, so this is a floor under purging, not a schedule for it. Unlike the
+policy above it keys on the archive entry's own type, because only the entry carries
+the timestamp it needs.
 
 ## The archive
 
-Unless a permanent deletion is requested, the impacted subtrees are *moved* into a new
-`del:ArchiveEntry` under `/Archive`, wrapped in one `del:DeletedItem` per subtree recording its
-`originalPath`. The entry records who requested the deletion (`deletedBy` — the actual writes are
-performed by the `iap-deletion` service user, so `jcr:createdBy` cannot) and which resource was
-targeted (`requestedPath`).
+Impacted subtrees are **moved** into a new `del:ArchiveEntry`, wrapped in one
+`del:DeletedItem` per subtree recording its `originalPath`. The entry records
+`deletedBy` (the writes are performed by the service user, so `jcr:createdBy` cannot
+say) and `requestedPath`.
 
-Entries are not direct children of `/Archive`. Each one is named with a UUID and filed by
-`PrefixTree` (`io.uhndata.iap.utils`, in `iap-java-utils`) under buckets named after the first
-characters of that UUID — `/Archive/3f/a9/1c/3fa91c48-…` — which keeps a parent from holding every
-deletion ever performed. The buckets are `del:Archive` nodes themselves; see the utility's javadoc
-for the layout and its contract. Nothing should assume the depth: use the entry path returned by
-the service, or look entries up by node type.
+Entries are not direct children of `/Archive`. Each is named with a UUID and filed by
+`PrefixTree` (`iap-java-utils`) under buckets named after its first characters —
+`/Archive/3f/a9/1c/3fa91c48-…` — which keeps one parent from holding every deletion
+ever performed. The buckets are `del:Archive` nodes themselves. **Nothing should assume
+the depth**: use the entry path the service returns, or look entries up by node type.
 
-The tree is a storage concern, and it does not have to reach the people reading a URL: an entry can
-also be addressed as **`/Archive/by-id/<uuid>`**, without its buckets. `PrefixTreeResourceProvider`
-(`io.uhndata.iap.utils.internal`, in `iap-java-utils`) translates the short form back, and it needs
-no lookup, index or state to do it, because `PrefixTree.pathFor` computes a bucket path from the
-node's own name. Registered in overlay mode, so stored paths always win and nothing under the
-archive changes; anything that is not a direct, extension-less child of the root and long enough to
-be filed in the tree is left alone, which is also what keeps a two-character bucket from being read
-as a node.
+An entry is also addressable as **`/Archive/by-id/<uuid>`**, translated back to its
+bucket path by the generic `PrefixTreeResourceProvider` mounted there. What comes back
+is the real resource, with its real path: the short form is an address, not an
+identity, and a resource whose `getPath()` disagreed with the node behind it would trap
+everything that adapts to a `Node`. So `path` in the API stays the stored one and a
+second field, `shortPath`, carries the address to link a reader to.
 
-It is not specific to the archive: it serves **any** prefix tree, one instance per factory
-configuration, and reads the root back from the `provider.root` service property it is mounted at,
-so the path it translates under and the path it is registered for cannot drift apart. The archive
-declares one in `modules/deletion`, and `modules/submissions` declares another for `/Submissions`,
-whose submissions are filed the same way.
+### Identity is preserved
 
-**What comes back is the real resource, with its real path.** The short form is an address, not an
-identity: a resource whose `getPath()` disagreed with the node behind it would be a trap for
-everything that adapts to a `Node`. So `path` in the API is still the stored one, and a second
-field, `shortPath`, carries the address to link a reader to.
+A move preserves node identifiers, so references between archived resources — and
+references *into* the archive from resources archived earlier — stay intact. That is
+what makes restoring possible. Hiding archived content is therefore access control's
+job, not broken references': `/Archive` grants nothing to `everyone`, which keeps it
+out of regular reads *and query results*.
 
-A move preserves node identifiers, so all references between archived resources — and references
-*into* the archive from resources archived earlier — remain intact. That is exactly what makes
-restoring possible. Hiding archived content is therefore the job of access control, not of broken
-references: `/Archive` grants nothing to `everyone`, which keeps it, and everything in it, out of
-regular users' reads *and query results*. Administrators bypass access control and can see it.
+> **Caution for service code:** privileged sessions with broad read access see
+> archived content, which keeps its original node types. Queries under such sessions
+> should exclude it, e.g. `AND NOT ISDESCENDANTNODE([/Archive])`.
 
-> **Caution for service code**: privileged sessions with broad read access see archived content,
-> which keeps its original node types. Queries running under such sessions should exclude it,
-> e.g. with `AND NOT ISDESCENDANTNODE([/Archive])`.
+Two consequences:
 
-Consequences of the identifier-preserving design worth knowing:
+- Archiving a resource that archived content still references is fine, both ways.
+  **Permanently** deleting a resource referenced from the archive is refused, since
+  honoring the reference would quietly mutilate somebody's archive entry. Such
+  blockers are counted, never named ("… and 2 other items you cannot see"), because
+  their contents are not the requester's to see.
+- Archived *links* pointing at a permanently deleted resource are the exception: a
+  link is bookkeeping, not content, so hard ones are removed to let the deletion
+  commit.
 
-- Archiving a resource that archived content still references is fine, in both directions;
-  **permanently** deleting a resource referenced from the archive is refused instead, since
-  honoring the reference would quietly mutilate somebody's archive entry. Such blockers are
-  counted, never named ("… and 2 other items you cannot see"), because their contents are not the
-  requester's to see.
-- Archived *links* pointing at a permanently deleted resource are the exception: a link is
-  bookkeeping, not content, so the hard ones are removed to let the deletion commit.
+### Restore and purge
 
-### Restore
-
-Restoring an entry moves every archived item back to its recorded original path and removes the
-emptied entry. It is all-or-nothing: if any item's original parent is gone, its path is occupied,
-or the requesting user may not create it there, nothing is changed and every conflict is
+Restoring moves every archived item back to its recorded original path and removes the
+emptied entry. **All-or-nothing**: if any item's original parent is gone, its path is
+occupied, or the user may not create it there, nothing changes and every conflict is
 reported. Links removed by the original deletion are **not** recreated.
 
-### Purge
+Purging removes the entry and everything in it permanently. Guards are consulted again
+with the `PURGE` mode.
 
-Purging an entry removes it and everything in it, permanently. The guards are consulted again
-(with the `PURGE` mode), so protected content blocks the purge.
+### Reading the archive
 
-#### Retention period
+Restore and purge both take the entry's path, and that path is unpredictable: an entry
+is named with a random UUID and buried under buckets derived from it. A client cannot
+work out where an entry lives, so it has to read the archive to find out. The read
+endpoints are bound to `del/Archive`, hence addressable on the archive root or on any
+bucket under it; listing a bucket is occasionally useful when diagnosing and costs
+nothing to support.
 
-`Archive retention` (`ArchiveRetentionConfiguration`) sets a **minimum age**, in calendar days, that
-an entry must reach before it may be purged. It defaults to `0`, which imposes no floor: an entry
-may be purged the moment it is created. Raising it only ever prevents destruction — nothing purges
-anything automatically, so this is a floor under purging rather than a schedule for it.
+`entries.json` pages with `offset`/`limit`, filters on `requestedPath` or `deletedBy`
+(case-insensitive `filter`), and sorts by `jcr:created`, `deletedBy` or
+`requestedPath` with `descending`. **The effective sort is echoed back**, because an
+unrecognised column falls back to the default rather than failing the request. Rows
+carry `path`, `requestedPath`, `deletedBy`, `created`, `itemCount`, the `originalPaths`
+of everything in the entry, and `shortPath`.
 
-### Viewing the archive
+`summary.json` returns just three counts — `last24Hours`, `lastWeek` and `total` —
+for callers that want the size of the archive without fetching rows they will not
+display.
 
-Restoring and purging both act on an entry's path, and entries are filed under a prefix tree of
-buckets, so no client can construct one: they have to be listed. Two read endpoints do that, both
-bound to `del/Archive` and therefore addressable on the archive root or on any bucket under it —
-listing a bucket is occasionally useful when diagnosing, and costs nothing to support.
+`entry.json` is a **preflight**: the same fields as a listing row, plus `restorable`
+with the `restoreConflicts` that would block a restore and `purgeable` with the
+`purgeVetoes` that would block a purge. It runs the very evaluations the operations
+run — `checkRestore` shares `ArchiveOperations.evaluateRestore` with `restore`, and
+`checkPurge` shares the veto sweep with `purge` — so a preflight and the operation
+cannot disagree about what is possible.
 
-- `GET /Archive.entries.json` returns one page of entries, newest first. `offset` and `limit` page
-  it, `filter` keeps the entries whose `requestedPath` or `deletedBy` contains it (ignoring case),
-  and `sortBy` (`jcr:created`, `deletedBy` or `requestedPath`) with `descending` orders it. The
-  effective sort is echoed back, because an unrecognised column falls back to the default rather
-  than failing the request. Each row carries the entry's `path`, `requestedPath`, `deletedBy`,
-  `created`, `itemCount` and the `originalPaths` of everything archived in it, plus `shortPath` —
-  the address to link to, as opposed to `path`, which is where it is stored.
-- `GET /Archive.summary.json` returns `last24Hours`, `lastWeek` and `total` — the three counts the
-  administration console widget shows, without fetching rows nothing displays.
-- `GET /Archive/<xx>/<yy>/<zz>/<entry>.entry.json` describes one entry **and what would happen to
-  it**: the same fields as a listing row, plus `restorable` with the `restoreConflicts` that would
-  block a restore, and `purgeable` with the `purgeVetoes` that would block a purge.
+A preflight is a snapshot, not a promise: another deletion can occupy a path and a
+retention floor expires, so the operations evaluate again rather than trusting it. A
+refusal after a clean preflight is ordinary, and the entry page re-reads itself when
+one arrives.
 
-That last one is a preflight, and it exists because both actions can fail for reasons that are
-knowable in advance — a restore whose original parent is gone or whose path has been taken, a purge
-a guard refuses. It runs the very evaluations the operations run before they change anything:
-`DeletionService.checkRestore` shares `ArchiveOperations.evaluateRestore` with `restore`, and
-`checkPurge` shares the veto sweep with `purge`, so a preflight and the operation cannot disagree
-about what is possible. It is the same idea the deletion endpoint's own `dryRun` serves.
+Listings count with a bound (`ArchiveSearch.MAX_SCAN`, 10000) and report
+`approximate`/`totalIsApproximate` when they stopped early, so an archive grown without
+limit costs a fixed amount to page through. Both run under the **requester's own**
+session, so they can only show what that user could already read — which is what makes
+the endpoints' 404 rule hold here too, with no separate permission check to keep in
+step.
 
-A preflight is a snapshot, not a promise: another deletion can occupy a path and a retention floor
-expires, so the operations evaluate again rather than trusting it. A refusal arriving after a clean
-preflight is therefore ordinary, and the entry page re-reads itself when one does.
+### UI
 
-The listing endpoints count with a bound (`ArchiveSearch.MAX_SCAN`) and report `approximate`/`totalIsApproximate`
-when they stopped early, so an archive that has grown without limit costs a fixed amount to page
-through rather than however much has been deleted over the years. Both run the query with the
-**requester's own** session, so they can only ever show what that user could already read — which
-is what makes the "everyone else gets a 404" rule of the action endpoints hold here too, with no
-separate permission check to keep in step.
+Three extensions in `modules/deletion/src/main/frontend`, no pages of their own:
 
-A property index on `jcr:created`, declared for `del:ArchiveEntry`, ships with the module so the
-listing is served by an index rather than by traversing the archive.
+| Component | Point | Shows |
+|---|---|---|
+| `ArchiveWidget` | `iap/adminDashboard/entry` | The three `summary.json` counts. The way through is the dashboard frame's header action, declared by `ext:actionLabel`/`ext:targetURL` rather than drawn by the widget |
+| `ArchiveBrowser` | `iap/coreUI/view` at `/admin/archive` | Filterable, sortable table with per-entry restore and purge, in `AdminScreen` chrome |
+| `ArchiveEntryView` | `iap/coreUI/view` at `/admin/archive/*` | One entry, what it holds, and the preflight per item in words |
 
-The UI is in `modules/deletion/src/main/frontend`, and both halves are extensions rather than pages:
+**The console route and the repository path are different strings, deliberately.** The
+browser sits at `/admin/archive/<entry>` while the endpoints answer on
+`/Archive/by-id/<entry>`. `archiveApi.ts` owns both constants and the two conversions,
+so they cannot drift into a route that navigates somewhere real and fetches from
+somewhere that is not. That route also covers the prefix-tree buckets, which are not
+entries; the endpoint says so and the page reports it rather than rendering an empty
+entry.
 
-- `ArchiveWidget` is registered on `iap/adminDashboard/entry`, so it sits on the administration
-  console beside the other administrative tools rather than on everybody's homepage. It shows the
-  three counts; the way through to the archive is the dashboard frame's own header action, declared
-  by the extension's `ext:actionLabel` and `ext:targetURL` rather than drawn by the widget.
-- `ArchiveBrowser` is registered on `iap/coreUI/view` with `ext:targetURL` `/admin/archive` — a
-  filterable, sortable table with per-entry restore and purge actions, wrapped in the console's
-  `AdminScreen` chrome like every other administrative tool. Each row links through to its entry.
-- `ArchiveEntryView` is registered the same way for `/admin/archive/*`: one entry, what it holds,
-  and whether each item could go back where it came from — the preflight above, per item and in
-  words.
+`/Archive` and each entry are real nodes carrying the scripts that serve the
+application shell, which is what lets these views be opened directly as well as
+navigated to. Nothing about the page is bespoke — the shell decides what it looks
+like, and the resource's readability decides who may open it.
 
-Both are pages of the administration console rather than standalone pages, so they carry no HTL of
-their own: `/admin/**` is served by the console's own resource provider, which renders the
-application shell for any path under it.
-
-**The console route and the repository path are different strings, deliberately.** The browser sits
-at `/admin/archive/<entry>` while the endpoints answer on `/Archive/by-id/<entry>`; `archiveApi.ts` owns
-both constants and the two conversions between them, so they cannot drift into a route that
-navigates somewhere real and fetches from somewhere that is not.
-  That route also covers the prefix-tree buckets, which are not entries; the endpoint says so and
-  the page reports it rather than rendering an empty entry.
-
-`/Archive` and each entry are real nodes, which is what lets those views be opened directly as well
-as navigated to: `html.GET.html` includes the shell's own script and `null.GET.html` re-dispatches
-the extensionless URL to it, the same pair `data:Content` declares for its subtypes, declared on both
-`del/Archive` and `del/ArchiveEntry`. The archive types deliberately do not extend `data:Content`, so
-they also carry one-line `header.html` and `footer.html` borrowing the shared chrome by path. Nothing about the page is bespoke — the shell
-decides what a page looks like, and the resource's readability decides who may open it.
-
-The widget needs no persona restriction, because the administration console is reached only by
-those who can read its extensions — access control is repository-side. Reaching the console is still
-not the same as being allowed to read the archive, so a user whose rights do not match is told the
-archive is unavailable rather than shown three zeros.
-
-## The Java API
-
-The `iap-deletion` bundle exposes **`DeletionService`** (`io.uhndata.iap.deletion.api`, an OSGi
-service):
-
-- `analyze(resource, options)` — a dry run: the complete `DeletionImpact` (deleted subtrees,
-  removed links, vetoes, blocking referrers, a human-readable summary), changing nothing.
-- `delete(resource, options)` — performs the deletion; `DeletionOptions` selects `recursive`
-  (cascade over referencing resources) and `permanent` (skip the archive). The result reports
-  what happened: `ARCHIVED` (with the entry path), `DELETED`, or a refusal — `VETOED`,
-  `REQUIRES_CONFIRMATION` (blocking referrers), `DENIED` (missing permissions).
-- `restore(archiveEntry)` / `purge(archiveEntry)`.
-
-Every operation authorizes against the session of the resource passed in: the requesting user
-needs `remove` rights on every node that would leave the live tree (and `add_node` rights at the
-original locations, for a restore). The actual scan and all writes are performed by the
-`iap-deletion` service user, which is what finds referrers hidden from the requester and writes
-the archive. Link removal is a platform side effect: it does not require the requester to have
-write access to the resources holding the links, mirroring how backlink completion works.
-
-Business outcomes are return values, never exceptions; `DeletionException` signals actual
-failures (repository errors, missing service user).
-
-## The HTTP API
-
-| Request | Meaning |
-| --- | --- |
-| `DELETE /path/to/resource` | Archive the resource, refusing if referenced by more than links |
-| `DELETE /path/to/resource?recursive=true` | Also delete the referencing resources |
-| `DELETE /path/to/resource?permanent=true` | Skip the archive, remove for good |
-| `DELETE /path/to/resource?dryRun=true` | Only report what would happen, change nothing |
-| `POST /Archive/<xx>/<yy>/<zz>/<entry>.restore.json` | Restore an archive entry |
-| `DELETE /Archive/<xx>/<yy>/<zz>/<entry>` | Purge an archive entry |
-| `GET /Archive.entries.json` | List archive entries, paged, filtered and sorted |
-| `GET /Archive.summary.json` | Count the entries archived in the last day, last week, and in total |
-| `GET /Archive/<xx>/<yy>/<zz>/<entry>.entry.json` | Describe one entry, and whether restoring or purging it would work |
-
-Every endpoint addressing an entry also accepts the short form, e.g.
-`POST /Archive/by-id/<uuid>.restore.json`. The addressing provider is mounted at `/Archive/by-id`,
-beside the tree rather than over it: a provider is chosen by the longest matching root for writes as
-much as for reads, so one mounted at `/Archive` itself would be handed every `create` under it and
-could only refuse. `by-id` cannot collide with a bucket, since a bucket is named after exactly two
-characters of the name it files.
-
-The deletion endpoint is bound to the `data/Content` resource type, i.e. every content resource;
-the archive endpoints are bound to `del/ArchiveEntry`, and are implicitly restricted to users who
-can see the archive — everyone else gets a plain 404 from resource resolution. All responses are
-JSON carrying `status.code`, a machine-readable `status` word, and `status.message` when there is
-something to explain:
-
-- **200** — `{"status": "archived", "archiveEntry": "/Archive/<xx>/<yy>/<zz>/<uuid>", "items": [...],
-  "removedLinks": [...]}`, or `"deleted"`, `"dryRun"` (with the full impact and an `executable`
-  flag), `"restored"` (with the restored paths).
-- **409** — `"referenced"` (with `referrers` grouped by type, an `inaccessibleReferrers` count,
-  and the summary sentence), `"vetoed"` (with each veto's path, reason and guard name), or
-  `"conflict"` for a blocked restore (with each conflict's `originalPath` and `reason`:
-  `PARENT_MISSING`, `OCCUPIED` or `NO_RIGHTS`).
-- **401/403** — the requester may not delete everything the deletion would impact.
-- **400** — the target cannot be processed at all, e.g. deleting `/Archive` content directly
-  instead of purging, or restoring something that is not an archive entry.
-- **500** — an unexpected failure, with the exception's message.
-
-A confirmation dialog is expected to first send the plain `DELETE`, and on a 409 offer the listed
-consequences and retry with `recursive=true` — or start with `dryRun=true` and present the impact
-up front.
+The widget needs no persona restriction: the console is reached only by those who can
+read its extensions. Reaching the console is still not the same as being allowed to
+read the archive, so a user whose rights do not match is told the archive is
+unavailable rather than shown three zeros.

@@ -203,10 +203,10 @@ being asked of it does.
 On the way out, any piece of content can be served as JSON, and the request itself
 says how much of it is wanted: just this item or everything beneath it, the full
 record or a trimmed one, references left as references or followed to what they
-point at, and how many levels down to go before stopping. The per-module
-documentation covers the syntax. New shapes are pluggable, so a module can teach
-the serializer about its own content without the serializer knowing that the module
-exists.
+point at, and how many levels down to go before stopping.
+[JSON serialization](json-serialization.md) covers the syntax. New shapes are
+pluggable, so a module can teach the serializer about its own content without the
+serializer knowing that the module exists.
 
 One further point is worth stating plainly, since it is where the platform departs
 from what a JCR-shaped system would normally do. The stored shape is not the shape
@@ -259,8 +259,8 @@ everyone until it says so; silence is never read as permission.
 A workflow instance also lives inside the thing it drives, in a `wf:instances`
 container, so that it is found, secured, and deleted along with it. The runtime
 model, the full catalogue of phases and actions, and the traps that come with
-versioning an entity that has a live workflow inside it are all covered in the
-workflow documentation.
+versioning an entity that has a live workflow inside it are all covered in
+[workflows.md](workflows.md).
 
 ## Layers and modules
 
@@ -300,6 +300,9 @@ Packages named `api`, `spi`, and `models` are exported and constitute the module
 contract; `internal` is not, nor is an `impl` submodule where a module has grown
 large enough to want one. Larger modules split the two into separate submodules so
 that a consumer can depend on the contract without dragging in the implementation.
+The conventions for filling that layout in are in
+[java-development.md](java-development.md) and
+[frontend-development.md](frontend-development.md).
 
 Each domain module also gets one namespace prefix of its own, with URIs of the form
 `https://iap.uhndata.io/<prefix>/`, which is what keeps one module's node types
