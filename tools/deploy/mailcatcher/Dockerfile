@@ -17,7 +17,7 @@
 # A development-only mail server that files messages away instead of delivering them. The server
 # needs nothing beyond the standard library, so the image is just Python and one script.
 
-FROM python:3.13-alpine
+FROM python:3.14-alpine
 
 COPY smtps_catcher.py /smtps_catcher.py
 
