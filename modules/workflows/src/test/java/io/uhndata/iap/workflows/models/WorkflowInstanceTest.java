@@ -29,8 +29,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.conditions.spi.OperandResolver;
+import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.entities.models.Entity;
+
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -63,6 +68,39 @@ class WorkflowInstanceTest
         this.started.set(2026, Calendar.JULY, 20, 9, 0, 0);
         this.ended = Calendar.getInstance();
         this.ended.set(2026, Calendar.JULY, 22, 17, 0, 0);
+    }
+
+    @Test
+    void isAPartOfItsHostRatherThanARecordOfItsOwn()
+    {
+        final Resource instance = this.context.create().resource(PATH, Map.of(
+            TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active"));
+
+        assertFalse(instance.isResourceType(Entity.RESOURCE_TYPE));
+        assertTrue(instance.isResourceType("data/EntityPart"));
+    }
+
+    @Test
+    void letsAConditionReachPastTheProcessToTheRecordItGuards()
+    {
+        // A gateway guard is evaluated against the instance, and operand sources read the enclosing entity
+        final Resource host = this.context.create().resource("/Requests/r1", Map.of(
+            TYPE, "test/Request", WorkflowFixture.SUPER_TYPE, Entity.RESOURCE_TYPE, "daysRequested", 31L));
+        this.context.create().resource("/Requests/r1/wf:instances", Map.of(
+            TYPE, WorkflowInstances.RESOURCE_TYPE));
+        final Resource instance = this.context.create().resource("/Requests/r1/wf:instances/i1", Map.of(
+            TYPE, WorkflowInstance.RESOURCE_TYPE, "status", "active"));
+        final Resource task = this.context.create().resource("/Requests/r1/wf:instances/i1/task_1_1", Map.of(
+            TYPE, TaskInstance.RESOURCE_TYPE, "taskDefinitionId", "approve", "status", "open"));
+
+        final Content fromInstance = OperandResolver.findEnclosingEntity(instance.adaptTo(WorkflowInstance.class));
+        final Content fromTask = OperandResolver.findEnclosingEntity(task.adaptTo(TaskInstance.class));
+
+        assertNotNull(fromInstance);
+        assertEquals(host.getPath(), fromInstance.getPath());
+        // The same from a task, which is a part of a part: the walk does not stop at the process either
+        assertNotNull(fromTask);
+        assertEquals(host.getPath(), fromTask.getPath());
     }
 
     @Test
