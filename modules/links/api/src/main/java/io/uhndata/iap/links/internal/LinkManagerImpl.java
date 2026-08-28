@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.links.internal;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -29,8 +28,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.jcr.Node;
-import javax.jcr.Property;
-import javax.jcr.PropertyIterator;
 import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -55,7 +52,9 @@ import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.links.api.LinkManager;
 import io.uhndata.iap.links.models.ExternalLink;
+import io.uhndata.iap.links.models.ExternalLinkDefinition;
 import io.uhndata.iap.links.models.InternalLink;
+import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkDefinition;
 
@@ -231,29 +230,12 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
         if (session == null) {
             return List.of();
         }
-        final List<InternalLink> result = new ArrayList<>();
         try {
-            final Node node = session.getNode(resource.getPath());
-            this.collectBacklinks(node.getReferences(InternalLink.REFERENCE_PROPERTY), resource, result);
-            this.collectBacklinks(node.getWeakReferences(InternalLink.REFERENCE_PROPERTY), resource, result);
+            return BacklinkFinder.find(session, resource);
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to retrieve the links pointing at {}: {}", resource.getPath(), e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(LinkManagerImpl.class, "getBacklinks").about(resource));
-        }
-        return result;
-    }
-
-    private void collectBacklinks(final PropertyIterator references, final Resource resource,
-        final List<InternalLink> result)
-        throws RepositoryException
-    {
-        while (references.hasNext()) {
-            final Property property = references.nextProperty();
-            final Resource linkResource = resource.getResourceResolver().getResource(property.getParent().getPath());
-            final Link link = linkResource == null ? null : Link.toLink(linkResource);
-            if (link instanceof InternalLink) {
-                result.add((InternalLink) link);
-            }
+            return List.of();
         }
     }
 
@@ -261,11 +243,12 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     public InternalLink addLink(final Resource source, final Content destination, final String type,
         final String label)
     {
-        final LinkDefinition definition = this.requireDefinition(type);
-        if (definition.isExternal()) {
+        final LinkDefinition declared = this.requireDefinition(type);
+        if (!(declared instanceof InternalLinkDefinition)) {
             throw new IllegalArgumentException(
                 "Link type " + type + " is external, use addExternalLink to instantiate it");
         }
+        final InternalLinkDefinition definition = (InternalLinkDefinition) declared;
         if (definition.isBacklinkOnly()) {
             throw new IllegalArgumentException(
                 "Link type " + type + " can only be instantiated as an automatic backlink");
@@ -278,7 +261,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     }
 
     private InternalLink createInternalLink(final Resource source, final Content destination,
-        final LinkDefinition definition, final String label, final boolean withBacklink)
+        final InternalLinkDefinition definition, final String label, final boolean withBacklink)
     {
         final String destinationId = (String) destination.get(UUID_PROPERTY);
         if (destinationId == null) {
@@ -304,16 +287,16 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     public ExternalLink addExternalLink(final Resource source, final String type, final String value,
         final String label)
     {
-        final LinkDefinition definition = this.requireDefinition(type);
-        if (!definition.isExternal()) {
+        final LinkDefinition declared = this.requireDefinition(type);
+        if (!(declared instanceof ExternalLinkDefinition)) {
             throw new IllegalArgumentException(
                 "Link type " + type + " references resources, use addLink to instantiate it");
         }
+        final ExternalLinkDefinition definition = (ExternalLinkDefinition) declared;
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("External links require a value");
         }
-        final String valuePattern = definition.getValuePattern();
-        if (valuePattern != null && !value.matches(valuePattern)) {
+        if (!definition.accepts(value)) {
             throw new IllegalArgumentException(
                 "Value " + value + " does not match the pattern required by the " + type + " link type");
         }
@@ -336,7 +319,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
             return false;
         }
         final InternalLink original = (InternalLink) model;
-        final LinkDefinition definition = original.getDefinition();
+        final InternalLinkDefinition definition = original.getDefinition();
         if (definition == null || !definition.hasBacklink()) {
             return false;
         }
@@ -349,7 +332,7 @@ public class LinkManagerImpl implements LinkManager, LinkOperations, ResourceCha
     }
 
     private boolean createBacklink(final ResourceResolver resolver, final InternalLink original,
-        final LinkDefinition backlinkDefinition)
+        final InternalLinkDefinition backlinkDefinition)
     {
         if (backlinkDefinition == null) {
             LOGGER.warn("The backlink declared for {} cannot be resolved", original.getPath());

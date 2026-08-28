@@ -39,6 +39,7 @@ import io.uhndata.iap.deletion.api.DeletionService;
 import io.uhndata.iap.deletion.api.Veto;
 import io.uhndata.iap.deletion.spi.DeletionMode;
 import io.uhndata.iap.deletion.spi.DeletionVeto;
+import io.uhndata.iap.links.models.InternalLinkDefinition;
 import io.uhndata.iap.links.models.Link;
 import io.uhndata.iap.links.models.LinkDefinition;
 
@@ -271,16 +272,18 @@ class CascadeResolver
      * The {@code onDelete} policy of a link, resolved through the service resolver rather than from the link node
      * itself: the policy lives on the link's definition, which only the {@link Link} model can follow.
      */
-    private LinkDefinition.OnDelete resolvePolicy(final String path)
+    private InternalLinkDefinition.OnDelete resolvePolicy(final String path)
     {
         final Resource linkResource = this.plan.getServiceResolver().getResource(path);
         final Link link = linkResource == null ? null : Link.toLink(linkResource);
+        // Only a link referencing content can be caught by a deletion, so only an internal definition can carry
+        // a policy for one; anything else here is a link whose definition is missing or of the wrong kind
         final LinkDefinition definition = link == null ? null : link.getDefinition();
-        if (definition == null) {
+        if (!(definition instanceof InternalLinkDefinition)) {
             LOGGER.warn("Cannot resolve the definition of link {}, defaulting to only removing the link", path);
-            return LinkDefinition.OnDelete.REMOVE_LINK;
+            return InternalLinkDefinition.OnDelete.REMOVE_LINK;
         }
-        return definition.getOnDeletePolicy();
+        return ((InternalLinkDefinition) definition).getOnDeletePolicy();
     }
 
     private void handleRecursiveLink(final Node linkNode, final String path, final Deque<Node> queue)

@@ -121,7 +121,7 @@ public class Linkable extends Content
      * @return the created (or existing identical) link
      * @throws IllegalArgumentException if the definition is unknown or not external, if this content doesn't
      *             satisfy the definition's type requirements, or if the value doesn't match the definition's
-     *             {@link LinkDefinition#getValuePattern() value pattern}
+     *             {@link ExternalLinkDefinition#getValuePattern() value pattern}
      * @throws IllegalStateException if the links service is not available
      */
     @NotNull

@@ -47,7 +47,23 @@ class LinkTypesHomepageTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, LinkTypesHomepage.class);
+        this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class,
+            ExternalLinkDefinition.class, LinkTypesHomepage.class);
+        registerDefinitionTypes(this.context);
+    }
+
+    /**
+     * Declares the resource type hierarchy that lets a definition of either kind answer to the shared
+     * {@code link/Definition} type. It ships as {@code /libs} content, which the mock repository does not load.
+     *
+     * @param context the Sling context to register the types in
+     */
+    static void registerDefinitionTypes(final SlingContext context)
+    {
+        context.create().resource("/libs/link/InternalDefinition",
+            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
+        context.create().resource("/libs/link/ExternalDefinition",
+            "sling:resourceSuperType", LinkDefinition.RESOURCE_TYPE);
     }
 
     @Test
@@ -56,9 +72,9 @@ class LinkTypesHomepageTest
         final Resource resource = this.context.create().resource("/LinkTypes",
             "sling:resourceType", LinkTypesHomepage.RESOURCE_TYPE);
         this.context.create().resource("/LinkTypes/references",
-            "sling:resourceType", LinkDefinition.RESOURCE_TYPE);
+            "sling:resourceType", InternalLinkDefinition.RESOURCE_TYPE);
         this.context.create().resource("/LinkTypes/ehrChart",
-            "sling:resourceType", LinkDefinition.RESOURCE_TYPE);
+            "sling:resourceType", InternalLinkDefinition.RESOURCE_TYPE);
         final LinkTypesHomepage homepage = resource.adaptTo(LinkTypesHomepage.class);
 
         assertNotNull(homepage);
@@ -85,13 +101,12 @@ class LinkTypesHomepageTest
             "title", "Link types",
             "description", "All the link types defined in this instance."));
         this.context.create().resource("/LinkTypes/references", Map.of(
-            "sling:resourceType", LinkDefinition.RESOURCE_TYPE,
+            "sling:resourceType", InternalLinkDefinition.RESOURCE_TYPE,
             "label", "References",
             "description", "A generic pointer to related material.",
             "backlink", "/LinkTypes/referencedBy"));
         this.context.create().resource("/LinkTypes/ehrChart", Map.of(
-            "sling:resourceType", LinkDefinition.RESOURCE_TYPE,
-            "external", true));
+            "sling:resourceType", ExternalLinkDefinition.RESOURCE_TYPE));
 
         // The homepage is the AutoDocumentable adapter for the whole vocabulary
         final AutoDocumentable documentation = resource.adaptTo(AutoDocumentable.class);

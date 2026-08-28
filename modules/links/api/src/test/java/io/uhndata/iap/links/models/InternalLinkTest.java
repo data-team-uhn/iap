@@ -68,7 +68,8 @@ class InternalLinkTest
     void setUp()
         throws RepositoryException
     {
-        this.context.addModelsForClasses(Content.class, LinkDefinition.class, InternalLink.class,
+        this.context.addModelsForClasses(Content.class, InternalLinkDefinition.class,
+            ExternalLinkDefinition.class, InternalLink.class,
             ExternalLink.class);
         this.session = Mockito.mock(Session.class);
         this.context.registerAdapter(ResourceResolver.class, Session.class, this.session);
@@ -93,12 +94,12 @@ class InternalLinkTest
     private Resource createFixture()
     {
         this.context.create().resource("/LinkTypes/references", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", DEFINITION_ID,
             "label", "References",
             "backlink", "/LinkTypes/referencedBy"));
         this.context.create().resource("/LinkTypes/referencedBy", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", BACK_DEFINITION_ID,
             "backlink", "/LinkTypes/references",
             "backlinkOnly", true));
@@ -210,11 +211,11 @@ class InternalLinkTest
         this.createFixture();
         // Only the forward definition declares the backlink; the reverse definition is bare
         this.context.create().resource("/LinkTypes/parentOf", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "44444444-4444-4444-4444-444444444444",
             "backlink", "/LinkTypes/childOf"));
         this.context.create().resource("/LinkTypes/childOf", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "55555555-5555-5555-5555-555555555555"));
         this.mockNode("44444444-4444-4444-4444-444444444444", "/LinkTypes/parentOf");
         this.mockNode("55555555-5555-5555-5555-555555555555", "/LinkTypes/childOf");
@@ -256,11 +257,11 @@ class InternalLinkTest
     {
         this.createFixture();
         this.context.create().resource("/LinkTypes/dangling", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "66666666-6666-6666-6666-666666666666",
             "backlink", "/LinkTypes/nowhere"));
         this.context.create().resource("/LinkTypes/bare", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "77777777-7777-7777-7777-777777777777"));
         this.mockNode("66666666-6666-6666-6666-666666666666", "/LinkTypes/dangling");
         this.mockNode("77777777-7777-7777-7777-777777777777", "/LinkTypes/bare");
@@ -296,7 +297,7 @@ class InternalLinkTest
     {
         this.createFixture();
         this.context.create().resource("/LinkTypes/sourced", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "88888888-8888-8888-8888-888888888888",
             "targetLabelTemplate", "{sourceName}x"));
         this.mockNode("88888888-8888-8888-8888-888888888888", "/LinkTypes/sourced");
@@ -325,7 +326,7 @@ class InternalLinkTest
     {
         this.createFixture();
         this.context.create().resource("/LinkTypes/labeled", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "88888888-8888-8888-8888-888888888888",
             "targetLabelTemplate", "{label}{name}{property:title}"));
         this.mockNode("88888888-8888-8888-8888-888888888888", "/LinkTypes/labeled");
@@ -344,7 +345,7 @@ class InternalLinkTest
     {
         this.createFixture();
         this.context.create().resource("/LinkTypes/blank", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "88888888-8888-8888-8888-888888888888",
             "targetLabelTemplate", "  "));
         this.mockNode("88888888-8888-8888-8888-888888888888", "/LinkTypes/blank");
@@ -367,7 +368,7 @@ class InternalLinkTest
     {
         this.createFixture();
         this.context.create().resource("/LinkTypes/templated", Map.of(
-            SLING_RESOURCE_TYPE, LinkDefinition.RESOURCE_TYPE,
+            SLING_RESOURCE_TYPE, InternalLinkDefinition.RESOURCE_TYPE,
             "jcr:uuid", "33333333-3333-3333-3333-333333333333",
             "label", "Related",
             "targetLabelTemplate",

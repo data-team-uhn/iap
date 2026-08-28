@@ -11,26 +11,40 @@ content in the repository or at an identifier in an external system.
 
 ## Link types
 
-Every usable type must be defined as a `link:Definition` under `/LinkTypes`. The
-definition is the single source of truth for what a connection means and how it
-behaves.
+Every usable type must be defined under `/LinkTypes`, as one of two **kinds**. Where
+the target lives decides which settings mean anything, so each kind declares its own:
 
-| Property | Meaning |
-|---|---|
-| `label` | Display name; defaults to the node name |
-| `description` | What this type means and when it applies; surfaced in the catalogue |
-| `displayed` | Whether links appear in the user-facing UI (default `true`). A rendering hint, **not** access control — listing includes everything |
-| `external` | Records a value instead of referencing content |
-| `weak` | Holds a weak reference: may break when the target is deleted instead of preventing deletion |
-| `requiredSourceTypes`, `requiredDestinationTypes` | NAME[], node types the ends must have; unrestricted when absent |
-| `targetLabelTemplate` | e.g. `{typeLabel}: {name}`. Placeholders `{name}`, `{property:xyz}`, `{label}`, `{typeLabel}`, `{sourceName}`, `{value}` |
-| `backlink` | PATH of another definition; the reverse is added automatically. May name itself, for a symmetrical pair |
-| `backlinkOnly` | Only ever instantiated as an automatic backlink |
-| `onDelete` | `IGNORE` (weak only), `REMOVE_LINK` (default), `RECURSIVE_DELETE`. Declared now, enforced once the workflow engine handles deletions |
-| `valuePattern`, `urlTemplate` | External only: regex values must match, and a template making the value navigable |
+- **`link:InternalDefinition`**: the target is content in this repository, and
+  everything about referential integrity belongs here.
+- **`link:ExternalDefinition`**: the link records a value that means something elsewhere
+  (see [external links](#external-links)), so its settings are about that value.
 
-`getOnDeletePolicy()` falls back to `REMOVE_LINK` for an unset *or unrecognized*
-value, so a typo in `onDelete` degrades to the default rather than failing.
+`link:Definition` is their abstract supertype. Adding a kind, a link into another
+institution's repository say, is a new subtype, not another flag on a shared one.
+
+| Property | Kind | Meaning |
+|---|---|---|
+| `label` | both | Display name; defaults to the node name |
+| `description` | both | What this type means and when it applies; surfaced in the catalogue |
+| `displayed` | both | Whether links appear in the user-facing UI (default `true`). A rendering hint, **not** access control — listing includes everything |
+| `requiredSourceTypes` | both | NAME[], node types the linking content must have; unrestricted when absent |
+| `targetLabelTemplate` | both | e.g. `{typeLabel}: {name}`. Placeholders `{name}`, `{property:xyz}`, `{label}`, `{typeLabel}`, `{sourceName}`, `{value}` |
+| `weak` | internal | Holds a weak reference: may break when the target is deleted instead of preventing deletion |
+| `requiredDestinationTypes` | internal | NAME[], node types the linked content must have; unrestricted when absent |
+| `backlink` | internal | PATH of another internal definition; the reverse is added automatically. May name itself, for a symmetrical pair |
+| `backlinkOnly` | internal | Only ever instantiated as an automatic backlink |
+| `onDelete` | internal | `IGNORE` (weak only), `REMOVE_LINK` (default), `RECURSIVE_DELETE`, enforced by the [deletion service](deletion.md) |
+| `valuePattern` | external | A regular expression recorded values must fully match, checked when the link is created |
+| `urlTemplate` | external | Turns the recorded value into a navigable address, `{value}` standing for it |
+
+**The split is stated, not enforced.** Every IAP node type carries residual property
+definitions, and a subtype inherits them, so the repository accepts a `backlink` written
+on an external definition. Nothing reads it: the external kind's model has no such
+setting.
+
+An internal definition's `getOnDeletePolicy()` falls back to `REMOVE_LINK` for an unset
+*or unrecognized* value, so a typo in `onDelete` degrades to the default rather than
+failing.
 
 ## Node types
 
@@ -68,8 +82,9 @@ int removed       = linkable.removeLinks(otherSubmission, "references", null);
 resolver.commit();
 ```
 
-Individual links carry their own operations: `getDefinition()`, `getLabel()`,
-`getSource()`, `getTargetLabel()`, `remove(removeBacklink)`, plus
+Individual links carry their own operations: `getDefinition()`, typed by kind
+(`InternalLinkDefinition` on an `InternalLink`), `getLabel()`, `getSource()`,
+`getTargetLabel()`, `remove(removeBacklink)`, plus
 `getDestination()`/`isWeak()`/`getBacklink()`/`addBacklink()`/`isReverseOf()`/`isSymmetric()`
 on `InternalLink` and `getValue()`/`getTargetUrl()` on `ExternalLink`.
 
@@ -152,7 +167,8 @@ entities across federated deployments.
 `GET /LinkTypes.doc.md` and `.doc.json` render the vocabulary through the
 [autodoc mechanism](autodoc.md) — one subsection per type with its description and
 the behaviours that apply (external, weak, backlink, deletion policy, type
-restrictions, value pattern). Link types have no categories, so the catalogue is
-flat. The heading comes from the autocreated `title` and `description` on
-`/LinkTypes` ("Link types" / "All the link types defined in this instance."), both
-editable by a deployment.
+restrictions, value pattern); the JSON names its `kind`, `internal` or `external`,
+and carries only that kind's settings. Link types have no categories, so the
+catalogue is flat. The heading comes from the autocreated `title` and `description`
+on `/LinkTypes` ("Link types" / "All the link types defined in this instance."),
+both editable by a deployment.

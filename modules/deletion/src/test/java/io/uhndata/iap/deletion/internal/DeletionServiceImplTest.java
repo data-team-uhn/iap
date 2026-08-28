@@ -148,7 +148,7 @@ class DeletionServiceImplTest
     private Node definition(final String name, final String onDelete, final boolean weak)
         throws RepositoryException
     {
-        final Node node = this.session.getNode("/LinkTypes").addNode(name, "link:Definition");
+        final Node node = this.session.getNode("/LinkTypes").addNode(name, "link:InternalDefinition");
         node.setProperty("onDelete", onDelete);
         node.setProperty("weak", weak);
         this.session.save();
