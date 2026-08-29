@@ -190,17 +190,31 @@ service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD` environment variable.
 
 ### Reading mail a development instance would have sent
 
-A development, test or demo instance has no mail server, and pointing one at a real relay to see what
-the platform writes is both awkward and a way to mail real people by accident. So those distributions
-carry an **email catcher**: a `MailService` that files each message under `/CaughtMail` instead of
-delivering it.
+**Module:** `email-catcher` (repository root, not under `modules/`) ·
+**Bundle:** `iap-email-catcher` (start-order 25)
 
-Nothing is configured to use it and nothing has to be. It registers at `service.ranking=1000`, above
-Sling's own mail service, so every `@Reference MailService` — the test endpoint, `EmailUtils`, anything
-added later — is handed the catcher without knowing it. The real service still starts and stays
-reachable for anything that deliberately asks for it.
+A development, test or demo instance has no mail server, and pointing one at a real
+relay to see what the platform writes is both awkward and a way to mail real people by
+accident. So those distributions carry an **email catcher**: a `MailService` that files
+each message under `/CaughtMail` instead of delivering it.
 
-`GET /CaughtMail.messages.json` answers with what has been caught, newest first:
+Nothing is configured to use it and nothing has to be. It registers at
+`service.ranking:Integer=1000`, above Sling's own mail service, which registers without
+a configuration and so ranks at zero — so every `@Reference MailService`, the test
+endpoint and `EmailUtils` included, is handed the catcher without knowing it. The real
+service still starts and stays reachable for anything that deliberately asks for it.
+
+A caught message is a `mail:CaughtMessage` under a `mail:CaughtMailHomepage`, written by
+the `iap-email-catcher` service user, which may write there and nowhere else. Filing
+happens on the way out of `sendMessage`; a failure is logged loudly and returned as a
+failed future, because nothing consumes the future a mail service reports into.
+
+```
+GET /CaughtMail.messages.json
+```
+
+Bound to the homepage resource type, and answers with what has been caught, newest
+first:
 
 ```json
 {
@@ -220,20 +234,26 @@ reachable for anything that deliberately asks for it.
 }
 ```
 
-Addresses are kept as they were written, display names and all, and `to`, `cc` and `bcc` stay apart —
-whether an address was visible to the others is usually the point of looking. Attachments are not
-stored: what they were is in the headers, and their bytes are not what anybody reads a caught message
-to check.
+Addresses are kept as they were written, display names and all, and `to`, `cc` and `bcc`
+stay apart — whether an address was visible to the others is usually the point of
+looking. Attachments are not stored: what they were is in the headers, and their bytes
+are not what anybody reads a caught message to check.
 
-**It ships everywhere and is inert everywhere, because activating it takes a configuration.** The
-component declares `configurationPolicy = REQUIRE`, so the bundle registers no mail service until one
-exists; the only feature supplying it is `dev/email-catcher-enabled.json`, which the `test_tar` and
-`demo_tar` aggregates include and the three production aggregates do not.
+`/CaughtMail` is readable by `everyone`, so a developer or an integration test can read
+what was sent without being handed a second set of credentials. That is only tolerable
+because of the next paragraph.
 
-That is deliberately not the same as leaving the bundle out of production. One set of artifacts is
-built rather than two, the difference between environments is a configuration a deployment can read
-back, and catching mail on some new instance is a configuration rather than a rebuild — which is
-exactly what somebody debugging a staging environment would want.
+**It ships everywhere and is inert everywhere, because activating it takes a
+configuration.** The component declares `configurationPolicy = REQUIRE`, so the bundle
+registers no mail service until one exists; the only feature supplying it is
+`dev/email-catcher-enabled.json`, which the `test_tar` and `demo_tar` aggregates include
+and the three production aggregates do not.
+
+That is deliberately not the same as leaving the bundle out of production. One set of
+artifacts is built rather than two, the difference between environments is a
+configuration a deployment can read back, and catching mail on some new instance is a
+configuration rather than a rebuild — which is exactly what somebody debugging a staging
+environment would want.
 
 ## Future work
 
