@@ -1,167 +1,152 @@
 # Error tracking
 
-The error tracking module (`modules/error-tracking`) records errors that a running instance could
-not deal with on its own, storing them in the repository under **`/LoggedErrors`** and surfacing
-them through the [status report](status.md). A log file rotates away and nobody reads it; a
-recorded error waits until somebody asks how the instance is doing.
+**Module:** `modules/error-tracking`, in two bundles ·
+**API:** `io.uhndata.iap.errortracking.api` · **Impl:**
+`…errortracking.internal`, `…errortracking.models`
 
-This is a **diagnostic sink, not a log replacement**: code should still log through SLF4J as usual,
-and additionally record an error here when it is something a system administrator has to know about
-even hours later.
+Records errors a running instance could not deal with on its own, under
+`/LoggedErrors`, and surfaces them through the [status report](status.md). A log file
+rotates away; a recorded error waits until somebody asks how the instance is doing.
 
-The module is in two bundles. `iap-error-tracking-api` is the way in — the service, the static
-facade, and the context a caller describes a failure with — and depends on nothing but Sling's
-`Resource`, so anything that can fail may depend on it. `iap-error-tracking-impl` holds the
-recording, the node types and the report, and depends on the data model and on tags.
+This is a **diagnostic sink, not a log replacement**. Keep logging through SLF4J, and
+additionally record here when a system administrator has to know hours later.
 
-## Recording an error
+`iap-error-tracking-api` depends on nothing but Sling's `Resource`, so anything that
+can fail may depend on it. `iap-error-tracking-impl` holds the recording, node types
+and report, and depends on the data model and tags.
+
+## Recording
 
 ```java
 ErrorLogger.logError(e);
 
 ErrorLogger.logError(e, ErrorContext.of(MyComponent.class, "readDefinitions")
-    .about(resource)
+    .about(resource)                        // String path or Resource
     .actingFor(resolver.getUserID())
     .with("attempt", attempt));
-```
 
-The static `ErrorLogger` facade is the **normal** way in, not a fallback for code that cannot hold
-an OSGi reference. Its tolerance is the point: before the module starts and after it stops, the
-call silently does nothing, which is exactly what a diagnostic sink should do. A mandatory
-`@Reference ErrorLoggerService` would instead stop a perfectly good component from starting because
-the thing that records its failures is missing. The service is still published for anyone who wants
-OSGi to tell them about it.
-
-Recording is **always safe to call** and never throws: the caller is by definition already dealing
-with a failure and must not be handed a second one. It is also cheap — see
-[Recording does not touch the repository](#recording-does-not-touch-the-repository).
-
-### Describing the circumstances
-
-`ErrorContext` carries what the caller knows beyond the failure itself. Every part is optional and
-`null` is always ignored, so describing a failure never needs a null check at a site that is
-already failing.
-
-| Part | What it is for |
-| --- | --- |
-| `component` | The class that was running. For a plugin, the plugin's own class rather than the framework that called it, since that is what has to be fixed. Guessed from the topmost frame that is ours when the caller does not say |
-| `operation` | What it was trying to do: a short label chosen in code, such as `computeTags` |
-| `subject` | The path of the content it was working on |
-| `actor` | The user it was working for. Absent for anything outside a request |
-| details | Anything else worth knowing, rendered to text immediately |
-
-`component` and `operation` take part in deciding whether two failures are **the same fault**, so
-they must be constants chosen in code. A value that does not look like one — a path, an identifier,
-a rendered value — is still recorded, but is quietly left out of the fault's identity rather than
-being allowed to mint a record per distinct value. `component` is held to the same rule but not to
-the same length: it is a fully-qualified class name, and several of this build's own are longer than
-any label would be.
-
-### Something wrong that nothing was thrown for
-
-Not every failure comes with a throwable. A mis-authored condition naming a comparator that does
-not exist is exactly the "silently wrong, nobody was there to see it" case this module exists for,
-and there is nothing to catch:
-
-```java
 ErrorLogger.logProblem("unknown comparator",
     ErrorContext.of(ConditionEvaluatorImpl.class, "evaluate").about(condition.getPath()));
 ```
 
-Like `operation`, the problem is a **constant phrase** chosen in code; whatever varies goes in the
-subject. A phrase that turns out not to be constant is not dropped, though — that would be a silent
-failure in the one module whose job is to prevent them. `unknown comparator: 'sameDay'` is recorded
-as `unknown comparator`, its stable head, with the phrase itself kept in `messages` exactly the way
-a throwable's message is: outside the identity, inside the record.
+The static `ErrorLogger` facade is the **normal** way in, not a fallback for code
+that cannot hold an OSGi reference. Before the module starts and after it stops the
+call silently does nothing — a mandatory `@Reference ErrorLoggerService` would stop a
+working component from starting because the thing that records its failures is
+missing. `ErrorLoggerService` is published for anyone who wants OSGi to tell them
+about it, and exposes `getDroppedCount()`.
 
-## What is stored
+Recording never throws and never blocks on the repository. The caller is by
+definition already handling a failure and must not be handed a second one.
 
-One node per **distinct fault**, under the `err:LoggedErrorsHomepage` node at `/LoggedErrors`. A
-fault something was thrown for is an `err:LoggedFailure`; one nothing was thrown for is an
-`err:LoggedProblem`. Both are `err:LoggedError`s, and both are ordinary `data:Content`, so they read
-as JSON, list through the pagination servlet, and carry tags like anything else.
+`logProblem` covers failures with nothing to catch — a mis-authored definition is
+exactly the "silently wrong, nobody saw it" case this module exists for.
+
+### ErrorContext
+
+Every part is optional and null is always ignored, so describing a failure needs no
+null checks at a site that is already failing.
+
+| Part | For |
+|---|---|
+| `component` | The class that was running. For a plugin, the plugin's own class, not the framework that called it. Inferred from the topmost `io.uhndata.iap.` frame when unset |
+| `operation` | What it was trying to do — a short label chosen in code, e.g. `computeTags` |
+| `subject` | Path of the content it was working on |
+| `actor` | User it was working for; absent outside a request |
+| `with(k, v)` | Anything else, rendered to text immediately. Up to 20 entries, 500 chars each |
+
+### Identity has to be constant
+
+`component`, `operation` and a problem phrase decide whether two failures are **the
+same fault**, so they must be constants chosen in code. The check is shape-based:
+`[A-Za-z0-9_.$ -]`, up to 64 characters for a label and 255 for a component (several
+of this build's own class names exceed any label length).
+
+A value failing that check is **still recorded but left out of the identity**, rather
+than being allowed to mint a record per distinct value. For a problem phrase, the
+leading run of label characters is used — `unknown comparator: 'sameDay'` fingerprints
+as `unknown comparator`, with the full phrase kept in `messages` exactly as a
+throwable's message would be. A phrase with no usable head becomes `unspecified
+problem`; nothing is dropped, since silent dropping in *this* module would be the
+worst possible bug.
+
+## Storage
+
+One node per **distinct fault** under `/LoggedErrors` (`err:LoggedErrorsHomepage`).
+A fault something was thrown for is an `err:LoggedFailure`, one nothing was thrown
+for an `err:LoggedProblem`; both are `err:LoggedError` and ordinary `data:Content`, so
+they serialize, paginate and carry tags like anything else.
 
 | Property | Type | Meaning |
-| --- | --- | --- |
-| `component` | String | The class that was running |
-| `operation` | String | What it was trying to do |
-| `occurrences` | Long | How many times this fault has been recorded so far |
-| `jcr:created` | Date | When it was **first** seen, autocreated through `mix:created` |
-| `lastOccurrence` | Date | When it was **last** seen |
-| `subjects` | String[] | A bounded sample of the paths it happened to, most recent first |
-| `actors` | String[] | A bounded sample of the users it happened on behalf of |
+|---|---|---|
+| `component`, `operation` | String | What was running, and doing what |
+| `occurrences` | Long | Times recorded so far |
+| `jcr:created` / `lastOccurrence` | Date | First and last seen |
+| `subjects` / `actors` / `messages` | String[] | Bounded samples, most recent first (20 / 10 / 5) |
 | `lastContext` | String | Everything else said about the most recent occurrence |
-| `messages` | String[] | A bounded sample of the messages it was seen with — a throwable's, or a problem's reported phrases |
-| `type` | String | *(failures)* The class name of what was thrown |
-| `stackTrace` | String | *(failures)* The stack trace of one occurrence |
-| `problem` | String | *(problems)* What is wrong |
+| `type` / `stackTrace` | String | *(failures)* what was thrown, and one trace |
+| `problem` | String | *(problems)* what is wrong |
 
-No read access is granted on `/LoggedErrors` to anybody: a stack trace quotes whatever the failing
-code was working on, which may be anything at all. What can reach it is the module's own service
-user, the platform-wide readers Sling installs, and administrators.
+**Nobody is granted read access** on `/LoggedErrors`: a stack trace quotes whatever
+the failing code was working on. Reachable by the module's service user, Sling's
+platform readers, and administrators.
 
-### One node per distinct fault
+### The fingerprint
 
-A node is named after a **fingerprint of the fault**: the classes of the throwable chain, the
-frames they were thrown at, and the component and operation the caller named. Recording is then a
-lookup of one child by name — no query, and therefore no index to maintain.
+The node name is a SHA-256 of the component, the operation, and — for a failure — the
+throwable chain's class names and frames (up to 10 causes, 50 frames each). Recording
+is then a lookup of one child by name: no query, so no index to maintain.
 
-What is deliberately **not** in the fingerprint is everything that varies with the data rather than
-with the fault: the message, the subject, the actor. Broken code reporting `Cannot read
-/Submissions/1234` and `Cannot read /Submissions/5678` is *one* fault seen twice, not two faults.
+Deliberately **not** in the fingerprint: the message, the subject, the actor.
+`Cannot read /Submissions/1234` and `…/5678` are one fault seen twice.
 
-That distinction is load-bearing rather than cosmetic. Since [nothing is ever
-deleted](#nothing-is-ever-deleted), a fingerprint that included the message would let one broken
-code path over a large import mint tens of thousands of permanent nodes in a flat container that
-the status report then lists on every poll. With the message out, the number of records is bounded
-by the number of ways this build can fail — by the code, not by how much data flows through it.
+That is load-bearing, not cosmetic. Since nothing is ever deleted, a fingerprint
+including the message would let one broken code path over a large import mint tens of
+thousands of permanent nodes in a flat container the status report lists on every
+poll. Without it, the record count is bounded by the number of ways this build can
+fail rather than by how much data flows through it.
 
-Frame class names are normalized before hashing, because the JVM numbers the classes it generates:
-the same lambda is `$$Lambda$14` in one run and `$$Lambda$27` in the next. Left alone, those
-numbers would split one fault into as many records as the JVM felt like making classes.
+Frame class names are normalized before hashing (`0x…` addresses, `$$Lambda$N`,
+`$ProxyN`, `AccessorN`), because the JVM numbers generated classes differently each
+run and would otherwise split one fault across many records.
 
-### The samples are evidence, not a work queue
+### Samples are evidence, not a work queue
 
-`subjects`, `messages` and `actors` keep a bounded, most-recent-first sample. There is deliberately
-no count of how many distinct values were left out, because keeping one would mean either keeping
-them all or making a number up.
-
-So the report can tell you *that* something systematic is happening, *what kind*, and enough
-examples to reproduce it — but it is not the place to ask "which submissions do I have to retry".
-Content that has to be found and repaired must carry its own marker for that, the way a node whose
-tags could not be computed carries `tagComputationFailed`.
+There is deliberately no count of distinct values left out — keeping one would mean
+keeping them all or making a number up. The report can tell you *that* something
+systematic is happening, *what kind*, and enough examples to reproduce it. It is not
+where you ask "which submissions must I retry": content needing repair carries its
+own marker, the way a node whose tags could not be computed carries
+`tagComputationFailed`.
 
 ### Recording does not touch the repository
 
-`logError` fingerprints the failure, folds it into an in-memory tally and returns. A single
-background thread writes the accumulated tallies out shortly afterwards, one commit per batch. It is
-prompted both by the recording and by a timer of its own — one queued write per burst rather than
-one per occurrence, and a tick that catches the tail of a burst nothing arrives to notice the end
-of.
+`logError` fingerprints, folds into an in-memory tally, returns. A single
+`iap-error-tracking` thread writes accumulated tallies out, one commit per batch,
+prompted both by recording and by its own timer (default 60s, `WRITE_INTERVAL_MS`),
+which also bounds how often one fault is written.
 
-This is a requirement rather than an optimization. The callers most worth having are commit hooks,
-and a commit hook runs *inside* a commit: Oak's segment store guards commits with a single
-non-reentrant permit, so a session opened and committed from within a commit hook would block
-forever on a permit its own thread already holds, wedging every write in the instance. Recording
-asynchronously also means a failing loop costs one commit per interval instead of one per
-occurrence, and a single writer removes the race that used to lose occurrence counts between
-threads recording the same fault at once.
+This is a requirement, not an optimization. The callers most worth having are commit
+hooks, and Oak's segment store guards commits with a single **non-reentrant** permit —
+a session committed from inside a commit hook would block forever on a permit its own
+thread already holds, wedging every write in the instance.
 
-Three consequences worth knowing:
+Consequences:
 
-- a recorded error is not in the repository the instant the call returns;
-- a failure raised *while* a record is being written is logged and dropped rather than tallied,
-  which is what stops a fault that touches error tracking from feeding itself forever;
-- the tally is bounded, and so is the rate at which one fault is written. Neither is a retention
-  policy — the tally is keyed by fingerprint, so it is bounded by the same thing the stored records
-  are. Should even that overflow, the count of what could not be kept up with is reported rather
-  than quietly forgotten.
+- A recorded error is not in the repository the instant the call returns.
+- A failure raised *while* a record is being written is logged and dropped, not
+  tallied — a `ThreadLocal` guard is what stops a fault touching error tracking from
+  feeding itself.
+- The tally is bounded (`MAX_PENDING` 1000, keyed by fingerprint, so bounded by the
+  same thing the records are). Overflow is counted and reported, never quietly
+  forgotten. After 3 consecutive failed writes the writer pauses 5 minutes; a batch
+  that fails to write is folded back into the tally.
 
-## Dealing with a recorded error
+## Acknowledging
 
-Nothing is ever deleted here, so without a second axis the first error an instance ever hits would
-leave it reporting itself as unhealthy forever — and a report that is always red is one nobody
-reads. Instead, an error is **acknowledged**: somebody looks at it and records what they decided.
+Nothing is deleted, so without a second axis the first error an instance hit would
+leave it reporting itself unhealthy forever — and an always-red report is one nobody
+reads.
 
 ```
 POST /LoggedErrors/<fingerprint>.acknowledge.json
@@ -169,130 +154,96 @@ POST /LoggedErrors/<fingerprint>.acknowledge.json
     note=fix is in the next release
 ```
 
-The decision is appended as an `err:Acknowledgement` child — who decided, when, what, why, and how
-much had happened by then — rather than replacing anything. An error that was acknowledged, then
-recurred, then was acknowledged again keeps all three facts, which is the point of keeping errors
-around at all.
+The decision is **appended** as an `err:Acknowledgement` child — who, when, what,
+why, and the occurrence count at the time — rather than replacing anything. An error
+acknowledged, then recurred, then acknowledged again keeps all three facts.
 
-`resolution` names one of the tags in the `error-triage` category, shipped by this module and
-documented at [`/Tags.doc.md`](autodoc.md): `known-issue`, `wont-fix`, or a plain `acknowledged`. A
-deployment that adds a triage tag of its own can use it with no code change.
+`resolution` names a tag in the `error-triage` category shipped by this module
+(`known-issue`, `wont-fix`, plain `acknowledged`); a deployment can add its own with
+no code change.
 
-### An error that happens again asks for attention again
+Triage markers are **computed** from the decisions by a tag processor, never placed by
+hand. Because a decision records the occurrence count it was taken at, another
+occurrence pushes the count past it and the error returns to `unacknowledged` on its
+own, and since that marker is aggregated, `/LoggedErrors` carries it while anything
+under it needs attention. No scheduled job, no stale flag, no clock comparison — a
+count cannot be confused by two things in the same second or by a disagreeing clock.
 
-The triage markers on an error are **computed** from its decisions by a tag processor, never placed
-by hand. A decision records the occurrence count it was taken at, so:
-
-- recording another occurrence increments the count past that, and the error goes back to
-  `unacknowledged` on its own;
-- that marker is aggregated, so `/LoggedErrors` itself carries it while anything under it needs
-  attention, and the status report goes back to `ERROR`.
-
-No scheduled job, no stale flag, and no clock comparison — a count cannot be confused by two things
-happening in the same second, or by a clock that disagrees. "We acknowledged this because the fix
-is in the next release" and "the fix did not work" are exactly the pair that a triage system has to
-tell apart to stay trustworthy.
-
-### Nothing is ever deleted
-
-There is deliberately **no retention policy**. Every recorded error stays until somebody deals with
-it. A time limit would be wrong because an error often cannot be fixed quickly — a partner
-institution whose server dropped a data push may take days or weeks to come back, and the record of
-what failed is exactly what is needed to retry it once they do. A fixed cap would be wrong for the
-same reason: there is no count at which the oldest unresolved error stops mattering. The only thing
-collapsed is a repeat of a fault already recorded, which loses no information because it is counted
-instead. The service user is not even granted the privilege to remove a node, so this is a property
-of the deployment rather than a promise made in code.
+**No retention policy**, deliberately. An error often cannot be fixed quickly — a
+partner institution whose server dropped a push may take weeks, and the record is
+what is needed to retry. A fixed cap fails for the same reason: there is no count at
+which the oldest unresolved error stops mattering. Only a repeat of an already-recorded
+fault is collapsed, which loses nothing because it is counted. The service user is not
+granted the privilege to remove a node, so this is a property of the deployment rather
+than a promise in code.
 
 ## The status report
 
-The `LoggedErrorsStatusReporter` contributes a report tagged `problems` and `errors`:
+`LoggedErrorsStatusReporter` contributes a report tagged `problems` and `errors`:
 
 | Situation | Status | Headline |
-| --- | --- | --- |
-| `/LoggedErrors` missing or of the wrong type | `ERROR` | `*ERROR*: Errors cannot be logged` |
+|---|---|---|
+| `/LoggedErrors` missing or wrong type | `ERROR` | `*ERROR*: Errors cannot be logged` |
 | nothing recorded | `DEBUG` | `No errors are logged` |
-| a failure needing attention is still happening | `ERROR` | `There are N errors logged, M occurrences in total` |
-| something needs attention, but none of it is still happening | `WARNING` | `There is 1 error logged, no failure seen in the last 60 minutes` |
+| a failure needing attention still happening | `ERROR` | `There are N errors logged, M occurrences in total` |
+| needs attention, none still happening | `WARNING` | `…no failure seen in the last 60 minutes` |
 | everything acknowledged | `INFO` | `All N logged errors have been acknowledged` |
-| nothing recorded, but faults were dropped | `WARNING` | `*WARNING*: N errors could not be recorded` |
+| nothing recorded, but faults dropped | `WARNING` | `*WARNING*: N errors could not be recorded` |
 
-Anything the tally could not keep up with is counted in every one of those, headline included,
-however much has been acknowledged: nobody ever saw what was dropped, so nothing can have
-acknowledged it. The count names no content, so it is shown to any reader.
-
-### How loud the report is
-
-`ERROR` is the loudest thing this platform can say about itself, and `/system/status` is what a
-monitoring tool polls, so it is worth being exact about when the recorded errors earn one. Two
-things are deliberately *not* enough on their own:
-
-- **An old fault.** Nothing recorded here is ever deleted, so a report that turned red for the
-  oldest entry would be red for the rest of the instance's life, and a report that is always red
-  is one nobody reads. A failure counts as still happening while it was last seen inside the
-  **recent failure window**, 60 minutes by default.
-- **A problem rather than a failure.** Something the instance [merely found
-  wrong](#something-wrong-that-nothing-was-thrown-for) — a condition naming a comparator that does
-  not exist — is an
-  authoring mistake, somebody's to correct. However often it is hit, it is not evidence that this
-  instance is unwell, so by default it cannot make the report an `ERROR`.
-
-Both are settings on the **Error Report** configuration
+Two things are deliberately **not** enough for `ERROR` on their own, both
+configurable on **Error Report**
 (`io.uhndata.iap.errortracking.internal.ErrorReportConfiguration`):
 
 | Setting | Default | Meaning |
-| --- | --- | --- |
-| `recentFailureWindow` | `60` | Minutes after a failure was last seen that it still counts as happening now |
-| `problemsAreUrgent` | `false` | Whether a recorded problem can make the report an `ERROR` the way a failure does |
+|---|---|---|
+| `recentFailureWindow` | `60` | Minutes after last being seen that a failure still counts as happening now |
+| `problemsAreUrgent` | `false` | Whether a problem can raise `ERROR` the way a failure does |
 
-A deployment that would rather be woken for anything unacknowledged sets a window longer than an
-instance ever runs, and `problemsAreUrgent` to `true`. A window of zero or less cannot say what is
-happening now — it would silence every `ERROR` this reporter can raise — so it is refused and the
-default used instead, with a line in the log saying so.
+A deployment wanting to be woken for anything unacknowledged sets a window longer
+than an instance ever runs — **not zero**, which cannot say what is happening now and
+would silence every `ERROR` here; it is refused, with a line in the log.
 
-An overflow is the one thing that is loud without being red. Losing recordings is worth saying
-plainly, and the headline and body both say it, but what it reports is that faults *once* arrived
-faster than they could be written; the count is cumulative for the life of the process, so
-treating it as an `ERROR` would mean an instance that hit one burst stayed red until it was
-restarted.
+Deliberate choices in the remaining statuses:
 
-`INFO` for the acknowledged case, deliberately: `SUCCESS` would be a lie, since something did
-break and the record is still there, while `WARNING` would still trip any monitor thresholding
-above `INFO` — which is the exact noise acknowledging an error is meant to remove. `INFO` is
-visible to a person asking and invisible to a monitor watching for anything worse.
+- **Overflow is loud but not red.** The dropped count is cumulative for the life of
+  the process, so `ERROR` would keep an instance that hit one burst red until
+  restart. It is counted in every row above, headline included, however much has been
+  acknowledged — nobody ever saw what was dropped, so nothing can have acknowledged
+  it. It names no content, so any reader sees it.
+- **`INFO`, not `SUCCESS` or `WARNING`, for the acknowledged case.** `SUCCESS` would
+  be a lie; `WARNING` still trips any monitor thresholding above `INFO`, which is the
+  exact noise acknowledging is meant to remove.
 
-What the report may say depends on who is reading. A component, an operation and a count describe
-the instance's own code and are shown to anyone; a stack trace, a message, a path or a user quote
-whatever the failing code was working on and are shown only to a reader who is logged in. So the
-summary table — what broke, doing what, how often, when — is useful even on the unauthenticated
-`/system/status`, which is new: previously an anonymous reader learned only that there were errors.
+Field visibility splits by reader: component, operation and counts describe the
+instance's own code and are shown to anyone, including on the unauthenticated
+`/system/status`; stack traces, messages, paths and users quote what the failing code
+was working on and need a logged-in reader. The privileged report describes the ten
+most recently seen in full and names *which* triage tag silenced each acknowledged
+one, so nothing is silenced invisibly.
 
-The privileged report describes the ten most recently seen in full and names *which* triage tag
-silenced each acknowledged one, so nothing is ever silenced invisibly.
-
-Listing the errors reads the children of `/LoggedErrors` directly rather than querying for them, so
-no index is needed for the report to stay cheap.
+Listing reads the children of `/LoggedErrors` directly rather than querying, so the
+report stays cheap without an index.
 
 ## Over HTTP
 
-Because a recorded error is ordinary content, it needs no serialization code of its own:
+A recorded error is ordinary content, so it needs no serialization code of its own:
 
-- `GET /LoggedErrors/<fingerprint>.json` — one recorded error;
-- `GET /LoggedErrors.json` — the container, including the aggregated marker that answers "is
-  anything wrong" in one property read;
-- `GET /LoggedErrors.paginate.json?sortBy=lastOccurrence&descending=true` — a listing, with the
-  pagination servlet's filtering;
-- `GET /LoggedErrors.deep.json` — everything, which on a container that is never pruned can be very
-  large. Admin-only and explicitly asked for, but worth knowing.
+| Request | Returns |
+|---|---|
+| `/LoggedErrors/<fingerprint>.json` | one recorded error |
+| `/LoggedErrors.json` | the container, including the aggregated marker that answers "is anything wrong" in one property read |
+| `/LoggedErrors.paginate.json?sortBy=lastOccurrence&descending=true` | a listing, with the pagination servlet's filtering |
+| `/LoggedErrors.deep.json` | everything — very large on a container that is never pruned. Admin-only and explicitly asked for |
 
 ## Future work
 
-- **Wiring the callers in.** Nothing records anything yet. The rule to apply: record a failure only
-  when nobody will find out any other way *and* it is a fault of the machine or the deployment
-  whose identity is bounded by how the instance is built, never by what a caller sent. That rule
-  admits the tag propagation editor, the tag and link definition readers, the backlink listener and
-  the JWT key loading; it excludes anything a client can trigger with input of its own choosing.
-- **An index**, if the number of *distinct* faults on a real deployment ever grows enough that
-  listing the container's children stops being cheap, or if searching the stack traces is ever
-  wanted. It should ride along with the deferred index over the tag properties rather than being a
-  module-private one.
+**An index**, if the number of *distinct* faults on a real deployment ever grows
+enough that listing the container's children stops being cheap, or if searching stack
+traces is wanted. It should ride along with the deferred index over the tag
+properties rather than being module-private.
+
+When adding a caller, the rule: record only when nobody will find out any other way
+*and* the fault is one of the machine or the deployment, whose identity is bounded by
+how the instance is built — never by what a caller sent. That admits the tag
+propagation editor, definition readers, the backlink listener and JWT key loading; it
+excludes anything a client can trigger with input of its own choosing.

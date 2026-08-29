@@ -14,6 +14,19 @@ every structural decision follows from: everything the platform knows is content
 that changes it is a workflow. The pages below each go one mechanism deep; this one explains what
 they have in common.
 
+## Writing code
+
+The conventions a contribution is expected to follow, and the traps worth knowing before hitting
+them.
+
+| Document | What it covers |
+| --- | --- |
+| [java-development.md](java-development.md) | Backend code: OSGi components, dependencies between services, configuration, service users, bundle assembly — and the habits the code is meant to follow |
+| [frontend-development.md](frontend-development.md) | React, TypeScript and MUI: what a module ships, talking to the server, reporting failures, the shared components and the theme |
+| [page-rendering.md](page-rendering.md) | How a URL becomes a page: resource resolution, display scripts, the responses that are not pages, and custom servlets |
+| [json-serialization.md](json-serialization.md) | Serving content as JSON, the selectors a caller shapes it with, and the processor SPI a module extends it through |
+| [http-requests.md](http-requests.md) | The shared client for calling an external service, and what it does and does not throw |
+
 ## The domain model
 
 How content is shaped, related, and moved through its process.
