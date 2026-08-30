@@ -19,6 +19,7 @@ package io.uhndata.iap.emailnotifications.internal;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -26,6 +27,7 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 
 import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.commons.messaging.mail.MailService;
 import org.apache.sling.commons.messaging.mail.MessageBuilder;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -91,6 +93,22 @@ class EmailTestEndpointTest
         // The endpoint mails an arbitrary address, which is not something to leave open
         assertEquals(403, response.getStatus());
         verify(this.mailService, never()).sendMessage(ArgumentMatchers.<MimeMessage>any());
+    }
+
+    /**
+     * A login resolves case-insensitively, so an administrator may well have typed "Admin" and the request reports
+     * that spelling. Only the repository knows the account it resolved to, and refusing them on the typed form is
+     * how this endpoint used to lock out its own audience.
+     */
+    @Test
+    void admitsAnAdministratorWhoCapitalisedTheirNameAtLogin() throws IOException
+    {
+        this.sending.complete(null);
+        final MockSlingJakartaHttpServletResponse response = response();
+
+        this.endpoint.doGet(request("admin", "Admin", parameters(null)), response);
+
+        assertEquals(200, response.getStatus());
     }
 
     @Test
@@ -246,16 +264,34 @@ class EmailTestEndpointTest
         return parameters;
     }
 
+    /**
+     * A request from a named caller. The id goes on the session, which is where the endpoint reads it, and the
+     * request is deliberately made to report a differently capitalised spelling — that is what a case-insensitively
+     * resolved login looks like, and a fixture where the two agree could not tell the two reads apart.
+     */
     private MockSlingJakartaHttpServletRequest request(final String user, final Map<String, Object> parameters)
     {
-        final ResourceResolver resolver = this.context.resourceResolver();
+        return request(user, user == null ? null : user.toUpperCase(Locale.ROOT), parameters);
+    }
+
+    private MockSlingJakartaHttpServletRequest request(final String canonical, final String typedAtLogin,
+        final Map<String, Object> parameters)
+    {
+        final ResourceResolver resolver = new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return canonical;
+            }
+        };
         final MockSlingJakartaHttpServletRequest request =
             new MockSlingJakartaHttpServletRequest(resolver, this.context.bundleContext())
             {
                 @Override
                 public String getRemoteUser()
                 {
-                    return user;
+                    return typedAtLogin;
                 }
             };
         request.setParameterMap(parameters);
