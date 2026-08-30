@@ -360,21 +360,6 @@
         <artifactId>jakarta.activation-api</artifactId>
         <version>2.1.4</version>
       </dependency>
-      <!-- What Jakarta Mail hands part content through. Already in the mail feature at runtime; declared here
-           so that code building a message part can compile against it. -->
-      <dependency>
-        <groupId>jakarta.activation</groupId>
-        <artifactId>jakarta.activation-api</artifactId>
-        <version>2.0.1</version>
-      </dependency>
-      <!-- The Jakarta Mail implementation behind that API. Supplied by the mail feature at runtime, so it is only
-           ever a test dependency here: a test that builds a real MimeMessage needs a real session. -->
-      <dependency>
-        <groupId>com.sun.mail</groupId>
-        <artifactId>jakarta.mail</artifactId>
-        <version>2.0.2</version>
-        <scope>test</scope>
-      </dependency>
       <dependency>
         <groupId>org.osgi</groupId>
         <artifactId>org.osgi.framework</artifactId>
@@ -2502,7 +2487,6 @@
     <module>modules</module>
     <module>aggregated-frontend</module>
     <module>test-data</module>
-    <module>email-catcher</module>
     <module>demos</module>
     <module>packaging</module>
     <module>tools</module>

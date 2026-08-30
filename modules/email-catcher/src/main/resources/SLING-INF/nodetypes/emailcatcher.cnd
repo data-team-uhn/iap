@@ -15,7 +15,7 @@
 // limitations under the License.
 
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
-<iap = 'https://iap.uhndata.io/'>
+<data = 'https://iap.uhndata.io/data/'>
 <mail = 'https://iap.uhndata.io/mail/'>
 
 //-----------------------------------------------------------------------------
@@ -31,9 +31,9 @@
 
 //-----------------------------------------------------------------------------
 // Homepage node for the /CaughtMail root path.
-[mail:CaughtMailHomepage] > iap:EntityHomepage
+[mail:CaughtMailHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "mail/CaughtMailHomepage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/EntityHomepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)
@@ -55,9 +55,9 @@
 // The addresses are stored as they were written on the message, display name
 // and all, because what is worth checking is what a recipient would have seen
 // in their client rather than a normalised form of it.
-[mail:CaughtMessage] > iap:Content
+[mail:CaughtMessage] > data:Content
   - sling:resourceType (STRING) = "mail/CaughtMessage" mandatory autocreated protected
-  - sling:resourceSuperType (STRING) = "iap/Content" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected
 
   // What the message says it is
   - subject (STRING)

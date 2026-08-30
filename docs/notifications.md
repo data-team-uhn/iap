@@ -190,8 +190,7 @@ service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD` environment variable.
 
 ### Reading mail a development instance would have sent
 
-**Module:** `email-catcher` (repository root, not under `modules/`) ·
-**Bundle:** `iap-email-catcher` (start-order 25)
+**Module:** `modules/email-catcher` · **Bundle:** `iap-email-catcher` (start-order 25)
 
 A development, test or demo instance has no mail server, and pointing one at a real
 relay to see what the platform writes is both awkward and a way to mail real people by
