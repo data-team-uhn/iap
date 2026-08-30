@@ -39,6 +39,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.utils.UserIds;
+
 /**
  * Sends one fixed email to whoever asks, so that an administrator can tell whether the mail configuration of an
  * instance works without waiting for the platform to have a reason to write to somebody.
@@ -93,7 +95,7 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
         throws IOException
     {
         final Writer out = response.getWriter();
-        if (!"admin".equals(request.getRemoteUser())) {
+        if (!"admin".equals(UserIds.canonical(request.getResourceResolver()))) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             out.write("Only admin can perform this operation.");
             return;
