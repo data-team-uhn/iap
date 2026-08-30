@@ -20,6 +20,7 @@ package io.uhndata.iap.emailnotifications.internal;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -55,11 +56,16 @@ import static org.mockito.Mockito.when;
 @ExtendWith(SlingContextExtension.class)
 class EmailTestEndpointTest
 {
+    /** What a mail server says, which must never reach the caller. */
+    private static final String SERVER_TALK = "relay smtp.internal:587 rejected user svc-iap: bad credentials";
+
     private final SlingContext context = new SlingContext();
 
     private final MailService mailService = mock(MailService.class);
 
     private final MessageBuilder message = mock(MessageBuilder.class, RETURNS_SELF);
+
+    private CompletableFuture<Void> sending;
 
     private EmailTestEndpoint endpoint;
 
@@ -67,10 +73,12 @@ class EmailTestEndpointTest
     void setUp() throws ReflectiveOperationException
     {
         when(this.mailService.getMessageBuilder()).thenReturn(this.message);
+        // Sending is asynchronous, so the service hands back a future rather than a verdict. An unstubbed mock
+        // would return null here and the endpoint would have nothing to wait on.
+        this.sending = new CompletableFuture<>();
+        when(this.mailService.sendMessage(ArgumentMatchers.<MimeMessage>any())).thenReturn(this.sending);
         this.endpoint = new EmailTestEndpoint();
-        final Field field = EmailTestEndpoint.class.getDeclaredField("mailService");
-        field.setAccessible(true);
-        field.set(this.endpoint, this.mailService);
+        set("mailService", this.mailService);
     }
 
     @Test
@@ -110,11 +118,13 @@ class EmailTestEndpointTest
     @Test
     void sendsAPlainTextMessage() throws IOException, MessagingException
     {
+        this.sending.complete(null);
         final MockSlingJakartaHttpServletResponse response = response();
 
         this.endpoint.doGet(request("admin", parameters(null)), response);
 
         assertEquals(200, response.getStatus());
+        assertTrue(response.getOutputAsString().contains("The message was sent."));
         verify(this.message).from("from@example.invalid", "From");
         verify(this.message).to("to@example.invalid", "To");
         verify(this.message).replyTo("from@example.invalid");
@@ -125,6 +135,7 @@ class EmailTestEndpointTest
     @Test
     void sendsARichTextMessageWhenAsked() throws IOException, MessagingException
     {
+        this.sending.complete(null);
         final MockSlingJakartaHttpServletResponse response = response();
 
         this.endpoint.doGet(request("admin", parameters("true")), response);
@@ -138,19 +149,88 @@ class EmailTestEndpointTest
      * relay, its port and the account the instance authenticates with.
      */
     @Test
-    void aRefusedMessageIsReportedWithoutQuotingTheMailServer() throws IOException, MessagingException
+    void aMessageThatCannotBeAssembledIsReportedWithoutQuotingTheMailServer() throws IOException, MessagingException
     {
-        when(this.message.build())
-            .thenThrow(new MessagingException("relay smtp.internal:587 rejected user svc-iap: bad credentials"));
+        when(this.message.build()).thenThrow(new MessagingException(SERVER_TALK));
         final MockSlingJakartaHttpServletResponse response = response();
 
         this.endpoint.doGet(request("admin", parameters(null)), response);
 
         assertEquals(500, response.getStatus());
+        assertRefusedWithoutQuotingTheMailServer(response);
+    }
+
+    /**
+     * The point of the whole exercise. Everything after the message is assembled happens on a thread pool, so a
+     * send that is refused used to reach neither the response nor the log, and this endpoint answered that it had
+     * worked.
+     */
+    @Test
+    void aSendRefusedAfterTheMessageWasAssembledIsReported() throws IOException
+    {
+        this.sending.completeExceptionally(new MessagingException(SERVER_TALK));
+        final MockSlingJakartaHttpServletResponse response = response();
+
+        this.endpoint.doGet(request("admin", parameters(null)), response);
+
+        assertEquals(500, response.getStatus());
+        assertRefusedWithoutQuotingTheMailServer(response);
+    }
+
+    /**
+     * A relay that never answers must not park the request thread. The send carries on, and says so through the
+     * log rather than through a response nobody is waiting for any more.
+     */
+    @Test
+    void aSendThatOutlivesTheBudgetIsReportedAsStillGoing() throws IOException, ReflectiveOperationException
+    {
+        set("sendTimeoutMillis", 1L);
+        final MockSlingJakartaHttpServletResponse response = response();
+
+        this.endpoint.doGet(request("admin", parameters(null)), response);
+
+        assertEquals(202, response.getStatus());
+        assertTrue(response.getOutputAsString().contains("still being sent"));
+
+        // The answer has been written, and the send is still attached to something that will record how it ends
+        this.sending.completeExceptionally(new MessagingException(SERVER_TALK));
+    }
+
+    /**
+     * The container is entitled to see that it asked this thread to stop, so the flag is put back rather than
+     * swallowed by the wait.
+     */
+    @Test
+    void anInterruptedWaitIsReportedAsStillGoingAndPutsTheFlagBack() throws IOException
+    {
+        final MockSlingJakartaHttpServletResponse response = response();
+        Thread.currentThread().interrupt();
+        try {
+            this.endpoint.doGet(request("admin", parameters(null)), response);
+
+            assertEquals(202, response.getStatus());
+            assertTrue(response.getOutputAsString().contains("still being sent"));
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            // Never leave it set: it would make every later test's wait throw
+            Thread.interrupted();
+        }
+    }
+
+    private void assertRefusedWithoutQuotingTheMailServer(final MockSlingJakartaHttpServletResponse response)
+    {
         final String body = response.getOutputAsString();
         assertTrue(body.contains("Could not send the message"));
+        assertTrue(body.contains("instance log"));
         assertFalse(body.contains("smtp.internal"));
         assertFalse(body.contains("svc-iap"));
+    }
+
+    private void set(final String field, final Object value) throws ReflectiveOperationException
+    {
+        final Field declared = EmailTestEndpoint.class.getDeclaredField(field);
+        declared.setAccessible(true);
+        declared.set(this.endpoint, value);
     }
 
     private Map<String, Object> parameters(final String isHtml)

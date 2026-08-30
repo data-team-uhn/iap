@@ -136,9 +136,15 @@ Sends one fixed message, so an administrator can tell whether an instance's SMTP
 configuration works without waiting for the platform to have a reason to write to
 somebody. **Restricted to `admin`**, since it mails an arbitrary address.
 
-When sending fails it answers that it failed and nothing more — what the mail server
-said goes to the instance log, because that text routinely names the relay, its port and
-the account the instance authenticates with.
+Sending is asynchronous, so the endpoint waits for it to finish before answering, for up
+to fifteen seconds. It reports `200` once the message has gone out, `500` if it was
+refused, and `202` if the send is still going when the wait runs out — a relay that never
+answers must not park the request thread indefinitely. The outcome reaches the instance
+log either way, which is the only place a send that outlives the wait can report to.
+
+A failure answers that it failed and nothing more: what the mail server said goes to the
+log, because that text routinely names the relay, its port and the account the instance
+authenticates with.
 
 SMTP settings come from the module's feature configuration —
 `emailnotifications.smtps.host`, `.port`, `.username`, `.password`,
