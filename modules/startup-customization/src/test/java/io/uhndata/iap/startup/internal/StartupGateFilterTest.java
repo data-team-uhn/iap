@@ -212,16 +212,45 @@ class StartupGateFilterTest
     }
 
     @Test
-    void opensOnlyWhenEveryRequiredCheckIsPresentAndPassing() throws Exception
+    void opensOnlyWhenEveryRequiredCheckIsPresentAndPassingAndHasStayedThatWay() throws Exception
     {
         everythingPasses();
 
+        // One passing evaluation says only that the checks lined up at that instant, which they do transiently
+        // while configurations are being re-delivered
         this.filter.poll(0);
+        assertFalse(letsRequestsThrough());
+
+        this.filter.poll(StartupGateFilter.HOLD_NANOS);
         this.filter.doFilter(this.request, this.response, this.chain);
 
         assertNull(this.filter.findProblem());
         verify(this.chain).doFilter(this.request, this.response);
         verify(this.response, never()).setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+    }
+
+    /**
+     * The regression test for the gate letting a half-started instance through, reproducing what a real startup did:
+     * the checks passed, went unavailable two seconds later, and came back two seconds after that. The hold has to
+     * restart with the new stretch, or four seconds of flapping is mistaken for four seconds of readiness.
+     */
+    @Test
+    void aRegressionInsideTheHoldWindowStartsTheHoldAgain() throws Exception
+    {
+        final long twoSeconds = TimeUnit.SECONDS.toNanos(2);
+        everythingPasses();
+        this.filter.poll(0);
+
+        everythingPassesExcept(SERVICES_CHECK);
+        this.filter.poll(twoSeconds);
+        everythingPasses();
+        this.filter.poll(2 * twoSeconds);
+
+        // Long enough since the FIRST ready evaluation, but the stretch that counts began at four seconds
+        assertFalse(letsRequestsThrough(), "readiness that did not last is not readiness");
+
+        this.filter.poll(2 * twoSeconds + StartupGateFilter.HOLD_NANOS);
+        assertTrue(letsRequestsThrough());
     }
 
     @Test
@@ -403,6 +432,7 @@ class StartupGateFilterTest
 
         everythingPasses();
         this.filter.poll(1);
+        this.filter.poll(1 + StartupGateFilter.HOLD_NANOS);
 
         assertTrue(letsRequestsThrough());
     }
@@ -550,9 +580,11 @@ class StartupGateFilterTest
         everythingPasses();
 
         this.filter.poll();
-        this.filter.doFilter(this.request, this.response, this.chain);
 
-        verify(this.chain).doFilter(this.request, this.response);
+        // What the no-argument form owes is that it evaluates against the real clock. It cannot be asserted by the
+        // gate opening any more — nothing has held yet — so assert the evaluation itself.
+        verify(this.executor).execute(any(), any());
+        assertFalse(letsRequestsThrough());
         assertStillGated();
     }
 
