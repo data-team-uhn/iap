@@ -95,6 +95,26 @@ public interface PrincipalService
     }
 
     /**
+     * Everything a session acts as: the person's own id, then every principal bound to their session, which is
+     * what {@link #MY_PRINCIPALS} stands for.
+     *
+     * <p>This is the other side of {@link #isOneOf}. A property naming who may act holds principals rather than
+     * user ids, so somebody asking which of those properties concern them needs the list itself, not a yes or a
+     * no about one name. Read from the bound principals, because those are the one reading that already carries
+     * the roles an identity provider synchronises without leaving a group node behind.</p>
+     *
+     * <p>Never empty for an identified session: somebody bound to nothing else still acts as themselves, so a
+     * caller filtering on this answer narrows the question to their own rather than widening it to everybody's.
+     * </p>
+     *
+     * @param resolver the session to describe
+     * @return the principal names, the person's own id first
+     * @throws PrincipalLookupException when the session cannot say what it is bound to
+     */
+    @NotNull
+    List<String> principalsOf(@NotNull ResourceResolver resolver);
+
+    /**
      * The people the given principals name, with groups expanded into their members.
      *
      * <p>A user id contributes itself. A group contributes every user in it, through nested groups, whether it
