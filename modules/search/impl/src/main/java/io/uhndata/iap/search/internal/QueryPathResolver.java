@@ -184,21 +184,21 @@ final class QueryPathResolver
         try {
             if (!session.nodeExists(path)) {
                 LOGGER.warn("A search refers to [{}], where there is no node; leaving the path as it is",
-                    SearchServlet.forLog(path));
+                    QueryPlanChecker.forLog(path));
                 return null;
             }
             final Node node = session.getNode(path);
             if (!node.isNodeType("mix:referenceable")) {
                 // Oak answers getIdentifier() for such a node with its path, which no reference property holds
                 LOGGER.warn("A search refers to [{}], which is not referenceable; leaving the path as it is",
-                    SearchServlet.forLog(path));
+                    QueryPlanChecker.forLog(path));
                 return null;
             }
             return node.getIdentifier();
         } catch (final RepositoryException | RuntimeException e) {
             // Unchecked as much as checked: a malformed path is the client's to send, and the repository is entitled
             // to reject one without wrapping its complaint
-            LOGGER.warn("Failed to read the identifier of [{}]: {}", SearchServlet.forLog(path), e.getMessage(), e);
+            LOGGER.warn("Failed to read the identifier of [{}]: {}", QueryPlanChecker.forLog(path), e.getMessage(), e);
             return null;
         }
     }

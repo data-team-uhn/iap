@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -36,6 +37,7 @@ import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.Value;
+import javax.jcr.ValueFactory;
 import javax.jcr.Workspace;
 import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.NodeTypeManager;
@@ -94,6 +96,10 @@ public class SearchServletTest
 
     private static final String SCHEMA_UUID = "d1f5a0e2-4b0a-4a3a-9f6b-0c2d1e3f4a5b";
 
+    /** The statement a full-text search generates, whatever the caller sent: the text is bound. */
+    private static final String FULL_TEXT_QUERY =
+        "select n.* from [nt:base] as n where contains(n.*, $text)";
+
     /**
      * The exclusion every generated full-text statement carries. Spelled out in full, rather than reused from the
      * servlet, by {@link #aFullTextSearchStaysOutOfTheRepositorysBookkeeping()}.
@@ -112,6 +118,12 @@ public class SearchServletTest
     private QueryManager queryManager;
 
     private Session session;
+
+    /** The values the servlet bound into its statements, keyed by variable name. */
+    private Map<String, String> boundValues;
+
+    /** The same, for the {@code explain} statement the plan check runs. */
+    private Map<String, String> explainedValues;
 
     private NodeTypeManager nodeTypes;
 
@@ -133,6 +145,8 @@ public class SearchServletTest
         this.queryManager = Mockito.mock(QueryManager.class);
         this.output = new StringWriter();
         this.statements = new ArrayList<>();
+        this.boundValues = new LinkedHashMap<>();
+        this.explainedValues = new LinkedHashMap<>();
         this.planColumns = new String[] { INDEXED_PLAN };
 
         this.session = Mockito.mock(Session.class);
@@ -143,6 +157,14 @@ public class SearchServletTest
         Mockito.when(this.session.getWorkspace()).thenReturn(workspace);
         Mockito.when(workspace.getQueryManager()).thenReturn(this.queryManager);
         Mockito.when(workspace.getNodeTypeManager()).thenReturn(this.nodeTypes);
+        // A value factory handing back what it was given, so a test can read the bound values back
+        final ValueFactory valueFactory = Mockito.mock(ValueFactory.class);
+        Mockito.when(this.session.getValueFactory()).thenReturn(valueFactory);
+        Mockito.when(valueFactory.createValue(Mockito.anyString())).thenAnswer(invocation -> {
+            final Value value = Mockito.mock(Value.class);
+            Mockito.when(value.getString()).thenReturn(invocation.getArgument(0, String.class));
+            return value;
+        });
         Mockito.when(this.response.getWriter()).thenReturn(new PrintWriter(this.output));
 
         // Every resolved resource serializes to a small JSON object identifying it by path
@@ -372,8 +394,9 @@ public class SearchServletTest
         withParameter("fulltext", TERM);
         mockNodeResults("/Submissions/s1");
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')" + OUTSIDE_SYSTEM,
-            executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        // The text the user typed is bound, not written into the statement
+        Assertions.assertEquals(Map.of("text", "diabetes"), this.boundValues);
     }
 
     @Test
@@ -388,7 +411,7 @@ public class SearchServletTest
         withParameter("fulltext", TERM);
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')"
+        Assertions.assertEquals(FULL_TEXT_QUERY
             + " and not issamenode(n, '/jcr:system') and not isdescendantnode(n, '/jcr:system')",
             executedStatement());
     }
@@ -405,6 +428,18 @@ public class SearchServletTest
     }
 
     @Test
+    public void thePlanIsAskedForWithTheValuesBoundAsWell() throws Exception
+    {
+        // A statement naming a variable with no value does not run at all, so a plan asked for without the values
+        // would fail for every generated query -- and fail silently, since a plan that cannot be had is only logged
+        // at debug level, leaving the traversal warning this whole check exists for to simply never fire again
+        withParameter("fulltext", TERM);
+        mockNodeResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(Map.of("text", "diabetes"), this.explainedValues);
+    }
+
+    @Test
     public void aFullTextSearchIgnoresSurroundingWhitespace() throws Exception
     {
         // A full text expression has to start with a term, so a leading space -- what a paste, or an
@@ -412,8 +447,7 @@ public class SearchServletTest
         withParameter("fulltext", "  diabetes \t");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'diabetes')" + OUTSIDE_SYSTEM,
-            executedStatement());
+        Assertions.assertEquals(Map.of("text", "diabetes"), this.boundValues);
     }
 
     @Test
@@ -422,8 +456,8 @@ public class SearchServletTest
         withParameter("fulltext", "a-b OR c*");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'a\\-b OR c\\*')" + OUTSIDE_SYSTEM,
-            executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(Map.of("text", "a\\-b OR c\\*"), this.boundValues);
     }
 
     @Test
@@ -433,21 +467,24 @@ public class SearchServletTest
         withParameter("doNotEscapeQuery", "true");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'a-b OR c*')" + OUTSIDE_SYSTEM,
-            executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(Map.of("text", "a-b OR c*"), this.boundValues);
     }
 
     @Test
-    public void quotesAreAlwaysEscapedIntoTheStatement() throws Exception
+    public void aQuoteCannotReachTheStatementAtAll() throws Exception
     {
-        // Even when the client asks for its full-text operators to be kept: a quote would end the string literal
-        // and let the rest of the input be read as query syntax
+        // This used to be the sharpest case for escaping: with doNotEscapeQuery the full-text escaping is skipped
+        // on purpose, so a quote was one missed escape away from ending the string literal and letting the rest of
+        // the input be read as query syntax. Binding the expression removes the literal, so there is nothing left
+        // for a quote to end -- the statement is the same whatever the client sends, and the apostrophe reaches the
+        // full-text parser as the client asked for it to.
         withParameter("fulltext", "it's");
         withParameter("doNotEscapeQuery", "true");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, 'it''s')" + OUTSIDE_SYSTEM,
-            executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(Map.of("text", "it's"), this.boundValues);
     }
 
     @Test
@@ -741,29 +778,30 @@ public class SearchServletTest
     @Test
     public void anApostropheIsEscapedOutOfTheFullTextExpression() throws Exception
     {
-        // An apostrophe opens a quoted phrase for the full-text parser. The statement's own escaping doubles it, but
-        // parsing the statement undoes that again, so it has to be escaped for the full-text parser as well
+        // An apostrophe opens a quoted phrase for the full-text parser, and binding does not help with that: the
+        // grammar is applied to whatever the variable holds, so the escaping the parser needs is still done here
         withParameter("fulltext", "'tis");
         mockNodeResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertEquals("select n.* from [nt:base] as n where contains(n.*, '\\''tis')" + OUTSIDE_SYSTEM,
-            executedStatement());
+        Assertions.assertEquals(FULL_TEXT_QUERY + OUTSIDE_SYSTEM, executedStatement());
+        Assertions.assertEquals(Map.of("text", "\\'tis"), this.boundValues);
     }
 
     @Test
     public void aStatementIsLoggedOnASingleLine()
     {
-        // In fulltext mode the statement carries the text the user typed, so a line break in it would otherwise let
-        // a client write log entries of its own
+        // A statement the client sent whole is logged as it is, so a line break in it would otherwise let a client
+        // write log entries of its own. Generated statements no longer carry anything the user typed -- the text is
+        // bound and never logged -- so this now guards the query mode alone.
         Assertions.assertEquals("select * from [nt:base] where a = 'b'",
-            SearchServlet.forLog("select * from [nt:base]\nwhere a = 'b'"));
+            QueryPlanChecker.forLog("select * from [nt:base]\nwhere a = 'b'"));
     }
 
     @Test
     public void aLongStatementIsCutDownBeforeItIsLogged()
     {
         final String statement = "select * from [nt:base] where title = '" + "a".repeat(600) + "'";
-        final String logged = SearchServlet.forLog(statement);
+        final String logged = QueryPlanChecker.forLog(statement);
         Assertions.assertEquals(503, logged.length());
         Assertions.assertTrue(logged.endsWith("..."));
     }
@@ -1018,6 +1056,7 @@ public class SearchServletTest
             ? columns.keySet().toArray(new String[0]) : new String[] { "n.jcr:primaryType" });
 
         final Query query = Mockito.mock(Query.class);
+        recordBindings(query, this.boundValues);
         Mockito.when(query.execute()).thenReturn(result);
         Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
             .thenAnswer(invocation -> {
@@ -1069,9 +1108,11 @@ public class SearchServletTest
         Mockito.when(result.getSelectorNames()).thenReturn(selectors);
         Mockito.when(result.getColumnNames()).thenReturn(columns);
         final Query query = Mockito.mock(Query.class);
+        recordBindings(query, this.boundValues);
         Mockito.when(query.execute()).thenReturn(result);
 
         final Query explain = Mockito.mock(Query.class);
+        recordBindings(explain, this.explainedValues);
         Mockito.when(explain.execute()).thenAnswer(invocation -> {
             final RowIterator planRows = Mockito.mock(RowIterator.class);
             if (this.planColumns == null) {
@@ -1181,5 +1222,22 @@ public class SearchServletTest
                 }
             };
         }
+    }
+
+    /**
+     * Records what the servlet binds into a query, so a test can assert on the values as well as on the statement
+     * naming them.
+     *
+     * @param query the query mock to watch
+     * @param target where to record what it is given
+     * @throws RepositoryException never, but the mocked method declares it
+     */
+    private void recordBindings(final Query query, final Map<String, String> target) throws RepositoryException
+    {
+        Mockito.doAnswer(invocation -> {
+            target.put(invocation.getArgument(0, String.class),
+                invocation.getArgument(1, Value.class).getString());
+            return null;
+        }).when(query).bindValue(Mockito.anyString(), Mockito.any(Value.class));
     }
 }

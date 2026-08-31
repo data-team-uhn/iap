@@ -24,12 +24,15 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.Value;
+import javax.jcr.ValueFactory;
 import javax.jcr.Workspace;
 import javax.jcr.query.Query;
 import javax.jcr.query.QueryManager;
@@ -73,6 +76,9 @@ public class PaginationServletTest
 
     private QueryManager queryManager;
 
+    /** The values the servlet bound into the statement, in the order it bound them. */
+    private final Map<String, String> boundValues = new LinkedHashMap<>();
+
     private StringWriter output;
 
     private Map<String, String[]> parameters;
@@ -96,6 +102,15 @@ public class PaginationServletTest
         final Workspace workspace = Mockito.mock(Workspace.class);
         Mockito.when(this.session.getWorkspace()).thenReturn(workspace);
         Mockito.when(workspace.getQueryManager()).thenReturn(this.queryManager);
+        // A value factory that hands back what it was given, so a test can read the bound values back
+        final ValueFactory valueFactory = Mockito.mock(ValueFactory.class);
+        Mockito.when(this.session.getValueFactory()).thenReturn(valueFactory);
+        Mockito.when(valueFactory.createValue(Mockito.anyString())).thenAnswer(invocation -> {
+            final Value value = Mockito.mock(Value.class);
+            Mockito.when(value.getString()).thenReturn(invocation.getArgument(0, String.class));
+            return value;
+        });
+        this.boundValues.clear();
         Mockito.when(this.response.getWriter()).thenReturn(new PrintWriter(this.output));
 
         // Every resolved resource serializes to a small JSON object identifying it by path
@@ -276,10 +291,12 @@ public class PaginationServletTest
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
-                + " and (n.[jcr:createdBy] = 'testUser')"
-                + " and (not n.[status] = 'draft')"
-                + " and contains(n.*, 'cancer')"
+                + " and (n.[jcr:createdBy] = $p0)"
+                + " and (not n.[status] = $p1)"
+                + " and contains(n.*, $p2)"
                 + " order by n.[jcr:lastModified] DESC", statement.getValue());
+        // @me is resolved before the value is bound, so it is the session's user that reaches the repository
+        Assertions.assertEquals(Map.of("p0", "testUser", "p1", "draft", "p2", "cancer"), this.boundValues);
     }
 
     @Test
@@ -293,9 +310,10 @@ public class PaginationServletTest
         this.servlet.doGet(this.request, this.response);
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
-                + " and (n.[jcr:createdBy] = 'testUser')"
-                + " and (n.[status] = 'submitted' or n.[status] = 'in-review')"
+                + " and (n.[jcr:createdBy] = $p0)"
+                + " and (n.[status] = $p1 or n.[status] = $p2)"
                 + " order by n.[jcr:created] ASC", statement.getValue());
+        Assertions.assertEquals(Map.of("p0", "testUser", "p1", "submitted", "p2", "in-review"), this.boundValues);
     }
 
     @Test
@@ -315,7 +333,8 @@ public class PaginationServletTest
         withParameter("fieldValue", "draft");
         final ArgumentCaptor<String> statement = mockResults();
         this.servlet.doGet(this.request, this.response);
-        Assertions.assertTrue(statement.getValue().contains("and (n.[status] = 'draft')"));
+        Assertions.assertTrue(statement.getValue().contains("and (n.[status] = $p0)"), statement.getValue());
+        Assertions.assertEquals(Map.of("p0", "draft"), this.boundValues);
     }
 
     @Test
@@ -331,9 +350,10 @@ public class PaginationServletTest
             "select n.* from [sub:Submission] as n"
                 + " inner join [sub:Review] as c0 on isdescendantnode(c0, n)"
                 + " where isdescendantnode(n, '/Submissions')"
-                + " and (c0.[reviewer] = 'testUser')"
-                + " and (not c0.[status] = 'approved')"
+                + " and (c0.[reviewer] = $p0)"
+                + " and (not c0.[status] = $p1)"
                 + " order by n.[jcr:created] ASC", statement.getValue());
+        Assertions.assertEquals(Map.of("p0", "testUser", "p1", "approved"), this.boundValues);
     }
 
     @Test
@@ -356,8 +376,8 @@ public class PaginationServletTest
                 + " inner join [sub:Signature] as c1 on isdescendantnode(c1, n)"
                 + " inner join [sub:Attachment] as c2 on isdescendantnode(c2, n)"
                 + " where isdescendantnode(n, '/Submissions')"
-                + " and (c0.[reviewer] = 'testUser')"
-                + " and (c1.[signer] = 'bob')"
+                + " and (c0.[reviewer] = $p0)"
+                + " and (c1.[signer] = $p1)"
                 + " order by n.[jcr:created] ASC", statement.getValue());
     }
 
@@ -435,6 +455,46 @@ public class PaginationServletTest
     }
 
     @Test
+    public void filterValuesAreBoundRatherThanWrittenIntoTheStatement() throws Exception
+    {
+        mockHomepage("sub/SubmissionsHomepage", null);
+        withParameter("fieldName", "owner", "title");
+        withParameter("fieldComparator", "=", "ILIKE");
+        // A value that would end the string literal if it were written into the statement
+        withParameter("fieldValue", "O'Brien", "%CARdiac%");
+        withParameter("filter", "tumor");
+        final ArgumentCaptor<String> statement = mockResults(SCOPE + "/s1");
+
+        this.servlet.doGet(this.request, this.response);
+
+        // Nothing the caller sent appears in the statement
+        Assertions.assertEquals("select n.* from [sub:Submission] as n"
+            + " where isdescendantnode(n, '/Submissions')"
+            + " and (n.[owner] = $p0)"
+            + " and (LOWER(n.[title]) LIKE $p1)"
+            + " and contains(n.*, $p2)"
+            + " order by n.[jcr:created] ASC", statement.getValue());
+        // ... and all of it is bound, the apostrophe unescaped and the case-insensitive value lowercased
+        Assertions.assertEquals(Map.of("p0", "O'Brien", "p1", "%cardiac%", "p2", "tumor"), this.boundValues);
+    }
+
+    @Test
+    public void aValuelessComparatorBindsNothing() throws Exception
+    {
+        mockHomepage("sub/SubmissionsHomepage", null);
+        withParameter("fieldName", "schemaVersion");
+        withParameter("fieldComparator", "IS NOT NULL");
+        withParameter("fieldValue", "ignored");
+        final ArgumentCaptor<String> statement = mockResults(SCOPE + "/s1");
+
+        this.servlet.doGet(this.request, this.response);
+
+        Assertions.assertTrue(statement.getValue().contains("n.[schemaVersion] IS NOT NULL"),
+            statement.getValue());
+        Assertions.assertEquals(Map.of(), this.boundValues);
+    }
+
+    @Test
     public void aFailureWhileReadingTheResultsStillLeavesParsableJson() throws Exception
     {
         // Executing the query is not the same as reading it: the result set is lazy, so a read can fail once part of
@@ -487,6 +547,7 @@ public class PaginationServletTest
         final Query query = Mockito.mock(Query.class);
         Mockito.when(this.queryManager.createQuery(statement.capture(), Mockito.eq(Query.JCR_SQL2)))
             .thenReturn(query);
+        recordBindings(query);
         final QueryResult result = Mockito.mock(QueryResult.class);
         Mockito.when(query.execute()).thenReturn(result);
         final Iterator<String> iterator = List.of(paths).iterator();
@@ -499,6 +560,21 @@ public class PaginationServletTest
         });
         Mockito.when(result.getRows()).thenReturn(rows);
         return statement;
+    }
+
+    /**
+     * Records what the servlet binds into a query, so that a test can assert on the values as well as on the
+     * statement naming them.
+     *
+     * @param query the query mock to watch
+     */
+    private void recordBindings(final Query query) throws RepositoryException
+    {
+        Mockito.doAnswer(invocation -> {
+            this.boundValues.put(invocation.getArgument(0, String.class),
+                invocation.getArgument(1, Value.class).getString());
+            return null;
+        }).when(query).bindValue(Mockito.anyString(), Mockito.any(Value.class));
     }
 
     private void withParameter(final String name, final String... values)

@@ -19,10 +19,17 @@ package io.uhndata.iap.entities.internal;
 
 import java.util.Locale;
 import java.util.function.BinaryOperator;
+import java.util.function.UnaryOperator;
 
 /**
  * The comparison operators accepted in a pagination request, each knowing how to serialize itself into a JCR-SQL2
- * condition given a property reference and an already escaped literal value.
+ * condition given a property reference and the name of the bind variable holding the value to compare against.
+ *
+ * <p>
+ * No operator writes the value into the statement, which is what keeps every value in a pagination query out of the
+ * statement text: an operator needing the value in a different form declares a transformation instead, applied to
+ * what is bound rather than to what is written.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -37,7 +44,7 @@ enum Operator
      * matches an empty one, while {@code not x = y} behaves intuitively for both single and multi-valued
      * properties, so the latter is used.
      */
-    NEQ("<>", (property, value) -> "not " + property + " = '" + value + '\''),
+    NEQ("<>", (property, variable) -> "not " + property + " = " + variable),
 
     /** Strictly lower than. */
     LT("<"),
@@ -55,13 +62,14 @@ enum Operator
     LIKE("LIKE"),
 
     /** Negated pattern matching. */
-    NOT_LIKE("NOT LIKE", (property, value) -> "not " + property + " LIKE '" + value + '\''),
+    NOT_LIKE("NOT LIKE", (property, variable) -> "not " + property + " LIKE " + variable),
 
     /** Case-insensitive pattern matching, which JCR-SQL2 doesn't have natively: lowercase both sides. */
-    ILIKE("ILIKE", (property, value) -> "LOWER(" + property + ") LIKE '" + lowercase(value) + '\''),
+    ILIKE("ILIKE", (property, variable) -> "LOWER(" + property + ") LIKE " + variable, Operator::lowercase),
 
     /** Negated case-insensitive pattern matching. */
-    NOT_ILIKE("NOT ILIKE", (property, value) -> "not LOWER(" + property + ") LIKE '" + lowercase(value) + '\''),
+    NOT_ILIKE("NOT ILIKE", (property, variable) -> "not LOWER(" + property + ") LIKE " + variable,
+        Operator::lowercase),
 
     /** The property is not set. No value is compared against. */
     IS_NULL("IS NULL", true),
@@ -75,11 +83,14 @@ enum Operator
     /** Whether the operator stands on its own, without comparing against a value. */
     private final boolean valueless;
 
-    /** Turns a property reference and an escaped literal value into a JCR-SQL2 condition. */
+    /** Turns a property reference and a bind variable reference into a JCR-SQL2 condition. */
     private final BinaryOperator<String> serializer;
 
+    /** Puts the requested value into the form this operator compares against. */
+    private final UnaryOperator<String> valuePreparation;
+
     /**
-     * Constructor for a plain binary operator whose JCR-SQL2 spelling is {@code property symbol 'value'}.
+     * Constructor for a plain binary operator whose JCR-SQL2 spelling is {@code property symbol $variable}.
      *
      * @param symbol how the operator is spelled in a request
      */
@@ -89,8 +100,8 @@ enum Operator
     }
 
     /**
-     * Constructor for an operator using the default JCR-SQL2 spelling, {@code property symbol 'value'} for a binary
-     * operator or just {@code property symbol} for a valueless one.
+     * Constructor for an operator using the default JCR-SQL2 spelling, {@code property symbol $variable} for a
+     * binary operator or just {@code property symbol} for a valueless one.
      *
      * @param symbol how the operator is spelled in a request
      * @param valueless whether the operator stands on its own, without comparing against a value
@@ -100,21 +111,36 @@ enum Operator
         this.symbol = symbol;
         this.valueless = valueless;
         this.serializer = valueless
-            ? (property, value) -> property + ' ' + symbol
-            : (property, value) -> property + ' ' + symbol + " '" + value + '\'';
+            ? (property, variable) -> property + ' ' + symbol
+            : (property, variable) -> property + ' ' + symbol + ' ' + variable;
+        this.valuePreparation = UnaryOperator.identity();
     }
 
     /**
      * Constructor for a binary operator needing a custom JCR-SQL2 serialization.
      *
      * @param symbol how the operator is spelled in a request
-     * @param serializer turns a property reference and an escaped literal value into a JCR-SQL2 condition
+     * @param serializer turns a property reference and a bind variable reference into a JCR-SQL2 condition
      */
     Operator(final String symbol, final BinaryOperator<String> serializer)
+    {
+        this(symbol, serializer, UnaryOperator.identity());
+    }
+
+    /**
+     * Constructor for a binary operator that also needs the value in a different form from the one requested.
+     *
+     * @param symbol how the operator is spelled in a request
+     * @param serializer turns a property reference and a bind variable reference into a JCR-SQL2 condition
+     * @param valuePreparation puts the requested value into the form this operator compares against
+     */
+    Operator(final String symbol, final BinaryOperator<String> serializer,
+        final UnaryOperator<String> valuePreparation)
     {
         this.symbol = symbol;
         this.valueless = false;
         this.serializer = serializer;
+        this.valuePreparation = valuePreparation;
     }
 
     /**
@@ -131,12 +157,25 @@ enum Operator
      * Serializes a condition applying this operator.
      *
      * @param property the property reference to compare, e.g. {@code n.[status]}
-     * @param value the escaped literal value to compare against, ignored by valueless operators
+     * @param variable a reference to the bind variable holding the value to compare against, e.g. {@code $p0},
+     *            ignored by valueless operators
      * @return a JCR-SQL2 condition
      */
-    String apply(final String property, final String value)
+    String apply(final String property, final String variable)
     {
-        return this.serializer.apply(property, value);
+        return this.serializer.apply(property, variable);
+    }
+
+    /**
+     * Puts a requested value into the form this operator compares against, which for most operators is the value
+     * itself. This is applied to what gets bound, since the statement never holds the value.
+     *
+     * @param value the value as it was requested
+     * @return the value to bind
+     */
+    String prepareValue(final String value)
+    {
+        return this.valuePreparation.apply(value);
     }
 
     /**

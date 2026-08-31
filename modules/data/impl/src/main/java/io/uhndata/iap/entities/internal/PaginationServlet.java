@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -29,6 +30,7 @@ import java.util.regex.Pattern;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
+import javax.jcr.ValueFactory;
 import javax.jcr.query.Query;
 import javax.jcr.query.RowIterator;
 
@@ -146,12 +148,20 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             builder.withChildFilters(request.getParameter("childType" + suffix),
                 parseFilters(request, "childField" + suffix, session.getUserID()));
         }
-        final String statement = builder
+        final QueryBuilder.BoundQuery bound = builder
             .withFullText(request.getParameter("filter"))
             .withSort(request.getParameter("sortBy"), Boolean.parseBoolean(request.getParameter("descending")))
             .build();
-        LOGGER.debug("Pagination query: {}", statement);
-        return session.getWorkspace().getQueryManager().createQuery(statement, Query.JCR_SQL2);
+        // Only the statement is logged, never the bindings: the values are the caller's search terms, and this
+        // endpoint's whole story is about who may see which content.
+        LOGGER.debug("Pagination query: {}", bound.statement());
+        final Query query =
+            session.getWorkspace().getQueryManager().createQuery(bound.statement(), Query.JCR_SQL2);
+        final ValueFactory values = session.getValueFactory();
+        for (final Map.Entry<String, String> binding : bound.bindings().entrySet()) {
+            query.bindValue(binding.getKey(), values.createValue(binding.getValue()));
+        }
+        return query;
     }
 
     /**

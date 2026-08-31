@@ -81,7 +81,16 @@ public final class SearchUtils
     }
 
     /**
-     * Escapes the input string so that it can be used inside a single-quoted string literal in a query.
+     * Escapes the input string so that it can be used inside a single-quoted string literal in a query. Doubling the
+     * quote is the only escape such a literal has; a backslash is an ordinary character in one.
+     *
+     * <p>
+     * An engine that writes a value into its statement needs this. One that names a bind variable and binds the value
+     * does not: the value is then never part of the statement, so there is no literal to escape it for. Prefer that —
+     * it costs nothing in index selection, and it is the difference between a query that is safe and one that is safe
+     * as long as this method is right. Note that {@link #escapeLikeText} is a different matter and is still needed
+     * either way, since the pattern grammar applies to whatever the variable holds.
+     * </p>
      *
      * @param input the text to escape
      * @return an escaped version of the input
