@@ -19,9 +19,7 @@ package io.uhndata.iap.submissions.internal;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -32,30 +30,21 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
-import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.servlets.HttpConstants;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
-import org.apache.sling.commons.mime.MimeTypeService;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
-import io.uhndata.iap.schemas.models.ApprovalRequirement;
-import io.uhndata.iap.schemas.models.DocumentRequirement;
-import io.uhndata.iap.schemas.models.FormItem;
-import io.uhndata.iap.schemas.models.FormRequirement;
-import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
-import io.uhndata.iap.schemas.models.Section;
-import io.uhndata.iap.submissions.models.Document;
-import io.uhndata.iap.submissions.models.DocumentVersion;
-import io.uhndata.iap.submissions.models.File;
-import io.uhndata.iap.submissions.models.Review;
+import io.uhndata.iap.submissions.internal.describers.FormKeys;
 import io.uhndata.iap.submissions.models.Submission;
-import io.uhndata.iap.utils.DateUtils;
+import io.uhndata.iap.submissions.spi.RequirementDescriber;
 import io.uhndata.iap.utils.UserIds;
 
 /**
@@ -67,6 +56,9 @@ import io.uhndata.iap.utils.UserIds;
  * depends on the answers <em>this</em> submission holds, so it cannot be decided by looking at the schema
  * alone. What an editor needs is a different document from either: the schema's structure and the submission's answers,
  * merged, with conditions already resolved.</p>
+ *
+ * <p>Each kind of requirement adds its own fields through the {@link RequirementDescriber}s registered for it. A
+ * kind declared in another module reaches the form without this module depending on it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -81,45 +73,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 {
     private static final long serialVersionUID = 6455351484949339021L;
 
-    private static final String NAME_KEY = "name";
-
-    private static final String PATH_KEY = "path";
-
-    private static final String TITLE_KEY = "title";
-
-    private static final String LABEL_KEY = "label";
-
-    private static final String DESCRIPTION_KEY = "description";
-
-    private static final String ITEMS_KEY = "items";
-
-    private static final String TYPE_KEY = "type";
-
-    private static final String ACCEPTED_FILE_TYPES_KEY = "acceptedFileTypes";
-
-    private static final String TEMPLATE_KEY = "template";
-
-    private static final String TEMPLATE_NAME_KEY = "templateName";
-
-    private static final String ATTACHED_KEY = "attached";
-
-    private static final String REQUIRED_KEY = "required";
-
-    private static final String APPROVER_GROUP_KEY = "approverGroup";
-
-    private static final String DECISION_KEY = "decision";
-
-    private static final String APPROVED_KEY = "approved";
-
-    private static final String DECIDED_BY_KEY = "by";
-
-    private static final String DECIDED_AT_KEY = "at";
-
     @Reference
     private transient ConditionEvaluator conditions;
 
-    @Reference
-    private transient MimeTypeService mimeTypes;
+    @Reference(cardinality = ReferenceCardinality.MULTIPLE, policy = ReferencePolicy.DYNAMIC)
+    private transient volatile List<RequirementDescriber> describers;
 
     @Override
     protected void doGet(final SlingJakartaHttpServletRequest request,
@@ -154,15 +112,13 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      */
     private JsonObject form(final Submission submission, final SchemaVersion version, final String reader)
     {
-        final Map<String, List<String>> answers = submission.getAnswersByQuestion();
-        final List<Document> documents = submission.getDocuments();
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         version.getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
-            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers, documents)));
+            .forEach(requirement -> requirements.add(requirement(requirement, submission)));
         return Json.createObjectBuilder()
-            .add(PATH_KEY, submission.getPath())
-            .add(TITLE_KEY, Objects.toString(submission.getTitle(), ""))
+            .add(FormKeys.PATH_KEY, submission.getPath())
+            .add(FormKeys.TITLE_KEY, Objects.toString(submission.getTitle(), ""))
             // The same two rules the save workflow enforces. An editor can then offer editing only where a
             // save would be accepted, rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
@@ -171,241 +127,29 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     }
 
     /**
-     * One requirement: its own presentation, and, for a set of questions, the items that currently apply.
+     * One requirement: what every kind has, then what the describers of its kind add.
      *
-     * @param requirement the requirement to describe
-     * @param submission the submission it is being resolved against
-     * @param answers the submission's answers, by the path of the question each answers
-     * @param documents the documents attached to the submission
-     * @return the requirement's JSON
+     * @param requirement a requirement that applies to the submission
+     * @param submission the submission whose form is being served
+     * @return the requirement's object in the form's JSON
      */
-    private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission,
-        final Map<String, List<String>> answers, final List<Document> documents)
+    private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
-            .add(NAME_KEY, requirement.getName())
+            .add(FormKeys.NAME_KEY, requirement.getName())
             // What a document's reference is compared against, since names repeat across schema versions
-            .add(PATH_KEY, requirement.getPath())
-            // The resource type itself, not a vocabulary of our own. A requirement kind added later names
-            // itself here without this servlet learning about it, and the reader already keys on resource types
-            .add(TYPE_KEY, requirement.getType())
-            .add(LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
-            .add(DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
-        if (requirement instanceof FormRequirement) {
-            json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
-                submission, answers));
-        } else if (requirement instanceof DocumentRequirement) {
-            describe((DocumentRequirement) requirement, documents, json);
-        } else if (requirement instanceof ApprovalRequirement) {
-            describe((ApprovalRequirement) requirement, submission, json);
-        }
+            .add(FormKeys.PATH_KEY, requirement.getPath())
+            // The resource type itself, not a vocabulary of our own. A kind nothing here knows names itself, and
+            // the reader already keys on resource types
+            .add(FormKeys.TYPE_KEY, requirement.getType())
+            .add(FormKeys.LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
+            .add(FormKeys.DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
+        // A kind nobody describes still gets the common fields, so the form never reports a schema asking for less
+        // than it does
+        Objects.requireNonNullElse(this.describers, List.<RequirementDescriber>of()).stream()
+            .filter(describer -> describer.handles(requirement))
+            .forEach(describer -> describer.describe(requirement, submission, json));
         return json;
-    }
-
-    /**
-     * What an approval requirement adds: who decides it, and the latest decision once somebody has made one.
-     *
-     * <p>Nobody grants an approval from the form, so where it stands is all the form can say about it. Which
-     * review counts as the decision is the submission's to say. Until there is one, there is no decision to report,
-     * whatever reviews are still open.</p>
-     *
-     * @param requirement the requirement being described
-     * @param submission the submission it is being resolved against
-     * @param json the requirement's JSON, added to in place
-     */
-    private static void describe(final ApprovalRequirement requirement, final Submission submission,
-        final JsonObjectBuilder json)
-    {
-        // Stated always, empty when the approval is not narrowed to a group
-        json.add(APPROVER_GROUP_KEY, Objects.toString(requirement.getApproverGroup(), ""));
-        Optional.ofNullable(submission.findLatestDecisionOn(requirement))
-            .ifPresent(review -> json.add(DECISION_KEY, decision(review)));
-    }
-
-    /**
-     * One decision on an approval: which way it went, who made it, and when, if the review records that.
-     *
-     * @param review the review that decided
-     * @return the decision's JSON
-     */
-    private static JsonObjectBuilder decision(final Review review)
-    {
-        final JsonObjectBuilder json = Json.createObjectBuilder()
-            .add(APPROVED_KEY, review.isApproved())
-            .add(DECIDED_BY_KEY, review.getReviewer());
-        Optional.ofNullable(DateUtils.toString(review.getCreated())).ifPresent(at -> json.add(DECIDED_AT_KEY, at));
-        return json;
-    }
-
-    /**
-     * What a document requirement adds: which types it takes, the blank to start from if it offers one, and what
-     * has already been attached for it.
-     *
-     * <p>All three are here because an upload control cannot be drawn without them, and this projection is the
-     * only place that says which requirements currently apply — reading them off the schema instead would mean a
-     * control offering to answer something this submission is not being asked.</p>
-     *
-     * @param requirement the requirement being described
-     * @param documents the documents attached to the submission
-     * @param json the requirement's JSON, added to in place
-     */
-    private void describe(final DocumentRequirement requirement, final List<Document> documents,
-        final JsonObjectBuilder json)
-    {
-        // Stated always, not only when false: the upload control marks the optional case, and should do so
-        // because the form said so rather than because a key was missing
-        json.add(REQUIRED_KEY, requirement.isRequired());
-        final JsonArrayBuilder accepted = Json.createArrayBuilder();
-        // Absent means "no restriction", which a reader has to be able to tell from a list that happens to be
-        // empty — so the key is always there and it is the emptiness that carries the meaning
-        requirement.getAcceptedFileTypes().forEach(accepted::add);
-        json.add(ACCEPTED_FILE_TYPES_KEY, accepted);
-        final Resource template = requirement.getTemplate();
-        if (template != null) {
-            json.add(TEMPLATE_KEY, template.getPath());
-            json.add(TEMPLATE_NAME_KEY, getTemplateFileName(requirement, template));
-        }
-        // Named rather than counted, so that a form reopened later says which document is there. Without this an
-        // upload control looks the same before and after, and the way to check would be to leave the page
-        final JsonArrayBuilder attached = Json.createArrayBuilder();
-        documents.stream()
-            .filter(Document::isAttached)
-            .filter(document -> document.isFulfilling(requirement))
-            .map(this::describeAttachment)
-            .forEach(attached::add);
-        json.add(ATTACHED_KEY, attached);
-    }
-
-    /**
-     * One attached document: its title, and the path of its newest file, which is where it downloads from.
-     *
-     * @param document the attached document
-     * @return the document's JSON, without a path when no file has landed yet
-     */
-    private JsonObjectBuilder describeAttachment(final Document document)
-    {
-        final JsonObjectBuilder json = Json.createObjectBuilder()
-            .add(TITLE_KEY, Objects.toString(document.getTitle(), document.getName()));
-        Optional.ofNullable(document.getCurrentVersion())
-            .map(DocumentVersion::getFile)
-            .map(File::getUploadedFile)
-            .ifPresent(file -> json.add(PATH_KEY, file.getPath()));
-        return json;
-    }
-
-    /**
-     * The name a downloaded template is saved under. The node is always called {@code template}, so the name is
-     * the requirement's label plus the extension of the template's type.
-     *
-     * @param requirement the requirement offering the template
-     * @param template the template file
-     * @return a file name
-     */
-    private String getTemplateFileName(final DocumentRequirement requirement, final Resource template)
-    {
-        final String label = Objects.toString(requirement.getLabel(), "");
-        final String base = label.isBlank() ? requirement.getName() : label;
-        final String mimeType = template.getValueMap().get("jcr:content/jcr:mimeType", String.class);
-        final String extension = mimeType == null ? null : this.mimeTypes.getExtension(mimeType);
-        return extension == null ? base : base + "." + extension;
-    }
-
-    /**
-     * The items of a form or a section, in the order the schema puts them, skipping whatever does not apply.
-     *
-     * @param children the form items to describe
-     * @param prefix the path of their container, relative to the schema version
-     * @param submission the submission they are being resolved against
-     * @param answers the submission's answers, by question path
-     * @return the items' JSON
-     */
-    private JsonArrayBuilder items(final List<FormItem> children, final String prefix, final Submission submission,
-        final Map<String, List<String>> answers)
-    {
-        final JsonArrayBuilder items = Json.createArrayBuilder();
-        children.stream()
-            .filter(child -> this.applies(child, submission))
-            .forEach(child -> {
-                final String path = prefix + "/" + child.getName();
-                if (child instanceof Section) {
-                    final Section section = (Section) child;
-                    items.add(Json.createObjectBuilder()
-                        .add(NAME_KEY, section.getName())
-                        .add(TYPE_KEY, section.getType())
-                        .add(LABEL_KEY, Objects.toString(section.getTitle(), ""))
-                        .add(DESCRIPTION_KEY, Objects.toString(section.getDescription(), ""))
-                        .add(ITEMS_KEY, items(section.getChildren(), path, submission, answers)));
-                } else if (child instanceof Question) {
-                    items.add(question((Question) child, path, answers));
-                }
-            });
-        return items;
-    }
-
-    /**
-     * One question, with the answer it already has.
-     *
-     * <p>It carries its own {@code path}, relative to the schema version, which is what the save workflow
-     * asks for. An editor posts back what it was given instead of working out how to address a question.</p>
-     *
-     * @param question the question to describe
-     * @param path its path relative to the schema version
-     * @param answers the submission's answers, by question path
-     * @return the question's JSON
-     */
-    private JsonObjectBuilder question(final Question question, final String path,
-        final Map<String, List<String>> answers)
-    {
-        final JsonArrayBuilder value = Json.createArrayBuilder();
-        answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
-        final JsonObjectBuilder json = Json.createObjectBuilder()
-            .add(NAME_KEY, question.getName())
-            .add(TYPE_KEY, question.getType())
-            .add(PATH_KEY, path)
-            .add("text", Objects.toString(question.getText(), ""))
-            .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
-            .add("dataType", Objects.toString(question.getDataType(), "text"))
-            // The answer-count pair itself rather than flags derived from it, read the way it is stored
-            .add("minAnswers", question.getMinAnswers())
-            .add("maxAnswers", question.getMaxAnswers())
-            .add("options", options(question))
-            .add("value", value);
-        addStatedConstraints(json, question);
-        return json;
-    }
-
-    /**
-     * The answers a question offers, as the editor shows them. Stated even when empty, so that "answered freely" is
-     * something the form says.
-     *
-     * @param question the question
-     * @return its options, in the order the schema declares them
-     */
-    private static JsonArrayBuilder options(final Question question)
-    {
-        final JsonArrayBuilder options = Json.createArrayBuilder();
-        question.getOptions().forEach(option -> options.add(Json.createObjectBuilder()
-            .add("value", option.getValue())
-            .add(LABEL_KEY, option.getLabel())));
-        return options;
-    }
-
-    /**
-     * Adds the value constraints a question states, and only those.
-     *
-     * <p>A bound that is not finite has no JSON form, so it is left out rather than failing the whole form.</p>
-     *
-     * @param json the question's JSON
-     * @param question the question
-     */
-    private static void addStatedConstraints(final JsonObjectBuilder json, final Question question)
-    {
-        Optional.ofNullable(question.getMinValue()).filter(Double::isFinite)
-            .ifPresent(bound -> json.add("minValue", bound));
-        Optional.ofNullable(question.getMaxValue()).filter(Double::isFinite)
-            .ifPresent(bound -> json.add("maxValue", bound));
-        Optional.ofNullable(question.getPattern()).ifPresent(pattern -> json.add("pattern", pattern));
-        Optional.ofNullable(question.getPatternMessage()).ifPresent(message -> json.add("patternMessage", message));
     }
 
     /**
