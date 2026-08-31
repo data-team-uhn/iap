@@ -47,8 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>
  * These assert on <strong>what was actually assembled</strong> rather than on the delivery having returned true.
- * That distinction is the whole point: this path has form for reporting success where nothing was built — an
- * endpoint answering 200 for a message that was never assembled — so the subject line, the recipient and the
+ * That distinction matters: this path has form for reporting success where nothing was built, such as an
+ * endpoint answering 200 for a message that was never assembled, so the subject line, the recipient and the
  * rendered body are captured off the builder and checked, interpolation and all.
  * </p>
  *

@@ -103,8 +103,7 @@ class RecipientsTest
     void skipsAPersonWhoseAccountCannotBeRead() throws Exception
     {
         final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
-        final UserManager users =
-            Mockito.mock(UserManager.class);
+        final UserManager users = Mockito.mock(UserManager.class);
         Mockito.when(session.getUserManager()).thenReturn(users);
         Mockito.when(users.getAuthorizable("broken")).thenThrow(new RepositoryException("gone"));
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
@@ -119,10 +118,8 @@ class RecipientsTest
     void skipsAPersonWhoseAccountHasNoResource() throws Exception
     {
         final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
-        final UserManager users =
-            Mockito.mock(UserManager.class);
-        final User user =
-            Mockito.mock(User.class);
+        final UserManager users = Mockito.mock(UserManager.class);
+        final User user = Mockito.mock(User.class);
         Mockito.when(user.getPath()).thenReturn("/home/users/n/nowhere");
         Mockito.when(session.getUserManager()).thenReturn(users);
         Mockito.when(users.getAuthorizable("nowhere")).thenReturn(user);

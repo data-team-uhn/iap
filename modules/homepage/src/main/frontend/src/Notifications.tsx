@@ -19,32 +19,67 @@
 import { useState } from "react";
 
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
-import { Badge, IconButton, Menu, MenuItem, Tooltip } from "@mui/material";
+import { Badge, IconButton, ListItemText, Menu, MenuItem, Tooltip } from "@mui/material";
+import { useNavigate } from "react-router";
 
-// The notifications bell in the app bar, revealing the list of notifications as a dropdown.
-// There is no notification mechanism yet, so for now the list is always empty and the badge
-// hidden; the control establishes the UI so notifications have a home when they arrive.
-// Registered on the `iap/appBar/entry` extension point, end section.
+import { type Notification } from "./notificationsModel";
+import { useNotifications } from "./useNotifications";
+
+// How many entries the dropdown shows; the rest are old news, still stored, just not listed here
+const SHOWN = 10;
+
+// The notifications bell in the app bar, revealing the current user's notifications as a dropdown.
+// Opening the list is what "reading" means here: everything unread is marked read once shown, the
+// same way glancing at a stack of letters takes them off the doormat. Registered on the
+// `iap/appBar/entry` extension point, end section.
 function Notifications() {
+  const navigate = useNavigate();
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
-  const notificationCount = 0;
+  const { notifications, unread, failed, read } = useNotifications();
+
+  const open = (target: HTMLElement) => {
+    setAnchor(target);
+    void read();
+  };
+
+  const follow = (notification: Notification) => {
+    setAnchor(null);
+    if (notification.subject) {
+      void navigate(notification.subject);
+    }
+  };
 
   return (
     <>
       <Tooltip title="Notifications">
         <IconButton
           aria-label="Notifications"
-          onClick={event => setAnchor(event.currentTarget)}
+          onClick={event => open(event.currentTarget)}
           size="small"
         >
           { /* The badge hides itself while the count is 0 */ }
-          <Badge badgeContent={notificationCount} color="secondary">
+          <Badge badgeContent={unread} color="secondary">
             <NotificationsNoneIcon />
           </Badge>
         </IconButton>
       </Tooltip>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-        <MenuItem disabled>You have no new notifications</MenuItem>
+        { failed && <MenuItem disabled>The notifications could not be loaded</MenuItem> }
+        { !failed && notifications.length === 0
+          && <MenuItem disabled>You have no notifications</MenuItem> }
+        { !failed && notifications.slice(0, SHOWN).map(notification => (
+          <MenuItem
+            key={notification.path}
+            onClick={() => follow(notification)}
+            disabled={!notification.subject}
+          >
+            <ListItemText
+              primary={notification.line}
+              secondary={notification.created && new Date(notification.created).toLocaleString()}
+              slotProps={{ primary: { sx: { fontWeight: notification.read ? undefined : "bold" } } }}
+            />
+          </MenuItem>
+        )) }
       </Menu>
     </>
   );

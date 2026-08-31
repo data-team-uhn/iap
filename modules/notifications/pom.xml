@@ -63,7 +63,8 @@
       <artifactId>iap-principals</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The EntityPart the flow node models extend, which a test adapting one has to register -->
+    <!-- Activity extends EntityPart, so javac needs this to resolve the hierarchy even though no source here
+         names it. A test also registers the model. -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-entities-api</artifactId>

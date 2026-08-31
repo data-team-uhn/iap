@@ -49,7 +49,7 @@ import io.uhndata.iap.notifications.spi.NotificationDelivery;
  *
  * <p>
  * It accepts what it can carry and declines the rest, rather than assuming every notification is its business:
- * a recipient with no address is declined — a fact about that person's account, not an error — and so is a
+ * a recipient with no address is declined, which is a fact about that person's account and not an error, and so is a
  * notification with no template, since this channel has no wording of its own to fall back on. Declining is a
  * normal answer, because another delivery may well carry what this one cannot.
  * </p>
@@ -137,7 +137,7 @@ public class EmailDelivery implements NotificationDelivery
                 .withRecipient(address, recipient.name())
                 .build();
             // Sent as whatever the template actually has: demanding HTML would refuse a plain-text-only
-            // template — and refuse it quietly, since the caller is a workflow that carries on regardless, so
+            // template, and refuse it quietly, since the caller is a workflow that carries on regardless, so
             // the wording an author wrote would simply never arrive.
             EmailUtils.sendEmail(email, this.mailService);
             LOGGER.debug("Emailed the {} notification about {} to {}", notification.getEvent(),

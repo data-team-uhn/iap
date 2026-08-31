@@ -40,7 +40,7 @@ import io.uhndata.iap.principals.api.PrincipalService;
  *
  * <p>
  * The only judgement here is <em>who</em>. <em>How</em> is each delivery's own answer, and a notification that no
- * delivery accepts is a notification nobody was told — which is a normal outcome, not a failure: somebody with no
+ * delivery accepts is a notification nobody was told, which is a normal outcome rather than a failure: somebody with no
  * address and no other channel simply is not reachable, and the workflow that raised it carries on.
  * </p>
  *

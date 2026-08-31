@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link NotifyHandler}: that a workflow's own words — the template, the roles, the urgency — are what
+ * Tests for {@link NotifyHandler}: that a workflow's own words, the template and the roles and the urgency, are what
  * reaches the notification service, and that nothing it can go wrong at fails the process.
  *
  * @version $Id$
@@ -150,7 +150,7 @@ class NotifyHandlerTest
         assertEquals(List.of(PrincipalService.CREATOR), this.audiences.get(0));
     }
 
-    // A template asks `#if($outcomeNote)`, so what the deciding person said has to reach it — and only when they
+    // A template asks `#if($outcomeNote)`, so what the deciding person said has to reach it, and only when they
     // actually said something, since a variable that is always there but sometimes empty answers that wrongly
     @Test
     void carriesTheDecisionAndItsReasonToTheWording() throws Exception
@@ -179,7 +179,7 @@ class NotifyHandlerTest
     }
 
     // Two nodes may report the same event with different wording, so the event is named rather than taken from
-    // whatever the node happened to be called — but the node's own id is a sane fallback
+    // whatever the node happened to be called, but the node's own id is a sane fallback
     @Test
     void fallsBackOnTheNodesIdWhenNoEventIsNamed() throws Exception
     {

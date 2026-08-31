@@ -1,0 +1,87 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// What a notification is, where they live, and how to read one out of a listing row. No React, no
+// fetch: everything here is a pure function of its arguments, so it can be tested without rendering
+// anything or stubbing a response. The I/O that uses it is in useNotifications.
+//
+// There is no "mine" parameter anywhere: each notification is readable by exactly one account, its
+// recipient, so listing on the caller's own session already answers "my notifications" - the
+// repository did the filtering.
+
+import { type EntityRow } from "@iap/frontend-commons/entityGrid/pagination";
+
+/** Where the stored notifications live. */
+export const NOTIFICATIONS_PATH = "/Notifications";
+
+/** One thing the current user was told. */
+export interface Notification {
+  /** The notification node itself, where the read marker is posted. */
+  path: string;
+  /** The rendered sentence to show. */
+  line: string;
+  /** Whether it has been seen before. */
+  read: boolean;
+  /** What it is about, to link to; possibly gone by now, which the deletion machinery explains. */
+  subject?: string;
+  /** When it was raised, as the repository serialized it. */
+  created?: string;
+}
+
+/**
+ * Reads one notification out of a listing row.
+ *
+ * @param row one row of a `.paginate.json` listing
+ * @returns what that row says, with anything unreadable left out
+ */
+export function parseNotification(row: EntityRow): Notification {
+  return {
+    path: String(row["@path"]),
+    line: typeof row.line === "string" ? row.line : "",
+    // A single-valued boolean may round-trip as a bare boolean or as a string, so both are accepted
+    read: row.read === true || row.read === "true",
+    subject: typeof row.subject === "string" ? row.subject : undefined,
+    created: typeof row["jcr:created"] === "string" ? row["jcr:created"] : undefined,
+  };
+}
+
+/**
+ * How many of these have not been seen yet.
+ *
+ * Counted here rather than on the server: the badge shows what the dropdown will show, so both come
+ * from the one listing. A separate count could disagree with the list beneath it.
+ *
+ * @param notifications the notifications to count
+ * @returns how many are unread
+ */
+export function countUnread(notifications: readonly Notification[]): number {
+  return notifications.filter(notification => !notification.read).length;
+}
+
+/**
+ * Where a notification's read marker is posted.
+ *
+ * The `.json` extension is not optional: Sling reads the last dot-separated token as the extension,
+ * so a bare `.markRead` matches no servlet and falls through.
+ *
+ * @param path the notification node, as its row reports it
+ * @returns the URL to post to
+ */
+export function markReadUrl(path: string): string {
+  return `${path}.markRead.json`;
+}

@@ -25,11 +25,11 @@ import org.jetbrains.annotations.NotNull;
  * Tells people something happened, by whatever means reaches each of them.
  *
  * <p>
- * <strong>This is not "send an email".</strong> What a caller states is that something happened, who it concerns
- * and how soon they should know; what that turns into — an email now, a line in tonight's digest, an unread
- * marker for somebody who has turned email off — is decided here and below, from the recipients' own settings.
- * A caller that decided the channel itself would have to be revisited every time somebody changed their mind
- * about how they want to be told.
+ * <strong>This is not "send an email".</strong> A caller states that something happened, who it concerns and
+ * how soon they should know. What that turns into is decided here and below, from the recipients' own settings:
+ * an email now, a line in tonight's digest, an unread marker for somebody who has turned email off. A caller
+ * that chose the channel itself would have to be revisited whenever somebody changed their mind about how they
+ * want to be told.
  * </p>
  *
  * <p>
@@ -48,12 +48,14 @@ public interface NotificationService
     /**
      * Notifies everyone the given roles resolve to.
      *
-     * <p>Nothing is guaranteed to reach anybody: a role may resolve to nobody, a person may have no channel that
-     * accepts, and a person may have asked not to be told. None of those is an error — a notification is an
-     * attempt to inform, and the workflow that raised it carries on either way. Nothing comes back, deliberately:
-     * a delivery accepting says nothing about a message arriving, so a list of "the people told" would claim more
-     * than anything here can know, and the one thing a caller could do with it — decide how people are told — is
-     * exactly the decision this service exists to take away from callers.</p>
+     * <p>Nothing is guaranteed to reach anybody. A role may resolve to nobody, a person may have no channel
+     * that accepts, and a person may have asked not to be told. None of those is an error: a notification is an
+     * attempt to inform, and the workflow that raised it carries on either way.</p>
+     *
+     * <p>Nothing comes back. A delivery accepting says nothing about a message arriving, so a list of "the
+     * people told" would claim more than anything here can know. And the one thing a caller could do with such a
+     * list is decide how people are told, which is the decision this service exists to take away from
+     * callers.</p>
      *
      * @param notification what happened
      * @param roles who it concerns, in the same vocabulary a workflow names performers in

@@ -28,36 +28,25 @@ import org.jetbrains.annotations.Nullable;
  * What happened, who it concerns and how soon they should hear about it: everything a notification is, before
  * anybody decides how to deliver it.
  *
- * <p>
- * <strong>The subject is a resource, not a path.</strong> A notification is always about something — a
- * submission, a review, a task — and carrying the resource rather than its path is what lets the rest of the
- * system work from it: recipient roles are resolved against <em>this</em> subject, a template reads its
- * properties, and a per-user setting can be scoped to it. A path would make each of those a second lookup, and
- * the one place that already has the resource is the one place that would not have to do it.
- * </p>
+ * <p>The subject is a resource, not a path. A notification is always about something: a submission, a review, a
+ * task. Carrying the resource is what lets the rest of the system work from it. Recipient roles resolve against
+ * it, a template reads its properties, a per-user setting can be scoped to it. A path would make each of those a
+ * second lookup.</p>
  *
- * <p>
- * <strong>There is no recipient here, deliberately.</strong> One thing happening produces one notification and
- * several deliveries: the same approval may be emailed to its author now, batched into tomorrow's digest for a
- * watching administrator, and left as an unread marker for somebody who has turned email off. Naming a recipient
- * on the notification itself would force that decision upwards, into the workflow definition, which is exactly
- * where it does not belong — a workflow says <em>what happened and who it concerns</em>, and a person's own
- * settings say how they hear about it.
- * </p>
+ * <p>There is no recipient here. One thing happening produces one notification and several deliveries. The same
+ * approval may be emailed to its author now, batched into tomorrow's digest for an administrator, and left
+ * unread for somebody who has turned email off. Naming a recipient here would push that choice up into
+ * the workflow definition. A workflow says what happened and who it concerns; a person's own settings say how
+ * they hear about it.</p>
  *
- * <p>
- * {@link #getUrgency() Urgency} is the workflow's side of that conversation: a statement about the message, not
- * about the channel. "A decision was made" is {@link #IMMEDIATE}; "somebody replied to a comment" can wait to be
- * batched. What a given person does with that is theirs.
- * </p>
+ * <p>{@link #getUrgency() Urgency} is the workflow's side of that: a statement about the message, not about the
+ * channel. "A decision was made" is {@link #IMMEDIATE}; "somebody replied to a comment" can wait to be
+ * batched.</p>
  *
- * <p>
- * It is a string rather than an enum because the vocabulary is open: {@link #IMMEDIATE} and {@link #BATCHED} are
- * the two the platform ships, but a deployment adding a weekly digest names its own urgency in a workflow
- * definition and registers a delivery that accepts it, with nothing to change here. An enum would make every such
- * word a change to this bundle, and would have to decide what to do with one it did not recognise — where a
- * string simply reaches the deliveries, all of which decline it, which is already the correct outcome.
- * </p>
+ * <p>It is a string rather than an enum because the vocabulary is open. A deployment adding a weekly digest
+ * names its own urgency in a workflow definition and registers a delivery that accepts it. An enum would make
+ * every such word a change to this bundle, and would have to decide what to do with one it did not recognise. A
+ * string reaches every delivery, all of which decline it, which is already the right outcome.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -128,7 +117,7 @@ public final class NotificationContext
     }
 
     /**
-     * Who caused it, as a repository user id, or {@code null} when nobody did — a deadline passing, say.
+     * Who caused it, as a repository user id, or {@code null} when nobody did, as when a deadline passes.
      *
      * @return the actor's user id, or {@code null}
      */
@@ -153,11 +142,11 @@ public final class NotificationContext
     /**
      * Where the wording lives, or {@code null} when the caller left it to the delivery to decide.
      *
-     * <p>Deliberately just a name. The deliveries that ship read it as the path of a template folder holding one
-     * rendering per channel, but nothing here requires that: a delivery that renders its text some other way —
-     * naming a status producer, a bundle resource, a message catalogue key — reads the same string its own way.
-     * It is here rather than passed to each delivery because it is stated by the same thing that states the event
-     * and the urgency, one workflow node, and a delivery that renders no text simply ignores it.</p>
+     * <p>Just a name. The deliveries that ship read it as the path of a template folder holding one rendering
+     * per channel, but nothing here requires that. A delivery rendering its text some other way, from a bundle
+     * resource or a message catalogue key, reads the same string its own way. It sits here rather than being
+     * passed to each delivery because one workflow node states it alongside the event and the urgency. A
+     * delivery that renders no text ignores it.</p>
      *
      * @return where this notification's wording is to be found, or {@code null}
      */

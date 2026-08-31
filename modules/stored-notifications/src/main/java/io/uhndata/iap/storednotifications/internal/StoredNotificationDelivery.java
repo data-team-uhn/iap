@@ -60,13 +60,13 @@ import io.uhndata.iap.utils.PrefixTree;
  * <p>
  * It accepts every urgency, because storing is not interrupting: an {@code immediate} decision and a
  * {@code batched} aside both belong in the list of what happened, and how loudly each was announced was the other
- * channels' business. What it declines is a notification it cannot word — no template line and a subject with no
+ * channels' business. What it declines is a notification it cannot word: no template line, and a subject with no
  * title leaves nothing worth listing.
  * </p>
  *
  * <p>
- * The write happens on the delivery's own session, committed before this method returns. That is safe here —
- * deliveries run in plain service code, never inside a commit hook — and it means a notification can exist for a
+ * The write happens on the delivery's own session, committed before this method returns. That is safe because
+ * deliveries run in plain service code, never inside a commit hook, and it means a notification can exist for a
  * workflow whose own commit fails a moment later, which is the same window the email channel already accepts: a
  * notification is an attempt to inform, made at the moment the workflow said to make it.
  * </p>
@@ -247,7 +247,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
 
     /**
      * What a line may interpolate: whatever the notification carries, plus the few things every message can say
-     * about itself — the same set the email wording gets.
+     * about itself, the same set the email wording gets.
      *
      * @param notification what happened
      * @return the variables, as the strings a line substitutes

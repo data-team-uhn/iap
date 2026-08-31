@@ -48,8 +48,8 @@ import io.uhndata.iap.storednotifications.api.StoredNotifications;
  *
  * <p>
  * The write goes through the caller's own session, so who may flip the marker is the repository's answer, not
- * this servlet's: the delivery granted exactly one person write on each notification, and everybody else — who
- * cannot even see the node — gets the same refusal the repository gives them everywhere. Marking an already-read
+ * this servlet's: the delivery granted exactly one person write on each notification. Everybody else cannot
+ * even see the node, and gets the same refusal the repository gives them everywhere. Marking an already-read
  * notification read again is fine and does nothing, since reading twice is not an event.
  * </p>
  *

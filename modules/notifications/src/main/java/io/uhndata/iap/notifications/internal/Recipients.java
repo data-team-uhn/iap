@@ -37,7 +37,7 @@ import io.uhndata.iap.notifications.api.Recipient;
  * Turns user ids into the people a notification is for, each carrying their account.
  *
  * <p>
- * The judgement of <em>who a role names</em> is not made here — the principals service resolves special names and
+ * Who a role names is not judged here. The principals service resolves special names and
  * expands groups, the same way the workflow engine reads performers, so a definition means the same person in
  * both places. What is left for this class is the notification-specific half: finding each person's account and
  * handing it over, so that a delivery can read whatever channel facts it needs without rights of its own.
