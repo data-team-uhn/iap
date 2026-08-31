@@ -56,7 +56,7 @@ class NotificationContextTest
             .becauseOf("approved")
             .by("an-approver")
             .urgency(NotificationContext.BATCHED)
-            .using("/libs/iap/mailTemplates/approved")
+            .using("/libs/iap/notificationTemplates/approved")
             .with("days", 3)
             .build();
 
@@ -64,7 +64,7 @@ class NotificationContextTest
         assertEquals("approved", notification.getEvent());
         assertEquals("an-approver", notification.getActor());
         assertEquals(NotificationContext.BATCHED, notification.getUrgency());
-        assertEquals("/libs/iap/mailTemplates/approved", notification.getTemplate());
+        assertEquals("/libs/iap/notificationTemplates/approved", notification.getTemplate());
         assertEquals(3, notification.getVariables().get("days"));
     }
 

@@ -34,7 +34,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
-import io.uhndata.iap.notifications.api.Recipient;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -77,7 +77,6 @@ class NotifyHandlerTest
         final NotificationService service = (notification, roles) -> {
             this.raised.add(notification);
             this.audiences.add(roles);
-            return List.of(new Recipient("the-requester", null, "requester@example.com"));
         };
         final Field field = NotifyHandler.class.getDeclaredField("notifications");
         field.setAccessible(true);
@@ -121,18 +120,18 @@ class NotifyHandlerTest
         this.handler.execute(this.taskWith(Map.of(
             "handler", "notify",
             "event", "approved",
-            "template", "/libs/iap/mailTemplates/timeOffApproved",
-            "notify", new String[] { NotificationService.CREATOR_ROLE },
+            "template", "/libs/iap/notificationTemplates/timeOffApproved",
+            "notify", new String[] { PrincipalService.CREATOR },
             "urgency", NotificationContext.IMMEDIATE)));
 
         assertEquals(1, this.raised.size());
         final NotificationContext notification = this.raised.get(0);
         assertEquals("approved", notification.getEvent());
-        assertEquals("/libs/iap/mailTemplates/timeOffApproved", notification.getTemplate());
+        assertEquals("/libs/iap/notificationTemplates/timeOffApproved", notification.getTemplate());
         assertEquals(NotificationContext.IMMEDIATE, notification.getUrgency());
         assertEquals(this.submission.getPath(), notification.getSubject().getPath());
         assertEquals("an-approver", notification.getActor());
-        assertEquals(List.of(NotificationService.CREATOR_ROLE), this.audiences.get(0));
+        assertEquals(List.of(PrincipalService.CREATOR), this.audiences.get(0));
     }
 
     // Two nodes may report the same event with different wording, so the event is named rather than taken from
@@ -141,7 +140,7 @@ class NotifyHandlerTest
     void fallsBackOnTheNodesIdWhenNoEventIsNamed() throws Exception
     {
         this.handler.execute(this.taskWith(Map.of(
-            "notify", new String[] { NotificationService.CREATOR_ROLE })));
+            "notify", new String[] { PrincipalService.CREATOR })));
 
         assertEquals("notifyApproved", this.raised.get(0).getEvent());
     }
@@ -150,7 +149,7 @@ class NotifyHandlerTest
     void defaultsToImmediateWhenTheNodeDoesNotSay() throws Exception
     {
         this.handler.execute(this.taskWith(Map.of(
-            "notify", new String[] { NotificationService.CREATOR_ROLE })));
+            "notify", new String[] { PrincipalService.CREATOR })));
 
         assertEquals(NotificationContext.IMMEDIATE, this.raised.get(0).getUrgency());
         assertNull(this.raised.get(0).getTemplate());
@@ -178,7 +177,7 @@ class NotifyHandlerTest
         });
 
         this.handler.execute(this.taskWith(Map.of(
-            "notify", new String[] { NotificationService.CREATOR_ROLE })));
+            "notify", new String[] { PrincipalService.CREATOR })));
     }
 
 }

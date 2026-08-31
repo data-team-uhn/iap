@@ -17,43 +17,46 @@
  */
 package io.uhndata.iap.notifications.api;
 
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.testing.mock.sling.junit5.SlingContext;
+import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * Tests for {@link Recipient}: whether somebody can be reached, which is a fact about their account rather than
- * about the notification.
+ * Tests for {@link Recipient}: identity plus the account, and nothing about any channel.
  *
  * @version $Id$
  * @since 0.1.0
  */
+@ExtendWith(SlingContextExtension.class)
 class RecipientTest
 {
+    private final SlingContext context = new SlingContext();
+
     @Test
-    void isEmailableWhenTheAccountHasAnAddress()
+    void carriesTheIdentityAndTheAccount()
     {
-        assertTrue(new Recipient("jdoe", "J Doe", "jdoe@example.com").isEmailable());
+        final Resource account = this.context.create().resource("/home/users/j/jdoe");
+        final Recipient recipient = new Recipient("jdoe", account);
+        assertEquals("jdoe", recipient.userId());
+        assertSame(account, recipient.account());
     }
 
-    // Not an error, and not something a caller should have to tell apart from a blank one
     @Test
-    void isNotEmailableWithoutAUsableAddress()
+    void readsTheNameOffTheAccount()
     {
-        assertFalse(new Recipient("jdoe", "J Doe", null).isEmailable());
-        assertFalse(new Recipient("jdoe", "J Doe", "   ").isEmailable());
+        final Resource account = this.context.create().resource("/home/users/j/jdoe", "rep:fullname", "J. Doe");
+        assertEquals("J. Doe", new Recipient("jdoe", account).name());
     }
 
-    // The user id is the durable half: it is what a per-user setting is keyed on, so it is always there even
-    // when nothing else about the account is known
     @Test
-    void alwaysKnowsWhoItIs()
+    void hasNoNameWhenTheAccountDoesNotSay()
     {
-        final Recipient anonymous = new Recipient("jdoe", null, null);
-
-        assertEquals("jdoe", anonymous.userId());
-        assertEquals(null, anonymous.name());
+        assertNull(new Recipient("jdoe", this.context.create().resource("/home/users/j/jdoe")).name());
     }
 }

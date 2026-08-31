@@ -78,15 +78,41 @@ Because it goes through the status SPI, it picks up every registered reporter au
 including the [error tracking](error-tracking.md) one, once both are deployed, with no coupling
 between those two modules.
 
+## Workflow notifications
+
+A workflow can tell people what it decided. A service task naming the `notify` handler carries the
+event name, who to tell, how urgent it is, and where the wording lives — so adding a notification is
+adding a node and some wording, never Java. Who to tell is written in the same vocabulary the
+workflow uses to say who may act: `@creator` is whoever raised the thing in question, and anything
+else is a person or a group, expanded into its members when the moment comes. The same name always
+means the same people in both places, because both are answered by the same service.
+
+What happens next deliberately splits in two. The workflow states *what happened and who it
+concerns*; **how each person hears about it is decided per channel**, by whichever deliveries are
+installed — an email right away, a marker in the interface, or nothing at all for somebody who
+cannot be reached. A channel that cannot carry a notification simply declines it, and that is a
+normal answer: the workflow has already moved on either way.
+
+### Where the wording lives
+
+Each notification's wording is a folder under `/libs/iap/notificationTemplates/`, holding one
+rendering per channel. A `line` property on the folder is the one-sentence form a compact list can
+show; an `email` child carries the email rendering described below. A folder with no rendering for
+some channel simply says nothing through that channel — which is a choice its author made, not an
+error.
+
 ## Email
 
 `iap-email-notifications` (`modules/email-notifications`) sends emails built from templates kept in
-the repository, so a deployment can reword what the platform says without touching code.
+the repository, so a deployment can reword what the platform says without touching code. Whether
+somebody *can* be emailed is a fact about their account — the address at `profile/email`, which the
+identity provider fills in at login — so nothing in a workflow ever carries an address, and people
+can change theirs without any definition noticing.
 
 ### A template
 
-An `mail:Template` node, whose properties carry the addressing and whose child files carry the
-body:
+The `email` child of a notification's wording folder is an `mail:Template` node, whose properties
+carry the addressing and whose child files carry the body:
 
 | Property | Meaning |
 | --- | --- |

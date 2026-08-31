@@ -180,7 +180,7 @@
       "label": "Tell them it was approved",
       "handler": "notify",
       "event": "approved",
-      "template": "/libs/iap/mailTemplates/timeOffApproved",
+      "template": "/libs/iap/notificationTemplates/timeOffApproved",
       // The same role vocabulary the performers use, so `@creator` means the same person in both places
       "notify": [ "@creator" ],
       // A decision is worth interrupting somebody for; a reply to a comment would not be
@@ -198,7 +198,7 @@
       "label": "Tell them it was refused",
       "handler": "notify",
       "event": "rejected",
-      "template": "/libs/iap/mailTemplates/timeOffRejected",
+      "template": "/libs/iap/notificationTemplates/timeOffRejected",
       "notify": [ "@creator" ],
       "urgency": "immediate",
       "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
