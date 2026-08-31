@@ -224,8 +224,30 @@ public class QueryBuilderTest
     {
         // On top of quote doubling, the full text grammar treats the backslash as its escape
         // character, so literal backslashes are doubled to keep the term inert
-        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'O''Brien \\\\ ties') order by n.[jcr:created] ASC",
+        Assertions.assertEquals(
+            BASE_QUERY + " and contains(n.*, 'O\\''Brien \\\\ ties') order by n.[jcr:created] ASC",
             new QueryBuilder(SUBMISSION, SCOPE).withFullText("O'Brien \\ ties").build());
+    }
+
+    @Test
+    public void fullTextSearchIgnoresSurroundingWhitespace()
+    {
+        // A full text expression has to start with a term, so a leading space -- what a paste into the search box
+        // leaves in front of what was typed -- used to fail the whole listing as a bad request. The space between
+        // the words is the parser's own separator and is left as it is.
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'renal biopsy') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("  renal biopsy \t").build());
+    }
+
+    @Test
+    public void fullTextSearchEscapesApostrophesThatWouldOpenAPhrase()
+    {
+        // An apostrophe opens a quoted phrase for the full text parser exactly as the double quote does. Doubling
+        // it is not enough: that only hides it from the statement, and parsing the statement hands the single
+        // apostrophe straight to the full text parser, which then looks for a phrase that never ends and fails the
+        // whole query. So it is escaped for the parser first, and the escaped form is what gets doubled.
+        Assertions.assertEquals(BASE_QUERY + " and contains(n.*, 'it\\''s') order by n.[jcr:created] ASC",
+            new QueryBuilder(SUBMISSION, SCOPE).withFullText("it's").build());
     }
 
     @Test
@@ -268,12 +290,26 @@ public class QueryBuilderTest
             .withFilters(List.of(new Filter("title", "=", "It's a \\ test"), new Filter("status", "=", null)))
             .withFullText("some'text")
             .build();
+        // A quote is escaped by doubling it, which is the only escape a JCR-SQL2 string literal has. A backslash is
+        // an ordinary character in one and is left alone: putting one in front of a quote does not escape it, it
+        // closes the literal one character later and leaves the rest of the value where an operator should be.
         Assertions.assertEquals(
             "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Sub''missions')"
                 + " and (n.[title] = 'It''s a \\ test')"
                 + " and (n.[status] = '')"
-                + " and contains(n.*, 'some''text')"
+                + " and contains(n.*, 'some\\''text')"
                 + " order by n.[jcr:created] ASC", query);
+    }
+
+    @Test
+    public void anApostropheInAValueDoesNotBreakTheQuery()
+    {
+        // The bug this guards against turned an ordinary surname into a query the parser rejected, so the endpoint
+        // answered a valid request with a 500
+        final String query = new QueryBuilder(SUBMISSION, SCOPE)
+            .withFilters(List.of(new Filter("owner", "=", "O'Brien")))
+            .build();
+        Assertions.assertEquals(BASE_QUERY + " and (n.[owner] = 'O''Brien') order by n.[jcr:created] ASC", query);
     }
 
     @Test
