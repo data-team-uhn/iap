@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
+import java.util.Dictionary;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 
@@ -34,12 +36,16 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
+import org.apache.sling.commons.messaging.mail.MailService;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.Constants;
+import org.osgi.framework.ServiceRegistration;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,6 +94,79 @@ class CaughtMailServiceTest
             this.context.resourceResolver().getResource(CaughtMailService.CAUGHT_MAIL_PATH);
         final Resource message = home.getChildren().iterator().next();
         return message.getValueMap();
+    }
+
+    /** The setting, as an ordinary implementation of the annotation type — no configuration proxy needed. */
+    private static CaughtMailService.Config switchedTo(final boolean on)
+    {
+        return new CaughtMailService.Config()
+        {
+            @Override
+            public Class<? extends java.lang.annotation.Annotation> annotationType()
+            {
+                return CaughtMailService.Config.class;
+            }
+
+            @Override
+            public boolean enabled()
+            {
+                return on;
+            }
+        };
+    }
+
+    /**
+     * The whole safeguard: the bundle is in every distribution, so a catcher nobody asked for must publish
+     * nothing at all. Registering and then declining to file would still take the mail.
+     */
+    @Test
+    void publishesNothingUntilItIsSwitchedOn()
+    {
+        final BundleContext bundleContext = Mockito.mock(BundleContext.class);
+
+        this.service.activate(bundleContext, switchedTo(false));
+
+        Mockito.verify(bundleContext, Mockito.never())
+            .registerService(Mockito.eq(MailService.class), Mockito.eq(this.service), Mockito.any());
+    }
+
+    @Test
+    void registersAboveTheRealMailServiceOnceSwitchedOn()
+    {
+        final BundleContext bundleContext = Mockito.mock(BundleContext.class);
+
+        this.service.activate(bundleContext, switchedTo(true));
+
+        // Sling's own mail service registers without a configuration and so ranks at zero; outranking it is
+        // what makes every @Reference MailService get this one instead
+        final Dictionary<String, Object> expected = new Hashtable<>();
+        expected.put(Constants.SERVICE_RANKING, 1000);
+        Mockito.verify(bundleContext).registerService(MailService.class, this.service, expected);
+    }
+
+    /** Turning it off has to put real sending back, which means the registration going away. */
+    @Test
+    void withdrawsTheRegistrationWhenSwitchedOff()
+    {
+        final BundleContext bundleContext = Mockito.mock(BundleContext.class);
+        @SuppressWarnings("unchecked")
+        final ServiceRegistration<MailService> registration = Mockito.mock(ServiceRegistration.class);
+        Mockito.when(bundleContext.registerService(Mockito.eq(MailService.class), Mockito.eq(this.service),
+            Mockito.any())).thenReturn(registration);
+        this.service.activate(bundleContext, switchedTo(true));
+
+        this.service.deactivate();
+
+        Mockito.verify(registration).unregister();
+    }
+
+    /** Deactivating something that never published anything is ordinary, not an error. */
+    @Test
+    void deactivatingWhileSwitchedOffWithdrawsNothing()
+    {
+        this.service.activate(Mockito.mock(BundleContext.class), switchedTo(false));
+
+        this.service.deactivate();
     }
 
     @Test

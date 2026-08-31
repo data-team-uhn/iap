@@ -14,15 +14,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Switches the email catcher on. The bundle ships in every distribution and registers nothing until
-// this configuration exists, so this file — included only by the test and demo aggregates — is the
-// whole of the difference between an instance that sends mail and one that files it.
+// Switches the email catcher on. The bundle ships in every distribution and files nothing until it is
+// enabled, so this file — included only by the test and demo aggregates — is the whole of the
+// difference between an instance that sends mail and one that catches it.
 //
-// Empty on purpose: the catcher has nothing to configure, and its presence is the setting. Adding
-// this to a deployment's own feature is how somebody would catch mail on an instance of their own.
+// This is the same setting the Felix console offers under "IAP Email Catcher", so an instance that did
+// not start with it can be switched over by hand and back again, without a rebuild and without a
+// restart. Shipping it here as well means the test and demo instances need nobody to do that.
 {
     "configurations":{
         "io.uhndata.iap.emailcatcher.internal.CaughtMailService":{
+            "enabled":true
         }
     }
 }

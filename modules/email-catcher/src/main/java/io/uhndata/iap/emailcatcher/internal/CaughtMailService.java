@@ -21,7 +21,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Dictionary;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -42,9 +44,16 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.messaging.mail.MailService;
 import org.apache.sling.commons.messaging.mail.MessageBuilder;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.Constants;
+import org.osgi.framework.ServiceRegistration;
+import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.ConfigurationPolicy;
+import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.metatype.annotations.AttributeDefinition;
+import org.osgi.service.metatype.annotations.Designate;
+import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,11 +61,11 @@ import org.slf4j.LoggerFactory;
  * A mail service that files what would have been sent, instead of sending it.
  *
  * <p>
- * <strong>This is a development facility, and what keeps it out of the way is configuration.</strong> The
- * component requires one to activate, and only the test and demo distributions supply it, so the bundle ships
- * everywhere and registers nothing unless somebody has said it should. That is a better safeguard than leaving
- * the bundle out of some distributions: there is one set of artifacts rather than two, the difference between
- * environments is a configuration a deployment can read, and switching it on somewhere new needs no rebuild.
+ * <strong>This is a development facility, and what keeps it out of the way is a setting that defaults to
+ * off.</strong> The bundle ships in every distribution and publishes nothing until somebody enables it, which is
+ * a better safeguard than leaving the bundle out of some of them: there is one set of artifacts rather than two,
+ * the difference between environments is a configuration a deployment can read back, and switching it on
+ * somewhere new needs no rebuild.
  * </p>
  *
  * <p>
@@ -77,15 +86,34 @@ import org.slf4j.LoggerFactory;
  * @version $Id$
  * @since 0.1.0
  */
-@Component(
-    service = MailService.class,
-    // No configuration, no catcher: this is what keeps a bundle that ships everywhere from swallowing mail
-    // anywhere it was not asked to
-    configurationPolicy = ConfigurationPolicy.REQUIRE,
-    // Above Sling's own mail service, which registers without one and so ranks at zero
-    property = { "service.ranking:Integer=1000" })
+// service = {} because the MailService registration is made by hand, in activate, only when enabled
+@Component(service = {})
+@Designate(ocd = CaughtMailService.Config.class)
 public class CaughtMailService implements MailService
 {
+    /**
+     * What an administrator sees in the Felix console's configuration list.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    @ObjectClassDefinition(name = "IAP Email Catcher",
+        description = "Files what would have been emailed into the repository instead of sending it, so that"
+            + " email can be exercised without a mail server. Off unless switched on here.")
+    public @interface Config
+    {
+        /**
+         * Whether to catch mail rather than send it.
+         *
+         * @return {@code true} while the catcher should be filing messages
+         */
+        @AttributeDefinition(name = "Enabled",
+            description = "While this is on, everything the platform would have emailed is filed under"
+                + " /CaughtMail and nothing is delivered. Never turn it on where real mail is expected to"
+                + " arrive.")
+        boolean enabled() default false;
+    }
+
     /** Where caught messages are filed. */
     public static final String CAUGHT_MAIL_PATH = "/CaughtMail";
 
@@ -108,6 +136,42 @@ public class CaughtMailService implements MailService
 
     @Reference
     private ResourceResolverFactory resolverFactory;
+
+    /** The mail service registration, held only while enabled, so that deactivating can withdraw it. */
+    private ServiceRegistration<MailService> registration;
+
+    /**
+     * Publishes the catcher as a mail service, if it is switched on.
+     *
+     * @param bundleContext this bundle's context, which is what a manual registration is made against
+     * @param config the setting an administrator can change
+     */
+    @Activate
+    void activate(final BundleContext bundleContext, final Config config)
+    {
+        if (!config.enabled()) {
+            LOGGER.debug("The email catcher is switched off, so mail will be sent normally");
+            return;
+        }
+        // Above Sling's own mail service, which registers without a configuration and so ranks at zero. Ranking
+        // decides this rather than disabling a component that belongs to another bundle, which also leaves the
+        // real service reachable by anything that deliberately asks for it.
+        final Dictionary<String, Object> properties = new Hashtable<>();
+        properties.put(Constants.SERVICE_RANKING, 1000);
+        this.registration = bundleContext.registerService(MailService.class, this, properties);
+        LOGGER.info("The email catcher is on: mail will be filed under {} instead of being sent",
+            CAUGHT_MAIL_PATH);
+    }
+
+    /** Withdraws the mail service, so that switching the catcher off puts real sending back. */
+    @Deactivate
+    void deactivate()
+    {
+        if (this.registration != null) {
+            this.registration.unregister();
+            this.registration = null;
+        }
+    }
 
     @Override
     public MessageBuilder getMessageBuilder()

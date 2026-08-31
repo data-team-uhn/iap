@@ -242,11 +242,17 @@ are not what anybody reads a caught message to check.
 what was sent without being handed a second set of credentials. That is only tolerable
 because of the next paragraph.
 
-**It ships everywhere and is inert everywhere, because activating it takes a
-configuration.** The component declares `configurationPolicy = REQUIRE`, so the bundle
-registers no mail service until one exists; the only feature supplying it is
-`dev/email-catcher-enabled.json`, which the `test_tar` and `demo_tar` aggregates include
-and the three production aggregates do not.
+**It ships everywhere and is off everywhere until somebody turns it on.** The setting is
+a plain `enabled` boolean that defaults to false, so the bundle publishes no mail service
+until it is switched on. Two ways to do that, and they are the same setting:
+
+- **In the Felix console**, under Configuration → *IAP Email Catcher*. Tick the box and
+  mail starts being filed; untick it and real sending comes back. Neither needs a
+  restart, because the consumers bind dynamically and the registration follows the
+  setting.
+- **In a feature**, which is how the `test_tar` and `demo_tar` aggregates get it without
+  anybody clicking anything: `dev/email-catcher-enabled.json` sets `enabled` to true. The
+  production aggregates do not include it.
 
 That is deliberately not the same as leaving the bundle out of production. One set of
 artifacts is built rather than two, the difference between environments is a

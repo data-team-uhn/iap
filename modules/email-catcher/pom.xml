@@ -95,6 +95,16 @@
       <artifactId>org.osgi.service.component.annotations</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.metatype.annotations</artifactId>
+    </dependency>
+    <!-- The mail service registration is made by hand, so that it exists only while the catcher is enabled;
+         the tests also build a mock Sling request against a bundle context -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.framework</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
     </dependency>
@@ -104,12 +114,6 @@
     <dependency>
       <groupId>org.eclipse.angus</groupId>
       <artifactId>jakarta.mail</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <!-- The bundle context a mock Sling request is built against -->
-    <dependency>
-      <groupId>org.osgi</groupId>
-      <artifactId>org.osgi.framework</artifactId>
       <scope>test</scope>
     </dependency>
     <!-- A JSON-P implementation for the servlet tests; at runtime one is provided by the platform -->
