@@ -121,6 +121,7 @@ class WorkflowEngineImplTest
         allHandlers.add(new CreateEntityHandler());
         inject(impl, "handlers", allHandlers);
         inject(impl, "conditions", EngineFixture.conditions());
+        inject(impl, "principals", EngineFixture.principals());
         return impl;
     }
 
