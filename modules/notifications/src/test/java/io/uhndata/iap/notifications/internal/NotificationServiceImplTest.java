@@ -30,16 +30,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.notifications.api.NotificationContext;
-import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.notifications.api.Recipient;
 import io.uhndata.iap.notifications.spi.NotificationDelivery;
+import io.uhndata.iap.principals.api.PrincipalService;
+import io.uhndata.iap.principals.internal.CreatorResolver;
+import io.uhndata.iap.principals.internal.MeResolver;
+import io.uhndata.iap.principals.internal.PrincipalServiceImpl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link NotificationServiceImpl}: that the only judgement it makes is who, and that a channel's
- * answer — including a refusal and a failure — is the channel's own business.
+ * Tests for {@link NotificationServiceImpl}: the only judgement it makes is who, delivery is observed at the
+ * channels rather than reported back, and a channel's failure is the channel's own business.
  *
  * @version $Id$
  * @since 0.1.0
@@ -57,13 +61,18 @@ class NotificationServiceImplTest
     private Resource subject;
 
     @BeforeEach
-    void setUp()
+    void setUp() throws Exception
     {
         this.subject = this.context.create().resource("/Submissions/one",
             "title", "A request", "createdBy", CREATOR);
+        // The real vocabulary, so that the @creator these tests notify resolves the way production resolves it
+        final PrincipalServiceImpl principals = new PrincipalServiceImpl();
+        inject(PrincipalServiceImpl.class, principals, "resolvers",
+            List.of(new CreatorResolver(), new MeResolver()));
+        inject(NotificationServiceImpl.class, this.service, "principals", principals);
     }
 
-    /** A delivery that accepts everything and remembers what it was given. */
+    /** A delivery that remembers what it was given. */
     private static final class Recording implements NotificationDelivery
     {
         private final List<Recipient> told = new ArrayList<>();
@@ -90,9 +99,15 @@ class NotificationServiceImplTest
 
     private void deliveries(final NotificationDelivery... channels) throws Exception
     {
-        final Field field = NotificationServiceImpl.class.getDeclaredField("deliveries");
-        field.setAccessible(true);
-        field.set(this.service, List.of(channels));
+        inject(NotificationServiceImpl.class, this.service, "deliveries", List.of(channels));
+    }
+
+    private static void inject(final Class<?> type, final Object target, final String field, final Object value)
+        throws Exception
+    {
+        final Field reference = type.getDeclaredField(field);
+        reference.setAccessible(true);
+        reference.set(target, value);
     }
 
     // Nothing registered is not a crash; it is a platform with no way to tell anybody anything, which is worth
@@ -100,7 +115,7 @@ class NotificationServiceImplTest
     @Test
     void tellsNobodyWhenNothingCanDeliver()
     {
-        assertTrue(this.service.notify(this.notification(), List.of(NotificationService.CREATOR_ROLE)).isEmpty());
+        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR));
     }
 
     @Test
@@ -111,36 +126,45 @@ class NotificationServiceImplTest
         final Recording first = new Recording(true);
         final Recording second = new Recording(true);
         this.deliveries(first, second);
-        this.user(CREATOR, "requester@example.com");
+        Accounts.create(this.context, CREATOR, "requester@example.com");
 
-        this.service.notify(this.notification(), List.of(NotificationService.CREATOR_ROLE));
+        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR));
 
         assertEquals(1, first.told.size());
         assertEquals(1, second.told.size());
         assertEquals(CREATOR, first.told.get(0).userId());
+        // The account rides along, so a channel can read its own facts off it without rights of its own
+        assertNotNull(first.told.get(0).account());
+    }
+
+    // A group role reaches each person in it, once, resolved through the same vocabulary the engine reads
+    // performers in
+    @Test
+    void aGroupRoleReachesItsPeopleOnce() throws Exception
+    {
+        final Recording channel = new Recording(true);
+        this.deliveries(channel);
+        final var ann = Accounts.create(this.context, "ann", "ann@example.com");
+        Accounts.group(this.context, "reviewers", ann);
+
+        // ann is named twice - directly and through the group - and told once
+        this.service.notify(this.notification(), List.of("ann", "reviewers"));
+
+        assertEquals(1, channel.told.size());
+        assertEquals("ann", channel.told.get(0).userId());
     }
 
     // Every channel declining is a normal outcome: somebody unreachable is not an error
     @Test
-    void reportsNobodyToldWhenEveryChannelDeclines() throws Exception
+    void carriesOnWhenEveryChannelDeclines() throws Exception
     {
-        this.deliveries(new Recording(false));
-        this.user(CREATOR, "requester@example.com");
+        final Recording declining = new Recording(false);
+        this.deliveries(declining);
+        Accounts.create(this.context, CREATOR, "requester@example.com");
 
-        assertTrue(this.service.notify(this.notification(), List.of(NotificationService.CREATOR_ROLE)).isEmpty());
-    }
+        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR));
 
-    @Test
-    void reportsWhoWasActuallyTold() throws Exception
-    {
-        this.deliveries(new Recording(true));
-        this.user(CREATOR, "requester@example.com");
-
-        final List<Recipient> told =
-            this.service.notify(this.notification(), List.of(NotificationService.CREATOR_ROLE));
-
-        assertEquals(1, told.size());
-        assertEquals("requester@example.com", told.get(0).address());
+        assertEquals(1, declining.told.size());
     }
 
     // One channel throwing is not the others' problem, and certainly not the workflow's: the process this
@@ -152,24 +176,24 @@ class NotificationServiceImplTest
         this.deliveries((notification, recipient) -> {
             throw new IllegalStateException("the mail server is on fire");
         }, working);
-        this.user(CREATOR, "requester@example.com");
+        Accounts.create(this.context, CREATOR, "requester@example.com");
 
-        final List<Recipient> told =
-            this.service.notify(this.notification(), List.of(NotificationService.CREATOR_ROLE));
+        this.service.notify(this.notification(), List.of(PrincipalService.CREATOR));
 
-        assertEquals(1, told.size());
         assertEquals(1, working.told.size());
     }
 
-    /**
-     * Creates an account with an address where the platform looks for one.
-     *
-     * @param userId the account to create
-     * @param address its email address, or {@code null} for an account with none
-     * @throws Exception if the account cannot be created
-     */
-    private void user(final String userId, final String address) throws Exception
+    // A subject nothing raised makes @creator name nobody, and nobody is told anything
+    @Test
+    void aRoleNamingNobodyTellsNobody() throws Exception
     {
-        Accounts.create(this.context, userId, address);
+        final Recording channel = new Recording(true);
+        this.deliveries(channel);
+        final Resource orphan = this.context.create().resource("/Submissions/orphan", "title", "Nobody's");
+
+        this.service.notify(NotificationContext.about(orphan).becauseOf("approved").build(),
+            List.of(PrincipalService.CREATOR));
+
+        assertTrue(channel.told.isEmpty());
     }
 }

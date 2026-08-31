@@ -17,41 +17,30 @@
  */
 package io.uhndata.iap.notifications.internal;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.notifications.api.Recipient;
 
 /**
- * Turns the roles a workflow names into the people they mean.
+ * Turns user ids into the people a notification is for, each carrying their account.
  *
  * <p>
- * The vocabulary is the one a workflow already uses to say who may act, so that a definition says
- * {@code @creator} in both places and means the same person: {@code @creator} is whoever raised the subject, and
- * anything else is a group — expanded to its members — or a user id.
- * </p>
- *
- * <p>
- * <strong>The address comes from {@code profile/email} on the account</strong>, which is where Keycloak's sync
- * handler already puts it for anybody signing in through OIDC, and where the user profiles work reads it. That
- * is the whole of the lookup: a workflow definition never carries an address, so people can change and the
- * definition stays true.
+ * The judgement of <em>who a role names</em> is not made here — the principals service resolves special names and
+ * expands groups, the same way the workflow engine reads performers, so a definition means the same person in
+ * both places. What is left for this class is the notification-specific half: finding each person's account and
+ * handing it over, so that a delivery can read whatever channel facts it needs without rights of its own.
  * </p>
  *
  * @version $Id$
@@ -59,12 +48,6 @@ import io.uhndata.iap.notifications.api.Recipient;
  */
 final class Recipients
 {
-    /** Where an account's email address lives, as Keycloak's sync handler writes it. */
-    static final String EMAIL_PROPERTY = "profile/email";
-
-    /** What an account calls its holder, when it says. */
-    private static final String NAME_PROPERTY = "rep:fullname";
-
     private static final Logger LOGGER = LoggerFactory.getLogger(Recipients.class);
 
     private Recipients()
@@ -73,128 +56,51 @@ final class Recipients
     }
 
     /**
-     * Everyone the given roles resolve to, each once, in the order the roles were given.
+     * The people behind a list of user ids, each with their account, in the given order.
      *
      * @param resolver a session that may read the user home
-     * @param subject what the notification is about, which is what {@code @creator} is asked about
-     * @param roles the roles to resolve
-     * @return the people to tell, empty when the roles name nobody reachable
+     * @param userIds whose accounts to find
+     * @return the recipients, skipping anybody whose account cannot be read
      */
-    static List<Recipient> of(final ResourceResolver resolver, final Resource subject, final List<String> roles)
+    static List<Recipient> of(final ResourceResolver resolver, final List<String> userIds)
     {
         final UserManager users = userManager(resolver);
         if (users == null) {
             return List.of();
         }
-        // Keyed by user id so that somebody named twice — once directly and once through a group — is told once,
-        // and ordered so that a definition's own order is what a reader sees
-        final Map<String, Recipient> found = new LinkedHashMap<>();
-        for (final String role : roles) {
-            for (final String userId : principals(role, subject, users)) {
-                // computeIfAbsent records nothing when the function returns null, so an account that cannot be
-                // read drops out here rather than having to be filtered away afterwards
-                found.computeIfAbsent(userId, id -> describe(users, id));
-            }
-        }
-        return List.copyOf(found.values());
+        return userIds.stream()
+            .map(userId -> describe(resolver, users, userId))
+            .filter(Objects::nonNull)
+            .toList();
     }
 
     /**
-     * The user ids one role names.
+     * One person, as their account tells it.
      *
-     * @param role the role to resolve
-     * @param subject what the notification is about
-     * @param users the repository's user manager
-     * @return the user ids, empty when the role names nobody
-     */
-    private static List<String> principals(final String role, final Resource subject, final UserManager users)
-    {
-        if (NotificationService.CREATOR_ROLE.equals(role)) {
-            final String creator = creatorOf(subject);
-            return creator == null ? List.of() : List.of(creator);
-        }
-        try {
-            final Authorizable authorizable = users.getAuthorizable(role);
-            if (authorizable == null) {
-                LOGGER.warn("The notification role {} names nobody in this repository", role);
-                return List.of();
-            }
-            return authorizable.isGroup() ? members((Group) authorizable) : List.of(authorizable.getID());
-        } catch (final RepositoryException e) {
-            LOGGER.warn("The notification role {} could not be resolved: {}", role, e.getMessage(), e);
-            return List.of();
-        }
-    }
-
-    /**
-     * Everybody in a group, including through nested groups: somebody told by virtue of belonging to a group
-     * should be told whether they belong to it directly or through another.
-     *
-     * @param group the group to expand
-     * @return its members' user ids
-     * @throws RepositoryException if the members cannot be read
-     */
-    private static List<String> members(final Group group) throws RepositoryException
-    {
-        final List<String> ids = new ArrayList<>();
-        final Iterator<Authorizable> all = group.getMembers();
-        while (all.hasNext()) {
-            final Authorizable member = all.next();
-            if (!member.isGroup()) {
-                ids.add(member.getID());
-            }
-        }
-        return ids;
-    }
-
-    /**
-     * Who raised the subject. Read from the {@code createdBy} the engine records rather than from
-     * {@code jcr:createdBy}, which names the engine's own service user for everything it writes.
-     *
-     * @param subject what the notification is about
-     * @return the creator's user id, or {@code null} when the subject does not say
-     */
-    private static String creatorOf(final Resource subject)
-    {
-        return subject.getValueMap().get("createdBy", String.class);
-    }
-
-    /**
-     * What is known about one person.
-     *
+     * @param resolver the session the account resource is served through
      * @param users the repository's user manager
      * @param userId whose account to read
      * @return the recipient, or {@code null} when the account cannot be read at all
      */
-    private static Recipient describe(final UserManager users, final String userId)
+    private static Recipient describe(final ResourceResolver resolver, final UserManager users,
+        final String userId)
     {
         try {
             final Authorizable account = users.getAuthorizable(userId);
             if (account == null) {
+                LOGGER.warn("{} has no account in this repository, so they cannot be told anything", userId);
                 return null;
             }
-            return new Recipient(userId, value(account, NAME_PROPERTY), value(account, EMAIL_PROPERTY));
+            final Resource home = resolver.getResource(account.getPath());
+            if (home == null) {
+                LOGGER.warn("The account of {} is not readable, so they cannot be told anything", userId);
+                return null;
+            }
+            return new Recipient(userId, home);
         } catch (final RepositoryException e) {
             LOGGER.warn("The account of {} could not be read: {}", userId, e.getMessage(), e);
             return null;
         }
-    }
-
-    /**
-     * One property of an account, when it has one.
-     *
-     * @param account whose property to read
-     * @param name the property, relative to the account's home node
-     * @return its first value, or {@code null} when the account does not carry it
-     * @throws RepositoryException if the account cannot be read
-     */
-    private static String value(final Authorizable account, final String name) throws RepositoryException
-    {
-        if (!account.hasProperty(name)) {
-            return null;
-        }
-        final javax.jcr.Value[] values = account.getProperty(name);
-        return values == null || values.length == 0 ? null : values[0].getString();
     }
 
     /**
