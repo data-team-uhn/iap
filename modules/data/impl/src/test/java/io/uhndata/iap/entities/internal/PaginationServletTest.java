@@ -20,6 +20,7 @@ package io.uhndata.iap.entities.internal;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.lang.reflect.Field;
 import java.security.Principal;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -53,6 +54,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import io.uhndata.iap.principals.internal.MeResolver;
+import io.uhndata.iap.principals.internal.PrincipalServiceImpl;
+import io.uhndata.iap.principals.spi.SpecialNameResolver;
 
 /**
  * Unit tests for {@link PaginationServlet}.
@@ -114,6 +119,7 @@ public class PaginationServletTest
         });
 
         mockHomepage("sub/SubmissionsHomepage", null);
+        vocabulary();
     }
 
     @Test
@@ -558,6 +564,69 @@ public class PaginationServletTest
                 + " and (n.[performers] = 'testUser' or n.[performers] = 'reviewers'"
                 + " or n.[assignee] = 'someone-else')"
                 + " order by n.[jcr:created] ASC", statement.getValue());
+    }
+
+    @Test
+    public void aNameTheVocabularyKnowsIsResolvedWhereverItCameFrom() throws Exception
+    {
+        // The point of asking the principals service rather than knowing the names here: a module that teaches it
+        // `@reviewers` makes that filterable without this servlet learning what a reviewer is
+        vocabulary(new MeResolver(), resolverFor("@reviewers", List.of("alice", "bob")));
+        withParameter("fieldName", "assignee");
+        withParameter("fieldValue", "@reviewers");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
+                + " and (n.[assignee] = 'alice' or n.[assignee] = 'bob')"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+    }
+
+    @Test
+    public void aNameStandingForNobodyMatchesNothingRatherThanEverything() throws Exception
+    {
+        // A typo in a filter must not widen the listing to everybody's work: kept as written, it matches nothing,
+        // because no stored property holds a name starting with `@`
+        withParameter("fieldName", "assignee");
+        withParameter("fieldValue", "@nobodyKnows");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
+                + " and (n.[assignee] = '@nobodyKnows')"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+    }
+
+    /**
+     * Gives the servlet the real principals service, carrying the given vocabulary, so that these tests assert on
+     * what a deployment resolves rather than on stubbed answers. Called with the platform's own {@code @me}
+     * resolver by default.
+     *
+     * @param resolvers the special-name resolvers to register, {@link MeResolver} if none are given
+     * @throws ReflectiveOperationException if either component's shape changes
+     */
+    private void vocabulary(final SpecialNameResolver... resolvers) throws ReflectiveOperationException
+    {
+        final PrincipalServiceImpl principals = new PrincipalServiceImpl();
+        setField(PrincipalServiceImpl.class, principals, "resolvers",
+            resolvers.length == 0 ? List.of(new MeResolver()) : List.of(resolvers));
+        setField(PaginationServlet.class, this.servlet, "principals", principals);
+    }
+
+    private static void setField(final Class<?> owner, final Object target, final String name, final Object value)
+        throws ReflectiveOperationException
+    {
+        final Field field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    private static SpecialNameResolver resolverFor(final String name, final List<String> answer)
+    {
+        final SpecialNameResolver resolver = Mockito.mock(SpecialNameResolver.class);
+        Mockito.when(resolver.getName()).thenReturn(name);
+        Mockito.when(resolver.resolve(Mockito.any())).thenReturn(answer);
+        return resolver;
     }
 
     /**
