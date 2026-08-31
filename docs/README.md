@@ -23,8 +23,16 @@ them.
 | --- | --- |
 | [java-development.md](java-development.md) | Backend code: OSGi components, dependencies between services, configuration, service users, bundle assembly — and the habits the code is meant to follow |
 | [frontend-development.md](frontend-development.md) | React, TypeScript and MUI: what a module ships, talking to the server, reporting failures, the shared components and the theme |
+
+## The HTTP surface
+
+How a request becomes a response, and how a module extends what the platform serves.
+
+| Document | What it covers |
+| --- | --- |
 | [page-rendering.md](page-rendering.md) | How a URL becomes a page: resource resolution, display scripts, the responses that are not pages, and custom servlets |
 | [json-serialization.md](json-serialization.md) | Serving content as JSON, the selectors a caller shapes it with, and the processor SPI a module extends it through |
+| [search.md](search.md) | `GET /search.json`: querying the repository by statement, by full text, or through the quick search engines |
 | [http-requests.md](http-requests.md) | The shared client for calling an external service, and what it does and does not throw |
 
 ## The domain model
