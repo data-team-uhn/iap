@@ -237,35 +237,35 @@
           <!-- The inherited executions build and test the application frontend; the two that bundle it
                do not apply here. Note that the plugin-wide workingDirectory below redirects every
                inherited execution at the end-to-end package, so the ones left enabled run this package's
-               own scripts - which is how yarn-typecheck and yarn-lint come to check the Playwright
+               own scripts - which is how pnpm-typecheck and pnpm-lint come to check the Playwright
                sources, holding them to the same standard as the rest of the frontend code. -->
           <execution>
             <id>webpack</id>
             <phase>none</phase>
           </execution>
           <execution>
-            <id>yarn-test</id>
+            <id>pnpm-test</id>
             <phase>none</phase>
           </execution>
 
           <execution>
-            <id>install node and yarn</id>
+            <id>install node and pnpm</id>
             <goals>
-              <goal>install-node-and-yarn</goal>
+              <goal>install-node-and-pnpm</goal>
             </goals>
             <phase>initialize</phase>
           </execution>
           <!-- Bound to initialize, not to one of the test phases where this module's dependencies would
-               otherwise belong, because the inherited yarn-typecheck and yarn-lint both run at
+               otherwise belong, because the inherited pnpm-typecheck and pnpm-lint both run at
                generate-resources and need node_modules to already be there: tsc and eslint are
                dependencies of this package, so without it the script dies with "tsc: not found" long
                before any test phase is reached. The order that leaves - install, then typecheck and lint,
                then the browser download at generate-test-resources - also means a type or lint error is
                reported without first fetching 150MB of Chromium. -->
           <execution>
-            <id>yarn install</id>
+            <id>pnpm install</id>
             <goals>
-              <goal>yarn</goal>
+              <goal>pnpm</goal>
             </goals>
             <phase>initialize</phase>
             <configuration>
@@ -277,21 +277,21 @@
           <execution>
             <id>install browsers</id>
             <goals>
-              <goal>yarn</goal>
+              <goal>pnpm</goal>
             </goals>
             <phase>generate-test-resources</phase>
             <configuration>
-              <arguments>playwright install ${playwright.install.deps} ${playwright.browsers}</arguments>
+              <arguments>exec playwright install ${playwright.install.deps} ${playwright.browsers}</arguments>
             </configuration>
           </execution>
           <execution>
             <id>run e2e tests</id>
             <goals>
-              <goal>yarn</goal>
+              <goal>pnpm</goal>
             </goals>
             <phase>integration-test</phase>
             <configuration>
-              <arguments>test ${playwright.args}</arguments>
+              <arguments>run test ${playwright.args}</arguments>
               <!-- The failure must not stop the build here, or post-integration-test never runs and the
                    instances are left behind: the launcher plugin's shutdown hook kills the launcher script
                    but not the JVM under it, so a failed run orphans a full Sling instance and keeps its
@@ -317,11 +317,11 @@
           <execution>
             <id>check e2e results</id>
             <goals>
-              <goal>yarn</goal>
+              <goal>pnpm</goal>
             </goals>
             <phase>verify</phase>
             <configuration>
-              <arguments>check-results</arguments>
+              <arguments>run check-results</arguments>
             </configuration>
           </execution>
         </executions>

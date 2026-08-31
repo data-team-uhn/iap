@@ -87,7 +87,7 @@
          strips types per file without checking them, so this is the only thing that actually
          typechecks the frontend. Treated as a quality check: on by default, off in quick builds. -->
     <typecheck.skip>false</typecheck.skip>
-    <!-- Frontend lint (ESLint) over the sources *and* the tests; see the yarn-lint execution.
+    <!-- Frontend lint (ESLint) over the sources *and* the tests; see the pnpm-lint execution.
          Treated as a quality check: on by default, off in quick builds. -->
     <lint.skip>false</lint.skip>
     <!-- Reads every bundle's initial content with the content loader's own reader; see build-checks.
@@ -591,7 +591,7 @@
             <exclude>**/node_modules/**</exclude>
             <exclude>**/frontend/dist/**</exclude>
             <exclude>**/assets.config</exclude>
-            <exclude>**/yarn.lock</exclude>
+            <exclude>**/pnpm-lock.yaml</exclude>
             <!-- Exclude JSON files since comments are not supported -->
             <exclude>**/*.json</exclude>
             <!-- Exclude CSV files since comments are not supported -->
@@ -2002,19 +2002,19 @@
           <artifactId>frontend-maven-plugin</artifactId>
           <version>2.0.2</version>
           <executions>
-            <!-- Installs NodeJS and Yarn locally -->
+            <!-- Installs NodeJS and pnpm locally -->
             <execution>
-              <id>install node and yarn</id>
+              <id>install node and pnpm</id>
               <goals>
-                <goal>install-node-and-yarn</goal>
+                <goal>install-node-and-pnpm</goal>
               </goals>
               <phase>initialize</phase>
             </execution>
-            <!-- Brings in the dependencies using yarn -->
+            <!-- Brings in the dependencies using pnpm -->
             <execution>
-              <id>yarn install</id>
+              <id>pnpm install</id>
               <goals>
-                <goal>yarn</goal>
+                <goal>pnpm</goal>
               </goals>
               <configuration>
                 <arguments>install --ignore-scripts</arguments>
@@ -2026,12 +2026,12 @@
                  sources regardless of what has been aggregated, so test code is checked too.
                  Runs before webpack so type errors surface without waiting for the bundle. -->
             <execution>
-              <id>yarn-typecheck</id>
+              <id>pnpm-typecheck</id>
               <goals>
-                <goal>yarn</goal>
+                <goal>pnpm</goal>
               </goals>
               <configuration>
-                <arguments>typecheck</arguments>
+                <arguments>run typecheck</arguments>
                 <skip>${typecheck.skip}</skip>
               </configuration>
             </execution>
@@ -2052,34 +2052,36 @@
                  profile). Runs after webpack, since aggregating the tests in would otherwise put
                  them in the tree being bundled. -->
             <execution>
-              <id>yarn-lint</id>
+              <id>pnpm-lint</id>
               <goals>
-                <goal>yarn</goal>
+                <goal>pnpm</goal>
               </goals>
               <configuration>
-                <arguments>lint</arguments>
+                <arguments>run lint</arguments>
                 <skip>${lint.skip}</skip>
               </configuration>
             </execution>
-            <!-- Runs the frontend test suite (Vitest) via the `test` yarn script, which
+            <!-- Runs the frontend test suite (Vitest) via the `test` pnpm script, which
                  aggregates the module sources+tests and then runs Vitest. Bound to the
                  test phase and gated on ${skipTests}, so it is skipped in quick builds
                  and runs with -DskipTests=false -Dmaven.test.skip=false, like the Java tests. -->
             <execution>
-              <id>yarn-test</id>
+              <id>pnpm-test</id>
               <goals>
-                <goal>yarn</goal>
+                <goal>pnpm</goal>
               </goals>
               <phase>test</phase>
               <configuration>
-                <arguments>test</arguments>
+                <arguments>run test</arguments>
                 <skip>${skipTests}</skip>
               </configuration>
             </execution>
           </executions>
           <configuration>
             <nodeVersion>v26.0.0</nodeVersion>
-            <yarnVersion>v1.22.22</yarnVersion>
+            <!-- Held at 10.x: Dependabot documents pnpm support up to v10, and it is what keeps
+                 the frontend dependency PRs coming. 10 and 11 write the same lockfile format. -->
+            <pnpmVersion>10.34.5</pnpmVersion>
             <workingDirectory>src/main/frontend</workingDirectory>
           </configuration>
         </plugin>
@@ -2242,10 +2244,10 @@
       <!-- Use this ( mvn install -Pskip-webpack ) when trying to get a quicker test build, without (re)installing any node dependencies. -->
       <id>skip-webpack</id>
       <properties>
-        <skip.installyarn>true</skip.installyarn>
-        <skip.yarn>true</skip.yarn>
+        <skip.installnodepnpm>true</skip.installnodepnpm>
+        <skip.pnpm>true</skip.pnpm>
         <skip.webpack>true</skip.webpack>
-        <!-- An execution with its own <skip> does not honour skip.yarn, so opt out explicitly -->
+        <!-- An execution with its own <skip> does not honour skip.pnpm, so opt out explicitly -->
         <typecheck.skip>true</typecheck.skip>
         <lint.skip>true</lint.skip>
       </properties>

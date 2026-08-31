@@ -74,7 +74,7 @@ def merge_ui_files(root, dir_name, namespace, aggregated_frontend_dir, maven_sou
 def link_node_modules(root_dir, aggregated_frontend_dir):
     real = path.join(aggregated_frontend_dir, 'src', 'main', 'frontend', 'node_modules')
     link = path.join(root_dir, 'node_modules')
-    # Nothing to point at until `yarn install` has run (a clean checkout builds the frontend
+    # Nothing to point at until `pnpm install` has run (a clean checkout builds the frontend
     # module before anything typechecks, so this resolves itself)
     if not path.isdir(real):
         return

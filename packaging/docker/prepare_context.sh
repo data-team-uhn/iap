@@ -71,7 +71,7 @@ EOF
 
 # The metadata layer: the dependency inventories and build information used for security
 # audits of production deployments
-cp "$ROOT_DIR/aggregated-frontend/src/main/frontend/yarn.lock" "$CONTEXT/metadata/yarn.lock"
+cp "$ROOT_DIR/aggregated-frontend/src/main/frontend/pnpm-lock.yaml" "$CONTEXT/metadata/pnpm-lock.yaml"
 cp "$ROOT_DIR/modules/homepage/src/main/media/SLING-INF/content/libs/iap/resources/media/default/logo-light.svg" \
   "$CONTEXT/metadata/logo.svg"
 cp "$ROOT_DIR/packaging/slingfeature/target/slingfeature-tmp/feature-core_tar.json" \

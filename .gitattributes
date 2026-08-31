@@ -21,4 +21,4 @@
 *.ico binary
 
 # Generated files, collapsed by default in GitHub diffs
-yarn.lock linguist-generated=true
+pnpm-lock.yaml linguist-generated=true

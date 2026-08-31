@@ -13,7 +13,7 @@
   // through "paths" instead does not work: a "paths" target is resolved as a plain file path,
   // so packages that declare their types only through package.json "exports" (react-router,
   // for one) are reported as missing. webpack_script.py therefore maintains a ./node_modules
-  // symlink to the aggregated frontend's real one; run a build (or `yarn aggregate`) once
+  // symlink to the aggregated frontend's real one; run a build (or `pnpm aggregate`) once
   // before typechecking a fresh clone.
   "extends": "./aggregated-frontend/src/main/frontend/tsconfig.json",
   "compilerOptions": {

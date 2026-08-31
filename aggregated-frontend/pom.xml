@@ -100,9 +100,10 @@
                 <exclude>**/node/**</exclude>
                 <exclude>**/node_modules/**</exclude>
                 <exclude>**/*.py</exclude>
-                <exclude>**/yarn.lock</exclude>
+                <exclude>**/pnpm-lock.yaml</exclude>
                 <exclude>**/package.json</exclude>
                 <exclude>**/tsconfig.json</exclude>
+                <exclude>**/.npmrc</exclude>
               </excludes>
             </fileset>
             <!-- Webpack's persistent cache is spared above with the rest of node_modules, but it

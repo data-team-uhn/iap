@@ -87,13 +87,13 @@ far quicker than a Maven round trip:
 
 ```
 cd src/test/e2e
-yarn install
-yarn playwright install chromium
-IAP_TESTDATA_URL=http://localhost:8080 yarn test --project=test-data-chromium
-IAP_TESTDATA_URL=http://localhost:8080 yarn test:ui           # watch mode, time-travel debugging
-IAP_TESTDATA_URL=http://localhost:8080 yarn test:headed       # a real browser window
-IAP_TESTDATA_URL=http://localhost:8080 yarn test:debug        # the Playwright Inspector
-IAP_TESTDATA_URL=http://localhost:8080 PLAYWRIGHT_BROWSERS="chromium firefox" yarn test
+pnpm install
+pnpm exec playwright install chromium
+IAP_TESTDATA_URL=http://localhost:8080 pnpm test --project=test-data-chromium
+IAP_TESTDATA_URL=http://localhost:8080 pnpm test:ui           # watch mode, time-travel debugging
+IAP_TESTDATA_URL=http://localhost:8080 pnpm test:headed       # a real browser window
+IAP_TESTDATA_URL=http://localhost:8080 pnpm test:debug        # the Playwright Inspector
+IAP_TESTDATA_URL=http://localhost:8080 PLAYWRIGHT_BROWSERS="chromium firefox" pnpm test
 ```
 
 ## Browsers need system libraries
@@ -102,7 +102,7 @@ Downloading Chromium is not enough; it needs about ten shared libraries that a m
 will not have. Playwright says so clearly when they are missing:
 
 ```
-sudo yarn playwright install-deps        # or the apt-get line Playwright prints
+sudo pnpm exec playwright install-deps        # or the apt-get line Playwright prints
 ```
 
 This needs root, so it belongs in the CI image build rather than the test run. Only Chromium is installed
@@ -152,7 +152,7 @@ Two consequences worth knowing:
   Name what a suite depends on in `Instance.readyPaths` (probed anonymously, exactly as the browser reads
   it) rather than hoping.
 - A failing run leaves a trace, a screenshot and a video in `target/e2e-report`. Open it with
-  `yarn report` — for anything that only fails on CI, that is the difference between a diagnosis and a
+  `pnpm report` — for anything that only fails on CI, that is the difference between a diagnosis and a
   guess.
 
 ## Typechecking and linting
@@ -162,9 +162,9 @@ These sources are held to the same standard as the application frontend, and bot
 type error or a lint violation is reported in seconds rather than after a full launch:
 
 ```
-yarn typecheck        # tsc --noEmit
-yarn lint             # eslint .
-yarn lint --fix       # for the formatting and import-order ones
+pnpm typecheck        # tsc --noEmit
+pnpm lint             # eslint .
+pnpm lint --fix       # for the formatting and import-order ones
 ```
 
 `eslint.config.mjs` is the frontend's configuration with the React-only parts removed; the rule set that
