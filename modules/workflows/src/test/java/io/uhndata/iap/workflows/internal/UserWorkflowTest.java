@@ -503,6 +503,7 @@ class UserWorkflowTest
         inject(impl, "conditionEvaluator", EngineFixture.conditions());
         inject(impl, "routing", EngineFixture.routing());
         inject(impl, "taskCompletion", EngineFixture.taskCompletion());
+        inject(impl, "principals", EngineFixture.principals());
         return impl;
     }
 
@@ -765,6 +766,7 @@ class UserWorkflowTest
         inject(engine, "conditionEvaluator", EngineFixture.conditions());
         inject(engine, "routing", EngineFixture.routing());
         inject(engine, "taskCompletion", EngineFixture.taskCompletion());
+        inject(engine, "principals", EngineFixture.principals());
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -935,6 +937,7 @@ class UserWorkflowTest
         inject(engine, "conditionEvaluator", EngineFixture.conditions());
         inject(engine, "routing", EngineFixture.routing());
         inject(engine, "taskCompletion", EngineFixture.taskCompletion());
+        inject(engine, "principals", EngineFixture.principals());
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);

@@ -17,21 +17,21 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalContext;
+import io.uhndata.iap.principals.api.PrincipalLookupException;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -45,72 +45,88 @@ import io.uhndata.iap.workflows.models.FlowNode;
  * repository is being written with full privileges. The refusal happens here, before the first step. An actor
  * passes only if the definition named them, or named a group they belong to.</p>
  *
+ * <p>The {@link PrincipalService} says who a definition's names stand for: {@code @creator} for whoever raised the
+ * resource being worked on, {@code everyone} for any authenticated user, and a group however a deployment stores it.
+ * This class adds only the administrator bypass.</p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
 final class PerformerCheck
 {
-    /** The built-in group that stands for every authenticated user. */
-    private static final String EVERYONE_GROUP = "everyone";
-
     /** What an actor is told when the definition does not admit them. The same words whatever the reason. */
     private static final String REFUSAL_MESSAGE = "You are not allowed to do this";
+
+    /** Resolves the people a definition names. */
+    private final PrincipalService principals;
+
+    /** The engine's own session, which membership is asked through. */
+    private final ResourceResolver serviceResolver;
+
+    /** The actor's user id. */
+    private final String actor;
 
     /** The actor, or {@code null} when the repository does not know them. */
     private final Authorizable authorizable;
 
-    /** The actor's own id and the groups they belong to, read the first time a node names anyone but everyone. */
-    private Set<String> identities;
-
-    private PerformerCheck(final Authorizable authorizable)
+    private PerformerCheck(final PrincipalService principals, final ResourceResolver serviceResolver,
+        final String actor, final Authorizable authorizable)
     {
+        this.principals = principals;
+        this.serviceResolver = serviceResolver;
+        this.actor = actor;
         this.authorizable = authorizable;
     }
 
     /**
      * Looks the actor up once, to be asked about any number of nodes.
      *
+     * @param principals resolves the people a definition names
      * @param serviceResolver the engine's own session, used to look the actor up
      * @param actor the user who fired the event, as their repository user id
      * @return a check for this actor
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
-    static PerformerCheck of(final ResourceResolver serviceResolver, final String actor)
-        throws WorkflowFailedException
+    static PerformerCheck of(final PrincipalService principals, final ResourceResolver serviceResolver,
+        final String actor) throws WorkflowFailedException
     {
-        return new PerformerCheck(lookUp(serviceResolver, actor));
+        return new PerformerCheck(principals, serviceResolver, actor, lookUp(serviceResolver, actor));
     }
 
     /**
      * Refuses the actor unless the node names them, directly or through a group they belong to. Both halves fail
      * closed: an actor the repository does not know is refused, and a node that names nobody admits nobody.
      *
+     * @param principals resolves the people a definition names
      * @param serviceResolver the engine's own session, used to look the actor up
+     * @param subject the resource being worked on, whose creator {@code @creator} names
      * @param node the flow node execution wants to pass through
      * @param actor the user who fired the event, as their repository user id
      * @throws NotAuthorizedException when the node does not admit this actor
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
-    static void verify(final ResourceResolver serviceResolver, final FlowNode node, final String actor)
-        throws WorkflowException
+    static void verify(final PrincipalService principals, final ResourceResolver serviceResolver,
+        final Resource subject, final FlowNode node, final String actor) throws WorkflowException
     {
-        verify(serviceResolver, node.getPerformers(), actor);
+        verify(principals, serviceResolver, subject, node.getPerformers(), actor);
     }
 
     /**
      * Refuses the actor unless the list admits them. A caller passes the list itself when a node's performers default
      * to someone if it names nobody.
      *
+     * @param principals resolves the people a definition names
      * @param serviceResolver the engine's own session, used to look the actor up
+     * @param subject the resource being worked on, whose creator {@code @creator} names
      * @param performers the principals admitted
      * @param actor the user who fired the event, as their repository user id
      * @throws NotAuthorizedException when the list does not admit this actor
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
-    static void verify(final ResourceResolver serviceResolver, final List<String> performers, final String actor)
-        throws WorkflowException
+    static void verify(final PrincipalService principals, final ResourceResolver serviceResolver,
+        final Resource subject, final List<String> performers, final String actor) throws WorkflowException
     {
-        if (!of(serviceResolver, actor).admits(performers)) {
+        if (!of(principals, serviceResolver, actor).admits(performers, subject)) {
             throw new NotAuthorizedException(REFUSAL_MESSAGE);
         }
     }
@@ -119,22 +135,24 @@ final class PerformerCheck
      * Whether the node names the actor, directly or through a group they belong to.
      *
      * @param node the flow node execution wants to pass through
+     * @param subject the resource being worked on, whose creator {@code @creator} names
      * @return {@code true} if the actor may make execution pass through it
      * @throws WorkflowFailedException when the actor's group membership cannot be read
      */
-    boolean admits(final FlowNode node) throws WorkflowFailedException
+    boolean admits(final FlowNode node, final Resource subject) throws WorkflowFailedException
     {
-        return admits(node.getPerformers());
+        return admits(node.getPerformers(), subject);
     }
 
     /**
      * Whether the list admits the actor.
      *
      * @param performers the principals admitted
+     * @param subject the resource being worked on, whose creator {@code @creator} names
      * @return {@code true} if the actor is among them
      * @throws WorkflowFailedException when the actor's group membership cannot be read
      */
-    private boolean admits(final List<String> performers) throws WorkflowFailedException
+    private boolean admits(final List<String> performers, final Resource subject) throws WorkflowFailedException
     {
         if (this.authorizable == null) {
             return false;
@@ -144,35 +162,12 @@ final class PerformerCheck
         if (this.authorizable instanceof User && ((User) this.authorizable).isAdmin()) {
             return true;
         }
-        // "everyone" is matched by name, not by membership: it is a dynamic principal, and an authorizable does
-        // not necessarily report belonging to it
-        return performers.contains(EVERYONE_GROUP)
-            || !performers.isEmpty() && performers.stream().anyMatch(identities()::contains);
-    }
-
-    /**
-     * The actor's own id and the ids of the groups they belong to, transitively: naming a group also admits the
-     * members of its member groups.
-     *
-     * @return the actor's identities
-     * @throws WorkflowFailedException when the actor's group membership cannot be read
-     */
-    private Set<String> identities() throws WorkflowFailedException
-    {
-        if (this.identities == null) {
-            try {
-                final Set<String> found = new HashSet<>();
-                found.add(this.authorizable.getID());
-                for (final Iterator<Group> groups = this.authorizable.memberOf(); groups.hasNext();) {
-                    found.add(groups.next().getID());
-                }
-                this.identities = found;
-            } catch (final RepositoryException e) {
-                throw new WorkflowFailedException("Could not determine what groups the requesting user belongs to",
-                    e);
-            }
+        try {
+            return this.principals.isOneOf(this.actor,
+                this.principals.resolve(performers, PrincipalContext.about(subject)), this.serviceResolver);
+        } catch (final PrincipalLookupException e) {
+            throw new WorkflowFailedException("Could not determine what groups the requesting user belongs to", e);
         }
-        return this.identities;
     }
 
     /**

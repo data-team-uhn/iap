@@ -27,6 +27,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -61,18 +62,24 @@ final class ServiceTaskDispatcher
     /** What decides where the tokens of any instance a task starts go. */
     private final FlowRouting routing;
 
+    /** Resolves the people named in the definition of any instance a task starts. */
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
      * @param routing what decides where the tokens of any instance a task starts go
+     * @param principals resolves the people named in the definition of any instance a task starts
      */
-    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing)
+    ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain, final FlowRouting routing,
+        final PrincipalService principals)
     {
         this.handlers = handlers;
         this.chain = chain;
         this.routing = routing;
+        this.principals = principals;
     }
 
     /**
@@ -177,7 +184,7 @@ final class ServiceTaskDispatcher
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor, this, 0));
+            new WorkflowTaskContextImpl(InstanceRecords.hostOf(instance), event, activity, variables, actor, this, 0));
     }
 
     /**
@@ -188,6 +195,16 @@ final class ServiceTaskDispatcher
     FlowRouting getRouting()
     {
         return this.routing;
+    }
+
+    /**
+     * Resolves the people named in the definition of any instance a task starts.
+     *
+     * @return the engine's principal service
+     */
+    PrincipalService getPrincipals()
+    {
+        return this.principals;
     }
 
     /**
@@ -204,18 +221,6 @@ final class ServiceTaskDispatcher
         throws WorkflowException, PersistenceException
     {
         this.chain.send(target, event, actor, depth);
-    }
-
-    /**
-     * The resource an instance drives, two levels up past its container.
-     *
-     * @param instance a running instance
-     * @return the host resource
-     */
-    private Resource hostOf(final Resource instance)
-    {
-        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**
