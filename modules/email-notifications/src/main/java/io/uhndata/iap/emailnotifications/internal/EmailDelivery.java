@@ -69,6 +69,9 @@ public class EmailDelivery implements NotificationDelivery
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(EmailDelivery.class);
 
+    /** The child of a notification's wording folder holding this channel's rendering. */
+    private static final String EMAIL_RENDERING = "email";
+
     // Dynamic and greedy for the same reason the test endpoint's reference is: a deployment substituting a mail
     // service, a development instance catching mail rather than sending it, should win on ranking rather than on
     // having happened to start first
@@ -81,9 +84,9 @@ public class EmailDelivery implements NotificationDelivery
         if (!NotificationContext.IMMEDIATE.equals(notification.getUrgency())) {
             return false;
         }
-        // Read once into a local rather than asked twice around a check: the address is nullable, and what is
-        // passed on has to be the very value the check was about
-        final String address = recipient.address();
+        // Whether the platform knows how to email somebody is a fact about their account, read here because
+        // this is the one delivery that needs it
+        final String address = addressOf(recipient);
         if (address == null || address.isBlank()) {
             LOGGER.info("{} has no email address, so the {} notification was not emailed", recipient.userId(),
                 notification.getEvent());
@@ -119,7 +122,15 @@ public class EmailDelivery implements NotificationDelivery
                     notification.getEvent(), templatePath);
                 return false;
             }
-            final Node templateNode = Objects.requireNonNull(templateResource.adaptTo(Node.class),
+            // The template folder holds one rendering per channel; this notification simply has no email wording
+            // when the folder carries no email child, which is a choice its author made, not an error
+            final Resource emailRendering = templateResource.getChild(EMAIL_RENDERING);
+            if (emailRendering == null) {
+                LOGGER.info("The template {} has no {} rendering, so the {} notification was not emailed",
+                    templatePath, EMAIL_RENDERING, notification.getEvent());
+                return false;
+            }
+            final Node templateNode = Objects.requireNonNull(emailRendering.adaptTo(Node.class),
                 "A template read from the repository is always backed by a node");
             final EmailTemplate template = EmailTemplate.builder(templateNode, resolver).build();
             final Email email = template.getEmailBuilder(variables(notification))
@@ -141,6 +152,19 @@ public class EmailDelivery implements NotificationDelivery
                 recipient.userId(), e.getMessage(), e);
             return false;
         }
+    }
+
+    /**
+     * Where this person can be emailed, as their account tells it: the {@code profile/email} Keycloak's sync
+     * handler writes, and the profile editor lets people correct.
+     *
+     * @param recipient who to reach
+     * @return their address, or {@code null} when the account does not carry one
+     */
+    private static String addressOf(final Recipient recipient)
+    {
+        final Resource profile = recipient.account().getChild("profile");
+        return profile == null ? null : profile.getValueMap().get("email", String.class);
     }
 
     /**

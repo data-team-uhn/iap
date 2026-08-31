@@ -43,20 +43,18 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface NotificationService
 {
-    /** The role meaning whoever raised the subject the notification is about. */
-    String CREATOR_ROLE = "@creator";
-
     /**
      * Notifies everyone the given roles resolve to.
      *
-     * <p>Nothing is guaranteed to reach anybody: a role may resolve to nobody, a person may have no address, and
-     * a person may have asked not to be told. None of those is an error — a notification is an attempt to inform,
-     * and the workflow that raised it carries on either way.</p>
+     * <p>Nothing is guaranteed to reach anybody: a role may resolve to nobody, a person may have no channel that
+     * accepts, and a person may have asked not to be told. None of those is an error — a notification is an
+     * attempt to inform, and the workflow that raised it carries on either way. Nothing comes back, deliberately:
+     * a delivery accepting says nothing about a message arriving, so a list of "the people told" would claim more
+     * than anything here can know, and the one thing a caller could do with it — decide how people are told — is
+     * exactly the decision this service exists to take away from callers.</p>
      *
      * @param notification what happened
-     * @param roles who it concerns
-     * @return the people it was delivered to, empty when it reached nobody
+     * @param roles who it concerns, in the same vocabulary a workflow names performers in
      */
-    @NotNull
-    List<Recipient> notify(@NotNull NotificationContext notification, @NotNull List<String> roles);
+    void notify(@NotNull NotificationContext notification, @NotNull List<String> roles);
 }

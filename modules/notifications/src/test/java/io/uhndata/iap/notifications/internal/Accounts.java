@@ -34,6 +34,9 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
  */
 final class Accounts
 {
+    /** Where an account's email address lives, as Keycloak's sync handler writes it. */
+    static final String EMAIL_PROPERTY = "profile/email";
+
     private Accounts()
     {
         // Utility class
@@ -53,7 +56,7 @@ final class Accounts
         final UserManager users = users(context);
         final User user = users.createUser(userId, userId);
         if (address != null) {
-            user.setProperty(Recipients.EMAIL_PROPERTY,
+            user.setProperty(EMAIL_PROPERTY,
                 context.resourceResolver().adaptTo(Session.class).getValueFactory().createValue(address));
         }
         context.resourceResolver().commit();
