@@ -41,6 +41,11 @@
         <configuration>
           <instructions>
             <Sling-Nodetypes>SLING-INF/nodetypes/emailcatcher.cnd</Sling-Nodetypes>
+            <Sling-Initial-Content>
+              SLING-INF/content/libs/mail/CaughtMailHomepage/;path:=/libs/mail/CaughtMailHomepage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/libs/mail/CaughtMessage/;path:=/libs/mail/CaughtMessage/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
+            </Sling-Initial-Content>
           </instructions>
         </configuration>
       </plugin>

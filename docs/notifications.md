@@ -260,6 +260,41 @@ configuration a deployment can read back, and catching mail on some new instance
 configuration rather than a rebuild — which is exactly what somebody debugging a staging
 environment would want.
 
+#### Reading it in the administration console
+
+`.messages.json` above is for a test to assert on. A person gets **Caught mail** in the
+administration console: a dashboard summary, a table of what has been filed at
+`/admin/mail`, and a page per message.
+
+The table is the shared entity grid, which pages, sorts, searches and filters through
+`/CaughtMail.paginate.json` — so the module serves no listing of its own. That works
+because `mail:CaughtMailHomepage` extends `data:EntityHomepage` and declares
+`childNodeType = mail:CaughtMessage`, which is what tells the pagination servlet what it
+is listing.
+
+The one thing the grid cannot answer is whether mail is being caught **right now**:
+
+```
+GET /CaughtMail.status.json
+→ { "enabled": true, "total": 12 }
+```
+
+`enabled` is the presence of a registered `MailService` carrying the catcher's own
+`iap.mail.catcher` service property — not a reading of the configuration. The
+configuration says what somebody asked for; the registry says what is in force, and those
+differ while a component is settling or if something outranks the catcher in turn. The
+count travels with it because the two are useless apart: a count alone cannot tell
+"nothing has been sent" from "everything sent was delivered by mail".
+
+A message's own page shows the addresses one per line — a comma is legal inside a display
+name, so a joined list is ambiguous exactly where somebody is checking the addressing —
+and draws the HTML body **in an iframe with an empty `sandbox` attribute**, which blocks
+scripts, forms, navigation and same-origin access at once. These bodies come from the
+platform's own templates today, but a caught message is whatever was handed to the mail
+service, and this page renders it inside an administrator's session. It costs the page
+nothing: what is being checked is how the message reads, and a link in it is worth seeing
+rather than following. The plain text and the HTML source sit beside the rendering.
+
 ## Future work
 
 - **Nothing produces messages yet** beyond the status report, and nothing sends an email yet.

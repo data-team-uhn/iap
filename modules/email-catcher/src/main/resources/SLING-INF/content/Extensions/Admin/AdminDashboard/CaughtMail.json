@@ -1,0 +1,10 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/adminDashboard/entry",
+  "ext:name": "Caught mail",
+  "ext:subtitle": "What this instance would have emailed, filed here instead of being delivered",
+  "ext:targetURL": "/admin/mail",
+  "ext:actionLabel": "Read caught mail",
+  "ext:renderURL": "asset:iap-email-catcher.CaughtMailWidget.js",
+  "defaultOrder": 40
+}

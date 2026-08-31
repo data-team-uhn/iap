@@ -135,6 +135,14 @@ any repository content.
 | Workflows | `/admin/workflows` | `workflows` | 20 |
 | Recorded errors | `/admin/errors` | `error-tracking` | 30 |
 | Archive | `/admin/archive` | `deletion` | 30 |
+| Caught mail | `/admin/mail` | `email-catcher` | 40 |
+
+The last of those is a development facility that ships everywhere and is off unless
+switched on, so it is the one tool whose page has to say what state the thing behind
+it is in. An empty list means "nothing has been sent" on an instance that is
+catching, and "everything sent went out by mail" on one that is not — opposite
+facts that look identical, so both the widget and the page state which they are
+reporting rather than leaving it to be inferred.
 
 ## Future work
 
