@@ -26,6 +26,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -62,19 +63,21 @@ final class WorkflowQueries
      * @param target the target, resolved through the asking user's own session
      * @param login opens the engine's own session, when the asking resolver does not hold one yet
      * @param evaluator decides whether guards hold
+     * @param principals what the names a definition uses for people mean
      * @return the event names, in alphabetical order
      * @throws WorkflowException when the engine's session cannot be opened, the user cannot be looked up, or several
      *             workflows would take one of the events
      */
     static Set<String> availableEvents(final Resource target, final ServiceLogin login,
-        final ConditionEvaluator evaluator) throws WorkflowException
+        final ConditionEvaluator evaluator, final PrincipalService principals) throws WorkflowException
     {
         final Scope scope = Scope.of(target.getResourceResolver(), login);
         final Resource privileged = scope.privileged(target);
         if (privileged.isResourceType(TaskInstance.RESOURCE_TYPE)) {
-            return TaskCompletion.availableEvents(privileged, scope.performers());
+            return TaskCompletion.availableEvents(privileged, scope.performers(principals));
         }
-        return SystemWorkflowLocator.availableEvents(scope.resolver, privileged, evaluator, scope.performers());
+        return SystemWorkflowLocator.availableEvents(scope.resolver, privileged, evaluator,
+            scope.performers(principals));
     }
 
     /**
@@ -85,12 +88,13 @@ final class WorkflowQueries
      * @param event the event's name
      * @param login opens the engine's own session, when the asking resolver does not hold one yet
      * @param evaluator decides whether guards hold
+     * @param principals what the names a definition uses for people mean
      * @return the workflow version, or {@code null} when no system workflow would take the event from the user
      * @throws WorkflowException when the engine's session cannot be opened, the user cannot be looked up, several
      *             workflows would take the event, or the user's session cannot read the one that would
      */
     static WorkflowVersion applicableWorkflow(final Resource target, final String event, final ServiceLogin login,
-        final ConditionEvaluator evaluator) throws WorkflowException
+        final ConditionEvaluator evaluator, final PrincipalService principals) throws WorkflowException
     {
         final Scope scope = Scope.of(target.getResourceResolver(), login);
         final Resource privileged = scope.privileged(target);
@@ -104,7 +108,8 @@ final class WorkflowQueries
         } catch (final NoApplicableWorkflowException e) {
             return null;
         }
-        return scope.performers().admits(start) ? handOver(target.getResourceResolver(), start) : null;
+        return scope.performers(principals).admits(start, privileged)
+            ? handOver(target.getResourceResolver(), start) : null;
     }
 
     /**
@@ -210,13 +215,14 @@ final class WorkflowQueries
         /**
          * Whom the definitions admit, for this scope's user.
          *
+         * @param principals what the names a definition uses for people mean
          * @return the check, looked up once per scope
          * @throws WorkflowFailedException when the repository cannot say who the user is
          */
-        PerformerCheck performers() throws WorkflowFailedException
+        PerformerCheck performers(final PrincipalService principals) throws WorkflowFailedException
         {
             if (this.performers == null) {
-                this.performers = PerformerCheck.of(this.resolver, this.actor);
+                this.performers = PerformerCheck.of(principals, this.resolver, this.actor);
             }
             return this.performers;
         }
