@@ -32,13 +32,19 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Turns a query result row into the object the {@code rawResults} mode of the search endpoint returns: the path of
- * each selector the query has, and the value of each column it selected, instead of the nodes the query matched.
+ * each selector, and the value of each selected column, instead of the matched nodes.
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class RawResultSerializer
 {
+    /**
+     * What a column holding a binary reports instead of its contents. Not {@code null}, which means the row has no
+     * value for the column at all.
+     */
+    static final String BINARY_PLACEHOLDER = "BINARY_VALUE";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(RawResultSerializer.class);
 
     private RawResultSerializer()
@@ -77,7 +83,8 @@ final class RawResultSerializer
      *
      * @param value the value of the column in the current row, may be {@code null} for a column the row has no value
      *            for
-     * @return the value as JSON, or {@code null} for a column that has none to give
+     * @return the value as JSON, {@link JsonValue#NULL} for a column that has none to give, or
+     *         {@value #BINARY_PLACEHOLDER} for one holding a binary
      * @throws RepositoryException if the value cannot be read
      */
     private static JsonValue columnValue(final Value value) throws RepositoryException
@@ -85,11 +92,10 @@ final class RawResultSerializer
         if (value == null) {
             return JsonValue.NULL;
         }
-        // Reading a binary as a string reads all of it, and a statement is free to select the data of every file in
-        // the repository, so the response says the column is there and leaves its contents to be fetched from the
-        // node itself. A search result is a place to find content, not a way to download it.
+        // Reading a binary as a string reads all of it, and a statement can select the data of every file in the
+        // repository. The response names the column as holding a binary. Its contents are fetched from the node.
         if (value.getType() == PropertyType.BINARY) {
-            return JsonValue.NULL;
+            return Json.createValue(BINARY_PLACEHOLDER);
         }
         return Json.createValue(value.getString());
     }

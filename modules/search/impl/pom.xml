@@ -31,6 +31,12 @@
   <description>The servlet serving the /search endpoint.</description>
 
   <dependencies>
+    <!-- Not used here, but SearchContextFactory is annotated with it, and javac warns that it cannot read an
+         annotation whose class is absent — which -Werror turns into a failure -->
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-search-api</artifactId>
@@ -39,6 +45,11 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

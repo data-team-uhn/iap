@@ -1,8 +1,8 @@
 # Search
 
 **Module:** `modules/search` (`api` + `impl`) · **Bundles:** `iap-search-api`,
-`iap-search-impl` · **API:** `io.uhndata.iap.search.api` (`SearchParameters`,
-`SearchParametersFactory`, `SearchUtils`) · **SPI:**
+`iap-search-impl` · **API:** `io.uhndata.iap.search.api` (`SearchContext`,
+`SearchContextFactory`, `SearchUtils`) · **SPI:**
 `io.uhndata.iap.search.spi.QuickSearchEngine`
 
 `GET /search.json` runs a query against the repository and returns the results as JSON.
@@ -13,6 +13,13 @@ answers "whatever matches this query, wherever it is".
 The query runs **in the session of whoever sent the request**, so a search never reveals
 content that user could not read anyway. It does not limit what the query may *cost* —
 see [Unindexed queries](#unindexed-queries).
+
+`POST /search.json` does exactly the same thing, reading the same parameters from a
+form-encoded body instead of the query string. Nothing is written either way; the two
+exist because what someone is searching *for* can be as sensitive as what they find, and
+a query string is written to access logs, kept in browser history, and handed on in the
+`Referer` of whatever the next page loads. Only the caller knows whether its terms are
+worth keeping out of those places, so the choice is left to it.
 
 `/search` is a plain node of type `data:Search`, created world-readable by repoinit, and
 `SearchServlet` is bound to the `data/Search` resource type with the `json` extension.
@@ -122,9 +129,11 @@ GET /search.json?rawResults=true&query=SELECT s.category FROM [sub:Submission] A
 { "rows": [ { "s": "/Submissions/s1", "s.category": "renal" } ], … }
 ```
 
-A column holding a binary is reported as `null`. Reading a binary means reading all of
-it, and a statement is free to select the data of every file in the repository, so the
-response says the column is there and leaves its contents to be fetched from the node.
+A column holding a binary is reported as the string `BINARY_VALUE`. Reading a binary means
+reading all of it, and a statement is free to select the data of every file in the
+repository, so the response names the column as holding one and leaves its contents to be
+fetched from the node. A `null` is reserved for a column the row has no value for at all —
+"fetch this from the node" and "there is nothing here" are different answers.
 
 ### Naming a referenced node by its path
 
@@ -243,6 +252,14 @@ soon as enough results have been collected. An engine is expected to look wherev
 user would expect a match to be — including in descendants of the content it returns —
 and to describe each match, so the client can show why the result is there.
 
+A node type may be claimed by more than one engine, and every one of them is asked.
+Engines are an extension point rather than a partition of the content: two of them can
+know entirely different things about the same type — one matching a submission's own
+answers, another the text extracted from the files attached to it. The results are
+therefore not deduplicated against each other, and cannot be, since an engine returns a
+serialized match rather than the path of one. Two engines that really do find the same
+node both report it.
+
 **No engines are registered yet.** The extension point exists; until something
 implements it, a `quick` search returns nothing.
 
@@ -256,14 +273,18 @@ public class SubmissionQuickSearchEngine implements QuickSearchEngine
     public List<String> getSupportedTypes() { return List.of("sub:Submission"); }
 
     @Override
-    public Results quickSearch(final SearchParameters query, final ResourceResolver resolver)
+    public Results quickSearch(final SearchContext context)
     {
-        // query.getResourceTypes() is the subset of the above that this request asked for
-        // query.getMaxResults() is how many results can still be used — bound the query with it
+        // context.getResourceTypes() is the subset of the above that this request asked for
+        // context.getMaxResults() is how many results can still be used — bound the query with it
+        // context.getResourceResolver() is the requesting user's — read through it and nothing else
         …
     }
 }
 ```
+
+The context carries everything the search is, including whose it is. It belongs to that
+one request and must not be kept: the resolver in it is closed when the request ends.
 
 `Results` is an `Iterator<JsonObject>` with two additions: `skip()`, for moving past a
 result without building its JSON, and `close()`. The servlet calls `skip()` for every
@@ -304,6 +325,12 @@ its plan when that happens, so an expensive query is attributable to this endpoi
 than only to the repository's own traversal warnings. **The query still runs**: IAP's
 `oak:index` coverage is thin, and failing such queries outright would reject legitimate
 ones.
+
+It is also recorded as a problem under `/LoggedErrors`, since a missing index is a
+standing fact about the instance rather than something only whoever is reading the log at
+the time should learn. The phrase recorded is fixed in code and the statement is attached
+as a detail, so the records count missing indexes and not distinct searches — see
+[error tracking](error-tracking.md).
 
 Obtaining the plan means planning the query twice, deliberately: planning is cheap next
 to a traversal, which is exactly the case this exists to report. The statement the plan is
@@ -350,6 +377,6 @@ the response has already started; it is reported in the summary instead, as unde
   for a name. The user store is the one worth deciding about: either it is content and a
   search should find people, or it is not and it belongs in the same exclusion.
 - **`resourceSelectors` is only honoured when whole nodes are serialized.** Passing it
-  through to the engines, as a field on `SearchParameters`, would let `quick` results
+  through to the engines, as a field on `SearchContext`, would let `quick` results
   respect it too.
 - **Making the default `fulltext` mode literal** for whitespace and `OR`.

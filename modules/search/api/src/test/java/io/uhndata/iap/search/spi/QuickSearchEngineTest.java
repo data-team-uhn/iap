@@ -25,11 +25,10 @@ import java.util.NoSuchElementException;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
-import org.apache.sling.api.resource.ResourceResolver;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import io.uhndata.iap.search.api.SearchParameters;
+import io.uhndata.iap.search.api.SearchContext;
 
 /**
  * Unit tests for the default behaviour of {@link QuickSearchEngine}.
@@ -62,9 +61,8 @@ public class QuickSearchEngineTest
     @Test
     public void anEngineWithNothingToReleaseNeedNotSaySo()
     {
-        // The caller closes every result set, including the ones from engines that never opened anything, so the
-        // default has to be a no-op rather than something an implementation is obliged to write
-        final QuickSearchEngine.Results results = new StubEngine(List.of()).quickSearch(null, null);
+        // The caller closes every result set, including those of engines that never opened anything
+        final QuickSearchEngine.Results results = new StubEngine(List.of()).quickSearch(null);
         Assertions.assertDoesNotThrow(results::close);
         // Closing changes nothing for an engine that holds nothing
         Assertions.assertTrue(results.hasNext());
@@ -74,7 +72,7 @@ public class QuickSearchEngineTest
     public void skippingDefaultsToReadingAndDiscarding()
     {
         final QuickSearchEngine.Results results =
-            new StubEngine(List.of()).quickSearch(null, null);
+            new StubEngine(List.of()).quickSearch(null);
         results.skip();
         Assertions.assertEquals("second", results.next().getString("name"));
         Assertions.assertFalse(results.hasNext());
@@ -97,7 +95,7 @@ public class QuickSearchEngineTest
         }
 
         @Override
-        public Results quickSearch(final SearchParameters query, final ResourceResolver resourceResolver)
+        public Results quickSearch(final SearchContext context)
         {
             final Deque<String> names = new ArrayDeque<>(List.of("first", "second"));
             return new Results()

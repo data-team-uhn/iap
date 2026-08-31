@@ -33,6 +33,16 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>org.apache.rat</groupId>
+        <artifactId>apache-rat-plugin</artifactId>
+        <configuration>
+          <inputExcludes combine.children="append">
+            <!-- One-line Mockito configuration file, cannot hold a license header -->
+            <exclude>src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker</exclude>
+          </inputExcludes>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
         <extensions>true</extensions>
@@ -50,6 +60,11 @@
   </build>
 
   <dependencies>
+    <!-- @SuppressFBWarnings on the two members that deliberately share the caller's live resource resolver -->
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
+    </dependency>
     <!-- Nullability annotations for the exported API/SPI -->
     <dependency>
       <groupId>org.jetbrains</groupId>
@@ -78,6 +93,24 @@
     <dependency>
       <groupId>org.eclipse.parsson</groupId>
       <artifactId>parsson</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Referenced by the deprecated methods of the org.apache.sling.api.resource.ResourceResolver interface
+        mocked in tests -->
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- Referenced by the deprecated methods of the org.apache.sling.api.resource.ResourceResolver interface
+        mocked in tests -->
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

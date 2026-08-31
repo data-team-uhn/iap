@@ -23,22 +23,20 @@ import java.util.NoSuchElementException;
 
 import jakarta.json.JsonObject;
 
-import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
 
-import io.uhndata.iap.search.api.SearchParameters;
+import io.uhndata.iap.search.api.SearchContext;
 import io.uhndata.iap.search.api.SearchUtils;
 
 /**
- * Searches for one kind of content on behalf of the {@code quick} mode of the {@code /search} endpoint. Every engine
- * registered as a service is asked about the node types it can search, and those that can serve the request are
- * called, in no particular order, until enough results have been collected.
+ * Searches for one kind of content on behalf of the {@code quick} mode of the {@code /search} endpoint. Every
+ * registered engine that supports one of the requested node types is called, in no particular order, until enough
+ * results have been collected.
  *
  * <p>
- * A quick search is meant to answer "what do I have that mentions this?" while the user is still typing, so an engine
- * is expected to look wherever the user would expect a match to be found — including in descendants of the content
- * it returns — and to describe each match with {@link SearchUtils#addMatchMetadata} so that the client can show the
- * user why the result is there.
+ * A quick search answers while the user is still typing. An engine looks wherever the user would expect a match,
+ * including in descendants of the content it returns. It describes each match with
+ * {@link SearchUtils#addMatchMetadata}, which the client uses to show why a result is there.
  * </p>
  *
  * @version $Id$
@@ -66,35 +64,29 @@ public interface QuickSearchEngine
     }
 
     /**
-     * Finds content matching the given query. Implementations match the query as appropriate for the content they
-     * know, either directly in its properties, or in the properties of its descendants.
+     * Finds content matching the search. An implementation matches the query in the properties of the content it
+     * knows, or in those of its descendants. It reads through the context's
+     * {@link SearchContext#getResourceResolver() resource resolver}, which keeps the matches to what the requesting
+     * user may see.
      *
-     * @param query what to look for
-     * @param resourceResolver the resource resolver of the user making the request, so that the results are the ones
-     *            that user is allowed to see
+     * @param context what to look for, how much of it is wanted, and on whose behalf
      * @return the matches, possibly {@link Results#empty() none}
      */
     @NotNull
-    Results quickSearch(@NotNull SearchParameters query, @NotNull ResourceResolver resourceResolver);
+    Results quickSearch(@NotNull SearchContext context);
 
     /**
-     * The matches found by an engine, serialized one at a time so that the ones that don't make it into the response
-     * are never serialized at all.
-     *
-     * <p>
-     * The caller stops as soon as it has enough results, which for any search with more matches than fit on a page is
-     * what normally happens, so an implementation is told when it may let go of whatever it opened rather than being
-     * left to guess from a last {@link #next()} that never comes.
-     * </p>
+     * The matches found by an engine. Each is serialized only when it is asked for. A caller stops as soon as it has
+     * enough results, and the matches it never reaches are never serialized.
      *
      * @since 0.1.0
      */
     interface Results extends Iterator<JsonObject>, AutoCloseable
     {
         /**
-         * Discards the next match without serializing it. This is what the caller uses for the results it has to
-         * count but not return, e.g. those before the requested offset, so an implementation should make it cheaper
-         * than {@link #next()} whenever it can.
+         * Discards the next match without serializing it. The caller uses this for the matches it counts but does
+         * not return, such as those before the requested offset. Make it cheaper than {@link #next()} where
+         * possible.
          */
         default void skip()
         {
@@ -102,12 +94,12 @@ public interface QuickSearchEngine
         }
 
         /**
-         * Releases whatever was held for this search: a resource resolver or a session the engine opened to run it,
-         * typically. Called exactly once, whether the results were read to the end or not.
+         * Releases whatever the search held, typically a session or a resource resolver the engine opened. Called
+         * exactly once, whether the matches were read to the end or not.
          *
          * <p>
-         * Narrowed from {@link AutoCloseable#close()} so that it throws nothing: releasing what a search held is not
-         * something a caller can do anything about, and the response is usually already on its way out by then.
+         * Narrowed from {@link AutoCloseable#close()} to throw nothing. A caller can do nothing about a failure to
+         * release, and the response is usually already going out by then.
          * </p>
          */
         @Override
