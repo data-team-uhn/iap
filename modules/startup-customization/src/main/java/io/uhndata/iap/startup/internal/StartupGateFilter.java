@@ -120,6 +120,24 @@ public final class StartupGateFilter implements Filter
     static final long SETTLE_NANOS = TimeUnit.SECONDS.toNanos(30);
 
     /**
+     * How long readiness must hold before the gate believes it and lets anybody in.
+     *
+     * <p>
+     * Readiness does not arrive monotonically. On the way up the JCR installer re-delivers configurations, and none
+     * of the configured checks declares a {@code modified} method, so SCR deactivates and reactivates each of them
+     * even for an identical configuration — during which the check is absent, and an absent check contributes no
+     * result rather than a failing one. A gate that opened on the first evaluation where everything happened to be
+     * registered and passing therefore let traffic into the middle of that churn.
+     * </p>
+     *
+     * <p>
+     * Short, because every startup pays it and a visitor waits through it; long enough to outlast the observed
+     * churn.
+     * </p>
+     */
+    static final long HOLD_NANOS = TimeUnit.SECONDS.toNanos(5);
+
+    /**
      * How long the gate may hold requests before it opens regardless, measured from its first evaluation.
      *
      * <p>
@@ -232,7 +250,7 @@ public final class StartupGateFilter implements Filter
      * twice a second. Starts as a value no evaluation can produce, so that the first one is always reported: a gate
      * that never opens must still say what it is waiting for.
      */
-    private String reportedProblem = "not evaluated yet";
+    private String reportedState = "not evaluated yet";
 
     /**
      * Constructor injection for OSGi.
@@ -326,19 +344,26 @@ public final class StartupGateFilter implements Filter
             this.firstPollNanos = nowNanos;
         }
         final String problem = findProblem();
-        report(problem);
-        final boolean ready = problem == null;
-        // Not a one-way latch: a system that stops being ready mid-startup gets the stub back
-        this.open = ready;
-        if (!ready) {
+        if (problem != null) {
+            // Not a one-way latch: a system that stops being ready mid-startup gets the stub back
             this.settling = false;
+            this.open = false;
+            report(problem, false);
             if (nowNanos - this.firstPollNanos >= CEILING_NANOS) {
                 giveUp(problem);
             }
-        } else if (!this.settling) {
+            return;
+        }
+        if (!this.settling) {
             this.settling = true;
             this.readySinceNanos = nowNanos;
-        } else if (nowNanos - this.readySinceNanos >= SETTLE_NANOS) {
+        }
+        final long readyForNanos = nowNanos - this.readySinceNanos;
+        // Readiness has to HOLD before it is believed. Opening on the first passing evaluation is what used to let a
+        // half-started instance through, for the reasons in HOLD_NANOS.
+        this.open = readyForNanos >= HOLD_NANOS;
+        report(null, this.open);
+        if (readyForNanos >= SETTLE_NANOS) {
             retire();
         }
     }
@@ -420,18 +445,30 @@ public final class StartupGateFilter implements Filter
     /**
      * Logs what the gate is doing, on change only: a handful of lines over a startup, and none at all once it is over.
      *
-     * @param problem what is keeping the gate shut, or {@code null} if the system is ready
+     * <p>
+     * Passing the checks and letting requests through are two different events now that readiness has to hold, and
+     * they are reported separately — otherwise the log would claim the instance was open for business
+     * {@link #HOLD_NANOS} before anybody could reach it, which is the sort of line that gets believed later.
+     * </p>
+     *
+     * @param problem what is keeping the gate shut, or {@code null} if every check passes
+     * @param passing whether requests are actually being let through
      */
-    private void report(final String problem)
+    private void report(final String problem, final boolean passing)
     {
-        if (Objects.equals(problem, this.reportedProblem)) {
+        final String state;
+        if (problem != null) {
+            state = "Serving the startup page, " + problem;
+        } else if (passing) {
+            state = "Every startup check passes and has held, letting requests through";
+        } else {
+            state = "Every startup check passes, holding requests for up to "
+                + TimeUnit.NANOSECONDS.toSeconds(HOLD_NANOS) + "s in case readiness does not last";
+        }
+        if (Objects.equals(state, this.reportedState)) {
             return;
         }
-        this.reportedProblem = problem;
-        if (problem == null) {
-            LOGGER.info("Every startup check passes, letting requests through");
-        } else {
-            LOGGER.info("Serving the startup page, {}", problem);
-        }
+        this.reportedState = state;
+        LOGGER.info(state);
     }
 }
