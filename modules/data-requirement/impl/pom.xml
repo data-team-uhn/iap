@@ -25,10 +25,10 @@
     <version>0.1.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>iap-data-requirement-api</artifactId>
+  <artifactId>iap-data-requirement-impl</artifactId>
   <packaging>bundle</packaging>
-  <name>IAP - Data requirement - Definitions, APIs and SPIs</name>
-  <description>Node types and Sling Models for data catalogues and the requirement that selects from one.</description>
+  <name>IAP - Data requirement - Implementation</name>
+  <description>Projecting a data requirement onto a form, and recording what was chosen.</description>
 
   <build>
     <plugins>
@@ -36,34 +36,34 @@
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
         <extensions>true</extensions>
-        <configuration>
-          <instructions>
-            <Include-Resource>{maven-resources}</Include-Resource>
-            <Sling-Nodetypes>SLING-INF/nodetypes/dataRequirement.cnd</Sling-Nodetypes>
-            <Sling-Model-Packages>io.uhndata.iap.datarequirement.models</Sling-Model-Packages>
-            <Sling-Initial-Content>
-              SLING-INF/content/libs/datareq/;path:=/libs/datareq/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
-            </Sling-Initial-Content>
-          </instructions>
-        </configuration>
       </plugin>
     </plugins>
   </build>
 
   <dependencies>
-    <!-- Nullability annotations for the exported API -->
     <dependency>
-      <groupId>org.jetbrains</groupId>
-      <artifactId>annotations</artifactId>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-requirement-api</artifactId>
+      <version>${project.version}</version>
     </dependency>
-    <!-- A data requirement is one kind of the schema's requirements -->
+    <!-- The form projection's extension point, and the submission a selection is written onto -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-submissions-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-schemas-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- A Catalogue is an Entity is a Content: the hierarchy has to be on the compile classpath even
+    <!-- Recording a selection is a workflow event, not a write: this is the handler extension point -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-workflows</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- A Selection is an EntityPart is a Content: the hierarchy has to be on the compile classpath even
          where this code names none of it -->
     <dependency>
       <groupId>${project.groupId}</groupId>
@@ -80,9 +80,17 @@
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.apache.sling</groupId>
-      <artifactId>org.apache.sling.models.api</artifactId>
-      <version>2.0.0</version>
+      <groupId>jakarta.json</groupId>
+      <artifactId>jakarta.json-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+    <!-- A REFERENCE cannot be written through the resolver, so the selection is referenced through JCR -->
+    <dependency>
+      <groupId>javax.jcr</groupId>
+      <artifactId>jcr</artifactId>
     </dependency>
 
     <dependency>
@@ -98,14 +106,20 @@
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.eclipse.parsson</groupId>
+      <artifactId>parsson</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Whether a request is still a draft is a tag, and the tags service does not run under sling-mock -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-    </dependency>
-    <!-- Resolving a REFERENCE goes through the JCR session, which the model tests mock -->
-    <dependency>
-      <groupId>javax.jcr</groupId>
-      <artifactId>jcr</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>javax.annotation</groupId>
