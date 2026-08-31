@@ -220,7 +220,7 @@ echo    "  export KEYCLOAK_CLIENT_ID=${CLIENT_ID}"
 echo    "  export KEYCLOAK_CLIENT_SECRET=${SECRET}"
 echo    "  export IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword # replace with any actual password"
 echo -e "${DEFAULT}"
-echo    "(BACKEND_KEYCLOAK_BASE_URL must be the realm URL that IAP can reach, and
+echo    "(BACKEND_KEYCLOAK_BASE_URL must be the realm URL that IAP can reach, and"
 echo    " FRONTEND_KEYCLOAK_BASE_URL must be the realm URL that users can reach; adjust the host if"
 echo    " IAP and Keycloak are on different networks.)"
 
