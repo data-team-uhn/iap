@@ -244,7 +244,7 @@ public class Content
      * @return the matching children, in stored order; empty if none match
      */
     @NotNull
-    protected <T extends Content> List<T> getChildren(@NotNull final String resourceType,
+    public <T extends Content> List<T> getChildren(@NotNull final String resourceType,
         @NotNull final Class<T> type)
     {
         final List<T> result = new ArrayList<>();
