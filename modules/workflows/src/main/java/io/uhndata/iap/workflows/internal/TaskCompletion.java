@@ -31,6 +31,7 @@ import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.InvalidStateException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
@@ -41,7 +42,6 @@ import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.IntermediateCatchingEvent;
 import io.uhndata.iap.workflows.models.TaskInstance;
-import io.uhndata.iap.workflows.models.WorkflowInstance;
 import io.uhndata.iap.workflows.spi.Payloads;
 
 /**
@@ -75,15 +75,19 @@ public class TaskCompletion
 
     private final FlowRouting routing;
 
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param routing what decides where the resumed instance's tokens go
+     * @param principals the vocabulary a task's definition names who may complete it in
      */
     @Activate
-    public TaskCompletion(@Reference final FlowRouting routing)
+    public TaskCompletion(@Reference final FlowRouting routing, @Reference final PrincipalService principals)
     {
         this.routing = routing;
+        this.principals = principals;
     }
 
     /**
@@ -102,7 +106,7 @@ public class TaskCompletion
             "A wf:TaskInstance resource always adapts to its model");
         final Activity definition = task.getDefinition();
         return TaskInstance.OPEN_STATUS.equals(task.getStatus()) && definition != null
-            && performers.admits(definition) ? Set.of(COMPLETE_EVENT) : Set.of();
+            && performers.admits(definition, hostOf(taskResource)) ? Set.of(COMPLETE_EVENT) : Set.of();
     }
 
     /**
@@ -136,12 +140,12 @@ public class TaskCompletion
             throw new WorkflowDefinitionException("The task " + task.getPath()
                 + " no longer has a definition, so the instance cannot be carried on from it");
         }
-        stamp(resolver, task);
+        stamp(taskResource);
         if (TIMEOUT_EVENT.equals(event.getName())) {
             fireDeadline(resolver, task, definition, actor, performer);
             return;
         }
-        PerformerCheck.verify(resolver, definition, actor);
+        PerformerCheck.verify(this.principals, resolver, hostOf(taskResource), definition, actor);
 
         final String outcome = Payloads.text(event, OUTCOME_PARAMETER);
         // A decision left blank would let the next gateway route on whatever an earlier task decided
@@ -157,15 +161,12 @@ public class TaskCompletion
      * the same property, and the second to commit is refused rather than merged. Otherwise two branches arriving at a
      * join in two requests would each see only themselves arrive, and both would wait for good.
      *
-     * @param resolver the engine's own session
-     * @param task the task the event is aimed at
+     * @param taskResource the task the event is aimed at, resolved through the engine's own session
      */
-    private static void stamp(final ResourceResolver resolver, final TaskInstance task)
+    private static void stamp(final Resource taskResource)
     {
-        final WorkflowInstance instance = Objects.requireNonNull(task.getWorkflowInstance(),
-            "A task always lives inside its instance");
         final ModifiableValueMap properties = Objects.requireNonNull(Objects.requireNonNull(
-            resolver.getResource(instance.getPath()), "The engine's own session can always see an instance")
+            taskResource.getParent(), "A task always lives inside its instance")
             .adaptTo(ModifiableValueMap.class), "The engine's own session can always write an instance");
         properties.put(WALK_ID_PROPERTY, UUID.randomUUID().toString());
     }
@@ -198,11 +199,26 @@ public class TaskCompletion
             .orElseThrow(() -> new NoApplicableWorkflowException("The task " + task.getPath()
                 + " has no deadline to run out: nothing is counting down to it"));
         final List<String> performers = timer.getPerformers();
-        PerformerCheck.verify(resolver, performers.isEmpty() ? List.of(TIMER_USER) : performers, actor);
+        final Resource taskResource = Objects.requireNonNull(resolver.getResource(task.getPath()),
+            "The engine's own session can always see a task");
+        PerformerCheck.verify(this.principals, resolver, hostOf(taskResource),
+            performers.isEmpty() ? List.of(TIMER_USER) : performers, actor);
         final Calendar due = task.getDueDate();
         if (due == null || due.after(Calendar.getInstance())) {
             throw new InvalidStateException("The task " + task.getPath() + " has not run out of time yet");
         }
         new InstanceRunner(resolver, performer, actor, this.routing).fireDeadline(task, timer);
+    }
+
+    /**
+     * The resource a task's instance drives, whose creator {@code @creator} names.
+     *
+     * @param taskResource a task
+     * @return the host resource
+     */
+    private static Resource hostOf(final Resource taskResource)
+    {
+        return InstanceRecords.hostOf(Objects.requireNonNull(taskResource.getParent(),
+            "A task always lives inside its instance"));
     }
 }

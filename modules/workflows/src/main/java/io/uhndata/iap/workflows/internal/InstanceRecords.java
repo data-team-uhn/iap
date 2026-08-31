@@ -233,11 +233,22 @@ final class InstanceRecords
     {
         final String hostTag = end.getHostTag();
         if (hostTag != null) {
-            final Resource host = Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-                "An instance always lives in a container").getParent(), "A container always lives in its host");
             // Lifecycle tags are system tags, and placing one is the engine's job, as it is the tag tasks'
-            Objects.requireNonNull(host.adaptTo(Taggable.class), "A workflow's host is taggable").tag(hostTag, true);
+            Objects.requireNonNull(hostOf(instance).adaptTo(Taggable.class), "A workflow's host is taggable")
+                .tag(hostTag, true);
         }
+    }
+
+    /**
+     * The resource a workflow instance drives, two levels up past its container.
+     *
+     * @param instance a workflow instance
+     * @return the host resource
+     */
+    static Resource hostOf(final Resource instance)
+    {
+        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
+            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**
