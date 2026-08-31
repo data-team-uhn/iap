@@ -20,8 +20,10 @@ package io.uhndata.iap.principals.api;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * One vocabulary for saying <em>who</em>, shared by everything that names people: workflow performers,
@@ -74,6 +76,20 @@ public interface PrincipalService
      */
     @NotNull
     List<String> resolve(@NotNull List<String> names, @NotNull PrincipalContext context);
+
+    /**
+     * Answers the special names in a list of names about a subject, with nobody acting: the common shape of the
+     * question, spared the context object.
+     *
+     * @param names the names to resolve: special names, user ids, groups, in any mix
+     * @param subject the resource the names are about
+     * @return the resolved principal names, empty when the names stand for nobody
+     */
+    @NotNull
+    default List<String> resolve(@NotNull final List<String> names, @Nullable final Resource subject)
+    {
+        return resolve(names, PrincipalContext.about(subject));
+    }
 
     /**
      * The people the given principals name, with groups expanded into their members.

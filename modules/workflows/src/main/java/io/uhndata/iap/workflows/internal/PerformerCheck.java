@@ -17,27 +17,18 @@
  */
 package io.uhndata.iap.workflows.internal;
 
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.principals.api.PrincipalLookupException;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -52,22 +43,18 @@ import io.uhndata.iap.workflows.models.FlowNode;
  * The refusal has to happen here, before the first step, and it has to be strict: an actor passes only if the
  * definition named them, or named a group they belong to.</p>
  *
- * <p>Two of the names a definition can use are not principals at all. {@code everyone} is the built-in group
- * meaning any authenticated user, and {@code @creator} means whoever the engine recorded as having raised the
- * resource being worked on — the one rule that a group can never express, and the one most processes need: a
- * request comes back to the person who made it, not to everyone who could have made one.</p>
+ * <p>What a definition's names mean — {@code @creator} for whoever raised the resource being worked on,
+ * {@code everyone} for any authenticated user, a group however a deployment stores it — is the
+ * {@link PrincipalService}'s answer, so a task saying "yours" in a listing and this check refusing its completion
+ * cannot disagree about what a name means. The one judgement kept here is the administrator bypass: administrators
+ * pass everything, exactly as they bypass access control in the repository itself, since without it a deployment
+ * could write a definition that locks its own authors out with no way back in.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class PerformerCheck
 {
-    /** The name standing for whoever raised the resource being worked on, rather than for a principal. */
-    static final String CREATOR = "@creator";
-
-    /** The built-in group that stands for every authenticated user. */
-    private static final String EVERYONE = "everyone";
-
     /** What an actor is told when the definition does not admit them; deliberately the same for every reason. */
     private static final String REFUSAL = "You are not allowed to do this";
 
@@ -79,6 +66,7 @@ final class PerformerCheck
      * Refuses the actor unless the node names them, directly or through a group they belong to. An unnamed actor
      * facing a node that names nobody is refused too: a definition has to say who may use it.
      *
+     * @param principals the vocabulary the node's names are read in
      * @param serviceResolver the engine's own session, used to look the actor up
      * @param host the resource being worked on, which is what {@code @creator} is asked about
      * @param node the flow node execution wants to pass through
@@ -86,8 +74,8 @@ final class PerformerCheck
      * @throws NotAuthorizedException when the node does not admit this actor
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
-    static void verify(final ResourceResolver serviceResolver, final Resource host, final FlowNode node,
-        final String actor) throws WorkflowException
+    static void verify(final PrincipalService principals, final ResourceResolver serviceResolver,
+        final Resource host, final FlowNode node, final String actor) throws WorkflowException
     {
         final Authorizable authorizable = lookUp(serviceResolver, actor);
         if (authorizable == null) {
@@ -98,89 +86,12 @@ final class PerformerCheck
         if (authorizable instanceof User && ((User) authorizable).isAdmin()) {
             return;
         }
-        final List<String> performers = node.getPerformers();
-        // "everyone" is matched by name rather than by membership: it is a dynamic principal an authorizable does
-        // not necessarily report belonging to, and every authenticated actor is in it by definition
-        if (!performers.contains(EVERYONE) && !raisedIt(host, performers, actor)
-            && !isNamed(authorizable, performers)) {
-            throw new NotAuthorizedException(REFUSAL);
-        }
-    }
-
-    /**
-     * Whether the node admits whoever raised the host, and this actor is them.
-     *
-     * <p>Asked of the host rather than of the repository's {@code jcr:createdBy}, which names the engine's own
-     * service user for everything it writes; the engine records the human separately, and that is what this
-     * compares against. A host nothing raised — a homepage, say — is nobody's, so this admits nobody.</p>
-     *
-     * @param host the resource being worked on
-     * @param performers the principals the node admits
-     * @param actor the user who fired the event
-     * @return {@code true} if the node names {@code @creator} and this actor raised the host
-     */
-    private static boolean raisedIt(final Resource host, final List<String> performers, final String actor)
-    {
-        return performers.contains(CREATOR) && actor.equals(creatorOf(host));
-    }
-
-    /**
-     * Who the engine recorded as having raised a resource.
-     *
-     * @param host the resource being worked on
-     * @return their user id, or {@code null} if nothing raised it — a homepage, say, which is nobody's
-     */
-    @Nullable
-    static String creatorOf(final Resource host)
-    {
-        final Content content = host.adaptTo(Content.class);
-        return content == null ? null : content.getCreatedBy();
-    }
-
-    /**
-     * Turns the principals a node names into principals that stand on their own.
-     *
-     * <p>Only {@code @creator} needs it: it means "whoever raised this", which is answerable about a particular host
-     * and meaningless without one. Everything else — a user id, a group, {@code everyone} — already names a principal
-     * and is passed through untouched, so this widens nothing and grants nothing.</p>
-     *
-     * <p>Resolving once, against the host, is what lets the answer be recorded and read back later by code holding
-     * neither the definition nor the host. A host nothing raised contributes nobody rather than a null.</p>
-     *
-     * @param host the resource the workflow drives
-     * @param performers the principals a node names
-     * @return the same principals with {@code @creator} answered, in the order they were declared
-     */
-    @NotNull
-    static List<String> resolve(final Resource host, final List<String> performers)
-    {
-        return performers.stream()
-            .map(name -> CREATOR.equals(name) ? creatorOf(host) : name)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Whether any of the named principals is the actor themselves or a group they belong to. An empty list matches
-     * nothing, which is how "a definition that names no performers admits nobody" is enforced.
-     *
-     * @param authorizable the actor
-     * @param performers the principals the node admits
-     * @return {@code true} if the actor is among them
-     * @throws WorkflowFailedException when the actor's group membership cannot be read
-     */
-    private static boolean isNamed(final Authorizable authorizable, final List<String> performers)
-        throws WorkflowFailedException
-    {
         try {
-            final Set<String> identities = new HashSet<>();
-            identities.add(authorizable.getID());
-            // Transitive, so that naming a group also admits the members of its member groups
-            for (final Iterator<Group> groups = authorizable.memberOf(); groups.hasNext();) {
-                identities.add(groups.next().getID());
+            if (!principals.isOneOf(actor, principals.resolve(node.getPerformers(), host),
+                serviceResolver)) {
+                throw new NotAuthorizedException(REFUSAL);
             }
-            return performers.stream().anyMatch(identities::contains);
-        } catch (final RepositoryException e) {
+        } catch (final PrincipalLookupException e) {
             throw new WorkflowFailedException("Could not determine what groups the requesting user belongs to", e);
         }
     }
