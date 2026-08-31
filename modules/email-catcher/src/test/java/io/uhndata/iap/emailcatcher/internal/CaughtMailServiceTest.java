@@ -138,9 +138,11 @@ class CaughtMailServiceTest
         this.service.activate(bundleContext, switchedTo(true));
 
         // Sling's own mail service registers without a configuration and so ranks at zero; outranking it is
-        // what makes every @Reference MailService get this one instead
+        // what makes every @Reference MailService get this one instead. The marker is what lets the status
+        // endpoint tell this registration from the one it displaced.
         final Dictionary<String, Object> expected = new Hashtable<>();
         expected.put(Constants.SERVICE_RANKING, 1000);
+        expected.put(CaughtMailService.CATCHER_PROPERTY, Boolean.TRUE);
         Mockito.verify(bundleContext).registerService(MailService.class, this.service, expected);
     }
 

@@ -117,6 +117,13 @@ public class CaughtMailService implements MailService
     /** Where caught messages are filed. */
     public static final String CAUGHT_MAIL_PATH = "/CaughtMail";
 
+    /**
+     * Set on this service's registration, so that it can be told apart from the real mail service it outranks.
+     * Whether a service carrying it exists is the only honest answer to "is mail being caught right now": the
+     * configuration says what was asked for, this says what is in force.
+     */
+    public static final String CATCHER_PROPERTY = "iap.mail.catcher";
+
     /** The node type of one caught message. */
     static final String MESSAGE_TYPE = "mail:CaughtMessage";
 
@@ -158,6 +165,9 @@ public class CaughtMailService implements MailService
         // real service reachable by anything that deliberately asks for it.
         final Dictionary<String, Object> properties = new Hashtable<>();
         properties.put(Constants.SERVICE_RANKING, 1000);
+        // Marks this registration as the catcher's own, so that something wanting to report whether mail is
+        // being caught can ask for it by target filter rather than by guessing from the ranking
+        properties.put(CATCHER_PROPERTY, Boolean.TRUE);
         this.registration = bundleContext.registerService(MailService.class, this, properties);
         LOGGER.info("The email catcher is on: mail will be filed under {} instead of being sent",
             CAUGHT_MAIL_PATH);

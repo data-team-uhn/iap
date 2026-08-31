@@ -35,6 +35,10 @@
   - sling:resourceType (STRING) = "mail/CaughtMailHomepage" mandatory autocreated protected
   - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
 
+  // The type of the children listed by the pagination servlet, which is what lets .paginate.json
+  // filter, sort and page the caught messages without this module serving a listing of its own
+  - childNodeType (STRING) = "mail:CaughtMessage" mandatory autocreated protected
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
