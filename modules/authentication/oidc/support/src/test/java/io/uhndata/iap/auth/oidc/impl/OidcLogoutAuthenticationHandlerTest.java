@@ -68,6 +68,9 @@ public class OidcLogoutAuthenticationHandlerTest
         Assertions.assertEquals("", expired.getValue());
         Assertions.assertEquals("/", expired.getPath());
         Assertions.assertEquals(0, expired.getMaxAge());
+        Assertions.assertEquals(true, expired.isHttpOnly());
+        // Http requests emit non-secure cookies
+        Assertions.assertEquals(false, expired.getSecure());
         Mockito.verify(request).setAttribute(RESOURCE_ATTR, LOGOUT_PATH);
     }
 
