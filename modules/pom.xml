@@ -51,6 +51,7 @@
     <module>login</module>
     <module>metrics</module>
     <module>notifications</module>
+    <module>principals</module>
     <module>schemas</module>
     <module>serialization</module>
     <module>slack-notifications</module>
