@@ -58,6 +58,7 @@
     <module>slack-notifications</module>
     <module>startup-customization</module>
     <module>status</module>
+    <module>stored-notifications</module>
     <module>submissions</module>
     <module>tags</module>
     <module>ui-extension</module>
