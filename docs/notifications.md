@@ -343,6 +343,10 @@ readable by exactly one account, its recipient. A listing therefore runs on the 
 and simply cannot contain anybody else's notifications. The recipient may also mark theirs read —
 `POST <notification>.markRead.json` — and nobody else gets a writable view to do even that.
 
+The bell in the application bar is where they land: it counts the unread ones, lists the latest when
+opened — opening the list is what "reading" means, the same way glancing at a stack of letters takes
+them off the doormat — and each entry leads to the thing it reports on.
+
 ## Future work
 
 - **Nothing produces messages yet** beyond the status report, and nothing sends an email yet.
