@@ -147,6 +147,7 @@
         <artifactId>feature-launcher-maven-plugin</artifactId>
         <version>1.0.4</version>
         <configuration>
+          <!-- Every launch carries SLING_COMMONS_CRYPTO_PASSWORD, because without it these instances cannot decrypt their own configuration. -->
           <launches>
             <launch>
               <id>platform</id>
@@ -166,6 +167,9 @@
                   <org.osgi.service.http.port>${platform.http.port}</org.osgi.service.http.port>
                 </frameworkProperties>
               </launcherArguments>
+              <environmentVariables>
+                <SLING_COMMONS_CRYPTO_PASSWORD>password</SLING_COMMONS_CRYPTO_PASSWORD>
+              </environmentVariables>
               <startTimeoutSeconds>300</startTimeoutSeconds>
             </launch>
             <launch>
@@ -186,6 +190,9 @@
                   <org.osgi.service.http.port>${testdata.http.port}</org.osgi.service.http.port>
                 </frameworkProperties>
               </launcherArguments>
+              <environmentVariables>
+                <SLING_COMMONS_CRYPTO_PASSWORD>password</SLING_COMMONS_CRYPTO_PASSWORD>
+              </environmentVariables>
               <startTimeoutSeconds>300</startTimeoutSeconds>
             </launch>
             <launch>
@@ -206,6 +213,9 @@
                   <org.osgi.service.http.port>${demo.http.port}</org.osgi.service.http.port>
                 </frameworkProperties>
               </launcherArguments>
+              <environmentVariables>
+                <SLING_COMMONS_CRYPTO_PASSWORD>password</SLING_COMMONS_CRYPTO_PASSWORD>
+              </environmentVariables>
               <startTimeoutSeconds>300</startTimeoutSeconds>
             </launch>
           </launches>
