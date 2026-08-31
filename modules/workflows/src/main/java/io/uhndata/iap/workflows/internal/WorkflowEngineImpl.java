@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -34,12 +33,12 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
@@ -88,6 +87,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     @Reference
     private ConditionEvaluator conditions;
 
+    /** The vocabulary a definition's names are read in: special names, groups however a deployment stores them. */
+    @Reference
+    private PrincipalService principals;
+
     @Override
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
     {
@@ -106,10 +109,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 return resume(privilegedTarget, event, actor);
             }
             final StartEvent start = SystemWorkflowLocator.find(serviceResolver, target, event);
-            PerformerCheck.verify(serviceResolver, privilegedTarget, start, actor);
+            PerformerCheck.verify(this.principals, serviceResolver, privilegedTarget, start, actor);
             return execute(privilegedTarget, event, start, actor);
         } catch (final LoginException e) {
-            throw new WorkflowFailedException("The workflow engine's service user is not available", e);
+            throw RepositoryFailures.translate(e);
         }
     }
 
@@ -129,7 +132,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = task.getResourceResolver();
         try {
-            TaskCompletion.apply(resolver, task, event, actor, performer(event, actor), this.conditions);
+            TaskCompletion.apply(resolver, task, event, actor, performer(event, actor), this.conditions,
+                this.principals);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -183,12 +187,13 @@ public class WorkflowEngineImpl implements WorkflowEngine
                     return new WorkflowResult(variables);
                 }
                 if (node instanceof Activity) {
-                    perform((Activity) node,
-                        new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor));
+                    final WorkflowTaskContextImpl context =
+                        new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor);
+                    perform((Activity) node, context);
                     // As soon as there is something to record it on, not at the end event: a later activity in the
                     // same walk may raise a task whose performers name `@creator`, and resolving that reads exactly
                     // this property. Recording it last left such a task admitting nobody
-                    recordActor(resolver, variables, actor);
+                    context.recordActor();
                 } else if (!(node instanceof StartEvent) || step > 0) {
                     // A system workflow cannot contain this node: there is no persisted instance whose token
                     // could rest here
@@ -229,7 +234,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
         if (WorkflowStarter.HANDLER_NAME.equals(name)) {
             // Built into the engine rather than registered: putting an entity under a workflow is the engine's own
             // business, even though which entities get one stays a matter of content
-            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()), this.conditions);
+            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()), this.conditions,
+                this.principals);
             return;
         }
         final ServiceTaskHandler handler = this.handlers.stream()
