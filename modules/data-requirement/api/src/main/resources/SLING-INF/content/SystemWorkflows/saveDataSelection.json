@@ -1,0 +1,55 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Record the data a submitter chose",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "What happens when a submitter picks fields for something their schema asks for: the whole selection is recorded on the submission against the requirement it answers, bound to the catalogue version it was chosen from, and whether anything is still missing is recorded again - choosing can be the thing that completes a request. Choosing is a workflow rather than a write for the same reason answering is: a submitter can read their own submission and nothing more, so there is no path by which they could put a selection there themselves, and what may be chosen and until when is decided by the handler rather than by an ACL. The start event admits everyone because the rule that matters is *the person who raised this particular submission*, which no performer can express.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Data chosen",
+      "messageName": "saveDataSelection",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toRecord": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRecord",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "Record the selection",
+      "handler": "saveDataSelection",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Selection recorded",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
