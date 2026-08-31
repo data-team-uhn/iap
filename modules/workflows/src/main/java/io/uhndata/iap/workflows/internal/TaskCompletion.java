@@ -24,6 +24,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -75,13 +76,15 @@ final class TaskCompletion
      * @param actor the user completing it
      * @param performer how the resumed instance performs any service task it meets
      * @param conditions the evaluator the resumed instance's gateways are asked of
+     * @param principals the vocabulary the definition's names are read in
      * @throws WorkflowException when the event does not apply, the actor may not complete this, or the definition
      *             cannot be run on from here
      * @throws PersistenceException when the instance cannot be written
      */
     static void apply(final ResourceResolver resolver, final Resource taskResource, final WorkflowEvent event,
         final String actor, final InstanceRunner.ServiceTaskPerformer performer,
-        final ConditionEvaluator conditions) throws WorkflowException, PersistenceException
+        final ConditionEvaluator conditions, final PrincipalService principals)
+        throws WorkflowException, PersistenceException
     {
         if (!COMPLETE_EVENT.equals(event.getName()) && !TIMEOUT_EVENT.equals(event.getName())) {
             throw new NoApplicableWorkflowException("A task has nothing waiting for a " + event.getName()
@@ -99,15 +102,16 @@ final class TaskCompletion
                 + " no longer has a definition, so who may complete it cannot be established");
         }
         if (TIMEOUT_EVENT.equals(event.getName())) {
-            expire(resolver, task, definition, performer, conditions);
+            expire(resolver, task, definition, performer, conditions, principals);
             return;
         }
-        PerformerCheck.verify(resolver, InstanceRunner.hostOf(Objects.requireNonNull(taskResource.getParent(),
-            "A task always lives inside its instance")), definition, actor);
+        PerformerCheck.verify(principals, resolver,
+            InstanceRunner.hostOf(Objects.requireNonNull(taskResource.getParent(),
+                "A task always lives inside its instance")), definition, actor);
 
         final Object outcome = event.get(OUTCOME);
         final Object note = event.get(OUTCOME_NOTE);
-        new InstanceRunner(resolver, performer, actor, conditions)
+        new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
             .complete(task, outcome instanceof String ? (String) outcome : null,
                 note instanceof String ? (String) note : null);
     }
@@ -125,18 +129,20 @@ final class TaskCompletion
      * @param definition the activity the task was raised from
      * @param performer how the resumed instance performs any service task it meets
      * @param conditions the evaluator the resumed instance's gateways are asked of
+     * @param principals the vocabulary the definition's names are read in
      * @throws WorkflowException when nothing is counting down to this task, or the run cannot continue
      * @throws PersistenceException when the instance cannot be written
      */
     private static void expire(final ResourceResolver resolver, final TaskInstance task, final Activity definition,
-        final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions)
-        throws WorkflowException, PersistenceException
+        final InstanceRunner.ServiceTaskPerformer performer, final ConditionEvaluator conditions,
+        final PrincipalService principals) throws WorkflowException, PersistenceException
     {
         final IntermediateCatchingEvent timer = definition.getBoundaryEvents().stream()
             .filter(event -> event.getElementId().equals(task.getDueEventId()))
             .findFirst()
             .orElseThrow(() -> new NoApplicableWorkflowException("The task " + task.getPath()
                 + " has no deadline to run out: nothing is counting down to it"));
-        new InstanceRunner(resolver, performer, task.getAssignee(), conditions).expire(task, timer);
+        new InstanceRunner(resolver, performer, task.getAssignee(), new FlowRouting(conditions), principals)
+            .expire(task, timer);
     }
 }

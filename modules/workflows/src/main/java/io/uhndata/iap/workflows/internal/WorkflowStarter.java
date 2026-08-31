@@ -30,6 +30,7 @@ import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
@@ -69,11 +70,13 @@ final class WorkflowStarter
      * @param context the executing task's context
      * @param performer how the started instance performs any service task it meets
      * @param conditions the evaluator the started instance's gateways are asked of
+     * @param principals the vocabulary the definition's names are read in
      * @throws WorkflowException when the activity is misconfigured or the workflow cannot be run
      * @throws PersistenceException when the instance cannot be written
      */
     static void execute(final WorkflowTaskContext context, final InstanceRunner.ServiceTaskPerformer performer,
-        final ConditionEvaluator conditions) throws WorkflowException, PersistenceException
+        final ConditionEvaluator conditions, final PrincipalService principals)
+        throws WorkflowException, PersistenceException
     {
         final Object chain = context.getActivity().get(WORKFLOW_FROM);
         if (!(chain instanceof String) || ((String) chain).isBlank()) {
@@ -93,8 +96,9 @@ final class WorkflowStarter
             throw new WorkflowDefinitionException("The workflow version " + version.getPath()
                 + " is not active, so " + host.getPath() + " cannot be put through it");
         }
-        new InstanceRunner(resolver, performer, context.getActor(), conditions).start(host, version);
-        HostAccess.grantReaders(resolver, host, version, context.getActor());
+        new InstanceRunner(resolver, performer, context.getActor(), new FlowRouting(conditions), principals)
+            .start(host, version);
+        HostAccess.grantReaders(principals, resolver, host, version, context.getActor());
     }
 
     /**

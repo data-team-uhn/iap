@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -34,12 +33,12 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.utils.UserIds;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
-import io.uhndata.iap.workflows.api.WorkflowFailedException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
@@ -71,9 +70,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** The subservice name under which the engine's service user is mapped. */
     private static final String SUBSERVICE = "workflows";
 
-    /** Where the human an execution acted for is recorded, {@code jcr:createdBy} being the engine itself. */
-    private static final String CREATED_BY = "createdBy";
-
     /**
      * How many nodes a single execution may pass through before the engine declares the definition broken. Far
      * above anything a real straight-through workflow needs; only there so a definition whose arcs form a cycle
@@ -90,6 +86,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** What a gateway's guards are asked of: the same evaluator, and the same conditions, schema items use. */
     @Reference
     private ConditionEvaluator conditions;
+
+    /** The vocabulary a definition's names are read in: special names, groups however a deployment stores them. */
+    @Reference
+    private PrincipalService principals;
 
     @Override
     public WorkflowResult receiveEvent(final Resource target, final WorkflowEvent event) throws WorkflowException
@@ -111,10 +111,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 return resume(privilegedTarget, event, actor);
             }
             final StartEvent start = SystemWorkflowLocator.find(serviceResolver, target, event);
-            PerformerCheck.verify(serviceResolver, privilegedTarget, start, actor);
+            PerformerCheck.verify(this.principals, serviceResolver, privilegedTarget, start, actor);
             return execute(privilegedTarget, event, start, actor);
         } catch (final LoginException e) {
-            throw new WorkflowFailedException("The workflow engine's service user is not available", e);
+            throw RepositoryFailures.translate(e);
         }
     }
 
@@ -134,7 +134,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
     {
         final ResourceResolver resolver = task.getResourceResolver();
         try {
-            TaskCompletion.apply(resolver, task, event, actor, performer(event, actor), this.conditions);
+            TaskCompletion.apply(resolver, task, event, actor, performer(event, actor), this.conditions,
+                this.principals);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -188,12 +189,13 @@ public class WorkflowEngineImpl implements WorkflowEngine
                     return new WorkflowResult(variables);
                 }
                 if (node instanceof Activity) {
-                    perform((Activity) node,
-                        new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor));
+                    final WorkflowTaskContextImpl context =
+                        new WorkflowTaskContextImpl(target, event, (Activity) node, variables, actor);
+                    perform((Activity) node, context);
                     // As soon as there is something to record it on, not at the end event: a later activity in the
                     // same walk may raise a task whose performers name `@creator`, and resolving that reads exactly
                     // this property. Recording it last left such a task admitting nobody
-                    recordActor(resolver, variables, actor);
+                    context.recordActor();
                 } else if (!(node instanceof StartEvent) || step > 0) {
                     // Not somewhere execution can pass straight through, so a system workflow cannot contain it:
                     // there is no persisted instance whose token could rest here
@@ -211,36 +213,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
             revert(resolver);
             throw e;
         }
-    }
-
-    /**
-     * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
-     * {@code jcr:createdBy} names the service user and nothing in the repository would otherwise remember the
-     * human — which the audit trail, every "things I raised" listing, and {@code @creator} all depend on.
-     *
-     * <p>Called after every activity rather than once at the end, because it is read <em>within</em> the same walk:
-     * {@code createSubmission} creates the submission and a later activity starts its workflow, which resolves
-     * {@code @creator} against this property as it raises the first task. Writing it at the end event left that
-     * task's recorded performers empty — the definition still admitted the right person, so completing the task
-     * worked and nothing noticed until something read the copy. Idempotent, so repeating it costs a property
-     * write in a commit that is already open.</p>
-     *
-     * @param resolver the engine's session, still uncommitted
-     * @param variables the execution's variables, consulted for what was created
-     * @param actor the user who fired the event
-     * @throws PersistenceException when the created node cannot be written to
-     */
-    private void recordActor(final ResourceResolver resolver, final Map<String, Object> variables,
-        final String actor) throws PersistenceException
-    {
-        final Object created = variables.get(WorkflowResult.CREATED_PATH);
-        if (!(created instanceof String)) {
-            return;
-        }
-        final Resource resource = Objects.requireNonNull(resolver.getResource((String) created),
-            "A handler reported creating something that is not there");
-        Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class),
-            "A node the engine just created is always modifiable").put(CREATED_BY, actor);
     }
 
     /**
@@ -262,7 +234,8 @@ public class WorkflowEngineImpl implements WorkflowEngine
         if (WorkflowStarter.NAME.equals(name)) {
             // Built into the engine rather than registered: putting an entity under a workflow is the engine's own
             // business, even though which entities get one stays a matter of content
-            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()), this.conditions);
+            WorkflowStarter.execute(context, performer(context.getEvent(), context.getActor()), this.conditions,
+                this.principals);
             return;
         }
         final ServiceTaskHandler handler = this.handlers.stream()
