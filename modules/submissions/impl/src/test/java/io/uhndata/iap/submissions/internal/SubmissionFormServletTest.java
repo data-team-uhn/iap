@@ -67,6 +67,9 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
+import io.uhndata.iap.submissions.internal.describers.ApprovalRequirementDescriber;
+import io.uhndata.iap.submissions.internal.describers.DocumentRequirementDescriber;
+import io.uhndata.iap.submissions.internal.describers.FormRequirementDescriber;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.DocumentVersion;
@@ -144,8 +147,15 @@ class SubmissionFormServletTest
         final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
-        inject(this.servlet, "conditions", evaluator);
-        inject(this.servlet, "mimeTypes", this.context.getService(MimeTypeService.class));
+        setReference(this.servlet, "conditions", evaluator);
+        // The real describers rather than stand-ins: these cases pin the document a reader is served, whichever
+        // describer writes each key
+        final FormRequirementDescriber forms = new FormRequirementDescriber();
+        setReference(forms, "conditions", evaluator);
+        final DocumentRequirementDescriber documents = new DocumentRequirementDescriber();
+        setReference(documents, "mimeTypes", this.context.getService(MimeTypeService.class));
+        setReference(this.servlet, "describers",
+            List.of(forms, documents, new ApprovalRequirementDescriber()));
 
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request"));
@@ -297,6 +307,23 @@ class SubmissionFormServletTest
         this.hidden.add(APPROVAL);
 
         assertEquals(Set.of(DETAILS), names(form(REQUESTER).getJsonArray("requirements")));
+    }
+
+    @Test
+    void namesEveryRequirementEvenWhenNothingDescribesItsKind() throws Exception
+    {
+        setReference(this.servlet, "describers", null);
+
+        final JsonObject form = form(REQUESTER);
+
+        assertEquals(Set.of(DETAILS, "doctorsNote", "signedForm", APPROVAL),
+            names(form.getJsonArray("requirements")));
+        final JsonObject note = requirement(form, "doctorsNote");
+        assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
+        assertEquals("Doctor's note", note.getString("label"));
+        // Nothing of the kind's own, because nothing claimed it
+        assertFalse(note.containsKey("acceptedFileTypes"));
+        assertFalse(requirement(form, DETAILS).containsKey("items"));
     }
 
     @Test
@@ -772,14 +799,21 @@ class SubmissionFormServletTest
         }
     }
 
-    private static void inject(final SubmissionFormServlet servlet, final String name, final Object service)
+    /**
+     * Sets one OSGi reference of a component by reflection. DS metadata only exists in the packaged bundle, so
+     * {@code registerInjectActivateService} cannot set it here.
+     *
+     * @param component the component, an instance of the class declaring the field
+     * @param name the name of the {@code @Reference} field
+     * @param value the service, a list of services for a multiple reference, or {@code null} for none bound
+     * @throws ReflectiveOperationException if the component's class declares no such field
+     */
+    private static void setReference(final Object component, final String name, final Object value)
         throws ReflectiveOperationException
     {
-        // The house idiom for a component under unit test: DS metadata only exists in the packaged bundle, so the
-        // references are set by reflection rather than by registerInjectActivateService
-        final var field = SubmissionFormServlet.class.getDeclaredField(name);
+        final var field = component.getClass().getDeclaredField(name);
         field.setAccessible(true);
-        field.set(servlet, service);
+        field.set(component, value);
     }
 
     /**
