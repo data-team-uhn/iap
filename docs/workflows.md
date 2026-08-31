@@ -756,8 +756,11 @@ shipped bootstraps admit `iap-administrators` for `/Workflows` and `everyone` fo
   exception is a boundary timer, whose empty list admits the `iap-timer` service user.
 - **`everyone` means any authenticated user**, matched by name since it is a dynamic
   principal.
-- **Groups are matched transitively**, so a group also admits its member groups'
-  members.
+- **Every name is read by the principals service**, so a name means the same people
+  wherever it is written. A group admits its members however a deployment stores it,
+  transitively, and including a role an identity provider synchronises without a group
+  node. A special name such as `@creator` is answered about the resource being worked
+  on: the event's target, or the host of the task being completed.
 - **Administrators pass regardless**, as they bypass access control in the repository,
   so one bad definition cannot lock out the people who could repair it.
 
