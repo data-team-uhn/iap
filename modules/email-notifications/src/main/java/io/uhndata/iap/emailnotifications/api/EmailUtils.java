@@ -23,11 +23,12 @@ import java.util.Set;
 import jakarta.mail.Header;
 import jakarta.mail.MessagingException;
 
-import org.apache.commons.text.StringSubstitutor;
 import org.apache.sling.commons.messaging.mail.MailService;
 import org.apache.sling.commons.messaging.mail.MessageBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import io.uhndata.iap.emailnotifications.internal.EmailTemplateRenderer;
 
 /**
  * Filling in email templates, and handing the result to the mail service.
@@ -44,16 +45,41 @@ public final class EmailUtils
     }
 
     /**
-     * Substitutes the <code>${variable}</code> placeholders of a template.
+     * Fills in a plain text template.
+     *
+     * <p>
+     * Templates are written in <a href="https://velocity.apache.org/engine/devel/user-guide.html">Apache Velocity</a>,
+     * rendered in strict mode: a name that was never supplied is an error rather than something to mail to a person;
+     * write <code>#if($name)</code> around anything genuinely optional.
+     * </p>
      *
      * @param template the text to fill in, may be {@code null}
-     * @param values the values to substitute, by variable name
+     * @param values the values it may refer to, by name
      * @return the filled in text, {@code null} if there was no template to fill in
+     * @throws EmailTemplateException if the template does not parse, or refers to something not among the values
      */
     @Nullable
-    public static String render(@Nullable final String template, @NotNull final Map<String, String> values)
+    public static String render(@Nullable final String template, @NotNull final Map<String, ?> values)
     {
-        return template == null ? null : new StringSubstitutor(values).replace(template);
+        return EmailTemplateRenderer.get().render(template, values, false);
+    }
+
+    /**
+     * Fills in an HTML template, escaping every value on its way in.
+     *
+     * <p>
+     * The same templates as {@link #render}, with one difference: values are escaped to be HTML-safe.
+     * </p>
+     *
+     * @param template the HTML to fill in, may be {@code null}
+     * @param values the values it may refer to, by name
+     * @return the filled in HTML, {@code null} if there was no template to fill in
+     * @throws EmailTemplateException if the template does not parse, or refers to something not among the values
+     */
+    @Nullable
+    public static String renderHtml(@Nullable final String template, @NotNull final Map<String, ?> values)
+    {
+        return EmailTemplateRenderer.get().render(template, values, true);
     }
 
     /**

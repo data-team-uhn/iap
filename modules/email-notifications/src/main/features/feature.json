@@ -51,6 +51,12 @@
       "id":"jakarta.activation:jakarta.activation-api:2.1.4",
       "start-order":"24"
     },
+    // The template engine the email bodies are written in. Its only library dependency is
+    // commons-lang3, which boot.json already installs.
+    {
+      "id":"org.apache.velocity:velocity-engine-core:2.4.1",
+      "start-order":"24"
+    },
     {
       "id":"org.apache.commons:commons-text:1.15.0",
       "start-order":"24"

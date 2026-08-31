@@ -125,6 +125,40 @@ class EmailTemplateTest
     }
 
     @Test
+    void escapesTheHtmlBodyAndOnlyTheHtmlBody()
+    {
+        // The subject and the plain text part are read as text wherever they end up; the HTML part is not, and a
+        // value carrying an angle bracket would otherwise be markup in an email already on its way out
+        final Email email = minimal()
+            .withSubject("About ${title}")
+            .withHtmlTemplate("<p>${title}</p>")
+            .withTextTemplate("${title}")
+            .build()
+            .getEmailBuilder(Map.of("title", "Cats & <b>dogs</b>"))
+            .withRecipient("alice@example.invalid", "Alice")
+            .build();
+
+        assertEquals("<p>Cats &amp; &lt;b&gt;dogs&lt;/b&gt;</p>", email.getHtmlBody());
+        assertEquals("Cats & <b>dogs</b>", email.getTextBody());
+        assertEquals("About Cats & <b>dogs</b>", email.getSubject());
+    }
+
+    @Test
+    void fillsInFromSomethingThatIsNotAString()
+    {
+        // What a template engine buys over placeholder substitution: the caller hands over the thing it has, and
+        // the wording of how to read it stays in the template
+        final Email email = minimal()
+            .withTextTemplate("#foreach($a in $answers)- $a\n#end#if($urgent)Please hurry.#end")
+            .build()
+            .getEmailBuilder(Map.of("answers", List.of("first", "second"), "urgent", Boolean.TRUE))
+            .withRecipient("alice@example.invalid", null)
+            .build();
+
+        assertEquals("- first\n- second\nPlease hurry.", email.getTextBody());
+    }
+
+    @Test
     void whatTheCallerPassesInWinsOverTheTemplatesOwnProperties()
     {
         final Email email = minimal()
