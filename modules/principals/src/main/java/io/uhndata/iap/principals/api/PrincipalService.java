@@ -61,7 +61,7 @@ public interface PrincipalService
     String MY_PRINCIPALS = "@myPrincipals";
 
     /** The built-in group every authenticated user is in, by definition rather than by membership. */
-    String EVERYONE = "everyone";
+    String EVERYONE_GROUP = "everyone";
 
     /**
      * Answers the special names in a list of names, leaving everything else untouched.
@@ -101,7 +101,7 @@ public interface PrincipalService
      * The people the given principals name, with groups expanded into their members.
      *
      * <p>A user id contributes itself. A group contributes every user in it, through nested groups, whether it
-     * is a local node or a dynamic principal an identity provider synchronises. {@link #EVERYONE} contributes
+     * is a local node or a dynamic principal an identity provider synchronises. {@link #EVERYONE_GROUP} contributes
      * nobody: it names every authenticated user by definition, and no definition means the whole user base. A
      * name the repository does not know contributes nobody and says so in the log. Order is kept and each person
      * appears once, so "tell the approvers, then the auditors" tells somebody who is both once, as an approver.</p>
@@ -118,12 +118,12 @@ public interface PrincipalService
     List<String> expandToUsers(@NotNull Collection<String> principals, @NotNull ResourceResolver resolver);
 
     /**
-     * Whether one person is among the named principals: themselves, {@link #EVERYONE}, or a group they belong to,
+     * Whether one person is among the named principals: themselves, {@link #EVERYONE_GROUP}, or a group they belong to,
      * through nested groups too, local or dynamic.
      *
      * <p>Fail-closed: an empty list admits nobody, and so does a name the repository cannot answer for. The
      * user id is taken at its word, since whether such a user exists is the caller's question. That is what lets
-     * {@link #EVERYONE} be answered without a lookup.</p>
+     * {@link #EVERYONE_GROUP} be answered without a lookup.</p>
      *
      * @param userId the person, as their repository user id
      * @param principals the principal names that grant, typically what {@link #resolve} answered
