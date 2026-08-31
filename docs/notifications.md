@@ -167,6 +167,24 @@ SMTP settings come from the module's feature configuration — host, port, crede
 password decrypted through Sling's crypto service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD`
 environment variable.
 
+## Stored notifications
+
+`iap-stored-notifications` (`modules/stored-notifications`) is the channel that keeps what the others
+only say once: every notification it accepts becomes a small record under `/Notifications`, and the
+interface shows each person theirs. It accepts every urgency, because storing is not interrupting —
+an urgent decision and a quiet aside both belong in the list of what happened while nobody was
+looking.
+
+Each record carries the rendered sentence (the wording folder's `line`, or the subject's title and
+the event when there is none), a link to what it is about, who caused it, and whether it has been
+read. The sentence is rendered at the moment of delivery, deliberately: wording can be reworded and
+subjects can be deleted, but what somebody was told should read tomorrow the way it read today.
+
+Who may see a notification is the repository's answer, not filtering code: the record is created
+readable by exactly one account, its recipient. A listing therefore runs on the reader's own session
+and simply cannot contain anybody else's notifications. The recipient may also mark theirs read —
+`POST <notification>.markRead.json` — and nobody else gets a writable view to do even that.
+
 ## Future work
 
 - **Nothing produces messages yet** beyond the status report, and nothing sends an email yet. Both
