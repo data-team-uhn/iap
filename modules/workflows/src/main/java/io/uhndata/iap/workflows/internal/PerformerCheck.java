@@ -38,6 +38,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.content.models.Content;
+import io.uhndata.iap.principals.api.PrincipalLookupException;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowFailedException;
@@ -51,23 +53,25 @@ import io.uhndata.iap.workflows.models.FlowNode;
  * repository is being written with full privileges. The refusal happens here, before the first step. An actor
  * passes only if the definition named them, or named a group they belong to.</p>
  *
- * <p>Two of the names a definition can use are not principals at all. {@code everyone} is the built-in group
- * meaning any authenticated user, and {@code @creator} means whoever the engine recorded as having raised the
- * resource being worked on — the one rule that a group can never express, and the one most processes need: a
- * request comes back to the person who made it, not to everyone who could have made one.</p>
+ * <p>What a definition's names mean — {@code @creator} for whoever raised the resource being worked on,
+ * {@code everyone} for any authenticated user, a group however a deployment stores it — is the
+ * {@link PrincipalService}'s answer, so a task saying "yours" in a listing and this check refusing its completion
+ * cannot disagree about what a name means. The one judgement kept here is the administrator bypass: administrators
+ * pass everything, exactly as they bypass access control in the repository itself, since without it a deployment
+ * could write a definition that locks its own authors out with no way back in.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class PerformerCheck
 {
-    /** The name standing for whoever raised the resource being worked on, rather than for a principal. */
+    /** The performer name that means whoever raised the resource being worked on. */
     static final String CREATOR = "@creator";
 
     /** The built-in group that stands for every authenticated user. */
     private static final String EVERYONE_GROUP = "everyone";
 
-    /** What an actor is told when the definition does not admit them. The same words whatever the reason. */
+    /** What an actor is told when the definition does not admit them; deliberately the same for every reason. */
     private static final String REFUSAL_MESSAGE = "You are not allowed to do this";
 
     /** The actor, or {@code null} when the repository does not know them. */
@@ -99,6 +103,7 @@ final class PerformerCheck
      * Refuses the actor unless the node names them, directly or through a group they belong to. Both halves fail
      * closed: an actor the repository does not know is refused, and a node that names nobody admits nobody.
      *
+     * @param principals the vocabulary the node's names are read in
      * @param serviceResolver the engine's own session, used to look the actor up
      * @param host the resource being worked on, which is what {@code @creator} is asked about
      * @param node the flow node execution wants to pass through
@@ -106,32 +111,26 @@ final class PerformerCheck
      * @throws NotAuthorizedException when the node does not admit this actor
      * @throws WorkflowFailedException when the repository cannot say who the actor is
      */
-    static void verify(final ResourceResolver serviceResolver, final Resource host, final FlowNode node,
-        final String actor) throws WorkflowException
+    static void verify(final PrincipalService principals, final ResourceResolver serviceResolver,
+        final Resource host, final FlowNode node, final String actor) throws WorkflowException
     {
-        final PerformerCheck check = of(serviceResolver, actor);
-        // An unknown actor is refused before @creator is considered: the repository is what says who they are
-        if (check.authorizable == null
-            || !check.admits(node) && !raisedIt(host, node.getPerformers(), actor)) {
+        final Authorizable authorizable = lookUp(serviceResolver, actor);
+        if (authorizable == null) {
             throw new NotAuthorizedException(REFUSAL_MESSAGE);
         }
-    }
-
-    /**
-     * Whether the node admits whoever raised the host, and this actor is them.
-     *
-     * <p>Asked of the host rather than of the repository's {@code jcr:createdBy}, which names the engine's own
-     * service user for everything it writes; the engine records the human separately, and that is what this
-     * compares against. A host nothing raised, a homepage say, is nobody's, so this admits nobody.</p>
-     *
-     * @param host the resource being worked on
-     * @param performers the principals the node admits
-     * @param actor the user who fired the event
-     * @return {@code true} if the node names {@code @creator} and this actor raised the host
-     */
-    private static boolean raisedIt(final Resource host, final List<String> performers, final String actor)
-    {
-        return performers.contains(CREATOR) && actor.equals(creatorOf(host));
+        // Administrators pass everything, as they bypass access control in the repository itself. Without it, a
+        // definition can lock its own authors out with no way back in.
+        if (authorizable instanceof User && ((User) authorizable).isAdmin()) {
+            return;
+        }
+        try {
+            if (!principals.isOneOf(actor, principals.resolve(node.getPerformers(), host),
+                serviceResolver)) {
+                throw new NotAuthorizedException(REFUSAL_MESSAGE);
+            }
+        } catch (final PrincipalLookupException e) {
+            throw new WorkflowFailedException("Could not determine what groups the requesting user belongs to", e);
+        }
     }
 
     /**

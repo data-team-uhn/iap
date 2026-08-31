@@ -39,6 +39,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.tags.internal.TagOperations;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -461,6 +462,7 @@ class UserWorkflowTest
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(impl, "handlers", List.of(new StartWorkflowHandler()));
         inject(impl, "conditions", EngineFixture.conditions());
+        inject(impl, "principals", EngineFixture.principals());
         return impl;
     }
 
@@ -621,7 +623,7 @@ class UserWorkflowTest
     {
         // "@creator" is a question about this host, and nothing reading the task later is holding the host to
         // ask it — so it is answered once, here, and what is recorded stands on its own
-        createProcess(PerformerCheck.CREATOR);
+        createProcess(PrincipalService.CREATOR);
 
         started();
 
@@ -634,7 +636,7 @@ class UserWorkflowTest
     {
         // The rule a group cannot express: this request comes back to the person who made it, not to everyone
         // who could have made one
-        createProcess(PerformerCheck.CREATOR);
+        createProcess(PrincipalService.CREATOR);
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
@@ -649,7 +651,7 @@ class UserWorkflowTest
         // "DEMO-REQUESTER" the next while the repository knows them as one user. @creator compares the actor
         // against what was recorded when the host was raised, so an actor taken from the spelling would refuse
         // the very person the task belongs to
-        createProcess(PerformerCheck.CREATOR);
+        createProcess(PrincipalService.CREATOR);
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(EngineFixture.typedAtLogin(as(TASK, EngineFixture.REQUESTER),
@@ -691,7 +693,7 @@ class UserWorkflowTest
     @Test
     void refusesSomebodyElseAtATaskThatComesBackToWhoeverRaisedTheHost() throws Exception
     {
-        createProcess(PerformerCheck.CREATOR);
+        createProcess(PrincipalService.CREATOR);
         final WorkflowEngine engine = started();
 
         assertThrows(NotAuthorizedException.class,
@@ -868,6 +870,7 @@ class UserWorkflowTest
             new PersistenceException("the disk is on fire")));
         inject(engine, "handlers", List.of(new StartWorkflowHandler()));
         inject(engine, "conditions", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -1035,6 +1038,7 @@ class UserWorkflowTest
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
         inject(engine, "conditions", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);

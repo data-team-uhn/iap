@@ -26,6 +26,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -53,19 +54,24 @@ final class ServiceTaskDispatcher
     /** What a started instance's gateways are asked of. */
     private final ConditionEvaluator conditions;
 
+    /** The vocabulary a started instance's performer names are read in. */
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
      * @param conditions the evaluator a started instance's gateways are asked of
+     * @param principals the vocabulary a started instance's performer names are read in
      */
     ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain,
-        final ConditionEvaluator conditions)
+        final ConditionEvaluator conditions, final PrincipalService principals)
     {
         this.handlers = handlers;
         this.chain = chain;
         this.conditions = conditions;
+        this.principals = principals;
     }
 
     /**
@@ -76,6 +82,16 @@ final class ServiceTaskDispatcher
     ConditionEvaluator getConditions()
     {
         return this.conditions;
+    }
+
+    /**
+     * The vocabulary a started instance's performer names are read in.
+     *
+     * @return the principal service
+     */
+    PrincipalService getPrincipals()
+    {
+        return this.principals;
     }
 
     /**

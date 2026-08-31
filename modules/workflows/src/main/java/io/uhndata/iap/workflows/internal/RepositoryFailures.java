@@ -21,6 +21,7 @@ import javax.jcr.AccessDeniedException;
 import javax.jcr.InvalidItemStateException;
 import javax.jcr.nodetype.ConstraintViolationException;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -72,5 +73,17 @@ final class RepositoryFailures
             }
         }
         return new WorkflowFailedException("The workflow could not be executed: " + failure.getMessage(), failure);
+    }
+
+    /**
+     * Puts the right name on the engine's own session being unavailable, which is a deployment fault: the
+     * service user mapping is missing or the bundle asking is not the one mapped.
+     *
+     * @param failure the refused login
+     * @return the matching typed exception, ready to be thrown
+     */
+    static WorkflowException translate(final LoginException failure)
+    {
+        return new WorkflowFailedException("The workflow engine's service user is not available", failure);
     }
 }
