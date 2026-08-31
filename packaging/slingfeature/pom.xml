@@ -59,6 +59,9 @@
               <filesInclude>core/*.json</filesInclude>
               <title>IAP With Oak Document NS Relational Persistence</title>
             </aggregate>
+            <!-- `optional/` holds platform modules a deployment adds only when it wants them, so the three
+                 core distributions above leave them out. The test distribution includes them so that every
+                 feature can be exercised, and the demo distribution because a demo is built on one. -->
             <!-- The platform plus the sample content, as one launchable artifact. The integration tests need
                  both, and the feature launcher Maven plugin can only be pointed at a single feature, so they
                  are combined here rather than composed at launch time. Worth doing regardless: what the tests
@@ -70,6 +73,7 @@
               <filesInclude>oak/*.json</filesInclude>
               <filesInclude>oak/persistence/oak_persistence_sns.json</filesInclude>
               <filesInclude>core/*.json</filesInclude>
+              <filesInclude>optional/*.json</filesInclude>
               <filesInclude>dev/*.json</filesInclude>
               <filesInclude>test/*.json</filesInclude>
               <title>IAP With Test Data</title>
@@ -83,6 +87,7 @@
               <filesInclude>oak/*.json</filesInclude>
               <filesInclude>oak/persistence/oak_persistence_sns.json</filesInclude>
               <filesInclude>core/*.json</filesInclude>
+              <filesInclude>optional/*.json</filesInclude>
               <filesInclude>dev/*.json</filesInclude>
               <filesInclude>demo/*.json</filesInclude>
               <title>IAP With Demos</title>
