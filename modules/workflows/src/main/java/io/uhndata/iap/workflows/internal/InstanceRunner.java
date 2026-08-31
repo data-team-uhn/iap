@@ -36,7 +36,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
-import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -113,21 +113,25 @@ final class InstanceRunner
 
     private final FlowRouting routing;
 
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param resolver the engine's own session, which everything is read and written through
      * @param performer how a service task met along the way gets performed
      * @param actor the user whose action is moving this instance
-     * @param conditions the evaluator a gateway's guards are asked of
+     * @param routing how a gateway's guards decide where execution goes next
+     * @param principals the vocabulary the definition's names are read in
      */
     InstanceRunner(final ResourceResolver resolver, final ServiceTaskPerformer performer, final String actor,
-        final ConditionEvaluator conditions)
+        final FlowRouting routing, final PrincipalService principals)
     {
         this.resolver = resolver;
         this.performer = performer;
         this.actor = actor;
-        this.routing = new FlowRouting(conditions);
+        this.routing = routing;
+        this.principals = principals;
     }
 
     /**
@@ -493,7 +497,8 @@ final class InstanceRunner
             "outcomeOptions", activity.getOutcomeOptions().toArray(String[]::new),
             // Recorded for the same reason, and resolved here because "@creator" is a question about this host
             // that nothing reading the task later is holding the host to ask
-            "performers", PerformerCheck.resolve(hostOf(instance), activity.getPerformers()).toArray(String[]::new),
+            "performers", this.principals.resolve(activity.getPerformers(), hostOf(instance))
+                .toArray(String[]::new),
             STATUS_PROPERTY, OPEN,
             START_TIME_PROPERTY, Calendar.getInstance()));
         arm(activity, (Calendar) properties.get(START_TIME_PROPERTY), List.of(), properties);
