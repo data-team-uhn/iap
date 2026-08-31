@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -57,7 +58,7 @@ import io.uhndata.iap.principals.spi.SpecialNameResolver;
 import io.uhndata.iap.utils.UserIds;
 
 /**
- * Answers who a list of names stands for, in the three ways the platform asks.
+ * Answers who a list of names stands for, in each of the ways the platform asks.
  *
  * <p>
  * Groups are the interesting half, because the repository stores membership two ways at once. A local group is a
@@ -103,6 +104,22 @@ public class PrincipalServiceImpl implements PrincipalService
     }
 
     @Override
+    public List<String> principalsOf(final ResourceResolver resolver)
+    {
+        final Session session = resolver.adaptTo(Session.class);
+        if (session == null) {
+            // No repository behind this resolver, so nothing is bound to anything: whoever it says is asking is
+            // the only answer there is, and answering nobody would widen every caller's question
+            return Stream.ofNullable(resolver.getUserID()).toList();
+        }
+        try {
+            return List.copyOf(UserIds.principalsOf(session));
+        } catch (final RepositoryException e) {
+            throw new PrincipalLookupException("Could not determine what the session acts as", e);
+        }
+    }
+
+    @Override
     public List<String> expandToUsers(final Collection<String> principals, final ResourceResolver resolver)
     {
         final JackrabbitSession session = sessionOf(resolver);
@@ -141,7 +158,7 @@ public class PrincipalServiceImpl implements PrincipalService
             if (userId.equals(session.getUserID())) {
                 // Asking about the session's own user: the bound principals already carry every membership,
                 // dynamic ones included, so this is both the cheap answer and the correct one
-                final Set<String> mine = new HashSet<>(UserIds.principalsOf(session));
+                final Set<String> mine = new HashSet<>(principalsOf(resolver));
                 return principals.stream().anyMatch(mine::contains);
             }
             return isMemberOfAny(userId, principals, session);

@@ -318,6 +318,35 @@ class PrincipalServiceImplTest
             () -> this.service.isOneOf(ALICE, List.of(TEAM), bare));
     }
 
+    // --------------------------------------------------------------------------------------- principalsOf
+
+    @Test
+    void aSessionActsAsItselfAndEverythingBoundToIt() throws Exception
+    {
+        when(this.session.getUserID()).thenReturn(ALICE);
+        when(this.session.getBoundPrincipals()).thenReturn(Set.of(name(TEAM)));
+        assertEquals(List.of(ALICE, TEAM), this.service.principalsOf(this.resolver));
+    }
+
+    // Without a repository there is nothing bound to anything, but answering nobody would widen every caller's
+    // question from "mine" to "everybody's"
+    @Test
+    void aResolverWithoutARepositoryStillActsAsItsOwnUser()
+    {
+        final ResourceResolver bare = mock(ResourceResolver.class);
+        when(bare.getUserID()).thenReturn(ALICE);
+        assertEquals(List.of(ALICE), this.service.principalsOf(bare));
+        final ResourceResolver anonymous = mock(ResourceResolver.class);
+        assertEquals(List.of(), this.service.principalsOf(anonymous));
+    }
+
+    @Test
+    void aSessionThatCannotSayWhatItActsAsIsNotAnEmptyAnswer() throws Exception
+    {
+        when(this.session.getBoundPrincipals()).thenThrow(new RepositoryException("gone"));
+        assertThrows(PrincipalLookupException.class, () -> this.service.principalsOf(this.resolver));
+    }
+
     // -------------------------------------------------------------------------------------------- helpers
 
     private static SpecialNameResolver resolver(final String name, final List<String> answer)
