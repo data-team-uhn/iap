@@ -17,34 +17,43 @@
  */
 package io.uhndata.iap.notifications.api;
 
+import org.apache.sling.api.resource.Resource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * One person a notification is for.
+ * One person a notification is for: who they are, and their account to read the rest from.
  *
  * <p>
- * The user id is the durable half and is always there; an address may not be, because whether the platform knows
- * how to email somebody is a fact about that person's account rather than about the notification. A delivery that
- * needs an address says so by declining the ones without — which is not an error, and is why this carries the
- * account rather than only the address.
+ * Deliberately nothing about any channel. How to reach somebody — an email address, a phone number, a
+ * notification setting — is a fact about their account, read by the one delivery that needs it: the email
+ * delivery reads {@code profile/email} and declines the accounts without one, and a channel added later reads its
+ * own facts without this record learning what they are. Carrying the account rather than pre-reading any of it is
+ * also what keeps the reading privileged-but-contained: the account resource is backed by the notification
+ * service's own session, so a delivery reads accounts without needing rights of its own.
+ * </p>
+ *
+ * <p>
+ * The account is only alive for the duration of {@link io.uhndata.iap.notifications.spi.NotificationDelivery
+ * NotificationDelivery.deliver}: it is closed with the session that resolved it, so a delivery that queues work
+ * for later — a digest collector, say — must read what it needs and let go, never store the resource.
  * </p>
  *
  * @param userId the repository user id, which is what a per-user setting is keyed on
- * @param name what to call them, or {@code null} when the account does not say
- * @param address their email address, or {@code null} when the account does not have one
+ * @param account the user's account, home of everything else about them
  * @version $Id$
  * @since 0.1.0
  */
-public record Recipient(@NotNull String userId, @Nullable String name, @Nullable String address)
+public record Recipient(@NotNull String userId, @NotNull Resource account)
 {
     /**
-     * Whether this person can be reached by email at all.
+     * What to call this person.
      *
-     * @return {@code true} if an address is known
+     * @return their recorded full name, or {@code null} when the account does not say
      */
-    public boolean isEmailable()
+    @Nullable
+    public String name()
     {
-        return this.address != null && !this.address.isBlank();
+        return this.account.getValueMap().get("rep:fullname", String.class);
     }
 }

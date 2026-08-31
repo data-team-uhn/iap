@@ -58,10 +58,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class EmailDeliveryTest
 {
-    private static final String TEMPLATE = "/libs/iap/mailTemplates/approved";
+    private static final String TEMPLATE = "/libs/iap/notificationTemplates/approved";
 
-    private static final Recipient REQUESTER =
-        new Recipient("the-requester", "The Requester", "requester@example.com");
+    /** The wording folder's child holding the email rendering. */
+    private static final String EMAIL = TEMPLATE + "/email";
 
     // JCR-backed: a template is read through the JCR API, from nt:file children
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
@@ -74,10 +74,14 @@ class EmailDeliveryTest
 
     private Resource submission;
 
+    /** Somebody with a full account: a name and an address. */
+    private Recipient requester;
+
     @BeforeEach
     void setUp() throws Exception
     {
         this.submission = this.context.create().resource("/Submissions/one", "title", "A long weekend");
+        this.requester = this.account("the-requester", "The Requester", "requester@example.com");
         this.mailService = Mockito.mock(MailService.class);
         // RETURNS_SELF so the fluent chain works; what each call was given is what the assertions read back
         this.builder = Mockito.mock(MessageBuilder.class, Mockito.RETURNS_SELF);
@@ -90,18 +94,39 @@ class EmailDeliveryTest
         field.set(this.delivery, this.mailService);
     }
 
-    /** Installs a template folder with both bodies. */
+    /** Installs a wording folder whose email rendering has both bodies. */
     private void template()
     {
-        this.context.create().resource(TEMPLATE, Map.of(
+        this.context.create().resource(TEMPLATE, Map.of("jcr:primaryType", "sling:Folder"));
+        this.context.create().resource(EMAIL, Map.of(
             "jcr:primaryType", "sling:Folder",
             "senderAddress", "platform@example.com",
             "senderName", "The Platform",
             "subject", "Your request ${subjectTitle} was ${event}"));
-        this.file(TEMPLATE + "/bodyTemplate.txt", "text/plain",
+        this.file(EMAIL + "/bodyTemplate.txt", "text/plain",
             "Your request ${subjectTitle} was ${event}. It is at ${subjectPath}.");
-        this.file(TEMPLATE + "/bodyTemplate.html", "text/html",
+        this.file(EMAIL + "/bodyTemplate.html", "text/html",
             "<p>Your request ${subjectTitle} was ${event}.</p>");
+    }
+
+    /**
+     * One person with an account, as the platform reads them.
+     *
+     * @param userId their user id
+     * @param fullname their recorded name, or {@code null} for an account that does not say
+     * @param address their email address, or {@code null} for an account carrying none
+     * @return a recipient carrying that account
+     */
+    private Recipient account(final String userId, final String fullname, final String address)
+    {
+        final String home = "/home/users/" + userId;
+        final Resource accountResource = fullname == null
+            ? this.context.create().resource(home)
+            : this.context.create().resource(home, Map.of("rep:fullname", fullname));
+        if (address != null) {
+            this.context.create().resource(home + "/profile", Map.of("email", address));
+        }
+        return new Recipient(userId, accountResource);
     }
 
     private void file(final String path, final String mimeType, final String body)
@@ -126,7 +151,7 @@ class EmailDeliveryTest
         this.template();
 
         assertTrue(this.delivery.deliver(
-            this.notification(NotificationContext.IMMEDIATE, TEMPLATE), REQUESTER));
+            this.notification(NotificationContext.IMMEDIATE, TEMPLATE), this.requester));
 
         // Interpolated from what the notification carries, not from anything the caller passed
         final ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
@@ -144,7 +169,7 @@ class EmailDeliveryTest
     {
         this.template();
 
-        this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, TEMPLATE), REQUESTER);
+        this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, TEMPLATE), this.requester);
 
         final ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
         Mockito.verify(this.builder).text(text.capture());
@@ -157,17 +182,18 @@ class EmailDeliveryTest
     @Test
     void interpolatesWhateverTheNotificationCarries() throws Exception
     {
-        this.context.create().resource(TEMPLATE, Map.of(
+        this.context.create().resource(TEMPLATE, Map.of("jcr:primaryType", "sling:Folder"));
+        this.context.create().resource(EMAIL, Map.of(
             "jcr:primaryType", "sling:Folder",
             "senderAddress", "platform@example.com",
             "subject", "Approved for ${days} days"));
-        this.file(TEMPLATE + "/bodyTemplate.txt", "text/plain", "That is ${days} days off.");
+        this.file(EMAIL + "/bodyTemplate.txt", "text/plain", "That is ${days} days off.");
 
         this.delivery.deliver(NotificationContext.about(this.submission)
             .becauseOf("approved")
             .using(TEMPLATE)
             .with("days", 3)
-            .build(), REQUESTER);
+            .build(), this.requester);
 
         final ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
         Mockito.verify(this.builder).subject(subject.capture());
@@ -182,7 +208,7 @@ class EmailDeliveryTest
         this.template();
 
         assertFalse(this.delivery.deliver(
-            this.notification(NotificationContext.BATCHED, TEMPLATE), REQUESTER));
+            this.notification(NotificationContext.BATCHED, TEMPLATE), this.requester));
 
         Mockito.verify(this.mailService, Mockito.never()).sendMessage(Mockito.any());
     }
@@ -194,23 +220,37 @@ class EmailDeliveryTest
         this.template();
 
         assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, TEMPLATE),
-            new Recipient("nobody", "Nobody", null)));
+            this.account("unlisted", "Nobody", null)));
         assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, TEMPLATE),
-            new Recipient("nobody", "Nobody", "  ")));
+            this.account("blank", "Nobody", "  ")));
     }
 
     // This delivery has no wording of its own to fall back on
     @Test
     void declinesANotificationWithNoTemplate()
     {
-        assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, null), REQUESTER));
+        assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, null), this.requester));
     }
 
     @Test
     void declinesATemplateThatIsNotThere()
     {
         assertFalse(this.delivery.deliver(
-            this.notification(NotificationContext.IMMEDIATE, "/libs/iap/mailTemplates/gone"), REQUESTER));
+            this.notification(NotificationContext.IMMEDIATE, "/libs/iap/notificationTemplates/gone"),
+            this.requester));
+    }
+
+    // The wording folder holds one rendering per channel; carrying no email one is its author's choice
+    @Test
+    void declinesATemplateWithNoEmailRendering()
+    {
+        this.context.create().resource(TEMPLATE, Map.of(
+            "jcr:primaryType", "sling:Folder",
+            "line", "Only the in-app list shows this one"));
+
+        assertFalse(this.delivery.deliver(
+            this.notification(NotificationContext.IMMEDIATE, TEMPLATE), this.requester));
+        Mockito.verify(this.mailService, Mockito.never()).sendMessage(Mockito.any());
     }
 
     // A template missing what it needs is the schema's problem, and saying so beats sending a broken message
@@ -218,8 +258,9 @@ class EmailDeliveryTest
     void reportsATemplateItCannotRead()
     {
         this.context.create().resource(TEMPLATE, Map.of("jcr:primaryType", "sling:Folder"));
+        this.context.create().resource(EMAIL, Map.of("jcr:primaryType", "sling:Folder"));
 
         assertFalse(this.delivery.deliver(
-            this.notification(NotificationContext.IMMEDIATE, TEMPLATE), REQUESTER));
+            this.notification(NotificationContext.IMMEDIATE, TEMPLATE), this.requester));
     }
 }

@@ -606,7 +606,7 @@
             <!-- bnd -->
             <exclude>bnd.bnd</exclude>
             <!-- Ignore email template files since we do not send a license in emails -->
-            <exclude>**/mailTemplates/**</exclude>
+            <exclude>**/notificationTemplates/**</exclude>
           </inputExcludes>
         </configuration>
         <executions>
