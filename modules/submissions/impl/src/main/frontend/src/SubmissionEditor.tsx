@@ -16,81 +16,39 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useRef, useState } from "react";
 
-import { Alert, Box, CircularProgress, Divider, Paper, Stack, Typography } from "@mui/material";
+import { Alert, CircularProgress, Divider, Paper, Stack, Typography } from "@mui/material";
 
-import AnswerField, { type SaveState } from "./AnswerField";
-import ApprovalState from "./ApprovalState";
-import DocumentUpload from "./DocumentUpload";
+import { getRequirementComponent, type FieldState } from "./requirementComponents";
+import { registerBuiltinRequirementComponents } from "./requirements";
 import {
-  APPROVAL_REQUIREMENT,
-  DOCUMENT_REQUIREMENT,
-  FORM_REQUIREMENT,
-  type FormItem,
   type FormQuestion,
   type FormRequirement,
   type SubmissionForm,
   fetchForm,
-  isQuestion,
   saveAnswer,
 } from "./submissionForm";
 
-interface FieldState {
-  state: SaveState;
-  error?: string;
-}
+registerBuiltinRequirementComponents();
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// The questions of a form or a section, with sections drawn as their own headed block.
-function Items({ items, disabled, states, onAnswered }: {
-  items: FormItem[];
-  disabled: boolean;
-  states: Record<string, FieldState | undefined>;
-  onAnswered: (question: FormQuestion, values: string[]) => void;
-}) {
-  return (
-    <Stack spacing={2}>
-      { items.map(item => isQuestion(item)
-        ? (
-          <AnswerField
-            key={item.path}
-            question={item}
-            disabled={disabled}
-            state={states[item.path]?.state ?? "idle"}
-            error={states[item.path]?.error}
-            onAnswered={values => onAnswered(item, values)}
-          />
-        )
-        : (
-          <Box key={item.name}>
-            <Typography variant="subtitle1">{item.label || item.name}</Typography>
-            { item.description && (
-              <Typography variant="body2" color="text.secondary">{item.description}</Typography>
-            ) }
-            <Box sx={{ pl: 2, pt: 1 }}>
-              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered} />
-            </Box>
-          </Box>
-        )) }
-    </Stack>
-  );
-}
-
-// One requirement. A requirement that holds no questions is still shown, and where it can be
-// answered it is answered here: a document is uploaded, and an approval says where it stands
-// because it is somebody else who grants it.
-function Requirement({ path, requirement, disabled, states, onAnswered, onAttached }: {
+// One requirement. Its heading is the same whatever kind it is; what fills it is whichever component
+// claimed the kind, so a kind declared by another module is drawn without this file naming it. A kind
+// nothing claims is still shown, because the schema asks for it and saying nothing about it would
+// read as the form being broken rather than as the step being somebody else's.
+function Requirement({ path, requirement, disabled, states, onAnswered, onChanged }: {
   path: string;
   requirement: FormRequirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
-  onAttached: () => void;
+  onChanged: () => void;
 }) {
+  const Body = getRequirementComponent(requirement);
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Typography variant="h6">{requirement.label || requirement.name}</Typography>
@@ -98,22 +56,16 @@ function Requirement({ path, requirement, disabled, states, onAnswered, onAttach
         <Typography variant="body2" color="text.secondary">{requirement.description}</Typography>
       ) }
       <Divider sx={{ my: 2 }} />
-      { requirement.type === FORM_REQUIREMENT && requirement.items
-        ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
-        : requirement.type === DOCUMENT_REQUIREMENT
-          ? <DocumentUpload
-            path={path}
-            requirement={requirement}
-            disabled={disabled}
-            onAttached={onAttached}
-          />
-          : requirement.type === APPROVAL_REQUIREMENT
-            ? <ApprovalState requirement={requirement} />
-            : (
-              <Typography variant="body2" color="text.secondary">
-                This part of the request is somebody else&apos;s step, and cannot be completed here.
-              </Typography>
-            ) }
+      { Body
+        // Built through createElement rather than as <Body/>: which component this is depends on the
+        // requirement, and JSX on a value looks to the compiler like a component being defined here on
+        // every render. The registry hands back the same function each time, so nothing remounts.
+        ? createElement(Body, { path, requirement, disabled, states, onAnswered, onChanged })
+        : (
+          <Typography variant="body2" color="text.secondary">
+            This part of the request is somebody else&apos;s step, and cannot be completed here.
+          </Typography>
+        ) }
     </Paper>
   );
 }
@@ -190,9 +142,9 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
           disabled={!form.editable}
           states={states}
           onAnswered={answered}
-          // The form again, because what it asks can change with what was just attached: a
-          // requirement that is now answered, and a request that is no longer incomplete
-          onAttached={() => {
+          // The form again, because what it asks can change with what a requirement just did: one
+          // that is now answered, and a request that is no longer incomplete
+          onChanged={() => {
             const token = latest.current + 1;
             latest.current = token;
             onChanged?.();
