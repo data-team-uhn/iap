@@ -303,6 +303,25 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void namesEveryRequirementEvenWhenNothingDescribesItsKind() throws Exception
+    {
+        // A whiteboard field is null until something registers. A form that dropped what it could not describe
+        // would report a schema asking for nothing at all, which is worse than one that says less about each
+        set(SubmissionFormServlet.class, this.servlet, "describers", null);
+
+        final JsonObject form = form(REQUESTER);
+
+        assertEquals(Set.of(DETAILS, "doctorsNote", "signedForm", APPROVAL),
+            names(form.getJsonArray("requirements")));
+        final JsonObject note = requirement(form, "doctorsNote");
+        assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
+        assertEquals("Doctor's note", note.getString("label"));
+        // Nothing of the kind's own, because nothing claimed it
+        assertFalse(note.containsKey("acceptedFileTypes"));
+        assertFalse(requirement(form, DETAILS).containsKey("items"));
+    }
+
+    @Test
     void namesWhatHasAlreadyBeenAttachedForARequirement() throws IOException
     {
         // Named rather than counted, so that a form reopened later says which document is there: an upload control
@@ -623,8 +642,29 @@ class SubmissionFormServletTest
     {
         // The house idiom for a component under unit test: DS metadata only exists in the packaged bundle, so the
         // references are set by reflection rather than by registerInjectActivateService
-        final var field = SubmissionFormServlet.class.getDeclaredField("conditions");
+        set(SubmissionFormServlet.class, servlet, "conditions", evaluator);
+        // The real describers rather than stand-ins, because what these cases pin is the document a reader is
+        // served — which of them writes a given key is exactly the thing that should be free to move
+        final FormRequirementDescriber forms = new FormRequirementDescriber();
+        set(FormRequirementDescriber.class, forms, "conditions", evaluator);
+        set(SubmissionFormServlet.class, servlet, "describers",
+            List.of(forms, new DocumentRequirementDescriber(), new ApprovalRequirementDescriber()));
+    }
+
+    /**
+     * Sets one OSGi reference by reflection.
+     *
+     * @param type the class declaring the field
+     * @param target the instance to set it on
+     * @param name the field's name
+     * @param value what to set it to
+     * @throws ReflectiveOperationException if no such field exists
+     */
+    private static void set(final Class<?> type, final Object target, final String name, final Object value)
+        throws ReflectiveOperationException
+    {
+        final var field = type.getDeclaredField(name);
         field.setAccessible(true);
-        field.set(servlet, evaluator);
+        field.set(target, value);
     }
 }
