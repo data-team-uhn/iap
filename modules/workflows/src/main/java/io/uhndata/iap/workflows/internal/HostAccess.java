@@ -35,6 +35,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 
@@ -66,14 +67,15 @@ final class HostAccess
     /**
      * Grants read access on a host resource to everyone its workflow involves.
      *
+     * @param principals the vocabulary the definition's names are read in
      * @param resolver the engine's own session
      * @param host the resource the workflow drives
      * @param version the workflow being instantiated
      * @param actor the user the instance is being run for
      * @throws PersistenceException when the access control list cannot be written
      */
-    static void grantReaders(final ResourceResolver resolver, final Resource host, final WorkflowVersion version,
-        final String actor) throws PersistenceException
+    static void grantReaders(final PrincipalService principals, final ResourceResolver resolver,
+        final Resource host, final WorkflowVersion version, final String actor) throws PersistenceException
     {
         final Set<String> readers = new LinkedHashSet<>();
         readers.add(actor);
@@ -81,7 +83,7 @@ final class HostAccess
             .filter(node -> node instanceof Activity && ((Activity) node).getHandler() == null)
             // A task coming back to whoever raised the host names them the same way here as it does when it
             // refuses somebody else, and as the raised task itself records them, so one declaration decides all three
-            .flatMap(node -> PerformerCheck.resolve(host, node.getPerformers()).stream())
+            .flatMap(node -> principals.resolve(node.getPerformers(), host).stream())
             .forEach(readers::add);
         grant(resolver, host.getPath(), readers);
     }
