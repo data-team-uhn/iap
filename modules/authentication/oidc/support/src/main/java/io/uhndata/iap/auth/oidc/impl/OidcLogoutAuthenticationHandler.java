@@ -108,6 +108,7 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         expired.setPath("/");
         expired.setMaxAge(0);
         expired.setHttpOnly(true);
+        expired.setAttribute("SameSite", "Lax");
         expired.setSecure(request.isSecure());
         response.addCookie(expired);
 
