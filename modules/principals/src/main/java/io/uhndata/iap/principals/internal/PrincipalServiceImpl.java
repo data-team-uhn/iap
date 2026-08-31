@@ -122,10 +122,10 @@ public class PrincipalServiceImpl implements PrincipalService
         final JackrabbitSession session = sessionOf(resolver);
         final Collection<String> found = new LinkedHashSet<>();
         for (final String name : principals) {
-            if (EVERYONE_GROUP.equals(name)) {
+            if (EVERYONE.equals(name)) {
                 // Everyone names every authenticated user by definition, and no definition means the whole
                 // user base, so it contributes nobody rather than everybody
-                LOGGER.warn("The group {} cannot be expanded into people, so it names nobody here", EVERYONE_GROUP);
+                LOGGER.warn("The group {} cannot be expanded into people, so it names nobody here", EVERYONE);
                 continue;
             }
             try {
@@ -146,7 +146,7 @@ public class PrincipalServiceImpl implements PrincipalService
             return false;
         }
         // Everyone admits any authenticated user by definition. Whether the user exists is the caller's question
-        if (principals.contains(userId) || principals.contains(EVERYONE_GROUP)) {
+        if (principals.contains(userId) || principals.contains(EVERYONE)) {
             return true;
         }
         final JackrabbitSession session = sessionOf(resolver);

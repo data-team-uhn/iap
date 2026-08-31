@@ -101,7 +101,7 @@ class HostAccessTest
     @Test
     void grantsReadToTheActorAndTheUserTaskPerformers() throws Exception
     {
-        HostAccess.grantReaders(resolver(list()), host(), version(), "demo-requester");
+        HostAccess.grantReaders(EngineFixture.principals(), resolver(list()), host(), version(), "demo-requester");
 
         assertEquals(List.of("demo-requester", APPROVERS), this.granted);
     }
@@ -121,7 +121,7 @@ class HostAccessTest
         Mockito.when(manager.getApplicablePolicies(Mockito.anyString())).thenReturn(applicable);
         Mockito.when(manager.privilegeFromName(Mockito.anyString())).thenReturn(Mockito.mock(Privilege.class));
 
-        HostAccess.grantReaders(resolverFor(manager), host(), version(), "demo-requester");
+        HostAccess.grantReaders(EngineFixture.principals(), resolverFor(manager), host(), version(), "demo-requester");
 
         assertEquals(List.of("demo-requester", APPROVERS), this.granted);
     }
@@ -136,7 +136,8 @@ class HostAccessTest
         Mockito.when(manager.getApplicablePolicies(Mockito.anyString())).thenReturn(applicable);
 
         final PersistenceException failure = assertThrows(PersistenceException.class,
-            () -> HostAccess.grantReaders(resolverFor(manager), host(), version(), "demo-requester"));
+            () -> HostAccess.grantReaders(EngineFixture.principals(), resolverFor(manager), host(), version(),
+                "demo-requester"));
         assertTrue(failure.getMessage().contains("Could not grant read access"));
     }
 
@@ -145,7 +146,8 @@ class HostAccessTest
     {
         // A definition may perfectly well name a group a given deployment has never created; that is not a reason
         // to refuse to start the workflow
-        HostAccess.grantReaders(resolver(list(), "demo-requester"), host(), version(), "demo-requester");
+        HostAccess.grantReaders(EngineFixture.principals(), resolver(list(), "demo-requester"), host(), version(),
+            "demo-requester");
 
         assertEquals(List.of("demo-requester"), this.granted);
     }
@@ -157,7 +159,7 @@ class HostAccessTest
         Mockito.when(resolver.adaptTo(Session.class)).thenReturn(Mockito.mock(Session.class));
 
         assertThrows(PersistenceException.class,
-            () -> HostAccess.grantReaders(resolver, host(), version(), "demo-requester"));
+            () -> HostAccess.grantReaders(EngineFixture.principals(), resolver, host(), version(), "demo-requester"));
     }
 
     /**

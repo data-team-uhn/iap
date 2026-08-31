@@ -151,6 +151,7 @@ class WorkflowEngineImplTest
         resolvers.set(evaluator, List.of(new LiteralOperandResolver(), new TagsOperandResolver()));
         inject(impl, "conditionEvaluator", evaluator);
         inject(impl, "conditions", EngineFixture.conditions());
+        inject(impl, "principals", EngineFixture.principals());
         return impl;
     }
 
