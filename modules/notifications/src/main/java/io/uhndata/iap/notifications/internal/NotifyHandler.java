@@ -47,7 +47,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * "notifyApproved": {
  *   "jcr:primaryType": "wf:ServiceTask",
  *   "handler": "notify",
- *   "template": "/libs/iap/mailTemplates/submissionApproved",
+ *   "template": "/libs/iap/notificationTemplates/submissionApproved",
  *   "notify": [ "@creator" ],
  *   "urgency": "immediate",
  *   "event": "approved"

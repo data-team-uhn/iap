@@ -17,9 +17,9 @@
  */
 package io.uhndata.iap.notifications.internal;
 
-import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
@@ -32,6 +32,8 @@ import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.notifications.api.Recipient;
 import io.uhndata.iap.notifications.spi.NotificationDelivery;
+import io.uhndata.iap.principals.api.PrincipalContext;
+import io.uhndata.iap.principals.api.PrincipalService;
 
 /**
  * Resolves who a notification concerns and offers it to every registered way of telling them.
@@ -55,23 +57,29 @@ public class NotificationServiceImpl implements NotificationService
         policyOption = ReferencePolicyOption.GREEDY)
     private volatile List<NotificationDelivery> deliveries;
 
+    /** The vocabulary the roles are read in: the same one the workflow engine reads performers in. */
+    @Reference
+    private PrincipalService principals;
+
     @Override
-    public List<Recipient> notify(final NotificationContext notification, final List<String> roles)
+    public void notify(final NotificationContext notification, final List<String> roles)
     {
         final List<NotificationDelivery> channels = currentDeliveries();
         if (channels.isEmpty()) {
             LOGGER.warn("Nothing is registered to deliver notifications, so nobody was told about {} on {}",
                 notification.getEvent(), notification.getSubject().getPath());
-            return List.of();
+            return;
         }
-        final List<Recipient> told = new ArrayList<>();
-        for (final Recipient recipient : Recipients.of(notification.getSubject().getResourceResolver(),
-            notification.getSubject(), roles)) {
-            if (deliver(channels, notification, recipient)) {
-                told.add(recipient);
-            }
+        final ResourceResolver resolver = notification.getSubject().getResourceResolver();
+        // Resolved and expanded by the shared vocabulary, so "notify the approvers" and "the approvers may act"
+        // name the same people; enumerated here because telling, unlike checking, has to name each person
+        final List<String> userIds = this.principals.expandToUsers(
+            this.principals.resolve(roles,
+                new PrincipalContext(notification.getSubject(), notification.getActor())),
+            resolver);
+        for (final Recipient recipient : Recipients.of(resolver, userIds)) {
+            deliver(channels, notification, recipient);
         }
-        return told;
     }
 
     /**
@@ -84,9 +92,8 @@ public class NotificationServiceImpl implements NotificationService
      * @param channels the registered deliveries
      * @param notification what happened
      * @param recipient who to tell
-     * @return {@code true} if at least one delivery carried it
      */
-    private static boolean deliver(final List<NotificationDelivery> channels,
+    private static void deliver(final List<NotificationDelivery> channels,
         final NotificationContext notification, final Recipient recipient)
     {
         boolean any = false;
@@ -104,7 +111,6 @@ public class NotificationServiceImpl implements NotificationService
             LOGGER.info("Nothing delivered the {} notification to {}", notification.getEvent(),
                 recipient.userId());
         }
-        return any;
     }
 
     /**

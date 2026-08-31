@@ -58,6 +58,11 @@
       <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-principals</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- The EntityPart the flow node models extend, which a test adapting one has to register -->
     <dependency>
       <groupId>${project.groupId}</groupId>
