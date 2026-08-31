@@ -35,8 +35,8 @@
 // the published feature pins an older 1.70.0, but IAP already ships a newer one via oak/oak_base.json.
 //
 // Runtime environment variables (resolved by the configadmin interpolation plugin declared in
-// boot.json): KEYCLOAK_BASE_URL, KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET, IAP_PUBLIC_URL,
-// and IAP_OAUTH_ENCRYPTION_PASSWORD. See docs/keycloak-oidc.md.
+// boot.json): FRONTEND_KEYCLOAK_REALM_URL, BACKEND_KEYCLOAK_REALM_URL, KEYCLOAK_CLIENT_ID,
+// KEYCLOAK_CLIENT_SECRET, IAP_PUBLIC_URL, and IAP_OAUTH_ENCRYPTION_PASSWORD. See docs/keycloak-oidc.md.
 {
     "bundles":[
         { "id":"com.nimbusds:oauth2-oidc-sdk:11.23.1", "start-order":"24" },
