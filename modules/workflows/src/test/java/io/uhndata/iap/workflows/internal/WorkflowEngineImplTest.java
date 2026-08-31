@@ -152,6 +152,7 @@ class WorkflowEngineImplTest
         allHandlers.add(new StartWorkflowHandler());
         inject(impl, "handlers", allHandlers);
         inject(impl, "conditionEvaluator", EngineFixture.conditions());
+        inject(impl, "principals", EngineFixture.principals());
         return impl;
     }
 

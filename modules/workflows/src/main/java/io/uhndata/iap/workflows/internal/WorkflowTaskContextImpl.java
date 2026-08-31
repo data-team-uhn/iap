@@ -132,6 +132,6 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
     {
         new InstanceRunner(getResourceResolver(), this.dispatcher.performer(this.event, this.actor), this.actor,
             this.dispatcher.conditions()).start(host, version);
-        HostAccess.grantReaders(getResourceResolver(), host, version, this.actor);
+        HostAccess.grantReaders(this.dispatcher.principals(), getResourceResolver(), host, version, this.actor);
     }
 }

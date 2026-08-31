@@ -32,6 +32,8 @@ import javax.jcr.security.AccessControlPolicy;
 import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
+import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
@@ -50,6 +52,10 @@ import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.internal.ConditionEvaluatorImpl;
 import io.uhndata.iap.conditions.internal.LiteralOperandResolver;
 import io.uhndata.iap.conditions.internal.TagsOperandResolver;
+import io.uhndata.iap.principals.api.PrincipalService;
+import io.uhndata.iap.principals.internal.CreatorResolver;
+import io.uhndata.iap.principals.internal.MeResolver;
+import io.uhndata.iap.principals.internal.PrincipalServiceImpl;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.EndEvent;
 import io.uhndata.iap.workflows.models.SequenceFlow;
@@ -147,10 +153,29 @@ final class EngineFixture
         try {
             return new ServiceTaskDispatcher(List.of(), (to, event, actor, depth) -> {
                 throw new IllegalStateException("No event was expected to be sent here");
-            }, conditions());
+            }, conditions(), principals());
         } catch (final ReflectiveOperationException e) {
             throw new IllegalStateException("The fixture could not build its condition evaluator", e);
         }
+    }
+
+    /**
+     * The vocabulary a definition's names are read in, wired the way the platform wires it: the real service, with
+     * the special names it ships. Built by hand for the same reason as {@link #conditions()}.
+     *
+     * @return a principal service answering {@code @creator} and {@code @me}
+     */
+    static PrincipalService principals()
+    {
+        final PrincipalServiceImpl service = new PrincipalServiceImpl();
+        try {
+            final Field resolvers = PrincipalServiceImpl.class.getDeclaredField("resolvers");
+            resolvers.setAccessible(true);
+            resolvers.set(service, List.of(new CreatorResolver(), new MeResolver()));
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("The fixture could not build its principal service", e);
+        }
+        return service;
     }
 
     /**
@@ -326,10 +351,17 @@ final class EngineFixture
             Mockito.when(userManager.getAuthorizable(ADMIN)).thenReturn(admin);
             Mockito.when(userManager.getAuthorizable(REQUESTER)).thenReturn(requester);
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
+            // Membership is asked of the group, about the member, and only the ordinary user is in it
+            Mockito.when(requesters.isMember(Mockito.any())).thenAnswer(invocation ->
+                REQUESTER.equals(((Authorizable) invocation.getArgument(0)).getID()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
             Mockito.doReturn(userManager).when(session).getUserManager();
             Mockito.doReturn(accessControl).when(session).getAccessControlManager();
+            // A principal store knowing no group an identity provider synchronises, so an unknown name stays unknown
+            Mockito.doReturn(Mockito.mock(PrincipalManager.class)).when(session).getPrincipalManager();
+            // The engine's own session, never the actor's: whatever is asked about the actor goes to the stores
+            Mockito.doReturn("the-engine").when(session).getUserID();
             return session;
         } catch (final RepositoryException e) {
             throw new IllegalStateException(e);
@@ -368,6 +400,7 @@ final class EngineFixture
         Mockito.when(principal.getName()).thenReturn(REQUESTERS);
         final Group group = Mockito.mock(Group.class);
         Mockito.when(group.getID()).thenReturn(REQUESTERS);
+        Mockito.when(group.isGroup()).thenReturn(true);
         Mockito.when(group.getPrincipal()).thenReturn(principal);
         return group;
     }

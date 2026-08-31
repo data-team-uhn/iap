@@ -20,12 +20,12 @@ package io.uhndata.iap.workflows.internal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
+import io.uhndata.iap.principals.api.PrincipalService;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -53,19 +53,24 @@ final class ServiceTaskDispatcher
     /** What the gateways of any instance a task starts are asked of. */
     private final ConditionEvaluator conditions;
 
+    /** What the names in the definition of any instance a task starts are read in. */
+    private final PrincipalService principals;
+
     /**
      * Constructor.
      *
      * @param handlers the registered service task handlers
      * @param chain how the engine runs the workflow waiting for a sent event
      * @param conditions the evaluator the gateways of any instance a task starts are asked of
+     * @param principals the vocabulary the names in the definition of any instance a task starts are read in
      */
     ServiceTaskDispatcher(final List<ServiceTaskHandler> handlers, final EventChain chain,
-        final ConditionEvaluator conditions)
+        final ConditionEvaluator conditions, final PrincipalService principals)
     {
         this.handlers = handlers;
         this.chain = chain;
         this.conditions = conditions;
+        this.principals = principals;
     }
 
     /**
@@ -107,7 +112,7 @@ final class ServiceTaskDispatcher
     {
         final Map<String, Object> variables = new LinkedHashMap<>();
         return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor, this, 0));
+            new WorkflowTaskContextImpl(InstanceRunner.hostOf(instance), event, activity, variables, actor, this, 0));
     }
 
     /**
@@ -118,6 +123,16 @@ final class ServiceTaskDispatcher
     ConditionEvaluator conditions()
     {
         return this.conditions;
+    }
+
+    /**
+     * What the names in the definition of an instance a task starts are read in.
+     *
+     * @return the engine's principal service
+     */
+    PrincipalService principals()
+    {
+        return this.principals;
     }
 
     /**
@@ -134,18 +149,6 @@ final class ServiceTaskDispatcher
         throws WorkflowException, PersistenceException
     {
         this.chain.send(target, event, actor, depth);
-    }
-
-    /**
-     * The resource an instance drives, two levels up past its container.
-     *
-     * @param instance a running instance
-     * @return the host resource
-     */
-    private Resource hostOf(final Resource instance)
-    {
-        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**

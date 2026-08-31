@@ -461,8 +461,12 @@ users are here for. The rules:
   it refuses everyone until it does; silence is never permission.
 - **`everyone` means any authenticated user**, matched by name because it is a dynamic
   principal an authorizable does not necessarily report belonging to.
-- **Groups are matched transitively**, so naming a group also admits the members of its
-  member groups.
+- **Every name is read by the principals service**, the one a notification's recipients
+  are read by, so a name means the same people wherever it is written. A group admits
+  its members however a deployment stores it: transitively, and including a role an
+  identity provider synchronises without leaving a group node behind. A special name
+  such as `@creator` is answered about the resource being worked on: the event's target,
+  or the host of the task being completed.
 - **Administrators pass regardless**, exactly as they bypass access control in the
   repository itself. Without that, one bad definition could lock out the very people who
   could repair it.

@@ -104,7 +104,7 @@ final class SystemWorkflowLocator
             if (waitingFor.getValue().size() > 1) {
                 throw contested(target, waitingFor.getKey(), waitingFor.getValue());
             }
-            if (performers.admits(waitingFor.getValue().get(0))) {
+            if (performers.admits(waitingFor.getValue().get(0), target)) {
                 events.add(waitingFor.getKey());
             }
         }

@@ -481,6 +481,7 @@ class UserWorkflowTest
         inject(impl, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(impl, "handlers", List.of(new StartWorkflowHandler()));
         inject(impl, "conditionEvaluator", EngineFixture.conditions());
+        inject(impl, "principals", EngineFixture.principals());
         return impl;
     }
 
@@ -726,6 +727,7 @@ class UserWorkflowTest
             new PersistenceException("the disk is on fire")));
         inject(engine, "handlers", List.of(new StartWorkflowHandler()));
         inject(engine, "conditionEvaluator", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
 
         assertThrows(io.uhndata.iap.workflows.api.WorkflowFailedException.class,
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
@@ -894,6 +896,7 @@ class UserWorkflowTest
         inject(engine, "resolverFactory", EngineFixture.serviceUsers(this.context, null));
         inject(engine, "handlers", List.of(handler, new StartWorkflowHandler()));
         inject(engine, "conditionEvaluator", EngineFixture.conditions());
+        inject(engine, "principals", EngineFixture.principals());
         engine.receiveEvent(host(EngineFixture.REQUESTER), START);
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
