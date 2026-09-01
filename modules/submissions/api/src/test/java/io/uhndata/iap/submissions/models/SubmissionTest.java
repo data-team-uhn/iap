@@ -99,7 +99,8 @@ class SubmissionTest
         this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
             Document.class, Review.class, ReviewComment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
-            SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class);
+            SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class,
+            ForeignRequirement.class);
         this.created = Calendar.getInstance();
         this.created.set(2026, Calendar.APRIL, 5, 16, 20, 0);
     }
@@ -506,6 +507,24 @@ class SubmissionTest
 
         assertEquals(1, missing.size());
         assertEquals(FormRequirement.class, missing.get(0).getClass());
+    }
+
+    // A kind of requirement declared by another module. Guessing that it is unfulfilled would block every
+    // submission carrying one with nothing anybody could do about it, so the walk passes over what it cannot
+    // judge rather than standing in the way of it
+    @Test
+    void passesOverAKindOfRequirementItCannotJudge()
+        throws RepositoryException
+    {
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        this.context.create().resource("/Schemas/schema/1.0/elsewhere", Map.of(
+            SLING_RESOURCE_TYPE, ForeignRequirement.RESOURCE_TYPE,
+            "sling:resourceSuperType", Requirement.RESOURCE_TYPE,
+            "label", "Something this module has never heard of"));
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday" });
+
+        assertTrue(submission.getMissingRequirements().isEmpty());
     }
 
     @Test
