@@ -304,12 +304,20 @@ public class Submission extends Entity
         if (requirement instanceof ApprovalRequirement) {
             return this.getReviewsOf(requirement).stream().anyMatch(Review::isApproved);
         }
-        // FormRequirement is the only other concrete requirement type today. Only questions demanding at least one
-        // value can leave it unfulfilled: an optional one is asked, not demanded, and a submission is not
-        // incomplete for declining to answer it. Without this filter `minAnswers` would mean nothing at all
-        return this.getQuestionsOf((FormRequirement) requirement).stream()
-            .filter(Question::isRequired)
-            .allMatch(this::isAnswered);
+        if (requirement instanceof FormRequirement) {
+            // Only questions demanding at least one value can leave it unfulfilled: an optional one is asked, not
+            // demanded, and a submission is not incomplete for declining to answer it. Without this filter
+            // `minAnswers` would mean nothing at all
+            return this.getQuestionsOf((FormRequirement) requirement).stream()
+                .filter(Question::isRequired)
+                .allMatch(this::isAnswered);
+        }
+        // A kind of requirement declared by some other module. This one cannot know what fulfils it, and the two
+        // ways of guessing are not equally bad: reporting it unfulfilled would block every submission that carries
+        // one, with nothing anybody could do about it, where treating it as met leaves the requirement visible on
+        // the form and only leaves it out of the completeness tally. Whether a kind can block completeness at all
+        // is a decision for whoever declares it, and it needs an extension point this module does not yet have.
+        return true;
     }
 
     /**
