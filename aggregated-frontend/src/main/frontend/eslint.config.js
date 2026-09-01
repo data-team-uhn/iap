@@ -240,6 +240,8 @@ export default defineConfig([
   // an administrator reviewing what a version contains, a researcher looking before they file. What
   // keeps that possible is that it never reaches for a submission, so the boundary is a rule rather
   // than an intention. Everything that joins the two lives beside this directory, not inside it.
+  // Nothing in the catalogue may reach another module, at any depth. A sibling inside it is fine --
+  // what this stops is a dependency on the submission around it.
   {
     files: [ "src/data-requirement/catalogue/**/*.{ts,tsx}" ],
     // Its own tests are not a dependency on anything: they reach the catalogue the way every suite in
@@ -251,7 +253,42 @@ export default defineConfig([
       "no-restricted-imports": [ "error", {
         patterns: [
           {
-            group: [ "@iap/*", "../*" ],
+            group: [ "@iap/**" ],
+            message: "The catalogue may not depend on another module; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
+
+  // And it may not climb out of itself by a relative path either. Two blocks because how far "out"
+  // is depends on how deep the file sits: one level from the top of the catalogue, two from a
+  // subdirectory of it.
+  {
+    files: [ "src/data-requirement/catalogue/*.{ts,tsx}" ],
+    ignores: [ "src/data-requirement/catalogue/*.{test,spec}.{ts,tsx}",
+      "src/data-requirement/catalogue/fixtures.ts" ],
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            group: [ "@iap/**", "../*" ],
+            message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
+  {
+    files: [ "src/data-requirement/catalogue/*/*.{ts,tsx}" ],
+    ignores: [ "src/data-requirement/catalogue/*/*.{test,spec}.{ts,tsx}" ],
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            group: [ "@iap/**", "../../*" ],
             message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
           },
         ],
