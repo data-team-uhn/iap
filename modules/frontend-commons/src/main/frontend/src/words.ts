@@ -19,3 +19,10 @@
 // Joins words into a list for a sentence: "a, b and c"
 export const listed = (words: string[]): string => (words.length < 2 ? words.join("")
   : `${words.slice(0, -1).join(", ")} and ${words.slice(-1).join("")}`);
+
+// A noun in the number a count calls for, such as "field" for 1 and "fields" otherwise. The plural takes
+// a plain "s".
+export const nounFor = (value: number, noun: string): string => (value === 1 ? noun : `${noun}s`);
+
+// A count and its noun, such as "1 field" or "3 fields"
+export const countOf = (value: number, noun: string): string => `${String(value)} ${nounFor(value, noun)}`;
