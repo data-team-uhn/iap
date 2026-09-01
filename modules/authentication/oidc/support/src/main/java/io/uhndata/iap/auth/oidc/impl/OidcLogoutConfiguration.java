@@ -18,6 +18,7 @@
 package io.uhndata.iap.auth.oidc.impl;
 
 import org.osgi.service.metatype.annotations.AttributeDefinition;
+import org.osgi.service.metatype.annotations.AttributeType;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
 /**
@@ -50,4 +51,46 @@ public @interface OidcLogoutConfiguration
         description = "Local path Sling's post-logout redirect is steered to for an OIDC session, so the external "
             + "logout can be completed. Must match the path served by OidcEndSessionServlet; blank disables it.")
     String postLogoutPath() default "/system/sling/oauth/logout";
+
+    /**
+     * Where the user's refresh token is stored, relative to their home node.
+     *
+     * @return a relative property path, which must match the sync handler's user.propertyMapping
+     */
+    @AttributeDefinition(name = "Refresh token property",
+        description = "Path of the stored refresh token, relative to the user's home node. Must match the entry in "
+            + "the DefaultSyncHandler's user.propertyMapping that persists it, and the OAuth client's "
+            + "storeRefreshToken must be on, or there is nothing to read and the back-channel logout is skipped.")
+    String refreshTokenPath() default "oauth/refresh_token";
+
+    /**
+     * The provider's logout endpoint, as IAP reaches it in-network. Blank disables the back-channel call.
+     *
+     * @return the absolute back-channel URL of the OIDC {@code end_session_endpoint}
+     */
+    @AttributeDefinition(name = "Back-channel logout endpoint",
+        description = "The provider's logout endpoint as IAP reaches it in-network, e.g. Keycloak's "
+            + "{realm}/protocol/openid-connect/logout. IAP calls this itself, so it must be the back-channel URL, "
+            + "not the browser-facing one the end-session servlet redirects to. Blank disables the call.")
+    String backchannelLogoutEndpoint() default "";
+
+    /**
+     * The OAuth client identifier IAP is registered under.
+     *
+     * @return the {@code client_id} sent on the back-channel logout request
+     */
+    @AttributeDefinition(name = "Client ID",
+        description = "The client_id IAP is registered as with the provider.")
+    String clientId() default "";
+
+    /**
+     * The confidential client's secret, which authenticates the back-channel call.
+     *
+     * @return the {@code client_secret} sent on the back-channel logout request
+     */
+    @AttributeDefinition(name = "Client secret",
+        description = "The confidential client's secret. The logout endpoint refuses an unauthenticated caller, so "
+            + "ending a session requires it.",
+        type = AttributeType.PASSWORD)
+    String clientSecret() default "";
 }
