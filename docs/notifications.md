@@ -83,7 +83,7 @@ reword what the platform says without touching code.
 | `senderAddress` | **Required.** The `From` address |
 | `senderName` | Display name shown with it |
 | `replyToAddress`, `replyToName` | Where replies go, defaulting to the sender |
-| `subject` | **Required.** May contain `${variable}` placeholders |
+| `subject` | **Required.** Itself a template |
 | *anything else* | A variable available to the subject and both bodies |
 
 | Child file | Meaning |
@@ -106,19 +106,56 @@ asks for a shared attachment with an `includeAttachment_<file name>` property
 `bodyTemplate.txt` has no plain text part at all, even where shared plain text headers
 and footers exist — and the same for HTML.
 
+### Writing one
+
+The subject and both bodies are [Apache Velocity](https://velocity.apache.org/engine/devel/user-guide.html)
+templates.
+
+```
+Dear ${name},
+
+Your request "$submission.title" was $submission.status.
+
+#if($submission.status == 'rejected')
+The reason given was: $submission.reason
+#else
+Nothing further is needed from you.
+#end
+
+#foreach($task in $outstanding)
+  - $task.label, due $task.due
+#end
+```
+
+Worth knowing when writing a template:
+
+- **A name nobody supplied fails the whole email.** Rendering it literally would mail
+  somebody `Dear ${name}`, which is worse than not sending. There are two ways to say
+  something is optional, and they mean different things: `#if($note)` for a name that may
+  not be there at all, `$!{note}` for one that is there but may be empty.
+- **Values are escaped in the HTML body and not in the plain text one.** A value carrying
+  `<` goes into the HTML as text rather than as a tag — the values are free text somebody
+  typed. Markup a template genuinely means to produce belongs in the template, where it is
+  not escaped.
+- **A template that does not parse sends nothing.** Failures raise
+  `EmailTemplateException`, whose message names the line and column — never the values,
+  which are somebody's answers.
+
 ### Sending one
 
 ```java
 final EmailTemplate template = EmailTemplate.builder(templateNode, resolver).build();
-final Email email = template.getEmailBuilder(Map.of("who", "Alice"))
+final Email email = template.getEmailBuilder(Map.of("name", "Alice", "submission", submission))
     .withRecipient("alice@example.invalid", "Alice")
     .build();
 EmailUtils.sendHtmlEmail(email, this.mailService);
 ```
 
 `getEmailBuilder(variables)` fills in the subject and both bodies; what the caller passes
-overrides the template's own properties. `EmailTemplate.builder()` also takes no
-arguments, for a template assembled in code rather than read from a node.
+overrides the template's own properties. **A value can be anything, not only a string** —
+the template decides how to read it — which is what lets the wording of an email stay in
+the template while the caller just hands over the submission. `EmailTemplate.builder()`
+also takes no arguments, for a template assembled in code rather than read from a node.
 
 `sendTextEmail` sends only the plain text part. `sendHtmlEmail` sends the HTML one, the
 plain text part as a fallback for clients that cannot show it, and the inline
@@ -156,10 +193,10 @@ service, keyed by the `SLING_COMMONS_CRYPTO_PASSWORD` environment variable.
 - **Nothing produces messages yet** beyond the status report, and nothing sends an email
   yet. Both are wiring, and the workflow engine is the natural place for it: an email
   belongs to a submission changing state.
-- **Filling a template in from a submission.** Variables are a plain map today.
-  Resolving `${…}` placeholders from a submission's own answers would make templates far
-  more useful, and is best designed alongside the workflow actions that will trigger
-  them.
+- **Filling a template in from a submission.** The engine can already reach into whatever
+  a caller passes, so what is left is deciding what a caller *should* pass — the
+  submission, its answers, the actor, the workflow instance — and that is best designed
+  alongside the workflow actions that will trigger these emails rather than guessed at now.
 - **A shared notion of a message.** Chat producers return webhook attachments, and email
   is written as templates; a third channel would need one or the other, or something
   above both. Worth settling when there is a second source of messages to design it

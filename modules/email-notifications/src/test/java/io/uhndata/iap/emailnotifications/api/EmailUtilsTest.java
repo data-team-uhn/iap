@@ -69,6 +69,21 @@ class EmailUtilsTest
     }
 
     @Test
+    void fillsInAnHtmlTemplateAndEscapesWhatGoesIn()
+    {
+        // The one difference between the two rendering methods, and the reason there are two
+        assertEquals("<p>Dear A &amp; B</p>",
+            EmailUtils.renderHtml("<p>Dear ${name}</p>", Map.of("name", "A & B")));
+        assertEquals("Dear A & B", EmailUtils.render("Dear ${name}", Map.of("name", "A & B")));
+    }
+
+    @Test
+    void anAbsentHtmlTemplateFillsInToNothing()
+    {
+        assertNull(EmailUtils.renderHtml(null, Map.of()));
+    }
+
+    @Test
     void anAbsentTemplateFillsInToNothing()
     {
         // A template may legitimately have no HTML part, or no text part

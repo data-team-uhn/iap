@@ -49,7 +49,7 @@
   - replyToAddress (STRING)
   - replyToName (STRING)
 
-  // The subject line, which may itself contain ${variable} placeholders
+  // The subject line, which is itself a template
   - subject (STRING) mandatory
 
   // Any other property is a variable the body templates can substitute

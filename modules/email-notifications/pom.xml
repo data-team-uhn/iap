@@ -103,6 +103,13 @@
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-lang3</artifactId>
     </dependency>
+    <!-- The engine the templates are written in; commons-lang3 above is its only library dependency -->
+    <dependency>
+      <groupId>org.apache.velocity</groupId>
+      <artifactId>velocity-engine-core</artifactId>
+    </dependency>
+    <!-- Escaping the values that go into an HTML body. Velocity's own escaping event handlers are
+         deprecated in 2.4, so the handler is ours and this is what it escapes with. -->
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-text</artifactId>

@@ -48,8 +48,14 @@ import org.jetbrains.annotations.Nullable;
  * {@link #getEmailBuilder(Map) filling in its variables} and setting a recipient.
  *
  * <p>
- * Both body parts may contain <code>${variable}</code> placeholders. The values come from the template's own extra
- * properties, overridden by whatever the caller passes in, and the subject line is substituted the same way.
+ * The subject and both body parts are <a href="https://velocity.apache.org/engine/devel/user-guide.html">Apache
+ * Velocity</a> templates. The values come from the template's own extra properties, overridden by whatever the caller
+ * passes in.
+ * </p>
+ *
+ * <p>
+ * <strong>The HTML body escapes its values</strong>, to avoid injecting HTML. See {@link EmailUtils#render} and
+ * {@link EmailUtils#renderHtml}.
  * </p>
  *
  * @version $Id$
@@ -187,9 +193,9 @@ public class EmailTemplate
     }
 
     /**
-     * The subject line, which may itself contain <code>${variable}</code> placeholders.
+     * The subject line, which is itself a template.
      *
-     * @return a subject, before any substitution
+     * @return a subject, before it is rendered
      */
     @NotNull
     public String getSubject()
@@ -246,20 +252,23 @@ public class EmailTemplate
      * Start instantiating this template into an actual email, with the body parts and the subject already filled in.
      * A recipient still has to be {@link Email.Builder#withRecipient set} before the email can be built.
      *
-     * @param variables the values to substitute, taking precedence over the template's own extra properties, may be
-     *            {@code null} when the template's own properties are all there is
+     * @param variables the values the templates may refer to, taking precedence over the template's own extra
+     *            properties, may be {@code null} when the template's own properties are all there is
      * @return an email builder based on this template
+     * @throws EmailTemplateException if the subject or either body does not parse, or refers to something neither the
+     *             template nor the caller supplied
      */
     @NotNull
-    public Email.Builder getEmailBuilder(@Nullable final Map<String, String> variables)
+    public Email.Builder getEmailBuilder(@Nullable final Map<String, ?> variables)
     {
-        final Map<String, String> values = getExtraProperties();
+        final Map<String, Object> values = new HashMap<>(getExtraProperties());
         if (variables != null) {
             values.putAll(variables);
         }
         final Email.Builder builder = new Email.Builder(this);
         builder.withSubject(EmailUtils.render(this.subject, values));
-        return builder.withBody(EmailUtils.render(this.htmlTemplate, values),
+        // Only the HTML body escapes its values: it is the one part a mail client reads as markup
+        return builder.withBody(EmailUtils.renderHtml(this.htmlTemplate, values),
             EmailUtils.render(this.textTemplate, values));
     }
 
@@ -406,7 +415,7 @@ public class EmailTemplate
         }
 
         /**
-         * Set the subject line. Mandatory. It may contain <code>${variable}</code> placeholders.
+         * Set the subject line. Mandatory. It is itself a template.
          *
          * @param subject a short string
          * @return this builder
@@ -421,7 +430,7 @@ public class EmailTemplate
         /**
          * Add a variable available to the subject and the body templates.
          *
-         * @param name the name to use in a <code>${...}</code> placeholder
+         * @param name the name a template refers to it by
          * @param value the value to substitute
          * @return this builder
          */
