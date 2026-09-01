@@ -259,7 +259,6 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         // below is what covers it.
         boolean endedSession = endProviderSession(readRefreshToken(request));
 
-
         // In cases where we were unable to do the backchannel logout, dropCredentials cannot issue the cross-host
         // redirect to the provider itself, so we make use of another Servlet located at postLogoutPath
         if (!endedSession && !this.postLogoutPath.isBlank())
