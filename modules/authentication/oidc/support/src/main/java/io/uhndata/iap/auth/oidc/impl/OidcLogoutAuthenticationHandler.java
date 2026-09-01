@@ -175,7 +175,8 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
      */
     boolean endProviderSession(final String refreshToken)
     {
-        if (this.backchannelLogoutEndpoint.isBlank() || refreshToken == null || refreshToken.isBlank())
+        if (this.backchannelLogoutEndpoint == null || this.backchannelLogoutEndpoint.isBlank()
+            || refreshToken == null || refreshToken.isBlank())
         {
             return false;
         }
