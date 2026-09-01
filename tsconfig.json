@@ -22,6 +22,7 @@
     "paths": {
       "@iap/admin-console/*": ["./modules/admin-console/src/main/frontend/src/*"],
       "@iap/categories/*": ["./modules/categories/src/main/frontend/src/*"],
+      "@iap/data-requirement/*": ["./modules/data-requirement/impl/src/main/frontend/src/*"],
       "@iap/deletion/*": ["./modules/deletion/src/main/frontend/src/*"],
       "@iap/email-catcher/*": ["./modules/email-catcher/src/main/frontend/src/*"],
       "@iap/error-tracking/*": ["./modules/error-tracking/impl/src/main/frontend/src/*"],
