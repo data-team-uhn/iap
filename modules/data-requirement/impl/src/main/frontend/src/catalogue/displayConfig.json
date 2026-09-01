@@ -1,0 +1,26 @@
+{
+  "_comment": "How much of each field the tree shows.",
+  "tree": {
+    "field": {
+      "_comment": "Each flag is described in display.ts.",
+      "showIdentifier": false,
+      "humaniseIdentifierWhenNoCommonName": true,
+      "sentenceCaseLabels": true,
+      "showCardinality": false,
+      "showType": false,
+      "showPhi": true,
+      "showDescription": true,
+      "showExample": true
+    },
+    "collection": {
+      "_comment": "The source's own name beside the collection label, e.g. `Patient` next to `Patient records`.",
+      "showIdentifier": false
+    }
+  },
+  "_labelOverridesComment": "Labels for identifiers that humanise badly, keyed by the source's own name.",
+  "labelOverrides": {
+    "id": "ID"
+  },
+  "_preserveWordsComment": "Words and phrases sentence-casing must not lower, matched case-insensitively on whole words and shown as written here. A deployment's own vocabulary, so the platform ships none.",
+  "preserveWords": []
+}
