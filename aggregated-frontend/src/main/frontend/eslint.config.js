@@ -258,22 +258,33 @@ export default defineConfig([
     },
   },
 
-  // The catalogue is a self-contained thing: a tree of data, and a panel listing what was picked out
-  // of it. It is used inside a submission today, and it is worth being able to show one on its own --
-  // an administrator reviewing what a version contains, a researcher looking before they file. What
-  // keeps that possible is that it never reaches for a submission, so the boundary is a rule rather
-  // than an intention. Everything that joins the two lives beside this directory, not inside it.
+  // The catalogue browser can be shown on any page, so it depends on nothing outside itself but the
+  // shared helpers of frontend-commons. The glue joining it to a submission lives beside it.
   {
     files: [ "src/data-requirement/catalogue/**/*.{ts,tsx}" ],
     // Its tests import it through the @iap alias, as every suite does
     ignores: [ "src/data-requirement/catalogue/**/*.{test,spec}.{ts,tsx}",
       "src/data-requirement/catalogue/**/*.fixture.{ts,tsx}" ],
+    settings: {
+      "import/resolver": { node: { extensions: [ ".ts", ".tsx", ".js" ] } },
+    },
 
     rules: {
       "no-restricted-imports": [ "error", {
         patterns: [
           {
-            group: [ "@iap/*", "../*" ],
+            // One level, not `**`: a pattern cannot re-include a path whose parent it has excluded
+            group: [ "@iap/*", "!@iap/frontend-commons" ],
+            message: "The catalogue may depend on frontend-commons only; put the glue beside it.",
+          },
+        ],
+      } ],
+      "import/no-restricted-paths": [ "error", {
+        zones: [
+          {
+            target: "./src/data-requirement/catalogue",
+            from: "./src",
+            except: [ "./data-requirement/catalogue" ],
             message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
           },
         ],
