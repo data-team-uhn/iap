@@ -1,0 +1,41 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Retrospective data study",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "active": true,
+    "jcr:reference:workflow": "/Workflows/dataStudy/v1",
+    "description": "A study of data that already exists: no new data is collected and nobody is contacted, so what the study is depends almost entirely on which fields it asks for. That question is a requirement of its own, answered by choosing from a catalogue rather than by writing a list into a box.",
+    "about": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "About the study",
+      "description": "What you are asking, and why.",
+      "question": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What question is the study trying to answer?",
+        "dataType": "long",
+        "minAnswers": 1
+      },
+      "period": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which years should the data cover?",
+        "dataType": "text",
+        "minAnswers": 1
+      }
+    },
+    "data": {
+      "jcr:primaryType": "datareq:DataRequirement",
+      "label": "Which data do you need?",
+      "description": "Choose the fields your analysis needs, and no more. What you choose is recorded against the version of the registry you chose it from, so republishing the registry later cannot change what this study asked for.",
+      "jcr:reference:catalogue": "/Catalogues/demoRegistry"
+    },
+    "approval": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Data access approval",
+      "description": "Somebody who can release the data has to agree to it being released.",
+      "approverGroup": "data-stewards"
+    }
+  }
+}

@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  id="dataStudyDefinitions"
+                  targetNamespace="https://iap.uhndata.io/workflows/dataStudy">
+  <bpmn:process id="dataStudy" name="Retrospective data study" isExecutable="true">
+    <bpmn:startEvent id="studyStarted" name="Study started">
+      <bpmn:outgoing>toFillIn</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toFillIn" sourceRef="studyStarted" targetRef="fillIn" />
+    <bpmn:userTask id="fillIn" name="Describe the study and choose its data"
+                   iap:performers="@creator" iap:hostTag="draft">
+      <bpmn:incoming>toFillIn</bpmn:incoming>
+      <bpmn:outgoing>toRelease</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toRelease" sourceRef="fillIn" targetRef="releaseData" />
+    <bpmn:userTask id="releaseData" name="Release the data, or refuse"
+                   iap:performers="data-stewards" iap:hostTag="submitted"
+                   iap:outcomeOptions="approved,rejected">
+      <bpmn:incoming>toRelease</bpmn:incoming>
+      <bpmn:outgoing>toRecordReview</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toRecordReview" sourceRef="releaseData" targetRef="recordReview" />
+    <bpmn:serviceTask id="recordReview" name="Write the decision down"
+                      iap:handler="recordReview" iap:requirement="approval">
+      <bpmn:incoming>toRecordReview</bpmn:incoming>
+      <bpmn:outgoing>toDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDecision" sourceRef="recordReview" targetRef="decision" />
+    <bpmn:exclusiveGateway id="decision" name="Released?" default="toRejected">
+      <bpmn:incoming>toDecision</bpmn:incoming>
+      <bpmn:outgoing>toApproved</bpmn:outgoing>
+      <bpmn:outgoing>toRejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="studyApproved">
+      <bpmn:extensionElements>
+        <sv:node xmlns:sv="http://www.jcp.org/jcr/sv/1.0" sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>variable</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>outcome</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>approved</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="studyRejected" />
+    <bpmn:endEvent id="studyApproved" name="Data released" iap:hostTag="approved">
+      <bpmn:incoming>toApproved</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="studyRejected" name="Data not released" iap:hostTag="rejected">
+      <bpmn:incoming>toRejected</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="dataStudyDiagram">
+    <bpmndi:BPMNPlane id="dataStudyPlane" bpmnElement="dataStudy">
+      <bpmndi:BPMNShape id="studyStartedShape" bpmnElement="studyStarted">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="146" y="223" width="65" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="fillInShape" bpmnElement="fillIn">
+        <dc:Bounds x="250" y="158" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="releaseDataShape" bpmnElement="releaseData">
+        <dc:Bounds x="430" y="158" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="recordReviewShape" bpmnElement="recordReview">
+        <dc:Bounds x="610" y="158" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
+        <dc:Bounds x="790" y="173" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="789" y="230" width="53" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="studyApprovedShape" bpmnElement="studyApproved">
+        <dc:Bounds x="900" y="120" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="882" y="163" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="studyRejectedShape" bpmnElement="studyRejected">
+        <dc:Bounds x="900" y="240" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="874" y="283" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toFillInEdge" bpmnElement="toFillIn">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toReleaseEdge" bpmnElement="toRelease">
+        <di:waypoint x="370" y="198" />
+        <di:waypoint x="430" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRecordReviewEdge" bpmnElement="toRecordReview">
+        <di:waypoint x="550" y="198" />
+        <di:waypoint x="610" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+        <di:waypoint x="730" y="198" />
+        <di:waypoint x="790" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
+        <di:waypoint x="840" y="198" />
+        <di:waypoint x="870" y="198" />
+        <di:waypoint x="870" y="138" />
+        <di:waypoint x="900" y="138" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
+        <di:waypoint x="840" y="198" />
+        <di:waypoint x="870" y="198" />
+        <di:waypoint x="870" y="258" />
+        <di:waypoint x="900" y="258" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,0 +1,114 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Retrospective data study",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "bpmnAuthoritative": true,
+    "active": true,
+    "description": "A researcher describes a study and chooses the data it needs; a steward releases the data or refuses it. Deliberately the smallest process that still makes the data requirement mean something: choosing is done while the study is a draft, and it stops being possible the moment it is sent, which is the same rule that governs answering a question. The flow nodes below are the executable form of the diagram beside this descriptor, element for element. Keep the two in step - a node changed here and not there is a change the next reparse throws away.",
+    "studyStarted": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "studyStarted",
+      "label": "Study started",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toFillIn": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFillIn",
+        "targetRef": "fillIn"
+      }
+    },
+    "fillIn": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "fillIn",
+      "label": "Describe the study and choose its data",
+      "performers": [
+        "@creator"
+      ],
+      "hostTag": "draft",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toRelease": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRelease",
+        "targetRef": "releaseData"
+      }
+    },
+    "releaseData": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "releaseData",
+      "label": "Release the data, or refuse",
+      "performers": [
+        "data-stewards"
+      ],
+      "hostTag": "submitted",
+      "outcomeOptions": [
+        "approved",
+        "rejected"
+      ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toRecordReview": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRecordReview",
+        "targetRef": "recordReview"
+      }
+    },
+    "recordReview": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "recordReview",
+      "label": "Write the decision down",
+      "handler": "recordReview",
+      "requirement": "approval",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDecision": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDecision",
+        "targetRef": "decision"
+      }
+    },
+    "decision": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "decision",
+      "label": "Released?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toApproved": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproved",
+        "targetRef": "studyApproved",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "variable",
+            "value": [ "outcome" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "approved" ]
+          }
+        }
+      },
+      "toRejected": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejected",
+        "targetRef": "studyRejected",
+        "isDefault": true
+      }
+    },
+    "studyApproved": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "studyApproved",
+      "label": "Data released",
+      "hostTag": "approved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "studyRejected": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "studyRejected",
+      "label": "Data not released",
+      "hostTag": "rejected",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
