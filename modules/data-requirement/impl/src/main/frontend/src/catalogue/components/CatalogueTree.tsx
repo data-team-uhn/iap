@@ -67,7 +67,9 @@ export default function CatalogueTree({ visible, expansion, query, noDatabasesIn
             <EmptyState
               title={searching ? `No fields match “${query.trim()}”` : "No fields to show"}
               body="Try a shorter term, or search the source's own name for the field instead."
-              actionLabel={searching ? "Clear filter" : undefined}
+              // Not "Clear filter", which is what the toolbar's button is called: two controls on
+              // one screen answering to the same name is a maze for anyone hearing them read out
+              actionLabel={searching ? "Show all fields" : undefined}
               onAction={searching ? onClearQuery : undefined}
             />
           )
