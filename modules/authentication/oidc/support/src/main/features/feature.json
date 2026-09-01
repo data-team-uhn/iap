@@ -119,7 +119,8 @@
             "groupsInIdToken":true,
             "idpNameInPrincipals":false,
             "storeAccessToken":false,
-            "storeRefreshToken":false
+            // Use refresh token to log the user out afterwards
+            "storeRefreshToken":true
         },
 
         // --- The Sling authentication handler -------------------------------------------------
@@ -156,7 +157,7 @@
             "user.membershipExpTime":"1h",
             "user.membershipNestingDepth:Integer":"1",
             "user.pathPrefix":"oidc",
-            "user.propertyMapping":["rep:fullname=name","profile/email=email"]
+            "user.propertyMapping":["rep:fullname=name","profile/email=email","oauth/refresh_token=refresh_token"]
         },
 
         // --- Oak provisioning: external login module ------------------------------------------
