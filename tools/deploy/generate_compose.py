@@ -493,6 +493,8 @@ def iap_environment(args):
         environment['KEYCLOAK_CLIENT_SECRET'] = '${KEYCLOAK_CLIENT_SECRET}'
         environment['IAP_PUBLIC_URL'] = "http://localhost:{}".format(args.port)
         environment['IAP_OAUTH_ENCRYPTION_PASSWORD'] = '${IAP_OAUTH_ENCRYPTION_PASSWORD}'
+        environment['SLING_COMMONS_CRYPTO_PASSWORD'] = '${IAP_OAUTH_ENCRYPTION_PASSWORD}'
+        environment['KEYCLOAK_ENABLED'] = 'true'
 
     if args.mail:
         comment(environment, "Points the mail service at {} port 465 and stops".format(
