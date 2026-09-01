@@ -234,4 +234,28 @@ export default defineConfig([
       "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
+
+  // The catalogue is a self-contained thing: a tree of data, and a panel listing what was picked out
+  // of it. It is used inside a submission today, and it is worth being able to show one on its own --
+  // an administrator reviewing what a version contains, a researcher looking before they file. What
+  // keeps that possible is that it never reaches for a submission, so the boundary is a rule rather
+  // than an intention. Everything that joins the two lives beside this directory, not inside it.
+  {
+    files: [ "src/data-requirement/catalogue/**/*.{ts,tsx}" ],
+    // Its own tests are not a dependency on anything: they reach the catalogue the way every suite in
+    // this project reaches the module it covers, through the @iap alias
+    ignores: [ "src/data-requirement/catalogue/**/*.{test,spec}.{ts,tsx}",
+      "src/data-requirement/catalogue/**/fixtures.ts" ],
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            group: [ "@iap/*", "../*" ],
+            message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
 ]);
