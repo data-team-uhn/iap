@@ -186,6 +186,15 @@
             "endSessionEndpoint":"$[env:FRONTEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/logout",
             "clientId":"$[env:KEYCLOAK_CLIENT_ID]",
             "postLogoutRedirectUri":"$[env:IAP_PUBLIC_URL]/login"
+        },
+
+        // Back-channel logout: IAP presents the user's refresh token to Keycloak itself, so the SSO session ends
+        // without a confirmation screen the user could abandon. Back-channel URL, unlike the servlet's above --
+        // this call is made by IAP, not the browser. Leaving the endpoint blank falls back to the redirect alone.
+        "io.uhndata.iap.auth.oidc.impl.OidcLogoutAuthenticationHandler":{
+            "backchannelLogoutEndpoint":"$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/logout",
+            "clientId":"$[env:KEYCLOAK_CLIENT_ID]",
+            "clientSecret":"$[env:KEYCLOAK_CLIENT_SECRET]"
         }
     },
 
