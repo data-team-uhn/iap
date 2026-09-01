@@ -257,7 +257,7 @@ describe("searching", () => {
     draw({ query: "nothing at all" });
 
     expect(screen.getByText("No fields match “nothing at all”")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clear filter" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show all fields" })).toBeInTheDocument();
   });
 
   it("says so when every database has been excluded", () => {
@@ -271,7 +271,7 @@ describe("searching", () => {
     draw({ data: catalogue([]) });
 
     expect(screen.getByText("No fields to show")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Clear filter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show all fields" })).not.toBeInTheDocument();
   });
 });
 
