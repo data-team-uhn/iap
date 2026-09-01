@@ -257,11 +257,8 @@ export default defineConfig([
     },
   },
 
-  // The catalogue is a self-contained thing: a tree of data, and a panel listing what was picked out
-  // of it. It is used inside a submission today, and it is worth being able to show one on its own --
-  // an administrator reviewing what a version contains, a researcher looking before they file. What
-  // keeps that possible is that it never reaches for a submission, so the boundary is a rule rather
-  // than an intention. Everything that joins the two lives beside this directory, not inside it.
+  // The catalogue browser stands alone, so a page other than a submission can show it. Nothing under
+  // `catalogue/` may import another module; the glue joining it to a submission lives beside it.
   {
     files: [ "src/data-requirement/catalogue/**/*.{ts,tsx}" ],
     // Its tests import it through the @iap alias, as every suite does
@@ -272,7 +269,41 @@ export default defineConfig([
       "no-restricted-imports": [ "error", {
         patterns: [
           {
-            group: [ "@iap/*", "../*" ],
+            group: [ "@iap/**" ],
+            message: "The catalogue may not depend on another module; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
+
+  // Nor climb out of `catalogue/` by a relative path: `../` from its top level, `../../` from a
+  // subdirectory.
+  {
+    files: [ "src/data-requirement/catalogue/*.{ts,tsx}" ],
+    ignores: [ "src/data-requirement/catalogue/*.{test,spec}.{ts,tsx}",
+      "src/data-requirement/catalogue/fixtures.ts" ],
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            group: [ "@iap/**", "../*" ],
+            message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
+          },
+        ],
+      } ],
+    },
+  },
+  {
+    files: [ "src/data-requirement/catalogue/*/*.{ts,tsx}" ],
+    ignores: [ "src/data-requirement/catalogue/*/*.{test,spec}.{ts,tsx}" ],
+
+    rules: {
+      "no-restricted-imports": [ "error", {
+        patterns: [
+          {
+            group: [ "@iap/**", "../../*" ],
             message: "The catalogue may not depend on anything outside itself; put the glue beside it.",
           },
         ],
