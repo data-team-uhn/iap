@@ -38,6 +38,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Requirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -127,6 +128,20 @@ class SelectionTest
         final Selection selection = selection(BIRTH_DATE, "records/Patient/gender");
 
         assertEquals(List.of(BIRTH_DATE, "records/Patient/gender"), selection.getFieldKeys());
+    }
+
+    @Test
+    void meetsItsRequirementByHoldingSomething()
+    {
+        assertTrue(selection(BIRTH_DATE).isFulfilling());
+    }
+
+    // Clearing leaves the node where it is, so that the version it was bound to survives: an empty selection is a
+    // real state, and it is the state of not having chosen yet
+    @Test
+    void doesNotMeetItsRequirementWhileItHoldsNothing()
+    {
+        assertFalse(selection().isFulfilling());
     }
 
     @Test
