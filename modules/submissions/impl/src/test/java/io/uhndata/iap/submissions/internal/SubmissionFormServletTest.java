@@ -69,6 +69,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
@@ -134,8 +135,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, Review.class,
-            Submission.class);
+            Section.class, Question.class, AnswerOption.class, Answer.class, AnswerSet.class,
+            Document.class, Review.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -427,7 +428,7 @@ class SubmissionFormServletTest
     void passesOverAnAnswerWhoseQuestionIsGone() throws IOException
     {
         // A question removed from the schema leaves its answer behind; it is the answer to nothing being asked
-        this.context.create().resource(SUBMISSION_PATH + "/orphan", Map.of(
+        this.context.create().resource(this.answerSet(DETAILS).getPath() + "/orphan", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"stale"}));
 
         assertTrue(item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonArray("value").isEmpty());
@@ -608,9 +609,36 @@ class SubmissionFormServletTest
 
     private void answer(final String questionPath, final String value)
     {
-        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + value.hashCode(), Map.of(
-            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
+        final Resource set = this.answerSet(requirementOf(questionPath));
+        final Resource answer = this.context.create().resource(
+            set.getPath() + "/" + value.hashCode(), Map.of(
+                TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
         reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+    }
+
+    /** The requirement a question belongs to: the first segment of its path, as the handler reads it. */
+    private static String requirementOf(final String questionPath)
+    {
+        final int boundary = questionPath.indexOf('/');
+        return boundary < 0 ? questionPath : questionPath.substring(0, boundary);
+    }
+
+    /**
+     * The set of answers for one requirement, made once and shared by every answer given for it.
+     *
+     * @param requirement the requirement's name, which is the first segment of a question's path
+     * @return the set to hang the answer under
+     */
+    private Resource answerSet(final String requirement)
+    {
+        final String path = SUBMISSION_PATH + "/answers-" + requirement;
+        final Resource existing = this.context.resourceResolver().getResource(path);
+        if (existing != null) {
+            return existing;
+        }
+        final Resource set = this.context.create().resource(path, Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
+        reference(set.getPath(), VERSION_PATH + "/" + requirement, "fulfills");
+        return set;
     }
 
     private void reference(final String fromPath, final String toPath, final String property)

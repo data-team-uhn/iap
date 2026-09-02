@@ -154,14 +154,32 @@ public class Submission extends Entity
     }
 
     /**
-     * The submitter's answers to the schema questions.
+     * The sets of answers, one per set of questions anybody has answered.
+     *
+     * @return a list of answer sets, empty if nothing has been answered
+     */
+    @NotNull
+    public List<AnswerSet> getAnswerSets()
+    {
+        return this.getChildren(AnswerSet.RESOURCE_TYPE, AnswerSet.class);
+    }
+
+    /**
+     * The submitter's answers to the schema questions, across every set.
+     *
+     * <p>Flattened deliberately: almost everything reading answers wants all of them — the index below, the
+     * form projection, a validator — and which set an answer came from is only of interest to whatever is
+     * deciding about that one requirement.</p>
      *
      * @return a list of answers, empty if none
      */
     @NotNull
     public List<Answer> getAnswers()
     {
-        return this.getChildren(Answer.RESOURCE_TYPE, Answer.class);
+        return this.getAnswerSets().stream()
+            .map(AnswerSet::getAnswers)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -332,13 +350,12 @@ public class Submission extends Entity
             // Asked for, not demanded. Whether it is asked at all is its condition's decision, made before this
             return true;
         }
-        if (requirement instanceof FormRequirement) {
-            // Only questions demanding at least one value can leave it unmet: an optional one is asked, not
-            // demanded, and a submission is not incomplete for declining to answer it. Without this filter
-            // `minAnswers` would mean nothing at all
-            return this.getQuestionsOf((FormRequirement) requirement).stream()
-                .filter(Question::isRequired)
-                .allMatch(this::isAnswered);
+        if (requirement instanceof FormRequirement && this.demandsNothing((FormRequirement) requirement)) {
+            // Nothing is owed, so nothing has to have been filed. This is the same exception as the document one
+            // above, and it is the reason grouping answers under a sub:AnswerSet does not remove the type test
+            // altogether: a set of entirely optional questions is met before anybody has answered one, and there
+            // is therefore no answer set to say so
+            return true;
         }
         return filed.containsKey(requirement.getPath());
     }
@@ -363,6 +380,39 @@ public class Submission extends Entity
             .map(this::getQuestionsOf)
             .flatMap(List::stream)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Whether every question of one set that demands an answer has one.
+     *
+     * <p>Public because a {@link AnswerSet} is asked whether it meets its requirement and cannot work it out
+     * itself: which questions are being asked depends on conditions evaluated against this submission. It is the
+     * same walk {@link #getMissingRequirements} judges by, so the two cannot disagree about what was demanded.</p>
+     *
+     * <p>Only questions demanding at least one value can leave it unmet: an optional one is asked, not demanded,
+     * and a submission is not incomplete for declining to answer it. Without that filter {@code minAnswers} would
+     * mean nothing at all.</p>
+     *
+     * @param form the set of questions in question
+     * @return {@code true} if every question it demands an answer to has one
+     */
+    public boolean isFullyAnswered(@NotNull final FormRequirement form)
+    {
+        return this.getQuestionsOf(form).stream()
+            .filter(Question::isRequired)
+            .allMatch(this::isAnswered);
+    }
+
+    /**
+     * Whether a set of questions demands nothing at all: none of the questions currently being asked requires an
+     * answer, so it is met before anybody has answered one.
+     *
+     * @param form the set of questions in question
+     * @return {@code true} if it demands no answer
+     */
+    private boolean demandsNothing(final FormRequirement form)
+    {
+        return this.getQuestionsOf(form).stream().noneMatch(Question::isRequired);
     }
 
     private List<Question> getQuestionsOf(final FormRequirement form)

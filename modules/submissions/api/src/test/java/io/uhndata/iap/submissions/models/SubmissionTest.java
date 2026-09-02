@@ -83,6 +83,11 @@ class SubmissionTest
 
     private static final String SCHEMA_VERSION_ID = "schema-version-uuid";
 
+    private static final String FORM_ID = "form-uuid";
+
+    /** Answers hang under the set naming the requirement they were given for, not under the submission. */
+    private static final String ANSWER_SET_PATH = "/Submissions/submission/answers";
+
     private static final String QUESTION_1_ID = "q1-uuid";
 
     /** Where the questions the fixture builds actually live, which is what the answer index is keyed by. */
@@ -107,7 +112,7 @@ class SubmissionTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
+        this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class, AnswerSet.class,
             Document.class, Review.class, ReviewComment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
             SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class, Schema.class,
@@ -151,11 +156,24 @@ class SubmissionTest
 
         final Session session = Mockito.mock(Session.class);
         this.mockNode(session, SCHEMA_VERSION_ID, "/Schemas/schema/1.0");
+        this.mockNode(session, FORM_ID, "/Schemas/schema/1.0/form");
         this.mockNode(session, QUESTION_1_ID, "/Schemas/schema/1.0/form/section/q1");
         this.mockNode(session, QUESTION_2_ID, "/Schemas/schema/1.0/form/q2");
         this.mockNode(session, CONSENT_ID, "/Schemas/schema/1.0/consent");
         this.mockNode(session, REB_ID, "/Schemas/schema/1.0/reb");
         this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+    }
+
+    /**
+     * The set the answers below hang under, naming the form requirement they answer.
+     *
+     * <p>Called after the submission itself exists, because creating a descendant first would leave
+     * sling-mock holding an untyped node where the submission is meant to be.</p>
+     */
+    private void createAnswerSet()
+    {
+        this.context.create().resource(ANSWER_SET_PATH, Map.of(
+            SLING_RESOURCE_TYPE, AnswerSet.RESOURCE_TYPE, "fulfills", FORM_ID));
     }
 
     private void mockNode(final Session session, final String identifier, final String path)
@@ -256,11 +274,15 @@ class SubmissionTest
     {
         final Resource resource = this.context.create().resource(SUBMISSION_PATH,
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE);
-        this.context.create().resource("/Submissions/submission/a1", SLING_RESOURCE_TYPE, "sub/Answer");
+        // An answer hangs under the set that says which requirement it was given for, not under the
+        // submission itself
+        this.context.create().resource("/Submissions/submission/s1", SLING_RESOURCE_TYPE, "sub/AnswerSet");
+        this.context.create().resource("/Submissions/submission/s1/a1", SLING_RESOURCE_TYPE, "sub/Answer");
         this.context.create().resource("/Submissions/submission/d1", SLING_RESOURCE_TYPE, "sub/Document");
         this.context.create().resource("/Submissions/submission/r1", SLING_RESOURCE_TYPE, "sub/Review");
         final Submission submission = resource.adaptTo(Submission.class);
 
+        assertEquals(1, submission.getAnswerSets().size());
         assertEquals(1, submission.getAnswers().size());
         assertEquals("a1", submission.getAnswers().get(0).getName());
         assertEquals(1, submission.getDocuments().size());
@@ -390,13 +412,14 @@ class SubmissionTest
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID, VALUE, new String[]{ "no" }));
         // An answer with no question set is ignored rather than breaking the fulfillment check.
-        this.context.create().resource("/Submissions/submission/a3",
+        this.context.create().resource(ANSWER_SET_PATH + "/a3",
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE);
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
@@ -414,14 +437,15 @@ class SubmissionTest
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
         // No value at all, which the node type permits and which means the same as carrying nothing
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID));
         // Answers nothing that is being asked, so it is not in the index at all
-        this.context.create().resource("/Submissions/submission/a3", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a3", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE));
 
         final Submission submission = Objects.requireNonNull(resource.adaptTo(Submission.class));
@@ -440,7 +464,8 @@ class SubmissionTest
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes", "and also" }));
 
@@ -458,7 +483,8 @@ class SubmissionTest
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
         // Asked, but answered with a blank, which is not an answer
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "   " }));
 
@@ -504,10 +530,11 @@ class SubmissionTest
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "   " }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID, VALUE,
             new String[]{ "no" }));
 
@@ -528,9 +555,10 @@ class SubmissionTest
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE, new String[0]));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
 
@@ -550,10 +578,11 @@ class SubmissionTest
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
         // The nested section's question is answered; the direct question (q2) has an empty value, which
         // doesn't count as answered.
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID, VALUE, new String[0]));
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
@@ -613,6 +642,7 @@ class SubmissionTest
             "label", "Something this module has never heard of"));
         final Session session = Mockito.mock(Session.class);
         this.mockNode(session, SCHEMA_VERSION_ID, "/Schemas/schema/1.0");
+        this.mockNode(session, FORM_ID, "/Schemas/schema/1.0/form");
         this.mockNode(session, QUESTION_1_ID, QUESTION_1_PATH);
         this.mockNode(session, QUESTION_2_ID, QUESTION_2_PATH);
         this.mockNode(session, CONSENT_ID, "/Schemas/schema/1.0/consent");
@@ -703,10 +733,11 @@ class SubmissionTest
     {
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID, VALUE, q2Values));
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
@@ -749,10 +780,11 @@ class SubmissionTest
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID, VALUE, new String[]{ "no" }));
         // This document fulfills a different requirement (the REB approval), not the consent form.
         this.context.create().resource("/Submissions/submission/d1", Map.of(
@@ -778,10 +810,11 @@ class SubmissionTest
             .adaptTo(ModifiableValueMap.class)).put("required", false);
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID, VALUE, new String[]{ "no" }));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
             SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", REB_ID, "tags", new String[] { "approved" }));
@@ -799,10 +832,11 @@ class SubmissionTest
         this.createSchemaVersionWithRequirements();
         final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
             SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE, "schemaVersion", SCHEMA_VERSION_ID));
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID, VALUE, new String[]{ "no" }));
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
@@ -827,6 +861,29 @@ class SubmissionTest
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertThrows(NullPointerException.class, submission::getMissingRequirements);
+    }
+
+    // A set of questions that demands nothing is met before anybody has answered one -- and in that case there
+    // is no answer set to say so, which is exactly why grouping answers under one does not remove the type test
+    // from the walk. Without this branch such a requirement would be reported missing forever.
+    @Test
+    void doesNotMissASetOfQuestionsThatDemandsNothing()
+        throws RepositoryException
+    {
+        this.context.create().resource("/Schemas/schema/1.0", SLING_RESOURCE_TYPE, SchemaVersion.RESOURCE_TYPE);
+        this.context.create().resource("/Schemas/schema/1.0/optional", Map.of(
+            SLING_RESOURCE_TYPE, FormRequirement.RESOURCE_TYPE, "sling:resourceSuperType",
+            Requirement.RESOURCE_TYPE, "label", "Anything you would like to add"));
+        this.context.create().resource("/Schemas/schema/1.0/optional/q", Map.of(
+            SLING_RESOURCE_TYPE, Question.RESOURCE_TYPE, "sling:resourceSuperType", FormItem.RESOURCE_TYPE,
+            "minAnswers", 0L,
+            "text", "Anything else?"));
+        final Session session = Mockito.mock(Session.class);
+        this.mockNode(session, SCHEMA_VERSION_ID, "/Schemas/schema/1.0");
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+        final Submission submission = this.createBareSubmission();
+
+        assertTrue(submission.getMissingRequirements().isEmpty());
     }
 
     /**
@@ -898,7 +955,8 @@ class SubmissionTest
             SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
         final Submission submission = this.createBareSubmission();
         // Only the direct question (q2) is answered; q1 sits in the non-applicable section.
-        this.context.create().resource("/Submissions/submission/a2", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_2_ID, VALUE, new String[]{ "no" }));
 
         final List<Requirement> missing = submission.getMissingRequirements();
@@ -919,7 +977,8 @@ class SubmissionTest
             SLING_RESOURCE_TYPE, SingleCondition.RESOURCE_TYPE, "comparator", "equals"));
         final Submission submission = this.createBareSubmission();
         // Only the nested question (q1) is answered; q2 doesn't apply.
-        this.context.create().resource("/Submissions/submission/a1", Map.of(
+        this.createAnswerSet();
+        this.context.create().resource(ANSWER_SET_PATH + "/a1", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, QUESTION, QUESTION_1_ID, VALUE,
             new String[]{ "yes" }));
 

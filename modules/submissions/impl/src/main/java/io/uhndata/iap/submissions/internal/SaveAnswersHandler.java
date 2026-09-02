@@ -18,6 +18,7 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,12 +32,15 @@ import javax.jcr.RepositoryException;
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.AnswerOption;
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -70,8 +74,11 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String NAME = "saveAnswers";
 
-    /** The only lifecycle in which a submission may still be written to by its submitter. */
+    /** Where an answer records the question it answers. */
     private static final String QUESTION = "question";
+
+    /** Where a set of answers records the requirement it answers. */
+    private static final String FULFILLS = "fulfills";
 
     private static final String VALUE = "value";
 
@@ -89,11 +96,15 @@ public class SaveAnswersHandler implements ServiceTaskHandler
             "The save workflow only applies to submissions");
         checkMayEdit(submission, context.getActor());
         final Resource version = versionOf(submission, target);
+        // The sets made while saving this one payload, by the requirement they answer. Carried rather than read
+        // back off the submission each time: a set created a moment ago is not yet among the children the model
+        // reports, so answering two questions of one set would otherwise make a second set for the second answer
+        final Map<String, Resource> made = new HashMap<>();
         for (final Map.Entry<String, Object> entry : context.getEvent().getPayload().entrySet()) {
             final Resource question = question(version, entry.getKey());
             final String[] values = values(entry.getValue());
             checkOffered(question, values);
-            record(submission, target, question, values);
+            record(submission, target, requirementOf(version, entry.getKey()), question, values, made);
         }
     }
 
@@ -215,8 +226,9 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * @param values the submitted values
      * @throws PersistenceException when the answer cannot be written
      */
-    private void record(final Submission submission, final Resource target, final Resource question,
-        final String[] values) throws PersistenceException
+    private void record(final Submission submission, final Resource target, final Resource requirement,
+        final Resource question, final String[] values, final Map<String, Resource> made)
+        throws PersistenceException
     {
         final String existing = answered(submission, question);
         if (existing != null) {
@@ -224,9 +236,66 @@ public class SaveAnswersHandler implements ServiceTaskHandler
                 "An answer the submission just reported is still where it said")).put(VALUE, values);
             return;
         }
-        final Resource answer = target.getResourceResolver().create(target, UUID.randomUUID().toString(),
+        final Resource set = answerSet(submission, target, requirement, made);
+        final Resource answer = target.getResourceResolver().create(set, UUID.randomUUID().toString(),
             Map.of("jcr:primaryType", "sub:Answer", VALUE, values));
-        reference(answer, question);
+        reference(answer, QUESTION, question);
+    }
+
+    /**
+     * The set holding this requirement's answers, made if this is the first answer given for it.
+     *
+     * <p>Found by the reference the set carries rather than by any name, for the same reason an answer is: a name
+     * would have to change if the requirement were ever renamed, and what a set is for is a reference.</p>
+     *
+     * @param submission the submission being edited
+     * @param target the submission's own resource, which the sets are children of
+     * @param requirement the set of questions being answered
+     * @return the set to put the answer in
+     * @throws PersistenceException when a new set cannot be written
+     */
+    private Resource answerSet(final Submission submission, final Resource target, final Resource requirement,
+        final Map<String, Resource> made) throws PersistenceException
+    {
+        final Resource remembered = made.get(requirement.getPath());
+        if (remembered != null) {
+            return remembered;
+        }
+        final ResourceResolver resolver = target.getResourceResolver();
+        for (final AnswerSet set : submission.getAnswerSets()) {
+            final Requirement named = set.getFulfills();
+            if (named != null && requirement.getPath().equals(named.getPath())) {
+                return Objects.requireNonNull(resolver.getResource(set.getPath()),
+                    "A set the submission just reported is still where it said");
+            }
+        }
+        // A UUID, because a set has no name of its own: what it answers is a reference, not a label
+        final Resource set = resolver.create(target, UUID.randomUUID().toString(),
+            Map.of("jcr:primaryType", "sub:AnswerSet"));
+        reference(set, FULFILLS, requirement);
+        made.put(requirement.getPath(), set);
+        return set;
+    }
+
+    /**
+     * The requirement a question belongs to, which is the first segment of its path.
+     *
+     * <p>A question's path is given relative to the schema version, and a schema version holds requirements and
+     * nothing else — so whatever a question is nested inside, the segment naming the requirement is the first
+     * one. Read from the path rather than by walking up from the question, because the walk would have to know
+     * how deeply sections may nest and this does not.</p>
+     *
+     * @param version the schema version the paths are relative to
+     * @param path the question's path relative to that version
+     * @return the requirement's resource
+     */
+    private Resource requirementOf(final Resource version, final String path)
+    {
+        // Stated as an assumption rather than guarded: the caller has already resolved this path to a question,
+        // and a schema version holds requirements and nothing else, so the first segment always names one. A
+        // guard here could not be reached, and an unreachable guard is a branch nothing can ever cover
+        return Objects.requireNonNull(version.getChild(path.split("/", 2)[0]),
+            "A question's path begins with the set of questions holding it");
     }
 
     /**
@@ -262,16 +331,17 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * @param question the question it answers
      * @throws PersistenceException when the repository refuses the reference
      */
-    private void reference(final Resource answer, final Resource question) throws PersistenceException
+    private void reference(final Resource from, final String property, final Resource to)
+        throws PersistenceException
     {
-        final Node answerNode = Objects.requireNonNull(answer.adaptTo(Node.class),
-            "A freshly created answer is always backed by a JCR node");
-        final Node questionNode = Objects.requireNonNull(question.adaptTo(Node.class),
-            "A question read from the schema is always backed by a JCR node");
+        final Node fromNode = Objects.requireNonNull(from.adaptTo(Node.class),
+            "A freshly created node is always backed by a JCR node");
+        final Node toNode = Objects.requireNonNull(to.adaptTo(Node.class),
+            "A node read from the schema is always backed by a JCR node");
         try {
-            answerNode.setProperty(QUESTION, questionNode);
+            fromNode.setProperty(property, toNode);
         } catch (final RepositoryException e) {
-            throw new PersistenceException("Could not reference the question", e);
+            throw new PersistenceException("Could not reference " + to.getPath(), e);
         }
     }
 

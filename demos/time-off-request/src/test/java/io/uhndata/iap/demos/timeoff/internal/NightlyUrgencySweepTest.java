@@ -54,6 +54,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
 
@@ -278,7 +279,8 @@ class NightlyUrgencySweepTest
         final Resource submission = this.context.create().resource(path, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", name, "tags", new String[] {"submitted"}));
         reference(submission, version, "schemaVersion");
-        this.context.create().resource(path + "/start", Map.of(
+        this.context.create().resource(path + "/answers", Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
+        this.context.create().resource(path + "/answers/start", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "question", identifierOf(version + "/details/startDate"),
             "value", new String[] {startDate}));
     }
