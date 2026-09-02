@@ -36,6 +36,7 @@ Tests are **skipped by default** for fast local builds. Useful Maven flags:
 | `-DwebpackArguments=--mode=production` | Build the frontend in production mode (default is `development`). |
 | `-Dcheckstyle.skip=true` | Skip the Checkstyle checks. |
 | `-Denforcer.skip=true` | Skip the Maven Enforcer checks. |
+| `-Pclean-node` | Have `clean` also delete the downloaded Node toolchain and `node_modules`, which it keeps by default because re-downloading them every build is slow. Reach for it when a package manager leaves those trees in a state the next install cannot repair. |
 
 ## Running
 

@@ -2290,7 +2290,10 @@
     </profile>
 
     <profile>
-      <!-- Node resources are like binary dependencies, so they should be cleaned as well. However, re-downloading Node and its modules for every build is pointless, thus cleaning them is optional. -->
+      <!-- Node resources are like binary dependencies, so they should be cleaned as well. However, re-downloading Node and its modules for every build is pointless, thus cleaning them is optional.
+           The lockfile is deliberately not among them: it is version-controlled, and it describes the tree
+           this profile rebuilds rather than being part of that tree. Deleting it would turn a recovery from
+           a broken node_modules into a silent dependency upgrade. -->
       <id>clean-node</id>
       <activation>
         <activeByDefault>false</activeByDefault>
@@ -2309,13 +2312,38 @@
                   <goal>clean</goal>
                 </goals>
                 <configuration>
-                  <filesets>
+                  <!-- combine.self="override" is what makes this profile do anything at all. A child
+                       pom's plugin-level clean configuration is merged into this execution rather
+                       than replaced by it, and aggregated-frontend's carries an allow-list of files
+                       to keep, including **/node/** and **/node_modules/**. Merged in here those
+                       excludes cancel the includes below, and since excludes win, the profile
+                       deleted nothing whilst still reporting success. Only the effective pom shows
+                       it: neither pom is wrong on its own. -->
+                  <filesets combine.self="override">
                     <fileset>
                       <directory>src/main/frontend/</directory>
                       <includes>
                         <include>node/</include>
                         <include>node_modules/</include>
-                        <include>yarn.lock</include>
+                      </includes>
+                    </fileset>
+                    <!-- The integration tests install a second tree of their own, which the path
+                         above does not reach. Named twice because that module is only in the reactor
+                         under -PintegrationTests: the aggregator-relative path clears it for a plain
+                         -Pclean-node, and the module-relative one for a build of the module alone.
+                         Wherever a directory is absent the fileset is simply skipped. -->
+                    <fileset>
+                      <directory>integration-tests/src/test/e2e/</directory>
+                      <includes>
+                        <include>node/</include>
+                        <include>node_modules/</include>
+                      </includes>
+                    </fileset>
+                    <fileset>
+                      <directory>src/test/e2e/</directory>
+                      <includes>
+                        <include>node/</include>
+                        <include>node_modules/</include>
                       </includes>
                     </fileset>
                   </filesets>
