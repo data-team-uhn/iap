@@ -43,6 +43,7 @@
             <Sling-Model-Packages>io.uhndata.iap.datarequirement.models</Sling-Model-Packages>
             <Sling-Initial-Content>
               SLING-INF/content/libs/datareq/;path:=/libs/datareq/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>
           </instructions>
