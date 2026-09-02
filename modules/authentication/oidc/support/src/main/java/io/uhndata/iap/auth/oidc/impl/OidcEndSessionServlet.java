@@ -35,12 +35,20 @@ import org.osgi.service.metatype.annotations.Designate;
  * Completes an OIDC logout by redirecting the browser to the provider's end-session endpoint.
  *
  * <p>
- * {@link OidcLogoutAuthenticationHandler} tears down the local session and steers Sling's post-logout
- * redirect here, because it cannot issue the cross-host redirect itself (see that class). This servlet
- * then redirects the now-anonymous browser to the provider's {@code end_session_endpoint}, passing a
+ * The fallback path. {@link OidcLogoutAuthenticationHandler} normally ends the provider's session
+ * itself, server to server, and only steers Sling's post-logout redirect here when that could not be
+ * done -- because it cannot issue the cross-host redirect itself (see that class). This servlet then
+ * redirects the now-anonymous browser to the provider's {@code end_session_endpoint}, passing a
  * {@code client_id} and a registered {@code post_logout_redirect_uri}, so the provider ends its own
  * SSO session and returns the browser to the landing page. It is reachable without authentication
  * because the caller has already been logged out by the time it runs.
+ * </p>
+ *
+ * <p>
+ * Carrying the logout in the browser is weaker than the back-channel call: without an
+ * {@code id_token_hint} the provider asks the user to confirm, and closing the tab at that point
+ * leaves the SSO session alive. The ID token is never persisted by the OAuth client, so it cannot be
+ * supplied here.
  * </p>
  *
  * @version $Id$

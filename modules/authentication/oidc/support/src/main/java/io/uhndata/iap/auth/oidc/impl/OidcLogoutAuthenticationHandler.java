@@ -45,7 +45,7 @@ import io.uhndata.iap.httprequests.api.HttpRequests;
 import io.uhndata.iap.httprequests.api.HttpResponse;
 
 /**
- * Expires the OIDC session cookie on logout.
+ * Expires the OIDC session cookie on logout, and ends the provider's SSO session with it.
  *
  * <p>
  * The Apache Sling OAuth client's {@code OidcAuthenticationHandler} has an empty
@@ -53,10 +53,18 @@ import io.uhndata.iap.httprequests.api.HttpResponse;
  * session but leaves its {@code sling.oidcauth} cookie in place; the next request presents that
  * still-valid cookie and is silently signed back in. Sling invokes {@code dropCredentials} on every
  * authentication handler registered for the logout path, so this handler sits at {@code /} to expire
- * that cookie and, when the session was an OIDC one, steer Sling's post-logout redirect to the
- * {@link OidcEndSessionServlet} so the provider's SSO session is ended too. It never takes part in
- * authentication: {@code extractCredentials} abstains and {@code requestCredentials} declines,
- * leaving the login gate to the form and OIDC handlers.
+ * that cookie when the session was an OIDC one. It never takes part in authentication:
+ * {@code extractCredentials} abstains and {@code requestCredentials} declines, leaving the login
+ * gate to the form and OIDC handlers.
+ * </p>
+ *
+ * <p>
+ * Clearing the local session is only half of it: the provider's own SSO session outlives it, and
+ * would sign the user straight back in on the next click. This ends that session back-channel,
+ * presenting the user's stored refresh token to the provider directly. Only if that cannot be done
+ * does it fall back to steering Sling's post-logout redirect to the {@link OidcEndSessionServlet},
+ * which asks the browser to carry the logout instead -- a route the user can abandon at the
+ * provider's confirmation screen, which is why it is the fallback rather than the default.
  * </p>
  *
  * @version $Id$
