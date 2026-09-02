@@ -27,6 +27,8 @@ interface TriStateCheckboxProps {
   state: CheckState;
   /** Called with `true` to select everything below, or `false` to deselect it. */
   onChange: (select: boolean) => void;
+  /** Still says what is chosen, but cannot be pressed. */
+  disabled?: boolean;
   "aria-label": string;
 }
 
@@ -34,12 +36,13 @@ interface TriStateCheckboxProps {
  * The checkbox for a whole database or collection, showing all, some or none of it chosen. Pressing
  * it while some are chosen selects all, so no choice is lost.
  */
-export default function TriStateCheckbox({ state, onChange, "aria-label": ariaLabel }:
-TriStateCheckboxProps) {
+export default function TriStateCheckbox({ state, onChange, disabled = false,
+  "aria-label": ariaLabel }: TriStateCheckboxProps) {
   return (
     <Checkbox
       checked={state === "all"}
       indeterminate={state === "some"}
+      disabled={disabled}
       onClick={(event: MouseEvent<HTMLButtonElement>) => {
         // The row behind this is a button of its own, and clicking the box is not clicking the row
         event.stopPropagation();

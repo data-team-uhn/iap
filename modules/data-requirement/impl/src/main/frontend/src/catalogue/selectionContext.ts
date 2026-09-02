@@ -32,6 +32,11 @@ export interface SelectionContextValue {
   /** The keys of the chosen fields, as `database/collection/field`. */
   selected: ReadonlySet<string>;
   count: number;
+  /**
+   * Whether the selection is shown without letting it change. Controls read this to disable
+   * themselves, and the functions below refuse as well.
+   */
+  readOnly: boolean;
   isSelected: (key: string) => boolean;
   /** Turns one field on if it is off, or off if it is on. */
   toggleField: (key: string) => void;
