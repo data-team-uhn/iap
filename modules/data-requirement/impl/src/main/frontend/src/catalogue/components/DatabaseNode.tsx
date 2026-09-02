@@ -22,6 +22,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
 import { useGroupSelection } from "../useGroupSelection";
+import { useSelection } from "../useSelection";
 import { CountPill } from "./badges";
 import CollectionNode from "./CollectionNode";
 import { countOf } from "./countOf";
@@ -45,6 +46,7 @@ export default function DatabaseNode({ entry, expansion, searching }: DatabaseNo
     () => collections.flatMap(collection => collection.fields.map(field => field.key)),
     [ collections ]);
   const { selectedCount, state, setAll } = useGroupSelection(visibleKeys);
+  const { readOnly } = useSelection();
   const open = expansion.isDatabaseOpen(database.identifier, searching);
 
   return (
@@ -69,6 +71,7 @@ export default function DatabaseNode({ entry, expansion, searching }: DatabaseNo
         <TriStateCheckbox
           state={state}
           onChange={setAll}
+          disabled={readOnly}
           aria-label={`Select all fields in ${database.label}`}
         />
         <Typography

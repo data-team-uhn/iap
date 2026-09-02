@@ -44,6 +44,11 @@ export interface DataCatalogueProps {
   value: readonly string[];
   /** Called with the keys of the whole new selection after each change. */
   onChange: (keys: string[]) => void;
+  /**
+   * Shows what was chosen without offering to change it. Every control that would change it is
+   * disabled or left out, and `onChange` is never called.
+   */
+  readOnly?: boolean;
   /** The host's overrides of the default display config. */
   display?: DisplayOverride;
   /** Controls the host puts at the foot of the selection panel, such as a Save button. */
@@ -110,10 +115,10 @@ function Browser({ actions, notices }: { actions?: ReactNode; notices?: ReactNod
  * selection, and each change is reported through `onChange`.
  */
 export default function DataCatalogue({ catalogue, loading, error, value, onChange, display,
-  actions, notices }: DataCatalogueProps) {
+  actions, notices, readOnly }: DataCatalogueProps) {
   return (
     <CatalogueProvider catalogue={catalogue} loading={loading} error={error} display={display}>
-      <SelectionProvider value={value} onChange={onChange}>
+      <SelectionProvider value={value} onChange={onChange} readOnly={readOnly}>
         <Browser actions={actions} notices={notices} />
       </SelectionProvider>
     </CatalogueProvider>

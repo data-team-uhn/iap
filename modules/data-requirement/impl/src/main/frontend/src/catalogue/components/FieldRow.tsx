@@ -32,19 +32,18 @@ interface FieldRowProps {
   selected: boolean;
   display: FieldDisplayConfig;
   onToggle: (key: string) => void;
+  /** Still says whether the field was chosen, but cannot be changed. */
+  readOnly?: boolean;
 }
 
 /**
- * One field, and whether it has been chosen.
- *
- * The whole row is clickable for convenience, but the checkbox is the control: assistive technology
- * sees one checkbox rather than a button wrapping one, and the row itself is not focusable — which
- * is why it carries no focus ring of its own.
+ * One field, and whether it has been chosen. A click anywhere on the row toggles it, but only the
+ * checkbox is focusable, so assistive technology sees one checkbox. A read-only row ignores clicks.
  */
-function FieldRow({ field, selected, display, onToggle }: FieldRowProps) {
+function FieldRow({ field, selected, display, onToggle, readOnly = false }: FieldRowProps) {
   return (
     <Box
-      onClick={() => { onToggle(field.key); }}
+      onClick={readOnly ? undefined : () => { onToggle(field.key); }}
       sx={{
         display: "flex",
         alignItems: "flex-start",
@@ -53,15 +52,18 @@ function FieldRow({ field, selected, display, onToggle }: FieldRowProps) {
         pl: { xs: "34px", md: "70px" },
         pr: { xs: 1.5, md: 2.25 },
         py: 1,
-        cursor: "pointer",
+        cursor: readOnly ? "default" : "pointer",
         borderLeft: 3,
         borderLeftColor: selected ? "primary.main" : "transparent",
         bgcolor: selected ? "action.selected" : "transparent",
-        "&:hover": { bgcolor: selected ? "action.selected" : "action.hover" },
+        "&:hover": {
+          bgcolor: selected ? "action.selected" : (readOnly ? "transparent" : "action.hover"),
+        },
       }}
     >
       <Checkbox
         checked={selected}
+        disabled={readOnly}
         onChange={() => { onToggle(field.key); }}
         onClick={event => { event.stopPropagation(); }}
         slotProps={{ input: { "aria-label": field.label } }}

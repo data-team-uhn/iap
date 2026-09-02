@@ -31,7 +31,7 @@ import type { SelectionGroup as SelectionGroupData } from "../selectionGrouping"
 /** What was chosen out of one collection, and the ways to give it back. */
 export default function SelectionGroup({ group }: { group: SelectionGroupData }) {
   const { display } = useCatalogue();
-  const { deselectFields } = useSelection();
+  const { deselectFields, readOnly } = useSelection();
 
   return (
     <Box sx={{ mb: 2.5 }}>
@@ -42,15 +42,18 @@ export default function SelectionGroup({ group }: { group: SelectionGroupData })
         <Typography variant="subtitle2" component="p" sx={{ flex: 1, minWidth: 0 }}>
           {group.collectionLabel}
         </Typography>
-        <Link
-          component="button"
-          type="button"
-          variant="caption"
-          onClick={() => { deselectFields(group.fields.map(field => field.key)); }}
-          sx={{ color: "text.secondary", "&:hover": { color: "error.main" } }}
-        >
-          Remove all
-        </Link>
+        {/* Left out, not disabled, where nothing may be removed */}
+        {!readOnly && (
+          <Link
+            component="button"
+            type="button"
+            variant="caption"
+            onClick={() => { deselectFields(group.fields.map(field => field.key)); }}
+            sx={{ color: "text.secondary", "&:hover": { color: "error.main" } }}
+          >
+            Remove all
+          </Link>
+        )}
       </Box>
       {group.fields.map(field => (
         <Box
@@ -76,15 +79,17 @@ export default function SelectionGroup({ group }: { group: SelectionGroupData })
               && <MonoId>{field.identifier}</MonoId>}
           </Box>
           {display.tree.field.showPhi && <PhiBadge phi={field.phi} />}
-          <IconButton
-            size="small"
-            onClick={() => { deselectFields([ field.key ]); }}
-            title="Remove field"
-            aria-label={`Remove ${field.label}`}
-            sx={{ flex: "none", color: "text.disabled", "&:hover": { color: "error.main" } }}
-          >
-            <CloseIcon sx={{ fontSize: 14 }} />
-          </IconButton>
+          {!readOnly && (
+            <IconButton
+              size="small"
+              onClick={() => { deselectFields([ field.key ]); }}
+              title="Remove field"
+              aria-label={`Remove ${field.label}`}
+              sx={{ flex: "none", color: "text.disabled", "&:hover": { color: "error.main" } }}
+            >
+              <CloseIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          )}
         </Box>
       ))}
     </Box>

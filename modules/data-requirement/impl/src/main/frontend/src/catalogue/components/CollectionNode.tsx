@@ -44,7 +44,7 @@ interface CollectionNodeProps {
 export default function CollectionNode({ collection, open, onToggleOpen, searching }:
 CollectionNodeProps) {
   const { display } = useCatalogue();
-  const { isSelected, toggleField } = useSelection();
+  const { isSelected, toggleField, readOnly } = useSelection();
   const visibleKeys = useMemo(() => collection.fields.map(field => field.key), [ collection.fields ]);
   const { selectedCount, state, setAll } = useGroupSelection(visibleKeys);
 
@@ -70,6 +70,7 @@ CollectionNodeProps) {
         <TriStateCheckbox
           state={state}
           onChange={setAll}
+          disabled={readOnly}
           aria-label={`Select all fields in ${collection.label}`}
         />
         {/* A long name gives way rather than pushing the count off a narrow screen */}
@@ -108,6 +109,7 @@ CollectionNodeProps) {
               selected={isSelected(field.key)}
               display={display.tree.field}
               onToggle={toggleField}
+              readOnly={readOnly}
             />
           ))}
         </Box>
