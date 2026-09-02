@@ -27,7 +27,8 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
  * @since 0.1.0
  */
 @ObjectClassDefinition(name = "IAP OIDC End Session Servlet",
-    description = "Redirects to the OIDC provider's end-session endpoint to complete a logout.")
+    description = "Redirects to the OIDC provider's end-session endpoint to complete a logout. The fallback for when "
+        + "the logout handler could not end the provider session back-channel.")
 public @interface OidcEndSessionConfiguration
 {
     /**

@@ -28,7 +28,8 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
  * @since 0.1.0
  */
 @ObjectClassDefinition(name = "IAP OIDC Logout Handler",
-    description = "Clears the OIDC session cookie on logout, which the Sling OAuth client itself does not.")
+    description = "Clears the OIDC session cookie on logout, which the Sling OAuth client itself does not, and ends "
+        + "the provider's SSO session back-channel so the next sign-in asks for credentials again.")
 public @interface OidcLogoutConfiguration
 {
     /**

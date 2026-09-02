@@ -68,33 +68,55 @@ no password prompt. Two pieces in the OIDC support bundle close that gap:
 
 - **`OidcLogoutAuthenticationHandler`** (registered at `/`, so Sling calls its `dropCredentials` on
   every logout). When the `sling.oidcauth` cookie is present — the sole signal that this was an OIDC
-  session — it expires that cookie and steers Sling's post-logout redirect (via the `resource`
-  request attribute) to the end-session servlet. A local (non-OIDC) logout is left untouched and
-  never involves Keycloak.
-- **`OidcEndSessionServlet`** (`/system/sling/oauth/logout`, auth-exempt). It redirects the browser
-  to Keycloak's `end_session_endpoint` with `client_id` and a registered `post_logout_redirect_uri`,
-  so Keycloak ends its SSO session and returns the now-anonymous browser to `/login`.
+  session — it expires that cookie and ends Keycloak's SSO session **back-channel**: it reads the
+  user's stored refresh token and POSTs it to Keycloak itself, server to server. A local (non-OIDC)
+  logout is left untouched and never involves Keycloak.
+- **`OidcEndSessionServlet`** (`/system/sling/oauth/logout`, auth-exempt). The **fallback**, used
+  only when the back-channel call could not be made. It redirects the browser to Keycloak's
+  `end_session_endpoint` with `client_id` and a registered `post_logout_redirect_uri`.
+
+The back-channel call is preferred because the redirect is **abandonable**: without an
+`id_token_hint` Keycloak shows a logout-confirmation screen, and a user who closes the tab there
+stays signed in to Keycloak, so the next sign-in click logs them straight back in with no prompt.
+The server-to-server call has no such window — Keycloak's session is gone before the response is
+written. Supplying `id_token_hint` would also skip the prompt, but the ID token is never persisted
+by the OAuth client, so it is not available at logout time.
+
+```
+Sign Out ──▶ GET /system/sling/logout
+   └─ OidcLogoutAuthenticationHandler.dropCredentials  (only when the cookie was present)
+        ├─ expire sling.oidcauth
+        ├─ read + decrypt the refresh token from the user's home
+        └─ POST {BACKEND_KEYCLOAK_REALM_URL}/protocol/openid-connect/logout
+             ?client_id=…&client_secret=…&refresh_token=…
+             ├─ accepted ──▶ SSO session ended; Sling's default post-logout redirect applies
+             └─ failed ──▶ set resource=/system/sling/oauth/logout, and
+                  redirectAfterLogout ──▶ OidcEndSessionServlet
+                       ──▶ {FRONTEND_KEYCLOAK_REALM_URL}/protocol/openid-connect/logout
+                            ?client_id=…&post_logout_redirect_uri={IAP_PUBLIC_URL}/login
+                            └─ Keycloak prompts to end the SSO session ──▶ GET /login
+```
+
+**The back-channel call needs the refresh token to be stored**, which takes two settings working
+together: `storeRefreshToken` on the OAuth client's UserInfo processor (which encrypts it into the
+credentials), and an entry in the sync handler's `user.propertyMapping` (`oauth/refresh_token=refresh_token`)
+that persists it onto the user's home node. Without the mapping the token is discarded at sync and
+every logout silently takes the fallback path. The handler reads it from the path named by its
+`refreshTokenPath`, so those two must agree.
+
+Note the two different Keycloak URLs: the back-channel POST uses **`BACKEND_KEYCLOAK_REALM_URL`**
+because IAP makes the call itself, while the fallback servlet uses **`FRONTEND_KEYCLOAK_REALM_URL`**
+because the browser does.
 
 `dropCredentials` cannot redirect to Keycloak itself: Sling runs `redirectAfterLogout` immediately
 after it (a second redirect on an already-committed response), and its `AuthUtil.isRedirectValid`
 rejects any absolute/external URL. Steering to a local servlet that then does the cross-host hop is
-the way around both constraints.
+the way around both constraints — which is why the fallback needs a servlet at all.
 
-```
-Sign Out ──▶ GET /system/sling/logout
-   ├─ OidcLogoutAuthenticationHandler.dropCredentials: expire sling.oidcauth,
-   │     set resource=/system/sling/oauth/logout   (only when the cookie was present)
-   └─ redirectAfterLogout ──▶ GET /system/sling/oauth/logout
-        └─ OidcEndSessionServlet ──▶ {FRONTEND_KEYCLOAK_REALM_URL}/protocol/openid-connect/logout
-               ?client_id=…&post_logout_redirect_uri={IAP_PUBLIC_URL}/login
-               └─ Keycloak ends the SSO session ──▶ GET /login
-```
-
-The `post_logout_redirect_uri` (`{IAP_PUBLIC_URL}/login`) must be registered on the Keycloak client
-as a **Valid post logout redirect URI** — `keycloak_setup.sh` sets the client's
+The fallback's `post_logout_redirect_uri` (`{IAP_PUBLIC_URL}/login`) must be registered on the
+Keycloak client as a **Valid post logout redirect URI** — `keycloak_setup.sh` sets the client's
 `post.logout.redirect.uris` attribute — otherwise Keycloak refuses it and shows its own
-logout-confirmation page instead of returning to IAP. The endpoint uses the **front-channel**
-`FRONTEND_KEYCLOAK_REALM_URL` because the browser is the one making the call.
+logout-confirmation page instead of returning to IAP.
 
 ## Enabling Keycloak sign-in
 
@@ -118,7 +140,7 @@ Sling process runs (Docker/K8s env, systemd unit, etc.):
 | Variable                        | Example                                   | Notes                                                                                                                                                                            |
 | ------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `FRONTEND_KEYCLOAK_REALM_URL`   | `https://keycloak.example.org/realms/iap` | Realm root as the **browser** reaches it: the issuer, and the base for the authorization and end-session (logout) endpoints.                                                     |
-| `BACKEND_KEYCLOAK_REALM_URL`    | `http://keycloak:8080/realms/iap`         | Realm root as **IAP** reaches it in-network: the base for the token, JWKS, and userinfo endpoints. Same as the frontend URL when IAP and Keycloak share a network.               |
+| `BACKEND_KEYCLOAK_REALM_URL`    | `http://keycloak:8080/realms/iap`         | Realm root as **IAP** reaches it in-network: the base for the token, JWKS, userinfo, and back-channel logout endpoints. Same as the frontend URL when IAP and Keycloak share a network. |
 | `KEYCLOAK_CLIENT_ID`            | `iap-sling`                               | The confidential client below.                                                                                                                                                   |
 | `KEYCLOAK_CLIENT_SECRET`        | (secret)                                  | The client's secret; never commit it. Must match the client's Credentials in Keycloak exactly.                                                                                   |
 | `IAP_PUBLIC_URL`                | `https://iap.example.org`                 | Public base URL of IAP; used to build the callback URI.                                                                                                                          |
@@ -308,7 +330,12 @@ ranking if you add a third crypto stack or copy one of these configs.
   sync). It is the higher-risk part of this setup — validate steps 6–7 against a live instance. To
   fall back to full sync, set `user.dynamicMembership: false` in the OIDC support feature and remove
   the `ExternalPrincipalConfiguration` entries from the OIDC support feature and `oak_base.json`.
-- `user.propertyMapping` claim names (`name`, `email`) are best-effort profile mapping; verify
-  against a real token and adjust. They do not affect authentication or authorization.
+- `user.propertyMapping`'s profile claims (`name`, `email`) are best-effort; verify against a real
+  token and adjust. They do not affect authentication or authorization. Its `oauth/refresh_token`
+  entry is **not** cosmetic, though — removing it breaks back-channel logout (see
+  [Sign-out flow](#sign-out-flow)), which fails silently into the redirect fallback.
+- The refresh token is stored, encrypted, on the user's home node. That is a credential at rest, so
+  `IAP_OAUTH_ENCRYPTION_PASSWORD` must be a real secret in production, and rotating it makes every
+  stored token undecryptable — logout then falls back to the redirect until users sign in again.
 - The OIDC handler's `extractCredentials` runs on every request (it covers `/`) to validate the
   session cookie. That's an intended cost of app-wide session recognition with a scoped login gate.
