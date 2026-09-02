@@ -30,6 +30,8 @@ import org.apache.sling.servlets.annotations.SlingServletPaths;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.metatype.annotations.Designate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Completes an OIDC logout by redirecting the browser to the provider's end-session endpoint.
@@ -60,6 +62,8 @@ import org.osgi.service.metatype.annotations.Designate;
 @Designate(ocd = OidcEndSessionConfiguration.class)
 public class OidcEndSessionServlet extends SlingJakartaSafeMethodsServlet
 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OidcEndSessionServlet.class);
+
     private static final long serialVersionUID = 1L;
 
     private String endSessionEndpoint;
@@ -80,6 +84,13 @@ public class OidcEndSessionServlet extends SlingJakartaSafeMethodsServlet
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
+        if (this.endSessionEndpoint == null || this.endSessionEndpoint.isEmpty())
+        {
+            LOGGER.error("The end session endpoint is not configured during OidcEndSessionServlet logout");
+            response.sendError(500, "The end session endpoint is not configured; please let an administrator know");
+            return;
+        }
+
         final String target = this.endSessionEndpoint
             + "?client_id=" + URLEncoder.encode(this.clientId, StandardCharsets.UTF_8)
             + "&post_logout_redirect_uri=" + URLEncoder.encode(this.postLogoutRedirectUri, StandardCharsets.UTF_8);
