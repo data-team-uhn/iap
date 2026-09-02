@@ -603,7 +603,7 @@ class SubmissionFormServletTest
             decided.set(Calendar.MILLISECOND, 500);
             modify(review.getPath(), "jcr:created", decided);
         }
-        reference(review.getPath(), VERSION_PATH + "/" + APPROVAL, "requirement");
+        reference(review.getPath(), VERSION_PATH + "/" + APPROVAL, "fulfills");
     }
 
     private void answer(final String questionPath, final String value)

@@ -34,10 +34,10 @@ import org.jetbrains.annotations.NotNull;
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
 import io.uhndata.iap.entities.models.Entity;
-import io.uhndata.iap.schemas.models.ApprovalRequirement;
 import io.uhndata.iap.schemas.models.DocumentRequirement;
 import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
+import io.uhndata.iap.schemas.models.Fulfiller;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.schemas.models.SchemaVersion;
@@ -146,12 +146,7 @@ public class Submission extends Entity
     public List<Review> getReviewsOf(@NotNull final Requirement requirement)
     {
         return this.getReviews().stream()
-            .filter(review -> {
-                // Resolved into a local: the reference lookup is not free, and a null check would not apply to a
-                // second, separate call
-                final Requirement reviewed = review.getRequirement();
-                return reviewed != null && requirement.getPath().equals(reviewed.getPath());
-            })
+            .filter(review -> review.answers(requirement))
             .collect(Collectors.toList());
     }
 
@@ -211,21 +206,29 @@ public class Submission extends Entity
     }
 
     /**
-     * The requirements of this submission's schema version that haven't been fulfilled yet: a <em>required</em>
-     * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
-     * approved {@link Review}, or a {@code FormRequirement} with a question given fewer answers than its
-     * {@code minAnswers} demands. An optional question left blank fulfils it just as well. Requirements, sections
-     * and questions whose condition doesn't currently hold for this submission don't apply, so they are never
-     * reported as missing.
+     * The requirements of this submission's schema version that nothing has met yet.
      *
-     * @return a list of unfulfilled requirements, empty if none are missing
+     * <p>Worked out by asking this submission's own parts what they answer — see {@link Fulfiller} — so a kind of
+     * answer declared by another module counts without this having to know what it is. A decision that refused
+     * and a selection that chose nothing are both filed against their requirement and both leave it unmet, which
+     * is the difference between naming a requirement and meeting it.</p>
+     *
+     * <p>Two requirements demand something of their own rather than of what is filed: a document nobody insisted
+     * on is met by nothing at all, and a set of questions is met by answering the ones it demands, an optional one
+     * left blank fulfilling it just as well.</p>
+     *
+     * <p>Requirements, sections and questions whose condition doesn't currently hold for this submission don't
+     * apply, so they are never reported as missing.</p>
+     *
+     * @return a list of unmet requirements, empty if none are missing
      */
     @NotNull
     public List<Requirement> getMissingRequirements()
     {
+        final Map<String, List<Fulfiller>> filed = this.byRequirement();
         return this.getSchemaVersion().getRequirements().stream()
             .filter(this::applies)
-            .filter(requirement -> !this.isFulfilled(requirement))
+            .filter(requirement -> !this.isFulfilled(requirement, filed))
             .collect(Collectors.toList());
     }
 
@@ -234,36 +237,56 @@ public class Submission extends Entity
         return this.conditionEvaluator == null || this.conditionEvaluator.applies(item, this);
     }
 
-    private boolean isFulfilled(final Requirement requirement)
+    /**
+     * What has been filed against each requirement, by the requirement's path.
+     *
+     * <p>Built by asking this submission's own parts what they answer, rather than by sending each requirement
+     * off to look for itself. Two things follow. It is one walk instead of one search per requirement. And a kind
+     * of answer some other module declared is gathered like any other, because saying what it answers — and
+     * whether it meets it — is the part's own business rather than something this has to recognise.</p>
+     *
+     * @return the parts meeting each requirement, keyed by path; a requirement nothing meets is absent
+     */
+    private Map<String, List<Fulfiller>> byRequirement()
     {
-        if (requirement instanceof DocumentRequirement) {
-            // An optional document is asked for but not demanded, so nothing attached still fulfils it. Whether
-            // it is asked at all is its condition's decision, made before this is ever reached.
-            // The reference is resolved into a local, both because resolving it twice would repeat the whole
-            // reference lookup, and because the null check wouldn't apply to a second, separate call
-            return !((DocumentRequirement) requirement).isRequired() || this.getDocuments().stream()
-                .anyMatch(document -> {
-                    final Requirement fulfilled = document.getFulfills();
-                    return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());
-                });
+        final Map<String, List<Fulfiller>> filed = new HashMap<>();
+        for (final Fulfiller part : this.getChildren(Fulfiller.class)) {
+            final Requirement answered = part.getFulfills();
+            // Filed against nothing, or filed and not meeting it: a refused decision names the approval it
+            // answers without granting it, and an emptied selection names its requirement having chosen nothing
+            if (answered != null && part.isFulfilling()) {
+                filed.computeIfAbsent(answered.getPath(), path -> new ArrayList<>()).add(part);
+            }
         }
-        if (requirement instanceof ApprovalRequirement) {
-            return this.getReviewsOf(requirement).stream().anyMatch(Review::isApproved);
+        return filed;
+    }
+
+    /**
+     * Whether one requirement has been met.
+     *
+     * <p>Mostly this is "something meets it", which is what the walk above worked out. The two exceptions are the
+     * requirements that demand something of their own rather than of what is filed: a document nobody insisted on
+     * is met by nothing at all, and a set of questions is met by answering the ones it demands.</p>
+     *
+     * @param requirement the requirement being judged
+     * @param filed what was filed against each requirement
+     * @return {@code true} if nothing more is owed for it
+     */
+    private boolean isFulfilled(final Requirement requirement, final Map<String, List<Fulfiller>> filed)
+    {
+        if (requirement instanceof DocumentRequirement && !((DocumentRequirement) requirement).isRequired()) {
+            // Asked for, not demanded. Whether it is asked at all is its condition's decision, made before this
+            return true;
         }
         if (requirement instanceof FormRequirement) {
-            // Only questions demanding at least one value can leave it unfulfilled: an optional one is asked, not
+            // Only questions demanding at least one value can leave it unmet: an optional one is asked, not
             // demanded, and a submission is not incomplete for declining to answer it. Without this filter
             // `minAnswers` would mean nothing at all
             return this.getQuestionsOf((FormRequirement) requirement).stream()
                 .filter(Question::isRequired)
                 .allMatch(this::isAnswered);
         }
-        // A kind of requirement declared by some other module. This one cannot know what fulfils it, and the two
-        // ways of guessing are not equally bad: reporting it unfulfilled would block every submission that carries
-        // one, with nothing anybody could do about it, where treating it as met leaves the requirement visible on
-        // the form and only leaves it out of the completeness tally. Whether a kind can block completeness at all
-        // is a decision for whoever declares it, and it needs an extension point this module does not yet have.
-        return true;
+        return filed.containsKey(requirement.getPath());
     }
 
     /**

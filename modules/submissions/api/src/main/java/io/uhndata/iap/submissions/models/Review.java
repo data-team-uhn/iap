@@ -27,7 +27,7 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.Fulfiller;
 import io.uhndata.iap.schemas.models.Requirement;
 import io.uhndata.iap.tags.models.Taggable;
 
@@ -37,9 +37,10 @@ import io.uhndata.iap.tags.models.Taggable;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = Review.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = { Review.class, Fulfiller.class },
+    resourceType = Review.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Review extends EntityPart
+public class Review extends Fulfiller
 {
     /** The {@code sling:resourceType} of a {@code sub:Review} node. */
     public static final String RESOURCE_TYPE = "sub/Review";
@@ -48,7 +49,7 @@ public class Review extends EntityPart
     private String reviewer;
 
     @ValueMapValue
-    private String requirement;
+    private String fulfills;
 
     /**
      * The principal name of the reviewer.
@@ -67,10 +68,23 @@ public class Review extends EntityPart
      * @return a requirement, or {@code null} if this review does not address a specific requirement, or it is
      *         unresolvable
      */
+    @Override
     @Nullable
-    public Requirement getRequirement()
+    public Requirement getFulfills()
     {
-        return this.getReference(this.requirement, Requirement.class);
+        return this.getReference(this.fulfills, Requirement.class);
+    }
+
+    /**
+     * A review meets the approval it addresses only by granting it. One that refused is still filed against the
+     * requirement — that is what makes the refusal readable — and leaves it unmet.
+     *
+     * @return {@code true} if this review approved
+     */
+    @Override
+    public boolean isFulfilling()
+    {
+        return this.isApproved();
     }
 
     /**

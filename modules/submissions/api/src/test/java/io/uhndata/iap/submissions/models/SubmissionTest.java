@@ -89,6 +89,10 @@ class SubmissionTest
 
     private static final String REB_ID = "reb-uuid";
 
+    private static final String FOREIGN_ID = "foreign-uuid";
+
+    private static final String FOREIGN_PATH = "/Schemas/schema/1.0/elsewhere";
+
     private final SlingContext context = new SlingContext();
 
     private Calendar created;
@@ -100,7 +104,7 @@ class SubmissionTest
             Document.class, Review.class, ReviewComment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
             SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class,
-            ForeignRequirement.class);
+            ForeignRequirement.class, ForeignFulfiller.class);
         this.created = Calendar.getInstance();
         this.created.set(2026, Calendar.APRIL, 5, 16, 20, 0);
     }
@@ -390,7 +394,7 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", REB_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertTrue(submission.getMissingRequirements().isEmpty());
@@ -484,7 +488,7 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", REB_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         final List<Requirement> missing = submission.getMissingRequirements();
@@ -509,22 +513,90 @@ class SubmissionTest
         assertEquals(FormRequirement.class, missing.get(0).getClass());
     }
 
-    // A kind of requirement declared by another module. Guessing that it is unfulfilled would block every
-    // submission carrying one with nothing anybody could do about it, so the walk passes over what it cannot
-    // judge rather than standing in the way of it
+    // Used by whatever renders an approval, and no longer reached by the completeness walk, which asks the
+    // reviews themselves whether they grant what they name
     @Test
-    void passesOverAKindOfRequirementItCannotJudge()
+    void collectsTheReviewsOfOneRequirement()
+        throws RepositoryException
+    {
+        this.createSchemaVersionWithRequirements();
+        final Submission submission = this.createBareSubmission();
+        this.context.create().resource(SUBMISSION_PATH + "/r1", Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", REB_ID, "reviewer", "alice"));
+        this.context.create().resource(SUBMISSION_PATH + "/r2", Map.of(
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", CONSENT_ID, "reviewer", "bob"));
+        final Requirement reb = this.context.resourceResolver().getResource("/Schemas/schema/1.0/reb")
+            .adaptTo(Requirement.class);
+
+        final List<Review> reviews = submission.getReviewsOf(reb);
+
+        assertEquals(1, reviews.size());
+        assertEquals("alice", reviews.get(0).getReviewer());
+    }
+
+    /** Adds a requirement of a kind declared by another module, and mocks its reference. */
+    private void foreignRequirement() throws RepositoryException
+    {
+        this.context.create().resource(FOREIGN_PATH, Map.of(
+            SLING_RESOURCE_TYPE, ForeignRequirement.RESOURCE_TYPE,
+            "sling:resourceSuperType", Requirement.RESOURCE_TYPE,
+            "label", "Something this module has never heard of"));
+        final Session session = Mockito.mock(Session.class);
+        this.mockNode(session, SCHEMA_VERSION_ID, "/Schemas/schema/1.0");
+        this.mockNode(session, QUESTION_1_ID, QUESTION_1_PATH);
+        this.mockNode(session, QUESTION_2_ID, QUESTION_2_PATH);
+        this.mockNode(session, CONSENT_ID, "/Schemas/schema/1.0/consent");
+        this.mockNode(session, REB_ID, "/Schemas/schema/1.0/reb");
+        this.mockNode(session, FOREIGN_ID, FOREIGN_PATH);
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+    }
+
+    // A kind of requirement declared by another module, with nothing filed against it. The walk does not have to
+    // recognise it to know it is owed: nothing on the submission claims it
+    @Test
+    void reportsAKindOfRequirementItCannotJudgeWhenNothingAnswersIt()
         throws RepositoryException
     {
         Tagging.enable(this.context);
         this.createSchemaVersionWithRequirements();
-        this.context.create().resource("/Schemas/schema/1.0/elsewhere", Map.of(
-            SLING_RESOURCE_TYPE, ForeignRequirement.RESOURCE_TYPE,
-            "sling:resourceSuperType", Requirement.RESOURCE_TYPE,
-            "label", "Something this module has never heard of"));
+        this.foreignRequirement();
         final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday" });
 
+        final List<Requirement> missing = submission.getMissingRequirements();
+
+        assertEquals(1, missing.size());
+        assertEquals(ForeignRequirement.class, missing.get(0).getClass());
+    }
+
+    // And the other way: a kind of answer it has never heard of counts, because saying what it answers and
+    // whether it meets it is that part's own business
+    @Test
+    void takesAKindOfAnswerItCannotJudgeAtItsWord()
+        throws RepositoryException
+    {
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        this.foreignRequirement();
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday" });
+        this.context.create().resource(SUBMISSION_PATH + "/elsewhere", Map.of(
+            SLING_RESOURCE_TYPE, ForeignFulfiller.RESOURCE_TYPE, "fulfills", FOREIGN_ID, "meets", true));
+
         assertTrue(submission.getMissingRequirements().isEmpty());
+    }
+
+    // Filed against it and not meeting it, which is what a refused decision looks like
+    @Test
+    void stillReportsItWhenWhatAnswersItSaysItIsNotMet()
+        throws RepositoryException
+    {
+        Tagging.enable(this.context);
+        this.createSchemaVersionWithRequirements();
+        this.foreignRequirement();
+        final Submission submission = this.createFulfilledExceptQ2(new String[]{ "monday" });
+        this.context.create().resource(SUBMISSION_PATH + "/elsewhere", Map.of(
+            SLING_RESOURCE_TYPE, ForeignFulfiller.RESOURCE_TYPE, "fulfills", FOREIGN_ID, "meets", false));
+
+        assertEquals(1, submission.getMissingRequirements().size());
     }
 
     @Test
@@ -569,7 +641,7 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", REB_ID, "tags", new String[] { "approved" }));
         return resource.adaptTo(Submission.class);
     }
 
@@ -616,7 +688,7 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", REB_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", REB_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         final List<Requirement> missing = submission.getMissingRequirements();
@@ -642,7 +714,7 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/a2", Map.of(
             SLING_RESOURCE_TYPE, Answer.RESOURCE_TYPE, "question", QUESTION_2_ID, "value", new String[]{ "no" }));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "approved" }));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", REB_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         assertTrue(submission.getMissingRequirements().isEmpty());
@@ -665,10 +737,10 @@ class SubmissionTest
         this.context.create().resource("/Submissions/submission/d1", Map.of(
             SLING_RESOURCE_TYPE, Document.RESOURCE_TYPE, "fulfills", CONSENT_ID));
         this.context.create().resource("/Submissions/submission/r1", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", REB_ID, "tags", new String[] { "in-progress" }));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", REB_ID, "tags", new String[] { "in-progress" }));
         // This review is approved, but addresses a different requirement (the consent document).
         this.context.create().resource("/Submissions/submission/r2", Map.of(
-            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "requirement", CONSENT_ID, "tags", new String[] { "approved" }));
+            SLING_RESOURCE_TYPE, Review.RESOURCE_TYPE, "fulfills", CONSENT_ID, "tags", new String[] { "approved" }));
         final Submission submission = resource.adaptTo(Submission.class);
 
         final List<Requirement> missing = submission.getMissingRequirements();

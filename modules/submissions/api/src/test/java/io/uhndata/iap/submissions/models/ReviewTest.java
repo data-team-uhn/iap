@@ -83,13 +83,13 @@ class ReviewTest
         final Resource resource = this.context.create().resource("/Submissions/submission/review", Map.of(
             "sling:resourceType", Review.RESOURCE_TYPE,
             "reviewer", "reviewer1",
-            "requirement", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
+            "fulfills", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
             "tags", new String[] { "in-progress" }));
         final Review review = resource.adaptTo(Review.class);
 
         assertEquals("reviewer1", review.getReviewer());
-        assertEquals(ApprovalRequirement.class, review.getRequirement().getClass());
-        assertEquals("REB approval", review.getRequirement().getLabel());
+        assertEquals(ApprovalRequirement.class, review.getFulfills().getClass());
+        assertEquals("REB approval", review.getFulfills().getLabel());
     }
 
     @Test

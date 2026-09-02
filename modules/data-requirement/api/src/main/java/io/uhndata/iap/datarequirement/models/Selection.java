@@ -28,7 +28,7 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.Fulfiller;
 import io.uhndata.iap.schemas.models.Requirement;
 
 /**
@@ -47,9 +47,10 @@ import io.uhndata.iap.schemas.models.Requirement;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = Selection.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = { Selection.class, Fulfiller.class },
+    resourceType = Selection.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Selection extends EntityPart
+public class Selection extends Fulfiller
 {
     /** The {@code sling:resourceType} of a {@code datareq:Selection} node. */
     public static final String RESOURCE_TYPE = "datareq/Selection";
@@ -68,10 +69,26 @@ public class Selection extends EntityPart
      *
      * @return a requirement, or {@code null} if the reference cannot be resolved
      */
+    @Override
     @Nullable
     public Requirement getFulfills()
     {
         return this.getReference(this.fulfills, Requirement.class);
+    }
+
+    /**
+     * A selection meets the requirement it answers only by holding something.
+     *
+     * <p>Clearing a selection leaves the node where it is rather than removing it, because the version it was
+     * bound to is worth keeping: coming back to it later carries on from the catalogue it started in. So an
+     * empty selection is a real state, and it is the state of not having chosen yet.</p>
+     *
+     * @return {@code true} if any field has been chosen
+     */
+    @Override
+    public boolean isFulfilling()
+    {
+        return !this.getFieldKeys().isEmpty();
     }
 
     /**

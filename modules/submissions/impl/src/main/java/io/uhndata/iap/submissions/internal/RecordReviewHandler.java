@@ -71,6 +71,9 @@ public class RecordReviewHandler implements ServiceTaskHandler
     /** The event entry carrying what the decider said about it. */
     static final String OUTCOME_NOTE = "outcomeNote";
 
+    /** Where the review records what it was filed against, named as every other such part names it. */
+    private static final String FULFILLS = "fulfills";
+
     @Override
     public String getName()
     {
@@ -143,7 +146,7 @@ public class RecordReviewHandler implements ServiceTaskHandler
         try {
             // A REFERENCE cannot be written as a string through the resolver: Sling stores it as a STRING and Oak's
             // type validation refuses the commit rather than coercing it
-            reviewNode.setProperty(REQUIREMENT, Objects.requireNonNull(resource.adaptTo(Node.class),
+            reviewNode.setProperty(FULFILLS, Objects.requireNonNull(resource.adaptTo(Node.class),
                 "A requirement read from the schema is always backed by a JCR node"));
         } catch (final RepositoryException e) {
             // Not recorded as an error here: it is thrown on, and a failing service task is the engine's to report
