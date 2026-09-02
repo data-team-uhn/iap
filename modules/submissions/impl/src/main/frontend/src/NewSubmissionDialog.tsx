@@ -128,15 +128,28 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
                   // A refusal was about the choice that was made, so it does not stand over a new one
                   setSubmitError(undefined);
                 }}
+                sx={{ gap: 1 }}
               >
                 { choices.map(choice => (
                   <FormControlLabel
                     key={choice.path}
                     value={choice.path}
                     control={<Radio />}
+                    // An outlined box per choice, so a long description does not run into the next
+                    // option. The radio sits at the top of its label.
+                    sx={{
+                      alignItems: "flex-start",
+                      m: 0,
+                      p: 1.5,
+                      border: 1,
+                      borderRadius: 1,
+                      borderColor: choice.path === selected ? "primary.main" : "divider",
+                    }}
                     label={
                       <>
-                        <Typography component="span">{`${choice.title} ${choice.version}`.trim()}</Typography>
+                        <Typography component="span" sx={{ display: "block", fontWeight: "medium" }}>
+                          {`${choice.title} ${choice.version}`.trim()}
+                        </Typography>
                         { choice.description && (
                           <Typography component="span" variant="description"
                             sx={{ display: "block" }}>{choice.description}</Typography>
