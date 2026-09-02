@@ -14,12 +14,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// The whole data requirement feature: the definitions and the code that acts on them. A distribution
+// that wants data requirements takes this one file and gets both bundles.
 {
   "bundles": [
     {
-      "id": "${project.groupId}:${project.artifactId}:${project.version}",
+      // The definitions: node types, models, and the content under /libs and /Extensions.
       // After schemas (27), whose sch:Requirement a data requirement extends: node types register in
       // bundle start order, and a type naming an unregistered supertype takes the whole file down with it
+      "id": "${project.groupId}:iap-data-requirement-api:${project.version}",
+      "start-order": "28"
+    },
+    {
+      // The describer, the selection servlet and the workflow handler, all of which read the types above
+      "id": "${project.groupId}:${project.artifactId}:${project.version}",
       "start-order": "28"
     }
   ],
