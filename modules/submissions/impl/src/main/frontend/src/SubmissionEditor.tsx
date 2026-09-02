@@ -20,6 +20,8 @@ import { createElement, useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, CircularProgress, Divider, Paper, Stack, Typography } from "@mui/material";
 
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
+
 import { getRequirementComponent, type FieldState } from "./requirementComponents";
 import { registerBuiltinRequirementComponents } from "./requirements";
 import {
@@ -31,6 +33,30 @@ import {
 } from "./submissionForm";
 
 registerBuiltinRequirementComponents();
+
+// The extension point a module puts its own requirement component on. Loading an extension is what
+// *registers* the component it carries — the asset registers itself as it is evaluated — so this is
+// asked before a form is shown rather than rendered like an ordinary extension point.
+const REQUIREMENT_POINT = "SubmissionRequirement";
+
+// Asked once per page, not once per editor: the answer is the same for every submission, and a
+// candidate only needs registering once. `loadExtensions` answers with an empty list rather than
+// rejecting when the point is not deployed, so a distribution carrying none of these behaves exactly
+// as it did before.
+//
+// The `catch` covers what it does not: a point that answers with something that is not a list of
+// extensions throws rather than resolving. Either way the worst this may cost is a requirement kind
+// nobody can draw, which the form already says out loud — it must never be able to stop a submitter
+// filling in the rest of their request.
+let contributedComponents: Promise<unknown> | undefined;
+
+function contributed(): Promise<unknown> {
+  contributedComponents ??= loadExtensions(REQUIREMENT_POINT).catch((error: unknown) => {
+    console.error(`Could not load the components for [${REQUIREMENT_POINT}].`, error);
+    return [];
+  });
+  return contributedComponents;
+}
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -91,7 +117,13 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
   // just replaced.
   const latest = useRef(0);
 
-  const reload = useCallback((token: number) => fetchForm(path).then(next => {
+  // Both at once, but the form is not shown until the contributed components are in: a requirement
+  // whose kind is drawn by another module would otherwise render once as "somebody else's step" and
+  // only become answerable on the next read, which reads as the form being broken.
+  const reload = useCallback((token: number) => Promise.all([
+    contributed(),
+    fetchForm(path),
+  ]).then(([ , next ]) => {
     if (token === latest.current) {
       setForm(next);
       setError(undefined);

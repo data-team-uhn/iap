@@ -18,6 +18,9 @@
 
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
+import { LoginPage } from '../../pages/login.page';
+import { uniqueTitle } from '../../support/titles';
+
 const asAdmin = { Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}` };
 
 const asResearcher = {
@@ -284,5 +287,52 @@ test.describe('the data study demo', () => {
 
     const refused = await chooseData(request, study, [ ONLY_IN_V2 ]);
     expect(refused.status()).toBe(403);
+  });
+});
+
+/**
+ * The same requirement, reached the way a researcher reaches it.
+ *
+ * Everything above goes over HTTP. That proves the model, the binding and the workflow, and says
+ * nothing about whether anybody can get at them — because the component that draws a data
+ * requirement is contributed by a module the submission editor has never heard of, through an
+ * extension whose asset registers the component as it is evaluated. Every link in that chain — the
+ * extension point answering, the asset resolving by name, the registration happening before the form
+ * decides what can draw a requirement — is invisible to a unit test, which mocks the registry it is
+ * meant to be exercising.
+ */
+test.describe('choosing data in the editor', () => {
+  // Three page loads and a sign-in share one test budget, and CI runs on a quarter of the cores
+  test.slow();
+
+  test('draws the catalogue, and records what was ticked', async ({ page, request }) => {
+    const study = await startStudy(request, uniqueTitle('Chosen in the browser'));
+
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-researcher', 'demo-researcher');
+
+    // Straight to the editor rather than through the dashboard: a hard load is also what exercises
+    // the `.edit` script, which resolves differently from a client-side navigation
+    await page.goto(`${study}.edit`);
+
+    // The tree opens with every database expanded and every collection shut, so the collection has
+    // to be opened before any of its fields is drawn
+    await page.getByRole('button', { name: 'Visit collection' }).click();
+
+    const field = page.getByRole('checkbox', { name: 'Date of visit' });
+    await expect(field).toBeVisible();
+    await field.check();
+
+    await page.getByRole('button', { name: 'Save selection' }).click();
+
+    // Saved rather than merely ticked: the control has nothing left to do only once the form has
+    // been read again and agrees with what is on screen
+    await expect(page.getByRole('button', { name: 'Save selection' })).toBeDisabled();
+
+    const stored = await request.get(`${study}.form.json`, { headers: asResearcher });
+    const form = (await stored.json()) as { requirements?: { name?: string; fields?: string[] }[] };
+    expect(form.requirements?.find(requirement => requirement.name === 'data')?.fields)
+      .toEqual([ 'visits/Visit/visitDate' ]);
   });
 });
