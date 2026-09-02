@@ -14,16 +14,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// The implementation has no feature file of its own to inherit from, so its bundle is listed
-// here beside the API it implements, the way the submissions pair is in submissions.json.
 {
     "prototype":{
-        "id": "${project.groupId}:iap-data-requirement-api:slingosgifeature:${project.version}"
-    },
-    "bundles":[
-        {
-            "id":"${project.groupId}:iap-data-requirement-impl:${project.version}",
-            "start-order":"28"
-        }
-    ]
+        "id": "${project.groupId}:iap-data-requirement-impl:slingosgifeature:${project.version}"
+    }
 }
