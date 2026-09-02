@@ -22,6 +22,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
 import { useGroupSelection } from "../useGroupSelection";
+import { useSelection } from "../useSelection";
 import { CountPill } from "./badges";
 import ExpandCaret from "./ExpandCaret";
 import { rowButtonProps } from "./rowButton";
@@ -46,6 +47,7 @@ interface GroupRowProps {
 /** A database or a collection: a row that opens and shuts, with a checkbox for everything below it. */
 export default function GroupRow({ label, kind, keys, open, onOpenChange, details, children }: GroupRowProps) {
   const { selectedCount, state, toggleAll } = useGroupSelection(keys);
+  const { readOnly } = useSelection();
   const isDatabase = kind === "database";
 
   return (
@@ -71,6 +73,7 @@ export default function GroupRow({ label, kind, keys, open, onOpenChange, detail
         <TriStateCheckbox
           state={state}
           onToggle={toggleAll}
+          disabled={readOnly}
           aria-label={`Select all fields in ${label}`}
         />
         {/* A long name gives way rather than pushing the counts off a narrow screen */}

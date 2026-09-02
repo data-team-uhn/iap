@@ -37,7 +37,7 @@ interface CollectionNodeProps {
 /** One collection, and the fields under it. */
 export default function CollectionNode({ collection, open, onOpenChange, searching }: CollectionNodeProps) {
   const { display } = useCatalogue();
-  const { selected, toggleField } = useSelection();
+  const { selected, toggleField, readOnly } = useSelection();
   const visibleKeys = useMemo(() => collection.fields.map(field => field.key), [ collection.fields ]);
 
   return (
@@ -65,6 +65,7 @@ export default function CollectionNode({ collection, open, onOpenChange, searchi
           selected={selected.has(field.key)}
           display={display.tree.field}
           onToggle={toggleField}
+          readOnly={readOnly}
         />
       ))}
     </GroupRow>

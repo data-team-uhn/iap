@@ -26,15 +26,19 @@ interface TriStateCheckboxProps {
   state: CheckState;
   /** Called when the box is pressed. */
   onToggle: () => void;
+  /** Still says what is chosen, but cannot be pressed. */
+  disabled?: boolean;
   "aria-label": string;
 }
 
 /** The checkbox for a whole database or collection, showing all, some or none of it chosen. */
-export default function TriStateCheckbox({ state, onToggle, "aria-label": ariaLabel }: TriStateCheckboxProps) {
+export default function TriStateCheckbox({ state, onToggle, disabled = false,
+  "aria-label": ariaLabel }: TriStateCheckboxProps) {
   return (
     <Checkbox
       checked={state === "all"}
       indeterminate={state === "some"}
+      disabled={disabled}
       onClick={(event: MouseEvent<HTMLButtonElement>) => {
         // The row behind this is a button of its own, and clicking the box is not clicking the row
         event.stopPropagation();

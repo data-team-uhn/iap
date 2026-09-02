@@ -33,11 +33,11 @@ function Probe({ report }: { report: (api: SelectionContextValue) => void }) {
 }
 
 /** Renders the provider around a probe, and hands back the context plus the change spy. */
-function mount(value: string[]) {
+function mount(value: string[], { readOnly = false } = {}) {
   const onChange = vi.fn();
   let api!: SelectionContextValue;
   render(
-    <SelectionProvider value={value} onChange={onChange}>
+    <SelectionProvider value={value} onChange={onChange} readOnly={readOnly}>
       <Probe report={each => { api = each; }} />
     </SelectionProvider>);
   return { api: () => api, onChange };
@@ -138,6 +138,32 @@ describe("what a checkbox standing for a group shows", () => {
 
   it("shows nothing chosen for a group holding nothing", () => {
     expect(checkStateFor(0, 0)).toBe("none");
+  });
+});
+
+// No control offers a change while the selection is read-only; the provider refuses one anyway
+describe("a selection that may not be changed", () => {
+  it("still reports what was chosen", () => {
+    const { api } = mount([ "a", "b" ], { readOnly: true });
+
+    expect(api().selected.size).toBe(2);
+    expect(api().selected.has("a")).toBe(true);
+    expect(api().readOnly).toBe(true);
+  });
+
+  it("says so, so a control can show that it cannot be used", () => {
+    expect(mount([], { readOnly: false }).api().readOnly).toBe(false);
+  });
+
+  it("reports no change from any of the four ways to make one", () => {
+    const { api, onChange } = mount([ "a" ], { readOnly: true });
+
+    act(() => { api().toggleField("b"); });
+    act(() => { api().selectFields([ "c", "d" ]); });
+    act(() => { api().deselectFields([ "a" ]); });
+    act(() => { api().clear(); });
+
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

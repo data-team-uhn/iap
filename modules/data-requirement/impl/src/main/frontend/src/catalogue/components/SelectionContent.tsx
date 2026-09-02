@@ -44,7 +44,7 @@ interface SelectionContentProps {
 export default function SelectionContent({ onDismiss, dismissLabel, dismissIcon, dismissRef }:
 SelectionContentProps) {
   const { catalogue } = useCatalogue();
-  const { selected, deselectFields, clear } = useSelection();
+  const { selected, readOnly, deselectFields, clear } = useSelection();
   const groups = useMemo(() => groupSelection(catalogue, selected), [ catalogue, selected ]);
   const unoffered = useMemo(() => unofferedKeys(catalogue, selected), [ catalogue, selected ]);
   const phiCount = useMemo(() => countPhiFields(groups), [ groups ]);
@@ -89,7 +89,7 @@ SelectionContentProps) {
               ? "no fields selected"
               : `${countOf(chosen, "field")} from ${countOf(groups.length, "collection")}`}
           </Typography>
-          {chosen > 0 && (
+          {chosen > 0 && !readOnly && (
             <Link
               component="button"
               type="button"
@@ -123,9 +123,11 @@ SelectionContentProps) {
               <Typography variant="subtitle1" component="p" sx={{ mb: 0.5 }}>
                 Nothing selected yet
               </Typography>
-              <Typography variant="placeholder" component="p">
-                Tick fields in the tree, or a whole collection, and they will collect here.
-              </Typography>
+              {!readOnly && (
+                <Typography variant="placeholder" component="p">
+                  Tick fields in the tree, or a whole collection, and they will collect here.
+                </Typography>
+              )}
             </Box>
           )
           : (
