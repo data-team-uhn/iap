@@ -136,6 +136,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         try {
             TaskCompletion.apply(resolver, task, event, actor, performer(event, actor), this.conditions,
                 this.principals);
+            EntityRevision.stamp(task);
             resolver.commit();
             return new WorkflowResult(Map.of());
         } catch (final PersistenceException e) {
@@ -185,6 +186,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
             FlowNode node = start;
             for (int step = 0; step < MAX_STEPS; step++) {
                 if (node instanceof EndEvent) {
+                    EntityRevision.stamp(target);
                     resolver.commit();
                     return new WorkflowResult(variables);
                 }

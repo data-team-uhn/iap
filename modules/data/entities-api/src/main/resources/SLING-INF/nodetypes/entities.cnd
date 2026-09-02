@@ -45,6 +45,15 @@
   // Hardcode the supertype to the parent data/Entity type.
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
 
+  // An opaque token replaced with a fresh value by every committed change, so that two changes made
+  // at once cannot both succeed: the repository merges concurrent writes silently when they agree,
+  // and refuses them when they differ, so writing something that always differs is what turns a lost
+  // update into a refusal the caller can retry. Deliberately not a counter -- computing the next
+  // value means reading the current one, and two writers reading the same value write the same value,
+  // which is precisely the case that merges. Deliberately not ordered either: what it answers is
+  // "has this changed since I looked", which is a question about identity.
+  - revision (STRING)
+
 //-----------------------------------------------------------------------------
 //
 // Entity Part: the base node type for a piece of information we can collect, like a specific question, or a specific answer.
