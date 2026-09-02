@@ -41,8 +41,8 @@ import io.uhndata.iap.schemas.models.Requirement;
  *
  * <p>The version is recorded when the selection is first made and never moved afterwards. That is what keeps a
  * filed submission meaning what it meant, whatever has been published since — and it is why
- * {@link #getMissingFields()} is worth asking rather than assuming: a key that no longer resolves against a
- * <em>later</em> version is a difference to report, never a repair to make.</p>
+ * {@link #getMissingFields(CatalogueVersion)} is worth asking rather than assuming: a key that no longer
+ * resolves against a <em>later</em> version is a difference to report, never a repair to make.</p>
  *
  * @version $Id$
  * @since 0.1.0
