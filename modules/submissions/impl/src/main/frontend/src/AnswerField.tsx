@@ -18,16 +18,14 @@
 
 import { createElement, useState } from "react";
 
-import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
-import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
+import { Box, CircularProgress, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
 import { useAnswerComponents } from "./answers";
 import { questionLabel } from "./answers/label";
+import SaveStatus, { type SaveState } from "./SaveStatus";
 
 import type { FormQuestion } from "./submissionForm";
-
-export type SaveState = "idle" | "saving" | "saved" | "failed";
 
 interface AnswerFieldProps {
   question: FormQuestion;
@@ -36,30 +34,6 @@ interface AnswerFieldProps {
   disabled?: boolean;
   // Called when the answer is finished, not on each keystroke
   onAnswered: (values: string[]) => void;
-}
-
-// What the field's save is doing. A save can be refused, such as when the request was submitted in
-// another tab.
-function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
-  if (state === "saving") {
-    return <CircularProgress size={16} aria-label="Saving" />;
-  }
-  if (state === "saved") {
-    return <Typography variant="caption">Saved</Typography>;
-  }
-  if (state === "failed") {
-    // The only report that an answer was refused. The text carries it, since an SvgIcon is
-    // aria-hidden. The wrapper takes focus, so that a keyboard reaches the reason in the tooltip.
-    return (
-      <Tooltip title={error ?? "This answer was not saved"}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} tabIndex={0}>
-          <ErrorOutlinedIcon color="error" fontSize="small" />
-          <Typography variant="caption" color="error">Not saved</Typography>
-        </Box>
-      </Tooltip>
-    );
-  }
-  return null;
 }
 
 // One question and its answer. The input is drawn by the registered answer component that fits the
