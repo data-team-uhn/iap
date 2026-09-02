@@ -26,24 +26,30 @@ interface SelectionProviderProps {
   value: readonly string[];
   /** Called with the keys of the whole new selection after each change. */
   onChange: (keys: string[]) => void;
+  /** Shows the selection without letting it change. */
+  readOnly?: boolean;
 }
 
 /**
  * Turns clicks into the selection they produce, and reports it to the host, which owns it. A change
  * that changes nothing is not reported.
  */
-export function SelectionProvider({ children, value, onChange }: SelectionProviderProps) {
+export function SelectionProvider({ children, value, onChange, readOnly = false }:
+  SelectionProviderProps) {
   const selected = useMemo(() => new Set(value), [ value ]);
 
   // The actions read the latest selection and host through this, so they keep one identity and a
   // memoised row does not draw again each time anything is ticked
-  const latest = useRef({ selected, onChange });
+  const latest = useRef({ selected, onChange, readOnly });
   useLayoutEffect(() => {
-    latest.current = { selected, onChange };
+    latest.current = { selected, onChange, readOnly };
   });
 
+  // Every change goes through here, so read-only is enforced in one place
   const report = useCallback((next: Set<string>) => {
-    latest.current.onChange([ ...next ]);
+    if (!latest.current.readOnly) {
+      latest.current.onChange([ ...next ]);
+    }
   }, []);
 
   const selectFields = useCallback((keys: readonly string[]) => {
@@ -79,11 +85,12 @@ export function SelectionProvider({ children, value, onChange }: SelectionProvid
 
   const context = useMemo<SelectionContextValue>(() => ({
     selected,
+    readOnly,
     toggleField,
     selectFields,
     deselectFields,
     clear,
-  }), [ selected, toggleField, selectFields, deselectFields, clear ]);
+  }), [ selected, readOnly, toggleField, selectFields, deselectFields, clear ]);
 
   return <SelectionContext.Provider value={context}>{children}</SelectionContext.Provider>;
 }

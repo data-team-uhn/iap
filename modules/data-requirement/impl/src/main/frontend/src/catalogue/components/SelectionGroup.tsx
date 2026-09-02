@@ -27,6 +27,7 @@ import Typography from "@mui/material/Typography";
 import CodePill from "@iap/frontend-commons/components/CodePill";
 import { TOUCH_REACH } from "@iap/frontend-commons/touchTarget";
 
+import { useSelection } from "../useSelection";
 import { FieldSourceName, PhiBadge } from "./badges";
 
 import type { SelectionGroup as SelectionGroupData } from "../selectionGrouping";
@@ -56,6 +57,7 @@ interface RemovableListProps {
 
 /** A titled list of chosen fields, with a link that removes them all. */
 function RemovableList({ source, title, keys, onRemove, children }: RemovableListProps) {
+  const { readOnly } = useSelection();
   return (
     <Box sx={{ mb: 2.5 }}>
       <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, mb: 0.75 }}>
@@ -63,16 +65,19 @@ function RemovableList({ source, title, keys, onRemove, children }: RemovableLis
         <Typography variant="subtitle2" component="p" sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
           {title}
         </Typography>
-        <Link
-          component="button"
-          type="button"
-          variant="caption"
-          {...REMOVE_CONTROL}
-          onClick={event => { onRemove(keys, event.currentTarget); }}
-          sx={REMOVE_STYLE}
-        >
-          Remove all
-        </Link>
+        {/* Left out, not disabled, where nothing may be removed */}
+        {!readOnly && (
+          <Link
+            component="button"
+            type="button"
+            variant="caption"
+            {...REMOVE_CONTROL}
+            onClick={event => { onRemove(keys, event.currentTarget); }}
+            sx={REMOVE_STYLE}
+          >
+            Remove all
+          </Link>
+        )}
       </Box>
       {children}
     </Box>
@@ -86,19 +91,22 @@ function RemovableItem({ name, fieldKey, onRemove, children }: {
   onRemove: RemoveFields;
   children: ReactNode;
 }) {
+  const { readOnly } = useSelection();
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 0.625, borderTop: 1, borderColor: "divider" }}>
       <Box sx={{ minWidth: 0, flex: 1 }}>{children}</Box>
-      <IconButton
-        size="small"
-        {...REMOVE_CONTROL}
-        onClick={event => { onRemove([ fieldKey ], event.currentTarget); }}
-        title="Remove field"
-        aria-label={`Remove ${name}`}
-        sx={{ ...REMOVE_STYLE, ...TOUCH_REACH }}
-      >
-        <CloseIcon sx={{ fontSize: 14 }} />
-      </IconButton>
+      {!readOnly && (
+        <IconButton
+          size="small"
+          {...REMOVE_CONTROL}
+          onClick={event => { onRemove([ fieldKey ], event.currentTarget); }}
+          title="Remove field"
+          aria-label={`Remove ${name}`}
+          sx={{ ...REMOVE_STYLE, ...TOUCH_REACH }}
+        >
+          <CloseIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      )}
     </Box>
   );
 }

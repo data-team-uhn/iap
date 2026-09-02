@@ -147,6 +147,25 @@ describe("keeping the keyboard where it was", () => {
   });
 });
 
+describe("a selection somebody may only look at", () => {
+  it("lists what was chosen, with no way to give any of it back", () => {
+    draw({ value: [ "records/Patient/birthDate" ], readOnly: true });
+
+    const panel = screen.getByRole("complementary", { name: "Your selection" });
+    expect(within(panel).getByText("1 field from 1 collection")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove birthDate" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove all" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear selection" })).not.toBeInTheDocument();
+  });
+
+  it("does not invite ticking anything while nothing is chosen", () => {
+    draw({ readOnly: true });
+
+    expect(screen.getByText("Nothing selected yet")).toBeInTheDocument();
+    expect(screen.queryByText(/Tick fields in the tree/)).not.toBeInTheDocument();
+  });
+});
+
 describe("a choice this version no longer offers", () => {
   it("is counted and listed on its own, so the panel adds up", () => {
     draw({ value: [ "records/Patient/birthDate", "records/Patient/retired" ] });
