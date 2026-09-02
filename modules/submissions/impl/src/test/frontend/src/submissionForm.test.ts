@@ -141,11 +141,51 @@ describe("saveAnswer", () => {
   it("falls back to the status when a refusal carries no reason", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
       ok: false,
-      status: 409,
+      status: 500,
       json: () => Promise.reject(new Error("no body")),
     } as unknown as Response)));
 
     await expect(saveAnswer(PATH, "details/startDate", [ "x" ]))
-      .rejects.toThrow(/could not be saved \(409\)/);
+      .rejects.toThrow(/could not be saved \(500\)/);
+  });
+
+  it("asks again when the entity moved while the answer was in flight", async () => {
+    // 409 is the engine saying somebody committed first — often this same form, autosaving the
+    // field before this one. Nothing is wrong with the answer, so it is re-sent against the state
+    // that now exists rather than handed back to the person who typed it
+    let calls = 0;
+    const fetchMock = vi.fn(() => {
+      calls += 1;
+      return calls === 1
+        ? response({ error: "changed at the same time" }, { ok: false, status: 409 })
+        : response({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await saveAnswer(PATH, "details/startDate", [ "2026-10-06" ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up on a conflict that keeps recurring rather than asking forever", async () => {
+    // Something that conflicts every time is not a race, and a bounded report beats a loop
+    const fetchMock = vi.fn(() =>
+      response({ error: "changed at the same time" }, { ok: false, status: 409 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(saveAnswer(PATH, "details/startDate", [ "x" ]))
+      .rejects.toThrow("changed at the same time");
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not ask again when the refusal is about the answer rather than a race", async () => {
+    // Re-sending an answer the engine has already judged unacceptable would only be refused again
+    const fetchMock = vi.fn(() => response({ error: "no longer a draft" }, { ok: false, status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(saveAnswer(PATH, "details/startDate", [ "x" ])).rejects.toThrow("no longer a draft");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

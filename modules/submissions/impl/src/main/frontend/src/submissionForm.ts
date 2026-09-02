@@ -165,10 +165,33 @@ export async function saveAnswer(path: string, question: string, values: string[
     // complete when it no longer is.
     body.append(question, "");
   }
-  const response = await fetch(path, { method: "POST", body });
-  if (!response.ok) {
-    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(refusal.error ?? `This answer could not be saved (${response.status})`);
+  await postThroughEngine(path, body, "This answer could not be saved");
+}
+
+// The engine answers 409 when the entity moved while the request was in flight: somebody -- often
+// this same form, autosaving the previous field -- committed first, so what this one was working
+// from is stale. Nothing about the request is wrong, and asking the person to retype an answer they
+// already gave would be absurd, so it is simply asked again against the state that now exists.
+//
+// No delay before retrying: the conflict means the other change has already committed, which is
+// precisely why this one was refused, so there is nothing left to wait for. Bounded all the same --
+// a conflict that survives several attempts is not a race any more, and reporting it beats looping.
+const CONFLICT = 409;
+
+const CONFLICT_RETRIES = 3;
+
+async function postThroughEngine(path: string, body: BodyInit, failed: string): Promise<void> {
+  let attempts = 0;
+  for (;;) {
+    const response = await fetch(path, { method: "POST", body });
+    if (response.ok) {
+      return;
+    }
+    attempts += 1;
+    if (response.status !== CONFLICT || attempts > CONFLICT_RETRIES) {
+      const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(refusal.error ?? `${failed} (${response.status})`);
+    }
   }
 }
 
@@ -186,9 +209,5 @@ export async function attachDocument(path: string, requirement: string, file: Fi
   const body = new FormData();
   body.append("requirement", requirement);
   body.append("file", file);
-  const response = await fetch(`${path}.attachDocument.json`, { method: "POST", body });
-  if (!response.ok) {
-    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(refusal.error ?? `This file could not be attached (${response.status})`);
-  }
+  await postThroughEngine(`${path}.attachDocument.json`, body, "This file could not be attached");
 }
