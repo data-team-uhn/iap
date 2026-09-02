@@ -35,14 +35,8 @@ import io.uhndata.iap.schemas.models.Requirement;
  * A Sling Model wrapping a {@code datareq:Selection} node: the fields chosen in answer to one data requirement,
  * held as a part of the submission that made them.
  *
- * <p>Fields are held by key rather than by reference. A catalogue version is a full copy, so the same field in
- * two versions is two different nodes and a reference would have to be rewritten on every republication; a key
- * is stable by construction, and it is also what an export outside this platform carries.</p>
- *
- * <p>The version is recorded when the selection is first made and never moved afterwards. That is what keeps a
- * filed submission meaning what it meant, whatever has been published since — and it is why
- * {@link #getMissingFields()} is worth asking rather than assuming: a key that no longer resolves against a
- * <em>later</em> version is a difference to report, never a repair to make.</p>
+ * <p>Fields are held by {@link Field#getKey() key}, which stays the same across catalogue versions. The catalogue
+ * version is bound by the first save and never changed afterwards.</p>
  *
  * @version $Id$
  * @since 0.1.0
