@@ -33,6 +33,14 @@
     so a user who signs in through Keycloak is provisioned into Oak by Oak's own DefaultSyncHandler
     and their Keycloak realm roles become Oak group principals that content ACLs can reference.</description>
 
+  <properties>
+    <!-- Module-aggregate (BUNDLE-scoped) minimum instruction coverage enforced by jacoco:check.
+         The logout handler's failure paths (unreadable token, undecryptable ciphertext, a provider
+         that refuses or cannot be reached) are only reachable against a live provider, so this floor
+         sits just under the measured coverage of what is unit-testable. -->
+    <coverage.instructionRatio>0.60</coverage.instructionRatio>
+  </properties>
+
   <build>
     <plugins>
       <plugin>

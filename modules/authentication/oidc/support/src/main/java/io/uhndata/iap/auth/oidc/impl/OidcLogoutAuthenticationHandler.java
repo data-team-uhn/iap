@@ -263,13 +263,9 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         expired.setSecure(request.isSecure());
         response.addCookie(expired);
 
-        // End the provider's session first: reading the token needs the identity this request still carries, which
-        // is gone once the session is torn down. Best-effort -- a failure is reported, not thrown, and the redirect
-        // below is what covers it.
+        // End the provider's session via the stored refresh token
+        // Note: failure is logged but not thrown, so we redirect if the backchannel fails
         boolean endedSession = endProviderSession(readRefreshToken(request));
-
-        // In cases where we were unable to do the backchannel logout, dropCredentials cannot issue the cross-host
-        // redirect to the provider itself, so we make use of another Servlet located at postLogoutPath
         if (!endedSession && !this.postLogoutPath.isBlank())
         {
             request.setAttribute("resource", this.postLogoutPath);
