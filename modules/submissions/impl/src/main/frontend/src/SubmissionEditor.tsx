@@ -24,7 +24,7 @@ import Panel from "@iap/frontend-commons/components/Panel";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { getRequirementComponent, type FieldState } from "./requirementComponents";
-import { registerBuiltinRequirementComponents } from "./requirements";
+import { registerBuiltinRequirementComponents, useRequirementComponents } from "./requirements";
 import {
   type FormQuestion,
   type Requirement,
@@ -82,6 +82,9 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
   // replaced.
   const latestFormRead = useRef(0);
   const doFetch = useAuthenticatedFetch();
+  // A requirement drawn by another module's component waits for that component to load, or it would
+  // first show as something that cannot be completed here
+  const componentsReady = useRequirementComponents();
 
   const reload = useCallback((token: number) => fetchForm(doFetch, path).then(next => {
     if (token === latestFormRead.current) {
@@ -133,7 +136,7 @@ function SubmissionEditor({ path, onSaving, onChanged }: {
   if (error) {
     return <Alert severity="error">{error}</Alert>;
   }
-  if (!form) {
+  if (!form || !componentsReady) {
     return <CircularProgress aria-label="Loading the request" />;
   }
 

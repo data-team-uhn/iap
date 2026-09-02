@@ -15,6 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { useEffect, useState } from "react";
+
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
+
 import ApprovalState from "../ApprovalState";
 import DocumentUpload from "../DocumentUpload";
 import {
@@ -63,4 +67,53 @@ export function registerBuiltinRequirementComponents(): void {
     documentSectionCandidate,
     approvalSectionCandidate,
   ].forEach(registerRequirementComponent);
+}
+
+// The extension point other modules declare their requirement components on. Each asset registers
+// its own candidate as it is evaluated, so what `loadExtensions` returns is discarded.
+export const REQUIREMENT_COMPONENT_POINT = "RequirementComponent";
+
+let request: Promise<void> | null = null;
+let loaded = false;
+
+/**
+ * Loads every contributed requirement component, once.
+ */
+export async function loadRequirementComponents(): Promise<void> {
+  if (loaded) {
+    return;
+  }
+  request ??= loadExtensions(REQUIREMENT_COMPONENT_POINT)
+    .then(() => {
+      loaded = true;
+    })
+    .catch((e: unknown) => {
+      console.error("Failed to load the requirement components", e);
+    })
+    .finally(() => {
+      request = null;
+    });
+  return request;
+}
+
+/**
+ * Whether the contributed requirement components are available yet. They arrive over HTTP, so a form
+ * drawn before then would show a contributed kind as one nothing here can complete.
+ *
+ * @return {@code false} until the load settles, then {@code true}, however it settled
+ */
+export function useRequirementComponents(): boolean {
+  const [ ready, setReady ] = useState(loaded);
+  useEffect(() => {
+    let live = true;
+    void loadRequirementComponents().finally(() => {
+      if (live) {
+        setReady(true);
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return ready;
 }
