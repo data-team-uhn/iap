@@ -32,6 +32,8 @@ interface FieldRowProps {
   selected: boolean;
   display: FieldDisplayConfig;
   onToggle: (key: string) => void;
+  /** Still says whether the field was chosen, but cannot be changed. */
+  readOnly?: boolean;
 }
 
 /**
@@ -40,11 +42,14 @@ interface FieldRowProps {
  * The whole row is clickable for convenience, but the checkbox is the control: assistive technology
  * sees one checkbox rather than a button wrapping one, and the row itself is not focusable — which
  * is why it carries no focus ring of its own.
+ *
+ * Read-only takes the row's own click away as well as disabling the box: a row that still looks
+ * pressable and does nothing is worse than one that plainly is not.
  */
-function FieldRow({ field, selected, display, onToggle }: FieldRowProps) {
+function FieldRow({ field, selected, display, onToggle, readOnly = false }: FieldRowProps) {
   return (
     <Box
-      onClick={() => { onToggle(field.key); }}
+      onClick={readOnly ? undefined : () => { onToggle(field.key); }}
       sx={{
         display: "flex",
         alignItems: "flex-start",
@@ -53,15 +58,20 @@ function FieldRow({ field, selected, display, onToggle }: FieldRowProps) {
         pl: { xs: "34px", md: "70px" },
         pr: { xs: 1.5, md: 2.25 },
         py: 1,
-        cursor: "pointer",
+        cursor: readOnly ? "default" : "pointer",
         borderLeft: 3,
         borderLeftColor: selected ? "primary.main" : "transparent",
         bgcolor: selected ? "action.selected" : "transparent",
-        "&:hover": { bgcolor: selected ? "action.selected" : "action.hover" },
+        // Read-only hovers to whatever the row already is, so nothing invites a click that does
+        // nothing
+        "&:hover": {
+          bgcolor: selected ? "action.selected" : (readOnly ? "transparent" : "action.hover"),
+        },
       }}
     >
       <Checkbox
         checked={selected}
+        disabled={readOnly}
         onChange={() => { onToggle(field.key); }}
         onClick={event => { event.stopPropagation(); }}
         slotProps={{ input: { "aria-label": field.label } }}

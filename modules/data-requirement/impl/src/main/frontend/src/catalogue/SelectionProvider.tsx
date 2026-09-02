@@ -26,6 +26,8 @@ interface SelectionProviderProps {
   value: readonly string[];
   /** What the selection now is, every time it changes. */
   onChange: (keys: string[]) => void;
+  /** Whether the selection may still be changed. Shows what was chosen without offering to alter it. */
+  readOnly?: boolean;
 }
 
 /**
@@ -40,12 +42,18 @@ interface SelectionProviderProps {
  * clearing a selection that is already empty, would otherwise cost a save each — and a save is a
  * round trip that can fail, so the noise would be visible.
  */
-export function SelectionProvider({ children, value, onChange }: SelectionProviderProps) {
+export function SelectionProvider({ children, value, onChange, readOnly = false }:
+SelectionProviderProps) {
   const selected = useMemo(() => new Set(value), [ value ]);
 
+  // One gate for every mutator, rather than four. Read-only is about what may be reported, so the
+  // cheapest place to enforce it is the one line all four of them report through.
   const report = useCallback((next: Set<string>) => {
+    if (readOnly) {
+      return;
+    }
     onChange([ ...next ]);
-  }, [ onChange ]);
+  }, [ onChange, readOnly ]);
 
   const toggleField = useCallback((key: string, on?: boolean) => {
     const shouldSelect = on ?? !selected.has(key);
@@ -91,19 +99,21 @@ export function SelectionProvider({ children, value, onChange }: SelectionProvid
 
   const clear = useCallback(() => {
     if (selected.size > 0) {
-      onChange([]);
+      // Through `report` like the other three, so the read-only gate is genuinely in one place
+      report(new Set());
     }
-  }, [ selected, onChange ]);
+  }, [ selected, report ]);
 
   const context = useMemo<SelectionContextValue>(() => ({
     selected,
     count: selected.size,
+    readOnly,
     isSelected: (key: string) => selected.has(key),
     toggleField,
     setMany,
     replace,
     clear,
-  }), [ selected, toggleField, setMany, replace, clear ]);
+  }), [ selected, readOnly, toggleField, setMany, replace, clear ]);
 
   return <SelectionContext.Provider value={context}>{children}</SelectionContext.Provider>;
 }

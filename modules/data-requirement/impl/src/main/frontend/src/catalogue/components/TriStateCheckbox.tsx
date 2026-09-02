@@ -27,6 +27,8 @@ interface TriStateCheckboxProps {
   state: CheckState;
   /** Told what is being asked for: true takes everything below, false gives it all up. */
   onChange: (select: boolean) => void;
+  /** Still says what is chosen, but cannot be pressed. */
+  disabled?: boolean;
   "aria-label": string;
 }
 
@@ -37,12 +39,13 @@ interface TriStateCheckboxProps {
  * fields out of thirty needs the group to say so. Pressing it from there takes everything, which is
  * the only reading of a click that does not throw work away.
  */
-export default function TriStateCheckbox({ state, onChange, "aria-label": ariaLabel }:
-TriStateCheckboxProps) {
+export default function TriStateCheckbox({ state, onChange, disabled = false,
+  "aria-label": ariaLabel }: TriStateCheckboxProps) {
   return (
     <Checkbox
       checked={state === "all"}
       indeterminate={state === "some"}
+      disabled={disabled}
       onClick={(event: MouseEvent<HTMLButtonElement>) => {
         // The row behind this is a button of its own, and clicking the box is not clicking the row
         event.stopPropagation();

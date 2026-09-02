@@ -31,7 +31,7 @@ import type { SelectionGroup as SelectionGroupData } from "../selectionGrouping"
 /** What was chosen out of one collection, and the ways to give it back. */
 export default function SelectionGroup({ group }: { group: SelectionGroupData }) {
   const { display } = useCatalogue();
-  const { toggleField, setMany } = useSelection();
+  const { toggleField, setMany, readOnly } = useSelection();
 
   return (
     <Box sx={{ mb: 2.5 }}>
@@ -42,15 +42,19 @@ export default function SelectionGroup({ group }: { group: SelectionGroupData })
         <Typography variant="subtitle2" component="p" sx={{ flex: 1, minWidth: 0 }}>
           {group.collectionLabel}
         </Typography>
-        <Link
-          component="button"
-          type="button"
-          variant="caption"
-          onClick={() => { setMany(group.fields.map(field => field.key), false); }}
-          sx={{ color: "text.secondary", "&:hover": { color: "error.main" } }}
-        >
-          Remove all
-        </Link>
+        {/* Left out rather than disabled where nothing may be given back: this panel's job is then
+            to say what was chosen, and a dead "Remove all" is clutter in front of that */}
+        {!readOnly && (
+          <Link
+            component="button"
+            type="button"
+            variant="caption"
+            onClick={() => { setMany(group.fields.map(field => field.key), false); }}
+            sx={{ color: "text.secondary", "&:hover": { color: "error.main" } }}
+          >
+            Remove all
+          </Link>
+        )}
       </Box>
       {group.fields.map(field => (
         <Box
@@ -79,15 +83,17 @@ export default function SelectionGroup({ group }: { group: SelectionGroupData })
               places or in neither — a selection still showing them while the tree has stopped would
               read as the tree being clean */}
           {display.tree.field.showPhi && <PhiBadge phi={field.phi} />}
-          <IconButton
-            size="small"
-            onClick={() => { toggleField(field.key, false); }}
-            title="Remove field"
-            aria-label={`Remove ${field.label}`}
-            sx={{ flex: "none", color: "text.disabled", "&:hover": { color: "error.main" } }}
-          >
-            <CloseIcon sx={{ fontSize: 14 }} />
-          </IconButton>
+          {!readOnly && (
+            <IconButton
+              size="small"
+              onClick={() => { toggleField(field.key, false); }}
+              title="Remove field"
+              aria-label={`Remove ${field.label}`}
+              sx={{ flex: "none", color: "text.disabled", "&:hover": { color: "error.main" } }}
+            >
+              <CloseIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          )}
         </Box>
       ))}
     </Box>

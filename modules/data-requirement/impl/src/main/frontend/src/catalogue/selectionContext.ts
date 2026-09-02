@@ -32,6 +32,15 @@ export interface SelectionContextValue {
   /** The chosen field keys. */
   selected: ReadonlySet<string>;
   count: number;
+  /**
+   * Whether what was chosen may still be changed.
+   *
+   * Read by every control that would change it, rather than passed down to each: a control that
+   * cannot act has to *look* as though it cannot, or a reader is left clicking something that
+   * quietly does nothing. The mutators below refuse as well, so that a path nobody disabled — a
+   * stale closure, a keyboard shortcut added later — cannot write either.
+   */
+  readOnly: boolean;
   isSelected: (key: string) => boolean;
   /** Turns one field on or off, or flips it when `on` is not given. */
   toggleField: (key: string, on?: boolean) => void;

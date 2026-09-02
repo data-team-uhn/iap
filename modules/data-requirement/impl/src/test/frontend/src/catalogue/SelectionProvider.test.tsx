@@ -27,7 +27,7 @@ import { SelectionProvider } from "@iap/data-requirement/catalogue/SelectionProv
 import { useSelection } from "@iap/data-requirement/catalogue/useSelection";
 
 /** Renders the provider around a probe, and hands back the context plus the change spy. */
-function mount(value: string[]) {
+function mount(value: string[], readOnly = false) {
   const onChange = vi.fn();
   let api!: SelectionContextValue;
   function Probe() {
@@ -35,7 +35,7 @@ function mount(value: string[]) {
     return null;
   }
   render(
-    <SelectionProvider value={value} onChange={onChange}>
+    <SelectionProvider value={value} onChange={onChange} readOnly={readOnly}>
       <Probe />
     </SelectionProvider>);
   return { api: () => api, onChange };
@@ -189,5 +189,34 @@ describe("what a checkbox standing for a group shows", () => {
   // An empty group is not a group with everything chosen
   it("shows nothing chosen for a group holding nothing", () => {
     expect(checkStateFor(0, 0)).toBe("none");
+  });
+});
+
+// The controls that would change a selection are disabled or left out when it may not be changed, so
+// none of these paths is reachable through the interface. They are guarded anyway: what is reachable
+// is a property of today's components, and a keyboard route or a stale closure added later should not
+// be able to write where the request says nothing may be written.
+describe("a selection that may not be changed", () => {
+  it("still reports what was chosen", () => {
+    const { api } = mount([ "a", "b" ], true);
+
+    expect(api().count).toBe(2);
+    expect(api().isSelected("a")).toBe(true);
+    expect(api().readOnly).toBe(true);
+  });
+
+  it("says so, so a control can show that it cannot be used", () => {
+    expect(mount([], false).api().readOnly).toBe(false);
+  });
+
+  it("reports no change from any of the four ways to make one", () => {
+    const { api, onChange } = mount([ "a" ], true);
+
+    act(() => { api().toggleField("b"); });
+    act(() => { api().setMany([ "c", "d" ], true); });
+    act(() => { api().replace([ "e" ]); });
+    act(() => { api().clear(); });
+
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

@@ -43,6 +43,12 @@ export interface DataCatalogueProps {
   /** The chosen field keys. The host owns them. */
   value: readonly string[];
   onChange: (keys: string[]) => void;
+  /**
+   * Shows what was chosen without offering to change it: every control that would is disabled or
+   * left out, and nothing is reported through `onChange`. What a reader gets on a request that can
+   * no longer be edited, and what an administrator looking at a published version gets.
+   */
+  readOnly?: boolean;
   /** What a deployment wants shown differently. */
   display?: DisplayOverride;
   /** What goes at the foot of the selection panel: saving, sending, whatever the step needs. */
@@ -113,10 +119,10 @@ function Browser({ actions, notices }: { actions?: ReactNode; notices?: ReactNod
  * inside a submission, on an administrator's screen, or anywhere else the two can be supplied.
  */
 export default function DataCatalogue({ catalogue, loading, error, value, onChange, display,
-  actions, notices }: DataCatalogueProps) {
+  actions, notices, readOnly }: DataCatalogueProps) {
   return (
     <CatalogueProvider catalogue={catalogue} loading={loading} error={error} display={display}>
-      <SelectionProvider value={value} onChange={onChange}>
+      <SelectionProvider value={value} onChange={onChange} readOnly={readOnly}>
         <Browser actions={actions} notices={notices} />
       </SelectionProvider>
     </CatalogueProvider>
