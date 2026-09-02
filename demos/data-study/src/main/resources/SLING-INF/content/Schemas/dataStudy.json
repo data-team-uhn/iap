@@ -15,7 +15,7 @@
       "question": {
         "jcr:primaryType": "sch:Question",
         "text": "What question is the study trying to answer?",
-        "dataType": "long",
+        "dataType": "text",
         "minAnswers": 1
       },
       "period": {
