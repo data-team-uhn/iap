@@ -223,7 +223,22 @@ class SaveAnswersHandlerTest
         this.handler.execute(context(Map.of(DURATION, "")));
 
         stampAnswers();
-        assertEquals(List.of(""), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+        // Stored as holding nothing rather than as holding the empty string: an empty value is how the form says
+        // "this question is no longer answered", not a value in its own right
+        assertEquals(List.of(), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
+    @Test
+    void clearsAnAnswerAlreadyGiven() throws Exception
+    {
+        // Emptying a field is a change like any other, and the request has to stop counting the question as
+        // answered -- otherwise it goes on looking complete when it is not
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+        stampAnswers();
+
+        this.handler.execute(context(Map.of(START_DATE, "")));
+
+        assertEquals(List.of(), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
     }
 
     @Test
