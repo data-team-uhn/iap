@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.utils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -132,6 +133,35 @@ public final class DateUtils
             return null;
         }).filter(Objects::nonNull).findFirst().orElse(null);
         return date;
+    }
+
+    /**
+     * Parses the day out of the given input string, ignoring any time and zone it also carries.
+     *
+     * <p>
+     * That is what makes it the right reading of a stored {@code date} answer: the editor posts a whole datetime,
+     * a condition compares a whole datetime, and "which day is this" must not shift with the reader's zone.
+     * </p>
+     *
+     * @param str the serialized date to parse
+     * @return the parsed day, or {@code null} if the date cannot be parsed
+     * @since 0.1.0
+     */
+    @Nullable
+    public static LocalDate parseDate(@Nullable final String str)
+    {
+        if (StringUtils.isBlank(str)) {
+            return null;
+        }
+        // The day is the leading ISO date, read before any offset can move it
+        return DATETIME_FORMATS.stream().map(format -> {
+            try {
+                return LocalDate.from(format.parse(str));
+            } catch (Exception ex) {
+                // Not important, the date string doesn't match the expected format, just try the next format
+                return null;
+            }
+        }).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     /**
