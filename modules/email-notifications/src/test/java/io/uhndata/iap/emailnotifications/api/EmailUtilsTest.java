@@ -117,6 +117,27 @@ class EmailUtilsTest
         verify(this.mailService).sendMessage(ArgumentMatchers.<MimeMessage>any());
     }
 
+    // Both directions of the choice sendEmail makes for a caller that has no opinion about the template's shape
+    @Test
+    void sendsAnEmailAsHtmlWhenItHasAnHtmlBody() throws MessagingException
+    {
+        EmailUtils.sendEmail(email("<p>rich text</p>", null), this.mailService);
+
+        verify(this.message).html("<p>rich text</p>");
+        verify(this.message, never()).text(anyString());
+        verify(this.mailService).sendMessage(ArgumentMatchers.<MimeMessage>any());
+    }
+
+    @Test
+    void sendsAnEmailAsPlainTextWhenItHasNoHtmlBody() throws MessagingException
+    {
+        EmailUtils.sendEmail(email(null, "plain text"), this.mailService);
+
+        verify(this.message).text("plain text");
+        verify(this.message, never()).html(anyString());
+        verify(this.mailService).sendMessage(ArgumentMatchers.<MimeMessage>any());
+    }
+
     @Test
     void aRecipientWithNoNameIsAddressedByAddressAlone() throws MessagingException
     {

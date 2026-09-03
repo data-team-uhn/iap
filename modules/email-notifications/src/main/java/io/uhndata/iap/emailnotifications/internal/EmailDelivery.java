@@ -48,10 +48,10 @@ import io.uhndata.iap.notifications.spi.NotificationDelivery;
  * Sends a notification as an email, straight away.
  *
  * <p>
- * The only delivery there is today, and the one that gives the others their shape: it accepts what it can carry
- * and declines the rest, rather than assuming every notification is its business. It declines a recipient with no
- * address — a fact about that person's account, not an error — and a notification with no template, since it has
- * no wording of its own to fall back on.
+ * It accepts what it can carry and declines the rest, rather than assuming every notification is its business:
+ * a recipient with no address is declined — a fact about that person's account, not an error — and so is a
+ * notification with no template, since this channel has no wording of its own to fall back on. Declining is a
+ * normal answer, because another delivery may well carry what this one cannot.
  * </p>
  *
  * <p>
@@ -136,15 +136,11 @@ public class EmailDelivery implements NotificationDelivery
             final Email email = template.getEmailBuilder(variables(notification))
                 .withRecipient(address, recipient.name())
                 .build();
-            // Whichever the template actually has. Always sending as HTML would refuse a plain-text-only
+            // Sent as whatever the template actually has: demanding HTML would refuse a plain-text-only
             // template — and refuse it quietly, since the caller is a workflow that carries on regardless, so
             // the wording an author wrote would simply never arrive.
-            if (email.getHtmlBody() == null) {
-                EmailUtils.sendTextEmail(email, this.mailService);
-            } else {
-                EmailUtils.sendHtmlEmail(email, this.mailService);
-            }
-            LOGGER.info("Emailed the {} notification about {} to {}", notification.getEvent(),
+            EmailUtils.sendEmail(email, this.mailService);
+            LOGGER.debug("Emailed the {} notification about {} to {}", notification.getEvent(),
                 subject.getPath(), recipient.userId());
             return true;
         } catch (final RepositoryException | IOException | MessagingException | RuntimeException e) {
