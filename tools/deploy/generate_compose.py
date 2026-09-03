@@ -366,6 +366,12 @@ def env_entries(args, env_file):
         entries.append(('IAP_OAUTH_ENCRYPTION_PASSWORD', 'devpassword', [
             "Any value will do for development; it encrypts the stored OAuth tokens.",
         ]))
+    if args.docling:
+        entries.append(('IAP_DOCLING_CALLBACK_JWT', 'devcallbacktoken', [
+            "Authenticates the parse outcomes the daemon POSTs back to IAP. Read by both",
+            "containers, and compared as an opaque secret, so any value will do for",
+            "development. Empty on either side means asynchronous parsing is refused.",
+        ]))
     return entries
 
 
@@ -509,6 +515,12 @@ def iap_environment(args):
         # and does not start without it. The value is in .env.
         environment['SLING_COMMONS_CRYPTO_PASSWORD'] = '${SLING_COMMONS_CRYPTO_PASSWORD}'
 
+    if args.docling:
+        comment(environment, "The shared secret the daemon presents when it POSTs a parse")
+        comment(environment, "outcome back. Compared as an opaque string, so any value does, but")
+        comment(environment, "it must be the one the daemon is given. In .env.")
+        environment['IAP_DOCLING_CALLBACK_JWT'] = '${IAP_DOCLING_CALLBACK_JWT}'
+
     if args.features:
         comment(environment, "Started in addition to the distribution the image already carries.")
         comment(environment, "The entrypoint expands this value as a bash prompt string, so a")
@@ -625,8 +637,17 @@ def docling_service():
         'IAP_MAX_INPUT_BYTES': '${IAP_MAX_INPUT_BYTES:-67108864}',
         'IAP_LIBREOFFICE_TIMEOUT_SECONDS': '${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}',
         'IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS': '${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}',
+        # Asynchronous parsing: /parse?job_id= answers at once and the daemon POSTs the
+        # outcome here later. The destination is configured on the daemon, not sent with the
+        # dispatch, because the callback carries the token below. Both containers are on the
+        # iap network, so the app is reachable by service name on its internal port.
+        'IAP_DOCLING_CALLBACK_URL': 'http://iap:8080/system/documents/parseCallback',
+        # The same .env value IAP is given, so the two cannot drift apart. Without it the
+        # daemon refuses asynchronous requests and IAP refuses the deliveries.
+        'IAP_DOCLING_CALLBACK_JWT': '${IAP_DOCLING_CALLBACK_JWT}',
         'HOME': '/tmp'
     }
+    service['networks'] = ['iap']
     service['volumes'] = ['${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs']
     service['deploy'] = {
         'resources': {
