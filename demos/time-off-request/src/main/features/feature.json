@@ -31,6 +31,8 @@
         "create group time-off-requesters \n create group time-off-approvers",
         "create user demo-requester with password demo-requester \n create user demo-approver with password demo-approver",
         "add demo-requester to group time-off-requesters \n add demo-approver to group time-off-approvers",
+        "set properties on authorizable(demo-requester) \n set profile/email to \"demo-requester@example.com\" \n end",
+        "set properties on authorizable(demo-approver) \n set profile/email to \"demo-approver@example.com\" \n end",
         // The nightly urgency sweep reads every request and writes a tag on the ones about to start. It needs a
         // user of its own because it runs on a clock rather than on somebody's request: there is nobody signed in
         // to act as, and the engine's own service user belongs to the engine.
