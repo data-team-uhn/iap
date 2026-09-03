@@ -47,6 +47,7 @@ import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.workflows.models.WorkflowInstance;
@@ -101,7 +102,7 @@ class SubmissionTest
         this.context.addModelsForClasses(Content.class, Entity.class, Submission.class, Answer.class,
             Document.class, Review.class, Discussion.class, Comment.class, SchemaVersion.class, FormRequirement.class,
             DocumentRequirement.class, ApprovalRequirement.class, Section.class, Question.class,
-            SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class);
+            SingleCondition.class, WorkflowInstance.class, WorkflowInstances.class, Schema.class);
         this.created = Calendar.getInstance();
         this.created.set(2026, Calendar.APRIL, 5, 16, 20, 0);
     }
@@ -427,6 +428,30 @@ class SubmissionTest
         assertEquals(2, answers.size());
         assertEquals(List.of("yes"), answers.get(QUESTION_1_PATH));
         assertEquals(List.of(), answers.get(QUESTION_2_PATH));
+    }
+
+    @Test
+    void exposesTheSchemaItAnswersAsWellAsTheVersion()
+        throws RepositoryException
+    {
+        // Both are written when the submission is created, so that "everything against this schema" needs no join
+        this.context.create().resource("/Schemas/schema",
+            SLING_RESOURCE_TYPE, Schema.RESOURCE_TYPE, "title", "A schema");
+        this.context.create().resource("/Schemas/schema/1.0",
+            SLING_RESOURCE_TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0");
+        final Session session = Mockito.mock(Session.class);
+        this.mockNode(session, SCHEMA_VERSION_ID, "/Schemas/schema/1.0");
+        this.mockNode(session, "schema-uuid", "/Schemas/schema");
+        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
+        final Resource resource = this.context.create().resource(SUBMISSION_PATH, Map.of(
+            SLING_RESOURCE_TYPE, Submission.RESOURCE_TYPE,
+            "schemaVersion", SCHEMA_VERSION_ID,
+            "schema", "schema-uuid"));
+
+        final Submission submission = Objects.requireNonNull(resource.adaptTo(Submission.class));
+
+        assertEquals("A schema", submission.getSchema().getTitle());
+        assertEquals("1.0", submission.getSchemaVersion().getVersion());
     }
 
     @Test

@@ -68,6 +68,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The {@code REFERENCE} property holding the schema version. */
     private static final String SCHEMA_VERSION_PROPERTY = "schemaVersion";
 
+    /** The {@code REFERENCE} property holding the schema that version belongs to. */
+    private static final String SCHEMA_PROPERTY = "schema";
+
     /** The lifecycle tag of a schema version that accepts new submissions. */
     private static final String ACTIVE_TAG = "active";
 
@@ -92,9 +95,23 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         final String name = UUID.randomUUID().toString();
         final Resource submission = context.getResourceResolver().create(openBucketFor(context, name), name,
             Map.of("jcr:primaryType", "sub:Submission", TITLE_PROPERTY, title));
-        ReferenceUtils.setReference(submission, SCHEMA_VERSION_PROPERTY, schemaVersion);
+        pointAt(submission, schemaVersion);
         draft(submission);
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, submission.getPath());
+    }
+
+    /**
+     * Points the submission just raised at the schema version it answers, and at the schema that version belongs to.
+     *
+     * @param submission the submission just created
+     * @param schemaVersion the vetted schema version it was raised against
+     * @throws PersistenceException when a reference cannot be written
+     */
+    private void pointAt(final Resource submission, final Resource schemaVersion) throws PersistenceException
+    {
+        ReferenceUtils.setReference(submission, SCHEMA_VERSION_PROPERTY, schemaVersion);
+        ReferenceUtils.setReference(submission, SCHEMA_PROPERTY, Objects.requireNonNull(schemaVersion.getParent(),
+            "A vetted schema version always sits inside its schema"));
     }
 
     /**

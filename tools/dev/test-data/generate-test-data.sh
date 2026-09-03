@@ -100,6 +100,9 @@ fi
 VERSION_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/v1.json" \
   | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
 echo "Schema version 1.0 has UUID $VERSION_UUID"
+# A submission names its schema as well as its version. The system workflow writes both, so a POST must too.
+SCHEMA_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy.json" \
+  | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
 PROTOCOL_UUID="$(curl -s -u "admin:$PASSWORD" "$URL/Schemas/DemoStudy/v1/Protocol.json" \
   | python3 -c "import json, sys; print(json.load(sys.stdin)['jcr:uuid'])")"
 
@@ -153,7 +156,9 @@ for i in $(seq 1 "$COUNT"); do
     -F "tags=$STATUS" \
     -F "tags@TypeHint=String[]" \
     -F "schemaVersion=$VERSION_UUID" \
-    -F "schemaVersion@TypeHint=Reference"
+    -F "schemaVersion@TypeHint=Reference" \
+    -F "schema=$SCHEMA_UUID" \
+    -F "schema@TypeHint=Reference"
   # Submissions under review or sent back for changes get an open review whose state mirrors
   # the submission's, alternating between admin (visible in admin's review queue) and another
   # reviewer (not visible); approved ones get a finished review.
