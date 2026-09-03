@@ -105,7 +105,7 @@ class MarkUrgencyHandlerTest
         this.handler.execute(context(this.target));
 
         assertTrue(Set.of(this.context.resourceResolver().getResource(SUBMISSION_PATH)
-            .getValueMap().get("tags", new String[0])).contains(TimeOffUrgency.URGENT));
+            .getValueMap().get("tags", new String[0])).contains(TimeOffUrgency.URGENT_TAG));
     }
 
     private String identifierOf(final String path)
