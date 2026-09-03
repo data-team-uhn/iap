@@ -71,6 +71,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The lifecycle tag of a closed schema, which its versions inherit. */
     private static final String RETIRED_TAG = "retired";
 
+    /** The property naming the schema that version belongs to, written here rather than asked of the caller. */
+    private static final String SCHEMA_PROPERTY = "schema";
+
     /**
      * The type of the prefix tree's buckets. A plain folder: they hold no data of their own, and being a type the
      * homepage's own read grant names means a submitter can reach what they filed without the buckets having to be
@@ -95,6 +98,10 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         final Resource submission = context.getResourceResolver().create(bucketFor(context, name),
             name, Map.of("jcr:primaryType", "sub:Submission", TITLE_PROPERTY, title));
         ReferenceUtils.setReference(submission, SCHEMA_VERSION_PROPERTY, schemaVersion);
+        // The schema too, so that "everything submitted against this schema" needs no join. It is the version's
+        // parent, which resolveSchemaVersion has already checked
+        ReferenceUtils.setReference(submission, SCHEMA_PROPERTY, Objects.requireNonNull(schemaVersion.getParent(),
+            "A vetted schema version always sits inside its schema"));
         draft(submission);
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, submission.getPath());
     }
@@ -149,6 +156,12 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
      * than whatever else sits at that path, carry the {@code active} lifecycle tag, and belong to a schema that
      * is not {@code retired}: a retired schema closes all of its versions, which inherit the tag rather than
      * carry it. This is where "no new submissions against a closed version" is actually enforced.
+     *
+     * <p>Every one of those checks has to be made here. The lookup runs on the engine's privileged session, so
+     * nothing is hidden from it and nothing will be refused on the caller's behalf; being allowed to raise a
+     * submission is a question the start event already answered, and it is not the same question as which schema
+     * versions this particular user should be able to answer. When the platform can express the narrower rule —
+     * institutions, study teams — it belongs in the definition next to the performers, not here.</p>
      *
      * @param context the executing task's context
      * @return the resolved schema version's resource

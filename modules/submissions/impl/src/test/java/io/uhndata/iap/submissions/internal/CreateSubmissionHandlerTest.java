@@ -115,11 +115,16 @@ class CreateSubmissionHandlerTest
         // Raised as a draft, which is the state the save workflow checks for: without it the submitter cannot
         // answer their own request at all
         assertEquals(List.of(DRAFT), List.of(created.getValueMap().get("tags", new String[0])));
-        // A real REFERENCE, holding the version node's own identifier
+        // Real REFERENCEs, holding the version's and the schema's own identifiers
         final Node versionNode =
             this.context.resourceResolver().getResource(VERSION_PATH).adaptTo(Node.class);
         assertEquals(versionNode.getIdentifier(),
             created.getValueMap().get("schemaVersion", String.class));
+        // Both, so that "everything submitted against this schema" is one comparison rather than a join — and
+        // so that nobody raising a submission has to state a fact the version already implies
+        final Node schemaNode = this.context.resourceResolver()
+            .getResource("/Schemas/timeOffRequest").adaptTo(Node.class);
+        assertEquals(schemaNode.getIdentifier(), created.getValueMap().get("schema", String.class));
     }
 
     @Test
