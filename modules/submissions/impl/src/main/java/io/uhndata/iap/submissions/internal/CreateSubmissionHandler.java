@@ -62,6 +62,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The payload entry pointing at the schema version being submitted against. */
     private static final String SCHEMA_VERSION = "schemaVersion";
 
+    /** The property naming the schema that version belongs to, written here rather than asked of the caller. */
+    private static final String SCHEMA = "schema";
+
     /** The lifecycle a submission begins in, which nothing else would put it in. */
     private static final String DRAFT = "draft";
 
@@ -127,25 +130,44 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     }
 
     /**
-     * Points the fresh submission at its schema version with a real {@code REFERENCE}. This has to go through
-     * the JCR API: a plain string property would carry the right identifier but the wrong type, and the strict
-     * {@code sub:Submission} definition rejects it at commit.
+     * Points the fresh submission at both the schema version it answers and the schema that version belongs to,
+     * with real {@code REFERENCE} properties. This has to go through the JCR API: a plain string property would
+     * carry the right identifier but the wrong type, and the strict {@code sub:Submission} definition rejects it
+     * at commit.
+     *
+     * <p>Both, because nobody should have to state the schema separately when the version already implies it —
+     * and because a query for everything submitted against a schema is otherwise a join.</p>
      *
      * @param created the submission just created
      * @param version the vetted schema version
-     * @throws PersistenceException when the repository refuses the reference
+     * @throws PersistenceException when the repository refuses either reference
      */
     private void reference(final Resource created, final Resource version) throws PersistenceException
     {
-        final Node submission = Objects.requireNonNull(created.adaptTo(Node.class),
-            "A freshly created submission is always backed by a JCR node");
-        final Node target = Objects.requireNonNull(version.adaptTo(Node.class),
-            "A vetted schema version is always backed by a JCR node");
+        final Node submission = node(created, "A freshly created submission");
+        final Node versionNode = node(version, "A vetted schema version");
+        // The schema is the version's parent, which is what SchemaVersion.getSchema() reads; resolveSchemaVersion
+        // has already established that it is there and active
+        final Node schemaNode = node(Objects.requireNonNull(version.getParent(),
+            "A vetted schema version always sits inside its schema"), "A schema");
         try {
-            submission.setProperty(SCHEMA_VERSION, target);
+            submission.setProperty(SCHEMA_VERSION, versionNode);
+            submission.setProperty(SCHEMA, schemaNode);
         } catch (final RepositoryException e) {
-            throw new PersistenceException("Could not reference the schema version", e);
+            throw new PersistenceException("Could not reference the schema", e);
         }
+    }
+
+    /**
+     * The JCR node behind a resource.
+     *
+     * @param resource the resource to unwrap
+     * @param what what it is, for the message when it is somehow not node-backed
+     * @return the node
+     */
+    private static Node node(final Resource resource, final String what)
+    {
+        return Objects.requireNonNull(resource.adaptTo(Node.class), what + " is always backed by a JCR node");
     }
 
     /**

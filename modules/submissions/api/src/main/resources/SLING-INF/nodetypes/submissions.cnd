@@ -62,6 +62,12 @@
   // The sch:SchemaVersion this submission answers
   - schemaVersion (REFERENCE) mandatory
 
+  // The sch:Schema that version belongs to. Redundant with schemaVersion's parent, and
+  // deliberately so: "every submission against this schema, whichever version" is the
+  // ordinary question, and answering it from schemaVersion alone needs a join. Nobody
+  // sets it by hand - the system workflow that creates a submission writes both.
+  - schema (REFERENCE) mandatory
+
   // The lifecycle state (draft, submitted, in-review, approved, rejected) is not a dedicated
   // property: it is a `lifecycle`-category tag in the inherited `tags` property, defined under
   // /Tags and managed by the attached user workflow. Whoever creates a submission is expected
