@@ -24,13 +24,16 @@ import io.uhndata.iap.notifications.api.Recipient;
 
 /**
  * One way of telling somebody something. Any bundle may register one; each is offered every notification and
- * decides for itself whether it is the one to carry it.
+ * decides for itself whether to carry it.
  *
  * <p>
- * The immediate email delivery is the only one today. The shape anticipates the others without building them: a
- * digest collector would accept only {@link NotificationContext#BATCHED} and write the notification down instead
- * of sending anything, and an in-app delivery would accept everything and store an unread marker. None of that
- * changes a workflow definition, which is the point of the split.
+ * <strong>They are not alternatives.</strong> Every delivery is offered every notification, so the same one
+ * routinely goes out more than once — emailed straight away <em>and</em> kept as a record somebody can come back
+ * to, which is what the two shipped deliveries do. That is the intended behaviour, not double-telling: each
+ * channel answers a different question, "did I hear about this" and "what happened while I was away". A digest
+ * collector added later would accept only {@link NotificationContext#BATCHED} and write the notification down
+ * instead of sending anything, again alongside the rest. None of it changes a workflow definition, which is the
+ * point of the split.
  * </p>
  *
  * <p>
@@ -45,11 +48,12 @@ import io.uhndata.iap.notifications.api.Recipient;
 public interface NotificationDelivery
 {
     /**
-     * Tells one person about one thing, if this is the way to tell them.
+     * Tells one person about one thing, if this is a way to tell them.
      *
      * @param notification what happened, including where its wording lives
      * @param recipient who to tell
-     * @return {@code true} if this delivery carried it, {@code false} if it is not the one to
+     * @return {@code true} if this delivery carried it, {@code false} if it declined; other deliveries are
+     *         offered it either way
      */
     boolean deliver(@NotNull NotificationContext notification, @NotNull Recipient recipient);
 }

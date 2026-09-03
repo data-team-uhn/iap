@@ -73,7 +73,7 @@ those modules. A producer for another channel would get the same reports for fre
 
 ## Workflow notifications
 
-A workflow can tell people what it decided. A service task naming the `notify` handler carries the
+A workflow can tell people what happened. A service task naming the `notify` handler carries the
 event name, who to tell, how urgent it is, and where the wording lives — so adding a notification is
 adding a node and some wording, never Java. Who to tell is written in the same vocabulary the
 workflow uses to say who may act: `@creator` is whoever raised the thing in question, and anything

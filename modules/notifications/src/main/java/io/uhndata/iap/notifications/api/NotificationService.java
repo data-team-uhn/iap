@@ -33,9 +33,11 @@ import org.jetbrains.annotations.NotNull;
  * </p>
  *
  * <p>
- * Recipients are named by <em>role</em> rather than by address, in the same vocabulary a workflow uses to say who
- * may act: {@code @creator} is whoever raised the subject, and anything else is a group or a user id. A workflow
- * definition therefore never carries an address, which is what keeps it true when people change.
+ * Recipients are named by <em>role</em> rather than by address, and who a role names is not this module's
+ * judgement to make: the names are resolved by the principals service, the same one the workflow engine asks who
+ * may act, so {@code @creator} means the same person whether it is being asked to approve something or being told
+ * the outcome. A workflow definition therefore never carries an address, which is what keeps it true when people
+ * change.
  * </p>
  *
  * @version $Id$
