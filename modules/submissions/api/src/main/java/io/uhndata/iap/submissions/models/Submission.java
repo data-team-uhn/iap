@@ -30,6 +30,7 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.OSGiService;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
@@ -40,6 +41,7 @@ import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.tags.models.Taggable;
@@ -76,6 +78,9 @@ public class Submission extends Entity
     @ValueMapValue
     private String schemaVersion;
 
+    @ValueMapValue
+    private String schema;
+
     /**
      * The title of the submission.
      *
@@ -97,6 +102,55 @@ public class Submission extends Entity
     {
         return Objects.requireNonNull(this.getReference(this.schemaVersion, SchemaVersion.class),
             "Missing mandatory schemaVersion reference");
+    }
+
+    /**
+     * The schema this submission answers, whichever of its versions it was raised against.
+     *
+     * <p>Held on the submission rather than reached through {@link #getSchemaVersion()}, because "everything
+     * submitted against this schema" is the ordinary question and reaching it through the version makes every
+     * such query a join. Both are written when the submission is created, so they cannot disagree.</p>
+     *
+     * @return the schema
+     */
+    @NotNull
+    public Schema getSchema()
+    {
+        return Objects.requireNonNull(this.getReference(this.schema, Schema.class),
+            "Missing mandatory schema reference");
+    }
+
+    /**
+     * The values answering a particular question, which is named by the tail of its path.
+     *
+     * <p>A suffix rather than a whole path because a question's path names the schema version it belongs to, and
+     * the caller almost always means "this question, in whichever version this submission answers" — a rule
+     * written against one version's path stops working the day a second one is published.</p>
+     *
+     * @param questionPathSuffix the end of the path of the question to read, e.g. {@code /details/startDate}
+     * @return the values given, empty when the question is unanswered or not asked here
+     */
+    @NotNull
+    public List<String> getAnswersTo(@NotNull final String questionPathSuffix)
+    {
+        return this.getAnswersByQuestion().entrySet().stream()
+            .filter(answer -> answer.getKey().endsWith(questionPathSuffix))
+            .map(Map.Entry::getValue)
+            .flatMap(List::stream)
+            .filter(value -> !value.isBlank())
+            .toList();
+    }
+
+    /**
+     * The single value answering a particular question, for the questions that take one.
+     *
+     * @param questionPathSuffix the end of the path of the question to read, e.g. {@code /details/startDate}
+     * @return the first value given, or {@code null} when the question is unanswered or not asked here
+     */
+    @Nullable
+    public String getAnswerTo(@NotNull final String questionPathSuffix)
+    {
+        return this.getAnswersTo(questionPathSuffix).stream().findFirst().orElse(null);
     }
 
     /**
