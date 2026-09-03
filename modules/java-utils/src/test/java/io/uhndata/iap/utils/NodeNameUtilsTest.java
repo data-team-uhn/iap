@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.utils;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import org.apache.sling.api.resource.Resource;
@@ -24,6 +26,7 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -75,13 +78,38 @@ class NodeNameUtilsTest
         assertEquals("report3", NodeNameUtils.findFreeName(parent, "report"));
     }
 
+    // Past the counter the name stops being readable, but never stops being produced: refusing here would mean
+    // refusing to record something that did happen, over a name nobody reads
     @Test
-    void givesUpWhenEveryVariantIsTaken()
+    void fallsBackToARandomSuffixWhenEveryCountedVariantIsTaken()
     {
         final Resource parent = this.context.create().resource("/content");
         IntStream.rangeClosed(1, 100).forEach(attempt -> this.context.create().resource(
             "/content/" + (attempt == 1 ? "busy" : "busy" + attempt)));
 
-        assertNull(NodeNameUtils.findFreeName(parent, "busy"));
+        final String name = NodeNameUtils.findFreeName(parent, "busy");
+
+        assertTrue(name.matches("busy[0-9]{9}"));
+        assertNull(parent.getChild(name));
+    }
+
+    // The retry loop, forced: with every drawn suffix already taken but one, only retrying finds the free one
+    @Test
+    void drawsAgainWhenTheRandomSuffixIsAlsoTaken()
+    {
+        final Resource occupied = Mockito.mock(Resource.class);
+        final Resource parent = Mockito.mock(Resource.class);
+        final Set<String> drawn = new HashSet<>();
+        Mockito.when(parent.getChild(Mockito.anyString())).thenAnswer(invocation -> {
+            final String candidate = invocation.getArgument(0, String.class);
+            // Every counted variant is taken, and so are the first two suffixes drawn after them
+            return candidate.matches("busy[0-9]{9}") && drawn.add(candidate) && drawn.size() >= 3
+                ? null : occupied;
+        });
+
+        final String name = NodeNameUtils.findFreeName(parent, "busy");
+
+        assertTrue(name.matches("busy[0-9]{9}"));
+        assertEquals(3, drawn.size());
     }
 }

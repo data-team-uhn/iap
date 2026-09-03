@@ -411,7 +411,7 @@ final class InstanceRunner
      */
     private Resource createToken(final Resource instance, final String elementId) throws PersistenceException
     {
-        final String name = Objects.requireNonNullElse(NodeNameUtils.findFreeName(instance, "token"), "token");
+        final String name = NodeNameUtils.findFreeName(instance, "token");
         return this.resolver.create(instance, name, Map.of(
             TYPE, "wf:WorkflowToken", CURRENT_NODE_ID, elementId));
     }
@@ -485,8 +485,7 @@ final class InstanceRunner
      */
     private void createTask(final Resource instance, final Activity activity) throws PersistenceException
     {
-        final String name = Objects.requireNonNullElse(
-            NodeNameUtils.findFreeName(instance, activity.getName()), activity.getName());
+        final String name = NodeNameUtils.findFreeName(instance, activity.getName());
         final Map<String, Object> properties = new HashMap<>(Map.of(
             TYPE, "wf:TaskInstance",
             "taskDefinitionId", activity.getElementId(),
@@ -598,8 +597,7 @@ final class InstanceRunner
             throw new WorkflowDefinitionException("The resource " + host.getPath()
                 + " cannot hold workflows: it is not wf:WorkflowAttachable");
         }
-        final String name = Objects.requireNonNullElse(
-            NodeNameUtils.findFreeName(container, definitionName(version)), version.getName());
+        final String name = NodeNameUtils.findFreeName(container, definitionName(version));
         final Resource instance = this.resolver.create(container, name, Map.of(
             TYPE, "wf:WorkflowInstance",
             STATUS, "active",
