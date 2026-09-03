@@ -1,0 +1,28 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Files what would have been sent into /CaughtMail instead of delivering it, so that email can be
+// exercised without a mail server. It outranks Sling's own mail service rather than replacing it.
+//
+// Shipped everywhere and inert everywhere, because the component requires a configuration to
+// activate and this feature supplies none. What switches it on is `dev/email-catcher-enabled.json`,
+// which only the test and demo aggregates include. One set of artifacts, and the difference between
+// environments is a configuration a deployment can read rather than a bundle list it has to trust.
+{
+    "prototype":{
+        "id": "${project.groupId}:iap-email-catcher:slingosgifeature:${project.version}"
+    }
+}

@@ -135,6 +135,10 @@ any repository content.
 | Workflows | `/admin/workflows` | `workflows` | 20 |
 | Recorded errors | `/admin/errors` | `error-tracking` | 30 |
 | Archive | `/admin/archive` | `deletion` | 30 |
+| Caught mail | `/admin/mail` | `email-catcher` | 40 |
+
+The last of those is a development facility that ships everywhere and is off unless
+switched on.
 
 ## Future work
 

@@ -36,6 +36,8 @@ import org.apache.sling.commons.messaging.mail.MessageBuilder;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferencePolicy;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,8 +82,16 @@ public final class EmailTestEndpoint extends SlingJakartaSafeMethodsServlet
 
     private static final String STILL_SENDING = "The message is still being sent. " + SEE_THE_LOG;
 
-    @Reference
-    private transient MailService mailService;
+    // Dynamic and greedy, so that the highest-ranked mail service is the one used, whenever it turns up.
+    //
+    // The default — static and reluctant — binds whatever exists when this component activates and never looks
+    // again, so a service registered later with a higher service.ranking is ignored for the life of the
+    // component. Making it merely greedy is not enough either: a static reference can only change what it is
+    // bound to by restarting the component, and whether that happens in time is a startup race nobody should
+    // have to win. Dynamic rebinds in place, so substituting a mail service is a matter of ranking rather than
+    // of ordering — which is what a development instance filing mail instead of sending it depends on.
+    @Reference(policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
+    private transient volatile MailService mailService;
 
     /**
      * How long to wait for a send to finish before answering that it is still going. A request thread is cheap

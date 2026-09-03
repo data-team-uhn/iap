@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Caught mail",
+  "ext:targetURL": "/admin/mail",
+  "ext:renderURL": "asset:iap-email-catcher.CaughtMailBrowser.js?lazy"
+}

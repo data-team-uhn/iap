@@ -38,6 +38,7 @@
     <module>conditions</module>
     <module>data</module>
     <module>deletion</module>
+    <module>email-catcher</module>
     <module>email-notifications</module>
     <module>error-tracking</module>
     <module>favicon</module>
