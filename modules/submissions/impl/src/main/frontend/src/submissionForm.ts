@@ -157,6 +157,14 @@ export async function saveAnswer(path: string, question: string, values: string[
   // A question that may hold several values is answered by repeating it, which is what the handler
   // reads back as a multi-valued answer
   values.forEach(value => body.append(question, value));
+  if (values.length === 0) {
+    // Clearing an answer still has to name the question, with one empty value: the handler walks the
+    // questions the payload mentions, so a question left out of it is not cleared but *untouched*.
+    // The widgets report no values at all for a blank field, which without this reads as "nothing to
+    // say about this question" -- the old answer survives, and the request goes on counting as
+    // complete when it no longer is.
+    body.append(question, "");
+  }
   const response = await fetch(path, { method: "POST", body });
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
