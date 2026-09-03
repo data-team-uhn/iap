@@ -23,6 +23,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -37,7 +40,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Re-judges every open request once a night, because urgency changes with the date and not with the request.
@@ -62,16 +66,23 @@ public class NightlyUrgencySweep implements Runnable
     /** Just after midnight, when "tomorrow" has just become "today" for the requests that were waiting on it. */
     static final String SCHEDULE = "0 5 0 * * ?";
 
-    /** The requests this demo owns, whichever version of its schema they answer. */
-    static final String OWN_REQUESTS = "/Schemas/timeOffRequest/";
+    /** The schema this demo owns. Every version of it is a child, and every request points at it. */
+    static final String OWN_SCHEMA = "/Schemas/timeOffRequest";
 
     private static final String JOB_NAME = "iap-demo-time-off-urgency";
 
     private static final String SUBSERVICE = "urgency";
 
-    /** Every submission, judged one at a time. Ordered so that a sweep reads them the same way twice. */
-    private static final String ALL_SUBMISSIONS =
-        "SELECT * FROM [sub:Submission] AS submission ORDER BY submission.[jcr:created] ASC";
+    /**
+     * This demo's requests, judged one at a time, ordered so that a sweep reads them the same way twice.
+     *
+     * <p>Filtered on the submission's own {@code schema} reference rather than on its schema <em>version</em>:
+     * asking for every version of a schema through the version property means a join, while the schema is one
+     * property comparison — which is exactly why a submission carries both.</p>
+     */
+    private static final String OWN_REQUESTS =
+        "SELECT * FROM [sub:Submission] AS submission WHERE submission.[schema] = '%s'"
+            + " ORDER BY submission.[jcr:created] ASC";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NightlyUrgencySweep.class);
 
@@ -107,6 +118,7 @@ public class NightlyUrgencySweep implements Runnable
             sweep(resolver, LocalDate.now());
         } catch (final LoginException e) {
             LOGGER.error("The demo's service user is not available, so no request can be judged", e);
+            ErrorLogger.logError(e, ErrorContext.of(NightlyUrgencySweep.class, "login"));
         }
     }
 
@@ -120,7 +132,7 @@ public class NightlyUrgencySweep implements Runnable
     {
         for (final String path : requests(resolver)) {
             final Resource request = resolver.getResource(path);
-            if (request == null || !ownRequest(request)) {
+            if (request == null) {
                 continue;
             }
             try {
@@ -128,40 +140,52 @@ public class NightlyUrgencySweep implements Runnable
             } catch (final PersistenceException e) {
                 // One request the sweep cannot write must not cost every later one its answer
                 LOGGER.error("Could not judge the urgency of {}: {}", path, e.getMessage(), e);
+                ErrorLogger.logError(e, ErrorContext.of(NightlyUrgencySweep.class, "mark").about(path));
             }
         }
         commit(resolver);
     }
 
     /**
-     * Whether a submission answers this demo's schema. Read from the request rather than asked of the query,
-     * because the reference is stored as an identifier while the schema is addressed by path.
-     *
-     * @param request the submission to check
-     * @return {@code true} if it answers a version of the time off request schema
-     */
-    private static boolean ownRequest(final Resource request)
-    {
-        final Submission submission = request.adaptTo(Submission.class);
-        return submission != null && submission.getSchemaVersion() != null
-            && submission.getSchemaVersion().getPath().startsWith(OWN_REQUESTS);
-    }
-
-    /**
-     * The paths of every submission, read out in one go: holding a query's own iterator open while writing
+     * The paths of this demo's requests, read out in one go: holding a query's own iterator open while writing
      * through the same session invites it to reflect the writes back.
      *
      * @param resolver the session to query through
-     * @return the paths, oldest first
+     * @return the paths, oldest first, empty when the demo's schema is not installed
      */
     private static List<String> requests(final ResourceResolver resolver)
     {
+        final String identifier = identifierOf(resolver.getResource(OWN_SCHEMA));
+        if (identifier == null) {
+            LOGGER.warn("The time off request schema is not installed, so there is nothing to judge");
+            return List.of();
+        }
+        // A reference is stored as the target's identifier, so that is what the comparison takes. Written into
+        // the query rather than bound because a repository-issued identifier is not caller input
+        final String query = String.format(OWN_REQUESTS, identifier);
         final List<String> paths = new ArrayList<>();
-        for (final Iterator<Resource> found = resolver.findResources(ALL_SUBMISSIONS, "JCR-SQL2");
-            found.hasNext();) {
+        for (final Iterator<Resource> found = resolver.findResources(query, "JCR-SQL2"); found.hasNext();) {
             paths.add(found.next().getPath());
         }
         return paths;
+    }
+
+    /**
+     * The identifier a reference to this resource would hold.
+     *
+     * @param resource the resource to identify, possibly {@code null}
+     * @return its identifier, or {@code null} when there is no such resource or it is not referenceable
+     */
+    private static String identifierOf(final Resource resource)
+    {
+        final Node node = resource == null ? null : resource.adaptTo(Node.class);
+        try {
+            return node == null ? null : node.getIdentifier();
+        } catch (final RepositoryException e) {
+            LOGGER.error("Could not identify the time off request schema: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(NightlyUrgencySweep.class, "identifySchema"));
+            return null;
+        }
     }
 
     private static void commit(final ResourceResolver resolver)
@@ -172,6 +196,7 @@ public class NightlyUrgencySweep implements Runnable
             }
         } catch (final PersistenceException e) {
             LOGGER.error("Could not record what the urgency sweep decided", e);
+            ErrorLogger.logError(e, ErrorContext.of(NightlyUrgencySweep.class, "commit"));
         }
     }
 }
