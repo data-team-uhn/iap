@@ -154,7 +154,7 @@ test.describe('the data study demo', () => {
   test('installs the workflow, and ships its diagram as a file', async ({ request }) => {
     const version = await request.get('/Workflows/dataStudy/v1.json', { headers: asAdmin });
     expect(version.ok()).toBeTruthy();
-    expect(((await version.json()) as { active?: boolean }).active).toBe(true);
+    expect(((await version.json()) as { state?: string }).state).toBe('ACTIVE');
 
     const diagram = await request.get('/Workflows/dataStudy/v1/bpmn.xml', { headers: asAdmin });
     expect(diagram.ok()).toBeTruthy();
