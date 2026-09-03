@@ -55,6 +55,9 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
 
   const [selectedElements, setSelectedElements] = useState<Element[]>([]);
   const [element, setElement] = useState<Element | null>(null);
+  // Counts reported changes to the selected element. bpmn-js edits an element in place and hands back the very same
+  // object, so this counter -- not a comparison of elements -- is what tells ElementProperties to reread its name.
+  const [revision, setRevision] = useState(0);
 
   const handleSelectionChanged = useCallback(
     (event: SelectionChangedEvent) => {
@@ -71,6 +74,7 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
     for (const newElement of event.elements) {
       if (element.id === newElement.id) {
         setElement(newElement);
+        setRevision(current => current + 1);
         break;
       }
     }
@@ -94,6 +98,7 @@ export default function PropertiesPanel(props: PropertiesPanelProps) {
             key={ element.id }
             viewer={ viewer }
             element={ element }
+            revision={ revision }
             readOnly={ readOnly }
           />
       }
