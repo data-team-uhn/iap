@@ -27,7 +27,7 @@
         "io.uhndata.iap.documents-api:parse-jobs=[iap-documents]"
       ]
     },
-    // Where the Docling daemon listens; see modules/documents/processing/docker-compose.yml.
+    // Where the Docling daemon listens; see tools/deploy/generate_compose.py --docling.
     // Where it POSTs parse outcomes back to is configured on the daemon itself
     // (IAP_DOCLING_CALLBACK_URL), not sent with the dispatch: that call carries the shared
     // token and the daemon's port is unauthenticated. The callback is authenticated with the
