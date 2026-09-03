@@ -18,9 +18,6 @@
 package io.uhndata.iap.demos.timeoff.internal;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -31,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
+import io.uhndata.iap.utils.DateUtils;
 
 /**
  * Whether a time off request is about to start, and saying so on the request.
@@ -44,16 +42,17 @@ import io.uhndata.iap.tags.models.Taggable;
  * inside either caller: it is asked twice, once when a request is sent and once by a nightly sweep, and the two
  * must not be able to disagree. Time is passed in rather than read, so a test can ask about a Tuesday.</p>
  *
- * <p>Marking always both tags and untags. A request whose start date moves later stops being urgent, and a flag
- * that only ever went on would leave the list it was meant to shorten no shorter.</p>
+ * <p>Marking both tags and untags, so long as the request is still live: one whose start date moves later stops
+ * being urgent, and a flag that only ever went on would leave the list it was meant to shorten no shorter. A
+ * decided request is left exactly as it is — see {@link #mark}.</p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 final class TimeOffUrgency
 {
-    /** The tag a request about to start carries. */
-    static final String URGENT = "urgent";
+    /** The name of the tag a request about to start carries. */
+    static final String URGENT_TAG = "urgent";
 
     /**
      * Where the start date lives, relative to the schema version. Matched as a suffix so that a second version of
@@ -78,6 +77,11 @@ final class TimeOffUrgency
     /**
      * Places or removes the urgency flag, according to what the request now says.
      *
+     * <p>A request that has already been decided is left alone entirely, flag and all. Urgency is a claim about
+     * what somebody still has to do, and a decided request is not waiting for anybody — so whatever it carries is
+     * the record of how it stood when it was decided, and rewriting that every night would be editing a finished
+     * request to say something nobody is going to read.</p>
+     *
      * @param resource the submission to judge
      * @param today the date to judge it against
      * @throws PersistenceException when the tag cannot be written
@@ -92,28 +96,38 @@ final class TimeOffUrgency
         }
         final Taggable taggable = Objects.requireNonNull(resource.adaptTo(Taggable.class),
             "Any resource can be read as taggable content");
-        if (isUrgent(submission, taggable, today)) {
-            taggable.tag(URGENT, true);
+        if (isDecided(taggable)) {
+            return;
+        }
+        if (startsSoon(submission, today)) {
+            taggable.tag(URGENT_TAG, true);
         } else {
             // Unconditionally, as with every other computed flag: untag answers "make sure it is not carried",
             // and reading the tag first only to decide whether to remove it says the same thing more slowly
-            taggable.untag(URGENT, true);
+            taggable.untag(URGENT_TAG, true);
         }
     }
 
     /**
-     * Whether this request is about to start and still needs somebody.
+     * Whether this request has been decided, and so is nobody's outstanding work any more.
+     *
+     * @param taggable the request, read for its lifecycle state
+     * @return {@code true} if it has been approved, rejected or expired
+     */
+    static boolean isDecided(final Taggable taggable)
+    {
+        return DECIDED.stream().anyMatch(taggable::hasOwnTag);
+    }
+
+    /**
+     * Whether the time off this request asks for begins today or has already begun.
      *
      * @param submission the request
-     * @param taggable the same request, read for its lifecycle state
      * @param today the date to judge it against
-     * @return {@code true} if it starts today or tomorrow and has not been decided
+     * @return {@code true} if it starts no later than tomorrow
      */
-    static boolean isUrgent(final Submission submission, final Taggable taggable, final LocalDate today)
+    static boolean startsSoon(final Submission submission, final LocalDate today)
     {
-        if (DECIDED.stream().anyMatch(taggable::hasOwnTag)) {
-            return false;
-        }
         final LocalDate start = startDate(submission);
         // Not "today or tomorrow" but "no later than tomorrow": a request whose time off has already begun is not
         // less pressing for having been left, and dropping the flag then would hide the worst case
@@ -128,25 +142,12 @@ final class TimeOffUrgency
      */
     private static LocalDate startDate(final Submission submission)
     {
-        return submission.getAnswersByQuestion().entrySet().stream()
-            .filter(answer -> answer.getKey().endsWith(START_DATE))
-            .map(Map.Entry::getValue)
-            .flatMap(List::stream)
-            .filter(value -> !value.isBlank())
-            .findFirst()
-            .map(TimeOffUrgency::parse)
-            .orElse(null);
-    }
-
-    private static LocalDate parse(final String value)
-    {
-        try {
-            // The stored form of a `date` answer, which is what the editor posts and what a condition compares
-            return LocalDate.parse(value.length() > 10 ? value.substring(0, 10) : value);
-        } catch (final DateTimeParseException e) {
+        final String answer = submission.getAnswerTo(START_DATE);
+        final LocalDate start = DateUtils.parseDate(answer);
+        if (answer != null && start == null) {
             // Said rather than thrown: one unreadable answer must not stop a nightly sweep reaching the rest
-            LOGGER.warn("Could not read {} as the day time off starts", value);
-            return null;
+            LOGGER.warn("Could not read {} as the day time off starts", answer);
         }
+        return start;
     }
 }

@@ -54,11 +54,11 @@ The whole process, end to end, and `specs/demo/` walks through exactly this:
    means to the submission, and its state becomes `approved` or `rejected`. The requester, who can see the
    task, is refused a 403 if they try to decide it themselves.
 
-What the demo does *not* yet show: the boundary event and the reminder-after-two-days shape, since nothing
-delivers timers yet; and the flow nodes here are hand-written to mirror the diagram, because the BPMN
-parser that would generate them does not exist.
+Around that spine the approval task is watched by two boundary timers — a non-interrupting one that marks
+the request overdue after two days and leaves it where it is, and an interrupting one that expires it after
+five — and each end event tells the requester what was decided.
 
-The schema version does point at its workflow version, so the two halves are already joined.
+The schema version points at its workflow version, so the two halves are joined.
 
 ## Editing the process
 
@@ -100,20 +100,18 @@ lookup as the first project-supplied handler. What is left:
   What is still missing is a way to read the *request's answers* from it: a guard is asked of the running
   instance, so the `variable` operand source reaches what the execution knows and nothing yet reaches the
   submission the instance is attached to.
-- Unapproved requests flagged after five days. **Built**: the approval task is watched by an interrupting
-  boundary timer, so a request nobody decides on ends as `expired` rather than waiting forever. What is
-  still missing is the *reminder* shape — telling somebody without ending the request — which needs a
-  second token beside the first.
-- Email on creation, approval and staleness. **Blocked**: nothing wires the notification module to workflow
-  events yet.
+- Unapproved requests flagged after five days. **Built**, both halves: a non-interrupting boundary timer
+  marks the request overdue at two days without moving it off anybody's desk, and an interrupting one
+  expires it at five rather than leaving it waiting forever.
+- Email on approval and rejection. **Built**: the end of each branch is a `notify` service task naming a
+  wording folder, and the rejection quotes the reason the approver gave. Still missing is email on
+  *creation*, and anything about a request going stale.
 - Raising a request by email as well as through the UI. The engine's entry point is already
   channel-agnostic; what is missing is something that turns an arriving mail into an event.
 
-Two things the demo is still waiting on from the platform rather than from itself: the BPMN parser, since
-the flow nodes here are hand-written to mirror the diagram and both have to be edited together; and
-answer options on `sch:Question`, which has `dataType` but no way to declare that "absence type" is one of
-three values — so the questions that ought to be choices are text, and their display conditions compare
-against strings the schema cannot constrain.
+One thing the demo is still waiting on from the platform rather than from itself: a way to name the
+instance's external address, so that a notification can link to the request instead of quoting its
+repository path.
 
 The budget-check service is meant to stay specific to this demo. It exists to prove that a project can
 bring its own Java code, and each item above should identify an extension point the core needs to expose

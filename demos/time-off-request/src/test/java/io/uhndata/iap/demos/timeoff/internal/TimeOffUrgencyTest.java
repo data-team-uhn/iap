@@ -18,7 +18,9 @@
 package io.uhndata.iap.demos.timeoff.internal;
 
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -98,7 +100,7 @@ class TimeOffUrgencyTest
 
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertTrue(tags().contains(TimeOffUrgency.URGENT));
+        assertTrue(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -108,7 +110,7 @@ class TimeOffUrgencyTest
 
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertTrue(tags().contains(TimeOffUrgency.URGENT));
+        assertTrue(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -120,7 +122,7 @@ class TimeOffUrgencyTest
 
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertTrue(tags().contains(TimeOffUrgency.URGENT));
+        assertTrue(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -130,7 +132,7 @@ class TimeOffUrgencyTest
 
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertFalse(tags().contains(TimeOffUrgency.URGENT));
+        assertFalse(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -139,12 +141,12 @@ class TimeOffUrgencyTest
         // The half a flag that only ever went on would miss, and the reason marking is unconditional
         answerStartDate("2026-09-16");
         TimeOffUrgency.mark(this.target, TODAY);
-        assertTrue(tags().contains(TimeOffUrgency.URGENT));
+        assertTrue(tags().contains(TimeOffUrgency.URGENT_TAG));
 
         answerStartDate("2026-10-30");
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertFalse(tags().contains(TimeOffUrgency.URGENT));
+        assertFalse(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -157,7 +159,24 @@ class TimeOffUrgencyTest
 
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertFalse(tags().contains(TimeOffUrgency.URGENT));
+        assertFalse(tags().contains(TimeOffUrgency.URGENT_TAG));
+    }
+
+    @Test
+    void doesNotWriteToARequestThatHasAlreadyBeenDecided() throws PersistenceException
+    {
+        // Not merely "does not flag it" but "does not touch it": the nightly sweep sees every decided request
+        // there has ever been, and re-deciding a finished one every night would be editing a closed record
+        answerStartDate("2026-11-30");
+        modify(this.target, "tags", new String[] {"rejected", TimeOffUrgency.URGENT_TAG});
+        final Taggable taggable = Objects.requireNonNull(this.target.adaptTo(Taggable.class));
+
+        TimeOffUrgency.mark(this.target, TODAY);
+
+        // The flag it was carrying when it was decided is part of that record, and stays
+        assertTrue(tags().contains(TimeOffUrgency.URGENT_TAG));
+        Mockito.verify(taggable, Mockito.never()).tag(Mockito.anyString(), Mockito.anyBoolean());
+        Mockito.verify(taggable, Mockito.never()).untag(Mockito.anyString(), Mockito.anyBoolean());
     }
 
     @Test
@@ -165,7 +184,7 @@ class TimeOffUrgencyTest
     {
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertFalse(tags().contains(TimeOffUrgency.URGENT));
+        assertFalse(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -176,7 +195,7 @@ class TimeOffUrgencyTest
 
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertFalse(tags().contains(TimeOffUrgency.URGENT));
+        assertFalse(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -187,7 +206,7 @@ class TimeOffUrgencyTest
 
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertFalse(tags().contains(TimeOffUrgency.URGENT));
+        assertFalse(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -199,7 +218,7 @@ class TimeOffUrgencyTest
 
         TimeOffUrgency.mark(this.target, TODAY);
 
-        assertTrue(tags().contains(TimeOffUrgency.URGENT));
+        assertTrue(tags().contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -268,21 +287,30 @@ class TimeOffUrgencyTest
      */
     private void taggable()
     {
-        this.context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
-            final Taggable taggable = Mockito.mock(Taggable.class);
-            Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
-                Set.of(resource.getValueMap().get("tags", new String[0])).contains(invocation.getArgument(0)));
-            try {
-                Mockito.when(taggable.tag(Mockito.anyString(), Mockito.anyBoolean()))
-                    .thenAnswer(invocation -> write(resource, invocation.getArgument(0), true));
-                Mockito.when(taggable.untag(Mockito.anyString(), Mockito.anyBoolean()))
-                    .thenAnswer(invocation -> write(resource, invocation.getArgument(0), false));
-            } catch (final PersistenceException e) {
-                // Declared by the methods being stubbed, thrown by neither the stubbing nor the mock
-                throw new IllegalStateException(e);
-            }
-            return taggable;
-        });
+        // One view per resource, kept: a fresh mock on every adaptTo would make "was this ever written to?"
+        // unanswerable, since the test would be looking at a different mock from the one the subject used
+        final Map<String, Taggable> views = new HashMap<>();
+        this.context.registerAdapter(Resource.class, Taggable.class,
+            (Function<Resource, Taggable>) resource -> views.computeIfAbsent(resource.getPath(),
+                path -> this.taggableView(resource)));
+    }
+
+    /** A Taggable that reads and writes the resource's own {@code tags} property. */
+    private Taggable taggableView(final Resource resource)
+    {
+        final Taggable taggable = Mockito.mock(Taggable.class);
+        Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
+            Set.of(resource.getValueMap().get("tags", new String[0])).contains(invocation.getArgument(0)));
+        try {
+            Mockito.when(taggable.tag(Mockito.anyString(), Mockito.anyBoolean()))
+                .thenAnswer(invocation -> write(resource, invocation.getArgument(0), true));
+            Mockito.when(taggable.untag(Mockito.anyString(), Mockito.anyBoolean()))
+                .thenAnswer(invocation -> write(resource, invocation.getArgument(0), false));
+        } catch (final PersistenceException e) {
+            // Declared by the methods being stubbed, thrown by neither the stubbing nor the mock
+            throw new IllegalStateException(e);
+        }
+        return taggable;
     }
 
     private boolean write(final Resource resource, final String tag, final boolean placing)
