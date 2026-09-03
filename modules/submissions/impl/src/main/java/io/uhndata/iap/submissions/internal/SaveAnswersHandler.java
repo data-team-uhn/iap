@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.internal;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -188,11 +189,17 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * array, and a question that may hold several values is answered by repeating it.
      *
      * @param submitted the payload value
-     * @return the values to store
+     * @return the values to store, blanks dropped, empty when the answer is being cleared
      */
     private String[] values(final Object submitted)
     {
-        return submitted instanceof String[] ? (String[]) submitted : new String[] {String.valueOf(submitted)};
+        final String[] given =
+            submitted instanceof String[] ? (String[]) submitted : new String[] {String.valueOf(submitted)};
+        // Blank values are dropped rather than stored: a cleared field posts one empty value, because naming the
+        // question is the only way to say "clear this" -- but what it means is that the question now holds
+        // nothing, and storing the empty string instead would make the answer read as different from the blank
+        // field that produced it, so every later visit to that field would save it again.
+        return Arrays.stream(given).filter(value -> !value.isBlank()).toArray(String[]::new);
     }
 
     /**
