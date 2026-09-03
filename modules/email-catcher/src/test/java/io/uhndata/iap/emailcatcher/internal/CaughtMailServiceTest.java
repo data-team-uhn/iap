@@ -42,10 +42,15 @@ import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mockito;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
 import org.osgi.framework.ServiceRegistration;
+
+import io.uhndata.iap.metrics.api.Metric;
+import io.uhndata.iap.metrics.api.MetricsException;
+import io.uhndata.iap.metrics.api.MetricsManager;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -73,11 +78,21 @@ class CaughtMailServiceTest
 
     private final CaughtMailService service = new CaughtMailService();
 
+    private final MetricsManager metrics = Mockito.mock(MetricsManager.class);
+
+    /** RETURNS_SELF so the fluent metadata calls chain, which is all the builder does. */
+    private final MetricsManager.MetricBuilder builder =
+        Mockito.mock(MetricsManager.MetricBuilder.class, Answers.RETURNS_SELF);
+
+    private final Metric metric = Mockito.mock(Metric.class);
+
     @BeforeEach
     void setUp() throws Exception
     {
         this.context.create().resource(CaughtMailService.CAUGHT_MAIL_PATH,
             "sling:resourceType", "mail/CaughtMailHomepage");
+        Mockito.when(this.metrics.createMetric(Mockito.anyString())).thenReturn(this.builder);
+        Mockito.when(this.builder.create()).thenReturn(this.metric);
         inject(this.service, factory(this.context.resourceResolver()));
     }
 
@@ -169,6 +184,75 @@ class CaughtMailServiceTest
         this.service.activate(Mockito.mock(BundleContext.class), switchedTo(false));
 
         this.service.deactivate();
+    }
+
+    /**
+     * The count is what says whether a run sent anything at all, which the listing cannot: an empty folder and a
+     * feature that was never exercised look the same.
+     */
+    @Test
+    void countsEveryMessageItCatches() throws Exception
+    {
+        this.service.activate(Mockito.mock(BundleContext.class), switchedTo(true));
+
+        this.service.sendMessage(this.message().subject("One").text("A body").build());
+        this.service.sendMessage(this.message().subject("Two").text("A body").build());
+
+        Mockito.verify(this.metric, Mockito.times(2)).increment();
+    }
+
+    /** Nightly, so that the previous day's traffic stays readable beside the running total. */
+    @Test
+    void definesTheCounterToRollOverNightly()
+    {
+        this.service.activate(Mockito.mock(BundleContext.class), switchedTo(true));
+
+        Mockito.verify(this.metrics).createMetric(CaughtMailCounter.METRIC);
+        Mockito.verify(this.builder).withRolloverSchedule(CaughtMailCounter.NIGHTLY);
+        // A development facility's usage is not a fact the people using the platform have any business reading
+        Mockito.verify(this.builder).withAccessLevel(Metric.AccessLevel.ADMIN);
+        Mockito.verify(this.builder).create();
+    }
+
+    /** Nothing is counted before it is switched on, since nothing is caught either. */
+    @Test
+    void definesNoCounterWhileSwitchedOff()
+    {
+        this.service.activate(Mockito.mock(BundleContext.class), switchedTo(false));
+
+        Mockito.verifyNoInteractions(this.metrics);
+    }
+
+    /**
+     * Counting is not what this component is for: a metrics store that cannot take the definition must not stop
+     * mail being caught, which is the whole reason the catcher is switched on.
+     */
+    @Test
+    void catchesMailEvenWhenTheCounterCannotBeDefined() throws Exception
+    {
+        Mockito.when(this.builder.create()).thenThrow(new MetricsException("no metrics today"));
+        this.service.activate(Mockito.mock(BundleContext.class), switchedTo(true));
+
+        assertFalse(this.service.sendMessage(this.message().subject("A subject").text("A body").build())
+            .isCompletedExceptionally());
+
+        assertEquals("A subject", this.caught().get("subject", String.class));
+        Mockito.verifyNoInteractions(this.metric);
+    }
+
+    /** A message that could not be filed is not a message that was caught, so it must not be counted. */
+    @Test
+    void countsNothingWhenTheMessageCannotBeFiled() throws Exception
+    {
+        this.service.activate(Mockito.mock(BundleContext.class), switchedTo(true));
+        this.context.resourceResolver().delete(
+            this.context.resourceResolver().getResource(CaughtMailService.CAUGHT_MAIL_PATH));
+        this.context.resourceResolver().commit();
+
+        assertTrue(this.service.sendMessage(this.message().subject("A subject").text("A body").build())
+            .isCompletedExceptionally());
+
+        Mockito.verifyNoInteractions(this.metric);
     }
 
     @Test
@@ -358,11 +442,18 @@ class CaughtMailServiceTest
      * @param resolvers what to inject
      * @throws Exception if the field cannot be set
      */
-    private static void inject(final Object target, final ResourceResolverFactory resolvers) throws Exception
+    private void inject(final Object target, final ResourceResolverFactory resolvers) throws Exception
     {
-        final Field field = target.getClass().getDeclaredField("resolverFactory");
+        set(target, "resolverFactory", resolvers);
+        set(target, "metricsManager", this.metrics);
+    }
+
+    /** Sets one @Reference field, which is how a component is wired outside a framework. */
+    private static void set(final Object target, final String name, final Object value) throws Exception
+    {
+        final Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
-        field.set(target, resolvers);
+        field.set(target, value);
     }
 
     /**

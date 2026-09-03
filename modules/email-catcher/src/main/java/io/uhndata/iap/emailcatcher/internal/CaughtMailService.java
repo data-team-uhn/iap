@@ -57,6 +57,8 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.metrics.api.MetricsManager;
+
 /**
  * A mail service that files what would have been sent, instead of sending it.
  *
@@ -81,6 +83,13 @@ import org.slf4j.LoggerFactory;
  * survivable for a real send, which the mail server would report on separately; it is not survivable here, where
  * the whole purpose is that the message can be read back afterwards. So the write happens on the calling thread
  * and anything that goes wrong is logged as an error before the failed future is handed back.
+ * </p>
+ *
+ * <p>
+ * <strong>How much it has caught is a metric.</strong> The count answers a question the listing cannot: whether
+ * anything was sent at all during a run. It rolls over nightly, so the previous day's traffic stays readable
+ * beside the running total — a demo or a test environment is exercised in bursts, and a total that only ever
+ * grows says nothing about whether today's run sent what it should have.
  * </p>
  *
  * @version $Id$
@@ -144,8 +153,14 @@ public class CaughtMailService implements MailService
     @Reference
     private ResourceResolverFactory resolverFactory;
 
+    @Reference
+    private MetricsManager metricsManager;
+
     /** The mail service registration, held only while enabled, so that deactivating can withdraw it. */
     private ServiceRegistration<MailService> registration;
+
+    /** The counter of caught messages, held only while the catcher is on. */
+    private CaughtMailCounter caught;
 
     /**
      * Publishes the catcher as a mail service, if it is switched on.
@@ -169,6 +184,7 @@ public class CaughtMailService implements MailService
         // being caught can ask for it by target filter rather than by guessing from the ranking
         properties.put(CATCHER_PROPERTY, Boolean.TRUE);
         this.registration = bundleContext.registerService(MailService.class, this, properties);
+        this.caught = CaughtMailCounter.define(this.metricsManager, CAUGHT_MAIL_PATH);
         LOGGER.info("The email catcher is on: mail will be filed under {} instead of being sent",
             CAUGHT_MAIL_PATH);
     }
@@ -181,6 +197,7 @@ public class CaughtMailService implements MailService
             this.registration.unregister();
             this.registration = null;
         }
+        this.caught = null;
     }
 
     @Override
@@ -222,6 +239,10 @@ public class CaughtMailService implements MailService
             // usable node name, while what a reader wants is ordering, which the caughtAt property carries
             resolver.create(home, UUID.randomUUID().toString(), describe(message));
             resolver.commit();
+            // After the commit, so the count only ever reports messages that can actually be read back
+            if (this.caught != null) {
+                this.caught.count();
+            }
             LOGGER.info("Caught a message to {} at {}", String.join(", ", addresses(message, RecipientType.TO)),
                 CAUGHT_MAIL_PATH);
         }

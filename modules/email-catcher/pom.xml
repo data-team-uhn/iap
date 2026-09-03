@@ -83,6 +83,19 @@
       <artifactId>iap-java-utils</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The counter of how much mail has been caught, rolled over nightly -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-metrics</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- A metric that cannot be defined is worth an administrator's attention, so it is recorded rather than
+         only logged -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-error-tracking-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.commons.messaging</artifactId>
