@@ -36,11 +36,11 @@
         // The nightly urgency sweep reads every request and writes a tag on the ones about to start. It needs a
         // user of its own because it runs on a clock rather than on somebody's request: there is nobody signed in
         // to act as, and the engine's own service user belongs to the engine.
-        "create service user urgency \n set ACL for urgency \n allow jcr:all on /Submissions \n end"
+        "create service user tor-urgency \n set ACL for tor-urgency \n allow jcr:all on /Submissions \n end"
       ]
     },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~demo-time-off-urgency": {
-      "user.mapping": ["io.uhndata.iap.demo-time-off-request:urgency=[urgency]"]
+      "user.mapping": ["io.uhndata.iap.demo-time-off-request:urgency=[tor-urgency]"]
     }
   }
 }
