@@ -75,11 +75,10 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     }
 
     let cancelled = false;
+    // The fetch itself isn't aborted on cleanup, so the import can still land on a since-unmounted
+    // canvas; only the state updates that would report on it are guarded below.
     fetchUtil(`${versionPath}/${BPMN_FILE}`)
       .then(response => {
-        if (cancelled) {
-          return undefined;
-        }
         if (response.status === 404) {
           // A version with no saved XML yet isn't an error.
           // TODO: improve this state — an empty viewer/editor just looks broken.

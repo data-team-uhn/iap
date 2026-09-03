@@ -85,10 +85,11 @@ describe("ElementProperties", () => {
     await user.type(screen.getByRole("textbox"), "Hi");
 
     expect(viewer.get).toHaveBeenCalledWith("modeling");
-    // The field is controlled by the element's own name, which only the modeler updates, so each
-    // keystroke is reported against the unchanged value rather than accumulating
+    // updateLabel replaces the whole name, so every keystroke reports the field's full current value,
+    // not just what changed -- and the field shows that same value back immediately.
     expect(updateLabel).toHaveBeenCalledTimes(2);
     expect(updateLabel).toHaveBeenNthCalledWith(1, element, "H");
-    expect(updateLabel).toHaveBeenNthCalledWith(2, element, "i");
+    expect(updateLabel).toHaveBeenNthCalledWith(2, element, "Hi");
+    expect(screen.getByRole("textbox")).toHaveValue("Hi");
   });
 });
