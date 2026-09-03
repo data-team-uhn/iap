@@ -1,0 +1,85 @@
+{
+  "jcr:primaryType": "llm:Configuration",
+  "title": "LLM Configuration",
+  "activeProvider": "local",
+  "activeModel": "llama3.2-3b",
+  "local": {
+    "jcr:primaryType": "llm:Provider",
+    "label": "Local (Ollama)",
+    "api": "openai",
+    "endpoint": "http://localhost:11434/v1",
+    "timeoutSeconds": 600,
+    "llama3.2-3b": {
+      "jcr:primaryType": "llm:Model",
+      "contextLimitTokens": 131072,
+      "maxOutputTokens": 1024,
+      "temperature": 0.0,
+      "chunkTokenSize": 8000,
+      "wholeDocumentTokenLimit": 20000,
+      "developer": "meta"
+    }
+  },
+  "prompter": {
+    "jcr:primaryType": "llm:Provider",
+    "label": "Prompter",
+    "api": "openai",
+    "endpoint": "https://prompter.uhndata.io/api/proxy/v1",
+    "apiKeyEnvVar": "PROMPTER_API_KEY",
+    "timeoutSeconds": 120,
+    "projectId": "ia45-data",
+    "GPT-OSS-120B": {
+      "jcr:primaryType": "llm:Model",
+      "contextLimitTokens": 131072,
+      "maxOutputTokens": 2000,
+      "temperature": 0.0,
+      "chunkTokenSize": 30000,
+      "wholeDocumentTokenLimit": 20000,
+      "developer": "openai"
+    },
+    "gemma-4-26B-A4B-it": {
+      "jcr:primaryType": "llm:Model",
+      "contextLimitTokens": 131072,
+      "maxOutputTokens": 2000,
+      "temperature": 0.0,
+      "chunkTokenSize": 30000,
+      "wholeDocumentTokenLimit": 20000,
+      "developer": "google"
+    },
+    "Llama-3.3-70B-Instruct": {
+      "jcr:primaryType": "llm:Model",
+      "contextLimitTokens": 131072,
+      "maxOutputTokens": 2000,
+      "temperature": 0.0,
+      "chunkTokenSize": 30000,
+      "wholeDocumentTokenLimit": 20000,
+      "developer": "meta"
+    },
+    "DeepSeek-R1-Distill-Qwen-32B": {
+      "jcr:primaryType": "llm:Model",
+      "contextLimitTokens": 131072,
+      "maxOutputTokens": 2000,
+      "temperature": 0.0,
+      "chunkTokenSize": 30000,
+      "wholeDocumentTokenLimit": 20000,
+      "developer": "deepseek"
+    },
+    "Qwen3.6-27B": {
+      "jcr:primaryType": "llm:Model",
+      "contextLimitTokens": 131072,
+      "maxOutputTokens": 2000,
+      "temperature": 0.0,
+      "chunkTokenSize": 30000,
+      "wholeDocumentTokenLimit": 20000,
+      "developer": "qwen"
+    },
+    "Qwen3.6-35B-A3B": {
+      "jcr:primaryType": "llm:Model",
+      "contextLimitTokens": 131072,
+      "maxOutputTokens": 2000,
+      "temperature": 0.0,
+      "chunkTokenSize": 30000,
+      "wholeDocumentTokenLimit": 20000,
+      "developer": "qwen"
+    }
+  }
+}
