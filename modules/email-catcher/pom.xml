@@ -29,8 +29,8 @@
   <packaging>bundle</packaging>
   <name>IAP - Email Catcher</name>
   <description>A mail service that files what would have been sent into the repository instead of delivering it,
-    so that email can be exercised without a mail server. Only ever part of a development, test or demo
-    distribution.</description>
+    so that email can be exercised without a mail server. Ships in every distribution and catches nothing
+    until it is switched on, which defaults to off.</description>
 
   <build>
     <plugins>

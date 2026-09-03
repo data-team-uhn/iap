@@ -20,12 +20,16 @@
 
 //-----------------------------------------------------------------------------
 //
-// What a development instance sends instead of mail: every message handed to
-// the mail service, filed where it can be read back.
+// What an instance with the email catcher switched on files instead of sending
+// mail: every message handed to the mail service, kept where it can be read
+// back.
 //
-// This exists so that email can be exercised without a mail server, and it
-// ships only in a development, test or demo distribution. A production
-// distribution has no bundle declaring these types.
+// This exists so that email can be exercised without a mail server. The bundle
+// declaring these types ships in every distribution, production included, and
+// what keeps the catcher out of the way is a setting that defaults to off --
+// one set of artifacts rather than two, and a difference between environments
+// that a deployment can read back. So these types are registered everywhere,
+// and /CaughtMail stays empty unless somebody turns the catcher on.
 //
 //-----------------------------------------------------------------------------
 

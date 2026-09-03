@@ -22,9 +22,12 @@ set ACL for iap-email-catcher
     allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /CaughtMail
 end
 
-# Readable by anyone who can already reach the instance. This only ever ships in a development, test or demo
-# distribution, and the whole point is that a developer or an integration test can read what was sent without
-# being handed a second set of credentials.
+# Readable by anyone who can already reach the instance: the whole point is that a developer or an integration
+# test can read what was sent without being handed a second set of credentials.
+#
+# Note what this does NOT rest on. The bundle ships in every distribution, production included, so what keeps
+# the folder empty there is the catcher defaulting to off rather than the absence of this grant -- and
+# `everyone` includes anonymous, so whatever is caught while it is on is readable by any visitor.
 set ACL for everyone
     allow   jcr:read    on /CaughtMail
 end
