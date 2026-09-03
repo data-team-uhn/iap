@@ -72,7 +72,7 @@ public class CreateEntityHandler implements ServiceTaskHandler
             throw new InvalidPayloadException("A title is required");
         }
         final Resource created = context.getResourceResolver().create(context.getTarget(),
-            freeName(context.getTarget(), camelCase((String) title)),
+            NodeNameUtils.findFreeName(context.getTarget(), camelCase((String) title)),
             Map.of("jcr:primaryType", entityType, TITLE, title));
         context.setVariable(WorkflowResult.CREATED_PATH, created.getPath());
     }
@@ -93,21 +93,4 @@ public class CreateEntityHandler implements ServiceTaskHandler
         return name;
     }
 
-    /**
-     * Finds a free child name, translating an exhausted namespace into a payload refusal.
-     *
-     * @param parent the resource the entity will be created under
-     * @param base the natural name derived from the title
-     * @return a free name
-     * @throws InvalidPayloadException when every tolerated variant is already taken
-     */
-    private String freeName(final Resource parent, final String base) throws InvalidPayloadException
-    {
-        final String name = NodeNameUtils.findFreeName(parent, base);
-        if (name == null) {
-            throw new InvalidPayloadException(
-                "Too many entities are already named " + base + "; pick a different title");
-        }
-        return name;
-    }
 }
