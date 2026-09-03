@@ -1,3 +1,7 @@
 Your time off request "${subjectTitle}" was not approved.
+#if($outcomeNote)
+
+The reason given was: ${outcomeNote}
+#end
 
 You can read it at ${subjectPath}.
