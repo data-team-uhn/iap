@@ -1,0 +1,103 @@
+# Copyright 2026 DATA @ UHN. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Run the Docling processing daemon with a shared /shared-docs volume.
+#
+# The caller must mount the same host directory (or set IAP_SHARED_DOCS to match) so it can
+# stage uploads and the daemon can write {stem}.md + Chunks/ beside them. The daemon is
+# path-based: it only parses files that are already on the shared volume.
+#
+#   POST http://localhost:18765/parse?path=/shared-docs/<dir>/<file>.pdf
+#
+# On Linux the daemon has to run as whoever owns the host directory behind /shared-docs, or
+# it cannot write {stem}.md and Chunks/ back. Set IAP_DOCLING_UID / IAP_DOCLING_GID to that
+# owner ("id -u" / "id -g", usually 1000, which is the default here). The image's own chown
+# only stamps the image layer; a bind mount arrives with the host's ownership on top of it.
+# Docker Desktop virtualises this, so the value does not matter on Windows or macOS.
+#
+# See processing.md for the full flow.
+
+services:
+  docling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: iap/docling:latest
+    # A reaper at PID 1. libreoffice_convert starts soffice in its own session so a
+    # timeout can kill the whole group; if the launcher exits while soffice.bin lives on,
+    # soffice.bin reparents to PID 1 — the Python daemon, which never wait()s — and
+    # zombies accumulate over the container's life.
+    init: true
+    user: "${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}"
+    environment:
+      # Listed, not inherited: Compose passes nothing that is not named here, so setting these
+      # in .env or the shell had no effect and the container kept the Python defaults.
+      IAP_SHARED_DOCS: /shared-docs
+      # Optional shared secret. When set, /parse requires "Authorization: Bearer <token>",
+      # so reaching the port is not by itself authority to use it. Left empty the published
+      # loopback binding below is the only boundary, which is fine for local work.
+      IAP_DOCLING_TOKEN: ${IAP_DOCLING_TOKEN:-}
+      # The port below is published to 127.0.0.1 only, which the daemon cannot see from inside
+      # (it must bind 0.0.0.0 for Docker to forward at all). Saying so here keeps its
+      # "bound to 0.0.0.0 with no token" warning for configurations that have not done this.
+      IAP_DOCLING_TRUSTED_NETWORK: ${IAP_DOCLING_TRUSTED_NETWORK:-1}
+      # Largest PDF accepted, in pages. One conversion holds the only parse slot, so an
+      # enormous document does not just take a long time — every other caller gets 503 until it
+      # finishes. The 400 comes *after* the slot is taken, because counting pages means reading
+      # the document: one that arrives mid-conversion is told 503 busy first, and 400 on retry.
+      # 0 disables the limit.
+      IAP_MAX_INPUT_PAGES: ${IAP_MAX_INPUT_PAGES:-1500}
+      IAP_MAX_INPUT_BYTES: ${IAP_MAX_INPUT_BYTES:-67108864}
+      # Per soffice *run*, not per document: a .doc does two (to .docx, then the sibling .pdf),
+      # so prep can take twice this. Both together still sit well inside stop_grace_period, and
+      # for a .doc the kill is a hard failure, so it has to be long enough for what we admit.
+      IAP_LIBREOFFICE_TIMEOUT_SECONDS: ${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}
+      # Per Docling conversion, which is one page batch, not the whole document. Docling
+      # checks it between batches and stops with PARTIAL_SUCCESS, which the parser treats as
+      # a failure, so a runaway document fails its batch instead of holding the only parse
+      # slot. It bounds a slow conversion, not one wedged inside a single page. 0 disables it.
+      IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS: ${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}
+      # An overridden uid has no passwd entry, so HOME would be unset. Point it somewhere
+      # writable for any library that still wants a home directory. LibreOffice does not
+      # need it (libreoffice_convert passes its own -env:UserInstallation temp profile).
+      HOME: /tmp
+    volumes:
+      - ${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+    # The daemon answers SIGTERM by closing the listener first, so a conversion already running
+    # finishes and replies instead of having its page batches cancelled under it — a cancelled
+    # batch is indistinguishable from a corrupt document to the caller. That drain needs longer
+    # than Docker's default 10s grace, or SIGKILL lands in the middle of it and the design has
+    # no effect. Sized against the admission ceilings rather than guessed: a PDF near
+    # IAP_MAX_INPUT_PAGES can convert for a good while, and at 5m Docker went back to
+    # SIGKILLing exactly the case this exists for. A parse cut short here still answers 503
+    # "retry this document" rather than looking like a corrupt file, so the cost of the bound
+    # being too low is a retry, not a wrong verdict — but lower IAP_MAX_INPUT_PAGES if you
+    # shorten this.
+    stop_grace_period: 15m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18765/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:18765:18765
