@@ -104,15 +104,18 @@ class CreateEntityHandlerTest
         assertEquals("/Workflows/myCoolWorkflow3", variables.get(WorkflowResult.CREATED_PATH));
     }
 
+    // A hundred workflows called the same thing is a naming problem, not a reason to refuse to create the
+    // hundred-and-first: the name gets ugly and the entity still gets made
     @Test
-    void givesUpWhenEveryNameVariantIsTaken()
+    void createsAnEntityEvenWhenEveryCountedNameVariantIsTaken() throws WorkflowException, PersistenceException
     {
         IntStream.rangeClosed(1, 100).forEach(attempt -> this.context.create().resource(
             "/Workflows/" + (attempt == 1 ? "busy" : "busy" + attempt), TYPE, "wf/WorkflowDefinition"));
+        final Map<String, Object> variables = new HashMap<>();
 
-        final InvalidPayloadException rejection = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context("Busy", new HashMap<>())));
-        assertTrue(rejection.getMessage().contains("pick a different title"));
+        this.handler.execute(context("Busy", variables));
+
+        assertTrue(((String) variables.get(WorkflowResult.CREATED_PATH)).matches("/Workflows/busy[0-9]{9}"));
     }
 
     @Test
