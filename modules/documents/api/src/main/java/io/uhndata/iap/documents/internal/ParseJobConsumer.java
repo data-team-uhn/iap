@@ -1,0 +1,407 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.uhndata.iap.documents.internal;
+
+import java.io.IOException;
+import java.io.StringReader;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Calendar;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import jakarta.json.Json;
+import jakarta.json.JsonException;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
+
+import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.ValueMap;
+import org.apache.sling.event.jobs.Job;
+import org.apache.sling.event.jobs.consumer.JobConsumer;
+import org.osgi.service.component.annotations.Activate;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Modified;
+import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Dispatches a queued document parse to the Docling daemon, without waiting for the conversion itself. The daemon is
+ * asked asynchronously — {@code POST /parse?path=&chunk=&job_id=} — and answers "queued" right away, so no thread
+ * sits on an open connection for the minutes a conversion takes; when the daemon finishes, it POSTs the outcome to
+ * {@link ParseCallbackServlet}, which records it on the job node. This consumer only walks the node from
+ * {@code queued} to {@code active}: the callback endpoint takes it from there.
+ *
+ * <p>
+ * Only a {@code queued} job is dispatched. Sling re-queues jobs it did not see finish, across a restart for instance,
+ * and re-running a conversion that already completed would overwrite the outputs recorded on the node, so a job in
+ * any other state is dropped untouched.
+ * </p>
+ *
+ * <p>
+ * A refused or unreachable dispatch marks the job failed and is never retried automatically
+ * ({@link JobResult#CANCEL}): re-submitting through the endpoint is the retry. A dispatch the daemon accepted but
+ * never calls back about (a daemon crash mid-parse) currently leaves the job {@code active}; sweeping such stragglers
+ * is left for the real integration.
+ * </p>
+ *
+ * <p>
+ * Dispatch is refused when no callback token is configured ({@link ParseJob#TOKEN_PROPERTY} or
+ * {@link ParseJob#TOKEN_VARIABLE}): without it {@link ParseCallbackServlet} cannot accept the daemon's delivery, so
+ * starting the parse would only leave the job hung as {@code active}. The daemon answer must itself be an async
+ * accept ({@code {"job_id", "status": "queued"}}); a synchronous success body (as from an older daemon that ignores
+ * {@code job_id}) is recorded as a failure instead of leaving the job waiting for a callback that will never come.
+ * </p>
+ *
+ * <p>
+ * Where the daemon POSTs outcomes is <em>not</em> sent with the dispatch: the daemon reads it from its own
+ * {@code IAP_DOCLING_CALLBACK_URL}, and must be configured with the address of {@link ParseJob#CALLBACK_PATH} on this
+ * app. The callback carries the shared token, and the daemon's port has no authentication, so a destination taken
+ * from the request would hand that token to anyone able to reach it.
+ * </p>
+ *
+ * <p>
+ * Configurable through OSGi with {@code daemonUrl} (default {@code http://localhost:18765}) and
+ * {@code responseTimeout} (seconds to wait for the daemon to accept a dispatch, default 30 — accepting is quick, only
+ * the conversion is slow).
+ * </p>
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
+@Component(service = JobConsumer.class, property = { JobConsumer.PROPERTY_TOPICS + "=" + ParseJob.TOPIC })
+public class ParseJobConsumer implements JobConsumer
+{
+    private static final Logger LOGGER = LoggerFactory.getLogger(ParseJobConsumer.class);
+
+    /** Where the daemon listens when no {@code daemonUrl} is configured. */
+    private static final String DEFAULT_DAEMON_URL = "http://localhost:18765";
+
+    /** How long to wait for the daemon to accept a dispatch when no {@code responseTimeout} is configured. */
+    private static final long DEFAULT_RESPONSE_TIMEOUT = 30;
+
+    /** How long to wait for the daemon to accept a connection. */
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+
+    /** How much of a non-JSON daemon answer is kept as the error message. */
+    private static final int ERROR_EXCERPT_LENGTH = 200;
+
+    @Reference
+    private ResourceResolverFactory resolverFactory;
+
+    private final HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+
+    private String daemonUrl;
+
+    private Duration responseTimeout;
+
+    /** Whether a callback token is configured so the daemon's delivery can be accepted. */
+    private boolean callbackConfigured;
+
+    /**
+     * Read the configuration, applying the defaults.
+     *
+     * @param configuration the component configuration
+     */
+    @Activate
+    @Modified
+    protected void activate(final Map<String, Object> configuration)
+    {
+        this.daemonUrl = url(configuration, "daemonUrl", DEFAULT_DAEMON_URL);
+        long seconds = DEFAULT_RESPONSE_TIMEOUT;
+        final Object timeout = configuration.get("responseTimeout");
+        if (timeout != null) {
+            try {
+                seconds = Long.parseLong(String.valueOf(timeout));
+            } catch (final NumberFormatException e) {
+                LOGGER.warn("Ignoring non-numeric responseTimeout: {}", timeout);
+            }
+        }
+        this.responseTimeout = Duration.ofSeconds(seconds > 0 ? seconds : DEFAULT_RESPONSE_TIMEOUT);
+        final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
+        this.callbackConfigured = !token.isEmpty();
+        if (!this.callbackConfigured) {
+            LOGGER.warn("No callback token is configured ({} or the {} environment variable);"
+                + " parse jobs will be refused until one is set",
+                ParseJob.TOKEN_PROPERTY, ParseJob.TOKEN_VARIABLE);
+        }
+    }
+
+    @Override
+    public JobResult process(final Job job)
+    {
+        final String jobId = job.getProperty(ParseJob.PN_JOB_ID, String.class);
+        if (jobId == null) {
+            LOGGER.warn("Dropping a parse job without a job identifier");
+            return JobResult.CANCEL;
+        }
+        return claim(jobId);
+    }
+
+    /**
+     * Walk the job node from {@code queued} to {@code active}, then hand the parse to the daemon.
+     *
+     * @param jobId the identifier of the job being processed
+     * @return {@link JobResult#OK} when the daemon accepted the parse, {@link JobResult#CANCEL} otherwise
+     */
+    private JobResult claim(final String jobId)
+    {
+        final String path;
+        final boolean chunk;
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
+            final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
+            if (jobNode == null) {
+                LOGGER.warn("Dropping parse job {}: its job node is gone", jobId);
+                return JobResult.CANCEL;
+            }
+            final ValueMap properties = jobNode.getValueMap();
+            final String status = properties.get(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED);
+            if (!ParseJob.STATUS_QUEUED.equals(status)) {
+                // Sling re-queues jobs it did not see finish, for instance across a restart. Dispatching again
+                // would re-run a conversion that may well have completed, and its callback would overwrite the
+                // outputs already recorded here, so a job past "queued" is left exactly as it is.
+                LOGGER.warn("Dropping parse job {}: it is already {}", jobId, status);
+                return JobResult.CANCEL;
+            }
+            path = properties.get(ParseJob.PN_PATH, String.class);
+            chunk = properties.get(ParseJob.PN_CHUNK, Boolean.TRUE);
+            update(jobNode, resolver, editable -> {
+                editable.put(ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE);
+                editable.put(ParseJob.PN_STARTED, Calendar.getInstance());
+            });
+        } catch (final LoginException | PersistenceException e) {
+            LOGGER.error("Cannot mark parse job {} as active: {}", jobId, e.getMessage(), e);
+            return JobResult.CANCEL;
+        }
+        return dispatchIfUsable(jobId, path, chunk);
+    }
+
+    /**
+     * Check what the claimed job node turned out to say, then hand the parse to the daemon. The job is already
+     * {@code active} here, so anything wrong with it is recorded as a failure rather than silently dropped.
+     *
+     * @param jobId the identifier of the job being processed
+     * @param path the path the job node records, may be {@code null} when it holds none
+     * @param chunk whether the document should also be chunked
+     * @return {@link JobResult#OK} when the daemon accepted the parse, {@link JobResult#CANCEL} otherwise
+     */
+    private JobResult dispatchIfUsable(final String jobId, final String path, final boolean chunk)
+    {
+        if (path == null || path.isBlank()) {
+            fail(jobId, "The job records no document path");
+            return JobResult.CANCEL;
+        }
+        if (!this.callbackConfigured) {
+            fail(jobId, "Callback authentication is not configured");
+            return JobResult.CANCEL;
+        }
+        return dispatch(jobId, path, chunk);
+    }
+
+    /**
+     * Hand the parse to the daemon and leave the job active; the daemon's callback will finish it.
+     *
+     * @param jobId the identifier of the job being processed
+     * @param path the path of the document to parse, as seen by the daemon
+     * @param chunk whether the document should also be chunked
+     * @return {@link JobResult#OK} when the daemon accepted the parse, {@link JobResult#CANCEL} otherwise
+     */
+    private JobResult dispatch(final String jobId, final String path, final boolean chunk)
+    {
+        try {
+            final HttpResponse<String> response = send(buildRequest(jobId, path, chunk));
+            final int status = response.statusCode();
+            if ((status == 200 || status == 202) && isAsyncAccept(jobId, response.body())) {
+                LOGGER.debug("Parse job {} accepted by the daemon", jobId);
+                return JobResult.OK;
+            }
+            if (status == 200 || status == 202) {
+                fail(jobId, "The daemon did not accept the asynchronous parse: " + errorMessage(response.body()));
+            } else {
+                fail(jobId, "The daemon answered HTTP " + status + ": " + errorMessage(response.body()));
+            }
+        } catch (final IOException | IllegalArgumentException e) {
+            fail(jobId, "Calling the daemon failed: " + e.getMessage());
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(jobId, "Interrupted while waiting for the daemon");
+        }
+        return JobResult.CANCEL;
+    }
+
+    /**
+     * Turn a parse request into the daemon dispatch performing it.
+     *
+     * @param jobId the identifier of the job, echoed back by the daemon's callback
+     * @param path the path of the document to parse, as seen by the daemon
+     * @param chunk whether the document should also be chunked
+     * @return the request to send
+     */
+    private HttpRequest buildRequest(final String jobId, final String path, final boolean chunk)
+    {
+        // No callback parameter: the daemon POSTs outcomes to the URL in its own configuration. Sending one would
+        // mean anyone able to reach the daemon's unauthenticated port could name the destination and be handed the
+        // shared token with it.
+        final String url = this.daemonUrl + "/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
+            + "&chunk=" + chunk
+            + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8);
+        return HttpRequest.newBuilder(URI.create(url))
+            .timeout(this.responseTimeout)
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build();
+    }
+
+    /**
+     * Actually send the request. Overridable so that a test can stand in for the daemon.
+     *
+     * @param request the request to send
+     * @return the raw response
+     * @throws IOException if the daemon could not be reached, or stopped answering
+     * @throws InterruptedException if the calling thread was interrupted while waiting for the response
+     */
+    protected HttpResponse<String> send(final HttpRequest request) throws IOException, InterruptedException
+    {
+        return this.client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    /**
+     * Read an environment variable. Overridable so that tests can supply one without controlling the real
+     * environment.
+     *
+     * @param name the variable to read
+     * @return the value, or {@code null} when not set
+     */
+    protected String environment(final String name)
+    {
+        return System.getenv(name);
+    }
+
+    /**
+     * Whether a daemon answer is the asynchronous accept this consumer expects, rather than a synchronous parse
+     * result or some other 2xx body.
+     *
+     * @param jobId the job that was dispatched
+     * @param body the response body
+     * @return {@code true} only for {@code {"job_id": <same>, "status": "queued"}}
+     */
+    private static boolean isAsyncAccept(final String jobId, final String body)
+    {
+        if (body == null || body.isBlank()) {
+            return false;
+        }
+        try (JsonReader reader = Json.createReader(new StringReader(body))) {
+            final JsonObject json = reader.readObject();
+            return ParseJob.STATUS_QUEUED.equals(json.getString(ParseJob.PN_STATUS, null))
+                && jobId.equals(json.getString(ParseJob.JSON_JOB_ID, null));
+        } catch (final JsonException | ClassCastException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Extract the daemon's own error message from a refusal, falling back to an excerpt of the raw body when it is
+     * not the usual {@code {"error": "..."}}.
+     *
+     * @param body the response body
+     * @return a message safe to record on the job node
+     */
+    private static String errorMessage(final String body)
+    {
+        if (body == null || body.isBlank()) {
+            return "(empty response)";
+        }
+        try (JsonReader reader = Json.createReader(new StringReader(body))) {
+            final String error = reader.readObject().getString(ParseJob.PN_ERROR, null);
+            if (error != null) {
+                return error;
+            }
+        } catch (final JsonException | ClassCastException e) {
+            // Not JSON, fall through to the raw excerpt
+        }
+        return body.length() > ERROR_EXCERPT_LENGTH ? body.substring(0, ERROR_EXCERPT_LENGTH) + "…" : body;
+    }
+
+    /**
+     * Record a failure on the job node.
+     *
+     * @param jobId the identifier of the job that failed
+     * @param message what went wrong
+     */
+    private void fail(final String jobId, final String message)
+    {
+        LOGGER.warn("Parse job {} failed: {}", jobId, message);
+        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
+            final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
+            if (jobNode == null) {
+                LOGGER.error("Cannot record the outcome of parse job {}: its job node is gone", jobId);
+                return;
+            }
+            update(jobNode, resolver, properties -> {
+                properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_FAILED);
+                properties.put(ParseJob.PN_ERROR, message);
+                properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
+            });
+        } catch (final LoginException | PersistenceException e) {
+            LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Apply changes to a job node and commit them.
+     *
+     * @param jobNode the node to change
+     * @param resolver the session the node was read with
+     * @param changes the changes to apply
+     * @throws PersistenceException if the changes cannot be persisted
+     */
+    private static void update(final Resource jobNode, final ResourceResolver resolver,
+        final Consumer<ModifiableValueMap> changes) throws PersistenceException
+    {
+        final ModifiableValueMap editable = jobNode.adaptTo(ModifiableValueMap.class);
+        if (editable == null) {
+            throw new PersistenceException("The job node cannot be modified");
+        }
+        changes.accept(editable);
+        resolver.commit();
+    }
+
+    /**
+     * Read a URL from the configuration, trimming trailing slashes so paths can be appended cleanly.
+     *
+     * @param configuration the component configuration
+     * @param name the configuration property to read
+     * @param fallback the URL to use when the property is absent or blank
+     * @return the configured URL, or the fallback
+     */
+    private static String url(final Map<String, Object> configuration, final String name, final String fallback)
+    {
+        final String configured = String.valueOf(configuration.getOrDefault(name, fallback));
+        return (configured.isBlank() ? fallback : configured).replaceAll("/+$", "");
+    }
+}
