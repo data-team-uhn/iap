@@ -46,10 +46,19 @@ services:
       # Listed, not inherited: Compose passes nothing that is not named here, so setting these
       # in .env or the shell had no effect and the container kept the Python defaults.
       IAP_SHARED_DOCS: /shared-docs
-      # Optional shared secret. When set, /parse requires "Authorization: Bearer <token>",
-      # so reaching the port is not by itself authority to use it. Left empty the published
-      # loopback binding below is the only boundary, which is fine for local work.
+      # Inbound: optional shared secret. When set, /parse and /shutdown require
+      # "Authorization: Bearer <token>", so reaching the port is not by itself authority to
+      # use it. Left empty the published loopback binding below is the only boundary, which
+      # is fine for local work.
       IAP_DOCLING_TOKEN: ${IAP_DOCLING_TOKEN:-}
+      # Outbound: /parse?job_id= answers immediately and the daemon later POSTs the result
+      # to this URL with the JWT below as "Authorization: Bearer". The destination is
+      # configured here, not sent with the request, because the callback carries the token.
+      IAP_DOCLING_CALLBACK_URL: ${IAP_DOCLING_CALLBACK_URL:-http://host.docker.internal:8080/system/documents/parseCallback}
+      # The Java side must see the same JWT (same variable name) or its callback endpoint
+      # refuses the delivery. Without either variable the daemon refuses asynchronous
+      # requests; plain synchronous /parse still works.
+      IAP_DOCLING_CALLBACK_JWT: ${IAP_DOCLING_CALLBACK_JWT:-}
       # The port below is published to 127.0.0.1 only, which the daemon cannot see from inside
       # (it must bind 0.0.0.0 for Docker to forward at all). Saying so here keeps its
       # "bound to 0.0.0.0 with no token" warning for configurations that have not done this.
@@ -74,6 +83,11 @@ services:
       # writable for any library that still wants a home directory. LibreOffice does not
       # need it (libreoffice_convert passes its own -env:UserInstallation temp profile).
       HOME: /tmp
+    # The callback goes from inside the container back to the app on the host
+    # (http://host.docker.internal:8080 by default). Docker Desktop resolves
+    # host.docker.internal on its own; host-gateway makes plain Linux match.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs
     deploy:
@@ -99,5 +113,9 @@ services:
       retries: 3
       start_period: 180s
     restart: unless-stopped
+    # A stop drains the background parses: in-flight ones get up to SHUTDOWN_DRAIN_SECONDS
+    # (60) to deliver their callback, and queued ones are failed to the caller. Docker's
+    # default 10s grace would SIGKILL in the middle of that, leaving jobs stuck as active.
+    stop_grace_period: 90s
     ports:
       - 127.0.0.1:18765:18765
