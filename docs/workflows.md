@@ -390,10 +390,9 @@ what the form shows — done once, at save time, instead of by every reader. The
 own `completeness` category: nobody can hand-place it, and it does not displace the lifecycle state.
 
 Four properties carry the engine's matching, authorization and dispatch, derived from the diagram's
-`iap:*` attributes wherever a version says its BPMN is authoritative, and set by hand elsewhere:
-`messageName` on events (the domain event name), `targetResourceType` on versions (what a system workflow
-answers for), `performers` on flow nodes (who may pass through), and `handler` on activities (who performs
-a service task).
+`iap:*` attributes: `messageName` on events (the domain event name), `targetResourceType` on versions
+(what a system workflow answers for), `performers` on flow nodes (who may pass through), and `handler`
+on activities (who performs a service task).
 
 ## User workflows: the part that persists
 
@@ -492,8 +491,12 @@ path. Four things follow from that, and they are the reason it was worth doing a
 **A parallel gateway forks and joins.** Leaving one takes *every* arc — the arriving token moves onto the
 first and a new one is created for each of the rest. A parallel gateway with several arcs leading in is a
 join: each token that arrives waits on it until one has come from every arc, and then they merge back into
-the one token that carries on. Conditions on a parallel gateway's arcs are refused rather than ignored,
-because a gateway that takes every branch regardless is not what a guarded arc describes.
+the one token that carries on.
+
+BPMN lets any arc carry a condition, but a parallel gateway takes all of its arcs whatever those say — so a
+condition on one could never decide anything. The engine treats that as an error in the diagram rather than
+quietly ignoring it, because the two readings are far apart: an author who guarded an arc believes that
+branch is sometimes not taken, and it always is.
 
 That counting is also how a diagram deadlocks: a parallel join placed after a fork that did *not* take every
 branch — an exclusive or inclusive one — waits for a token that was never created, and the instance stays
