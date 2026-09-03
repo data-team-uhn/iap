@@ -29,7 +29,7 @@ export const CAUGHT_MAIL_ROUTE = "/admin/mail";
 export const CAUGHT_MESSAGE_TYPE = "mail/CaughtMessage";
 
 /** Where the catcher reports whether it is on, and how much it holds. */
-export const CATCHER_STATUS_PATH = `${CAUGHT_MAIL_PATH}.status.json`;
+export const CATCHER_STATUS_PATH = `${CAUGHT_MAIL_PATH}.adminSummary.json`;
 
 /** Where one message is stored. */
 export const messagePath = (name: string): string => `${CAUGHT_MAIL_PATH}/${name}`;

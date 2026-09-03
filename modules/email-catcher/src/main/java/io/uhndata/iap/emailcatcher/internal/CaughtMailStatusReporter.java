@@ -49,7 +49,7 @@ import io.uhndata.iap.status.spi.StatusReporter;
  *
  * <p>
  * <strong>Whether it is on is a question only the service registry can answer</strong>, exactly as for
- * {@link CaughtMailStatusServlet}: the configuration says what somebody asked for, while the presence of a mail
+ * {@link CaughtMailSummaryServlet}: the configuration says what somebody asked for, while the presence of a mail
  * service carrying {@link CaughtMailService#CATCHER_PROPERTY} says what is in force.
  * </p>
  *

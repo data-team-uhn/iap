@@ -37,7 +37,7 @@ const page = (rows: unknown[]) => ({
 
 /** Answers both the catcher's state and the listing, each with its own Response. */
 const answering = (enabled: boolean, rows: unknown[] = [ MESSAGE_ROW ]) => vi.fn((url: string) => {
-  const body = url.includes(".status.json") ? { enabled, total: rows.length } : page(rows);
+  const body = url.includes(".adminSummary.json") ? { enabled, total: rows.length } : page(rows);
   return Promise.resolve(new Response(JSON.stringify(body),
     { status: 200, headers: { "Content-Type": "application/json" } }));
 });
@@ -96,7 +96,7 @@ describe("CaughtMailBrowser", () => {
   it("still lists the messages when the catcher's state cannot be read", async () => {
     // The list is the page's substance, and the grid reports its own failures; a second report of
     // the same unreadable folder would say nothing more
-    const fetchMock = vi.fn((url: string) => Promise.resolve(url.includes(".status.json")
+    const fetchMock = vi.fn((url: string) => Promise.resolve(url.includes(".adminSummary.json")
       ? new Response("", { status: 403 })
       : new Response(JSON.stringify(page([ MESSAGE_ROW ])),
         { status: 200, headers: { "Content-Type": "application/json" } })));

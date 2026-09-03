@@ -47,7 +47,7 @@ describe("CaughtMailWidget", () => {
     expect(await screen.findByText("12")).toBeInTheDocument();
     expect(screen.getByText("On")).toBeInTheDocument();
     expect(screen.getByText("Caught so far")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0][0]).toBe("/CaughtMail.status.json");
+    expect(fetchMock.mock.calls[0][0]).toBe("/CaughtMail.adminSummary.json");
   });
 
   it("says mail is being delivered normally, so that an empty list is not read as no mail", async () => {

@@ -59,7 +59,7 @@ test.describe('the caught mail console', () => {
   };
 
   test('reports that mail is being caught', async ({ request }) => {
-    const response = await request.get('/CaughtMail.status.json', { headers: adminAuth });
+    const response = await request.get('/CaughtMail.adminSummary.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
     const status = (await response.json()) as { enabled: boolean; total: number };

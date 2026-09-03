@@ -279,7 +279,7 @@ is listing.
 The one thing the grid cannot answer is whether mail is being caught **right now**:
 
 ```
-GET /CaughtMail.status.json
+GET /CaughtMail.adminSummary.json
 → { "enabled": true, "total": 12 }
 ```
 

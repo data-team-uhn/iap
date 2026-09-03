@@ -45,7 +45,7 @@ describe("useCatcherStatus", () => {
     const { result } = renderHook(() => useCatcherStatus());
 
     await waitFor(() => { expect(result.current.settled).toBe(true); });
-    expect(urls).toEqual([ "/CaughtMail.status.json" ]);
+    expect(urls).toEqual([ "/CaughtMail.adminSummary.json" ]);
     expect(result.current.status).toEqual({ enabled: true, total: 3 });
   });
 

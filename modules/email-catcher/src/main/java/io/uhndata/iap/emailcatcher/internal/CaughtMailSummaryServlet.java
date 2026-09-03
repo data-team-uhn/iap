@@ -36,7 +36,7 @@ import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
 /**
- * Answers whether mail is being caught, and how much of it, as {@code /CaughtMail.status.json}.
+ * Answers whether mail is being caught, and how much of it, as {@code /CaughtMail.adminSummary.json}.
  *
  * <p>
  * <strong>Whether it is on is a question only the service registry can answer.</strong> The configuration says
@@ -59,10 +59,10 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
 @Component(service = { Servlet.class })
 @SlingServletResourceTypes(
     resourceTypes = "mail/CaughtMailHomepage",
-    selectors = "status",
+    selectors = "adminSummary",
     extensions = "json",
     methods = { HttpConstants.METHOD_GET })
-public class CaughtMailStatusServlet extends SlingJakartaSafeMethodsServlet
+public class CaughtMailSummaryServlet extends SlingJakartaSafeMethodsServlet
 {
     private static final long serialVersionUID = 8195516947118220627L;
 

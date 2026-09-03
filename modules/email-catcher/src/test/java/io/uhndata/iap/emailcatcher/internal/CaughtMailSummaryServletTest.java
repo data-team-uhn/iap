@@ -41,19 +41,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link CaughtMailStatusServlet}: whether mail is being caught, and how much of it.
+ * Tests for {@link CaughtMailSummaryServlet}: whether mail is being caught, and how much of it.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class CaughtMailStatusServletTest
+class CaughtMailSummaryServletTest
 {
     private static final String HOME = CaughtMailService.CAUGHT_MAIL_PATH;
 
     private final SlingContext context = new SlingContext();
 
-    private final CaughtMailStatusServlet servlet = new CaughtMailStatusServlet();
+    private final CaughtMailSummaryServlet servlet = new CaughtMailSummaryServlet();
 
     @BeforeEach
     void setUp()
@@ -64,7 +64,7 @@ class CaughtMailStatusServletTest
     /** Puts a catcher in place, the way the service registry would while it is switched on. */
     private void catcherIsRegistered() throws ReflectiveOperationException
     {
-        final Field field = CaughtMailStatusServlet.class.getDeclaredField("catcher");
+        final Field field = CaughtMailSummaryServlet.class.getDeclaredField("catcher");
         field.setAccessible(true);
         field.set(this.servlet, Mockito.mock(MailService.class));
     }

@@ -31,7 +31,7 @@ import { ADMIN, adminAuth, signInAs } from '../../support/auth';
  */
 test.describe('the caught mail console on a bare distribution', () => {
   test('says mail is being delivered rather than caught', async ({ request }) => {
-    const response = await request.get('/CaughtMail.status.json', { headers: adminAuth });
+    const response = await request.get('/CaughtMail.adminSummary.json', { headers: adminAuth });
     expect(response.ok()).toBeTruthy();
 
     const status = (await response.json()) as { enabled: boolean; total: number };
