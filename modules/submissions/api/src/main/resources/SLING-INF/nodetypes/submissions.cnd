@@ -252,22 +252,20 @@
   // on whole, so there is no chunk tree.
   - chunked (BOOLEAN) = false
 
-  // Why no chunks were produced, set only when chunked is false. Today the one
-  // value is "below_min_structure_tokens", a deliberate skip rather than a
-  // failure; it is here so that a missing chunk tree always says which it was.
+  // Why no chunks were produced, set only when chunked is false
   - unchunkedReason (STRING)
 
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
-  // The renditions LibreOffice and Docling produced: the .md the extraction
-  // reads, and the .docx / .pdf made along the way
+  // The renditions LibreOffice and Docling produced: the .md and other
+  // versions of the document created during the parsing process
   + * (nt:file) = nt:file
 
-  // PDF's embedded bookmarks representing table of contents, if available
+  // Extracted bookmarks representing table of contents, if available
   - bookmarks (STRING) multiple
 
-  // The chunk tree; absent when chunked is false
+  // The chunk tree; absent when chunked is false in which case just .md is stored
   + chunks (sub:Chunks) = sub:Chunks
 
   // Allow any other properties for extensibility
