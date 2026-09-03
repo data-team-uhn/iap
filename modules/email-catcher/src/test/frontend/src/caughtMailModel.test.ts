@@ -17,15 +17,12 @@
  */
 
 import {
-  fetchCatcherStatus,
-  fetchCaughtMessage,
   messageNameFromRoute,
+  messagePath,
   messageRoute,
-} from "@iap/email-catcher/caughtMailApi";
-
-const answering = (body: unknown, status = 200) =>
-  vi.fn(() => Promise.resolve(new Response(JSON.stringify(body),
-    { status, headers: { "Content-Type": "application/json" } })));
+  parseCatcherStatus,
+  parseCaughtMessage,
+} from "@iap/email-catcher/caughtMailModel";
 
 describe("messageRoute and messageNameFromRoute", () => {
   it("round-trip a message name", () => {
@@ -47,42 +44,34 @@ describe("messageRoute and messageNameFromRoute", () => {
     // The route is registered as a splat, so it is reached with whatever follows
     expect(messageNameFromRoute("/admin/mail/abc/attachments")).toBeNull();
   });
+
+  it("addresses a message where it is stored, which is not where it is read", () => {
+    expect(messagePath("abc")).toBe("/CaughtMail/abc");
+    expect(messageRoute("abc")).toBe("/admin/mail/abc");
+  });
 });
 
-describe("fetchCatcherStatus", () => {
-  afterEach(() => { vi.restoreAllMocks(); });
-
-  it("reads whether mail is being caught, and how much has been", async () => {
-    const fetchMock = answering({ enabled: true, total: 3 });
-
-    expect(await fetchCatcherStatus(fetchMock)).toEqual({ enabled: true, total: 3 });
-    expect(fetchMock).toHaveBeenCalledWith("/CaughtMail.status.json");
+describe("parseCatcherStatus", () => {
+  it("reads whether mail is being caught, and how much has been", () => {
+    expect(parseCatcherStatus({ enabled: true, total: 3 })).toEqual({ enabled: true, total: 3 });
   });
 
-  it("reads an instance that is delivering normally", async () => {
-    expect(await fetchCatcherStatus(answering({ enabled: false, total: 0 })))
-      .toEqual({ enabled: false, total: 0 });
+  it("reads an instance that is delivering normally", () => {
+    expect(parseCatcherStatus({ enabled: false, total: 0 })).toEqual({ enabled: false, total: 0 });
   });
 
-  it("treats an answer missing either half as the safe reading", async () => {
+  it("treats an answer missing either half as the safe reading", () => {
     // Claiming mail is being caught when the answer did not say so would send somebody looking for
     // a message that was in fact delivered
-    expect(await fetchCatcherStatus(answering({}))).toEqual({ enabled: false, total: 0 });
+    expect(parseCatcherStatus({})).toEqual({ enabled: false, total: 0 });
   });
 
-  it("refuses an answer it could not read, carrying the status", async () => {
-    await expect(fetchCatcherStatus(answering(null, 403)))
-      .rejects.toThrow("The caught mail could not be read (403)");
-  });
-
-  it("refuses an empty answer", async () => {
-    await expect(fetchCatcherStatus(answering(null))).rejects.toThrow("The caught mail could not be read");
+  it("does not take a count, or a switch, of the wrong type", () => {
+    expect(parseCatcherStatus({ enabled: "yes", total: "3" })).toEqual({ enabled: false, total: 0 });
   });
 });
 
-describe("fetchCaughtMessage", () => {
-  afterEach(() => { vi.restoreAllMocks(); });
-
+describe("parseCaughtMessage", () => {
   const STORED = {
     "@path": "/CaughtMail/abc",
     "@name": "abc",
@@ -98,11 +87,9 @@ describe("fetchCaughtMessage", () => {
     "htmlBody": "<p>Approved.</p>",
   };
 
-  it("reads a whole message from its own node", async () => {
-    const fetchMock = answering(STORED);
-    const message = await fetchCaughtMessage(fetchMock, "abc");
+  it("reads a whole message from its own node", () => {
+    const message = parseCaughtMessage(STORED, "abc");
 
-    expect(fetchMock).toHaveBeenCalledWith("/CaughtMail/abc.json");
     expect(message.path).toBe("/CaughtMail/abc");
     expect(message.name).toBe("abc");
     expect(message.subject).toBe("Your proposal has been approved");
@@ -115,23 +102,20 @@ describe("fetchCaughtMessage", () => {
     expect(message.htmlBody).toBe("<p>Approved.</p>");
   });
 
-  it("reads a single address serialized as a bare string", async () => {
+  it("reads a single address serialized as a bare string", () => {
     // A message to one recipient is the common case, and the serializer does not wrap it in a list
-    const message = await fetchCaughtMessage(answering({ to: "someone@uhn.ca" }), "abc");
-
-    expect(message.to).toEqual([ "someone@uhn.ca" ]);
+    expect(parseCaughtMessage({ to: "someone@uhn.ca" }, "abc").to).toEqual([ "someone@uhn.ca" ]);
   });
 
-  it("passes over anything in an address list that is not one", async () => {
-    const message = await fetchCaughtMessage(answering({ to: [ "someone@uhn.ca", 42 ] }), "abc");
-
-    expect(message.to).toEqual([ "someone@uhn.ca" ]);
+  it("passes over anything in an address list that is not one", () => {
+    expect(parseCaughtMessage({ to: [ "someone@uhn.ca", 42 ] }, "abc").to)
+      .toEqual([ "someone@uhn.ca" ]);
   });
 
-  it("leaves absent properties absent rather than inventing empty ones", async () => {
+  it("leaves absent properties absent rather than inventing empty ones", () => {
     // A message with no subject and no HTML body is a message, not a broken one, and the viewer
     // shows different things for "empty" and "not there"
-    const message = await fetchCaughtMessage(answering({ textBody: "Hello." }), "abc");
+    const message = parseCaughtMessage({ textBody: "Hello." }, "abc");
 
     expect(message.subject).toBeUndefined();
     expect(message.htmlBody).toBeUndefined();
@@ -140,16 +124,11 @@ describe("fetchCaughtMessage", () => {
     expect(message.headers).toEqual([]);
   });
 
-  it("falls back to where the message must be when the answer does not say", async () => {
-    expect((await fetchCaughtMessage(answering({}), "abc")).path).toBe("/CaughtMail/abc");
+  it("treats an empty string as absent rather than as a subject nobody wrote", () => {
+    expect(parseCaughtMessage({ subject: "" }, "abc").subject).toBeUndefined();
   });
 
-  it("refuses a message it could not read, carrying the status", async () => {
-    await expect(fetchCaughtMessage(answering(null, 404), "abc"))
-      .rejects.toThrow("The message could not be read (404)");
-  });
-
-  it("refuses an empty answer", async () => {
-    await expect(fetchCaughtMessage(answering(null), "abc")).rejects.toThrow("The message could not be read");
+  it("falls back to where the message must be when the answer does not say", () => {
+    expect(parseCaughtMessage({}, "abc").path).toBe("/CaughtMail/abc");
   });
 });

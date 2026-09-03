@@ -18,7 +18,7 @@
 
 import { type EntityGridColumn, registerEntityType } from "@iap/frontend-commons/entityGrid/registry";
 
-import { CAUGHT_MAIL_PATH, CAUGHT_MESSAGE_TYPE, messageRoute } from "./caughtMailApi";
+import { CAUGHT_MAIL_PATH, CAUGHT_MESSAGE_TYPE, messageRoute } from "./caughtMailModel";
 
 /**
  * What a message says it is. A subject is not mandatory — nothing stops the platform sending a

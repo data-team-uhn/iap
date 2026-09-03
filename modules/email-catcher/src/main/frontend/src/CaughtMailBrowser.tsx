@@ -16,15 +16,13 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
-
 import { Alert, Chip, Typography } from "@mui/material";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { CAUGHT_MESSAGE_TYPE, type CatcherStatus, fetchCatcherStatus } from "./caughtMailApi";
+import { CAUGHT_MESSAGE_TYPE } from "./caughtMailModel";
+import { useCatcherStatus } from "./useCaughtMail";
 // Imported for its side effect: registers the presentation of mail/CaughtMessage before the first
 // render, which is what lets the grid above be asked for by type name alone
 import "./caughtMailGrid";
@@ -37,18 +35,10 @@ import "./caughtMailGrid";
  * sent, with it off it means everything sent went out by mail and this page will never show it.
  */
 function CaughtMailBrowser() {
-  const doFetch = useAuthenticatedFetch();
-  const [ status, setStatus ] = useState<CatcherStatus | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchCatcherStatus(doFetch)
-      // The list below reports its own failures, and it is the page's substance; a second report of
-      // the same unreadable folder would say nothing more
-      .catch(() => null)
-      .then(result => { if (!cancelled) { setStatus(result); } });
-    return () => { cancelled = true; };
-  }, [ doFetch ]);
+  // A failure comes back as a null status and is deliberately not reported here: the list below
+  // reports its own, and it is the page's substance, so a second report of the same unreadable
+  // folder would say nothing more
+  const { status } = useCatcherStatus();
 
   return (
     <AdminScreen

@@ -16,13 +16,9 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
-
 import { Box, Chip, Skeleton, Stack, Typography } from "@mui/material";
 
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
-
-import { type CatcherStatus, fetchCatcherStatus } from "./caughtMailApi";
+import { useCatcherStatus } from "./useCaughtMail";
 
 /**
  * The dashboard summary of the mail catcher: whether it is on, and how much it has caught.
@@ -32,19 +28,7 @@ import { type CatcherStatus, fetchCatcherStatus } from "./caughtMailApi";
  * from somebody who came to the dashboard to check whether a notification worked.
  */
 function CaughtMailWidget() {
-  const doFetch = useAuthenticatedFetch();
-  const [ status, setStatus ] = useState<CatcherStatus | null>(null);
-  const [ unavailable, setUnavailable ] = useState(false);
-  const [ settled, setSettled ] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchCatcherStatus(doFetch)
-      .then(result => { if (!cancelled) { setStatus(result); } })
-      .catch(() => { if (!cancelled) { setUnavailable(true); } })
-      .finally(() => { if (!cancelled) { setSettled(true); } });
-    return () => { cancelled = true; };
-  }, [ doFetch ]);
+  const { status, settled } = useCatcherStatus();
 
   if (!settled) {
     return <Skeleton variant="rounded" height={96} aria-label="Loading the caught mail summary" />;
@@ -52,7 +36,7 @@ function CaughtMailWidget() {
 
   // Reaching the administration console is not the same as being allowed to read /CaughtMail, and
   // an "Off" with no messages would be a claim rather than an absence of one
-  if (unavailable || status === null) {
+  if (status === null) {
     return (
       <Typography variant="body2" color="text.secondary">
         The caught mail is not available to you.

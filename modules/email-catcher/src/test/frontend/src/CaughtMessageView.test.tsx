@@ -193,8 +193,10 @@ describe("CaughtMessageView", () => {
     vi.stubGlobal("fetch", fetchMock);
     view();
 
+    // The screen says what failed; the sentence under it says why, and does not repeat the attempt
     expect(await screen.findByText("The message could not be read")).toBeInTheDocument();
-    expect(screen.getByText("The message could not be read (404)")).toBeInTheDocument();
+    expect(screen.getByText(/could not be found on the server/)).toBeInTheDocument();
+    expect(screen.getByText(/\(HTTP 404\)/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
 
@@ -239,9 +241,11 @@ describe("CaughtMessageView", () => {
   });
 
   it("reports a request that never reached the server", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("Network down"))));
+    // A fetch that never completes rejects with a TypeError, which is what distinguishes "no server,
+    // no route, no DNS" from a server that answered badly — so the stub has to reject with one
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("Failed to fetch"))));
     view();
 
-    expect(await screen.findByText("Network down")).toBeInTheDocument();
+    expect(await screen.findByText(/The server could not be reached/)).toBeInTheDocument();
   });
 });

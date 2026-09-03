@@ -16,24 +16,25 @@
  * limitations under the License.
  */
 
-// The client half of the caught mail screens: whether mail is being caught at all, and reading one
-// caught message. Every call takes the fetch to use as its first argument rather than reaching for a
-// hook, so this file stays free of React and is testable as plain functions; components pass
-// `useAuthenticatedFetch()` in.
+// What a caught message is, where it lives, and how to read one out of the serializer's JSON. No
+// React, no fetch: everything here is a pure function of its arguments, so it can be tested without
+// rendering anything or stubbing a response. The I/O that uses it is in useCaughtMail.
 //
 // Listing is deliberately absent: the messages live under an entity homepage, so the shared grid
 // pages, sorts and searches them through `.paginate.json` with no client code of its own. See
 // caughtMailGrid.
 
-/** The fetch a caller supplies, normally the session-aware one from `@iap/frontend-commons/reLogin`. */
-export type AuthenticatedFetch = (url: string, init?: RequestInit) => Promise<Response>;
-
 export const CAUGHT_MAIL_PATH = "/CaughtMail";
 export const CAUGHT_MAIL_ROUTE = "/admin/mail";
 export const CAUGHT_MESSAGE_TYPE = "mail/CaughtMessage";
 
-const messagePath = (name: string): string => `${CAUGHT_MAIL_PATH}/${name}`;
+/** Where the catcher reports whether it is on, and how much it holds. */
+export const CATCHER_STATUS_PATH = `${CAUGHT_MAIL_PATH}.status.json`;
 
+/** Where one message is stored. */
+export const messagePath = (name: string): string => `${CAUGHT_MAIL_PATH}/${name}`;
+
+/** Where one message is read in the console. */
 export const messageRoute = (name: string): string => `${CAUGHT_MAIL_ROUTE}/${name}`;
 
 /**
@@ -73,7 +74,7 @@ export interface CaughtMessage {
 }
 
 /** A JSON node as IAP's serializer emits it: properties, plus children keyed by name. */
-type SerializedNode = Record<string, unknown>;
+export type SerializedNode = Record<string, unknown>;
 
 const asString = (node: SerializedNode, name: string): string | undefined => {
   const value = node[name];
@@ -97,54 +98,33 @@ const asStrings = (node: SerializedNode, name: string): string[] => {
  * on reads as "no mail has been sent", which is the opposite of what an empty mailbox means on an
  * instance that is delivering normally.
  *
- * @throws Error if the answer cannot be read, which on a distribution without the catcher — every
- *         production one — is what happens
+ * An answer missing either half is read as the safe reading rather than refused — claiming mail is
+ * being caught when the answer did not say so would send somebody looking for a message that was in
+ * fact delivered.
  */
-export async function fetchCatcherStatus(fetchUtil: AuthenticatedFetch): Promise<CatcherStatus> {
-  const response = await fetchUtil(`${CAUGHT_MAIL_PATH}.status.json`);
-  if (!response.ok) {
-    throw new Error(`The caught mail could not be read (${String(response.status)})`);
-  }
-  const body = (await response.json()) as SerializedNode | null;
-  if (body === null) {
-    throw new Error("The caught mail could not be read");
-  }
-  return {
-    enabled: body.enabled === true,
-    total: typeof body.total === "number" ? body.total : 0,
-  };
-}
+export const parseCatcherStatus = (node: SerializedNode): CatcherStatus => ({
+  enabled: node.enabled === true,
+  total: typeof node.total === "number" ? node.total : 0,
+});
 
 /**
  * One caught message, whole.
  *
- * Read at the default depth: a caught message is a leaf, everything about it is in its own
- * properties, and the bodies are the bulk of it.
- *
- * @throws Error if the message cannot be read
+ * Absent properties are left absent rather than filled with empty ones: a message with no subject
+ * and no HTML body is a message rather than a broken one, and the viewer shows different things for
+ * "empty" and "not there".
  */
-export async function fetchCaughtMessage(
-  fetchUtil: AuthenticatedFetch, name: string): Promise<CaughtMessage> {
-  const response = await fetchUtil(`${messagePath(name)}.json`);
-  if (!response.ok) {
-    throw new Error(`The message could not be read (${String(response.status)})`);
-  }
-  const body = (await response.json()) as SerializedNode | null;
-  if (body === null) {
-    throw new Error("The message could not be read");
-  }
-  return {
-    path: asString(body, "@path") ?? messagePath(name),
-    name,
-    subject: asString(body, "subject"),
-    caughtAt: asString(body, "caughtAt"),
-    from: asStrings(body, "from"),
-    replyTo: asStrings(body, "replyTo"),
-    to: asStrings(body, "to"),
-    cc: asStrings(body, "cc"),
-    bcc: asStrings(body, "bcc"),
-    headers: asStrings(body, "headers"),
-    textBody: asString(body, "textBody"),
-    htmlBody: asString(body, "htmlBody"),
-  };
-}
+export const parseCaughtMessage = (node: SerializedNode, name: string): CaughtMessage => ({
+  path: asString(node, "@path") ?? messagePath(name),
+  name,
+  subject: asString(node, "subject"),
+  caughtAt: asString(node, "caughtAt"),
+  from: asStrings(node, "from"),
+  replyTo: asStrings(node, "replyTo"),
+  to: asStrings(node, "to"),
+  cc: asStrings(node, "cc"),
+  bcc: asStrings(node, "bcc"),
+  headers: asStrings(node, "headers"),
+  textBody: asString(node, "textBody"),
+  htmlBody: asString(node, "htmlBody"),
+});

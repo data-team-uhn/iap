@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Box, Divider, Stack, Tab, Tabs, Typography } from "@mui/material";
 import { useLocation } from "react-router";
@@ -24,9 +24,9 @@ import { useLocation } from "react-router";
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import LoadError from "@iap/frontend-commons/components/LoadError";
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { type CaughtMessage, fetchCaughtMessage, messageNameFromRoute } from "./caughtMailApi";
+import { type CaughtMessage, messageNameFromRoute } from "./caughtMailModel";
+import { useCaughtMessage } from "./useCaughtMail";
 
 /** A timestamp as a reader wants it, or the raw value if it is not one we can parse. */
 function moment(value: string | undefined): string {
@@ -149,62 +149,12 @@ function viewsOf(message: CaughtMessage): BodyView[] {
  */
 function CaughtMessageView() {
   const { pathname } = useLocation();
-  const doFetch = useAuthenticatedFetch();
   // Derived at render, never stored: the React Compiler lint rejects a setState reached
   // synchronously from an effect, and a route that names no message is not a fetch to make
   const name = messageNameFromRoute(pathname);
 
-  const [ message, setMessage ] = useState<CaughtMessage | null>(null);
-  const [ loadError, setLoadError ] = useState<string | null>(null);
-  const [ settled, setSettled ] = useState(false);
+  const { message, loadError, settled, reload } = useCaughtMessage(name);
   const [ view, setView ] = useState("rendered");
-
-  // Reads are sent in order but can land out of order — a retry can overtake the read it is
-  // retrying — so each one carries a token and only the newest is applied
-  const newestRead = useRef(0);
-
-  // Both the first read and the retry button go through this, so a retry cannot drift from the load
-  // it is retrying. It resolves only once the fetch has settled, which is what lets LoadError show
-  // the attempt's own progress.
-  const load = useCallback((): Promise<void> => {
-    if (name === null) {
-      return Promise.resolve();
-    }
-    newestRead.current += 1;
-    const token = newestRead.current;
-    // Written with callbacks rather than await deliberately: every setState below then sits in a
-    // promise callback, which is what keeps react-hooks/set-state-in-effect satisfied when the
-    // effect calls this
-    return fetchCaughtMessage(doFetch, name)
-      .then(result => ({ result, failure: null as string | null }))
-      .catch((cause: unknown) => ({
-        result: null,
-        failure: cause instanceof Error ? cause.message : "The message could not be read",
-      }))
-      .then(({ result, failure }) => {
-        if (token !== newestRead.current) {
-          return;
-        }
-        setMessage(result);
-        setLoadError(failure);
-        setSettled(true);
-      });
-  }, [ doFetch, name ]);
-
-  // Navigating from one message to another must not leave the previous one on screen under the new
-  // one's heading. Done as a render-phase adjustment rather than in the effect, because a setState
-  // reached synchronously from an effect is what react-hooks/set-state-in-effect rejects.
-  const [ shown, setShown ] = useState(name);
-  if (shown !== name) {
-    setShown(name);
-    setMessage(null);
-    setLoadError(null);
-    setSettled(false);
-  }
-
-  useEffect(() => {
-    void load();
-  }, [ load ]);
 
   if (name === null) {
     // Not a LoadError: nothing failed to load and retrying cannot help, because the address itself
@@ -231,7 +181,7 @@ function CaughtMessageView() {
         <LoadError
           title="The message could not be read"
           message={loadError}
-          onRetry={load}
+          onRetry={reload}
           sx={{ mb: 2 }}
         />
       )}
