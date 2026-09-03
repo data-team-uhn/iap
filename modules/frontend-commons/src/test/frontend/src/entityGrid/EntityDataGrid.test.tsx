@@ -53,6 +53,17 @@ registerEntityType(PLAIN_TYPE, {
   ],
 });
 
+// A type whose status is rendered as a component rather than as text, which is what a tag chip or
+// an action button is -- the case the cell layout has to treat differently
+const ELEMENT_TYPE = "test/ElementEntity";
+registerEntityType(ELEMENT_TYPE, {
+  homepage: "/ElementEntities",
+  columns: [
+    { field: "title", headerName: "Title" },
+    { field: "status", headerName: "Status", renderCell: params => <em>{String((params.row as Record<string, unknown>).status)}</em> },
+  ],
+});
+
 // A type exercising every kind of column content the generic list card can face; the "nested"
 // column is also excluded from sorting
 const CARD_TYPE = "test/CardEntity";
@@ -193,6 +204,20 @@ describe("EntityDataGrid", () => {
     expect(url.searchParams.get("limit")).toBe("5");
     expect(url.searchParams.get("sortBy")).toBe("title");
     expect(url.searchParams.get("descending")).toBe("true");
+  });
+
+  it("lays out a cell rendering a component for an element, not for a text baseline", async () => {
+    // A chip or a button in a `renderCell` sits high against the plain cells beside it unless the
+    // column asks for the flex layout, which is what centres an element child
+    mockPage([{ "@path": "/ElementEntities/e1", title: "First entity", status: "draft" }]);
+
+    render(<EntityDataGrid entityType={ELEMENT_TYPE} disableVirtualization />, { wrapper: MemoryRouter });
+
+    await screen.findByText("First entity");
+    expect(screen.getByText("draft").closest(".MuiDataGrid-cell")).toHaveClass("MuiDataGrid-cell--flex");
+    // A column rendering plain text keeps the text layout
+    expect(screen.getByText("First entity").closest(".MuiDataGrid-cell"))
+      .not.toHaveClass("MuiDataGrid-cell--flex");
   });
 
   it("forwards the fixed filters to the pagination servlet", async () => {
