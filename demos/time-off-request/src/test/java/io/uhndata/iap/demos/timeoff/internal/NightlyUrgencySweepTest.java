@@ -19,10 +19,13 @@ package io.uhndata.iap.demos.timeoff.internal;
 
 import java.lang.reflect.Field;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -35,6 +38,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.commons.scheduler.ScheduleOptions;
 import org.apache.sling.commons.scheduler.Scheduler;
@@ -47,6 +51,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import io.uhndata.iap.schemas.models.Question;
+import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
@@ -88,6 +93,8 @@ class NightlyUrgencySweepTest
     void setUp()
     {
         taggable();
+        this.context.create().resource(NightlyUrgencySweep.OWN_SCHEMA, Map.of(
+            TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
         for (final String version : List.of(OWN_VERSION, OTHER_VERSION)) {
             this.context.create().resource(version, Map.of(
                 TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
@@ -103,19 +110,67 @@ class NightlyUrgencySweepTest
 
         this.sweep.sweep(resolverFinding("/Submissions/mine"), TODAY);
 
-        assertTrue(tags("mine").contains(TimeOffUrgency.URGENT));
+        assertTrue(tags("mine").contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
-    void leavesTheRequestsOfAnotherSchemaAlone()
+    void asksOnlyForTheRequestsOfItsOwnSchema()
     {
-        // A sweep this demo installed has no business judging somebody else's requests, whatever their answers
-        // happen to be called
-        request("theirs", OTHER_VERSION, "2026-09-16");
+        // A sweep this demo installed has no business judging somebody else's requests, and it says so in the
+        // query rather than by reading every submission and discarding most of them
+        final List<String> asked = new ArrayList<>();
+        this.sweep.sweep(recording(asked), TODAY);
 
-        this.sweep.sweep(resolverFinding("/Submissions/theirs"), TODAY);
+        assertEquals(1, asked.size());
+        assertTrue(asked.get(0).contains("submission.[schema] = '" + identifierOf(NightlyUrgencySweep.OWN_SCHEMA)
+            + "'"));
+        // Compared against the schema, not against its versions, so no join is needed to reach either
+        assertFalse(asked.get(0).contains("JOIN"));
+    }
 
-        assertFalse(tags("theirs").contains(TimeOffUrgency.URGENT));
+    @Test
+    void judgesNothingWhenItsSchemaIsNotInstalled() throws PersistenceException
+    {
+        // A demo bundle can be deployed without its content, and a sweep that then queried on an empty
+        // identifier would match every submission in the repository
+        final List<String> asked = new ArrayList<>();
+        this.context.resourceResolver().delete(
+            Objects.requireNonNull(this.context.resourceResolver().getResource(NightlyUrgencySweep.OWN_SCHEMA)));
+
+        assertDoesNotThrow(() -> this.sweep.sweep(recording(asked), TODAY));
+        assertTrue(asked.isEmpty());
+    }
+
+    @Test
+    void judgesNothingWhenTheSchemaCannotBeIdentified()
+    {
+        // Without an identifier there is no way to say "this schema" in the query, and asking anyway would
+        // either match nothing or match everything
+        final List<String> asked = new ArrayList<>();
+        final ResourceResolver unidentifiable = new ResourceResolverWrapper(recording(asked))
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                final Resource real = super.getResource(path);
+                if (real == null || !NightlyUrgencySweep.OWN_SCHEMA.equals(path)) {
+                    return real;
+                }
+                return new ResourceWrapper(real)
+                {
+                    @Override
+                    public <T> T adaptTo(final Class<T> type)
+                    {
+                        return type == Node.class ? type.cast(Mockito.mock(Node.class, invocation -> {
+                            throw new RepositoryException("boom");
+                        })) : super.adaptTo(type);
+                    }
+                };
+            }
+        };
+
+        assertDoesNotThrow(() -> this.sweep.sweep(unidentifiable, TODAY));
+        assertTrue(asked.isEmpty());
     }
 
     @Test
@@ -126,7 +181,7 @@ class NightlyUrgencySweepTest
 
         this.sweep.sweep(resolverFinding("/Submissions/gone", "/Submissions/mine"), TODAY);
 
-        assertTrue(tags("mine").contains(TimeOffUrgency.URGENT));
+        assertTrue(tags("mine").contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -139,8 +194,8 @@ class NightlyUrgencySweepTest
 
         this.sweep.sweep(resolverFinding("/Submissions/unwritable", "/Submissions/mine"), TODAY);
 
-        assertFalse(tags("unwritable").contains(TimeOffUrgency.URGENT));
-        assertTrue(tags("mine").contains(TimeOffUrgency.URGENT));
+        assertFalse(tags("unwritable").contains(TimeOffUrgency.URGENT_TAG));
+        assertTrue(tags("mine").contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -167,7 +222,7 @@ class NightlyUrgencySweepTest
 
         this.sweep.run();
 
-        assertTrue(tags("mine").contains(TimeOffUrgency.URGENT));
+        assertTrue(tags("mine").contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -182,7 +237,7 @@ class NightlyUrgencySweepTest
         inject("resolverFactory", refusing);
 
         assertDoesNotThrow(this.sweep::run);
-        assertFalse(tags("mine").contains(TimeOffUrgency.URGENT));
+        assertFalse(tags("mine").contains(TimeOffUrgency.URGENT_TAG));
     }
 
     @Test
@@ -228,6 +283,20 @@ class NightlyUrgencySweepTest
             "value", new String[] {startDate}));
     }
 
+    /** A resolver that notes down every query it is asked and answers each with nothing. */
+    private ResourceResolver recording(final List<String> asked)
+    {
+        return new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public Iterator<Resource> findResources(final String query, final String language)
+            {
+                asked.add(query);
+                return Collections.emptyIterator();
+            }
+        };
+    }
+
     /** A resolver whose query answers with exactly these paths, in this order. */
     private ResourceResolver resolverFinding(final String... paths)
     {
@@ -241,8 +310,19 @@ class NightlyUrgencySweepTest
             @Override
             public Iterator<Resource> findResources(final String query, final String language)
             {
-                return List.of(paths).stream().map(delegate::getResource)
-                    .filter(resource -> resource != null).iterator();
+                // A path whose resource has gone is still a row the query returns, so it is handed over as
+                // one: filtering it out here would hide the very case the sweep guards against
+                return List.of(paths).stream()
+                    .map(path -> {
+                        final Resource found = delegate.getResource(path);
+                        if (found != null) {
+                            return found;
+                        }
+                        final Resource stale = Mockito.mock(Resource.class);
+                        Mockito.when(stale.getPath()).thenReturn(path);
+                        return stale;
+                    })
+                    .iterator();
             }
         };
     }
