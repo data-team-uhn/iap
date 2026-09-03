@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.List;
 import java.util.Map;
 
 import javax.jcr.Node;
@@ -40,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link Answer}.
@@ -55,7 +57,8 @@ class AnswerTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class, Question.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Answer.class, Question.class,
+            Extraction.class);
     }
 
     @Test
@@ -98,5 +101,44 @@ class AnswerTest
         assertNotNull(answer);
         assertNull(answer.getQuestion());
         assertNull(answer.getValue());
+        assertTrue(answer.getExtractions().isEmpty());
+        assertNull(answer.getLatestExtraction());
+    }
+
+    @Test
+    void listsExtractionRunsInTheOrderTheyRan()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/participants",
+            "sling:resourceType", Answer.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/participants/extraction0", Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "40"));
+        this.context.create().resource("/Submissions/submission/participants/extraction1", Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
+        // A file-type answer keeps its upload here too, and that is not an extraction
+        this.context.create().resource("/Submissions/submission/participants/upload",
+            "sling:resourceType", "nt:file");
+        final Answer answer = resource.adaptTo(Answer.class);
+
+        final List<Extraction> extractions = answer.getExtractions();
+
+        assertEquals(2, extractions.size());
+        assertEquals("40", extractions.get(0).getExtractedAnswer());
+        // The newest run is the last, and it is the one a submitter is shown
+        assertEquals("42", answer.getLatestExtraction().getExtractedAnswer());
+    }
+
+    @Test
+    void keepsAnUnapprovedExtractionOutOfTheValue()
+    {
+        final Resource resource = this.context.create().resource("/Submissions/submission/participants",
+            "sling:resourceType", Answer.RESOURCE_TYPE);
+        this.context.create().resource("/Submissions/submission/participants/extraction0", Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE, "extractedAnswer", "42"));
+        final Answer answer = resource.adaptTo(Answer.class);
+
+        // The submitter has not accepted it, so the answer is still unanswered
+        assertNull(answer.getValue());
+        assertEquals("42", answer.getLatestExtraction().getExtractedAnswer());
+        assertNull(answer.getLatestExtraction().getEditDistance());
     }
 }

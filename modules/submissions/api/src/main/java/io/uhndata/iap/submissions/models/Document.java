@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.submissions.models;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.sling.api.resource.Resource;
@@ -43,8 +42,6 @@ public class Document extends EntityPart
 {
     /** The {@code sling:resourceType} of a {@code sub:Document} node. */
     public static final String RESOURCE_TYPE = "sub/Document";
-
-    private static final String FILE_RESOURCE_TYPE = "nt:file";
 
     @ValueMapValue
     private String title;
@@ -89,19 +86,26 @@ public class Document extends EntityPart
     }
 
     /**
-     * The uploaded attachment(s), in the order they were attached.
+     * The revisions of this document, oldest first. Uploading a replacement adds a revision rather than
+     * overwriting the file a reviewer has already read, so this is the document's whole history.
      *
-     * @return a list of file resources, empty if none were attached yet
+     * @return a list of revisions, empty if nothing has been uploaded yet
      */
     @NotNull
-    public List<Resource> getAttachments()
+    public List<DocumentVersion> getVersions()
     {
-        final List<Resource> result = new ArrayList<>();
-        for (final Resource child : this.resource.getChildren()) {
-            if (child.isResourceType(FILE_RESOURCE_TYPE)) {
-                result.add(child);
-            }
-        }
-        return result;
+        return this.getChildren(DocumentVersion.RESOURCE_TYPE, DocumentVersion.class);
+    }
+
+    /**
+     * The current revision of this document: the newest one, which is the last in the ordered list.
+     *
+     * @return the newest revision, or {@code null} if nothing has been uploaded yet
+     */
+    @Nullable
+    public DocumentVersion getCurrentVersion()
+    {
+        final List<DocumentVersion> versions = this.getVersions();
+        return versions.isEmpty() ? null : versions.get(versions.size() - 1);
     }
 }

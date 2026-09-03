@@ -17,10 +17,13 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.List;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.entities.models.EntityPart;
@@ -58,7 +61,8 @@ public class Answer extends EntityPart
     }
 
     /**
-     * The submitted value(s).
+     * The submitted value(s): what the submitter typed or approved. An extracted answer is not one of them until
+     * the submitter accepts or edits it, so that no answer is ever attributed to a submitter who never saw it.
      *
      * @return a copy of the stored value(s), or {@code null} if not yet answered
      */
@@ -67,5 +71,28 @@ public class Answer extends EntityPart
     {
         // A copy, since arrays are mutable and callers must not be able to alter the model's own state
         return this.value == null ? null : this.value.clone();
+    }
+
+    /**
+     * Every extraction run against this question, in the order they ran.
+     *
+     * @return a list of runs, empty if extraction has never run
+     */
+    @NotNull
+    public List<Extraction> getExtractions()
+    {
+        return this.getChildren(Extraction.RESOURCE_TYPE, Extraction.class);
+    }
+
+    /**
+     * The most recent extraction run, which is the one a submitter is shown.
+     *
+     * @return the newest run, or {@code null} if extraction has never run
+     */
+    @Nullable
+    public Extraction getLatestExtraction()
+    {
+        final List<Extraction> extractions = this.getExtractions();
+        return extractions.isEmpty() ? null : extractions.get(extractions.size() - 1);
     }
 }
