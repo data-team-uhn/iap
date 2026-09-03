@@ -851,10 +851,9 @@ once, at save time, instead of by every reader. The tag is a system tag in its o
 state.
 
 Four properties carry the engine's matching, authorization and dispatch, derived from the diagram's
-`iap:*` attributes wherever a version says its BPMN is authoritative, and set by hand elsewhere:
-`messageName` on events (the domain event name), `targetResourceType` on versions (what a system workflow
-answers for), `performers` on flow nodes (who may pass through), and `handler` on activities (who performs
-a service task).
+`iap:*` attributes: `messageName` on events (the domain event name), `targetResourceType` on versions
+(what a system workflow answers for), `performers` on flow nodes (who may pass through), and `handler`
+on activities (who performs a service task).
 
 ## Content workflows: the part that persists
 
@@ -953,6 +952,53 @@ workflow per row — so the workflow declares and the engine writes an ACL: the 
 is being run for, plus the performers of every user task in the version. Deriving that
 from `performers` rather than inventing a second vocabulary means the two can never
 disagree.
+
+### More than one branch at once
+
+An instance holds a token per branch in progress, so the walk is a queue of positions rather than a single
+path. Four things follow from that, and they are the reason it was worth doing as one piece:
+
+**A parallel gateway forks and joins.** Leaving one takes *every* arc — the arriving token moves onto the
+first and a new one is created for each of the rest. A parallel gateway with several arcs leading in is a
+join: each token that arrives waits on it until one has come from every arc, and then they merge back into
+the one token that carries on.
+
+BPMN lets any arc carry a condition, but a parallel gateway takes all of its arcs whatever those say — so a
+condition on one could never decide anything. The engine treats that as an error in the diagram rather than
+quietly ignoring it, because the two readings are far apart: an author who guarded an arc believes that
+branch is sometimes not taken, and it always is.
+
+That counting is also how a diagram deadlocks: a parallel join placed after a fork that did *not* take every
+branch — an exclusive or inclusive one — waits for a token that was never created, and the instance stays
+active with nothing able to move it. Use an inclusive join to merge branches that were conditionally taken;
+it is exactly the case its reachability rule answers.
+
+**An inclusive gateway forks as widely as applies.** Every arc whose condition holds is taken, as is every
+arc that carries no condition, falling back on the default when nothing applies. Its join cannot count the
+way a parallel one does — the fork took only the branches that applied, and how many that was is written
+nowhere — so it asks the question that actually matters: *can any branch still get here?* When no other token
+in the instance can reach it by following the graph, what has arrived is all that ever will. Boundary events
+count as ways onwards, since a deadline can take a token off a task.
+
+That answer changes as the other branches move, and nothing arrives at the join to announce it, so the walk
+looks again at the parked joins once every branch has stopped moving, until nothing can move at all. Reading
+it from the graph rather than remembering it at the fork is what makes it survive an instance being resumed
+days later by somebody else.
+
+**An end event ends a branch, not the process.** The token that reached it is spent, and the instance closes
+only when the last one is gone. `terminate` on an end event is the other thing: it discards every remaining
+token and cancels every task still waiting for somebody, since a task whose token has been discarded can
+never be completed.
+
+**A non-interrupting boundary event runs beside the work.** An interrupting timer cancels the task it watches
+and execution leaves down the timer's arc. A non-interrupting one leaves the task exactly where it was and
+starts a second branch: "remind them after three days" as against "give up after five". Which deadlines have
+already fired is recorded on the task as `firedEvents`, so the sweep does not deliver the same one twice, and
+arming picks the earliest timer that has not fired — measured from when the task started, so "remind after a
+day and a half, give up after five days" means five days from the start rather than from the reminder.
+
+Tokens are interchangeable: nothing distinguishes one from another beyond where it rests, which is why two
+branches arriving at the same task simply mean two tasks, each completed on its own.
 
 ## Known gaps
 
