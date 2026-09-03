@@ -157,7 +157,9 @@ change that mapping, keep the `127.0.0.1:` prefix. Drop the `ports:` block entir
 the host needs to call the daemon.
 
 IAP reaches it as `http://docling:18765`: the generator puts both containers on the same `iap`
-network, where Compose resolves the service name.
+network, where Compose resolves the service name. The parse outcomes travel the other way over that
+same network, to `IAP_DOCLING_CALLBACK_URL`, authenticated with the shared `IAP_DOCLING_CALLBACK_JWT`
+both containers read from `.env`. Neither side does asynchronous parsing without it.
 
 `POST /parse` is **path-based**, not an upload. The caller stages the document on the volume shared
 with the daemon (`IAP_SHARED_DOCS`, `/shared-docs` in the image) and passes its path:
