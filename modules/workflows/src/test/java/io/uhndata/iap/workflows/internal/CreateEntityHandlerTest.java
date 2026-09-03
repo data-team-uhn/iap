@@ -95,8 +95,8 @@ class CreateEntityHandlerTest
     @Test
     void dodgesNameCollisions() throws WorkflowException, PersistenceException
     {
-        this.context.create().resource("/Workflows/myCoolWorkflow", TYPE, "wf/WorkflowDefinition");
-        this.context.create().resource("/Workflows/myCoolWorkflow2", TYPE, "wf/WorkflowDefinition");
+        this.context.create().resource("/Workflows/myCoolWorkflow", JCR_PRIMARY_TYPE_PROPERTY, "wf/WorkflowDefinition");
+        this.context.create().resource("/Workflows/myCoolWorkflow2", JCR_PRIMARY_TYPE_PROPERTY, "wf/WorkflowDefinition");
         final Map<String, Object> variables = new HashMap<>();
 
         this.handler.execute(context("My cool workflow", variables));
@@ -110,7 +110,7 @@ class CreateEntityHandlerTest
     void createsAnEntityEvenWhenEveryCountedNameVariantIsTaken() throws WorkflowException, PersistenceException
     {
         IntStream.rangeClosed(1, 100).forEach(attempt -> this.context.create().resource(
-            "/Workflows/" + (attempt == 1 ? "busy" : "busy" + attempt), TYPE, "wf/WorkflowDefinition"));
+            "/Workflows/" + (attempt == 1 ? "busy" : "busy" + attempt), JCR_PRIMARY_TYPE_PROPERTY, "wf/WorkflowDefinition"));
         final Map<String, Object> variables = new HashMap<>();
 
         this.handler.execute(context("Busy", variables));
@@ -123,7 +123,7 @@ class CreateEntityHandlerTest
     {
         // An activity of the graph that carries no entityType configuration
         this.context.create().resource(EngineFixture.VERSION + "/misconfigured", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "misconfigured", "handler", CreateEntityHandler.HANDLER_NAME));
+            JCR_PRIMARY_TYPE_PROPERTY, Activity.RESOURCE_TYPE, "elementId", "misconfigured", "handler", CreateEntityHandler.HANDLER_NAME));
         final WorkflowTaskContextImpl taskContext = new WorkflowTaskContextImpl(this.target,
             new WorkflowEvent("create", Map.of("title", "Fine")),
             adaptActivity(EngineFixture.VERSION + "/misconfigured"), new HashMap<>(), ACTOR);
@@ -135,7 +135,7 @@ class CreateEntityHandlerTest
     void refusesABlankEntityTypeConfiguration()
     {
         this.context.create().resource(EngineFixture.VERSION + "/blank", Map.of(
-            TYPE, Activity.RESOURCE_TYPE, "elementId", "blank", "handler", CreateEntityHandler.HANDLER_NAME,
+            JCR_PRIMARY_TYPE_PROPERTY, Activity.RESOURCE_TYPE, "elementId", "blank", "handler", CreateEntityHandler.HANDLER_NAME,
             "entityType", " "));
         final WorkflowTaskContextImpl taskContext = new WorkflowTaskContextImpl(this.target,
             new WorkflowEvent("create", Map.of("title", "Fine")),

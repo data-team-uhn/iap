@@ -413,7 +413,7 @@ final class InstanceRunner
      */
     private Resource createToken(final Resource instance, final String elementId) throws PersistenceException
     {
-        final String name = Objects.requireNonNullElse(NodeNameUtils.findFreeName(instance, "token"), "token");
+        final String name = NodeNameUtils.findFreeName(instance, "token");
         return this.resolver.create(instance, name, Map.of(
             JCR_PRIMARY_TYPE_PROPERTY, "wf:WorkflowToken", CURRENT_NODE_ID_PROPERTY, elementId));
     }
