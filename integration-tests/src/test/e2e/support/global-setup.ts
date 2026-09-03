@@ -40,6 +40,20 @@ const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAI
 const GATE_TAG = 'systemalive';
 
 /**
+ * How long the gate's checks must have been passing before an instance counts as ready.
+ *
+ * The gate is deliberately not a one-way latch: it opens as soon as its checks have held briefly, and only
+ * *retires* - stops being able to refuse anything - once they have held for its settle period. In between,
+ * a single blip closes it again and answers whatever is in flight with the "starting up" page, which a test
+ * sees as a bare 503 from a request that has nothing wrong with it.
+ *
+ * So the question worth asking is not "do the gate's checks pass" but "have they passed for longer than the
+ * gate needs", which is the same rule the gate applies to itself. Comfortably above the gate's own 30s
+ * settle period, since the two are polling independently.
+ */
+const GATE_SETTLED_MS = 40_000;
+
+/**
  * Whether an instance is ready to be tested.
  *
  * The launcher plugin only waits for the OSGi framework to come up, which happens well before the
@@ -99,11 +113,19 @@ const isReady = async (instance: ActiveInstance): Promise<boolean> => {
 const waitFor = async (instance: ActiveInstance): Promise<void> => {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let lastError = 'no response';
+  // When the current unbroken stretch of readiness began, forgotten the moment anything stops passing
+  let readySince: number | undefined;
   while (Date.now() < deadline) {
     if (await isReady(instance)) {
-      return;
+      readySince ??= Date.now();
+      if (Date.now() - readySince >= GATE_SETTLED_MS) {
+        return;
+      }
+      lastError = 'the startup gate had not settled';
+    } else {
+      readySince = undefined;
+      lastError = 'health checks not passing';
     }
-    lastError = 'health checks not passing';
     await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
   }
   throw new Error(
