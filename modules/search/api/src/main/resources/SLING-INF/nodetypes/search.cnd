@@ -1,0 +1,43 @@
+//
+//  Copyright 2026 DATA @ UHN. See the NOTICE file
+//  distributed with this work for additional information
+//  regarding copyright ownership.
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<data = 'https://iap.uhndata.io/data/'>
+
+//-----------------------------------------------------------------------------
+//
+// Search: the endpoint that runs queries against the repository.
+//
+// A single node of this type is expected, at /search. It holds no data: it
+// exists only to give the search servlet a resource to be registered on, so
+// that the endpoint is a normal repository path, subject to normal access
+// control, rather than a path reserved by a servlet registration.
+//
+// Deliberately NOT a data:Content: the endpoint is plumbing, not content, so
+// it must not acquire tags, links, or the data/Content resource supertype,
+// which would hand /search itself to the content deletion endpoint and let a
+// DELETE archive the search endpoint. The archive types avoid the same trap,
+// for the same reason; see deletion.cnd.
+//
+//-----------------------------------------------------------------------------
+
+[data:Search] > sling:Folder
+  // Properties:
+
+  // Hardcode the resource type, this is what the search servlet is registered on.
+  - sling:resourceType (STRING) = "data/Search" mandatory autocreated protected

@@ -51,6 +51,7 @@
     <module>login</module>
     <module>metrics</module>
     <module>schemas</module>
+    <module>search</module>
     <module>serialization</module>
     <module>slack-notifications</module>
     <module>startup-customization</module>
