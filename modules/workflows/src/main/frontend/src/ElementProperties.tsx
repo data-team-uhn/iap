@@ -29,9 +29,13 @@ import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type BpmnModeling from "bpmn-js/lib/features/modeling/Modeling";
 import type { Element } from "bpmn-js/lib/model/Types";
 
+const nameOf = (element: Element) => (element.businessObject as { name?: string } | undefined)?.name ?? "";
+
 interface ElementPropertiesProps {
   element: Element;
   viewer: BaseViewer;
+  // Incremented by the parent every time the canvas reports a change to this element, which is the cue to reread it.
+  revision?: number;
   readOnly?: boolean;
 }
 
@@ -39,11 +43,20 @@ export default function ElementProperties(props: ElementPropertiesProps) {
   const {
     element,
     viewer,
+    revision = 0,
     readOnly = false
   } = props;
 
   // Local copy of name: bpmn-js mutates the businessObject in place, so it wouldn't otherwise trigger a re-render.
-  const [ name, setName ] = useState(() => (element.businessObject as { name?: string } | undefined)?.name ?? "");
+  const [ name, setName ] = useState(() => nameOf(element));
+
+  // Since that mutation leaves the element object itself unchanged, a rename elsewhere is only visible as a bumped
+  // revision; rereading is harmless when the rename was this field's own, as the name read back is what was typed.
+  const [ syncedRevision, setSyncedRevision ] = useState(revision);
+  if (revision !== syncedRevision) {
+    setSyncedRevision(revision);
+    setName(nameOf(element));
+  }
 
   const updateName = (value: string) => {
     setName(value);
