@@ -123,5 +123,5 @@ always present and current:
 - `build-info.txt` — version, git commit, and build timestamp;
 - `core_tar.json` / `core_mongo.json` / `core_rdb.json` — the aggregated feature models, the
   complete versioned inventory of every Java artifact in the deployment;
-- `yarn.lock` — the complete inventory of the frontend JavaScript dependencies;
+- `pnpm-lock.yaml` — the complete inventory of the frontend JavaScript dependencies;
 - `logo.svg` — the platform logo shipped with this build.

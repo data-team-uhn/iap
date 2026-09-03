@@ -187,8 +187,8 @@ thing preventing the action behind it.
 
 ## Tests
 
-Vitest with Testing Library, tests under `src/test/frontend/src/`, run with `yarn test`
-from `aggregated-frontend/src/main/frontend`. `yarn lint` and `yarn typecheck` run the
+Vitest with Testing Library, tests under `src/test/frontend/src/`, run with `pnpm test`
+from `aggregated-frontend/src/main/frontend`. `pnpm lint` and `pnpm typecheck` run the
 same aggregation first, so run them from there too.
 
 Test what a user sees: query by role and label rather than by class or test id, and

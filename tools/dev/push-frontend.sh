@@ -66,7 +66,7 @@ if [[ -z "$SKIP_BUILD" ]]; then
   (
     cd "$FRONTEND"
     rm -rf dist node_modules/.cache
-    ./node/node node/yarn/dist/bin/yarn.js aggregate > /tmp/push-frontend-aggregate.log 2>&1 || {
+    ./node/node node/node_modules/pnpm/bin/pnpm.mjs run aggregate > /tmp/push-frontend-aggregate.log 2>&1 || {
       echo "Aggregating the module frontends FAILED; nothing was pushed. Last lines:" >&2
       tail -5 /tmp/push-frontend-aggregate.log >&2
       exit 1

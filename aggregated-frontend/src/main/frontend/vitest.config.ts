@@ -66,7 +66,7 @@ export default defineConfig({
       // Under the Maven module's target directory, so the report is cleaned with the build
       // and stays out of the license-header check's way
       reportsDirectory: "../../../target/coverage",
-      // The frontend counterpart of the Java build's jacoco check: `yarn test` runs with
+      // The frontend counterpart of the Java build's jacoco check: `pnpm test` runs with
       // --coverage, and dropping below these floors fails the Maven build. The values track
       // the current overall coverage (ratchet: raise them as coverage grows, never lower
       // them without a reason stated in the commit). They sit a little under the real figures

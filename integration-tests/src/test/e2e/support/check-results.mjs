@@ -54,7 +54,7 @@ if (failures.length > 0) {
     console.error(`  [${project}] ${spec.title}  (${spec.file}:${spec.line})`);
   }
   console.error('\nThe HTML report, with a trace for each failure, is in target/e2e-report.');
-  console.error('Open it with: cd integration-tests/src/test/e2e && yarn report\n');
+  console.error('Open it with: cd integration-tests/src/test/e2e && pnpm report\n');
   process.exit(1);
 }
 
