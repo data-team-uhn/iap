@@ -66,6 +66,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The {@code REFERENCE} property holding the schema version. */
     private static final String SCHEMA_VERSION_PROPERTY = "schemaVersion";
 
+    /** The property naming the schema that version belongs to, written here rather than asked of the caller. */
+    private static final String SCHEMA_PROPERTY = "schema";
+
     /**
      * The type of the prefix tree's buckets. A plain folder: they hold no data of their own, and being a type the
      * homepage's own read grant names means a submitter can reach what they filed without the buckets having to be
@@ -147,6 +150,10 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
      * since the Sling API does not support {@code REFERENCE} properties. A plain string property would carry the right
      * identifier but the wrong type, and the strict {@code sub:Submission} definition rejects it at commit.
      *
+     * <p>The schema is written as well as the version, because nobody should have to state the schema separately
+     * when the version already implies it, and because a query for everything submitted against a schema is
+     * otherwise a join.</p>
+     *
      * @param submission the submission just created
      * @param schemaVersion the vetted schema version
      * @throws PersistenceException when the repository refuses the reference
@@ -158,10 +165,17 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
             "A freshly created submission is always backed by a JCR node");
         final Node target = Objects.requireNonNull(schemaVersion.adaptTo(Node.class),
             "A vetted schema version is always backed by a JCR node");
+        // The schema is the version's parent, which is what SchemaVersion.getSchema() reads; resolveSchemaVersion
+        // has already established that it is there and active
+        final Node schema = Objects.requireNonNull(
+            Objects.requireNonNull(schemaVersion.getParent(),
+                "A vetted schema version always sits inside its schema").adaptTo(Node.class),
+            "A schema is always backed by a JCR node");
         try {
             node.setProperty(SCHEMA_VERSION_PROPERTY, target);
+            node.setProperty(SCHEMA_PROPERTY, schema);
         } catch (final RepositoryException e) {
-            throw new PersistenceException("Could not reference the schema version", e);
+            throw new PersistenceException("Could not reference the schema", e);
         }
     }
 
@@ -169,6 +183,12 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
      * Resolves and vets the schema version the payload points at. It must exist, be a schema version rather
      * than whatever else sits at that path, and both it and its parent schema must be active. That last one
      * is where "no new submissions may be created from an inactive version" is actually enforced.
+     *
+     * <p>Every one of those checks has to be made here. The lookup runs on the engine's privileged session, so
+     * nothing is hidden from it and nothing will be refused on the caller's behalf; being allowed to raise a
+     * submission is a question the start event already answered, and it is not the same question as which schema
+     * versions this particular user should be able to answer. When the platform can express the narrower rule —
+     * institutions, study teams — it belongs in the definition next to the performers, not here.</p>
      *
      * @param context the executing task's context
      * @return the resolved schema version's resource
