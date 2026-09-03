@@ -1,0 +1,129 @@
+# Copyright 2026 DATA @ UHN. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+"""End-to-end tests for the ``chunker.py`` command line, run as a real subprocess.
+
+The CLI is the only way to parse or chunk a document without a daemon, an HTTP client, an auth
+token or a JVM — which makes it the tool you reach for when something is wrong, including
+``docker exec`` into the parsing container to answer "is Docling working in this image at all".
+
+These run the entry point through ``sys.executable`` rather than importing ``main()``, so
+argument parsing, exit codes and stdout are covered too — the parts an in-process call skips.
+``docling_parser.py`` is deliberately not exercised here: it imports the heavy ``docling``
+package and would convert a real document, which belongs in a slower suite than this one.
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from chunker import CATALOG_NAME, CHUNKS_DIRNAME, OUTLINE_NAME
+
+CHUNKER_CLI = Path(__file__).resolve().parents[2] / "main" / "python" / "chunker.py"
+
+# Comfortably over the default structure gate once repeated, so the document actually chunks.
+PARAGRAPH = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 60
+
+
+def run_cli(*args):
+    """Run the chunker CLI as a subprocess and return the completed process."""
+    return subprocess.run(
+        [sys.executable, str(CHUNKER_CLI), *[str(a) for a in args]],
+        capture_output=True, text=True, encoding="utf-8", timeout=300,
+    )
+
+
+@pytest.fixture
+def large_md(tmp_path):
+    """A document big enough to be chunked, with a printed TOC and a References section."""
+    path = tmp_path / "proto.md"
+    toc = ["## TABLE OF CONTENTS", "1.0 Background\t3", "2.0 Methods\t5", "3.0 Analysis\t7", ""]
+    body = [f"# Section {i} Heading\n\n{PARAGRAPH}\n" for i in range(1, 41)]
+    path.write_text("\n".join(toc + body), encoding="utf-8")
+    return path
+
+
+class TestChunkerCli:
+    def test_chunks_a_large_document(self, large_md):
+        result = run_cli(large_md)
+        assert result.returncode == 0, result.stderr
+        assert "chunk file(s)" in result.stdout
+
+        chunks_dir = large_md.parent / CHUNKS_DIRNAME
+        catalog = json.loads((chunks_dir / CATALOG_NAME).read_text(encoding="utf-8"))
+        outline = json.loads((chunks_dir / OUTLINE_NAME).read_text(encoding="utf-8"))
+        chunk_files = sorted(p.name for p in chunks_dir.glob("Chunk-*.md"))
+
+        assert outline["chunked"] is True
+        assert len(chunk_files) == len(catalog)
+        # chunk_id *is* the file name now, so the catalog names its files directly. Compared
+        # as sets: the catalog is in document order, which is not the lexicographic order of
+        # the names (Chunk-10 sorts before Chunk-2).
+        assert {entry["chunk_id"] for entry in catalog} == set(chunk_files)
+
+    def test_reported_count_matches_the_catalog(self, large_md):
+        result = run_cli(large_md)
+        catalog = json.loads(
+            (large_md.parent / CHUNKS_DIRNAME / CATALOG_NAME).read_text(encoding="utf-8")
+        )
+        assert f"Created {len(catalog)} chunk file(s)." in result.stdout
+
+    def test_small_document_is_left_unchunked(self, tmp_path):
+        path = tmp_path / "small.md"
+        path.write_text("# Tiny\n\nShort body.\n", encoding="utf-8")
+        result = run_cli(path)
+        assert result.returncode == 0, result.stderr
+        assert "Skipped chunking" in result.stdout
+
+        chunks_dir = tmp_path / CHUNKS_DIRNAME
+        outline = json.loads((chunks_dir / OUTLINE_NAME).read_text(encoding="utf-8"))
+        assert outline["chunked"] is False
+        assert outline["unchunkedReason"] == "below_min_structure_tokens"
+        assert not (chunks_dir / CATALOG_NAME).exists()
+
+    def test_max_tokens_option_changes_the_split(self, tmp_path):
+        # Each section must exceed the small budget, or chunkweaver keeps one chunk per heading
+        # regardless of max_tokens.
+        big_para = "Word " * 2000
+        path = tmp_path / "proto.md"
+        body = [f"# Section {i} Heading\n\n{big_para}\n" for i in range(1, 6)]
+        path.write_text("\n".join(body), encoding="utf-8")
+        run_cli(path, "--max-tokens", 400, "--min-structure-tokens", 1)
+        many = len(list((path.parent / CHUNKS_DIRNAME).glob("Chunk-*.md")))
+        run_cli(path, "--max-tokens", 4000, "--min-structure-tokens", 1)
+        few = len(list((path.parent / CHUNKS_DIRNAME).glob("Chunk-*.md")))
+        assert many > few, f"a smaller budget should split further ({many} vs {few})"
+
+    def test_min_structure_tokens_option_forces_unchunked(self, large_md):
+        result = run_cli(large_md, "--min-structure-tokens", 10_000_000)
+        assert result.returncode == 0, result.stderr
+        assert "Skipped chunking" in result.stdout
+        assert not (large_md.parent / CHUNKS_DIRNAME / CATALOG_NAME).exists()
+
+    def test_missing_file_exits_nonzero(self, tmp_path):
+        result = run_cli(tmp_path / "absent.md")
+        assert result.returncode == 1
+        assert "does not exist" in result.stderr
+
+    def test_help_exits_cleanly(self):
+        result = run_cli("--help")
+        assert result.returncode == 0
+        assert "--max-tokens" in result.stdout
+        assert "--min-structure-tokens" in result.stdout
