@@ -35,11 +35,13 @@ import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.principals.api.PrincipalService;
+import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.FlowNode;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -91,6 +93,18 @@ class NotifyHandlerTest
      */
     private WorkflowTaskContext taskWith(final Map<String, Object> settings)
     {
+        return taskWith(settings, Map.of());
+    }
+
+    /**
+     * A notify task carrying the given settings, reached by an event with the given payload.
+     *
+     * @param settings what the node says
+     * @param payload what the event that got here was carrying
+     * @return the task context to hand the handler
+     */
+    private WorkflowTaskContext taskWith(final Map<String, Object> settings, final Map<String, Object> payload)
+    {
         final Map<String, Object> properties = new java.util.HashMap<>(settings);
         properties.put(TYPE, Activity.RESOURCE_TYPE);
         properties.put("sling:resourceSuperType", "wf/FlowNode");
@@ -103,6 +117,7 @@ class NotifyHandlerTest
         Mockito.when(task.getTarget()).thenReturn(this.submission);
         Mockito.when(task.getActor()).thenReturn("an-approver");
         Mockito.when(task.getResourceResolver()).thenReturn(this.context.resourceResolver());
+        Mockito.when(task.getEvent()).thenReturn(new WorkflowEvent("complete", payload));
         return task;
     }
 
@@ -132,6 +147,34 @@ class NotifyHandlerTest
         assertEquals(this.submission.getPath(), notification.getSubject().getPath());
         assertEquals("an-approver", notification.getActor());
         assertEquals(List.of(PrincipalService.CREATOR), this.audiences.get(0));
+    }
+
+    // A template asks `#if($outcomeNote)`, so what the deciding person said has to reach it — and only when they
+    // actually said something, since a variable that is always there but sometimes empty answers that wrongly
+    @Test
+    void carriesTheDecisionAndItsReasonToTheWording() throws Exception
+    {
+        this.handler.execute(this.taskWith(
+            Map.of("event", "rejected", "notify", new String[] { PrincipalService.CREATOR }),
+            Map.of("outcome", "rejected", "outcomeNote", "We are short-staffed that week")));
+
+        final Map<String, Object> variables = this.raised.get(0).getVariables();
+        assertEquals("rejected", variables.get("outcome"));
+        assertEquals("We are short-staffed that week", variables.get("outcomeNote"));
+    }
+
+    @Test
+    void leavesOutADecisionNoteThatWasNotGiven() throws Exception
+    {
+        this.handler.execute(this.taskWith(
+            Map.of("event", "approved", "notify", new String[] { PrincipalService.CREATOR }),
+            Map.of("outcome", "approved", "outcomeNote", "   ", "unrelated", 7)));
+
+        final Map<String, Object> variables = this.raised.get(0).getVariables();
+        assertEquals("approved", variables.get("outcome"));
+        assertFalse(variables.containsKey("outcomeNote"));
+        // Only the entries the handler names travel; the rest of a payload is not the wording's business
+        assertFalse(variables.containsKey("unrelated"));
     }
 
     // Two nodes may report the same event with different wording, so the event is named rather than taken from

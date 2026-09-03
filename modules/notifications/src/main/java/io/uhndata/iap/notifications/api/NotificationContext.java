@@ -51,6 +51,14 @@ import org.jetbrains.annotations.Nullable;
  * batched. What a given person does with that is theirs.
  * </p>
  *
+ * <p>
+ * It is a string rather than an enum because the vocabulary is open: {@link #IMMEDIATE} and {@link #BATCHED} are
+ * the two the platform ships, but a deployment adding a weekly digest names its own urgency in a workflow
+ * definition and registers a delivery that accepts it, with nothing to change here. An enum would make every such
+ * word a change to this bundle, and would have to decide what to do with one it did not recognise — where a
+ * string simply reaches the deliveries, all of which decline it, which is already the correct outcome.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -143,13 +151,15 @@ public final class NotificationContext
     }
 
     /**
-     * Where the wording lives, as the path of a template folder, or {@code null} when the caller left it to the
-     * delivery to decide.
+     * Where the wording lives, or {@code null} when the caller left it to the delivery to decide.
      *
-     * <p>Here rather than passed to each delivery because it is stated by the same thing that states the event
-     * and the urgency — one workflow node — and because a delivery that renders no text simply ignores it.</p>
+     * <p>Deliberately just a name. The deliveries that ship read it as the path of a template folder holding one
+     * rendering per channel, but nothing here requires that: a delivery that renders its text some other way —
+     * naming a status producer, a bundle resource, a message catalogue key — reads the same string its own way.
+     * It is here rather than passed to each delivery because it is stated by the same thing that states the event
+     * and the urgency, one workflow node, and a delivery that renders no text simply ignores it.</p>
      *
-     * @return the template folder's path, or {@code null}
+     * @return where this notification's wording is to be found, or {@code null}
      */
     @Nullable
     public String getTemplate()
@@ -236,15 +246,15 @@ public final class NotificationContext
         }
 
         /**
-         * Where the wording lives.
+         * Where the wording lives, in whatever terms the deliveries that will render it understand.
          *
-         * @param path the path of a template folder
+         * @param template where to find the wording, e.g. the path of a template folder
          * @return this builder
          */
         @NotNull
-        public Builder using(@Nullable final String path)
+        public Builder using(@Nullable final String template)
         {
-            this.template = path;
+            this.template = template;
             return this;
         }
 

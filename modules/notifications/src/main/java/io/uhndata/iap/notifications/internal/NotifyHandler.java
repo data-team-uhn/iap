@@ -85,6 +85,12 @@ public class NotifyHandler implements ServiceTaskHandler
      */
     static final String EVENT = "event";
 
+    /** The payload entry carrying the decision a person just made, when this follows a completed task. */
+    static final String OUTCOME = "outcome";
+
+    /** The payload entry carrying what they said about it. */
+    static final String OUTCOME_NOTE = "outcomeNote";
+
     private static final Logger LOGGER = LoggerFactory.getLogger(NotifyHandler.class);
 
     @Reference
@@ -108,12 +114,17 @@ public class NotifyHandler implements ServiceTaskHandler
             return;
         }
         final String event = activity.get(EVENT, String.class);
-        final NotificationContext notification = NotificationContext.about(context.getTarget())
+        final NotificationContext.Builder builder = NotificationContext.about(context.getTarget())
             .becauseOf(event == null ? activity.getElementId() : event)
             .by(context.getActor())
             .urgency(activity.get(URGENCY, String.class))
-            .using(activity.get(TEMPLATE, String.class))
-            .build();
+            .using(activity.get(TEMPLATE, String.class));
+        // What the person deciding chose and what they said about it, so that wording can quote the reason a
+        // request was refused. Only when they are actually there: a template asks `#if($outcomeNote)`, and a
+        // variable that is always present but sometimes empty would answer that question wrongly
+        carry(context, builder, OUTCOME);
+        carry(context, builder, OUTCOME_NOTE);
+        final NotificationContext notification = builder.build();
         try {
             this.notifications.notify(notification, roles);
         } catch (final RuntimeException e) {
@@ -121,6 +132,22 @@ public class NotifyHandler implements ServiceTaskHandler
             // because nobody could be told would be the worse of the two outcomes
             LOGGER.error("The {} notification from {} could not be sent: {}", notification.getEvent(),
                 activity.getPath(), e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Passes one entry of the triggering event on to the notification, if it carries anything to pass.
+     *
+     * @param context the executing task's context
+     * @param builder the notification being described
+     * @param name the payload entry to carry over, under the same name
+     */
+    private static void carry(final WorkflowTaskContext context, final NotificationContext.Builder builder,
+        final String name)
+    {
+        final Object value = context.getEvent().get(name);
+        if (value instanceof String && !((String) value).isBlank()) {
+            builder.with(name, value);
         }
     }
 }
