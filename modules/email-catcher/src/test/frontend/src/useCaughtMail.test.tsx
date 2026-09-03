@@ -146,7 +146,7 @@ describe("useCaughtMessage", () => {
   it("drops the message it was showing when the route names a different one", async () => {
     stubFetch({ subject: "Approved" });
     const { result, rerender } = renderHook(({ name }) => useCaughtMessage(name),
-      { initialProps: { name: "abc" as string | null } });
+      { initialProps: { name: "abc" } });
     await waitFor(() => { expect(result.current.message?.subject).toBe("Approved"); });
 
     stubFetch({ subject: "Rejected" });

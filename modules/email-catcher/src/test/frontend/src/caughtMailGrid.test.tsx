@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-import { CAUGHT_MESSAGE_TYPE } from "@iap/email-catcher/caughtMailModel";
 import { addressLabel, subjectLabel } from "@iap/email-catcher/caughtMailGrid";
+import { CAUGHT_MESSAGE_TYPE } from "@iap/email-catcher/caughtMailModel";
 import { getEntityTypeConfig } from "@iap/frontend-commons/entityGrid/registry";
 
 // Importing the module registered the configuration as a side effect
