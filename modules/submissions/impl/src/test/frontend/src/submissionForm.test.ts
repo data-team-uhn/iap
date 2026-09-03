@@ -83,6 +83,17 @@ describe("saveAnswer", () => {
     expect(options.body.getAll("details/days")).toEqual([ "Monday", "Tuesday" ]);
   });
 
+  it("names the question even when it is being cleared", async () => {
+    // The handler walks the questions the payload mentions, so an emptied field that sent nothing at
+    // all would leave its old answer in place -- and the request would go on counting as complete
+    const fetchMock = vi.fn(() => response({}));
+
+    await saveAnswer(fetchMock, PATH, "details/startDate", []);
+
+    const [ , options ] = fetchMock.mock.calls[0] as unknown as [ string, { body: URLSearchParams } ];
+    expect(options.body.getAll("details/startDate")).toEqual([ "" ]);
+  });
+
   it("reports the engine's own reason for refusing", async () => {
     // A refusal carries why: not the submitter's request, or no longer a draft. Repeating that
     // verbatim beats inventing a message over the top of it
