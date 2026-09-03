@@ -298,6 +298,18 @@ function withCompactDates(columns: EntityGridColumn[]): EntityGridColumn[] {
     : column);
 }
 
+// A cell rendering a component rather than text needs `display: "flex"`, which is what tells the
+// grid to centre an element child; the default, `"text"`, lays the cell out for a text baseline and
+// leaves a chip or a button sitting high against the plain cells beside it. Applied here rather than
+// asked of every column, because it follows from the column having a renderCell at all — a column
+// that wants the text layout can still say so, and one that renders a bare string is unaffected
+// either way.
+function withElementCellsCentred(columns: EntityGridColumn[]): EntityGridColumn[] {
+  return columns.map(column => column.renderCell && !column.display
+    ? { ...column, display: "flex" as const }
+    : column);
+}
+
 // A generic text rendering of one cell value: dates and primitives have an obvious one,
 // nested objects have none — keep object-like typeofs out of the list, or they would
 // stringify as "[object Object]".
@@ -630,7 +642,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
   };
 
   const gridColumns = useMemo(
-    () => withCompactDates(withServerFilterOperators(columns)), [columns]);
+    () => withElementCellsCentred(withCompactDates(withServerFilterOperators(columns))), [columns]);
 
   if (!config) {
     return <Alert severity="error">Unknown entity type: {entityType}</Alert>;
