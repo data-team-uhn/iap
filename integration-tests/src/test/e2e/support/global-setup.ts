@@ -54,9 +54,9 @@ const GATE_TAG = 'systemalive';
  * Except for the checks the startup gate watches, where a WARN means exactly "not yet". The gate holds
  * until every `systemalive` check is OK and answers 503 to everything meanwhile, so an instance judged
  * ready on the looser rule serves its pages while every asset those pages import fails: the dashboard
- * renders without its widgets, and the test that waits for one of them times out. Measured 2026-08-27,
- * with `Bundle Content Loaded is WARN` in the gate's log at the moment the browser was refused the
- * shared chunks. Asking the gate's own question is what keeps the two from disagreeing.
+ * renders without its widgets, and the test that waits for one of them times out — with `Bundle Content
+ * Loaded is WARN` in the gate's log at the moment the browser was refused the shared chunks. Asking the
+ * gate's own question is what keeps the two from disagreeing.
  */
 const isReady = async (instance: ActiveInstance): Promise<boolean> => {
   try {
