@@ -96,6 +96,35 @@ public class DateUtilsTest
     }
 
     @Test
+    public void testParseDateReturnsNullForBlankOrNull()
+    {
+        Assertions.assertNull(DateUtils.parseDate(null));
+        Assertions.assertNull(DateUtils.parseDate(""));
+    }
+
+    @Test
+    public void testParseDateReturnsNullForUnparseableInput()
+    {
+        Assertions.assertNull(DateUtils.parseDate("not a date"));
+    }
+
+    @Test
+    public void testParseDateReadsTheDayOfAWholeDateTime()
+    {
+        // The stored form of a `date` answer carries a time and an offset; neither may move the day
+        Assertions.assertEquals(LocalDate.of(2025, 1, 15),
+            DateUtils.parseDate("2025-01-15T23:30:00.000+05:00"));
+        Assertions.assertEquals(LocalDate.of(2025, 1, 15), DateUtils.parseDate("2025-01-15T10:30:00"));
+    }
+
+    @Test
+    public void testParseDateReadsABareDate()
+    {
+        Assertions.assertEquals(LocalDate.of(2025, 1, 15), DateUtils.parseDate("2025-01-15"));
+        Assertions.assertEquals(LocalDate.of(2025, 1, 15), DateUtils.parseDate("1/15/2025"));
+    }
+
+    @Test
     public void testParseDateTimeReturnsNullForBlankOrNull()
     {
         Assertions.assertNull(DateUtils.parseDateTime(null));
