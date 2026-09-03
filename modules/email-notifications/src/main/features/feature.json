@@ -102,6 +102,11 @@
       "names": [
         "default"
       ],
+      // Pinned because iap-oidc-support ships a second Jasypt stack ("~iapoauth"); untargeted,
+      // these cross-bind and whichever loses reads an env var that is not set
+      "passwordProvider.target": "(names=default)",
+      "ivGenerator.target": "(algorithm=SHA1PRNG)",
+      "saltGenerator.target": "(algorithm=SHA1PRNG)",
       "stringOutputType": "base64"
     },
     "org.apache.sling.commons.messaging.mail.internal.SimpleMailService~default":{
@@ -115,6 +120,10 @@
       "mail.smtps.ssl.checkserveridentity": "${emailnotifications.smtps.checkserveridentity}",
       "username": "${emailnotifications.smtps.username}",
       "password": "${emailnotifications.smtps.password}",
+      // This reference is greedy, so without the target it would follow the higher-ranked
+      // "~iapoauth" CryptoService that iap-oidc-support registers and decrypt `password` with the
+      // wrong key
+      "cryptoService.target": "(names=default)",
       "messageIdProvider.target": "(names=default)"
     },
     "org.apache.sling.commons.messaging.mail.internal.SimpleMessageIdProvider~default":{

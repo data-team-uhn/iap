@@ -35,8 +35,8 @@
 // the published feature pins an older 1.70.0, but IAP already ships a newer one via oak/oak_base.json.
 //
 // Runtime environment variables (resolved by the configadmin interpolation plugin declared in
-// boot.json): KEYCLOAK_BASE_URL, KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET, IAP_PUBLIC_URL,
-// and IAP_OAUTH_ENCRYPTION_PASSWORD. See docs/keycloak-oidc.md.
+// boot.json): FRONTEND_KEYCLOAK_REALM_URL, BACKEND_KEYCLOAK_REALM_URL, KEYCLOAK_CLIENT_ID,
+// KEYCLOAK_CLIENT_SECRET, IAP_PUBLIC_URL, and IAP_OAUTH_ENCRYPTION_PASSWORD. See docs/keycloak-oidc.md.
 {
     "bundles":[
         { "id":"com.nimbusds:oauth2-oidc-sdk:11.23.1", "start-order":"24" },
@@ -49,23 +49,38 @@
         { "id":"org.ow2.asm:asm:9.7.1", "start-order":"24" },
         { "id":"org.apache.sling:org.apache.sling.commons.crypto:1.1.0", "start-order":"24" },
         { "id":"org.apache.servicemix.bundles:org.apache.servicemix.bundles.jasypt:1.9.3_1", "start-order":"24" },
-        { "id":"org.apache.sling:org.apache.sling.auth.oauth-client:0.1.6", "start-order":"25" }
+        { "id":"org.apache.sling:org.apache.sling.auth.oauth-client:0.1.6", "start-order":"25" },
+        { "id":"${project.groupId}:${project.artifactId}:${project.version}", "start-order":"25" }
     ],
     "configurations":{
-        // --- Token encryption (Sling Commons Crypto) -----------------------------------------
-        // The OAuth client encrypts any token it stores in the user's home, and its UserInfo
-        // processor holds a mandatory reference to a CryptoService -- so a crypto service must
-        // exist even when token storage is disabled. The password is read from an environment
-        // variable (its NAME is given here, not its value).
+        // Token encryption. A CryptoService must exist even with token storage off, since the
+        // UserInfo processor requires one. iap-email-notifications ships a second Jasypt stack
+        // ("~default") in the same instance, so this one pins its own parts by target filter --
+        // untargeted, they cross-bind and whichever loses reads an env var that is not set.
         "org.apache.sling.commons.crypto.jasypt.internal.JasyptRandomIvGeneratorRegistrar~iapoauth":{
             "algorithm":"DRBG"
         },
+        "org.apache.sling.commons.crypto.jasypt.internal.JasyptRandomSaltGeneratorRegistrar~iapoauth":{
+            "algorithm":"DRBG"
+        },
         "org.apache.sling.commons.crypto.internal.EnvironmentVariablePasswordProvider~iapoauth":{
+            "names":["iap-oauth"],
             "name":"IAP_OAUTH_ENCRYPTION_PASSWORD"
         },
+        // The oauth-client's own CryptoService consumers are untargeted 1..1 references with
+        // compiler-generated names ($000, $005, ...), so they cannot be pinned by target without
+        // hardcoding names that change on upgrade. The ranking is what steers them here instead of
+        // to "~default" -- which they would otherwise win by lower service.id, and which cannot
+        // activate without SLING_COMMONS_CRYPTO_PASSWORD, leaving the whole OIDC chain dead.
+        // iap-email-notifications pins its own consumer with cryptoService.target to stay put.
         "org.apache.sling.commons.crypto.jasypt.internal.JasyptStandardPbeStringCryptoService~iapoauth":{
             "algorithm":"PBEWITHHMACSHA512ANDAES_256",
-            "names":["iap-oauth"]
+            "names":["iap-oauth"],
+            "service.ranking:Integer":100,
+            // The generator registrars publish `algorithm`, but no `names`
+            "ivGenerator.target":"(algorithm=DRBG)",
+            "saltGenerator.target":"(algorithm=DRBG)",
+            "passwordProvider.target":"(names=iap-oauth)"
         },
 
         // --- OAuth client token store + login cookie ------------------------------------------
@@ -104,7 +119,8 @@
             "groupsInIdToken":true,
             "idpNameInPrincipals":false,
             "storeAccessToken":false,
-            "storeRefreshToken":false
+            // Use refresh token to log the user out afterwards
+            "storeRefreshToken":true
         },
 
         // --- The Sling authentication handler -------------------------------------------------
@@ -141,7 +157,7 @@
             "user.membershipExpTime":"1h",
             "user.membershipNestingDepth:Integer":"1",
             "user.pathPrefix":"oidc",
-            "user.propertyMapping":["rep:fullname=name","profile/email=email"]
+            "user.propertyMapping":["rep:fullname=name","profile/email=email","oauth/refresh_token=refresh_token"]
         },
 
         // --- Oak provisioning: external login module ------------------------------------------
@@ -160,6 +176,25 @@
         // principal manager so ACLs can reference them. Must also be listed in the
         // SecurityProviderRegistration.requiredServicePids in oak/oak_base.json.
         "org.apache.jackrabbit.oak.spi.security.authentication.external.impl.principal.ExternalPrincipalConfiguration":{
+        },
+
+        // --- OIDC end-session servlet ---------------------------------------------------------
+        // After OidcLogoutAuthenticationHandler tears down the local session and steers the post-logout
+        // redirect here, this servlet bounces the browser to Keycloak's end_session endpoint (the
+        // front-channel URL, since the browser makes the call) so the provider's SSO session ends too.
+        "io.uhndata.iap.auth.oidc.impl.OidcEndSessionServlet":{
+            "endSessionEndpoint":"$[env:FRONTEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/logout",
+            "clientId":"$[env:KEYCLOAK_CLIENT_ID]",
+            "postLogoutRedirectUri":"$[env:IAP_PUBLIC_URL]/login"
+        },
+
+        // Back-channel logout: IAP presents the user's refresh token to Keycloak itself, so the SSO session ends
+        // without a confirmation screen the user could abandon. Back-channel URL, unlike the servlet's above --
+        // this call is made by IAP, not the browser. Leaving the endpoint blank falls back to the redirect alone.
+        "io.uhndata.iap.auth.oidc.impl.OidcLogoutAuthenticationHandler":{
+            "backchannelLogoutEndpoint":"$[env:BACKEND_KEYCLOAK_REALM_URL]/protocol/openid-connect/logout",
+            "clientId":"$[env:KEYCLOAK_CLIENT_ID]",
+            "clientSecret":"$[env:KEYCLOAK_CLIENT_SECRET]"
         }
     },
 

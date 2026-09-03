@@ -107,6 +107,9 @@ Options:
       --demo                     Additionally load the demo projects (the
                                  `iap-demo-*` features): complete, working
                                  processes rather than sample content.
+      --keycloak                 Additionally load Keycloak / OIDC sign-in (the
+                                 `iap-oidc-support` and `iap-keycloak`
+                                 features).
   -h, --help                     Show this help message and exit.
 
 Notes:
@@ -220,6 +223,7 @@ def parse_args(argv):
         'debug': False,
         'test': False,
         'demo': False,
+        'keycloak': False,
         'passthrough': [],
     }
     i = 0
@@ -263,6 +267,8 @@ def parse_args(argv):
             options['test'] = True
         elif arg == '--demo':
             options['demo'] = True
+        elif arg == '--keycloak':
+            options['keycloak'] = True
         elif arg == '--':
             options['passthrough'] += argv[i + 1:]
             break
@@ -406,6 +412,9 @@ def main(argv):
     if options['demo']:
         launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-demo-time-off-request/%s/slingosgifeature'
                           % platform_version]
+    if options['keycloak']:
+        launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-oidc-support/%s/slingosgifeature' % platform_version,
+                          '-f', 'mvn:io.uhndata.iap/iap-keycloak/%s/slingosgifeature' % platform_version]
     if options['projects']:
         features = resolve_project_features(options['projects'], platform_version, project_version,
                                             options['permissions'])
