@@ -588,9 +588,13 @@ worth doing as one piece:
 token moves onto the first and a new one is created for each of the rest. A parallel
 gateway with several arcs leading in is a join: each token that arrives waits on it
 until one has come from every arc, and then they merge back into the one token that
-carries on. Conditions on a parallel gateway's arcs are refused rather than ignored,
-because a gateway that takes every branch regardless is not what a guarded arc
-describes.
+carries on.
+
+BPMN lets any arc carry a condition, but a parallel gateway takes all of its arcs
+whatever those say — so a condition on one could never decide anything. The engine
+treats that as an error in the diagram rather than quietly ignoring it, because the two
+readings are far apart: an author who guarded an arc believes that branch is sometimes
+not taken, and it always is.
 
 That counting is also how a diagram deadlocks: a parallel join placed after a fork that
 did *not* take every branch — an exclusive or inclusive one — waits for a token that was
