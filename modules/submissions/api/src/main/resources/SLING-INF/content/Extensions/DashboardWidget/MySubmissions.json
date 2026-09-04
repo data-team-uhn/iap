@@ -5,5 +5,12 @@
   "ext:subtitle": "The submissions you created",
   "ext:renderURL": "asset:iap-submissions.MySubmissionsWidget.js",
   "defaultOrder": 1,
-  "ext:widgetWidth": "full"
+  "ext:widgetWidth": "full",
+  // The widget draws its own header, so that the action for raising a submission can sit on the
+  // same line as the title rather than floating above the table. It still takes the title and
+  // subtitle from this node, so they are declared in exactly one place.
+  // Note: no apostrophes anywhere in these comments. The loader reads the file with a converter that
+  // does not skip // comments, so a single quote inside one breaks the whole file.
+  "ext:widgetHideHeader": true,
+  "ext:personas": ["submitter"]
 }

@@ -71,10 +71,36 @@ Because it goes through the status SPI it picks up every registered reporter
 automatically — including [error tracking](error-tracking.md) — with no coupling between
 those modules. A producer for another channel would get the same reports for free.
 
+## Workflow notifications
+
+A workflow can tell people what happened. A service task naming the `notify` handler carries the
+event name, who to tell, how urgent it is, and where the wording lives — so adding a notification is
+adding a node and some wording, never Java. Who to tell is written in the same vocabulary the
+workflow uses to say who may act: `@creator` is whoever raised the thing in question, and anything
+else is a person or a group, expanded into its members when the moment comes. The same name always
+means the same people in both places, because both are answered by the same service.
+
+What happens next deliberately splits in two. The workflow states *what happened and who it
+concerns*; **how each person hears about it is decided per channel**, by whichever deliveries are
+installed — an email right away, a marker in the interface, or nothing at all for somebody who
+cannot be reached. A channel that cannot carry a notification simply declines it, and that is a
+normal answer: the workflow has already moved on either way.
+
+### Where the wording lives
+
+Each notification's wording is a folder under `/libs/iap/notificationTemplates/`, holding one
+rendering per channel. A `line` property on the folder is the one-sentence form a compact list can
+show; an `email` child carries the email rendering described below. A folder with no rendering for
+some channel simply says nothing through that channel — which is a choice its author made, not an
+error.
+
 ## Email
 
 Emails are built from `mail:Template` nodes in the repository, so a deployment can
-reword what the platform says without touching code.
+reword what the platform says without touching code. Whether somebody *can* be
+emailed is a fact about their account — the address at `profile/email`, which the
+identity provider fills in at login — so nothing in a workflow ever carries an
+address, and people can change theirs without any definition noticing.
 
 ### A template
 
@@ -298,6 +324,28 @@ platform's own templates today, but a caught message is whatever was handed to t
 service, and this page renders it inside an administrator's session. It costs the page
 nothing: what is being checked is how the message reads, and a link in it is worth seeing
 rather than following. The plain text and the HTML source sit beside the rendering.
+
+## Stored notifications
+
+`iap-stored-notifications` (`modules/stored-notifications`) is the channel that keeps what the others
+only say once: every notification it accepts becomes a small record under `/Notifications`, and the
+interface shows each person theirs. It accepts every urgency, because storing is not interrupting —
+an urgent decision and a quiet aside both belong in the list of what happened while nobody was
+looking.
+
+Each record carries the rendered sentence (the wording folder's `line`, or the subject's title and
+the event when there is none), a link to what it is about, who caused it, and whether it has been
+read. The sentence is rendered at the moment of delivery, deliberately: wording can be reworded and
+subjects can be deleted, but what somebody was told should read tomorrow the way it read today.
+
+Who may see a notification is the repository's answer, not filtering code: the record is created
+readable by exactly one account, its recipient. A listing therefore runs on the reader's own session
+and simply cannot contain anybody else's notifications. The recipient may also mark theirs read —
+`POST <notification>.markRead.json` — and nobody else gets a writable view to do even that.
+
+The bell in the application bar is where they land: it counts the unread ones, lists the latest when
+opened — opening the list is what "reading" means, the same way glancing at a stack of letters takes
+them off the doormat — and each entry leads to the thing it reports on.
 
 ## Future work
 

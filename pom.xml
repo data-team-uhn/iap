@@ -606,7 +606,7 @@
             <!-- bnd -->
             <exclude>bnd.bnd</exclude>
             <!-- Ignore email template files since we do not send a license in emails -->
-            <exclude>**/mailTemplates/**</exclude>
+            <exclude>**/notificationTemplates/**</exclude>
           </inputExcludes>
         </configuration>
         <executions>
@@ -2131,11 +2131,18 @@
               <!-- MailService extends MessageService, so this is needed to resolve the class hierarchy even
                    though no code references it directly -->
               <ignoredUnusedDeclaredDependency>org.apache.sling:org.apache.sling.commons.messaging</ignoredUnusedDeclaredDependency>
+              <!-- Both hierarchy roots belong in this list as well as in the one below: with tests compiled
+                   they read as used only by tests, and with tests skipped they read as unused outright, so a
+                   build that skips tests needs the same reconciliation -->
+              <ignoredUnusedDeclaredDependency>io.uhndata.iap:iap-data-entities-api</ignoredUnusedDeclaredDependency>
             </ignoredUnusedDeclaredDependencies>
             <ignoredNonTestScopedDependencies>
               <!-- Models extending Entity inherit from Content without referencing it directly in main code,
                    but it is still needed on the main compile classpath to resolve the class hierarchy -->
               <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-content-api</ignoredNonTestScopedDependency>
+              <!-- The same one level up: code handling a Submission inherits Entity's members without naming
+                   Entity, so javac needs it even though only the tests reference it in bytecode -->
+              <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-entities-api</ignoredNonTestScopedDependency>
             </ignoredNonTestScopedDependencies>
           </configuration>
         </plugin>

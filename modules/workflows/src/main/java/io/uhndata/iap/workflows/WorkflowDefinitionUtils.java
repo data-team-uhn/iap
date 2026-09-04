@@ -21,15 +21,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.xml.XMLConstants;
@@ -129,6 +130,40 @@ public final class WorkflowDefinitionUtils
 
     private static final String CANCEL_ACTIVITY_ATTRIBUTE = "cancelActivity";
 
+    /** Marks a copy rule's target as multi-valued. */
+    private static final String MULTIPLE_SUFFIX = "[]";
+
+    private static final String MESSAGE_EVENT_DEFINITION = "messageEventDefinition";
+
+    private static final String MESSAGE_ELEMENT = "message";
+
+    private static final String MESSAGE_REF_ATTRIBUTE = "messageRef";
+
+    private static final String MESSAGE_NAME_PROPERTY = "messageName";
+
+    private static final String TIMER_EVENT_DEFINITION = "timerEventDefinition";
+
+    private static final String TIME_DURATION_ELEMENT = "timeDuration";
+
+    private static final String TIMER_DURATION_PROPERTY = "timerDuration";
+
+    /** JCR's own System View namespace, used verbatim rather than reinvented. */
+    private static final String SV_NS = "http://www.jcp.org/jcr/sv/1.0";
+
+    private static final String EXTENSION_ELEMENTS = "extensionElements";
+
+    private static final String SV_NODE = "node";
+
+    private static final String SV_PROPERTY = "property";
+
+    private static final String SV_VALUE = "value";
+
+    private static final String SV_NAME_ATTRIBUTE = "name";
+
+    private static final String SV_TYPE_ATTRIBUTE = "type";
+
+    private static final String SV_MULTIPLE_ATTRIBUTE = "multiple";
+
     private static final String INTERRUPTING_PROPERTY = "interrupting";
 
     private static final String LABEL_PROPERTY = "label";
@@ -187,15 +222,25 @@ public final class WorkflowDefinitionUtils
      * The invariants of a single parse: everything the per-element methods need that does not change from one element
      * to the next, bundled together so the individual methods stay within the checkstyle parameter limit.
      *
+     * <p>{@code createdNodes} holds every node this parse has made, by the BPMN id it was made for, and where it
+     * went. Membership answers "did this parse create that?" — but the builder is needed too, because a boundary
+     * event lives inside the activity it watches rather than beside it, so an arc leaving one cannot be found by
+     * looking under the version.</p>
+     *
      * @since 0.1.0
      */
     private record ParseContext(NodeBuilder workflowVersion, NodeState nodeTypesRoot, String author, String created,
-        String path, Set<String> claimedNames)
+        String path, Map<String, NodeBuilder> createdNodes, Map<String, String> messageNames)
     {
         ParseContext(final NodeBuilder workflowVersion, final NodeState nodeTypesRoot, final String author,
-            final String created, final String path)
+            final String created, final String path, final Map<String, String> messageNames)
         {
-            this(workflowVersion, nodeTypesRoot, author, created, path, new HashSet<>());
+            this(workflowVersion, nodeTypesRoot, author, created, path, new LinkedHashMap<>(), messageNames);
+        }
+
+        Set<String> claimedNames()
+        {
+            return this.createdNodes.keySet();
         }
     }
 
@@ -230,7 +275,7 @@ public final class WorkflowDefinitionUtils
         // One timestamp for the whole batch: every node in it was created by the same parse, and differing
         // millisecond values would suggest otherwise.
         final ParseContext context = new ParseContext(workflowVersion, nodeTypesRoot, author,
-            ISO8601.format(Calendar.getInstance()), workflowVersionPath);
+            ISO8601.format(Calendar.getInstance()), workflowVersionPath, messageNames(process));
         final Map<String, List<FlowNodeTypeInfo>> flowNodeTypes = loadFlowNodeTypes(workflowTypesRoot);
         final Map<String, Element> elementsById = new LinkedHashMap<>();
         final List<Element> sequenceFlows = new ArrayList<>();
@@ -414,8 +459,263 @@ public final class WorkflowDefinitionUtils
         }
         applyJcrProperties(flowNodeType, node, context);
         applyCopiedProperties(flowNodeType, element, node);
+        applyEventDefinitions(element, node, context);
+        applyExtensionNodes(element, node, context);
         applyIdentity(node, element, id, flowNodeType);
         applySystemProperties(node, flowNodeType.jcrNodeType(), context);
+    }
+
+    /**
+     * What BPMN's own event definitions say, for the two the engine acts on.
+     *
+     * <p>Neither is an attribute, which is why neither can be a copy rule. A message event names a
+     * {@code <bpmn:message>} declared beside the process and the engine wants that message's <em>name</em>, not the
+     * id used to point at it — the id is a document-internal handle and the name is what a caller sends. A timer
+     * carries its duration as the text of a {@code <bpmn:timeDuration>} grandchild.</p>
+     *
+     * <p>Read here rather than configured per type because both are standard BPMN rather than an IAP extension:
+     * a vocabulary entry saying so would be repeating the specification, and a new message event type added later
+     * would have to remember to.</p>
+     *
+     * @param element the BPMN element being translated
+     * @param node the flow node being written
+     * @param context the parse in progress, holding the document's message names
+     */
+    private static void applyEventDefinitions(final Element element, final NodeBuilder node,
+        final ParseContext context)
+    {
+        final Element message = childElement(element, MESSAGE_EVENT_DEFINITION);
+        if (message != null) {
+            final String ref = message.getAttribute(MESSAGE_REF_ATTRIBUTE);
+            final String name = context.messageNames().get(ref);
+            if (StringUtils.isBlank(name)) {
+                // Worth saying: an event that catches a message nobody can name is a workflow nothing can start,
+                // and the diagram looks complete
+                LOGGER.warn("Message event {} in {} references message {} which declares no name",
+                    element.getAttribute(ID_ATTRIBUTE), context.path(), ref);
+                ErrorLogger.logProblem("message event references a message that declares no name",
+                    ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                        .with(ELEMENT_DETAIL, element.getAttribute(ID_ATTRIBUTE)).with("references", ref));
+            } else {
+                node.setProperty(MESSAGE_NAME_PROPERTY, name);
+            }
+        }
+        final Element timer = childElement(element, TIMER_EVENT_DEFINITION);
+        if (timer != null) {
+            final Element duration = childElement(timer, TIME_DURATION_ELEMENT);
+            if (duration != null) {
+                setIfNotBlank(node, TIMER_DURATION_PROPERTY, duration.getTextContent().trim());
+            }
+        }
+    }
+
+    /**
+     * Builds whatever subtrees a BPMN element carries in its {@code extensionElements}, written as JCR System View.
+     *
+     * <p><strong>Why System View and not something shorter.</strong> Some of what a flow node holds is a subtree
+     * rather than a value — a condition is a {@code cond:SingleCondition} with operand children, and a
+     * {@code cond:ConditionGroup} nests. BPMN sanctions exactly this: {@code tExtensionElements} is
+     * {@code xsd:any namespace="##other" processContents="lax"}, so an arbitrary foreign subtree is the intended
+     * extension point, and {@code bpmn-moddle} preserves one across a round trip (measured, not assumed).</p>
+     *
+     * <p>The serialization is JCR's own, because every terser scheme reinvents it badly. A node name carries a
+     * namespace prefix ({@code cond:condition}) which no element name can hold without deciding what an
+     * unprefixed name means; a property may be multi-valued, which no attribute can express without the parser
+     * knowing the node type's cardinality; and {@code value} here is {@code UNDEFINED multiple}, so its type is
+     * not even implied. System View says all three outright, and it is what "the same structure as in JCR, as XML"
+     * already means.</p>
+     *
+     * <p>Read leniently: a missing {@code sv:type} is a string and a missing {@code sv:multiple} is false, so a
+     * hand-written subtree need not restate the obvious. A conformant System View document is still read exactly
+     * as it says.</p>
+     *
+     * @param element the BPMN element being translated
+     * @param node the flow node it became
+     * @param context the parse in progress
+     */
+    private static void applyExtensionNodes(final Element element, final NodeBuilder node,
+        final ParseContext context)
+    {
+        final Element extensions = childElement(element, EXTENSION_ELEMENTS);
+        if (extensions == null) {
+            return;
+        }
+        svChildren(extensions, SV_NODE).forEach(child -> buildSvNode(child, node, context));
+    }
+
+    /**
+     * Creates one {@code sv:node} and everything under it.
+     *
+     * @param svNode the System View element describing the node
+     * @param parent the node it belongs under
+     * @param context the parse in progress
+     */
+    private static void buildSvNode(final Element svNode, final NodeBuilder parent, final ParseContext context)
+    {
+        final String name = svAttribute(svNode, SV_NAME_ATTRIBUTE);
+        if (StringUtils.isBlank(name)) {
+            LOGGER.warn("An sv:node in {} declares no sv:name, skipping it and everything under it",
+                context.path());
+            // The worst of this family: the subtree an author wrote is a gateway's guard as often as not, and a
+            // gateway whose guard is silently absent does not fail — it takes its default arc, and decides
+            ErrorLogger.logProblem("an extension node declares no sv:name",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path()));
+            return;
+        }
+        // The primary type is a property in System View and the node's identity in Oak, so it is read out of the
+        // properties before the node exists rather than set like the others afterwards
+        final String primaryType = svProperties(svNode)
+            .filter(property -> JCR_PRIMARY_TYPE.equals(svAttribute(property, SV_NAME_ATTRIBUTE)))
+            .findFirst()
+            .map(property -> String.join("", svValues(property)))
+            .orElse(null);
+        if (StringUtils.isBlank(primaryType)) {
+            LOGGER.warn("The sv:node {} in {} declares no jcr:primaryType, skipping it", name, context.path());
+            ErrorLogger.logProblem("an extension node declares no jcr:primaryType",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path())
+                    .with(ELEMENT_DETAIL, name));
+            return;
+        }
+        final NodeBuilder child = parent.child(name);
+        child.setProperty(JCR_PRIMARY_TYPE, primaryType, Type.NAME);
+        applySystemProperties(child, primaryType, context);
+        svProperties(svNode)
+            .filter(property -> !JCR_PRIMARY_TYPE.equals(svAttribute(property, SV_NAME_ATTRIBUTE)))
+            .forEach(property -> setSvProperty(property, child, context));
+        svChildren(svNode, SV_NODE).forEach(grandchild -> buildSvNode(grandchild, child, context));
+    }
+
+    /**
+     * Sets one {@code sv:property}, single or multi-valued, in the type it declares.
+     *
+     * @param svProperty the System View element describing the property
+     * @param node the node to set it on
+     * @param context the parse in progress
+     */
+    private static void setSvProperty(final Element svProperty, final NodeBuilder node, final ParseContext context)
+    {
+        final String name = svAttribute(svProperty, SV_NAME_ATTRIBUTE);
+        if (StringUtils.isBlank(name)) {
+            LOGGER.warn("An sv:property of a node in {} declares no sv:name, ignoring it", context.path());
+            ErrorLogger.logProblem("an extension property declares no sv:name",
+                ErrorContext.of(WorkflowDefinitionUtils.class, TRANSLATION).about(context.path()));
+            return;
+        }
+        final List<String> values = svValues(svProperty);
+        final String declaredType = svAttribute(svProperty, SV_TYPE_ATTRIBUTE);
+        if (Boolean.parseBoolean(svAttribute(svProperty, SV_MULTIPLE_ATTRIBUTE))) {
+            node.setProperty(name, values, svMultipleType(declaredType));
+            return;
+        }
+        if (values.isEmpty()) {
+            return;
+        }
+        setSvSingleValue(node, name, values.get(0), declaredType);
+    }
+
+    private static void setSvSingleValue(final NodeBuilder node, final String name, final String value,
+        final String declaredType)
+    {
+        switch (declaredType) {
+            case "Boolean" -> node.setProperty(name, Boolean.parseBoolean(value));
+            case "Long" -> node.setProperty(name, Long.parseLong(value));
+            case "Double" -> node.setProperty(name, Double.parseDouble(value));
+            case "Name" -> node.setProperty(name, value, Type.NAME);
+            // String, an absent type, and anything the engine has no use for: stored as written. A condition
+            // operand's `value` is UNDEFINED in the node type precisely because the evaluator unifies types at
+            // evaluation time rather than trusting what was stored.
+            case null, default -> node.setProperty(name, value);
+        }
+    }
+
+    private static Type<Iterable<String>> svMultipleType(final String declaredType)
+    {
+        return "Name".equals(declaredType) ? Type.NAMES : Type.STRINGS;
+    }
+
+    /**
+     * One System View attribute, by namespace where the document kept it and by plain name where it did not.
+     *
+     * <p><strong>Measured, not defensive.</strong> {@code bpmn-moddle} — what the diagram editor reads and writes
+     * with — preserves a foreign element's name and namespace across a round trip but flattens its <em>attribute</em>
+     * prefixes: {@code sv:name="x"} is written back as {@code name="x"}. It only keeps the prefix on attributes it
+     * has a schema for, which is why the neighbouring {@code xsi:type} survives and these do not. A parse that
+     * insisted on the namespace would therefore read a hand-written diagram correctly and lose every condition in
+     * one the editor had saved — quietly, since the flow node itself would still be derived.</p>
+     *
+     * <p>Reading both costs nothing in ambiguity: these attributes are only ever looked for on an {@code sv:node}
+     * or {@code sv:property}, where an unprefixed {@code name} cannot mean anything else.</p>
+     *
+     * @param element the System View element to read
+     * @param localName the attribute wanted
+     * @return its value, or the empty string when the element carries it under neither form
+     */
+    private static String svAttribute(final Element element, final String localName)
+    {
+        final String qualified = element.getAttributeNS(SV_NS, localName);
+        return StringUtils.isNotBlank(qualified) ? qualified : element.getAttribute(localName);
+    }
+
+    private static Stream<Element> svProperties(final Element svNode)
+    {
+        return svChildren(svNode, SV_PROPERTY);
+    }
+
+    private static List<String> svValues(final Element svProperty)
+    {
+        return svChildren(svProperty, SV_VALUE).map(Element::getTextContent).toList();
+    }
+
+    /**
+     * The direct children of an element that are System View elements of one kind.
+     *
+     * @param element the element to look under
+     * @param localName the System View local name wanted
+     * @return those children, in document order
+     */
+    private static Stream<Element> svChildren(final Element element, final String localName)
+    {
+        final NodeList children = element.getChildNodes();
+        return IntStream.range(0, children.getLength())
+            .mapToObj(children::item)
+            .filter(child -> child instanceof Element candidate && SV_NS.equals(candidate.getNamespaceURI())
+                && localName.equals(candidate.getLocalName()))
+            .map(Element.class::cast);
+    }
+
+    /**
+     * The message names a document declares, by the id events point at them with.
+     *
+     * @param process the process element, used to reach the document it belongs to
+     * @return message id to message name, empty when the document declares none
+     */
+    private static Map<String, String> messageNames(final Element process)
+    {
+        final Map<String, String> names = new LinkedHashMap<>();
+        final NodeList messages = process.getOwnerDocument().getElementsByTagNameNS(BPMN_NS, MESSAGE_ELEMENT);
+        for (int i = 0; i < messages.getLength(); ++i) {
+            final Element message = (Element) messages.item(i);
+            names.put(message.getAttribute(ID_ATTRIBUTE), message.getAttribute(NAME_ATTRIBUTE));
+        }
+        return names;
+    }
+
+    /**
+     * The first direct child with this BPMN local name.
+     *
+     * @param element the element to look under
+     * @param localName the BPMN local name wanted
+     * @return that child, or {@code null} if the element has none
+     */
+    private static Element childElement(final Element element, final String localName)
+    {
+        final NodeList children = element.getChildNodes();
+        return IntStream.range(0, children.getLength())
+            .mapToObj(children::item)
+            .filter(child -> isBpmnElement(child, localName))
+            .map(Element.class::cast)
+            .findFirst()
+            .orElse(null);
     }
 
     /**
@@ -470,6 +770,7 @@ public final class WorkflowDefinitionUtils
         }
         applyJcrProperties(flowNodeType, node, context);
         applyCopiedProperties(flowNodeType, element, node);
+        applyEventDefinitions(element, node, context);
         applyIdentity(node, element, id, flowNodeType);
         // The BPMN attribute and the JCR property share both name-in-spirit and default (true), so an absent
         // attribute correctly leaves the node type's own default in place.
@@ -497,7 +798,7 @@ public final class WorkflowDefinitionUtils
                     .with(ELEMENT_DETAIL, id));
             return null;
         }
-        if (!context.claimedNames().add(id)) {
+        if (context.createdNodes().containsKey(id)) {
             LOGGER.warn("BPMN element id {} in {} is used more than once, skipping the later element", id,
                 context.path());
             ErrorLogger.logProblem("BPMN element id is used more than once",
@@ -515,6 +816,7 @@ public final class WorkflowDefinitionUtils
         }
         final NodeBuilder node = parent.child(id);
         node.setProperty(JCR_PRIMARY_TYPE, nodeType, Type.NAME);
+        context.createdNodes().put(id, node);
         return node;
     }
 
@@ -704,6 +1006,20 @@ public final class WorkflowDefinitionUtils
      * rename it in the process ({@code assigneeExpression=assignee}). {@code true}/{@code false} are stored as
      * booleans so that a mapping onto one of the BOOLEAN properties {@code workflowDefinitions.cnd} declares lands
      * with the declared type rather than as a string.
+     *
+     * <p>A {@code []} suffix on the JCR property name makes it multi-valued: the attribute is split on commas
+     * and each part trimmed, so <code>{...}performers=performers[]</code> reads
+     * {@code performers="approvers, @creator"} as two values. Marked in the rule rather than inferred, because
+     * the parser cannot see the node type's cardinality and a value that happens to contain a comma must not
+     * become a list by accident — which is the whole difference between "one performer whose name has a comma in
+     * it" and "two performers".</p>
+     *
+     * <p>An attribute outside BPMN's own vocabulary is named by namespace rather than by prefix:
+     * <code>{https://iap.uhndata.io/bpmn}handler=handler</code>. BPMN carries nothing that says which code a
+     * service task runs or what reaching a node means to the thing being decided, so those arrive as extension
+     * attributes — and a prefix is the file's choice, not the schema's. A diagram editor that renormalises
+     * {@code iap:} to {@code ns0:} on save would otherwise silently stop carrying them, which is the same class of
+     * quiet loss this whole translation is trying not to have.</p>
      */
     private static void applyCopiedProperties(final FlowNodeTypeInfo flowNodeType, final Element element,
         final NodeBuilder node)
@@ -712,16 +1028,40 @@ public final class WorkflowDefinitionUtils
             final String[] parts = rule.split("=", 2);
             final String xmlAttribute = parts[0].trim();
             final String jcrProperty = parts[parts.length - 1].trim();
-            final String value = element.getAttribute(xmlAttribute);
+            final String value = attributeValue(element, xmlAttribute);
             if (StringUtils.isBlank(value)) {
                 continue;
             }
-            if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
+            if (jcrProperty.endsWith(MULTIPLE_SUFFIX)) {
+                node.setProperty(jcrProperty.substring(0, jcrProperty.length() - MULTIPLE_SUFFIX.length()),
+                    Arrays.stream(value.split(",")).map(String::trim).filter(StringUtils::isNotBlank).toList(),
+                    Type.STRINGS);
+            } else if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
                 node.setProperty(jcrProperty, Boolean.parseBoolean(value));
             } else {
                 node.setProperty(jcrProperty, value);
             }
         }
+    }
+
+    /**
+     * One attribute's value, by namespace where the rule gives one and by plain name otherwise.
+     *
+     * @param element the XML element being read
+     * @param name either {@code local} or <code>{namespaceUri}local</code>
+     * @return the attribute's value, or the empty string when the element does not carry it
+     */
+    private static String attributeValue(final Element element, final String name)
+    {
+        if (name.startsWith("{")) {
+            final int end = name.indexOf('}');
+            // A rule that opens a namespace and never closes it names nothing; treated as a plain name so that a
+            // malformed vocabulary entry drops one property rather than throwing inside a commit
+            if (end > 0) {
+                return element.getAttributeNS(name.substring(1, end), name.substring(end + 1));
+            }
+        }
+        return element.getAttribute(name);
     }
 
     private static void createSequenceFlow(final Element element, final Map<String, Element> elementsById,
@@ -754,7 +1094,10 @@ public final class WorkflowDefinitionUtils
                     .with(ELEMENT_DETAIL, id).with("references", targetRef));
             return;
         }
-        final NodeBuilder source = context.workflowVersion().getChildNode(sourceRef);
+        // Not `workflowVersion().getChildNode(sourceRef)`: a boundary event is stored inside the activity it
+        // watches, so an arc leaving one — "and if nobody decides in time, go here" — has a source that is not a
+        // child of the version at all. Asking the parse where it put the node is the only reliable answer.
+        final NodeBuilder source = context.createdNodes().get(sourceRef);
         final NodeBuilder flow = createNode(source, id, SEQUENCE_FLOW_NODETYPE, context);
         if (flow == null) {
             return;
@@ -763,6 +1106,7 @@ public final class WorkflowDefinitionUtils
         flow.setProperty(TARGET_REF_PROPERTY, targetRef);
         setIfNotBlank(flow, LABEL_PROPERTY, element.getAttribute(NAME_ATTRIBUTE));
         setIfNotBlank(flow, CONDITION_EXPRESSION_PROPERTY, getConditionExpression(element));
+        applyExtensionNodes(element, flow, context);
         final Element sourceElement = elementsById.get(sourceRef);
         if (sourceElement != null && id.equals(sourceElement.getAttribute("default"))) {
             flow.setProperty("isDefault", true);

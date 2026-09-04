@@ -83,6 +83,12 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
+    <!-- The delivery extension point this module's email sender implements -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-notifications</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.commons.messaging</artifactId>

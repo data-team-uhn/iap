@@ -33,6 +33,27 @@ const AUTHORIZATION = `Basic ${Buffer.from('admin:admin').toString('base64')}`;
 const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAILABLE'];
 
 /**
+ * The tag the startup gate itself watches. Every check carrying it has to be OK — a WARN included —
+ * before the gate stops serving the startup page, so this is the one question whose answer decides
+ * whether the instance serves anything at all.
+ */
+const GATE_TAG = 'systemalive';
+
+/**
+ * How long the gate's checks must have been passing before an instance counts as ready.
+ *
+ * The gate is deliberately not a one-way latch: it opens as soon as its checks have held briefly, and only
+ * *retires* - stops being able to refuse anything - once they have held for its settle period. In between,
+ * a single blip closes it again and answers whatever is in flight with the "starting up" page, which a test
+ * sees as a bare 503 from a request that has nothing wrong with it.
+ *
+ * So the question worth asking is not "do the gate's checks pass" but "have they passed for longer than the
+ * gate needs", which is the same rule the gate applies to itself. Comfortably above the gate's own 30s
+ * settle period, since the two are polling independently.
+ */
+const GATE_SETTLED_MS = 40_000;
+
+/**
  * Whether an instance is ready to be tested.
  *
  * The launcher plugin only waits for the OSGi framework to come up, which happens well before the
@@ -43,6 +64,13 @@ const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAI
  *
  * A WARN is deliberately not blocking. It means something is worth looking at, not that the instance is
  * unusable, and treating it as fatal here would turn a passing suite into a startup timeout.
+ *
+ * Except for the checks the startup gate watches, where a WARN means exactly "not yet". The gate holds
+ * until every `systemalive` check is OK and answers 503 to everything meanwhile, so an instance judged
+ * ready on the looser rule serves its pages while every asset those pages import fails: the dashboard
+ * renders without its widgets, and the test that waits for one of them times out — with `Bundle Content
+ * Loaded is WARN` in the gate's log at the moment the browser was refused the shared chunks. Asking the
+ * gate's own question is what keeps the two from disagreeing.
  */
 const isReady = async (instance: ActiveInstance): Promise<boolean> => {
   try {
@@ -54,6 +82,16 @@ const isReady = async (instance: ActiveInstance): Promise<boolean> => {
     }
     const body = (await health.json()) as { results?: { status?: string }[] };
     if ((body.results ?? []).some(result => BLOCKING_STATUSES.includes(result.status ?? ''))) {
+      return false;
+    }
+    const gate = await fetch(`${instance.baseURL}/system/health.json?tags=${GATE_TAG}`, {
+      headers: { Authorization: AUTHORIZATION },
+    });
+    if (!gate.ok) {
+      return false;
+    }
+    const gateBody = (await gate.json()) as { results?: { status?: string }[] };
+    if ((gateBody.results ?? []).some(result => result.status !== 'OK')) {
       return false;
     }
     const loginPage = await fetch(`${instance.baseURL}/login`);
@@ -75,11 +113,19 @@ const isReady = async (instance: ActiveInstance): Promise<boolean> => {
 const waitFor = async (instance: ActiveInstance): Promise<void> => {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let lastError = 'no response';
+  // When the current unbroken stretch of readiness began, forgotten the moment anything stops passing
+  let readySince: number | undefined;
   while (Date.now() < deadline) {
     if (await isReady(instance)) {
-      return;
+      readySince ??= Date.now();
+      if (Date.now() - readySince >= GATE_SETTLED_MS) {
+        return;
+      }
+      lastError = 'the startup gate had not settled';
+    } else {
+      readySince = undefined;
+      lastError = 'health checks not passing';
     }
-    lastError = 'health checks not passing';
     await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
   }
   throw new Error(

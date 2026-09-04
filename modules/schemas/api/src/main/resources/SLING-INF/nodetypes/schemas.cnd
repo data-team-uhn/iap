@@ -147,6 +147,11 @@
 // A single question the submitter must answer.
 // Referenceable so that submission answers can point back to it.
 [sch:Question] > sch:FormItem, mix:referenceable
+  // The answer options are offered in the order they are declared, and only an
+  // orderable type keeps that order: without this, Oak returns the children in
+  // an order of its own and the offered answers reshuffle between reads.
+  orderable
+
   - sling:resourceType (STRING) = "sch/Question" mandatory autocreated protected
 
   // The question text shown to the submitter
@@ -158,11 +163,36 @@
   // Expected answer type: text, long, double, boolean, date, file
   - dataType (STRING) = "text" mandatory autocreated
 
-  // Whether an answer must be provided before submitting
-  - required (BOOLEAN) = false
+  // How many values an answer takes, as a pair of counts rather than two flags:
+  // a strictly positive minimum is what "required" means, and a maximum other
+  // than 1 is what "multiple" means, so (0,1) is an optional single value,
+  // (1,1) a mandatory one, and (2,4) reads "pick two to four". Zero or negative
+  // means unconstrained on either end.
+  // Falling short of the minimum is incompleteness, not an error - answers are
+  // saved one at a time, so a submission spends most of its life half-answered
+  // and only the completeness marking reports the shortfall. Exceeding the
+  // maximum refuses the save: a form never offers a way to do it, so a payload
+  // that does is not a submitter filling things in.
+  // Autocreated, not merely defaulted: a default only takes effect when the
+  // property is autocreated, and an absent maximum would read as "no maximum"
+  // rather than as the single value it is meant to be.
+  - minAnswers (LONG) = '0' autocreated
+  - maxAnswers (LONG) = '1' autocreated
 
-  // Whether more than one value may be provided
-  - multiple (BOOLEAN) = false
+  // For numeric answers, the smallest and largest value accepted. Both are
+  // hard bounds, enforced when an answer is saved; either may be absent.
+  - minValue (DOUBLE)
+  - maxValue (DOUBLE)
+
+  // For text answers, a regular expression every given value must match in
+  // full. Enforced when an answer is saved.
+  - pattern (STRING)
+
+  // What the submitter is told when a value does not match the pattern.
+  // A pattern without one is refused with the expression itself, which is
+  // meaningful to the schema author and to nobody else, so any schema meant
+  // for people should say what the pattern wants.
+  - patternMessage (STRING)
 
   // How the question is rendered to the submitter
   - displayMode (STRING)
@@ -186,8 +216,34 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
+  // The answers this question offers. A question declaring none is answered
+  // freely, in whatever its dataType accepts; one declaring options is answered
+  // only with their values, which is what lets a condition compare against an
+  // agreed value instead of against whatever the submitter typed.
+  + * (sch:AnswerOption)
+
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One of the answers a question offers.
+//
+// The value is the durable half: it is what an answer stores and what a
+// condition compares against, so renaming one changes the meaning of every
+// answer already recorded with it. The label is only what the submitter reads
+// and can be reworded, or translated, without touching anything else.
+[sch:AnswerOption] > data:EntityPart
+  - sling:resourceType (STRING) = "sch/AnswerOption" mandatory autocreated protected
+
+  // What an answer picking this option stores
+  - value (STRING) mandatory
+
+  // What the submitter reads; the value itself when left out
+  - label (STRING)
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
 
 //-----------------------------------------------------------------------------
 // Abstract base for anything a submission must fulfill: a set of questions
@@ -236,6 +292,19 @@
 // consent form, in an expected format described by this requirement.
 [sch:DocumentRequirement] > sch:Requirement
   - sling:resourceType (STRING) = "sch/DocumentRequirement" mandatory autocreated protected
+
+  // Whether the document must be attached before the submission is complete.
+  // A flag, deliberately not the count pair a question carries: values of one
+  // question are homogeneous and counting them means something, while several
+  // files under one requirement are usually revisions of the same deliverable,
+  // and "give me three letters" is better said as three named requirements,
+  // each with its own label, template and accepted types.
+  // Optional is not conditional: the condition inherited from sch:Requirement
+  // decides whether this is asked at all, this flag decides whether being
+  // unanswered blocks completeness.
+  // Defaults to true so that absence keeps its current meaning and a forgotten
+  // flag demands too much rather than too little.
+  - required (BOOLEAN) = true autocreated
 
   // Accepted MIME types for the uploaded document, e.g. application/pdf
   - acceptedFileTypes (STRING) multiple

@@ -22,33 +22,142 @@ import { LoginPage } from '../../pages/login.page';
 
 const asAdmin = { Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}` };
 
+const asRequester = {
+  Authorization: `Basic ${Buffer.from('demo-requester:demo-requester').toString('base64')}`,
+};
+
+const asApprover = {
+  Authorization: `Basic ${Buffer.from('demo-approver:demo-approver').toString('base64')}`,
+};
+
+// Where a submission ends up: named by a UUID, and filed in a prefix tree whose three buckets are that name's own
+// first three pairs of characters. The back-reference is the point of asserting it as a pattern rather than just
+// checking for "some path under /Submissions" — it is what proves the buckets are derived from the name, which is
+// the whole reason a UUID is used, and it would still hold if the tree's depth or segment length changed.
+const FILED_PATH = '/Submissions/([0-9a-f]{2})/([0-9a-f]{2})/([0-9a-f]{2})/\\1\\2\\3[0-9a-f-]+';
+
+// The path on its own, as a redirect reports it
+const FILED = new RegExp(`^${FILED_PATH}$`);
+
+// The same, at the end of the absolute URL a browser ends up on
+const FILED_URL = new RegExp(`${FILED_PATH}$`);
+
+/** A day relative to today on the *local* calendar, as the `YYYY-MM-DD` a date answer is stored as. */
+function localDay(offset: number): string {
+  const day = new Date();
+  day.setDate(day.getDate() + offset);
+  const month = String(day.getMonth() + 1).padStart(2, '0');
+  return `${day.getFullYear()}-${month}-${String(day.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * The time off request demo.
  *
  * This suite grows with the demo, and the demo grows with the platform: the point of both is that each
- * capability is proved by something in use rather than only by its own unit tests. Today the workflow
- * engine does not exist, so what can be asserted is that the process is *defined* and installed — the
- * schema a requester fills in, and the BPMN the engine will execute. As the engine lands, the tests
- * asserting that a request can actually be raised and approved belong here.
+ * capability is proved by something in use rather than only by its own unit tests. It now runs the whole
+ * process — a requester raises a request, an approver decides it, and the submission ends up approved or
+ * refused — which is worth more than any of the pieces asserted on separately, because it is the only
+ * thing that proves they fit together.
  */
 test.describe('the time off request demo', () => {
   test('installs the request schema', async ({ request }) => {
-    const response = await request.get('/Schemas/timeOffRequest/v1.json', { headers: asAdmin });
+    const response = await request.get('/Schemas/timeOffRequest/v1.json', {
+      headers: asAdmin,
+    });
 
     expect(response.ok()).toBeTruthy();
-    const version = (await response.json()) as { version?: string; active?: boolean };
+    const version = (await response.json()) as {
+      version?: string;
+      active?: boolean;
+    };
     expect(version.version).toBe('1.0');
     expect(version.active).toBe(true);
   });
 
-  test('asks which day is being taken off, and requires an answer', async ({ request }) => {
-    const response = await request.get('/Schemas/timeOffRequest/v1/details/day.json', { headers: asAdmin });
+  test('asks when the time off starts, and requires an answer', async ({ request }) => {
+    const response = await request.get('/Schemas/timeOffRequest/v1/details/startDate.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
-    const question = (await response.json()) as { text?: string; dataType?: string; required?: boolean };
-    expect(question.text).toBe('Which day are you taking off?');
+    const question = (await response.json()) as {
+      text?: string;
+      dataType?: string;
+      minAnswers?: number;
+    };
+    expect(question.text).toBe('Which day does your time off start?');
     expect(question.dataType).toBe('date');
-    expect(question.required).toBe(true);
+    // "Required" is a demanded count, not a flag: one value must be given
+    expect(question.minAnswers).toBe(1);
+  });
+
+  test('asks for a return date only when the absence covers several days', async ({ request }) => {
+    // A display condition, stored rather than coded: the question carries a cond:condition child naming another
+    // question by its path under the version. Worth an integration test because the condition is a subtree of
+    // typed nodes — the mixin that allows it, the mandatory operand child, the autocreated `literal` source —
+    // and a mock repository enforces none of that.
+    const response = await request.get('/Schemas/timeOffRequest/v1/details/endDate.2.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const question = (await response.json()) as {
+      'cond:condition'?: {
+        comparator?: string;
+        operandA?: { source?: string; value?: string[] };
+        operandB?: { source?: string; value?: string[] };
+      };
+    };
+    const condition = question['cond:condition'];
+    expect(condition?.comparator).toBe('equals');
+    expect(condition?.operandA?.source).toBe('answer');
+    expect(condition?.operandA?.value).toEqual([ 'details/duration' ]);
+    // The comparison side takes the default source, which the node type autocreates rather than the content
+    // having to say it
+    expect(condition?.operandB?.source).toBe('literal');
+    // An option's value, not a phrase somebody has to type: what the condition compares against is
+    // what picking "Several days" stores
+    expect(condition?.operandB?.value).toEqual([ 'multiple-days' ]);
+  });
+
+  test('ships the tag its reminder places', async ({ request }) => {
+    // A tag with no definition cannot be placed at all, so a reminder that fired would fail the commit rather
+    // than mark anything. And the category matters: `overdue` is not a lifecycle state — placing one retires
+    // whatever else the host carries in the same category, and a late request is still submitted.
+    const response = await request.get('/Tags/overdue.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const tag = (await response.json()) as { category?: string[]; 'jcr:primaryType'?: string };
+    expect(tag['jcr:primaryType']).toBe('tag:Definition');
+    expect(tag.category).toEqual([ 'timeliness' ]);
+  });
+
+  test('ships the tag its urgency check places', async ({ request }) => {
+    // Its own category, and that is not tidiness: placing a tag retires whatever else the host carries in the
+    // same one, and a request can be both urgent and overdue at once.
+    const response = await request.get('/Tags/urgent.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const tag = (await response.json()) as { category?: string[]; 'jcr:primaryType'?: string };
+    expect(tag['jcr:primaryType']).toBe('tag:Definition');
+    expect(tag.category).toEqual([ 'priority' ]);
+  });
+
+  test('requires a doctor\'s note only for sick leave', async ({ request }) => {
+    // The same mechanism one level up: a whole requirement, not just a question, that applies conditionally.
+    const response = await request.get('/Schemas/timeOffRequest/v1/doctorsNote.2.json', { headers: asAdmin });
+
+    expect(response.ok()).toBeTruthy();
+    const requirement = (await response.json()) as {
+      'jcr:primaryType'?: string;
+      acceptedFileTypes?: string[];
+      aiCheckPrompt?: string;
+      'cond:condition'?: { comparator?: string; operandA?: { value?: string[] }; operandB?: { value?: string[] } };
+    };
+    expect(requirement['jcr:primaryType']).toBe('sch:DocumentRequirement');
+    expect(requirement.acceptedFileTypes).toContain('application/pdf');
+    expect(requirement['cond:condition']?.operandA?.value).toEqual([ 'details/absenceType' ]);
+    expect(requirement['cond:condition']?.operandB?.value).toEqual([ 'sick' ]);
+    // Deliberately absent: the note is collected but nothing reads it yet. Checking it against the reason for
+    // the absence is the job of the language-model module being built separately, and a prompt sitting here
+    // would suggest something already acts on it.
+    expect(requirement.aiCheckPrompt).toBeUndefined();
   });
 
   test('routes approval to the approvers group', async ({ request }) => {
@@ -68,8 +177,12 @@ test.describe('the time off request demo', () => {
     // identifier. That embedding is deliberate and on by default, but it is configurable — so asserting on
     // the embedded node would make this test depend on a serialization default rather than on the demo.
     const [schema, workflow] = await Promise.all([
-      request.get('/Schemas/timeOffRequest/v1.-dereference.json', { headers: asAdmin }),
-      request.get('/Workflows/timeOffRequest/v1.-dereference.json', { headers: asAdmin }),
+      request.get('/Schemas/timeOffRequest/v1.-dereference.json', {
+        headers: asAdmin,
+      }),
+      request.get('/Workflows/timeOffRequest/v1.-dereference.json', {
+        headers: asAdmin,
+      }),
     ]);
 
     expect(schema.ok()).toBeTruthy();
@@ -94,6 +207,56 @@ test.describe('the time off request demo', () => {
     expect(version).not.toHaveProperty('bpmnXml');
   });
 
+  test('derives the flow nodes from the diagram rather than from the descriptor', async ({ request }) => {
+    // This version declares its diagram authoritative, so the commit editor owns its flow nodes: it parses the
+    // bpmn.xml and replaces whatever the descriptor installed. Worth asserting because every other test here
+    // passes either way — a workflow that runs proves the nodes are right, not where they came from.
+    const response = await request.get('/Workflows/timeOffRequest/v1.deep.-dereference.infinity.json',
+      { headers: asAdmin });
+    expect(response.ok()).toBeTruthy();
+    const version = (await response.json()) as Record<string, unknown> & {
+      bpmnAuthoritative?: boolean;
+      bpmnXmlParsedHash?: string;
+      checkBudget?: { handler?: string };
+      markUrgency?: { handler?: string };
+      approveRequest?: {
+        performers?: string[];
+        outcomeOptions?: string[];
+        hostTag?: string;
+        approvalOverdue?: { timerDuration?: string; interrupting?: boolean };
+        approvalReminder?: { timerDuration?: string; interrupting?: boolean; hostTag?: string };
+      };
+      decision?: { toApproved?: { 'cond:condition'?: Record<string, unknown> } };
+    };
+
+    expect(version.bpmnAuthoritative).toBe(true);
+    // Set only after a parse succeeds, so its presence is the parse having happened
+    expect(version.bpmnXmlParsedHash).toEqual(expect.stringMatching(/^[0-9a-f]{64}$/));
+
+    // And what it produced carries everything the descriptor used to have to say by hand
+    expect(version.checkBudget?.handler).toBe('checkTimeOffBudget');
+    expect(version.markUrgency?.handler).toBe('markTimeOffUrgency');
+    expect(version.approveRequest?.performers).toEqual([ 'time-off-approvers' ]);
+    expect(version.approveRequest?.outcomeOptions).toEqual([ 'approved', 'rejected' ]);
+    expect(version.approveRequest?.hostTag).toBe('submitted');
+    // Two boundary events, both stored inside the activity they watch, with their durations read out of the
+    // element BPMN writes them in — and the arcs leaving them are what the parse used to choke on
+    expect(version.approveRequest?.approvalOverdue?.timerDuration).toBe('P5D');
+    expect(version.approveRequest?.approvalOverdue?.interrupting).toBe(true);
+    // The nudge: same task, earlier, and it does not cancel it. `interrupting` is the only thing that tells
+    // "remind them" from "give up", and it comes across as a boolean rather than the string BPMN wrote.
+    expect(version.approveRequest?.approvalReminder?.timerDuration).toBe('P2D');
+    expect(version.approveRequest?.approvalReminder?.interrupting).toBe(false);
+    expect(version.approveRequest?.approvalReminder?.hostTag).toBe('overdue');
+    // The condition subtree, built from the System View the diagram carries in its extensionElements
+    const condition = version.decision?.toApproved?.['cond:condition'];
+    expect(condition).toBeTruthy();
+    expect(condition?.['jcr:primaryType']).toBe('cond:SingleCondition');
+    expect(condition?.comparator).toBe('equals');
+    expect((condition?.operandA as { source?: string; value?: string[] } | undefined)?.source).toBe('variable');
+    expect((condition?.operandA as { value?: string[] } | undefined)?.value).toEqual([ 'outcome' ]);
+  });
+
   test('ships the BPMN as a file, served as XML', async ({ request }) => {
     const node = await request.get('/Workflows/timeOffRequest/v1/bpmn.xml.json', { headers: asAdmin });
 
@@ -109,12 +272,652 @@ test.describe('the time off request demo', () => {
     // resolve, so a diagram edited into a shape the demo no longer describes should fail here.
     const bpmn = await response.text();
     expect(bpmn).toContain('<bpmn:startEvent id="requestSubmitted"');
+    expect(bpmn).toContain('<bpmn:serviceTask id="checkBudget"');
     expect(bpmn).toContain('<bpmn:userTask id="approveRequest"');
     expect(bpmn).toContain('<bpmn:exclusiveGateway id="decision"');
     expect(bpmn).toContain('<bpmn:endEvent id="requestApproved"');
     expect(bpmn).toContain('<bpmn:endEvent id="requestRejected"');
     // Diagram interchange too, or the visual editor has nothing to draw
     expect(bpmn).toContain('<bpmndi:BPMNDiagram');
+  });
+
+  test('raises a submission against the demo schema', async ({ request }) => {
+    // The demo's first real submission: the bootstrap system workflow on /Submissions vets the schema
+    // version and creates the entity, all through the engine — no CRUD endpoint involved
+    const response = await request.post('/Submissions', {
+      headers: asAdmin,
+      form: {
+        title: 'A very sunny Friday',
+        schemaVersion: '/Schemas/timeOffRequest/v1',
+      },
+      maxRedirects: 0,
+    });
+
+    expect(response.status()).toBe(302);
+    const location = response.headers().location;
+    expect(location).toMatch(FILED);
+
+    const created = await request.get(`${location}.json`, { headers: asAdmin });
+    expect(created.ok()).toBeTruthy();
+    const submission = (await created.json()) as {
+      'jcr:primaryType'?: string;
+      title?: string;
+      tags?: string[];
+      schemaVersion?: { '@path'?: string };
+    };
+    expect(submission['jcr:primaryType']).toBe('sub:Submission');
+    expect(submission.title).toBe('A very sunny Friday');
+    // The lifecycle is a tag rather than a property, so nothing autocreates it: the handler that raises the
+    // submission is what puts it in the starting state. `incomplete` is there from the same moment and for the
+    // same reason — a request nobody has answered yet is missing what it asks for, and until something says so
+    // the absence of the tag reads as "nothing missing", which is what let an empty request be sent
+    expect(submission.tags).toEqual([ 'draft', 'incomplete' ]);
+    // The stored identifier became a real REFERENCE: the serializer can only embed what actually resolves
+    expect(submission.schemaVersion?.['@path']).toBe('/Schemas/timeOffRequest/v1');
+  });
+
+  test('refuses submissions against an inactive schema version', async ({ request }) => {
+    // The demo schema is active; ask for something that is real but retired to prove the vetting runs.
+    // There is no inactive version in the demo content, so use the workflow tree instead: a path that
+    // exists but is not a schema version at all.
+    const response = await request.post('/Submissions', {
+      headers: asAdmin,
+      form: { title: 'Sneaky', schemaVersion: '/Workflows/timeOffRequest/v1' },
+      maxRedirects: 0,
+    });
+
+    expect(response.status()).toBe(400);
+    expect(((await response.json()) as { error?: string }).error).toContain('no schema version');
+  });
+
+  // The process, told in order. These tests are one story rather than several checks — a request has to exist
+  // before it can be read, and be decided before there is nothing left to decide — so they run serially even
+  // though the suite is otherwise parallel. Left parallel they race each other for the same task, and the engine
+  // rightly refuses the loser.
+  test.describe.serial('raising and deciding a request', () => {
+    // The request the story is about. Its path cannot be written down here: a submission is named by a UUID, so
+    // the only way to know where it went is to keep what the engine's redirect said — which is also how any
+    // client learns it.
+    let raised = '';
+
+    test('lets an ordinary user raise a request they hold no rights to create', async ({ request }) => {
+      // The whole authorization model in one request. demo-requester has no write access anywhere — the only ACL
+      // they benefit from makes /Submissions itself visible so that a POST can be routed. What lets this succeed is
+      // the bootstrap's start event naming `everyone` as a performer; the engine checks that, then does the writing
+      // as its own service user.
+      const response = await request.post('/Submissions', {
+        headers: asRequester,
+        form: {
+          title: 'A long weekend',
+          schemaVersion: '/Schemas/timeOffRequest/v1',
+        },
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(302);
+      raised = response.headers().location;
+      expect(raised).toMatch(FILED);
+
+      // The engine wrote it, so jcr:createdBy names the service user; the human is remembered separately
+      const created = await request.get(`${raised}.json`, {
+        headers: asAdmin,
+      });
+      const submission = (await created.json()) as {
+        createdBy?: string;
+        'jcr:createdBy'?: string;
+      };
+      expect(submission.createdBy).toBe('demo-requester');
+      expect(submission['jcr:createdBy']).toBe('workflows');
+    });
+
+    test('refuses to let an ordinary user author a workflow', async ({ request }) => {
+      // Same user, same kind of request, different answer — and nothing about the data changed. The definition at
+      // /SystemWorkflows/createWorkflow names iap-administrators as its performer, so that is where the no is said.
+      const response = await request.post('/Workflows', {
+        headers: asRequester,
+        form: { title: 'Something I should not be authoring' },
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(403);
+      expect(((await response.json()) as { error?: string }).error).toContain('not allowed');
+      // And nothing was created on the way to being refused
+      const listing = await request.get('/Workflows.2.json', {
+        headers: asAdmin,
+      });
+      expect(JSON.stringify(await listing.json())).not.toContain('should not be authoring');
+    });
+
+    test('lets the people the workflow involves read the request', async ({ request }) => {
+      // Reads cannot go through the engine — no workflow can run per row of a query — so the workflow *declares*
+      // and the engine materializes: starting the instance granted read to the requester and to the performers of
+      // its user task. Nobody wrote an ACL by hand, and nobody else can see it.
+      // The negative control, and the reason this test means anything: a request the requester neither raised nor
+      // approves stays invisible to them, so what they can see was granted rather than merely universal. Raised
+      // here rather than borrowed from another test, so that the 404 below cannot be a 404 for the duller reason
+      // that nothing is there at all.
+      const somebodyElses = (await request.post('/Submissions', {
+        headers: asAdmin,
+        form: { title: 'Not the requester\'s business', schemaVersion: '/Schemas/timeOffRequest/v1' },
+        maxRedirects: 0,
+      })).headers().location;
+      expect(somebodyElses).toMatch(FILED);
+      // ...and it is genuinely readable by somebody, which is what makes the requester's 404 about them
+      expect((await request.get(`${somebodyElses}.json`, { headers: asAdmin })).status()).toBe(200);
+
+      const [byRequester, byApprover, someoneElses] = await Promise.all([
+        request.get(`${raised}.json`, { headers: asRequester }),
+        request.get(`${raised}.json`, { headers: asApprover }),
+        request.get(`${somebodyElses}.json`, { headers: asRequester }),
+      ]);
+
+      expect(byRequester.status()).toBe(200);
+      expect(byApprover.status()).toBe(200);
+      expect(someoneElses.status()).toBe(404);
+    });
+
+    test('puts the new request under its workflow, waiting for its requester to send it', async ({ request }) => {
+      // The submission's schema version names the workflow, so raising one starts it — and the instance lives
+      // inside the submission, which is what makes it findable, securable and disposable along with it
+      // `deep` is what asks the serializer for child nodes; without it a resource is its own properties and the
+      // references they embed, which is the right default for a tree that now holds running workflows
+      const response = await request.get(`${raised}.deep.-dereference.infinity.json`, {
+        headers: asApprover,
+      });
+      expect(response.ok()).toBeTruthy();
+      const submission = (await response.json()) as {
+        tags?: string[];
+        'wf:instances'?: {
+          timeOffRequest?: {
+            status?: string;
+            token?: { currentNodeId?: string };
+            fillIn?: { status?: string; label?: string; taskDefinitionId?: string; outcomeOptions?: string[] };
+            approveRequest?: unknown;
+          };
+        };
+      };
+
+      const instance = submission['wf:instances']?.timeOffRequest;
+      expect(instance).toBeTruthy();
+      expect(instance?.status).toBe('active');
+      // Parked on the first user task, with a token recording exactly where. The approver's task does not exist
+      // yet — a task is raised when the token reaches it, so there is nothing for them to see or decide.
+      expect(instance?.token?.currentNodeId).toBe('fillIn');
+      expect(instance?.fillIn?.status).toBe('created');
+      expect(instance?.fillIn?.label).toBe('Say when you want to be away');
+      expect(instance?.fillIn?.taskDefinitionId).toBe('fillIn');
+      expect(instance?.approveRequest).toBeUndefined();
+      // And the state the request is in is the state of the task it is waiting at, placed by the engine when the
+      // token arrived there rather than written by the handler that created it
+      expect(submission.tags).toEqual([ 'draft', 'incomplete' ]);
+      // Nothing to decide: sending a request is not a choice between outcomes, which is what tells a task list
+      // to offer one plain control rather than a decision
+      expect(instance?.fillIn?.outcomeOptions).toEqual([]);
+    });
+
+    test('refuses to let somebody else send a request they did not raise', async ({ request }) => {
+      // @creator is the rule no group can express, and this is it being enforced: the approver is named on the
+      // task after this one, and belongs to the group that decides — and still cannot send somebody's request
+      // for them.
+      const response = await request.post(`${raised}/wf:instances/timeOffRequest/fillIn`, {
+        headers: asApprover,
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(403);
+      expect(((await response.json()) as { error?: string }).error).toContain('not allowed');
+    });
+
+    test('refuses more values than a question takes', async ({ request }) => {
+      // The duration takes a single value - the default answer-count pair - and the form offers no way to give
+      // two, so a payload that does is not the editor. What this proves end to end is that the constraint
+      // validators are wired into the save workflow's validation step, not merely present in the bundle.
+      const response = await request.post(raised, {
+        headers: { ...asRequester, 'Content-Type': 'application/x-www-form-urlencoded' },
+        data: 'details%2Fduration=full-day&details%2Fduration=half-day',
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(400);
+      expect(((await response.json()) as { error?: string }).error)
+        .toContain('Too many values for "Is this a half day, a full day, or several days?". Given: 2. Allowed: 1.');
+    });
+
+    test('sends the request on to the approver when its requester says it is finished', async ({ request }) => {
+      // No outcome: this task offers none, so completing it is not a decision. This is the submit button's whole
+      // server side — there is no submit event and no submitted flag, only a task being completed.
+      const sent = await request.post(`${raised}/wf:instances/timeOffRequest/fillIn`, {
+        headers: asRequester,
+        maxRedirects: 0,
+      });
+      expect(sent.status()).toBe(200);
+
+      const response = await request.get(`${raised}.deep.-dereference.infinity.json`, { headers: asApprover });
+      const submission = (await response.json()) as {
+        tags?: string[];
+        'wf:instances'?: {
+          timeOffRequest?: {
+            token?: { currentNodeId?: string };
+            fillIn?: { status?: string; assignee?: string; outcome?: string };
+            approveRequest?: { status?: string; label?: string; outcomeOptions?: string[] };
+          };
+        };
+      };
+      const instance = submission['wf:instances']?.timeOffRequest;
+      expect(instance).toBeTruthy();
+      expect(instance?.fillIn?.status).toBe('completed');
+      expect(instance?.fillIn?.assignee).toBe('demo-requester');
+      // Completed without deciding anything, which is not the same as deciding nothing in particular
+      expect(instance?.fillIn?.outcome).toBeUndefined();
+      // The walk carried on to the next thing a person has to do, and raised it
+      expect(instance?.token?.currentNodeId).toBe('approveRequest');
+      expect(instance?.approveRequest?.status).toBe('created');
+      expect(instance?.approveRequest?.label).toBe('Approve the request');
+      expect(instance?.approveRequest?.outcomeOptions).toEqual([ 'approved', 'rejected' ]);
+      // And the request is now in the approver's hands, said by the state rather than by a flag: `submitted`
+      // retired `draft`, because a lifecycle is a state and not an accumulation. `incomplete` survives it, and
+      // both halves of that are deliberate: the tag is in the `completeness` category rather than `lifecycle`, so
+      // placing a lifecycle state does not clear it — and this request was never answered. The editor would not
+      // have offered to send it, but completeness is enforced in the UI only: the engine has no guard on
+      // completing a send task, which is what this HTTP-level test walks straight past. When a gateway guard can
+      // read the host, this assertion is the one that should change
+      expect(submission.tags).toEqual([ 'incomplete', 'submitted' ]);
+    });
+
+    test('will not take any more answers once the request has been sent', async ({ request }) => {
+      // The same rule the editor reads off the form projection, enforced where it actually matters. Nothing was
+      // added to the save workflow to make this happen: the state moved, and the save handler already refused
+      // anything that is not a draft.
+      const response = await request.post(raised, {
+        headers: asRequester,
+        form: { 'details/duration': 'full-day' },
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(403);
+      expect(((await response.json()) as { error?: string }).error).toContain('no longer be changed');
+    });
+
+    test('has already looked up the requester\'s remaining days by the time anyone decides', async ({ request }) => {
+      // The service task the walk passed through on its way to the approver. This is the demo's own Java, plugged
+      // into the engine through the handler extension point — the platform knows nothing about counting time off,
+      // and this is what a project supplying that knowledge looks like.
+      //
+      // Its answer is canned rather than fetched from a human resources system, which is the only thing standing
+      // in for the real one: the activity, the dispatch and the record left behind are exactly as they would be.
+      const response = await request.get(`${raised}.json`, { headers: asApprover });
+
+      expect(response.ok()).toBeTruthy();
+      const submission = (await response.json()) as {
+        budgetRemainingDays?: number;
+        budgetCheckedFor?: string;
+      };
+      expect(submission.budgetRemainingDays).toBe(12);
+      // Whose budget it is, recorded beside the number: the approver reading this is not the requester, and
+      // nothing else on the request would say so.
+      expect(submission.budgetCheckedFor).toBe('demo-requester');
+    });
+
+    test('refuses a decision from someone the task does not name', async ({ request }) => {
+      // The requester can see the task — they can see their own submission — but seeing it and being allowed to
+      // decide it are different questions, and the second is answered by the activity's performers
+      const response = await request.post(
+        `${raised}/wf:instances/timeOffRequest/approveRequest`,
+        {
+          headers: asRequester,
+          form: { outcome: 'approved' },
+          maxRedirects: 0,
+        },
+      );
+
+      expect(response.status()).toBe(403);
+    });
+
+    test('carries the request through to approval when the approver decides', async ({ request }) => {
+      const decision = await request.post(
+        `${raised}/wf:instances/timeOffRequest/approveRequest`,
+        { headers: asApprover, form: { outcome: 'approved' }, maxRedirects: 0 },
+      );
+      expect(decision.status()).toBe(200);
+
+      const response = await request.get(`${raised}.deep.-dereference.infinity.json`, {
+        headers: asApprover,
+      });
+      const submission = (await response.json()) as {
+        tags?: string[];
+        'wf:instances'?: {
+          timeOffRequest?: {
+            status?: string;
+            endTime?: string;
+            token?: unknown;
+            approveRequest?: { status?: string; outcome?: string; assignee?: string };
+          };
+        };
+      };
+
+      // The end event the gateway routed to said what finishing that way means to the submission. The draft it
+      // started in is gone, because placing a lifecycle state retires the state it replaces — while `incomplete`
+      // stays, for the reason the send step above spells out: this request was never answered, and the tag is not
+      // in the lifecycle category
+      expect(submission.tags).toEqual([ 'incomplete', 'approved' ]);
+      const instance = submission['wf:instances']?.timeOffRequest;
+      // Asserted before the token check below, which a missing instance would otherwise satisfy vacuously
+      expect(instance).toBeTruthy();
+      expect(instance?.status).toBe('completed');
+      expect(instance?.endTime).toBeTruthy();
+      // The task records who decided and what they decided; the token is spent and gone
+      expect(instance?.approveRequest?.status).toBe('completed');
+      expect(instance?.approveRequest?.outcome).toBe('approved');
+      expect(instance?.approveRequest?.assignee).toBe('demo-approver');
+      expect(instance?.token).toBeUndefined();
+    });
+
+    test('has nothing left to decide once the task is done', async ({ request }) => {
+      const response = await request.post(
+        `${raised}/wf:instances/timeOffRequest/approveRequest`,
+        {
+          headers: asApprover,
+          form: { outcome: 'rejected' },
+          maxRedirects: 0,
+        },
+      );
+
+      expect(response.status()).toBe(409);
+    });
+
+    test('routes a refusal down the other arc of the gateway', async ({ request }) => {
+      // The same definition, the other outcome: proving the gateway actually chooses rather than always taking the
+      // first arc. `rejected` matches no condition, so the arc marked as the default carries it.
+      const refused = await request.post('/Submissions', {
+        headers: asRequester,
+        form: {
+          title: 'A day I will not get',
+          schemaVersion: '/Schemas/timeOffRequest/v1',
+        },
+        maxRedirects: 0,
+      });
+      expect(refused.status()).toBe(302);
+      // Its own request, so its own path: nothing about a submission's name can be predicted from its title
+      const path = refused.headers().location;
+      expect(path).toMatch(FILED);
+
+      // Sent by its requester first, since the approver has nothing to decide until it reaches them
+      expect((await request.post(`${path}/wf:instances/timeOffRequest/fillIn`,
+        { headers: asRequester, maxRedirects: 0 })).status()).toBe(200);
+
+      const decision = await request.post(
+        `${path}/wf:instances/timeOffRequest/approveRequest`,
+        { headers: asApprover, form: { outcome: 'rejected' }, maxRedirects: 0 },
+      );
+      expect(decision.status()).toBe(200);
+
+      const response = await request.get(`${path}.json`, {
+        headers: asApprover,
+      });
+      // Its own request, raised and sent unanswered like the one above, so it carries `incomplete` too
+      expect(((await response.json()) as { tags?: string[] }).tags).toEqual([ 'incomplete', 'rejected' ]);
+    });
+
+    test('keeps the system workflows out of sight', async ({ request }) => {
+      // They are the engine's own tree, read through its service user; an ordinary user has no business seeing
+      // which definitions decide what they may do
+      const response = await request.get('/SystemWorkflows.json', {
+        headers: asRequester,
+      });
+
+      expect(response.status()).toBe(404);
+    });
+  });
+
+  test('lets a requester raise a request from the dashboard, choosing what to submit against', async ({ page }) => {
+    // The demo as a person actually meets it, which is the only thing that proves the pieces fit: the dashboard
+    // offers the action, the dialog reads what is open for submissions out of the repository, and the engine
+    // raises the request the choice names and redirects to it. Each half is asserted elsewhere over HTTP — that
+    // the schema is active, that a POST to /Submissions creates one — and neither says whether a submitter can
+    // get from one to the other.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    // Offered by title and version, read from /Schemas rather than hardcoded in the dialog
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('A Tuesday in October');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+
+    // The engine answers with a redirect to what it created, which the browser follows to the submission's own
+    // page — at a UUID path in the prefix tree, so what is asserted is the shape rather than a name
+    await expect(page).toHaveURL(FILED_URL);
+    await expect(page.getByText('A Tuesday in October')).toBeVisible();
+  });
+
+  test('asks what the answers make relevant, with nothing to press to save', async ({ page }) => {
+    // Over the 30s default: three saved answers, each a workflow event followed by a re-read of the form, and
+    // it runs beside the upload test below, which raises a request of its own. It reached its last assertion at
+    // 31.3s when that sibling was added — the same clock, not a regression, and error-context.md showed every
+    // target satisfied. Widened rather than trimmed, because what it covers is the whole condition loop.
+    test.slow();
+    // The demo's whole point, exercised the way it is met: the questions on screen depend on the answers
+    // already given, and *the server* decides which ones apply. Nothing in the browser evaluates a
+    // condition — an answer is saved as soon as it is finished, the form is read again, and what comes
+    // back is drawn. Asserted here rather than only in unit tests because every piece of that loop is
+    // real: the save is a workflow event the engine authorizes, the condition is a subtree of typed
+    // nodes, and the projection that filters on it is a servlet.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('A week in November');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+
+    // In through the listing's own Edit action, which is how a submitter reaches the editor. The
+    // address is the submission's path with `.edit` on the end — a view of a resource, asked for by
+    // extension like every other, and served by a script of its own rather than by a query parameter.
+    await page.getByRole('link', { name: /Back to the dashboard/ }).click();
+    await page.getByRole('row', { name: /A week in November/ }).getByLabel('Edit').click();
+    await expect(page).toHaveURL(/\.edit$/);
+
+    // The question offers its answers, so it is picked from rather than typed into
+    await expect(page.getByRole('radiogroup', { name: /half day, a full day, or several days/ })).toBeVisible();
+    // Not yet asked, because nothing yet makes it relevant. It is absent from what the server sent, not
+    // hidden by the browser — which is the difference the whole design turns on.
+    await expect(page.getByLabel(/Which day are you back/)).toHaveCount(0);
+
+    // Picking finishes the answer as it happens: there is no field to leave
+    await page.getByRole('radio', { name: 'Several days' }).check();
+
+    await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
+
+    // The same mechanism one level up: a whole requirement, appearing because of an answer given to a
+    // question in another one. Scoped to the heading because the requirement now also carries a control
+    // naming it, and an unscoped match would be two elements — a strict-mode violation rather than a
+    // failed assertion.
+    const note = page.getByRole('heading', { name: 'Doctor\'s note' });
+    await expect(note).toHaveCount(0);
+    await page.getByRole('radio', { name: 'Sick leave' }).check();
+    await expect(note).toBeVisible();
+
+    // Stored rather than remembered: a reload asks the server again, and the answers are the ones the
+    // engine wrote — as a user with no write access anywhere, through a workflow that authorized them
+    await page.reload();
+    await expect(page.getByRole('radio', { name: 'Several days' })).toBeChecked();
+    await expect(page.getByLabel(/Which day are you back/)).toBeVisible();
+  });
+
+  test('flags a request whose time off starts tomorrow', async ({ page, request }) => {
+    // The whole point of doing this when the request is sent rather than only overnight: somebody asking today
+    // for tomorrow is exactly the request an approver needs to see today. Driven through the UI because the flag
+    // is placed by a service task on the arc leaving the send step, so nothing but sending it will do.
+    test.slow();
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('Tomorrow, as it turns out');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+    const raised = new URL(page.url()).pathname;
+
+    // Tomorrow, computed rather than written down: a fixed date in a spec stops being tomorrow the next day.
+    // Computed from the *local* calendar, because the instance judges urgency with LocalDate.now() and so
+    // means its own zone. toISOString() would answer in UTC, which past the local evening already names the
+    // day after the server's tomorrow -- and the request is then correctly not urgent, on a test that says
+    // it should be. It made this spec fail only after 20:00 in a UTC-4 instance, which is exactly the kind
+    // of green that means nothing.
+    const tomorrow = localDay(1);
+    await page.goto(`${raised}.edit`);
+    await page.getByRole('radio', { name: 'Full day' }).check();
+    const start = page.getByLabel(/Which day does your time off start/);
+    await start.fill(tomorrow);
+    await start.blur();
+    await page.getByRole('radio', { name: 'Vacation' }).check();
+    await expect(page.getByText('Saved')).toHaveCount(3);
+
+    // Not yet: the flag is placed by sending it, and until then nothing has judged the date
+    const beforeSending = await request.get(`${raised}.json`, { headers: asRequester });
+    expect(((await beforeSending.json()) as { tags?: string[] }).tags ?? []).not.toContain('urgent');
+
+    await page.getByRole('button', { name: /Say when you want to be away/ }).click();
+    await expect(page.getByText('Submitted')).toBeVisible();
+
+    // And now, recorded on the request itself rather than worked out by whoever is looking at it
+    const afterSending = await request.get(`${raised}.json`, { headers: asRequester });
+    expect(((await afterSending.json()) as { tags?: string[] }).tags).toContain('urgent');
+    // Beside the lifecycle state rather than instead of it: the two are in different categories, so neither
+    // placement retires the other
+    expect(((await afterSending.json()) as { tags?: string[] }).tags).toContain('submitted');
+  });
+
+  test('attaches the doctor\'s note the request asks for', async ({ page, request }) => {
+    // The one requirement in the demo answered with a file rather than with words, and the only place the whole
+    // path can be seen at once: a user with no write access anywhere uploads a document, the engine authorizes
+    // it as an event, a handler decides what may be attached and stores it, and what the submitter is then shown
+    // is what the server says is there rather than what this page hoped.
+    test.slow();
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('Three days unwell');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+    const raised = new URL(page.url()).pathname;
+
+    // Sick leave is what makes the note apply at all, and that is the server's decision: the control cannot
+    // appear before the answer asking for it has been saved and the form read back
+    await page.goto(`${raised}.edit`);
+    await page.getByRole('radio', { name: 'Sick leave' }).check();
+    const attach = page.getByLabel(/Attach a file for "Doctor's note"/);
+    await expect(attach).toBeVisible();
+    // The types the requirement declares, passed to the file dialog. A hint and not a check — the refusal that
+    // matters is the handler's.
+    await expect(attach).toHaveAttribute('accept', 'application/pdf,image/jpeg,image/png');
+
+    await attach.setInputFiles({
+      name: 'note.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4 a note from the doctor'),
+    });
+
+    // What the server says is attached, read back through the form projection rather than remembered here
+    await expect(page.getByText('Attached: note.pdf')).toBeVisible();
+
+    // And what it actually stored: a document of its own, saying which requirement it answers, holding the file
+    // as an nt:file with the type the upload declared. None of which the submitter could have written.
+    const response = await request.get(`${raised}.deep.-dereference.infinity.json`, { headers: asRequester });
+    expect(response.ok()).toBeTruthy();
+    const submission = (await response.json()) as Record<string, unknown>;
+    const documents = Object.values(submission).filter((child): child is Record<string, unknown> =>
+      typeof child === 'object' && child !== null
+      && (child as Record<string, unknown>)['sling:resourceType'] === 'sub/Document');
+    expect(documents).toHaveLength(1);
+    const document = documents[0];
+    expect(document.title).toBe('note.pdf');
+    expect(document.fulfills).toBeTruthy();
+    // The `files` processor is on by default and flattens an nt:file into a download descriptor rather than
+    // descending into it, which would put the raw binary in the JSON: the type and size come up onto the file
+    // node, and jcr:content becomes the path that streams it. So this is where the mime type lives.
+    const file = document['note.pdf'] as Record<string, unknown> | undefined;
+    expect(file?.['jcr:primaryType']).toBe('nt:file');
+    expect(file?.['jcr:mimeType']).toBe('application/pdf');
+    expect(file?.size).toBeGreaterThan(0);
+
+    // And it comes back out: the path that descriptor names streams the bytes that went in, which is the only
+    // assertion that proves the upload was stored rather than merely recorded
+    // The very URL the page's download link builds, which is the document's path and the file's name
+    const download = await request.get(`${document['@path'] as string}/note.pdf`, { headers: asRequester });
+    expect(download.ok()).toBeTruthy();
+    expect(download.headers()['content-type']).toContain('application/pdf');
+    expect(await download.text()).toBe('%PDF-1.4 a note from the doctor');
+
+    // The reading page groups it under the requirement it answers, and offers it back for download
+    await page.goto(raised);
+    await expect(page.getByRole('heading', { name: 'Doctor\'s note' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'note.pdf' })).toBeVisible();
+  });
+
+  test('refuses a request for more time off than the requester has left', async ({ page }) => {
+    // A rule about what the answers may *say*, rather than about who may write them, and the only place the
+    // whole path can be seen at once: the save is carried out, a validator reads the request as the save would
+    // leave it, objects, and the engine's one-commit rule throws the write away with the rest of the run. What
+    // the submitter is left with is the reason, on the answer they just gave, and a form still holding
+    // everything that was accepted before it.
+    const login = new LoginPage(page);
+    await login.open();
+    await login.signInAs('demo-requester', 'demo-requester');
+
+    await page.getByRole('button', { name: 'New submission' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('radio', { name: /Time off request 1\.0/ }).check();
+    await dialog.getByLabel(/Title/).fill('Most of November');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(FILED_URL);
+
+    // Scoped to the request's own View/Edit switch: the dashboard's listings have an Edit control per
+    // row, and neither the URL nor the absence of those listings settles where a click lands — the
+    // route changes before the old view is gone, and the listings are absent while still loading
+    await page.getByRole('group', { name: 'How to show this submission' })
+      .getByRole('button', { name: 'Edit' }).click();
+    await expect(page).toHaveURL(/\.edit$/);
+
+    // Each of these is accepted: until both ends of the span are given there is no number to compare, and a
+    // half-answered request is the ordinary state of one being filled in rather than an error
+    await page.getByRole('radio', { name: 'Several days' }).check();
+    const start = page.getByLabel(/Which day does your time off start/);
+    await start.fill('2026-11-02');
+    await start.blur();
+    // Both of them: the duration and the start date each report their own save, and waiting for the
+    // second is what keeps the next answer from racing the one before it
+    await expect(page.getByText('Saved')).toHaveCount(2);
+
+    // Twenty days, counting both ends, against the twelve the demo's holiday bank gives this requester
+    const back = page.getByLabel(/Which day are you back/);
+    await back.fill('2026-11-21');
+    await back.blur();
+
+    // The reason reaches the field that carries the answer, which is the difference between a refusal a
+    // submitter can act on and a save that merely failed
+    await page.getByLabel('Not saved').hover();
+    await expect(page.getByRole('tooltip'))
+      .toContainText('This asks for more time off than you have left. Requested: 20. Remaining: 12.');
+
+    // And nothing was written: the run that would have stored the return date reverted, while the answers
+    // accepted before it are still there
+    await page.reload();
+    await expect(page.getByLabel(/Which day are you back/)).toHaveValue('');
+    await expect(page.getByLabel(/Which day does your time off start/)).toHaveValue('2026-11-02');
+    await expect(page.getByRole('radio', { name: 'Several days' })).toBeChecked();
   });
 
   test('creates the two people the demo is about', async ({ page }) => {

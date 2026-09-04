@@ -5,5 +5,10 @@
   "category": ["Activities"],
   "priority": 0,
   "xmlElement": "bpmn:userTask",
-  "jcrNodeType": "wf:Activity"
+  "jcrNodeType": "wf:Activity",
+  "properties": [
+    "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
+    "{https://iap.uhndata.io/bpmn}performers=performers[]",
+    "{https://iap.uhndata.io/bpmn}outcomeOptions=outcomeOptions[]"
+  ]
 }

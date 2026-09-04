@@ -83,6 +83,32 @@ public final class EmailUtils
     }
 
     /**
+     * Sends an email as whatever it turns out to carry: as HTML when there is an HTML body, as plain text
+     * otherwise.
+     *
+     * <p>
+     * This is the method for a caller that is passing on somebody else's template and has no opinion about its
+     * shape. Choosing {@link #sendTextEmail} or {@link #sendHtmlEmail} instead states which shape the email is
+     * required to have, and refuses the other.
+     * </p>
+     *
+     * @param email the email to send
+     * @param mailService the service that sends it
+     * @throws MessagingException if sending the email fails
+     * @throws IllegalArgumentException if the email has no body at all
+     * @since 0.1.0
+     */
+    public static void sendEmail(@NotNull final Email email, @NotNull final MailService mailService)
+        throws MessagingException
+    {
+        if (email.getHtmlBody() == null) {
+            sendTextEmail(email, mailService);
+        } else {
+            sendHtmlEmail(email, mailService);
+        }
+    }
+
+    /**
      * Sends a plain text email.
      *
      * @param email the email to send

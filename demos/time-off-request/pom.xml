@@ -48,10 +48,102 @@
             <Sling-Initial-Content>
               SLING-INF/content/Workflows;path:=/Workflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
               SLING-INF/content/Schemas;path:=/Schemas;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
+              SLING-INF/content/Tags;path:=/Tags;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/notificationTemplates;path:=/libs/iap/notificationTemplates;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
           </instructions>
         </configuration>
       </plugin>
     </plugins>
   </build>
+
+  <dependencies>
+    <!-- The extension point this demo plugs its own behavior into -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-workflows</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- The budget rule is an answer validator, and it reads the request through the submission models -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.commons.scheduler</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>javax.jcr</groupId>
+      <artifactId>jcr</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-error-tracking-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-submissions-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-schemas-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- A Submission is an Entity is a Content: the hierarchy has to be on the compile classpath even
+         where this code names none of it -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-content-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-entities-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.component.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.service.metatype.annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+  </dependencies>
 </project>

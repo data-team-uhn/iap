@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -48,6 +50,14 @@ class BpmnXmlSyncEditorTest
     private static final String PRIMARY_TYPE = "jcr:primaryType";
 
     private static final String HASH_PROPERTY = "bpmnXmlParsedHash";
+
+    private static final String AUTHORITATIVE = "bpmnAuthoritative";
+
+    private static final String HANDLER = "handler";
+
+    private static final String IAP_NS = "https://iap.uhndata.io/bpmn";
+
+    private static final String SV_NS = "http://www.jcp.org/jcr/sv/1.0";
 
     private static final String WORKFLOWS_PATH = "Workflows";
 
@@ -158,12 +168,480 @@ class BpmnXmlSyncEditorTest
 
     private final String messageIntermediateCatchEventTypeId = UUID.randomUUID().toString();
 
+    private final String timerCatchEventTypeId = UUID.randomUUID().toString();
+
     private final String timerBoundaryEventTypeId = UUID.randomUUID().toString();
 
     /**
      * Builds the repository state before any {@code bpmn.xml} is saved: {@code /WorkflowTypes} fully configured,
      * and an empty {@code wf:WorkflowVersion} with no {@code bpmn.xml} child yet.
      */
+    @Test
+    void storesAnArcLeavingABoundaryEventUnderThatEvent() throws Exception
+    {
+        // "And if nobody decides in time, go here." A boundary event lives inside the activity it watches, so the
+        // arc leaving it has a source that is not a child of the version — which is where sequence flows had been
+        // looked for. The parse threw ("This builder does not exist") and, because clear() runs first, left the
+        // version with no flow nodes at all: a diagram that installed an empty workflow.
+        final NodeBuilder root = richBase();
+        flowNodeType(root.child("WorkflowTypes"), "TimerBoundaryEvent", this.timerCatchEventTypeId,
+            "bpmn:boundaryEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" />\n"
+            + "    <bpmn:boundaryEvent id=\"deadline\" attachedToRef=\"" + TASK_1 + "\""
+            + " cancelActivity=\"true\">\n"
+            + "      <bpmn:timerEventDefinition>\n"
+            + "        <bpmn:timeDuration>P5D</bpmn:timeDuration>\n"
+            + "      </bpmn:timerEventDefinition>\n"
+            + "      <bpmn:outgoing>" + FLOW_1 + "</bpmn:outgoing>\n"
+            + "    </bpmn:boundaryEvent>\n"
+            + "    <bpmn:sequenceFlow id=\"" + FLOW_1 + "\" sourceRef=\"deadline\" targetRef=\"" + END_1
+            + "\" />\n"
+            + "    <bpmn:endEvent id=\"" + END_1 + "\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        // The whole version survived the parse, which is the half that was actually broken
+        assertTrue(after.getChildNode(TASK_1).exists());
+        assertTrue(after.getChildNode(END_1).exists());
+        // And the arc hangs off the boundary event, inside the task, not beside it
+        final NodeState boundary = after.getChildNode(TASK_1).getChildNode("deadline");
+        assertTrue(boundary.exists());
+        assertEquals("P5D", boundary.getString("timerDuration"));
+        assertTrue(boundary.getChildNode(FLOW_1).exists(), "the arc belongs to the event it leaves");
+        assertEquals(END_1, boundary.getChildNode(FLOW_1).getString("targetRef"));
+        assertFalse(after.getChildNode(FLOW_1).exists(), "and not to the version");
+    }
+
+    @Test
+    void buildsASubtreeFromASystemViewExtension() throws Exception
+    {
+        // Some of what a flow node holds is a subtree rather than a value: a condition is a cond:SingleCondition
+        // with operand children. BPMN's extensionElements is the sanctioned place, and JCR's own System View is
+        // the serialization, because it says the node names, the types and the multiplicity outright.
+        final NodeState after = firstSave(base(), svCondition("sv:"));
+
+        final NodeState flow = after.getChildNode(START_1).getChildNode(FLOW_1);
+        final NodeState condition = flow.getChildNode("cond:condition");
+        assertTrue(condition.exists(), "the condition subtree should hang off the arc");
+        assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
+        assertEquals("equals", condition.getString("comparator"));
+        // Set from the type, since a NodeBuilder autocreates nothing
+        assertEquals("cond/SingleCondition", condition.getString("sling:resourceType"));
+
+        final NodeState operandA = condition.getChildNode("operandA");
+        assertEquals("cond:ConditionOperand", operandA.getName(PRIMARY_TYPE));
+        assertEquals("variable", operandA.getString("source"));
+        assertTrue(operandA.getProperty("value").isArray(), "the operand's value is multiple in the node type");
+        assertEquals(List.of("outcome"), operandA.getProperty("value").getValue(Type.STRINGS));
+    }
+
+    @Test
+    void buildsTheSameSubtreeAfterADiagramEditorHasSavedIt() throws Exception
+    {
+        // MEASURED, not defensive: bpmn-moddle keeps a foreign element's namespace but flattens its attribute
+        // prefixes, so a diagram the editor has written back says name="..." where the hand-written one said
+        // sv:name="...". Insisting on the namespace would read the authored file and silently lose every
+        // condition in a saved one — the arc would still be derived, just unconditional.
+        final NodeState after = firstSave(base(), svCondition(""));
+
+        final NodeState condition =
+            after.getChildNode(START_1).getChildNode(FLOW_1).getChildNode("cond:condition");
+        assertEquals("cond:SingleCondition", condition.getName(PRIMARY_TYPE));
+        assertEquals("equals", condition.getString("comparator"));
+        assertEquals(List.of("outcome"),
+            condition.getChildNode("operandA").getProperty("value").getValue(Type.STRINGS));
+    }
+
+    @Test
+    void skipsASystemViewNodeWithNoName() throws Exception
+    {
+        // Nameless, so there is nowhere to put it. The flow node it hangs off is still derived: a malformed
+        // extension costs its own subtree and nothing else.
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "        </sv:node>\n"));
+
+        assertTrue(after.getChildNode(START_1).exists());
+        assertEquals(0, after.getChildNode(START_1).getChildNodeCount(1));
+    }
+
+    @Test
+    void ignoresASystemViewPropertyWithNoName() throws Exception
+    {
+        // The node is still built and its other properties still set: one unusable entry is not a reason to lose
+        // a condition that otherwise says what it means
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property><sv:value>nowhere</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"comparator\"><sv:value>equals</sv:value></sv:property>\n"
+            + "        </sv:node>\n"));
+
+        final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
+        assertEquals("equals", condition.getString("comparator"));
+    }
+
+    @Test
+    void leavesASystemViewPropertyWithNoValueUnset() throws Exception
+    {
+        // Distinct from a property set to the empty string: the diagram said nothing, so the node type's own
+        // default stands rather than being overwritten with nothing
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"comparator\" />\n"
+            + "        </sv:node>\n"));
+
+        assertFalse(after.getChildNode(START_1).getChildNode("cond:condition").hasProperty("comparator"));
+    }
+
+    @Test
+    void storesANameTypedPropertyAsAName() throws Exception
+    {
+        // Single and multiple alike: a NAME is not a string that happens to look like one, and a condition
+        // referring to a node type or a property by name needs the type it was declared with
+        final NodeState after = firstSave(base(), svExtension(
+            "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"one\" sv:type=\"Name\"><sv:value>nt:file</sv:value>"
+            + "</sv:property>\n"
+            + "          <sv:property sv:name=\"many\" sv:type=\"Name\" sv:multiple=\"true\">"
+            + "<sv:value>nt:file</sv:value><sv:value>nt:folder</sv:value></sv:property>\n"
+            + "        </sv:node>\n"));
+
+        final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
+        assertEquals(Type.NAME, condition.getProperty("one").getType());
+        assertEquals("nt:file", condition.getName("one"));
+        assertEquals(Type.NAMES, condition.getProperty("many").getType());
+        assertEquals(List.of("nt:file", "nt:folder"), condition.getProperty("many").getValue(Type.NAMES));
+    }
+
+    @Test
+    void skipsASystemViewNodeThatSaysNothingAboutWhatItIs() throws Exception
+    {
+        // A node with no jcr:primaryType cannot be created at all — Oak needs the type up front — and guessing
+        // one would put a node of the wrong kind where the engine expects a condition
+        final NodeState after = firstSave(base(), DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"comparator\"><sv:value>equals</sv:value></sv:property>\n"
+            + "        </sv:node>\n"
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertTrue(after.getChildNode(START_1).exists(), "the flow node itself is still derived");
+        assertFalse(after.getChildNode(START_1).getChildNode("cond:condition").exists());
+    }
+
+    @Test
+    void readsTheTypesASystemViewPropertyDeclares() throws Exception
+    {
+        final NodeState after = firstSave(base(), DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + "        <sv:node sv:name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property sv:name=\"jcr:primaryType\" sv:type=\"Name\">"
+            + "<sv:value>cond:ConditionGroup</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"requireAll\" sv:type=\"Boolean\">"
+            + "<sv:value>true</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"weight\" sv:type=\"Long\"><sv:value>3</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"ratio\" sv:type=\"Double\">"
+            + "<sv:value>1.5</sv:value></sv:property>\n"
+            + "          <sv:property sv:name=\"untyped\"><sv:value>plain</sv:value></sv:property>\n"
+            + "        </sv:node>\n"
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        final NodeState condition = after.getChildNode(START_1).getChildNode("cond:condition");
+        assertEquals(true, condition.getProperty("requireAll").getValue(Type.BOOLEAN));
+        assertEquals(3L, condition.getProperty("weight").getValue(Type.LONG));
+        assertEquals(1.5, condition.getProperty("ratio").getValue(Type.DOUBLE));
+        // An absent sv:type is a string, so a subtree need not restate the obvious
+        assertEquals("plain", condition.getString("untyped"));
+    }
+
+    @Test
+    void resolvesAMessageEventToTheNameACallerWouldSend() throws Exception
+    {
+        // The engine matches an incoming event by the message's *name*; the id is a document-internal handle for
+        // pointing at it. Getting these the wrong way round gives a workflow nothing can start.
+        final NodeState after = firstSave(richBase(), DEFS_OPEN
+            + "  <bpmn:message id=\"saveMessage\" name=\"save\" />\n" + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:messageEventDefinition messageRef=\"saveMessage\" />\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("save", after.getChildNode(START_1).getString("messageName"));
+    }
+
+    @Test
+    void leavesAMessageEventUnnamedWhenTheMessageItPointsAtHasNoName() throws Exception
+    {
+        // The node is still derived — the diagram says there is a start event here — but nothing invents a name
+        // for it, because a guessed message name is a workflow that answers the wrong events
+        final NodeState after = firstSave(richBase(), DEFS_OPEN
+            + "  <bpmn:message id=\"saveMessage\" />\n" + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:messageEventDefinition messageRef=\"saveMessage\" />\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertTrue(after.getChildNode(START_1).exists());
+        assertNull(after.getChildNode(START_1).getString("messageName"));
+    }
+
+    @Test
+    void readsATimersDurationFromTheElementItIsWrittenIn() throws Exception
+    {
+        // Not an attribute, so no copy rule could reach it: BPMN puts the duration in the text of a
+        // <bpmn:timeDuration> inside the timer definition
+        final NodeBuilder root = richBase();
+        flowNodeType(root.child("WorkflowTypes"), "TimerIntermediateCatchEvent", this.timerCatchEventTypeId,
+            "bpmn:intermediateCatchEvent", "bpmn:timerEventDefinition", "wf:IntermediateCatchingEvent", 10);
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:intermediateCatchEvent id=\"" + TASK_1 + "\">\n"
+            + "      <bpmn:timerEventDefinition>\n"
+            + "        <bpmn:timeDuration>P5D</bpmn:timeDuration>\n"
+            + "      </bpmn:timerEventDefinition>\n"
+            + "    </bpmn:intermediateCatchEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("P5D", after.getChildNode(TASK_1).getString("timerDuration"));
+    }
+
+    @Test
+    void carriesAListAcrossAsAMultiValuedProperty() throws Exception
+    {
+        // `performers` is where this matters most: the node type declares it multiple, and a workflow whose
+        // approval task named one group as a single string would admit nobody the engine expects
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        types.getChildNode("UserTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}performers=performers[]"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, withIapNs()
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:performers=\"approvers, @creator\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        final PropertyState performers = after.getChildNode(TASK_1).getProperty("performers");
+        assertTrue(performers.isArray(), "declared multiple in the node type, so it has to arrive as an array");
+        assertEquals(List.of("approvers", "@creator"), performers.getValue(Type.STRINGS));
+    }
+
+    @Test
+    void readsASingleValuedRuleAsOneValueEvenWhenItLooksLikeAList() throws Exception
+    {
+        // The reason the rule says so rather than the parser guessing: without the marker a value containing a
+        // comma is one value, and there is no way to tell "a name with a comma in it" from "two names"
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        types.getChildNode("UserTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}hostTag=hostTag"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, withIapNs()
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:hostTag=\"a, b\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        final PropertyState hostTag = after.getChildNode(TASK_1).getProperty("hostTag");
+        assertFalse(hostTag.isArray());
+        assertEquals("a, b", hostTag.getValue(Type.STRING));
+    }
+
+    @Test
+    void dropsTheEmptyEntriesOfAList() throws Exception
+    {
+        // A trailing separator is the commonest way a hand-edited list goes wrong, and an empty performer would
+        // be a principal nothing can match rather than a harmless blank
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        types.getChildNode("UserTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}performers=performers[]"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, withIapNs()
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" iap:performers=\"approvers,,\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals(List.of("approvers"), after.getChildNode(TASK_1).getProperty("performers")
+            .getValue(Type.STRINGS));
+    }
+
+    @Test
+    void carriesAnExtensionAttributeAcrossByNamespace() throws Exception
+    {
+        // BPMN says nothing about which code a service task runs, so `handler` arrives as an extension attribute.
+        // The vocabulary names it by namespace, which is what this proves lands.
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
+        types.child("ServiceTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}handler=handler"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, DEFS_OPEN.replace("<bpmn:definitions",
+            "<bpmn:definitions xmlns:iap=\"" + IAP_NS + "\"") + PROCESS_OPEN
+            + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" iap:handler=\"checkBudget\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("checkBudget", after.getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    @Test
+    void carriesItAcrossWhateverPrefixTheFileChose() throws Exception
+    {
+        // The whole reason the rule names a namespace rather than a prefix. A diagram editor is free to
+        // renormalise `iap:` to anything on save, and a prefix-matched lookup would silently stop carrying the
+        // handler across — leaving a service task that runs nothing and a workflow that looks right.
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
+        types.child("ServiceTask").setProperty("properties",
+            List.of("{" + IAP_NS + "}handler=handler"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, DEFS_OPEN.replace("<bpmn:definitions",
+            "<bpmn:definitions xmlns:ns7=\"" + IAP_NS + "\"") + PROCESS_OPEN
+            + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" ns7:handler=\"checkBudget\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertEquals("checkBudget", after.getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    @Test
+    void ignoresARuleThatOpensANamespaceAndNeverClosesIt() throws Exception
+    {
+        // A malformed vocabulary entry should cost one property, not throw inside somebody's commit
+        final NodeBuilder root = base();
+        final NodeBuilder types = root.child("WorkflowTypes");
+        flowNodeType(types, "ServiceTask", this.userTaskTypeId, "bpmn:serviceTask", null, "wf:Activity", 0);
+        types.child("ServiceTask").setProperty("properties", List.of("{unclosed=handler"), Type.STRINGS);
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:serviceTask id=\"" + TASK_1 + "\" handler=\"checkBudget\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertTrue(after.getChildNode(TASK_1).exists(), "the node itself should still be derived");
+        assertNull(after.getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    @Test
+    void leavesAloneAVersionWhoseDiagramDoesNotOwnItsFlowNodes() throws Exception
+    {
+        // The whole point of the flag. A version whose flow nodes were written by hand holds things no diagram
+        // expresses yet — a handler naming the code a service task runs, a multi-valued list of performers — and
+        // deriving it would quietly drop them, leaving a workflow shaped like the diagram and unable to run.
+        final NodeBuilder root = base();
+        version(root).removeProperty(AUTHORITATIVE);
+        final NodeBuilder authored = version(root).child(TASK_1);
+        authored.setProperty(PRIMARY_TYPE, "wf:Activity", Type.NAME);
+        authored.setProperty(HANDLER, "checkBudget");
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:userTask id=\"" + TASK_1 + "\" name=\"Decide\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        // Untouched, not merged: the authored node is exactly as authored, and nothing was derived beside it
+        assertEquals("checkBudget", after.getChildNode(TASK_1).getString(HANDLER));
+        assertFalse(after.hasProperty(HASH_PROPERTY),
+            "a version it did not parse should carry no record of a parse");
+    }
+
+    @Test
+    void treatsASilentVersionAsNotOwnedByItsDiagram() throws Exception
+    {
+        // Absent is the same answer as false, and it has to be: every workflow that existed before the flag did
+        // was written by hand, so the safe reading of silence is the only one that does not break them all
+        final NodeBuilder root = base();
+        version(root).removeProperty(AUTHORITATIVE);
+
+        final NodeState after = firstSave(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE);
+
+        assertFalse(after.getChildNode(START_1).exists(), "nothing should have been derived");
+    }
+
+    @Test
+    void keepsTheFlowNodesOfANonAuthoritativeVersionWhenItsDiagramGoesAway() throws Exception
+    {
+        // Removing the diagram from a hand-authored version says nothing about its flow nodes, which were never
+        // derived from it. Clearing them would delete a working workflow on the strength of a deleted drawing.
+        final NodeBuilder root = base();
+        version(root).removeProperty(AUTHORITATIVE);
+        setBpmnXml(root, DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\" />\n" + PROCESS_CLOSE + DEFS_CLOSE);
+        final NodeBuilder authored = version(root).child(TASK_1);
+        authored.setProperty(PRIMARY_TYPE, "wf:Activity", Type.NAME);
+        authored.setProperty(HANDLER, "checkBudget");
+
+        final NodeState before = root.getNodeState();
+        final NodeBuilder after = before.builder();
+        descend(after, WORKFLOWS_PATH, DEFINITION_NAME, VERSION_NAME).getChildNode(BPMN_XML).remove();
+
+        assertEquals("checkBudget",
+            version(process(before, after)).getChildNode(TASK_1).getString(HANDLER));
+    }
+
+    /** A lone start event whose {@code extensionElements} holds exactly {@code body}. */
+    private String svExtension(final String body)
+    {
+        return DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + body
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:startEvent>\n"
+            + PROCESS_CLOSE + DEFS_CLOSE;
+    }
+
+    /**
+     * A start event whose outgoing arc carries a condition as JCR System View, with {@code prefix} either
+     * {@code "sv:"} as a document is authored or {@code ""} as a diagram editor writes it back.
+     */
+    private String svCondition(final String prefix)
+    {
+        return DEFS_OPEN + PROCESS_OPEN
+            + "    <bpmn:startEvent id=\"" + START_1 + "\">\n"
+            + "      <bpmn:outgoing>" + FLOW_1 + "</bpmn:outgoing>\n"
+            + "    </bpmn:startEvent>\n"
+            + "    <bpmn:sequenceFlow id=\"" + FLOW_1 + "\" sourceRef=\"" + START_1 + "\" targetRef=\""
+            + END_1 + "\">\n"
+            + "      <bpmn:extensionElements>\n"
+            + "        <sv:node " + prefix + "name=\"cond:condition\" xmlns:sv=\"" + SV_NS + "\">\n"
+            + "          <sv:property " + prefix + "name=\"jcr:primaryType\" " + prefix + "type=\"Name\">"
+            + "<sv:value>cond:SingleCondition</sv:value></sv:property>\n"
+            + "          <sv:property " + prefix + "name=\"comparator\"><sv:value>equals</sv:value>"
+            + "</sv:property>\n"
+            + "          <sv:node " + prefix + "name=\"operandA\">\n"
+            + "            <sv:property " + prefix + "name=\"jcr:primaryType\" " + prefix + "type=\"Name\">"
+            + "<sv:value>cond:ConditionOperand</sv:value></sv:property>\n"
+            + "            <sv:property " + prefix + "name=\"source\"><sv:value>variable</sv:value>"
+            + "</sv:property>\n"
+            + "            <sv:property " + prefix + "name=\"value\" " + prefix + "multiple=\"true\">"
+            + "<sv:value>outcome</sv:value></sv:property>\n"
+            + "          </sv:node>\n"
+            + "        </sv:node>\n"
+            + "      </bpmn:extensionElements>\n"
+            + "    </bpmn:sequenceFlow>\n"
+            + "    <bpmn:endEvent id=\"" + END_1 + "\" />\n"
+            + PROCESS_CLOSE + DEFS_CLOSE;
+    }
+
+    /** {@link #DEFS_OPEN} with the IAP extension namespace declared, which extension attributes need. */
+    private String withIapNs()
+    {
+        return DEFS_OPEN.replace("<bpmn:definitions", "<bpmn:definitions xmlns:iap=\"" + IAP_NS + "\"")
+            + PROCESS_OPEN;
+    }
+
     private NodeBuilder base()
     {
         final NodeBuilder root = EmptyNodeState.EMPTY_NODE.builder();
@@ -201,6 +679,10 @@ class BpmnXmlSyncEditorTest
         final NodeBuilder version = version(root);
         version.setProperty(PRIMARY_TYPE, "wf:WorkflowVersion", Type.NAME);
         version.setProperty("version", VERSION_NAME);
+        // Every test below is about a version whose diagram owns its flow nodes, which is the only case this
+        // editor acts on. The other case — a version whose nodes were written by hand, because the translation
+        // cannot yet carry all of them — has tests of its own.
+        version.setProperty(AUTHORITATIVE, true);
 
         return root;
     }

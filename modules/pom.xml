@@ -51,11 +51,14 @@
     <module>links</module>
     <module>login</module>
     <module>metrics</module>
+    <module>notifications</module>
+    <module>principals</module>
     <module>schemas</module>
     <module>serialization</module>
     <module>slack-notifications</module>
     <module>startup-customization</module>
     <module>status</module>
+    <module>stored-notifications</module>
     <module>submissions</module>
     <module>tags</module>
     <module>ui-extension</module>

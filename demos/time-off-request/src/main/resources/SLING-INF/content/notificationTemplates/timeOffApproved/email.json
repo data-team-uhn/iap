@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "mail:Template",
+  "senderAddress": "time-off@example.com",
+  "senderName": "Time off requests",
+  "subject": "Your time off request was approved"
+  // The bodies are the bodyTemplate.txt and bodyTemplate.html files in the folder of the same name beside this
+  // descriptor: nt:resource wants jcr:data as a binary, which a JSON string is not, so they ship as real files
+  // the content loader turns into nt:file nodes - the same way the workflow ships its diagram.
+}

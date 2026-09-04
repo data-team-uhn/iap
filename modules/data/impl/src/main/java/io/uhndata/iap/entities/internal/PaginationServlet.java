@@ -46,8 +46,13 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.servlets.SlingJakartaSafeMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.uhndata.iap.principals.api.PrincipalContext;
+import io.uhndata.iap.principals.api.PrincipalService;
+import io.uhndata.iap.utils.UserIds;
 
 /**
  * A servlet that lists, in pages, the entities stored under an entity homepage. It is registered on
@@ -75,7 +80,7 @@ import org.slf4j.LoggerFactory;
  * property of the entity itself, e.g. {@code status = draft}; the supported comparators are {@code =}, {@code <>},
  * {@code <}, {@code <=}, {@code >}, {@code >=}, {@code LIKE}, {@code NOT LIKE}, {@code ILIKE} (case-insensitive
  * {@code LIKE}), {@code NOT ILIKE}, {@code IS NULL} and {@code IS NOT NULL}; if no
- * comparators are sent, {@code =} is used; the special value {@code @me} is replaced with the current user's id</li>
+ * comparators are sent, {@code =} is used; a value starting with {@code @} is a special name, see below</li>
  * <li>{@code fieldGroup}: optional group identifiers aligned with the field triples; conditions sharing a
  * (non-empty) group are ORed together, while distinct groups and ungrouped conditions are ANDed, so e.g.
  * {@code status = a OR status = b} is expressed as two conditions sharing a group</li>
@@ -89,6 +94,24 @@ import org.slf4j.LoggerFactory;
  * <li>{@code req}: an opaque request identifier, echoed back in the response so that the client can discard
  * out-of-order responses</li>
  * </ul>
+ *
+ * <p>
+ * A filter value starting with {@code @} is a <strong>special name</strong>: rather than being compared as
+ * written, it is resolved here into whoever it stands for in this request. {@link PrincipalService#ME} is the
+ * person asking, under the id the repository records rather than the spelling they logged in with, and
+ * {@link PrincipalService#MY_PRINCIPALS} is everything they act as, which is how a property naming who <em>may</em>
+ * act gets matched against a person. Whatever else the deployment's modules taught the
+ * {@link PrincipalService principals service} to say is available too, without this servlet learning any of it.
+ * </p>
+ *
+ * <p>
+ * A name standing for several principals becomes several conditions ORed together; a name standing for nobody
+ * keeps its own spelling, so the condition matches nothing rather than disappearing and widening the listing to
+ * everybody's. None of this can be left to the client: it would have to be told its own group memberships first,
+ * and the answer belongs to the session rather than to the request. Since a listing is one query, a name is
+ * resolved once, against the request — the homepage being listed and the person asking — so a name whose answer
+ * would differ from one listed entity to the next has no meaning here.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -125,6 +148,10 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     private static final Pattern CHILD_PARAMETER =
         Pattern.compile("childType(\\d*+)|childField(\\d*+)(?:Name|Comparator|Value|Group)");
 
+    /** Who the special filter values stand for; the one place in the platform that knows. */
+    @Reference
+    private transient PrincipalService principals;
+
     @Override
     public void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
@@ -159,11 +186,16 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             throw new RepositoryException("The resource resolver is not backed by a JCR session");
         }
         final Resource homepage = request.getResource();
+        // What the special names are asked about: this listing, by whoever is asking for it under the id the
+        // repository records, so that `@me` matches values written earlier by the same person under a differently
+        // capitalised login
+        final PrincipalContext asking =
+            new PrincipalContext(homepage, UserIds.canonical(request.getResourceResolver()));
         final QueryBuilder builder = new QueryBuilder(getNodeType(homepage), homepage.getPath())
-            .withFilters(parseFilters(request, "field", session.getUserID()));
+            .withFilters(parseFilters(request, "field", asking));
         for (final String suffix : getChildFilterSuffixes(request)) {
             builder.withChildFilters(request.getParameter("childType" + suffix),
-                parseFilters(request, "childField" + suffix, session.getUserID()));
+                parseFilters(request, "childField" + suffix, asking));
         }
         final String statement = builder
             .withFullText(request.getParameter("filter"))
@@ -220,12 +252,12 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * @param request the current request
      * @param prefix the parameter name prefix, {@code field} for conditions on the entity itself, {@code childField}
      *            for conditions on a descendant node
-     * @param currentUser the id of the user making the request, replacing the special value {@code @me}
+     * @param asking the situation the special values are resolved against: the listing, and who is asking for it
      * @return a list of filters, empty if no filters with the given prefix are present in the request
      * @throws IllegalArgumentException if the names, comparators, values and groups don't come in complete tuples
      */
     private List<Filter> parseFilters(final SlingJakartaHttpServletRequest request, final String prefix,
-        final String currentUser)
+        final PrincipalContext asking)
     {
         final String[] names = request.getParameterValues(prefix + "Name");
         if (names == null) {
@@ -240,11 +272,64 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         }
         final List<Filter> result = new ArrayList<>(names.length);
         for (int i = 0; i < names.length; ++i) {
-            final String value = "@me".equals(values[i]) ? currentUser : values[i];
+            final String comparator = comparators == null ? "=" : comparators[i];
             final String group = groups == null || groups[i].isEmpty() ? null : groups[i];
-            result.add(new Filter(names[i], comparators == null ? "=" : comparators[i], value, group));
+            if (values[i].startsWith("@")) {
+                // Its own group, so the OR stands on its own; a caller who named a group is honoured, so an
+                // expansion can still be ORed together with a condition of the caller's own
+                final String orGroup = group == null ? values[i] + i : group;
+                result.addAll(orOver(names[i], comparator, orGroup, whoIsMeant(values[i], request, asking)));
+            } else {
+                result.add(new Filter(names[i], comparator, values[i], group));
+            }
         }
         return result;
+    }
+
+    /**
+     * One condition per principal a special name stood for, all in the same group so that they are ORed
+     * together.
+     *
+     * <p>What it is for: a property naming who may act — a task's {@code performers} — holds principals rather
+     * than user ids, so "waiting for me" is not one comparison but "any of the things I act as".</p>
+     *
+     * @param name the property to compare
+     * @param comparator the comparator to use for each condition
+     * @param group the group they all belong to
+     * @param who the principals the name stood for
+     * @return the filters, one per principal
+     */
+    private static List<Filter> orOver(final String name, final String comparator, final String group,
+        final List<String> who)
+    {
+        return who.stream()
+            .map(principal -> new Filter(name, comparator, principal, group))
+            .toList();
+    }
+
+    /**
+     * Who a special filter value stands for in this request.
+     *
+     * <p>{@code @myPrincipals} is the one name a resolver could not answer, since only the live session knows
+     * what it is bound to; everything else is the principals service's vocabulary, so a module that teaches it a
+     * new name makes that name filterable here without touching this servlet.</p>
+     *
+     * <p>A name that stands for nobody — a typo, or a resolver with nothing to say about this listing — keeps its
+     * own spelling. No stored property holds it, so the condition matches nothing, whereas contributing no
+     * condition at all would drop the caller's filter and list everybody's work instead of theirs.</p>
+     *
+     * @param value the filter value, starting with {@code @}
+     * @param request the current request, whose session {@code @myPrincipals} describes
+     * @param asking the situation the name is resolved against
+     * @return the principals to compare the property against, never empty
+     */
+    private List<String> whoIsMeant(final String value, final SlingJakartaHttpServletRequest request,
+        final PrincipalContext asking)
+    {
+        final List<String> who = PrincipalService.MY_PRINCIPALS.equals(value)
+            ? this.principals.principalsOf(request.getResourceResolver())
+            : this.principals.resolve(List.of(value), asking);
+        return who.isEmpty() ? List.of(value) : who;
     }
 
     /**
