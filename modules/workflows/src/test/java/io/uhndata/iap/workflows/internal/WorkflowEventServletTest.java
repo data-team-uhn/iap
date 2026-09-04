@@ -39,13 +39,16 @@ import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
+import io.uhndata.iap.workflows.api.WorkflowConflictException;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.TaskInstance;
 import io.uhndata.iap.workflows.models.WorkflowFixture;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -174,6 +177,53 @@ class WorkflowEventServletTest
         Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
         assertEquals(WorkflowEventServlet.SAVE_EVENT, sent.getValue().getName());
         assertEquals("2026-10-06", sent.getValue().get("details/startDate"));
+    }
+
+    @Test
+    void translatesAPostToTheSystemWorkflowsHomepageIntoACreateEvent() throws WorkflowException, IOException
+    {
+        // Unbound, a POST here would reach the Sling POST servlet and rename the tree by setting `title` on the
+        // homepage node. Bound, an unmatched event is a 409 instead.
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource homepage = this.context.create().resource("/SystemWorkflows",
+            WorkflowFixture.TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE,
+            WorkflowFixture.SUPER_TYPE, "data/EntityHomepage");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("title", "Announce approvals"));
+        request.setResource(homepage);
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals(WorkflowEventServlet.CREATE_EVENT, sent.getValue().getName());
+        assertEquals("Announce approvals", sent.getValue().get("title"));
+    }
+
+    @Test
+    void translatesAPostToAWorkflowVersionIntoASaveEvent() throws WorkflowException, IOException
+    {
+        // A version is an entity, so the default is to change this one -- which is how the editor saves a diagram.
+        // The moves of its lifecycle name their events outright, being the less obvious things to do to it.
+        Mockito.when(this.engine.receiveEvent(Mockito.any(), Mockito.any()))
+            .thenReturn(new WorkflowResult(Map.of()));
+        final Resource version = this.context.create().resource("/Workflows/review/1-0",
+            WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE, WorkflowFixture.SUPER_TYPE, "data/Entity");
+        final MockSlingJakartaHttpServletRequest request = request(Map.of("bpmn.xml", "<bpmn:definitions/>"));
+        request.setResource(version);
+        final ArgumentCaptor<WorkflowEvent> sent = ArgumentCaptor.forClass(WorkflowEvent.class);
+
+        this.servlet.doPost(request, new MockSlingJakartaHttpServletResponse());
+
+        Mockito.verify(this.engine).receiveEvent(Mockito.any(), sent.capture());
+        assertEquals(WorkflowEventServlet.SAVE_EVENT, sent.getValue().getName());
+    }
+
+    @Test
+    void mapsAConflictingTargetStateToConflict() throws WorkflowException, IOException
+    {
+        // The neighbour of "nothing was waiting for this": something was, and the target has moved past it
+        assertEquals(409, statusFor(new WorkflowConflictException("a retired version cannot be made active")));
     }
 
     @Test

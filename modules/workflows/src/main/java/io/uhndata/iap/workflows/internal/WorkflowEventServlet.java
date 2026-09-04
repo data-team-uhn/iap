@@ -44,11 +44,15 @@ import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
+import io.uhndata.iap.workflows.api.WorkflowConflictException;
 import io.uhndata.iap.workflows.api.WorkflowEngine;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.api.WorkflowResult;
+import io.uhndata.iap.workflows.models.SystemWorkflowsHomepage;
 import io.uhndata.iap.workflows.models.TaskInstance;
+import io.uhndata.iap.workflows.models.WorkflowDefinition;
+import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 
 /**
@@ -60,9 +64,17 @@ import io.uhndata.iap.workflows.models.WorkflowsHomepage;
  * firing user the repository refuses is 403, unusable data is 400, and a broken definition or failed machinery is
  * 500. When the workflow reports a created entity, the answer is a redirect to it.</p>
  *
- * <p>Binding this servlet to a homepage's resource type is what replaces direct-CRUD semantics with
- * workflow-managed ones for that homepage. As more homepages come under workflow control, they are added to the
- * {@code resourceTypes} here.</p>
+ * <p>Binding this servlet to a resource type is what replaces direct-CRUD semantics with workflow-managed ones
+ * for it: a POST that would have been a write becomes an event the definitions decide the meaning of, and the
+ * Sling POST servlet is no longer reachable there. As more content comes under workflow control, it is added to
+ * the {@code resourceTypes} here.</p>
+ *
+ * <p><strong>A type left off this list is still directly writable, and fails quietly.</strong> The POST does not
+ * 404 — it reaches the Sling POST servlet, which does exactly what it says: a POST to a homepage carrying a
+ * {@code title} sets that property <em>on the homepage</em> rather than being refused. Two homepages hold
+ * workflow definitions, and listing only one of them is how that was found. Anything a workflow is meant to
+ * manage belongs here, whether or not a definition for it exists yet: an unbound type is an open door, while a
+ * bound type with nothing waiting for its events answers a clean 409.</p>
  *
  * <p>The event a POST means is the target's, unless a selector names one:
  * {@code POST <path>.attachDocument.json} sends that message instead of the default. Nothing is registered per
@@ -81,8 +93,9 @@ import io.uhndata.iap.workflows.models.WorkflowsHomepage;
     // The homepages under workflow control, the entities that are themselves editable through a workflow, and the
     // user tasks of running instances. Literals where the owning module must not be depended on: submissions
     // depends on workflows, so workflows can only name its resource types, not import them.
-    resourceTypes = { WorkflowsHomepage.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE, "sub/SubmissionsHomepage",
-        "sub/Submission" },
+    resourceTypes = { WorkflowsHomepage.RESOURCE_TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE,
+        WorkflowDefinition.RESOURCE_TYPE, WorkflowVersion.RESOURCE_TYPE, TaskInstance.RESOURCE_TYPE,
+        "sub/SubmissionsHomepage", "sub/Submission" },
     methods = { HttpConstants.METHOD_POST })
 public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
 {
@@ -92,8 +105,11 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
     /** The domain event a POST to an entity that is editable through a workflow translates to. */
     public static final String SAVE_EVENT = "save";
 
-    /** Named rather than imported, for the same reason as in the resource types above. */
-    private static final String SUBMISSION_RESOURCE_TYPE = "sub/Submission";
+    /**
+     * The supertype every entity homepage carries, which is how a POST that means "make me one of these" is told
+     * from one that means "change this one" without naming a single homepage type.
+     */
+    private static final String HOMEPAGE_RESOURCE_TYPE = "data/EntityHomepage";
 
     private static final long serialVersionUID = -6273669283473534077L;
 
@@ -116,7 +132,9 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
             } else {
                 reply(response, HttpServletResponse.SC_OK, "status", "completed");
             }
-        } catch (final NoApplicableWorkflowException e) {
+        } catch (final NoApplicableWorkflowException | WorkflowConflictException e) {
+            // Both are "not here, not now" rather than "not you" or "not like that": nothing was waiting for this
+            // event, or something was and the target has since moved past the state it was waiting in
             reply(response, HttpServletResponse.SC_CONFLICT, "error", e.getMessage());
         } catch (final NotAuthorizedException e) {
             reply(response, HttpServletResponse.SC_FORBIDDEN, "error", e.getMessage());
@@ -158,8 +176,9 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         // Posting to an entity rather than to the homepage that holds them means changing that one, not making
         // another. Which is as far as the default needs to go: the other things one might do to a submission —
         // send it for review, withdraw it — are steps of its own workflow, so they arrive as user tasks and are
-        // already told apart above.
-        return target.isResourceType(SUBMISSION_RESOURCE_TYPE) ? SAVE_EVENT : CREATE_EVENT;
+        // already told apart above, and the other things one might do to a workflow version — promote it, draft
+        // a copy of it — name their event outright.
+        return target.isResourceType(HOMEPAGE_RESOURCE_TYPE) ? CREATE_EVENT : SAVE_EVENT;
     }
 
     /**

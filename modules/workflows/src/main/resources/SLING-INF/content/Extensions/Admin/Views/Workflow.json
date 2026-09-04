@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Workflow",
+  "ext:hint": "One workflow: its properties, and its versions with the actions that apply to each. Registered at its own depth rather than behind a splat so that the breadcrumb trail can tell it from the homepage above it and the version below - a view is what names a crumb, and one view spanning every depth named them all alike.",
+  "ext:targetURL": "/admin/workflows/:homepage/:workflow",
+  "ext:renderURL": "asset:iap-workflows.WorkflowConsole.js?lazy",
+  "defaultOrder": 20
+}

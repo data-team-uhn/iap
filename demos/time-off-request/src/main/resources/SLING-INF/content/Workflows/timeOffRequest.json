@@ -1,7 +1,6 @@
 {
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Time off request",
-  "active": true,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
@@ -9,7 +8,7 @@
     // expressible in it, so the editor derives them and removes whatever the diagram stops saying. The nodes
     // stay here as the initial content that installs the workflow; a reparse produces the same tree.
     "bpmnAuthoritative": true,
-    "active": true,
+    "state": "ACTIVE",
     "description": "Someone asks for time off; a service task looks up what they have left, they fill the request in and send it, and their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. Filling in is a task like any other, performed by @creator - the person who raised this particular request, which no group can name - and it is what holds the request in draft: while its token rests there the request is editable, and sending it is completing it, which is the same act as an approver deciding. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element - and the parser now produces exactly them, which is what `bpmnAuthoritative` above says. They stay here because initial content is what installs the workflow in the first place; the editor reparses the diagram and replaces them with the same tree. Nothing the nodes hold is missing from the diagram any more: what a handler is called, what being at a node means to the submission, who may perform it and what they may decide are all extension attributes in the IAP namespace, and a condition is a System View subtree in the arc's extensionElements. Keep the two in step - a flow node changed here and not there is a change the next reparse throws away.",
     "requestSubmitted": {
       "jcr:primaryType": "wf:StartEvent",

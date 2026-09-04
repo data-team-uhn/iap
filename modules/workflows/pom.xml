@@ -50,6 +50,7 @@
             </Sling-Nodetypes>
             <Sling-Model-Packages>io.uhndata.iap.workflows.models</Sling-Model-Packages>
             <Sling-Initial-Content>
+              SLING-INF/content/apps/iap/ExtensionPoints/;path:=/apps/iap/ExtensionPoints/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/wf/;path:=/libs/wf/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/WorkflowTypes;path:=/;overwriteProperties:=true;uninstall:=true,
@@ -136,6 +137,7 @@
       <groupId>jakarta.json</groupId>
       <artifactId>jakarta.json-api</artifactId>
     </dependency>
+    <!-- Servlets, the workflow event and version lifecycle and homepage discovery endpoints among them -->
     <dependency>
       <groupId>jakarta.servlet</groupId>
       <artifactId>jakarta.servlet-api</artifactId>
@@ -211,6 +213,7 @@
       <artifactId>org.osgi.framework</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- The query language the homepage discovery endpoint asks in, and the JCR API the model tests mock -->
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>

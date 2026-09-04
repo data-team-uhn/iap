@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Workflow",
+  "ext:hint": "Everything else below a homepage: any workflow or version whose homepage is stored deeper than one segment. The three views above name the depths a homepage of one segment produces, which is every homepage a deployment normally has; this one keeps the rest working rather than leaving them unrouted. Ordered last, so the named depths are the ones the breadcrumb trail finds first. It begins with :homepage rather than being a bare splat so that it does not match the console's root, which is what kept that root a crumb leading to the same listing as the homepage after it.",
+  "ext:targetURL": "/admin/workflows/:homepage/*",
+  "ext:renderURL": "asset:iap-workflows.WorkflowConsole.js?lazy",
+  "defaultOrder": 90
+}
