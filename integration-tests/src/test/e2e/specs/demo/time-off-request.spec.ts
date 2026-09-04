@@ -42,6 +42,14 @@ const FILED = new RegExp(`^${FILED_PATH}$`);
 // The same, at the end of the absolute URL a browser ends up on
 const FILED_URL = new RegExp(`${FILED_PATH}$`);
 
+/** A day relative to today on the *local* calendar, as the `YYYY-MM-DD` a date answer is stored as. */
+function localDay(offset: number): string {
+  const day = new Date();
+  day.setDate(day.getDate() + offset);
+  const month = String(day.getMonth() + 1).padStart(2, '0');
+  return `${day.getFullYear()}-${month}-${String(day.getDate()).padStart(2, '0')}`;
+}
+
 /**
  * The time off request demo.
  *
@@ -758,8 +766,13 @@ test.describe('the time off request demo', () => {
     await expect(page).toHaveURL(FILED_URL);
     const raised = new URL(page.url()).pathname;
 
-    // Tomorrow, computed rather than written down: a fixed date in a spec stops being tomorrow the next day
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    // Tomorrow, computed rather than written down: a fixed date in a spec stops being tomorrow the next day.
+    // Computed from the *local* calendar, because the instance judges urgency with LocalDate.now() and so
+    // means its own zone. toISOString() would answer in UTC, which past the local evening already names the
+    // day after the server's tomorrow -- and the request is then correctly not urgent, on a test that says
+    // it should be. It made this spec fail only after 20:00 in a UTC-4 instance, which is exactly the kind
+    // of green that means nothing.
+    const tomorrow = localDay(1);
     await page.goto(`${raised}.edit`);
     await page.getByRole('radio', { name: 'Full day' }).check();
     const start = page.getByLabel(/Which day does your time off start/);

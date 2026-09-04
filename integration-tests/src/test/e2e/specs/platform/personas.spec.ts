@@ -30,12 +30,14 @@ import { ADMIN, signInAs } from '../../support/auth';
  * being asserted — the same account sees a different dashboard depending only on the hat it wears.
  */
 test.describe('the personas a dashboard is arranged for', () => {
-  // Each widget is recognised by what it says when it has nothing to show, which on a bare platform is
-  // all either of them can say. The header of the requests table is hidden by its own registration, so
-  // its empty state is the only thing on the page that is unmistakably it.
-  const MINE = 'No submissions';
+  // Each widget is recognised by the accessible name of its own search box, which is the one thing on
+  // the page that is unmistakably it and does not depend on what it currently holds. Its empty state
+  // would be shorter to write and was what this suite used to do - but the platform instance is shared,
+  // and `create-submission.spec.ts` files submissions as this very account, so "No submissions" stops
+  // being true partway through the project depending on which spec ran first.
+  const MINE = 'Search my submissions';
 
-  const WAITING = 'Nothing is waiting for you';
+  const WAITING = 'Search what is waiting for you';
 
   test('gives a submitter the table of their own requests', async ({ page }) => {
     await signInAs(page, ADMIN);
@@ -43,20 +45,20 @@ test.describe('the personas a dashboard is arranged for', () => {
     // Submitter is where everyone lands: the catalogue is ordered least-permissive-first and login
     // takes the first entry
     await expect(page.getByRole('button', { name: /^Acting as Submitter/ })).toBeVisible();
-    await expect(page.getByText(MINE)).toBeVisible();
+    await expect(page.getByLabel(MINE)).toBeVisible();
   });
 
   test('takes it away from a reviewer, whose dashboard is not about their own requests', async ({ page }) => {
     const shell = new AppShell(page);
     await signInAs(page, ADMIN);
-    await expect(page.getByText(MINE)).toBeVisible();
+    await expect(page.getByLabel(MINE)).toBeVisible();
 
     await shell.actAs('Reviewer');
 
     // The same account, one hat later: "my submissions" is a submitter's view of the world. The list
     // of what is waiting stays, which is what makes this the widget going away rather than the page
-    await expect(page.getByText(MINE)).toHaveCount(0);
-    await expect(page.getByText(WAITING)).toBeVisible();
+    await expect(page.getByLabel(MINE)).toHaveCount(0);
+    await expect(page.getByLabel(WAITING)).toBeVisible();
   });
 
   test('brings it back when the submitter hat goes on again', async ({ page }) => {
@@ -66,9 +68,9 @@ test.describe('the personas a dashboard is arranged for', () => {
     await signInAs(page, ADMIN);
 
     await shell.actAs('Administrator');
-    await expect(page.getByText(MINE)).toHaveCount(0);
+    await expect(page.getByLabel(MINE)).toHaveCount(0);
 
     await shell.actAs('Submitter');
-    await expect(page.getByText(MINE)).toBeVisible();
+    await expect(page.getByLabel(MINE)).toBeVisible();
   });
 });
