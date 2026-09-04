@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.uhndata.iap</groupId>
+    <artifactId>iap-demos</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>iap-demo-data-study</artifactId>
+  <packaging>bundle</packaging>
+  <name>IAP - Demo - Retrospective data study</name>
+  <description>Asking for data that already exists, chosen from a versioned catalogue.</description>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.sling</groupId>
+        <artifactId>slingfeature-maven-plugin</artifactId>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Include-Resource>{maven-resources}</Include-Resource>
+            <!-- Catalogues and Workflows first: the schema version points at a workflow version and its data
+                 requirement at a catalogue, both with `jcr:reference:` properties, which can only resolve once
+                 the targets exist. -->
+            <Sling-Initial-Content>
+              SLING-INF/content/Catalogues;path:=/Catalogues;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/Workflows;path:=/Workflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
+              SLING-INF/content/Schemas;path:=/Schemas;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
+            </Sling-Initial-Content>
+          </instructions>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <!-- No dependencies, because there is no Java here: what this demo needs from the platform is the
+       data requirement's node types, and a node type is a runtime dependency that the bundle start
+       order in the feature file expresses. Declaring it here as well would be a dependency nothing
+       compiles against, which the build's own dependency check would rightly refuse. -->
+</project>

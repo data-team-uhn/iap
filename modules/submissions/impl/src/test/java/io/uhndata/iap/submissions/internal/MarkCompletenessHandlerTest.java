@@ -45,6 +45,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
@@ -111,7 +112,7 @@ class MarkCompletenessHandlerTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, Section.class, Question.class,
-            Answer.class, Document.class, Submission.class);
+            Answer.class, AnswerSet.class, Document.class, Submission.class);
         Tagging.enable(this.context);
         // Registered as a service rather than injected into the handler: which requirements apply is the
         // submission model's question now, and the model asks for the evaluator through @OSGiService
@@ -238,9 +239,10 @@ class MarkCompletenessHandlerTest
         answer(REASON, "A wedding");
         // An answer to a question the schema no longer has, and one carrying no value at all: the node type
         // permits both, and neither says anything about what is still being asked
-        this.context.create().resource(SUBMISSION_PATH + "/orphan", Map.of(
+        final String set = this.answerSet(DETAILS).getPath();
+        this.context.create().resource(set + "/orphan", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"stale"}));
-        final Resource valueless = this.context.create().resource(SUBMISSION_PATH + "/valueless",
+        final Resource valueless = this.context.create().resource(set + "/valueless",
             Map.of(TYPE, Answer.RESOURCE_TYPE));
         reference(valueless.getPath(), VERSION_PATH + "/" + START_DATE, "question");
 
@@ -312,10 +314,40 @@ class MarkCompletenessHandlerTest
      */
     private void answer(final String questionPath, final String value) throws Exception
     {
+        final Resource set = this.answerSet(requirementOf(questionPath));
         final Resource answer = this.context.create().resource(
-            SUBMISSION_PATH + "/" + questionPath.replace('/', '-'),
+            set.getPath() + "/" + questionPath.replace('/', '-'),
             Map.of(TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
         reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+    }
+
+    /** The requirement a question belongs to: the first segment of its path, as the handler reads it. */
+    private static String requirementOf(final String questionPath)
+    {
+        final int boundary = questionPath.indexOf('/');
+        return boundary < 0 ? questionPath : questionPath.substring(0, boundary);
+    }
+
+    /**
+     * The set of answers for one requirement, made once and shared by every answer given for it.
+     *
+     * <p>Answers hang under the set naming the requirement they were given for, so a fixture that puts one
+     * directly under the submission builds a shape nothing reads.</p>
+     *
+     * @param requirement the requirement's name, which is the first segment of a question's path
+     * @return the set to hang the answer under
+     * @throws Exception when the reference cannot be written
+     */
+    private Resource answerSet(final String requirement) throws Exception
+    {
+        final String path = SUBMISSION_PATH + "/answers-" + requirement;
+        final Resource existing = this.context.resourceResolver().getResource(path);
+        if (existing != null) {
+            return existing;
+        }
+        final Resource set = this.context.create().resource(path, Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
+        reference(set.getPath(), VERSION_PATH + "/" + requirement, "fulfills");
+        return set;
     }
 
     private void reference(final String fromPath, final String toPath, final String property) throws Exception

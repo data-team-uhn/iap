@@ -1,0 +1,5 @@
+{
+  "jcr:primaryType": "ext:Point",
+  "ext:pointId": "iap/submission/requirement",
+  "ext:pointName": "Components that draw one kind of requirement in the submission editor"
+}

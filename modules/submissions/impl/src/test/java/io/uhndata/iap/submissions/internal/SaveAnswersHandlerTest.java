@@ -46,6 +46,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -93,7 +94,8 @@ class SaveAnswersHandlerTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
-            SchemaVersion.class, Question.class, AnswerOption.class, Answer.class, Submission.class, Activity.class);
+            SchemaVersion.class, Question.class, AnswerOption.class, Answer.class, AnswerSet.class,
+            Submission.class, Activity.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -152,11 +154,52 @@ class SaveAnswersHandlerTest
         assertEquals(List.of("2026-10-13"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
     }
 
+    // Answers to two questions of the same set share one set rather than getting one each: the set stands for
+    // the requirement, and a second one naming the same requirement would make "what answers it" ambiguous
+    @Test
+    void putsAnswersToOneSetOfQuestionsInOneSet() throws Exception
+    {
+        this.offerDurations();
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06", DURATION, "half-day")));
+
+        stampAnswers();
+        final Submission submission = submission();
+        assertEquals(1, submission.getAnswerSets().size());
+        assertEquals(2, submission.getAnswers().size());
+    }
+
+    // And the other way about: two sets of questions get a set each, so what answers one is never confused with
+    // what answers the other. This is the case that walks past a set already there without matching it.
+    @Test
+    void givesEachSetOfQuestionsItsOwnSet() throws Exception
+    {
+        this.context.create().resource(VERSION_PATH + "/extra", Map.of(
+            TYPE, "sch/FormRequirement", "label", "Anything else"));
+        this.context.create().resource(VERSION_PATH + "/extra/note", Map.of(
+            TYPE, Question.RESOURCE_TYPE, "text", "Anything to add?", "dataType", "text"));
+
+        this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
+        // Between the two saves, because a mock repository autocreates no sling:resourceType: without this the
+        // first set is invisible to the second save, which would then not be walking past it at all
+        stampAnswers();
+        this.handler.execute(context(Map.of("extra/note", "Back on the Monday")));
+
+        stampAnswers();
+        assertEquals(2, submission().getAnswerSets().size());
+        assertEquals(2, submission().getAnswers().size());
+    }
+
     @Test
     void passesOverAnAnswerWhoseQuestionIsGone() throws Exception
     {
-        // A question removed from the schema leaves its answer behind, and that answer is not the one being saved
-        this.context.create().resource(SUBMISSION_PATH + "/orphan", Map.of(
+        // A question removed from the schema leaves its answer behind, and that answer is not the one being saved.
+        // It goes in a set naming the same requirement the save will use, so that it is passed over for the reason
+        // this test is about — its question is gone — rather than for sitting somewhere nothing reads.
+        final Resource set = this.context.create().resource(SUBMISSION_PATH + "/answers",
+            Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
+        reference(set, VERSION_PATH + "/details", "fulfills");
+        this.context.create().resource(set.getPath() + "/orphan", Map.of(
             TYPE, Answer.RESOURCE_TYPE, VALUE, new String[] {"stale"}));
 
         this.handler.execute(context(Map.of(START_DATE, "2026-10-06")));
@@ -337,10 +380,18 @@ class SaveAnswersHandlerTest
     {
         this.context.resourceResolver().refresh();
         final Resource submission = present(this.context.resourceResolver().getResource(SUBMISSION_PATH));
-        submission.getChildren().forEach(child -> {
-            if ("sub:Answer".equals(child.getValueMap().get("jcr:primaryType", String.class))
+        // Both levels: the handler creates a set for the requirement and the answers inside it, and neither is
+        // recognisable as what it is until the type a real repository would autocreate is stamped on
+        stamp(submission, "sub:AnswerSet", AnswerSet.RESOURCE_TYPE);
+        submission.getChildren().forEach(child -> stamp(child, "sub:Answer", Answer.RESOURCE_TYPE));
+    }
+
+    private void stamp(final Resource parent, final String primaryType, final String resourceType)
+    {
+        parent.getChildren().forEach(child -> {
+            if (primaryType.equals(child.getValueMap().get("jcr:primaryType", String.class))
                 && child.getValueMap().get(TYPE) == null) {
-                modify(child, TYPE, Answer.RESOURCE_TYPE);
+                modify(child, TYPE, resourceType);
             }
         });
     }

@@ -451,7 +451,11 @@ function SubmissionView() {
   }
 
   const schemaVersion = isNode(submission.schemaVersion) ? submission.schemaVersion : undefined;
-  const answers = childrenOfType(submission, "sub/Answer");
+  // Answers hang under the set that says which requirement they were given for, so they are one level
+  // further down than the documents and reviews beside them. Flattened here because this page shows
+  // them against the questions of the schema rather than grouped by requirement.
+  const answers = childrenOfType(submission, "sub/AnswerSet")
+    .flatMap(set => childrenOfType(set, "sub/Answer"));
   const documents = childrenOfType(submission, "sub/Document");
   const reviews = childrenOfType(submission, "sub/Review");
   const forms = schemaVersion ? childrenOfType(schemaVersion, "sch/FormRequirement") : [];

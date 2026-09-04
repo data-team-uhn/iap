@@ -1,0 +1,6 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/submission/requirement",
+  "ext:name": "Data selection",
+  "ext:renderURL": "asset:iap-data-requirement.DataRequirement.js"
+}

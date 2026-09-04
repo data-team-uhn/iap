@@ -45,6 +45,7 @@ import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
 
@@ -79,7 +80,7 @@ class TimeOffUrgencyTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
-            SchemaVersion.class, Question.class, Answer.class, Submission.class);
+            SchemaVersion.class, Question.class, Answer.class, AnswerSet.class, Submission.class);
         taggable();
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
@@ -91,6 +92,7 @@ class TimeOffUrgencyTest
             TYPE, Question.RESOURCE_TYPE, "text", "Which day does your time off start?", "dataType", "date"));
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A day off", "tags", new String[] {"submitted"}));
+        this.context.create().resource(SUBMISSION_PATH + "/answers", Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
     }
 
     @Test
@@ -239,12 +241,12 @@ class TimeOffUrgencyTest
     /** The answer to the start date question, replacing whatever was there. */
     private void answerStartDate(final String value)
     {
-        final Resource existing = this.context.resourceResolver().getResource(SUBMISSION_PATH + "/start");
+        final Resource existing = this.context.resourceResolver().getResource(SUBMISSION_PATH + "/answers/start");
         if (existing != null) {
             modify(existing, "value", new String[] {value});
             return;
         }
-        this.context.create().resource(SUBMISSION_PATH + "/start", Map.of(
+        this.context.create().resource(SUBMISSION_PATH + "/answers/start", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "question", identifierOf(VERSION_PATH + "/details/startDate"),
             "value", new String[] {value}));
     }
