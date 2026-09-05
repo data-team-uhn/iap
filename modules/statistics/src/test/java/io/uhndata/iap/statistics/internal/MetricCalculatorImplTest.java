@@ -32,6 +32,7 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,6 +69,13 @@ class MetricCalculatorImplTest
         this.context.addModelsForClasses(Content.class, Metric.class);
         this.context.create().resource("/Statistics", Map.of(TYPE, "stat/StatisticsHomepage"));
         inject(factoryReturning(answering(this.context.resourceResolver())));
+        this.calculator.activate();
+    }
+
+    @AfterEach
+    void tearDown()
+    {
+        this.calculator.deactivate();
     }
 
     @Test
@@ -117,6 +125,7 @@ class MetricCalculatorImplTest
         define("open", Map.of("label", "Open"));
         define("restricted", Map.of("label", "Restricted", "accessLevel", "admin"));
 
+        // Both audiences are served from one computed set, filtered on the way out
         assertEquals(List.of("open", "restricted"),
             this.calculator.computeAll(true).stream().map(MetricValue::getName).sorted().toList());
         assertEquals(List.of("open"),

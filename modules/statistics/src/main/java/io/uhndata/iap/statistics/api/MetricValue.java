@@ -73,6 +73,12 @@ public final class MetricValue
 
     private final String unit;
 
+    private final String qualifier;
+
+    private final boolean prominentLabel;
+
+    private final boolean adminOnly;
+
     private final Double value;
 
     private final int sampleSize;
@@ -88,6 +94,9 @@ public final class MetricValue
         this.description = builder.description;
         this.category = builder.category;
         this.unit = builder.unit;
+        this.qualifier = builder.qualifier;
+        this.prominentLabel = builder.prominentLabel;
+        this.adminOnly = builder.adminOnly;
         this.value = builder.value;
         this.sampleSize = builder.sampleSize;
         this.breakdown = List.copyOf(builder.breakdown);
@@ -163,6 +172,41 @@ public final class MetricValue
     }
 
     /**
+     * What follows the number, in ordinary weight beside it.
+     *
+     * @return a qualifier, or {@code null} when the number needs none
+     */
+    @Nullable
+    public String getQualifier()
+    {
+        return this.qualifier;
+    }
+
+    /**
+     * Whether the label is worth showing above the number.
+     *
+     * @return {@code true} if it should be shown
+     */
+    public boolean isProminentLabel()
+    {
+        return this.prominentLabel;
+    }
+
+    /**
+     * Whether only administrators may see this number.
+     *
+     * <p>Deliberately absent from {@link #toJson()}: a metric a reader may not see is left out of the
+     * answer entirely, so there is nothing for this to qualify. It is here so that one computed set can
+     * be held for both audiences and filtered on the way out.</p>
+     *
+     * @return {@code true} if it is reserved for administrators
+     */
+    public boolean isAdminOnly()
+    {
+        return this.adminOnly;
+    }
+
+    /**
      * The number itself.
      *
      * @return the aggregate, or {@code null} when nothing could be measured — which is not zero, and a
@@ -226,6 +270,8 @@ public final class MetricValue
         addIfPresent(json, "description", this.description);
         addIfPresent(json, "category", this.category);
         addIfPresent(json, "unit", this.unit);
+        addIfPresent(json, "qualifier", this.qualifier);
+        json.add("prominentLabel", this.prominentLabel);
         if (this.value == null) {
             json.addNull("value");
         } else {
@@ -283,6 +329,12 @@ public final class MetricValue
 
         private String unit;
 
+        private String qualifier;
+
+        private boolean prominentLabel;
+
+        private boolean adminOnly;
+
         private Double value;
 
         private int sampleSize;
@@ -329,6 +381,34 @@ public final class MetricValue
         public Builder measuredIn(@Nullable final String name)
         {
             this.unit = name;
+            return this;
+        }
+
+        /**
+         * What follows the number, and whether the label is shown above it.
+         *
+         * @param text what follows the number, or {@code null}
+         * @param prominent whether to show the label
+         * @return this builder
+         */
+        @NotNull
+        public Builder introducedBy(@Nullable final String text, final boolean prominent)
+        {
+            this.qualifier = text;
+            this.prominentLabel = prominent;
+            return this;
+        }
+
+        /**
+         * Whether only administrators may see this number.
+         *
+         * @param restricted {@code true} if it is reserved for them
+         * @return this builder
+         */
+        @NotNull
+        public Builder restricted(final boolean restricted)
+        {
+            this.adminOnly = restricted;
             return this;
         }
 
