@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "stat:Metric",
   "label": "Issues raised per request",
-  "description": "How many issues a reviewer raises against a request, on average, counting the requests that drew none. A request that was sent and drew no issue is the outcome this number exists to encourage, so leaving it out would flatter every figure.",
+  "description": "Stands in for the number of issues carried by a letter of review. Nothing in the platform is a letter of review yet, so this counts every issue raised against a request instead: the same number where a request is reviewed once, and an over-count where it goes round more than once. Requests that drew no issue are counted, because a request that was sent and drew none is the outcome this number exists to encourage and leaving it out would flatter every figure.",
   "category": "Quality",
   "defaultOrder": 10,
   "accessLevel": "public",
@@ -10,5 +10,7 @@
   "fromOperation": "submit",
   "countOperation": "issue",
   "aggregation": "mean",
-  "unit": "issues"
+  "unit": "issues",
+  "qualifier": "/ request",
+  "prominentLabel": false
 }
