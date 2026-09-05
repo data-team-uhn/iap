@@ -44,6 +44,10 @@ export interface Metric {
   description?: string;
   category?: string;
   unit?: string;
+  /** What follows the number, in ordinary weight beside it: "/ request", "to approval". */
+  qualifier?: string;
+  /** Whether the label is worth showing above the number, for a figure that cannot say what it is. */
+  prominentLabel: boolean;
   /** Null when nothing could be measured at all. */
   value: number | null;
   sampleSize: number;
@@ -87,6 +91,8 @@ export function readMetrics(payload: unknown): Metric[] {
       description: optionalText(metric.description),
       category: optionalText(metric.category),
       unit: optionalText(metric.unit),
+      qualifier: optionalText(metric.qualifier),
+      prominentLabel: metric.prominentLabel === true,
       value: optionalNumber(metric.value),
       sampleSize: number(metric.sampleSize),
       breakdown: readSlices(metric.breakdown),

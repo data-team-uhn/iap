@@ -79,9 +79,6 @@ function MetricsDashboard() {
                 <CardContent>
                   <Stack spacing={2}>
                     <MetricTile metric={metric} prominent />
-                    {metric.description !== undefined && (
-                      <Typography variant="body2" color="text.secondary">{metric.description}</Typography>
-                    )}
                     {metric.series.length >= 2 && (
                       <>
                         <Divider />

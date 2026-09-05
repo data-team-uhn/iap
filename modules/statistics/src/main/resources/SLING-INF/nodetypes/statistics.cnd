@@ -136,6 +136,16 @@
   // What the number is counted in, for display: 'days', 'issues', 'fields'
   - unit (STRING)
 
+  // What follows the number, in ordinary weight beside it: '/ request', 'to approval'.
+  // This is what lets a figure introduce itself - "1.2 issues / request" needs no
+  // heading above it, where a bare "1.2 issues" would.
+  - qualifier (STRING)
+
+  // Whether the label is shown above the number. Off by default, because a figure
+  // that says what it is does not need saying twice; on for the ones no qualifier
+  // can rescue, where "30.4 days" alone means nothing.
+  - prominentLabel (BOOLEAN) = false mandatory autocreated
+
   // Splits the result a second way, alongside the overall number:
   // - actor:  who performed the action that closed the measurement
   // - schema: which schema the subject answers

@@ -25,7 +25,8 @@ describe("readMetrics", () => {
     const metrics = readMetrics({
       metrics: [{
         name: "timeToAuth", label: "Time to authorization", description: "How long",
-        category: "Turnaround", unit: "days", value: 32.5, sampleSize: 120,
+        category: "Turnaround", unit: "days", qualifier: "to approval", prominentLabel: true,
+        value: 32.5, sampleSize: 120,
         breakdown: [{ key: "achen", value: 30, sampleSize: 80 }],
         series: [{ key: "2026-08", value: 31, sampleSize: 60 }],
       }],
@@ -34,6 +35,7 @@ describe("readMetrics", () => {
     expect(metrics).toHaveLength(1);
     expect(metrics[0]).toMatchObject({
       name: "timeToAuth", label: "Time to authorization", unit: "days", value: 32.5, sampleSize: 120,
+      qualifier: "to approval", prominentLabel: true,
     });
     expect(metrics[0].breakdown[0]).toEqual({ key: "achen", value: 30, sampleSize: 80 });
     expect(metrics[0].series[0]).toEqual({ key: "2026-08", value: 31, sampleSize: 60 });
@@ -49,6 +51,8 @@ describe("readMetrics", () => {
     expect(metric.description).toBeUndefined();
     expect(metric.category).toBeUndefined();
     expect(metric.unit).toBeUndefined();
+    expect(metric.qualifier).toBeUndefined();
+    expect(metric.prominentLabel).toBe(false);
   });
 
   it("keeps only what is shaped like a metric", () => {

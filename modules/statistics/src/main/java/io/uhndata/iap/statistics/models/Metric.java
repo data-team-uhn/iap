@@ -134,6 +134,12 @@ public class Metric extends Content
     private String unit;
 
     @ValueMapValue
+    private String qualifier;
+
+    @ValueMapValue
+    private boolean prominentLabel;
+
+    @ValueMapValue
     private String breakdownBy;
 
     /**
@@ -359,6 +365,33 @@ public class Metric extends Content
     public String getUnit()
     {
         return this.unit;
+    }
+
+    /**
+     * What follows the number, in ordinary weight beside it.
+     *
+     * <p>This is what lets a figure introduce itself: "1.2 issues / request" needs no heading above it,
+     * where a bare "1.2 issues" would.</p>
+     *
+     * @return a qualifier, or {@code null} when the number needs none
+     */
+    @Nullable
+    public String getQualifier()
+    {
+        return this.qualifier;
+    }
+
+    /**
+     * Whether the label is shown above the number.
+     *
+     * <p>Off by default: a figure that says what it is does not need saying twice. On for the ones no
+     * qualifier can rescue, where the number alone — "30.4 days" — means nothing.</p>
+     *
+     * @return {@code true} if the label should be shown
+     */
+    public boolean isProminentLabel()
+    {
+        return this.prominentLabel;
     }
 
     /**

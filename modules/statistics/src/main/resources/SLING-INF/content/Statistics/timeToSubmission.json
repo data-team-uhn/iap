@@ -10,5 +10,7 @@
   "fromOperation": "create",
   "toOperation": "submit",
   "aggregation": "mean",
-  "unit": "days"
+  "unit": "days",
+  "qualifier": "to send",
+  "prominentLabel": false
 }

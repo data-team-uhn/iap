@@ -1,7 +1,7 @@
 {
   "jcr:primaryType": "stat:Metric",
   "label": "Authorized within 45 days",
-  "description": "What share of requests are authorized within 45 days of being started, by the kind of study. A request that has already been waiting longer than 45 days counts against this figure even though it has not finished — leaving those out would drop exactly the late cases the number exists to catch.",
+  "description": "What share of requests are authorized within 45 days of being started, by the kind of study. A request that has already been waiting longer than 45 days counts against this figure even though it has not finished \u2014 leaving those out would drop exactly the late cases the number exists to catch.",
   "category": "Turnaround",
   "defaultOrder": 50,
   "accessLevel": "public",
@@ -12,5 +12,6 @@
   "aggregation": "percentageWithin",
   "threshold": 45.0,
   "unit": "%",
+  "prominentLabel": true,
   "breakdownBy": "schema"
 }

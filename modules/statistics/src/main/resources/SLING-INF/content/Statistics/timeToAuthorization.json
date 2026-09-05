@@ -10,5 +10,6 @@
   "fromOperation": "submit",
   "toOperation": "authorize",
   "aggregation": "median",
-  "unit": "days"
+  "unit": "days",
+  "prominentLabel": true
 }

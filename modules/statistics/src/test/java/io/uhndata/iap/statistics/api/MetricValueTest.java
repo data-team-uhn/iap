@@ -22,6 +22,7 @@ import jakarta.json.JsonObject;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,11 +41,16 @@ class MetricValueTest
             .describedAs("How long it takes")
             .inCategory("Turnaround")
             .measuredIn("days")
+            .introducedBy("to approval", true)
+            .restricted(true)
             .valued(32.5, 120)
             .splitBy(new MetricValue.Slice("achen", 30.0, 80))
             .over(new MetricValue.Slice("2026-08", 31.0, 60))
             .build();
 
+        assertEquals("to approval", value.getQualifier());
+        assertTrue(value.isProminentLabel());
+        assertTrue(value.isAdminOnly());
         assertEquals("timeToAuth", value.getName());
         assertEquals("Time to authorization", value.getLabel());
         assertEquals("How long it takes", value.getDescription());
@@ -67,6 +73,9 @@ class MetricValueTest
         assertNull(value.getCategory());
         assertNull(value.getUnit());
         assertNull(value.getValue());
+        assertNull(value.getQualifier());
+        assertFalse(value.isProminentLabel());
+        assertFalse(value.isAdminOnly());
         assertTrue(value.getBreakdown().isEmpty());
         assertTrue(value.getSeries().isEmpty());
     }
@@ -89,6 +98,9 @@ class MetricValueTest
         assertEquals("How long", json.getString("description"));
         assertEquals("Turnaround", json.getString("category"));
         assertEquals("days", json.getString("unit"));
+        // Whether a metric is an administrator's is not the client's business: one they may not see is
+        // left out of the answer entirely, so there is nothing for a flag to qualify
+        assertFalse(json.containsKey("adminOnly"));
         assertEquals(32.5, json.getJsonNumber("value").doubleValue());
         assertEquals(120, json.getInt("sampleSize"));
         assertEquals("achen", json.getJsonArray("breakdown").getJsonObject(0).getString("key"));

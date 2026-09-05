@@ -27,7 +27,7 @@ import MetricTile from "@iap/statistics/MetricTile";
 
 const metric = (over: Record<string, unknown> = {}) => ({
   name: "timeToAuth", label: "Time to authorization", category: "Turnaround", unit: "days",
-  value: 32.5, sampleSize: 120, breakdown: [], series: [], ...over,
+  value: 32.5, sampleSize: 120, breakdown: [], series: [], prominentLabel: false, ...over,
 });
 
 const answering = (metrics: unknown[]) =>
@@ -52,6 +52,22 @@ describe("MetricTile", () => {
     expect(screen.getByText("120 requests")).toBeInTheDocument();
   });
 
+  // A figure that says what it is needs no heading; one repeating it is a line every reader skips
+  it("lets the figure introduce itself instead of heading it", () => {
+    themed(<MetricTile metric={metric({ unit: "issues", value: 1.2, qualifier: "/ request" })} />);
+
+    expect(screen.getByText("1.2 issues")).toBeInTheDocument();
+    expect(screen.getByText("/ request")).toBeInTheDocument();
+    expect(screen.queryByText("Time to authorization")).not.toBeInTheDocument();
+  });
+
+  // ... except where no qualifier could rescue it: "30.4 days" alone means nothing
+  it("heads the figures that cannot say what they are", () => {
+    themed(<MetricTile metric={metric({ prominentLabel: true })} />);
+
+    expect(screen.getByText("Time to authorization")).toBeInTheDocument();
+  });
+
   // A reader who cannot see the sample size is being invited to over-read the number
   it("says nothing was measured rather than showing a sample of nothing", () => {
     themed(<MetricTile metric={metric({ value: null, sampleSize: 0 })} />);
@@ -65,14 +81,13 @@ describe("MetricsWidget", () => {
   it("leads with the first few metrics and offers the way through to the rest", async () => {
     vi.stubGlobal("fetch", answering([
       metric(), metric({ name: "b", label: "B" }), metric({ name: "c", label: "C" }),
-      metric({ name: "d", label: "D" }),
+      metric({ name: "d", label: "D", value: 99 }),
     ]));
     themed(<MetricsWidget />);
 
-    expect(await screen.findByText("Time to authorization")).toBeInTheDocument();
-    expect(screen.getByText("C")).toBeInTheDocument();
-    // The fourth is one too many for a dashboard frame; the link is how it is reached
-    expect(screen.queryByText("D")).not.toBeInTheDocument();
+    // Three figures, and the fourth is one too many for a dashboard frame; the link is how it is reached
+    expect(await screen.findAllByText("32.5 days")).toHaveLength(3);
+    expect(screen.queryByText("99 days")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "All metrics and trends" }))
       .toHaveAttribute("href", "/Statistics");
   });
@@ -127,11 +142,14 @@ describe("MetricsDashboard", () => {
     expect(screen.queryByText("/Schemas/dataStudy")).not.toBeInTheDocument();
   });
 
-  it("shows a metric with no charts as its figure alone", async () => {
+  // The descriptions stay in the definitions as the record of what a number means; a card repeating
+  // them turns a dashboard into a document
+  it("shows a metric with no charts as its figure alone, with no prose around it", async () => {
     vi.stubGlobal("fetch", answering([metric({ description: "How long it takes" })]));
     themed(<MetricsDashboard />);
 
-    expect(await screen.findByText("How long it takes")).toBeInTheDocument();
+    expect(await screen.findByText("32.5 days")).toBeInTheDocument();
+    expect(screen.queryByText("How long it takes")).not.toBeInTheDocument();
     expect(screen.queryByText("Month by month")).not.toBeInTheDocument();
   });
 

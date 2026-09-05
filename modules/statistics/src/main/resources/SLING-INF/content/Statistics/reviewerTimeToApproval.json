@@ -12,5 +12,7 @@
   "toOutcome": "approved",
   "aggregation": "mean",
   "unit": "days",
+  "qualifier": "to approval",
+  "prominentLabel": false,
   "breakdownBy": "actor"
 }

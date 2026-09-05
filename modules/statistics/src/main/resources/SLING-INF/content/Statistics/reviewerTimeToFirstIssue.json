@@ -11,5 +11,7 @@
   "toOperation": "issue",
   "aggregation": "mean",
   "unit": "days",
+  "qualifier": "to first issue",
+  "prominentLabel": false,
   "breakdownBy": "actor"
 }

@@ -10,5 +10,7 @@
   "measure": "partCount",
   "partType": "sub/Answer",
   "aggregation": "median",
-  "unit": "fields"
+  "unit": "fields",
+  "qualifier": "/ study",
+  "prominentLabel": false
 }
