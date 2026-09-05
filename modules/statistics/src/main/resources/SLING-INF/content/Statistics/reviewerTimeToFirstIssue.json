@@ -1,0 +1,15 @@
+{
+  "jcr:primaryType": "stat:Metric",
+  "label": "Reviewer time to first issue",
+  "description": "How long a request waits between being sent and the first issue raised against it, by the reviewer who raised it. Only the first issue counts: what this measures is how quickly a request gets attention, not how long the review runs.",
+  "category": "Turnaround",
+  "defaultOrder": 20,
+  "accessLevel": "admin",
+  "subjectType": "sub/Submission",
+  "measure": "duration",
+  "fromOperation": "submit",
+  "toOperation": "issue",
+  "aggregation": "mean",
+  "unit": "days",
+  "breakdownBy": "actor"
+}

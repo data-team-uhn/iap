@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "stat:Metric",
+  "label": "Time to institutional authorization",
+  "description": "How long a request takes between being sent and being authorized. The middle request rather than the average one, because a few unusually contested requests would otherwise describe an experience almost nobody has.",
+  "category": "Turnaround",
+  "defaultOrder": 40,
+  "accessLevel": "public",
+  "subjectType": "sub/Submission",
+  "measure": "duration",
+  "fromOperation": "submit",
+  "toOperation": "authorize",
+  "aggregation": "median",
+  "unit": "days"
+}

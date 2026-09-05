@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "stat:Metric",
+  "label": "Fields per data study",
+  "description": "How many fields a retrospective data study typically takes to fill in. The middle study rather than the average one, because a handful of very large studies would otherwise describe a workload nobody actually has.",
+  "category": "Workload reduction",
+  "defaultOrder": 10,
+  "accessLevel": "public",
+  "subjectType": "sub/Submission",
+  "schemaPath": "/Schemas/dataStudy",
+  "measure": "partCount",
+  "partType": "sub/Answer",
+  "aggregation": "median",
+  "unit": "fields"
+}

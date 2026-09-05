@@ -28,6 +28,7 @@
       "@iap/frontend-commons/*": ["./modules/frontend-commons/src/main/frontend/src/*"],
       "@iap/homepage/*": ["./modules/homepage/src/main/frontend/src/*"],
       "@iap/login/*": ["./modules/login/src/main/frontend/src/*"],
+      "@iap/statistics/*": ["./modules/statistics/src/main/frontend/src/*"],
       "@iap/submissions/*": ["./modules/submissions/impl/src/main/frontend/src/*"],
       // The test tree is a fallback so that other modules' tests can import the tag
       // definition fixtures; in the aggregated tree both land in the same directory

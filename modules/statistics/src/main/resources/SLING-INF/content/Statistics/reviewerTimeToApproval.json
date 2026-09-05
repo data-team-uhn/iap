@@ -1,0 +1,16 @@
+{
+  "jcr:primaryType": "stat:Metric",
+  "label": "Reviewer time to approval",
+  "description": "How long a request waits between being sent and a reviewer approving it, by the reviewer who approved it. Broken down by person, so it is reserved for administrators: a per-reviewer figure read without its sample size is an unfair comparison.",
+  "category": "Turnaround",
+  "defaultOrder": 30,
+  "accessLevel": "admin",
+  "subjectType": "sub/Submission",
+  "measure": "duration",
+  "fromOperation": "submit",
+  "toOperation": "review",
+  "toOutcome": "approved",
+  "aggregation": "mean",
+  "unit": "days",
+  "breakdownBy": "actor"
+}

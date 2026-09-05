@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/dashboard/widget",
+  "ext:name": "How we are doing",
+  "ext:hint": "The few headline figures, on the front page rather than behind an administration screen: these are what the institution is asked to report on, and everyone doing the work has a stake in them. Which figures appear is decided by the metric definitions' own order, so putting one on the front page is editing a node.",
+  "ext:renderURL": "asset:iap-statistics.MetricsWidget.js",
+  "defaultOrder": 30,
+  "ext:personas": ["submitter", "reviewer"]
+}

@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Metrics",
+  "ext:hint": "Every metric with its trend and its breakdown. Lazily loaded: the charts are only drawn on the page that is about them, and computing them is a query per metric.",
+  "ext:targetURL": "/metrics",
+  "ext:renderURL": "asset:iap-statistics.MetricsDashboard.js?lazy"
+}

@@ -1,0 +1,149 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<rep = 'internal'>
+<data = 'https://iap.uhndata.io/data/'>
+<stat = 'https://iap.uhndata.io/stat/'>
+
+//-----------------------------------------------------------------------------
+// Where the metric definitions live. Reading a definition is not the same as
+// reading the number it produces: the definitions are readable by anyone who
+// may see the dashboard, and each metric says for itself who may see its value.
+//
+[stat:StatisticsHomepage] > data:Content, rep:AccessControllable
+  query
+
+  - sling:resourceType (STRING) = "stat/StatisticsHomepage" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The metric definitions
+  + * (stat:Metric) = stat:Metric
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// One number a stakeholder asked for, described rather than computed: what to
+// measure, over which population, and how the per-subject numbers become one.
+//
+// Deliberately not a stored value and deliberately not a stored query. Not a
+// value, because every one of these can be asked again for a different period
+// and must give the same answer for a period that has closed - so the record of
+// what happened is the only thing worth keeping. Not a query, because the same
+// definition has to produce an overall number, a breakdown and a monthly series,
+// and a hand-written query answers only one of the three.
+//
+[stat:Metric] > data:Content
+  query
+
+  - sling:resourceType (STRING) = "stat/Metric" mandatory autocreated protected
+
+  // What a reader is told this number is
+  - label (STRING) mandatory
+
+  // What it means, in the stakeholder's terms rather than the engine's
+  - description (STRING)
+
+  // Groups related metrics on the dashboard
+  - category (STRING)
+
+  // The order this metric appears in, among the metrics of its own category
+  - defaultOrder (LONG) = '0' mandatory autocreated
+
+  // Who may see the value. The definition itself is readable by anyone who may
+  // reach the dashboard; this governs the number.
+  - accessLevel (STRING) = 'public' mandatory autocreated < 'public', 'admin'
+
+  //---------------------------------------------------------------------------
+  // The population: which things are being measured at all.
+  //---------------------------------------------------------------------------
+
+  // The resource type of the subject each measurement belongs to, as the history
+  // record names it, e.g. "sub/Submission". Named as a string rather than a
+  // reference so that this module needs no dependency on the module that owns it.
+  - subjectType (STRING) mandatory
+
+  // Restricts the population to subjects answering one schema, by path. A metric
+  // asked "for retrospective data studies" is this property; one asked of every
+  // submission leaves it out.
+  - schemaPath (STRING)
+
+  // The property on the subject pointing at the schema version it answers; the
+  // schema is that version's parent. Configurable so that this module needs no
+  // knowledge of the module whose entities it is measuring.
+  - schemaProperty (STRING) = 'schemaVersion' mandatory autocreated
+
+  // The node type to query when the subjects must be found in current content
+  // rather than in the history, which only `partCount` needs. Derived from
+  // subjectType by the naming convention when absent.
+  - subjectNodeType (STRING)
+
+  //---------------------------------------------------------------------------
+  // The measure: what one number to take for each subject.
+  //---------------------------------------------------------------------------
+
+  // - duration:   days between two recorded actions
+  // - eventCount: how many recorded actions of one kind
+  // - partCount:  how many children of one resource type the subject has now
+  - measure (STRING) mandatory < 'duration', 'eventCount', 'partCount'
+
+  // For `duration`: the action that starts the clock, and the one that stops it.
+  // The clock starts at the FIRST matching action and stops at the first matching
+  // one at or after it, so a resubmission does not restart a completed measurement.
+  - fromOperation (STRING)
+  - fromOutcome (STRING)
+  - toOperation (STRING)
+  - toOutcome (STRING)
+
+  // For `eventCount`: which actions to count. A subject with none counts as zero
+  // rather than being left out, which is what makes an average honest.
+  - countOperation (STRING)
+  - countOutcome (STRING)
+
+  // For `partCount`: the resource type of the children to count, e.g. "sub/Answer"
+  - partType (STRING)
+
+  //---------------------------------------------------------------------------
+  // The aggregation: how the per-subject numbers become one number.
+  //---------------------------------------------------------------------------
+
+  // - mean / median:      of the per-subject values
+  // - percentageWithin:   what share came in at or under `threshold`
+  // - total:              the sum, for "how many altogether"
+  - aggregation (STRING) mandatory < 'mean', 'median', 'percentageWithin', 'total'
+
+  // The bound for `percentageWithin`, in the metric's own unit
+  - threshold (DOUBLE)
+
+  // What the number is counted in, for display: 'days', 'issues', 'fields'
+  - unit (STRING)
+
+  // Splits the result a second way, alongside the overall number:
+  // - actor:  who performed the action that closed the measurement
+  // - schema: which schema the subject answers
+  - breakdownBy (STRING) < 'actor', 'schema'
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

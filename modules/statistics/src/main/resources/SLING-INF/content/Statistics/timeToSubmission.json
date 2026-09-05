@@ -1,0 +1,14 @@
+{
+  "jcr:primaryType": "stat:Metric",
+  "label": "Time to complete a request",
+  "description": "How long a requester takes between starting a request and sending it, on average. Requests still being filled in are not counted: they have no duration yet.",
+  "category": "Turnaround",
+  "defaultOrder": 10,
+  "accessLevel": "public",
+  "subjectType": "sub/Submission",
+  "measure": "duration",
+  "fromOperation": "create",
+  "toOperation": "submit",
+  "aggregation": "mean",
+  "unit": "days"
+}

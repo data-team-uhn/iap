@@ -1,0 +1,36 @@
+# Copyright 2026 DATA @ UHN. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+create path (stat:StatisticsHomepage) /Statistics
+
+# Anyone who can reach the dashboard can read what the metrics ARE. What they currently say is a
+# different question, answered per metric by its accessLevel and served by the endpoint below.
+set ACL for everyone
+    allow jcr:read on /Statistics
+end
+
+# The user the computation runs as. A metric is an aggregate over records that its reader is usually
+# not allowed to see one by one - that is the point of publishing a median rather than a list - so the
+# reading is done here and the answer is a number, never a row.
+create service user iap-statistics
+
+# Read across the repository, and nothing else. Enumerating the trees instead would be tighter on
+# paper and wrong in two ways: repoinit aborts the WHOLE repository when it names a path another
+# module has not created yet, and this module deliberately does not know where a deployment keeps the
+# things it measures - the subject type and the schema are configured per metric, not compiled in.
+set ACL for iap-statistics
+    allow jcr:read on /
+end
