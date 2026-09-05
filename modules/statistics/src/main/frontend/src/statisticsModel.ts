@@ -23,8 +23,11 @@
 /** Where the computed metrics are served from. */
 export const STATISTICS_PATH = "/Statistics.json";
 
+// The charts live at the path of the content they are about. A route of their own would need a
+// resource behind it, and the only synthetic routes the shell serves are the administration ones -
+// which these are not, since a metric can be public.
 /** Where the charts live in the application. */
-export const STATISTICS_ROUTE = "/metrics";
+export const STATISTICS_ROUTE = "/Statistics";
 
 /** One named subset of a metric's measurements: a reviewer, a study type, or a month. */
 export interface Slice {
@@ -115,14 +118,19 @@ export function formatSample(sampleSize: number): string {
   return sampleSize === 1 ? "1 request" : `${sampleSize.toLocaleString()} requests`;
 }
 
-/** A `yyyy-MM` key as a short month a chart axis can carry. */
+/**
+ * A `yyyy-MM` key as a month a chart axis can carry.
+ *
+ * The year is written out. A two-digit year next to a short month reads as a day - "Sep 25" is a date
+ * to most people, and a series running from Sep 2025 to Sep 2026 then looks like two days in September.
+ */
 export function formatMonth(key: string): string {
   const match = /^(\d{4})-(\d{2})$/.exec(key);
   if (match === null) {
     return key;
   }
   const month = new Date(Number(match[1]), Number(match[2]) - 1, 1);
-  return month.toLocaleDateString(undefined, { month: "short", year: "2-digit" });
+  return month.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
 /** The metrics grouped the way they are meant to be shown, keeping the order the endpoint sent. */

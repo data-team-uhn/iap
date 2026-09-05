@@ -33,7 +33,8 @@ const WIDTH = 560;
 
 const HEIGHT = 180;
 
-const PADDING = { top: 16, right: 16, bottom: 28, left: 44 };
+// Room at the top for the end label to sit clear of the line rather than on it
+const PADDING = { top: 28, right: 16, bottom: 28, left: 44 };
 
 const MARKER_RADIUS = 4;
 
@@ -137,10 +138,13 @@ function TrendChart(props: TrendChartProps) {
             )}
           </g>
         ))}
-        {/* The end of the line is the one point worth labelling; the rest are in the tooltip */}
+        {/* The end of the line is the one point worth labelling; the rest are in the tooltip. Painted
+            with a surface-coloured outline underneath so it stays readable where the line runs behind
+            it - the alternative is nudging it somewhere it no longer belongs to its own line */}
         <text
-          x={x(last)} y={y(measured[last].value ?? 0) - 12} textAnchor="end"
+          x={x(last)} y={Math.max(12, y(measured[last].value ?? 0) - 14)} textAnchor="end"
           fill="var(--mui-palette-text-primary)" fontSize={12}
+          stroke="var(--mui-palette-background-paper)" strokeWidth={4} paintOrder="stroke"
         >
           {formatValue(measured[last].value, unit)}
         </text>

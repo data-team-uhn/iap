@@ -70,8 +70,10 @@ function MetricsDashboard() {
       {byCategory(metrics).map(group => (
         <Stack key={group.category} spacing={2}>
           <Typography variant="h6">{group.category}</Typography>
+          {/* auto-FILL, not auto-fit: a category with one metric in it should keep a card's width
+              rather than stretching one plot across the whole page */}
           <Box sx={{ display: "grid", gap: 3,
-            gridTemplateColumns: { xs: "1fr", md: "repeat(auto-fit, minmax(420px, 1fr))" } }}>
+            gridTemplateColumns: { xs: "1fr", md: "repeat(auto-fill, minmax(420px, 1fr))" } }}>
             {group.metrics.map(readable).map(({ dimension, metric }) => (
               <Card key={metric.name} variant="outlined">
                 <CardContent>

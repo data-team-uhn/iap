@@ -74,7 +74,7 @@ describe("MetricsWidget", () => {
     // The fourth is one too many for a dashboard frame; the link is how it is reached
     expect(screen.queryByText("D")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "All metrics and trends" }))
-      .toHaveAttribute("href", "/metrics");
+      .toHaveAttribute("href", "/Statistics");
   });
 
   it("says when there is nothing defined, rather than showing an empty frame", async () => {
