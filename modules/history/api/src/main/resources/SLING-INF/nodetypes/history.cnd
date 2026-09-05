@@ -178,6 +178,13 @@
   // after this record. Until this says otherwise, an entry with no `snapshot`
   // may simply not have got one yet; once it does, an entry without one never
   // wanted one.
+  // When the thing being recorded actually happened, which is not always when the row was
+  // written: the engine records after it commits, an imported log carries its own dates, and
+  // a store whose whole purpose is to answer "when did this happen" should not have to infer
+  // it from jcr:created - which is protected, so nothing can restate it. Readers fall back to
+  // jcr:created when it is absent, so nothing has to set it.
+  - occurredAt (DATE)
+
   - complete (BOOLEAN) = false mandatory autocreated
 
   // Allow any other properties for extensibility
