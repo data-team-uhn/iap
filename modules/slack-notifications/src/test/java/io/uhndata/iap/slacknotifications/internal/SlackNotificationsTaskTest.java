@@ -18,6 +18,7 @@
 package io.uhndata.iap.slacknotifications.internal;
 
 import java.io.IOException;
+import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
@@ -208,6 +209,6 @@ class SlackNotificationsTaskTest
 
     private JsonObject parse(final String json)
     {
-        return Json.createReader(new java.io.StringReader(json)).readObject();
+        return Json.createReader(new StringReader(json)).readObject();
     }
 }

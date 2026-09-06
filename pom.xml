@@ -675,7 +675,7 @@
             <dependency>
               <groupId>com.puppycrawl.tools</groupId>
               <artifactId>checkstyle</artifactId>
-              <version>14.0.0</version>
+              <version>14.1.0</version>
             </dependency>
           </dependencies>
           <configuration>
@@ -798,6 +798,9 @@
 
                       <!--module name="AvoidInlineConditionals"/-->
 
+                      <!-- Module imports are Java 25 syntax; this build targets 21. -->
+                      <!--module name="AvoidModuleImport" /-->
+
                       <module name="AvoidNestedBlocks" />
 
                       <module name="AvoidNoArgumentSuperConstructorCall" />
@@ -870,6 +873,8 @@
 
                       <module name="ExplicitInitialization" />
 
+                      <module name="ExpressionOverBlockLambda" />
+
                       <module name="FallThrough" />
 
                       <module name="FinalClass" />
@@ -929,6 +934,12 @@
                         <property name="option" value="bottom" />
                       </module>
 
+                      <module name="InappropriateJavadocBlockTagsOnField" />
+
+                      <module name="InappropriateJavadocBlockTagsOnPackage" />
+
+                      <module name="InappropriateJavadocBlockTagsOnType" />
+
                       <module name="Indentation" />
 
                       <module name="InnerAssignment" />
@@ -951,7 +962,14 @@
 
                       <module name="JavadocContentLocation" />
 
+                      <module name="JavadocEndCommentDelimiter" />
+
                       <module name="JavadocLeadingAsteriskAlign" />
+
+                      <!-- Repeating a link helps in a long comment rather than cluttering it. -->
+                      <!--module name="JavadocLinkFirstOccurrence" /-->
+
+                      <module name="JavadocLinkWellKnownApi" />
 
                       <module name="JavadocMethod">
                         <property name="accessModifiers" value="public" />
@@ -961,9 +979,16 @@
 
                       <module name="JavadocMissingWhitespaceAfterAsterisk" />
 
+                      <module name="JavadocNoErrorInThrowsTag" />
+
                       <module name="JavadocParagraph"/>
 
+                      <module name="JavadocParamOrder" />
+
                       <module name="JavadocTagContinuationIndentation" />
+
+                      <!-- Orders alphabetically only; we name exceptions by specificity, most relevant first. -->
+                      <!--module name="JavadocThrowsOrder" /-->
 
                       <module name="JavadocType">
                         <property name="scope" value="public" />
@@ -1024,6 +1049,12 @@
                       <module name="ModifiedControlVariable" />
 
                       <module name="ModifierOrder" />
+
+                      <!-- No module-info.java anywhere in this repository. -->
+                      <!--module name="ModuleDirectiveOrder" /-->
+
+                      <!-- Module imports are Java 25 syntax; this build targets 21. -->
+                      <!--module name="ModuleImportOrder" /-->
 
                       <module name="MultipleStringLiterals">
                         <property name="ignoreStringsRegexp" value="^(&amp;#34;&amp;#34;)|(&amp;#34;[0-9]&amp;#34;)|(&amp;#34; &amp;#34;)|(&amp;#34;\]&amp;#34;)|(&amp;#34;\[&amp;#34;)|(&amp;#34;,&amp;#34;)|(&amp;#34;, &amp;#34;)|(&amp;#34;/&amp;#34;)$" />
@@ -1105,6 +1136,8 @@
                       <module name="PatternVariableAssignment" />
 
                       <module name="PatternVariableName" />
+
+                      <module name="PreferCodeOrSnippetJavadocInlineTag" />
 
                       <module name="PreferLiteralJavadocInlineTag" />
 
@@ -1212,6 +1245,8 @@
 
                       <!--module name="UnnecessaryParentheses"/-->
 
+                      <module name="UnnecessaryFullyQualifiedType" />
+
                       <module name="UnnecessaryNullCheckWithInstanceOf" />
 
                       <module name="UnnecessarySemicolonAfterOuterTypeDeclaration" />
@@ -1231,6 +1266,8 @@
                       <!--module name="UnusedLambdaParameterShouldBeUnnamed" /-->
 
                       <module name="UnusedLocalVariable" />
+
+                      <module name="UnusedPrivateField" />
 
                       <module name="UnusedTryResourceShouldBeUnnamed" />
 
@@ -1386,6 +1423,9 @@
 
                       <!--module name="AvoidInlineConditionals"/-->
 
+                      <!-- Module imports are Java 25 syntax; this build targets 21. -->
+                      <!--module name="AvoidModuleImport" /-->
+
                       <module name="AvoidNestedBlocks" />
 
                       <module name="AvoidNoArgumentSuperConstructorCall" />
@@ -1460,6 +1500,8 @@
 
                       <module name="ExplicitInitialization" />
 
+                      <module name="ExpressionOverBlockLambda" />
+
                       <module name="FallThrough" />
 
                       <module name="FinalClass" />
@@ -1521,6 +1563,12 @@
                         <property name="option" value="bottom" />
                       </module>
 
+                      <module name="InappropriateJavadocBlockTagsOnField" />
+
+                      <module name="InappropriateJavadocBlockTagsOnPackage" />
+
+                      <module name="InappropriateJavadocBlockTagsOnType" />
+
                       <module name="Indentation" />
 
                       <module name="InnerAssignment" />
@@ -1543,7 +1591,14 @@
 
                       <module name="JavadocContentLocation" />
 
+                      <module name="JavadocEndCommentDelimiter" />
+
                       <module name="JavadocLeadingAsteriskAlign" />
+
+                      <!-- Repeating a link helps in a long comment rather than cluttering it. -->
+                      <!--module name="JavadocLinkFirstOccurrence" /-->
+
+                      <module name="JavadocLinkWellKnownApi" />
 
                       <!--module name="JavadocMethod">
                         <property name="accessModifiers" value="public" />
@@ -1553,10 +1608,17 @@
 
                       <module name="JavadocMissingWhitespaceAfterAsterisk" />
 
+                      <module name="JavadocNoErrorInThrowsTag" />
+
                       <!-- Too strict at the moment -->
                       <!--module name="JavadocParagraph"/-->
 
+                      <module name="JavadocParamOrder" />
+
                       <module name="JavadocTagContinuationIndentation" />
+
+                      <!-- Orders alphabetically only; we name exceptions by specificity, most relevant first. -->
+                      <!--module name="JavadocThrowsOrder" /-->
 
                       <!--module name="JavadocType">
                         <property name="scope" value="public" />
@@ -1628,6 +1690,12 @@
                       <module name="ModifiedControlVariable" />
 
                       <module name="ModifierOrder" />
+
+                      <!-- No module-info.java anywhere in this repository. -->
+                      <!--module name="ModuleDirectiveOrder" /-->
+
+                      <!-- Module imports are Java 25 syntax; this build targets 21. -->
+                      <!--module name="ModuleImportOrder" /-->
 
                       <module name="MultipleStringLiterals">
                         <property name="ignoreStringsRegexp" value="^(&amp;#34;&amp;#34;)|(&amp;#34;[0-9]&amp;#34;)|(&amp;#34; &amp;#34;)|(&amp;#34;\]&amp;#34;)|(&amp;#34;\[&amp;#34;)|(&amp;#34;,&amp;#34;)|(&amp;#34;, &amp;#34;)|(&amp;#34;/&amp;#34;)$" />
@@ -1704,6 +1772,8 @@
                       <module name="PatternVariableAssignment" />
 
                       <module name="PatternVariableName" />
+
+                      <module name="PreferCodeOrSnippetJavadocInlineTag" />
 
                       <module name="PreferLiteralJavadocInlineTag" />
 
@@ -1804,6 +1874,8 @@
 
                       <!--module name="UnnecessaryParentheses"/-->
 
+                      <module name="UnnecessaryFullyQualifiedType" />
+
                       <module name="UnnecessaryNullCheckWithInstanceOf" />
 
                       <module name="UnnecessarySemicolonAfterOuterTypeDeclaration" />
@@ -1823,6 +1895,8 @@
                       <!--module name="UnusedLambdaParameterShouldBeUnnamed" /-->
 
                       <module name="UnusedLocalVariable" />
+
+                      <module name="UnusedPrivateField" />
 
                       <module name="UnusedTryResourceShouldBeUnnamed" />
 
@@ -1989,7 +2063,7 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
           <!-- Lock down plugin version for build reproducibility -->
-          <version>3.15.0</version>
+          <version>3.16.0</version>
           <!-- Java 21 is required -->
           <configuration>
             <source>21</source>
@@ -2091,11 +2165,11 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
           <!-- Lock down plugin version for build reproducibility -->
-          <version>3.5.6</version>
+          <version>3.6.0</version>
           <!-- Rule is to put tests in *Test classes -->
           <configuration>
             <includes>
-              <include>**/*Test.class</include>
+              <include>**/*Test.java</include>
             </includes>
             <parallel>classesAndMethods</parallel>
             <threadCount>4</threadCount>
@@ -2209,7 +2283,7 @@
         <plugin>
           <groupId>org.apache.felix</groupId>
           <artifactId>maven-bundle-plugin</artifactId>
-          <version>6.1.0</version>
+          <version>6.1.2</version>
         </plugin>
         <plugin>
           <groupId>io.fabric8</groupId>

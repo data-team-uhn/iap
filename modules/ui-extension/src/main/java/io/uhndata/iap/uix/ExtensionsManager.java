@@ -44,24 +44,20 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
 /**
  * A HTL Use-API that lists UI Extensions. To use this API, simply place the following code in a HTL file:
  *
- * <p>
- * <code>
- * &lt;input data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp='ExtensionPointName'}"
- *   type="hidden" id="SomeIdentifier" value="${em.enabled}" /&gt;
- * </code>
- * </p>
+ * {@snippet lang=html :
+ * <input data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp='ExtensionPointName'}"
+ *   type="hidden" id="SomeIdentifier" value="${em.enabled}" />
+ * }
  *
  * <p>
  * Another way, using the resources themselves instead of the JSON serialization:
  * </p>
  *
- * <p>
- * <code>
- *   &lt;ul data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp='ExtensionPointName'}"&gt;
- *     &lt;li data-sly-repeat="${em.listAll}"&gt;${item.name}&lt;/li&gt;
- *   &lt;/ul&gt;
- * </code>
- * </p>
+ * {@snippet lang=html :
+ *   <ul data-sly-use.em="${'io.uhndata.iap.uix.ExtensionsManager' @ uixp='ExtensionPointName'}">
+ *     <li data-sly-repeat="${em.listAll}">${item.name}</li>
+ *   </ul>
+ * }
  *
  * @version $Id$
  * @since 0.1.0

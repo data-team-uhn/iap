@@ -28,6 +28,7 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -225,7 +226,7 @@ class AutocreateBacklinksListenerTest
         // A service resolver that reads normally but refuses to commit
         final ResourceResolver failing = Mockito.spy(this.context.getService(ResourceResolverFactory.class)
             .getServiceResourceResolver(null));
-        Mockito.doThrow(new org.apache.sling.api.resource.PersistenceException("read only"))
+        Mockito.doThrow(new PersistenceException("read only"))
             .when(failing).commit();
         final ResourceResolverFactory failingFactory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(failingFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(failing);
@@ -267,7 +268,7 @@ class AutocreateBacklinksListenerTest
         this.createCommittedFixture();
         final ResourceResolver failing = Mockito.spy(this.context.getService(ResourceResolverFactory.class)
             .getServiceResourceResolver(null));
-        Mockito.doThrow(new org.apache.sling.api.resource.PersistenceException("read only"))
+        Mockito.doThrow(new PersistenceException("read only"))
             .when(failing).commit();
         final ResourceResolverFactory failingFactory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(failingFactory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(failing);
@@ -279,7 +280,7 @@ class AutocreateBacklinksListenerTest
 
             final ArgumentCaptor<Throwable> fault = ArgumentCaptor.forClass(Throwable.class);
             Mockito.verify(recorder).logError(fault.capture(), Mockito.any(ErrorContext.class));
-            assertInstanceOf(org.apache.sling.api.resource.PersistenceException.class, fault.getValue());
+            assertInstanceOf(PersistenceException.class, fault.getValue());
         } finally {
             ErrorLogger.unsetService(recorder);
         }

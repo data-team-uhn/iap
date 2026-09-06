@@ -64,8 +64,8 @@ public class Content
      * bound keeps the conversion inside the model world: only content models can be requested, never the wrapped
      * resource itself, so this adds nothing beyond what any content model can already see.
      *
-     * @param type the model class to view this content as
      * @param <T> the model type
+     * @param type the model class to view this content as
      * @return the adapted model, or {@code null} if this content cannot be viewed as the requested model
      */
     @Nullable
@@ -175,9 +175,9 @@ public class Content
      * follows the usual {@link org.apache.sling.api.resource.ValueMap} rules, so a single value can be read as an
      * array and vice versa.
      *
+     * @param <T> the value type
      * @param name the property name
      * @param type the type the value is converted to
-     * @param <T> the value type
      * @return the converted property value, or {@code null} if the property isn't set or cannot be converted
      */
     @Nullable
@@ -203,9 +203,9 @@ public class Content
      * {@code Submission.getSchemaVersion()}. The type bound keeps the lookup inside the model world: only content
      * models can be requested, never the wrapped resource itself.
      *
+     * @param <T> the model type
      * @param identifier the identifier stored in a {@code REFERENCE} (or {@code WEAKREFERENCE}) property
      * @param type the model class the referenced content is adapted to
-     * @param <T> the model type
      * @return the adapted content, or {@code null} if the identifier is {@code null}, unresolvable, or the
      *         resource resolver isn't backed by a JCR session
      */
@@ -236,9 +236,9 @@ public class Content
      * on its own: a Sling Model registered for a resource type will happily adapt a resource of a different,
      * unrelated type, so the resource type check always comes first.
      *
+     * @param <T> the model type
      * @param resourceType the resource type (or one of its subtypes) a child must have to be included
      * @param type the model class every matching child is adapted to
-     * @param <T> the model type
      * @return a list of matching, adapted children, in the same order as the underlying resource's children; empty
      *         if none of the children match
      */
@@ -269,9 +269,9 @@ public class Content
      * come first rather than rejected. Either way, adapting an unrelated parent would quietly yield a model
      * wrapping the wrong node rather than {@code null}.</p>
      *
+     * @param <T> the model type
      * @param resourceType the resource type (or one of its subtypes) the parent must have
      * @param type the model class the parent is adapted to
-     * @param <T> the model type
      * @return the adapted parent, or {@code null} if the wrapped resource has no parent, or its parent is of
      *         another type
      */
@@ -287,8 +287,8 @@ public class Content
      * {@link #getChildren(String, Class)} this filters nothing, so it is the right tool for walking through
      * arbitrary content — e.g. searching a subtree — where the interesting nodes aren't known by their type.
      *
-     * @param type the model class every child is adapted to
      * @param <T> the model type
+     * @param type the model class every child is adapted to
      * @return a list of adapted children, in the same order as the underlying resource's children; empty if there
      *         are no children, or if none of them adapt to the requested model
      */
@@ -313,10 +313,10 @@ public class Content
      * {@code wf:WorkflowInstance} does for its tokens, variables and tasks, a name says nothing about the type, and
      * {@link #getChild(String, String, Class)} is the one to use.
      *
+     * @param <T> the model type
      * @param name the name of the child node to adapt, which may also be a path relative to this content, e.g.
      *            {@code form/age}
      * @param type the model class the child is adapted to
-     * @param <T> the model type
      * @return the adapted child, or {@code null} if there is no such child
      */
     @Nullable
@@ -336,10 +336,10 @@ public class Content
      * hand back a model wrapping the wrong node, and a caller's {@code != null} test would take that for the thing
      * it asked for.</p>
      *
+     * @param <T> the model type
      * @param name the name of the child node to adapt, which may also be a path relative to this content
      * @param resourceType the resource type (or one of its subtypes) the child must have
      * @param type the model class the child is adapted to
-     * @param <T> the model type
      * @return the adapted child, or {@code null} if there is no such child, or it is of another type
      */
     @Nullable

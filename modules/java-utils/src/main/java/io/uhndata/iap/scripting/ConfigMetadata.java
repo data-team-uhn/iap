@@ -41,15 +41,13 @@ import org.jetbrains.annotations.NotNull;
  * from any {@code Resource}, in HTL as well as in Java or ESP code. For example, to use from HTL:
  * </p>
  *
- * <p>
- * <code>
- * &lt;sly data-sly-use.config="io.uhndata.iap.scripting.ConfigMetadata"&gt;
- *   &lt;sly data-sly-repeat="${config.properties.entrySet.iterator}"&gt;
- *     &lt;meta name="${item.key}" content="${item.value}"&gt;
- *   &lt;/sly&gt;
- * &lt;/sly&gt;
- * </code>
- * </p>
+ * {@snippet lang=html :
+ * <sly data-sly-use.config="io.uhndata.iap.scripting.ConfigMetadata">
+ *   <sly data-sly-repeat="${config.properties.entrySet.iterator}">
+ *     <meta name="${item.key}" content="${item.value}">
+ *   </sly>
+ * </sly>
+ * }
  *
  * @version $Id$
  * @since 0.1.0

@@ -69,12 +69,12 @@ import io.uhndata.iap.utils.PrefixTree;
  * one value and cannot drift apart. A deployment adds a tree by adding a configuration:
  * </p>
  *
- * <pre>
+ * {@snippet lang=json :
  * "io.uhndata.iap.utils.internal.PrefixTreeResourceProvider~submissions": {
  *     "provider.root": "/Submissions/by-id",
  *     "provider.mode": "overlay"
  * }
- * </pre>
+ * }
  *
  * <p>
  * Overlay mode is what gives this the repository below to answer from: nothing is synthesized here, and the

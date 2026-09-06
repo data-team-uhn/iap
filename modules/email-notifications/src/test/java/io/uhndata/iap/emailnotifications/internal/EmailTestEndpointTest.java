@@ -19,6 +19,7 @@ package io.uhndata.iap.emailnotifications.internal;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -88,7 +89,7 @@ class EmailTestEndpointTest
     {
         final MockSlingJakartaHttpServletResponse response = response();
 
-        this.endpoint.doGet(request("someone", new java.util.HashMap<>()), response);
+        this.endpoint.doGet(request("someone", new HashMap<>()), response);
 
         // The endpoint mails an arbitrary address, which is not something to leave open
         assertEquals(403, response.getStatus());
@@ -116,7 +117,7 @@ class EmailTestEndpointTest
     {
         final MockSlingJakartaHttpServletResponse response = response();
 
-        this.endpoint.doGet(request(null, new java.util.HashMap<>()), response);
+        this.endpoint.doGet(request(null, new HashMap<>()), response);
 
         assertEquals(403, response.getStatus());
     }
@@ -127,7 +128,7 @@ class EmailTestEndpointTest
         final MockSlingJakartaHttpServletResponse response = response();
 
         this.endpoint.doGet(
-            request("admin", new java.util.HashMap<>(Map.of("fromEmail", "a@example.invalid"))), response);
+            request("admin", new HashMap<>(Map.of("fromEmail", "a@example.invalid"))), response);
 
         assertEquals(400, response.getStatus());
         assertTrue(response.getOutputAsString().contains("Missing required URL parameters"));
@@ -253,7 +254,7 @@ class EmailTestEndpointTest
 
     private Map<String, Object> parameters(final String isHtml)
     {
-        final Map<String, Object> parameters = new java.util.HashMap<>(Map.of(
+        final Map<String, Object> parameters = new HashMap<>(Map.of(
             "fromEmail", "from@example.invalid",
             "fromName", "From",
             "toEmail", "to@example.invalid",

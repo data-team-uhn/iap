@@ -20,6 +20,7 @@ package io.uhndata.iap.links.models;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.jcr.ItemNotFoundException;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -66,7 +67,7 @@ class ExternalLinkTest
         Mockito.when(session.getNodeByIdentifier(DEFINITION_ID)).thenReturn(node);
         // Unknown identifiers throw, like on a real repository, instead of returning null
         Mockito.when(session.getNodeByIdentifier("99999999-9999-9999-9999-999999999999"))
-            .thenThrow(new javax.jcr.ItemNotFoundException());
+            .thenThrow(new ItemNotFoundException());
     }
 
     private Resource createFixture(final Map<String, Object> definitionSettings)

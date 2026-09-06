@@ -30,11 +30,9 @@ import org.jetbrains.annotations.NotNull;
  * parameters, only simple getter-like methods. To use this API, simply place the following code in a HTL file,
  * replacing with the needed status code method:
  *
- * <p>
- * <code>
- * &lt;sly data-sly-use.statusCode="io.uhndata.iap.scripting.StatusCodeSetter"&gt;${statusCode.created}&lt;/sly&gt;
- * </code>
- * </p>
+ * {@snippet lang=html :
+ * <sly data-sly-use.statusCode="io.uhndata.iap.scripting.StatusCodeSetter">${statusCode.created}</sly>
+ * }
  *
  * @version $Id$
  * @since 0.1.0

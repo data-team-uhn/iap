@@ -51,7 +51,7 @@ import io.uhndata.iap.utils.SelectorUtils;
  * of the serialization process is implemented by implementations of the {@link ResourceJsonProcessor} service. To
  * configure the serialization process, include serializer names in the resource selectors. This can be accomplished
  * by appending them in the request URL for a resource, for example
- * <code>http://server.example/path/to/resource.deep.simple.json</code>, or by appending them in the resource path
+ * {@code http://server.example/path/to/resource.deep.simple.json}, or by appending them in the resource path
  * when using {@code resourceResolver.resolve}, for example
  * {@code resourceResolver.resolve("/path/to/resource.deep.simple")}. A few processors are
  * {@link ResourceJsonProcessor#isEnabledByDefault(Resource) enabled by default}, for example the {@code properties},
@@ -68,7 +68,7 @@ import io.uhndata.iap.utils.SelectorUtils;
  *
  * <p>
  * A selector may also be passed as a {@code selector} <b>query parameter</b>, repeated once per selector:
- * <code>http://server.example/path/to/resource.json?selector=deep&amp;selector=simple</code> means the same as
+ * {@code http://server.example/path/to/resource.json?selector=deep&selector=simple} means the same as
  * {@code .deep.simple.json}. That exists for the selectors a path cannot carry — an option value containing a dot
  * would have to escape it with a backslash, and Jetty refuses a path containing one, encoded or not, unless the
  * whole deployment loosens its URI compliance. In the parameter each selector is taken whole, so nothing needs

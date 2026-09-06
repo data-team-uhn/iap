@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.emailcatcher.internal;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -372,7 +373,7 @@ public class CaughtMailService implements MailService
                 } else if (part.isMimeType("text/plain")) {
                     this.text = (String) content;
                 }
-            } catch (final java.io.IOException e) {
+            } catch (final IOException e) {
                 throw new MessagingException("The body of a message could not be read", e);
             }
         }

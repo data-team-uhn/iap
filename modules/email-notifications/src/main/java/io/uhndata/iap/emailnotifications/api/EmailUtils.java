@@ -50,7 +50,7 @@ public final class EmailUtils
      * <p>
      * Templates are written in <a href="https://velocity.apache.org/engine/devel/user-guide.html">Apache Velocity</a>,
      * rendered in strict mode: a name that was never supplied is an error rather than something to mail to a person;
-     * write <code>#if($name)</code> around anything genuinely optional.
+     * write {@code #if($name)} around anything genuinely optional.
      * </p>
      *
      * @param template the text to fill in, may be {@code null}

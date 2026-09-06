@@ -18,6 +18,7 @@
 package io.uhndata.iap.errortracking.internal;
 
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.LoginException;
@@ -142,9 +143,9 @@ public final class TestResolvers
             }
 
             @Override
-            public java.util.List<String> getSearchPath()
+            public List<String> getSearchPath()
             {
-                return java.util.List.of("/apps", "/libs");
+                return List.of("/apps", "/libs");
             }
         };
     }

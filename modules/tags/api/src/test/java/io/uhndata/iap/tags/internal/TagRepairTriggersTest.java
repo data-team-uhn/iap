@@ -26,6 +26,7 @@ import java.util.Map;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.commons.scheduler.ScheduleOptions;
@@ -236,7 +237,7 @@ class TagRepairTriggersTest
     }
 
     /** A caller who may read the definitions but not edit them. */
-    private org.apache.sling.api.resource.ResourceResolver readOnly()
+    private ResourceResolver readOnly()
     {
         return new ResourceResolverWrapper(this.context.resourceResolver())
         {
@@ -434,7 +435,7 @@ class TagRepairTriggersTest
         }
 
         @Override
-        public ScheduleOptions config(final Map<String, java.io.Serializable> config)
+        public ScheduleOptions config(final Map<String, Serializable> config)
         {
             return this;
         }
