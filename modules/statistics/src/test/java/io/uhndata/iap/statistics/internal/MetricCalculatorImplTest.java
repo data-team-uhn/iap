@@ -32,7 +32,6 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,13 +68,6 @@ class MetricCalculatorImplTest
         this.context.addModelsForClasses(Content.class, Metric.class);
         this.context.create().resource("/Statistics", Map.of(TYPE, "stat/StatisticsHomepage"));
         inject(factoryReturning(answering(this.context.resourceResolver())));
-        this.calculator.activate();
-    }
-
-    @AfterEach
-    void tearDown()
-    {
-        this.calculator.deactivate();
     }
 
     @Test
@@ -90,7 +82,7 @@ class MetricCalculatorImplTest
             "measure", Metric.DURATION, "fromOperation", "create", "toOperation", "submit",
             "aggregation", Metric.MEAN, "unit", "days", "breakdownBy", Metric.BY_ACTOR));
 
-        final List<MetricValue> computed = this.calculator.computeAll(true);
+        final List<MetricValue> computed = this.calculator.computeAll();
 
         assertEquals(1, computed.size());
         final MetricValue value = computed.get(0);
@@ -116,20 +108,19 @@ class MetricCalculatorImplTest
         define("first", Map.of("label", "First", "category", "A", "defaultOrder", 20L));
 
         assertEquals(List.of("early", "first", "second", "late"),
-            this.calculator.computeAll(true).stream().map(MetricValue::getName).toList());
+            this.calculator.computeAll().stream().map(MetricValue::getName).toList());
     }
 
+    // Everything is worked out, including what only administrators may see: who may see which number
+    // is decided when it is read, not when it is computed
     @Test
-    void keepsTheAdministratorsMetricsFromEverybodyElse()
+    void computesTheAdministratorsMetricsToo()
     {
         define("open", Map.of("label", "Open"));
         define("restricted", Map.of("label", "Restricted", "accessLevel", "admin"));
 
-        // Both audiences are served from one computed set, filtered on the way out
         assertEquals(List.of("open", "restricted"),
-            this.calculator.computeAll(true).stream().map(MetricValue::getName).sorted().toList());
-        assertEquals(List.of("open"),
-            this.calculator.computeAll(false).stream().map(MetricValue::getName).toList());
+            this.calculator.computeAll().stream().map(MetricValue::getName).sorted().toList());
     }
 
     // A definition is content, so it can be edited into a state that says too little; that one is
@@ -143,7 +134,7 @@ class MetricCalculatorImplTest
         this.context.create().resource("/Statistics/notAMetric", Map.of(TYPE, "nt:unstructured"));
 
         assertEquals(List.of("fine"),
-            this.calculator.computeAll(true).stream().map(MetricValue::getName).toList());
+            this.calculator.computeAll().stream().map(MetricValue::getName).toList());
         assertNull(this.calculator.compute(
             this.context.resourceResolver().getResource("/Statistics/broken").adaptTo(Metric.class)));
     }
@@ -171,7 +162,7 @@ class MetricCalculatorImplTest
             this.context.resourceResolver().getResource("/Statistics"));
         this.context.resourceResolver().commit();
 
-        assertTrue(this.calculator.computeAll(true).isEmpty());
+        assertTrue(this.calculator.computeAll().isEmpty());
     }
 
     // The computation runs as a service user; without it there is no answer, and saying so beats
@@ -187,7 +178,7 @@ class MetricCalculatorImplTest
             .thenThrow(new LoginException("no such service user"));
         inject(refusing);
 
-        assertTrue(this.calculator.computeAll(true).isEmpty());
+        assertTrue(this.calculator.computeAll().isEmpty());
         assertNull(this.calculator.compute(metric));
     }
 
@@ -205,7 +196,7 @@ class MetricCalculatorImplTest
             "fromOperation", "create", "toOperation", "submit", "aggregation", Metric.MEAN,
             "breakdownBy", Metric.BY_ACTOR));
 
-        assertEquals("Unattributed", this.calculator.computeAll(true).get(0)
+        assertEquals("Unattributed", this.calculator.computeAll().get(0)
             .getBreakdown().get(0).key());
     }
 

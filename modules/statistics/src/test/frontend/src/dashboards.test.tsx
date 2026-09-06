@@ -30,8 +30,8 @@ const metric = (over: Record<string, unknown> = {}) => ({
   value: 32.5, sampleSize: 120, breakdown: [], series: [], prominentLabel: false, ...over,
 });
 
-const answering = (metrics: unknown[]) =>
-  vi.fn(() => Promise.resolve(new Response(JSON.stringify({ metrics }),
+const answering = (metrics: unknown[], computedAt: string | null = new Date().toISOString()) =>
+  vi.fn(() => Promise.resolve(new Response(JSON.stringify({ computedAt, metrics }),
     { status: 200, headers: { "Content-Type": "application/json" } })));
 
 const themed = (element: React.ReactElement) => render(
@@ -99,6 +99,14 @@ describe("MetricsWidget", () => {
     expect(await screen.findByText("No metrics are defined yet.")).toBeInTheDocument();
   });
 
+  // The same staleness applies on the front page, so it is dated there too
+  it("dates the figures it leads with", async () => {
+    vi.stubGlobal("fetch", answering([metric()]));
+    themed(<MetricsWidget />);
+
+    expect(await screen.findByText(/^Computed today at /)).toBeInTheDocument();
+  });
+
   // "No metrics" and "the metrics could not be read" look identical otherwise, and only one of them
   // is somebody's problem
   it("says when the metrics could not be read at all", async () => {
@@ -151,6 +159,29 @@ describe("MetricsDashboard", () => {
     expect(await screen.findByText("32.5 days")).toBeInTheDocument();
     expect(screen.queryByText("How long it takes")).not.toBeInTheDocument();
     expect(screen.queryByText("Month by month")).not.toBeInTheDocument();
+  });
+
+  // The figures are worked out on a schedule, so a reader who takes them for live numbers will read
+  // today's work as a drop in the trend
+  it("says how old the figures are before showing them", async () => {
+    vi.stubGlobal("fetch", answering([metric()]));
+    themed(<MetricsDashboard />);
+
+    expect(await screen.findByText(/These figures were computed today at .*not included/))
+      .toBeInTheDocument();
+  });
+
+  // "Nothing has been worked out yet" and "nothing is defined" are different problems, and only one
+  // of them fixes itself
+  it("tells an instance that has never worked them out from one with nothing to show", async () => {
+    vi.stubGlobal("fetch", answering([], null));
+    const { unmount } = themed(<MetricsDashboard />);
+    expect(await screen.findByText(/have not been worked out yet/)).toBeInTheDocument();
+    unmount();
+
+    vi.stubGlobal("fetch", answering([]));
+    themed(<MetricsDashboard />);
+    expect(await screen.findByText("No metrics are defined yet.")).toBeInTheDocument();
   });
 
   it("says when there is nothing to show, and when it could not be read", async () => {

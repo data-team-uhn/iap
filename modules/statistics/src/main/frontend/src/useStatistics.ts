@@ -20,20 +20,24 @@ import { useEffect, useState } from "react";
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { readMetrics, STATISTICS_PATH, type Metric } from "./statisticsModel";
+import { readComputedAt, readMetrics, STATISTICS_PATH, type Metric } from "./statisticsModel";
 
-// The one place the metrics are fetched. Every number here is computed on the way out, so this is a
-// slow endpoint by design rather than by accident; it is asked once per mount and not polled.
+// The one place the metrics are fetched. The numbers are worked out on a schedule and kept in the
+// repository, so this is a property read: it costs the same on a deployment's first day and its
+// thousandth. It is asked once per mount and not polled - the figures change once a night.
 
-/** What the metrics say, while it is being worked out and once it is known. */
+/** What the metrics say, while it is being read and once it is known. */
 export interface Statistics {
   metrics?: Metric[];
+  /** When the figures were worked out, null until that is known or if it never happened. */
+  computedAt: Date | null;
   failed: boolean;
 }
 
 /** Reads the metrics once, and says whether the read failed rather than showing nothing forever. */
 export function useStatistics(): Statistics {
   const [ metrics, setMetrics ] = useState<Metric[]>();
+  const [ computedAt, setComputedAt ] = useState<Date | null>(null);
   const [ failed, setFailed ] = useState(false);
   const fetchUtil = useAuthenticatedFetch();
 
@@ -44,6 +48,7 @@ export function useStatistics(): Statistics {
       .then(payload => {
         if (!cancelled) {
           setMetrics(readMetrics(payload));
+          setComputedAt(readComputedAt(payload));
         }
       })
       .catch((error: unknown) => {
@@ -59,5 +64,5 @@ export function useStatistics(): Statistics {
     };
   }, [fetchUtil]);
 
-  return { metrics, failed };
+  return { metrics, computedAt, failed };
 }

@@ -19,9 +19,12 @@ package io.uhndata.iap.statistics.internal;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.reflect.Field;
+import java.util.Calendar;
 import java.util.List;
+import java.util.TimeZone;
 
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
@@ -37,9 +40,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import io.uhndata.iap.statistics.api.MetricCalculator;
-import io.uhndata.iap.statistics.api.MetricValue;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,19 +52,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class StatisticsEndpointTest
 {
+    private static final String SOLO = "{\"name\":\"solo\",\"label\":\"Solo\",\"value\":4.0}";
+
     private final StatisticsEndpoint endpoint = new StatisticsEndpoint();
 
-    private MetricCalculator calculator;
+    private MetricStore store;
 
     @BeforeEach
     void setUp() throws Exception
     {
-        this.calculator = Mockito.mock(MetricCalculator.class);
-        Mockito.when(this.calculator.computeAll(Mockito.anyBoolean()))
-            .thenReturn(List.of(MetricValue.of("solo", "Solo").valued(4.0, 2).build()));
-        final Field field = StatisticsEndpoint.class.getDeclaredField("calculator");
+        this.store = Mockito.mock(MetricStore.class);
+        Mockito.when(this.store.read(Mockito.anyBoolean()))
+            .thenReturn(new MetricStore.Stored(midnight(), List.of(SOLO)));
+        final Field field = StatisticsEndpoint.class.getDeclaredField("store");
         field.setAccessible(true);
-        field.set(this.endpoint, this.calculator);
+        field.set(this.endpoint, this.store);
     }
 
     @Test
@@ -76,23 +78,53 @@ class StatisticsEndpointTest
         assertEquals("solo", answer.getJsonArray("metrics").getJsonObject(0).getString("name"));
     }
 
+    // The figures are worked out on a schedule, so every page showing them owes its reader this date:
+    // a stale number nobody can date is the one that misleads
+    @Test
+    void saysWhenTheyWereWorkedOut() throws Exception
+    {
+        assertEquals("2026-09-06T04:00:00Z", serve(session(true)).getString("computedAt"));
+    }
+
+    @Test
+    void saysSoWhenTheyNeverHaveBeen() throws Exception
+    {
+        Mockito.when(this.store.read(Mockito.anyBoolean()))
+            .thenReturn(new MetricStore.Stored(null, List.of()));
+
+        final JsonObject answer = serve(session(true));
+
+        assertTrue(answer.isNull("computedAt"));
+        assertTrue(answer.getJsonArray("metrics").isEmpty());
+    }
+
+    // A stored figure that somehow got mangled should cost that metric and not the whole dashboard
+    @Test
+    void leavesOutAStoredValueItCannotReadBack() throws Exception
+    {
+        Mockito.when(this.store.read(Mockito.anyBoolean()))
+            .thenReturn(new MetricStore.Stored(midnight(), List.of("not json at all", SOLO)));
+
+        assertEquals(1, serve(session(true)).getJsonArray("metrics").size());
+    }
+
     // "Administrator" is asked of the repository - whoever may write the definitions - rather than kept
     // as a second list that could drift out of step with the permission
     @Test
     void asksTheRepositoryWhoMayCurate() throws Exception
     {
         serve(session(true));
-        Mockito.verify(this.calculator).computeAll(true);
+        Mockito.verify(this.store).read(true);
 
         serve(session(false));
-        Mockito.verify(this.calculator).computeAll(false);
+        Mockito.verify(this.store).read(false);
     }
 
     @Test
     void treatsARequestWithNoSessionAsAnOrdinaryReader() throws Exception
     {
         serve(null);
-        Mockito.verify(this.calculator).computeAll(false);
+        Mockito.verify(this.store).read(false);
     }
 
     // Answering "no" shows a curator fewer metrics than they could have, which is the harmless way for
@@ -107,7 +139,15 @@ class StatisticsEndpointTest
 
         serve(broken);
 
-        Mockito.verify(this.calculator).computeAll(false);
+        Mockito.verify(this.store).read(false);
+    }
+
+    private static Calendar midnight()
+    {
+        final Calendar when = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        when.clear();
+        when.set(2026, Calendar.SEPTEMBER, 6, 4, 0, 0);
+        return when;
     }
 
     private static Session session(final boolean mayWrite) throws RepositoryException
@@ -137,6 +177,6 @@ class StatisticsEndpointTest
         this.endpoint.doGet(request, response);
         Mockito.verify(response).setContentType("application/json");
         assertTrue(written.toString().startsWith("{"));
-        return Json.createReader(new java.io.StringReader(written.toString())).readObject();
+        return Json.createReader(new StringReader(written.toString())).readObject();
     }
 }

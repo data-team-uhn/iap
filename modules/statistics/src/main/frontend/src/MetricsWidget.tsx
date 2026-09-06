@@ -16,11 +16,11 @@
  * limitations under the License.
  */
 
-import { Alert, Box, CircularProgress, Link as MuiLink, Stack } from "@mui/material";
+import { Alert, Box, CircularProgress, Link as MuiLink, Stack, Typography } from "@mui/material";
 import { Link as RouterLink } from "react-router";
 
 import MetricTile from "./MetricTile";
-import { STATISTICS_ROUTE } from "./statisticsModel";
+import { formatComputedAt, STATISTICS_ROUTE } from "./statisticsModel";
 import { useStatistics } from "./useStatistics";
 
 // The dashboard's short answer: the few headline numbers, and a way through to the charts. A dashboard
@@ -33,7 +33,7 @@ import { useStatistics } from "./useStatistics";
 const HEADLINES = 3;
 
 function MetricsWidget() {
-  const { metrics, failed } = useStatistics();
+  const { metrics, computedAt, failed } = useStatistics();
 
   if (failed) {
     return <Alert severity="warning" variant="outlined">The metrics could not be read.</Alert>;
@@ -47,15 +47,28 @@ function MetricsWidget() {
 
   return (
     <Stack spacing={2}>
+      {/* auto-fit against a floor wide enough for a figure and its qualifier: this sits in a dashboard
+          frame whose width is the deployment's to decide, and three figures forced into a narrow one
+          would run through each other rather than stacking */}
       <Box sx={{ display: "grid", gap: 2,
-        gridTemplateColumns: { xs: "1fr", sm: `repeat(${Math.min(metrics.length, HEADLINES)}, 1fr)` } }}>
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
         {metrics.slice(0, HEADLINES).map(metric => (
           <MetricTile key={metric.name} metric={metric} />
         ))}
       </Box>
-      <MuiLink component={RouterLink} to={STATISTICS_ROUTE} variant="body2">
-        All metrics and trends
-      </MuiLink>
+      {/* The same staleness applies here, so it is dated here too - just small, since the front page
+          is not where somebody reads a figure closely */}
+      <Stack direction="row" spacing={2}
+        sx={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <MuiLink component={RouterLink} to={STATISTICS_ROUTE} variant="body2">
+          All metrics and trends
+        </MuiLink>
+        {computedAt !== null && (
+          <Typography variant="caption" color="text.secondary">
+            Computed {formatComputedAt(computedAt)}
+          </Typography>
+        )}
+      </Stack>
     </Stack>
   );
 }

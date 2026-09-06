@@ -77,6 +77,20 @@ const readSlices = (value: unknown): Slice[] =>
       sampleSize: number(slice.sampleSize),
     }));
 
+/**
+ * When the endpoint says the figures were worked out, or null if they never have been.
+ *
+ * They are computed on a schedule rather than per request, so every page showing them owes its reader
+ * this date - a stale number nobody can date is the one that misleads.
+ */
+export function readComputedAt(payload: unknown): Date | null {
+  if (!isRecord(payload) || typeof payload.computedAt !== "string") {
+    return null;
+  }
+  const when = new Date(payload.computedAt);
+  return Number.isNaN(when.getTime()) ? null : when;
+}
+
 /** Reads the endpoint's answer, keeping only the metrics that are shaped like metrics. */
 export function readMetrics(payload: unknown): Metric[] {
   if (!isRecord(payload) || !Array.isArray(payload.metrics)) {
@@ -117,6 +131,30 @@ export function formatValue(value: number | null, unit?: string): string {
     return shown;
   }
   return unit === "%" ? `${shown}%` : `${shown} ${unit}`;
+}
+
+const startOfDay = (when: Date): number =>
+  new Date(when.getFullYear(), when.getMonth(), when.getDate()).getTime();
+
+/**
+ * When the figures were worked out, said the way somebody would say it out loud.
+ *
+ * Counted in local calendar days rather than in elapsed hours: "yesterday at 2:30 AM" is what a reader
+ * checks their own memory against, and a figure computed 23 hours ago can be either day. Which also
+ * keeps it clear of the usual trap - a UTC date is a different day from a local one for a quarter of
+ * every day.
+ */
+export function formatComputedAt(when: Date, now: Date = new Date()): string {
+  const time = when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const days = Math.round((startOfDay(now) - startOfDay(when)) / 86_400_000);
+  if (days === 0) {
+    return `today at ${time}`;
+  }
+  if (days === 1) {
+    return `yesterday at ${time}`;
+  }
+  const date = when.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return `on ${date} at ${time}`;
 }
 
 /** How many subjects a number rests on, said the way a caption would say it. */

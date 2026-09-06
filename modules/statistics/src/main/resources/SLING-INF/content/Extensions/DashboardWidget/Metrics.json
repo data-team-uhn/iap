@@ -2,8 +2,9 @@
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/dashboard/widget",
   "ext:name": "How we are doing",
-  "ext:hint": "The few headline figures, on the front page rather than behind an administration screen: these are what the institution is asked to report on, and everyone doing the work has a stake in them. Ordered above the working grids because it is a summary - a reader who has to scroll past two full-height tables to reach it will not read it. Which figures appear is decided by the metric definitions' own order, so putting one on the front page is editing a node.",
+  "ext:hint": "The few headline figures, on the front page rather than behind an administration screen: these are what the institution is asked to report on, and everyone doing the work has a stake in them. It sits below the working grids, which are what somebody opens the page to act on; moving it above them means renumbering those, since the orders in between are taken. Which figures appear is decided by the metric definitions' own order, so putting one on the front page is editing a node.",
   "ext:renderURL": "asset:iap-statistics.MetricsWidget.js",
+  "ext:widgetWidth": "wide",
   "defaultOrder": 5,
   "ext:personas": ["submitter", "reviewer"]
 }

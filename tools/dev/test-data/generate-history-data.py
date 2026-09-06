@@ -281,6 +281,11 @@ def main():
 
     print(f"Done: {made['created']} raised, {made['submitted']} sent, {made['authorized']} authorized, "
           f"{made['overrunning']} still open past 45 days")
+
+    # The figures are worked out on a schedule, not per request, so freshly generated history would
+    # otherwise not show up until the small hours
+    print("Working the metrics out...")
+    instance.post("/Statistics.refresh.json", {})
     print(f"Read the metrics at {instance.url}/Statistics.json")
 
 

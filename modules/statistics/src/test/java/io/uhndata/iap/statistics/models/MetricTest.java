@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.statistics.models;
 
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -99,6 +100,19 @@ class MetricTest
         assertEquals(Metric.BY_ACTOR, metric.getBreakdownBy());
     }
 
+    // A cache of the last answer, not a record of it: the number is worked out again from the recorded
+    // history on a schedule, and discarding it costs nothing but the wait for the next refresh
+    @Test
+    void exposesWhatItLastSaidAndWhen()
+    {
+        final Calendar when = Calendar.getInstance();
+        final Metric metric = metric(Map.of("label", "Cached",
+            "computedValue", "{\"name\":\"cached\"}", "computedAt", when));
+
+        assertEquals("{\"name\":\"cached\"}", metric.getComputedValue());
+        assertEquals(when.getTimeInMillis(), metric.getComputedAt().getTimeInMillis());
+    }
+
     @Test
     void exposesWhatOnlyTheCountingMeasuresUse()
     {
@@ -126,6 +140,8 @@ class MetricTest
         assertNull(metric.getToOutcome());
         assertNull(metric.getCountOutcome());
         assertNull(metric.getPartType());
+        assertNull(metric.getComputedValue());
+        assertNull(metric.getComputedAt());
         assertFalse(metric.isAdminOnly());
     }
 

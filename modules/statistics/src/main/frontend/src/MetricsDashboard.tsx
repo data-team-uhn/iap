@@ -20,7 +20,7 @@ import { Alert, Box, Card, CardContent, CircularProgress, Divider, Stack, Typogr
 
 import BreakdownChart from "./BreakdownChart";
 import MetricTile from "./MetricTile";
-import { byCategory, type Metric } from "./statisticsModel";
+import { byCategory, formatComputedAt, type Metric } from "./statisticsModel";
 import TrendChart from "./TrendChart";
 import { useStatistics } from "./useStatistics";
 
@@ -52,7 +52,7 @@ function readable(metric: Metric): { dimension: string; metric: Metric } {
 }
 
 function MetricsDashboard() {
-  const { metrics, failed } = useStatistics();
+  const { metrics, computedAt, failed } = useStatistics();
 
   if (failed) {
     return <Alert severity="warning">The metrics could not be read.</Alert>;
@@ -61,12 +61,27 @@ function MetricsDashboard() {
     return <CircularProgress size={28} sx={{ display: "block", mx: "auto", my: 4 }} />;
   }
   if (metrics.length === 0) {
-    return <Alert severity="info">No metrics are defined yet.</Alert>;
+    return (
+      <Alert severity="info">
+        {computedAt === null
+          ? "The metrics have not been worked out yet. They are computed on a schedule, which runs "
+            + "shortly after an instance starts and nightly after that."
+          : "No metrics are defined yet."}
+      </Alert>
+    );
   }
 
   return (
     <Stack spacing={4} sx={{ mt: 2 }}>
       <Typography variant="pageTitle">Metrics</Typography>
+      {/* Said before the figures rather than in a footnote: these are recomputed on a schedule, and a
+          reader who takes them for live numbers will read today's work as a drop in the trend */}
+      {computedAt !== null && (
+        <Alert severity="info" variant="outlined">
+          These figures were computed {formatComputedAt(computedAt)}, and are refreshed once a day.
+          Anything that has happened since is not included.
+        </Alert>
+      )}
       {byCategory(metrics).map(group => (
         <Stack key={group.category} spacing={2}>
           <Typography variant="h6">{group.category}</Typography>

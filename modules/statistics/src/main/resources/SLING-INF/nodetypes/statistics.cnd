@@ -30,6 +30,11 @@
 
   - sling:resourceType (STRING) = "stat/StatisticsHomepage" mandatory autocreated protected
 
+  // When the last refresh of every metric finished. Held here rather than read off
+  // the metrics themselves, so that a page showing seven figures tells the reader one
+  // date - which is the only version of "how old is this" they can act on.
+  - computedAt (DATE)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
@@ -44,12 +49,15 @@
 // One number a stakeholder asked for, described rather than computed: what to
 // measure, over which population, and how the per-subject numbers become one.
 //
-// Deliberately not a stored value and deliberately not a stored query. Not a
-// value, because every one of these can be asked again for a different period
-// and must give the same answer for a period that has closed - so the record of
-// what happened is the only thing worth keeping. Not a query, because the same
-// definition has to produce an overall number, a breakdown and a monthly series,
-// and a hand-written query answers only one of the three.
+// Deliberately a description and not a stored query: the same definition has to
+// produce an overall number, a breakdown and a monthly series, and a hand-written
+// query answers only one of the three.
+//
+// It does carry the number it last produced, but as a cache and not as a record.
+// Every one of these can be asked again for a different period and must give the
+// same answer for a period that has closed, so the record of what happened stays
+// the only thing worth keeping - and throwing the cached numbers away loses nothing
+// but the wait for the next refresh.
 //
 [stat:Metric] > data:Content
   query
@@ -150,6 +158,20 @@
   // - actor:  who performed the action that closed the measurement
   // - schema: which schema the subject answers
   - breakdownBy (STRING) < 'actor', 'schema'
+
+  //---------------------------------------------------------------------------
+  // What it last said. A cache and not a record: the history stays the only source
+  // of truth, and deleting these costs nothing but the next refresh.
+  //---------------------------------------------------------------------------
+
+  // The last computed value, as the JSON a client is served. Kept whole rather than
+  // taken apart into properties because nothing ever reads a part of it, and taking
+  // it apart would need JCR names for breakdown keys that are arbitrary text - a
+  // reviewer's name, a schema's path.
+  - computedValue (STRING)
+
+  // When that was worked out
+  - computedAt (DATE)
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

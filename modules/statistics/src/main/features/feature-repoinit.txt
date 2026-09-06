@@ -16,10 +16,12 @@
 
 create path (stat:StatisticsHomepage) /Statistics
 
-# Anyone who can reach the dashboard can read what the metrics ARE. What they currently say is a
-# different question, answered per metric by its accessLevel and served by the endpoint below.
+# Everyone may read the homepage node itself, which is what makes /Statistics resolvable and carries
+# the date the figures were last worked out. The metric nodes below it are NOT readable: each holds the
+# number it last produced, and who may see which number is decided once, by the endpoint, from each
+# metric's accessLevel. Granting the definitions to everyone would hand out the values with them.
 set ACL for everyone
-    allow jcr:read on /Statistics
+    allow jcr:read on /Statistics restriction(rep:ntNames,stat:StatisticsHomepage)
 end
 
 # The user the computation runs as. A metric is an aggregate over records that its reader is usually
@@ -33,4 +35,8 @@ create service user iap-statistics
 # things it measures - the subject type and the schema are configured per metric, not compiled in.
 set ACL for iap-statistics
     allow jcr:read on /
+    # The figures are worked out on a schedule and kept beside the definitions that produced them, so
+    # that reading them is a property read rather than a scan of the whole history. Properties only:
+    # this user updates numbers, it never changes what is defined.
+    allow jcr:modifyProperties on /Statistics
 end

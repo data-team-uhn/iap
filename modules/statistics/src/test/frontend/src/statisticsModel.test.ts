@@ -17,7 +17,7 @@
  */
 
 import {
-  byCategory, formatMonth, formatSample, formatValue, readMetrics,
+  byCategory, formatComputedAt, formatMonth, formatSample, formatValue, readComputedAt, readMetrics,
 } from "@iap/statistics/statisticsModel";
 
 describe("readMetrics", () => {
@@ -118,5 +118,41 @@ describe("byCategory", () => {
 
     expect(grouped.map(group => group.category)).toEqual(["Turnaround", "Quality", "Other"]);
     expect(grouped[0].metrics.map(metric => metric.name)).toEqual(["a", "c"]);
+  });
+});
+
+describe("readComputedAt", () => {
+  it("reads when the figures were worked out", () => {
+    expect(readComputedAt({ computedAt: "2026-09-06T06:30:00.000Z" })?.toISOString())
+      .toBe("2026-09-06T06:30:00.000Z");
+  });
+
+  // Which is what an instance that has never refreshed looks like, and is not the same as "no metrics"
+  it("says nothing rather than guessing when there is no date", () => {
+    expect(readComputedAt({ computedAt: null })).toBeNull();
+    expect(readComputedAt({ computedAt: "the other day" })).toBeNull();
+    expect(readComputedAt({})).toBeNull();
+    expect(readComputedAt("text")).toBeNull();
+  });
+});
+
+describe("formatComputedAt", () => {
+  const at = (year: number, month: number, day: number, hour: number) =>
+    new Date(year, month - 1, day, hour, 30);
+
+  // Counted in local calendar days, not elapsed hours: "yesterday" is what a reader checks their own
+  // memory against, and a figure computed 23 hours ago can be either day
+  it("says it in calendar days rather than in elapsed hours", () => {
+    const now = at(2026, 9, 6, 23);
+
+    expect(formatComputedAt(at(2026, 9, 6, 2), now)).toMatch(/^today at /);
+    expect(formatComputedAt(at(2026, 9, 5, 22), now)).toMatch(/^yesterday at /);
+  });
+
+  it("names the date once it is too far back to be worth a word", () => {
+    const said = formatComputedAt(at(2026, 8, 30, 2), at(2026, 9, 6, 9));
+
+    expect(said).toMatch(/^on /);
+    expect(said).toContain("2026");
   });
 });

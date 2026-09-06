@@ -17,6 +17,10 @@
  */
 package io.uhndata.iap.statistics.models;
 
+import java.util.Calendar;
+import java.util.Comparator;
+import java.util.Objects;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.models.annotations.DefaultInjectionStrategy;
 import org.apache.sling.models.annotations.Model;
@@ -141,6 +145,27 @@ public class Metric extends Content
 
     @ValueMapValue
     private String breakdownBy;
+
+    @ValueMapValue
+    private String computedValue;
+
+    @ValueMapValue
+    private Calendar computedAt;
+
+    /**
+     * The order metrics are meant to be shown in: by category, then by the order each asks for within its
+     * own category, then by name so that two definitions asking for the same slot do not swap places
+     * between one page load and the next.
+     *
+     * @return a comparator over definitions
+     */
+    @NotNull
+    public static Comparator<Metric> displayOrder()
+    {
+        return Comparator.comparing((final Metric one) -> Objects.toString(one.getCategory(), ""))
+            .thenComparingLong(Metric::getDefaultOrder)
+            .thenComparing(Metric::getName);
+    }
 
     /**
      * What a reader is told this number is.
@@ -403,6 +428,33 @@ public class Metric extends Content
     public String getBreakdownBy()
     {
         return this.breakdownBy;
+    }
+
+    /**
+     * What this metric said when it was last worked out, as the JSON a client is served.
+     *
+     * <p>A cache of the last answer, not a record of it: the number is recomputed from the recorded
+     * history on a schedule, and discarding this costs nothing but the wait for the next refresh. It is
+     * held so that reading the metrics is a property read rather than a scan of the whole history, which
+     * is what keeps a page that shows them from getting slower as a deployment ages.</p>
+     *
+     * @return the stored JSON, or {@code null} if this metric has not been worked out yet
+     */
+    @Nullable
+    public String getComputedValue()
+    {
+        return this.computedValue;
+    }
+
+    /**
+     * When this metric was last worked out.
+     *
+     * @return the time of the last refresh, or {@code null} if there has not been one
+     */
+    @Nullable
+    public Calendar getComputedAt()
+    {
+        return this.computedAt == null ? null : (Calendar) this.computedAt.clone();
     }
 
     /**

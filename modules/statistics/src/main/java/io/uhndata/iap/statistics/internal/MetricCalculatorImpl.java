@@ -17,28 +17,20 @@
  */
 package io.uhndata.iap.statistics.internal;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Deactivate;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,46 +51,13 @@ import io.uhndata.iap.statistics.models.Metric;
 @Component(service = MetricCalculator.class)
 public class MetricCalculatorImpl implements MetricCalculator
 {
-    /** Where the metric definitions live. */
-    static final String STATISTICS_ROOT = "/Statistics";
-
-    private static final String SUBSERVICE = "statistics";
-
     /** The bucket a measurement with nothing to attribute it to falls into. */
     private static final String UNATTRIBUTED = "Unattributed";
-
-    /**
-     * How long a computed set stays good for. These are monthly cohorts, so a figure minutes old is the
-     * same figure; what this buys is that the front page does not scan the history once per page view.
-     */
-    private static final long CACHE_FOR_NANOS = TimeUnit.MINUTES.toNanos(5);
-
-    /** How long a reader waits for a fresh answer before being given the previous one. */
-    private static final long WAIT_FOR_FRESH_MILLIS = 2_000;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MetricCalculatorImpl.class);
 
     @Reference
     private ResourceResolverFactory resolverFactory;
-
-    private ExecutorService worker;
-
-    private ComputedMetrics cache;
-
-    @Activate
-    protected void activate()
-    {
-        // One thread: two recomputations at once would read the same history twice for the same answer
-        this.worker = Executors.newSingleThreadExecutor(
-            runnable -> new Thread(runnable, "iap-statistics-recompute"));
-        this.cache = new ComputedMetrics(this.worker, System::nanoTime);
-    }
-
-    @Deactivate
-    protected void deactivate()
-    {
-        this.worker.shutdownNow();
-    }
 
     @Override
     public MetricValue compute(final Metric metric)
@@ -120,41 +79,13 @@ public class MetricCalculatorImpl implements MetricCalculator
     }
 
     @Override
-    public List<MetricValue> computeAll(final boolean includeAdminOnly)
-    {
-        // One held set serves both audiences: everything is computed, and what a given reader may not
-        // see is dropped on the way out rather than computed separately for them
-        return this.cache.get(this::computeEverything, CACHE_FOR_NANOS, WAIT_FOR_FRESH_MILLIS).stream()
-            .filter(metric -> includeAdminOnly || !metric.isAdminOnly())
-            .toList();
-    }
-
-    /**
-     * Works out every defined metric, in the order they are meant to be shown: by category, then by
-     * their declared order, then by name.
-     *
-     * @return what they say, skipping any definition that cannot be computed
-     */
-    private List<MetricValue> computeEverything()
+    public List<MetricValue> computeAll()
     {
         try (ResourceResolver resolver = readingSession()) {
-            final Resource root = resolver.getResource(STATISTICS_ROOT);
-            if (root == null) {
-                LOGGER.warn("There are no metric definitions at {}", STATISTICS_ROOT);
-                return List.of();
-            }
-            final List<Metric> defined = new ArrayList<>();
-            root.getChildren().forEach(child -> {
-                final Metric metric = child.adaptTo(Metric.class);
-                if (metric != null && metric.isComputable()) {
-                    defined.add(metric);
-                }
-            });
-            defined.sort(Comparator
-                .comparing((final Metric one) -> Objects.toString(one.getCategory(), ""))
-                .thenComparingLong(Metric::getDefaultOrder)
-                .thenComparing(Metric::getName));
-            return defined.stream().map(metric -> compute(resolver, metric)).toList();
+            return Definitions.all(resolver).stream()
+                .filter(Metric::isComputable)
+                .map(metric -> compute(resolver, metric))
+                .toList();
         } catch (final LoginException e) {
             LOGGER.error("The statistics service user is not available, so nothing can be computed: {}",
                 e.getMessage(), e);
@@ -276,7 +207,6 @@ public class MetricCalculatorImpl implements MetricCalculator
      */
     private ResourceResolver readingSession() throws LoginException
     {
-        return this.resolverFactory.getServiceResourceResolver(
-            Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE));
+        return Definitions.open(this.resolverFactory);
     }
 }

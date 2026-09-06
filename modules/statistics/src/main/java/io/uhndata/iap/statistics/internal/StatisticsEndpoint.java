@@ -18,12 +18,14 @@
 package io.uhndata.iap.statistics.internal;
 
 import java.io.IOException;
-
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
+import java.io.StringReader;
+import java.util.Calendar;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
+import jakarta.json.JsonException;
+import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonReader;
 import jakarta.servlet.Servlet;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
@@ -37,15 +39,23 @@ import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
-import io.uhndata.iap.statistics.api.MetricCalculator;
-import io.uhndata.iap.statistics.api.MetricValue;
 
 /**
- * Serves what the metrics currently say, as {@code /Statistics.json}.
+ * Serves what the metrics last said, as {@code /Statistics.json}.
  *
  * <p>
- * The definitions under {@code /Statistics} are readable by anyone who can reach the dashboard; the numbers
- * are not, and this is where that is decided. A metric reserved for administrators is left out of the
+ * A read and nothing more: the numbers are worked out on a schedule, and this hands over what that last
+ * produced. It answers in milliseconds however much history a deployment has accumulated, which is the
+ * whole reason the two are separate.
+ * </p>
+ *
+ * <p>
+ * <strong>The answer says when it was worked out</strong>, so that a page can tell its reader how old
+ * the figures are instead of leaving them to assume they are current.
+ * </p>
+ *
+ * <p>
+ * Who may see which number is decided here. A metric reserved for administrators is left out of the
  * answer entirely rather than returned empty, so that a client cannot tell a restricted metric from one
  * that does not exist — even the sample size of a metric somebody may not see is information about it.
  * </p>
@@ -65,48 +75,41 @@ public class StatisticsEndpoint extends SlingJakartaSafeMethodsServlet
     private static final Logger LOGGER = LoggerFactory.getLogger(StatisticsEndpoint.class);
 
     @Reference
-    private transient MetricCalculator calculator;
+    private transient MetricStore store;
 
     @Override
     public void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
+        final MetricStore.Stored stored = this.store.read(Curators.includes(request));
         final JsonArrayBuilder metrics = Json.createArrayBuilder();
-        this.calculator.computeAll(mayCurate(request)).stream()
-            .map(MetricValue::toJson)
-            .forEach(metrics::add);
+        stored.values().forEach(value -> parse(value, metrics));
+        final JsonObjectBuilder answer = Json.createObjectBuilder();
+        final Calendar computedAt = stored.computedAt();
+        if (computedAt == null) {
+            answer.addNull("computedAt");
+        } else {
+            answer.add("computedAt", computedAt.toInstant().toString());
+        }
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().print(Json.createObjectBuilder().add("metrics", metrics).build().toString());
+        response.getWriter().print(answer.add("metrics", metrics).build().toString());
     }
 
     /**
-     * Whether this reader may see the metrics reserved for administrators.
+     * Adds one stored metric to the answer, dropping it if what was stored is not readable — a metric
+     * whose stored form somehow got mangled should cost that metric and not the whole dashboard.
      *
-     * <p>
-     * The question asked is whether they may <em>write</em> the definitions. That is deliberately not a
-     * second list of who counts as an administrator: the repository already answers it, and a permission
-     * and a list can drift apart where a permission and itself cannot.
-     * </p>
-     *
-     * @param request the request being answered
-     * @return {@code true} if they may
+     * @param value the stored JSON
+     * @param metrics the answer being built
      */
-    private static boolean mayCurate(final SlingJakartaHttpServletRequest request)
+    private static void parse(final String value, final JsonArrayBuilder metrics)
     {
-        final Session session = request.getResourceResolver().adaptTo(Session.class);
-        if (session == null) {
-            return false;
-        }
-        try {
-            return session.hasPermission(request.getResource().getPath(), Session.ACTION_SET_PROPERTY);
-        } catch (final RepositoryException e) {
-            // Answering "no" leaves a curator seeing fewer metrics than they should, which is the harmless
-            // way for this to be wrong
-            LOGGER.warn("Could not tell whether {} may curate the metrics: {}", session.getUserID(),
-                e.getMessage(), e);
-            ErrorLogger.logError(e, ErrorContext.of(StatisticsEndpoint.class, "mayCurate"));
-            return false;
+        try (JsonReader reader = Json.createReader(new StringReader(value))) {
+            metrics.add(reader.readObject());
+        } catch (final JsonException e) {
+            LOGGER.warn("A stored metric could not be read back and was left out: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(StatisticsEndpoint.class, "parse"));
         }
     }
 }
