@@ -1,0 +1,24 @@
+# Copyright 2026 DATA @ UHN. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Version pins forced onto transitive dependencies. This is the only place pnpm still reads them
+# from: the "pnpm" field in package.json is ignored from pnpm 11 on, silently for 11 and with a
+# warning for 12. Declaring them there instead does not merely fail to apply the pins — any newer
+# pnpm regenerates pnpm-lock.yaml without them, and the pinned pnpm the build uses then refuses the
+# lockfile as inconsistent with its configuration.
+overrides:
+  '@babel/runtime': ^7.29.7
+  react-is: ^19.2.0
