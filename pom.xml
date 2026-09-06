@@ -2079,8 +2079,10 @@
           </executions>
           <configuration>
             <nodeVersion>v26.0.0</nodeVersion>
-            <!-- Held at 10.x: Dependabot documents pnpm support up to v10, and it is what keeps
-                 the frontend dependency PRs coming. 10 and 11 write the same lockfile format. -->
+            <!-- Held at 10.x by frontend-maven-plugin, which links its pnpm executable to
+                 bin/pnpm.cjs. That is pnpm's declared entry point only up to 10; from 11 on it is a
+                 non-executable shim. Raise this once the plugin resolves
+                 pnpm's own bin field instead of hardcoding the name. -->
             <pnpmVersion>10.34.5</pnpmVersion>
             <workingDirectory>src/main/frontend</workingDirectory>
           </configuration>
