@@ -101,6 +101,7 @@
                 <exclude>**/node_modules/**</exclude>
                 <exclude>**/*.py</exclude>
                 <exclude>**/pnpm-lock.yaml</exclude>
+                <exclude>**/pnpm-workspace.yaml</exclude>
                 <exclude>**/package.json</exclude>
                 <exclude>**/tsconfig.json</exclude>
                 <exclude>**/.npmrc</exclude>

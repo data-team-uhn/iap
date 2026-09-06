@@ -97,11 +97,5 @@
     "@testing-library/react": "16.3.2",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/user-event": "14.6.6"
-  },
-  "pnpm": {
-    "overrides": {
-      "@babel/runtime": "^7.29.7",
-      "react-is": "^19.2.0"
-    }
   }
 }
