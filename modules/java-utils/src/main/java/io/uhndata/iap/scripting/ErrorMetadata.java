@@ -37,11 +37,9 @@ import org.jetbrains.annotations.Nullable;
  * standard {@code jakarta.servlet.error.*} request attributes, and sets the status code on the response. To use this
  * API, simply place the following code in the error handler HTL file:
  *
- * <p>
- * <code>
- * &lt;sly data-sly-use.error="io.uhndata.iap.scripting.ErrorMetadata"&gt;&lt;/sly&gt;
- * </code>
- * </p>
+ * {@snippet lang=html :
+ * <sly data-sly-use.error="io.uhndata.iap.scripting.ErrorMetadata"></sly>
+ * }
  *
  * @version $Id$
  * @since 0.1.0

@@ -27,11 +27,9 @@ import org.jetbrains.annotations.NotNull;
  * A HTL Use-API that can set the content type of the response. This is needed because HTL cannot call methods that
  * require parameters, only simple getter-like methods. To use this API, simply place the following code in a HTL file:
  *
- * <p>
- * <code>
- * &lt;sly data-sly-use.contentType="io.uhndata.iap.scripting.ContentTypeSetter"&gt;${contentType.html}&lt;/sly&gt;
- * </code>
- * </p>
+ * {@snippet lang=html :
+ * <sly data-sly-use.contentType="io.uhndata.iap.scripting.ContentTypeSetter">${contentType.html}</sly>
+ * }
  *
  * @version $Id$
  * @since 0.1.0

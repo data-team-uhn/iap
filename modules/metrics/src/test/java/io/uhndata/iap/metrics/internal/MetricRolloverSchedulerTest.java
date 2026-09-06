@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.commons.scheduler.ScheduleOptions;
@@ -243,7 +244,7 @@ class MetricRolloverSchedulerTest
     {
         final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
-            .thenThrow(new org.apache.sling.api.resource.LoginException("no service user"));
+            .thenThrow(new LoginException("no service user"));
         inject(this.rolloverScheduler, "resolverFactory", broken);
 
         assertDoesNotThrow(() -> this.rolloverScheduler.activate());
@@ -297,7 +298,7 @@ class MetricRolloverSchedulerTest
         // The repository becomes unreachable only after the job has been scheduled
         final ResourceResolverFactory broken = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
-            .thenThrow(new org.apache.sling.api.resource.LoginException("repository unavailable"));
+            .thenThrow(new LoginException("repository unavailable"));
         inject(this.rolloverScheduler, "resolverFactory", broken);
 
         assertDoesNotThrow(() -> job.getValue().run());

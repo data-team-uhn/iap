@@ -101,8 +101,8 @@ public class Variable extends EntityPart
 
     /**
      * This variable's value, read from whichever typed property its {@link #getDataType() declared type} says to
-     * read, and returned as the matching Java type: a {@link String}, {@link Long}, {@link Double},
-     * {@link Boolean}, {@link Calendar}, or the {@link Content} a reference points at.
+     * read, and returned as the matching Java type: a {@code String}, {@code Long}, {@code Double},
+     * {@code Boolean}, {@link Calendar}, or the {@link Content} a reference points at.
      *
      * @return the value, or {@code null} if the variable is unset, its type is not one of the known ones, or a
      *         reference cannot be resolved

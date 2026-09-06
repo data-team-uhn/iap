@@ -34,6 +34,7 @@ import javax.jcr.Workspace;
 import javax.jcr.version.VersionManager;
 
 import org.apache.sling.api.resource.LoginException;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -778,7 +779,7 @@ class LinkManagerImplTest
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
         final Resource resource = Mockito.mock(Resource.class);
         Mockito.when(resource.getPath()).thenReturn("/Things/a/" + CONTAINER + "/l1");
-        Mockito.doThrow(new org.apache.sling.api.resource.PersistenceException("locked"))
+        Mockito.doThrow(new PersistenceException("locked"))
             .when(resolver).delete(resource);
 
         assertFalse(this.manager.delete(resolver, resource));
@@ -792,7 +793,7 @@ class LinkManagerImplTest
         final Resource owner = Mockito.mock(Resource.class);
         Mockito.when(owner.getPath()).thenReturn("/Things/a");
         Mockito.when(resolver.create(Mockito.eq(owner), Mockito.anyString(), Mockito.anyMap()))
-            .thenThrow(new org.apache.sling.api.resource.PersistenceException("read only"));
+            .thenThrow(new PersistenceException("read only"));
 
         assertThrows(IllegalArgumentException.class, () -> this.manager.createContainer(resolver, owner));
     }
@@ -808,7 +809,7 @@ class LinkManagerImplTest
         Mockito.when(container.getResourceResolver()).thenReturn(resolver);
         Mockito.when(container.getParent()).thenReturn(parent);
         Mockito.when(resolver.create(Mockito.eq(container), Mockito.anyString(), Mockito.anyMap()))
-            .thenThrow(new org.apache.sling.api.resource.PersistenceException("read only"));
+            .thenThrow(new PersistenceException("read only"));
 
         assertThrows(IllegalArgumentException.class, () -> this.manager
             .createLinkNode(container, "link:Link", SIMPLE_ID, "reference", THING_B_ID, null));

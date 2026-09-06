@@ -55,6 +55,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -638,7 +639,7 @@ public final class WorkflowDefinitionUtils
             .anyMatch(child -> isBpmnElement(child, localName));
     }
 
-    private static boolean isBpmnElement(final org.w3c.dom.Node node, final String localName)
+    private static boolean isBpmnElement(final Node node, final String localName)
     {
         return node instanceof Element element && BPMN_NS.equals(element.getNamespaceURI())
             && localName.equals(element.getLocalName());

@@ -100,9 +100,6 @@ public class IapJwtTokenManagerImplTest
     private Property verifyProperty;
 
     @Mock
-    private Property issuerProperty;
-
-    @Mock
     private Resource peerResource;
 
     @Mock

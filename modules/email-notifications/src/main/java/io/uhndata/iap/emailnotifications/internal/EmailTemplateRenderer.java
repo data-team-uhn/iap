@@ -50,18 +50,18 @@ import io.uhndata.iap.emailnotifications.api.EmailTemplateException;
  * as what it can:
  * </p>
  * <ul>
- * <li><strong>No resource loader but the in-memory one</strong>, so <code>#include</code> and <code>#parse</code> can
+ * <li><strong>No resource loader but the in-memory one</strong>, so {@code #include} and {@code #parse} can
  * reach nothing on the filesystem or the classpath.</li>
  * <li><strong>{@code SecureUberspector}</strong>, so a template cannot reflect its way out of the values it was given:
- * it permits <code>$x.getClass().getName()</code> and stops at the classloader, the method list and
- * <code>forName</code>.</li>
+ * it permits {@code $x.getClass().getName()} and stops at the classloader, the method list and
+ * {@code forName}.</li>
  * <li><strong>Strict references</strong>, so a name that was never supplied fails the whole render instead of mailing
- * somebody the literal <code>$name</code>.</li>
+ * somebody the literal {@code $name}.</li>
  * </ul>
  *
  * <p>
- * Strictness leaves two ways to write something optional, and they mean different things. <code>#if($name)</code>
- * covers a name that may not have been supplied at all. <code>$!{name}</code> covers one that was supplied as
+ * Strictness leaves two ways to write something optional, and they mean different things. {@code #if($name)}
+ * covers a name that may not have been supplied at all. {@code $!{name}} covers one that was supplied as
  * nothing -- and only that: a quiet reference to a name nobody supplied is still refused, because a template asking
  * for something the caller has never heard of is a bug either way round. All four corners are pinned by tests.
  * </p>

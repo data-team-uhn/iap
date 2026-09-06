@@ -29,6 +29,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.resource.ResourceWrapper;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -272,7 +273,7 @@ class TagRepairServiceImplTest
     }
 
     /** Stands in for a node the repair may read but not write, e.g. one its service user has no rights on. */
-    private static final class ReadOnlyResource extends org.apache.sling.api.resource.ResourceWrapper
+    private static final class ReadOnlyResource extends ResourceWrapper
     {
         ReadOnlyResource(final Resource resource)
         {

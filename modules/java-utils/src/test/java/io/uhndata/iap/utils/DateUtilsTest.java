@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAccessor;
 import java.util.Calendar;
 import java.util.TimeZone;
 
@@ -184,7 +185,7 @@ public class DateUtilsTest
     @Test
     public void testToStringTemporalAccessorReturnsNullForNull()
     {
-        Assertions.assertNull(DateUtils.toString((java.time.temporal.TemporalAccessor) null));
+        Assertions.assertNull(DateUtils.toString((TemporalAccessor) null));
     }
 
     @Test

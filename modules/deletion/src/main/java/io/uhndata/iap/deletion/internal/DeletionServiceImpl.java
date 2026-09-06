@@ -68,6 +68,7 @@ public class DeletionServiceImpl implements DeletionService
     // Not used directly — link removal is behavior on the Link models — but the reference guarantees the links
     // machinery those models delegate to is active before any deletion runs
     @Reference
+    @SuppressWarnings("checkstyle:UnusedPrivateField")
     private LinkManager linkManager;
 
     @Reference(cardinality = ReferenceCardinality.MULTIPLE, fieldOption = FieldOption.REPLACE,
