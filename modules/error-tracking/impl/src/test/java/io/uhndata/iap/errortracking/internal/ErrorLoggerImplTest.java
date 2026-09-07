@@ -757,14 +757,34 @@ class ErrorLoggerImplTest
     }
 
     @Test
-    void givesUpWaitingForTheLastTalliesRatherThanHangingTheShutdown() throws ReflectiveOperationException
+    void givesUpWaitingForTheLastTalliesRatherThanHangingTheShutdown() throws Exception
     {
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
         TestResolvers.inject(running, this.context.resourceResolver());
         running.activate();
         TestResolvers.set(running, "shutdownWait", 0L);
+        // awaitTermination(0) returns true, and reports nothing, when the executor has already terminated. The
+        // drain that deactivate() queues takes microseconds, so whether it had finished decided whether giving up
+        // was reached at all. The assertion passed either way; only coverage noticed.
+        final CountDownLatch holding = new CountDownLatch(1);
+        final CountDownLatch release = new CountDownLatch(1);
+        final ScheduledExecutorService writer =
+            (ScheduledExecutorService) TestResolvers.get(running, "ownWriter");
+        writer.execute(() -> {
+            holding.countDown();
+            try {
+                release.await(5, TimeUnit.SECONDS);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertTrue(holding.await(5, TimeUnit.SECONDS), "the writer never picked the task up");
 
-        assertDoesNotThrow(running::deactivate);
+        try {
+            assertDoesNotThrow(running::deactivate);
+        } finally {
+            release.countDown();
+        }
     }
 
     @Test
