@@ -768,27 +768,32 @@ class ErrorLoggerImplTest
     }
 
     @Test
-    void stoppingWhileInterruptedLeavesTheThreadInterrupted() throws ReflectiveOperationException
+    void stoppingWhileInterruptedLeavesTheThreadInterrupted() throws Exception
     {
         final ErrorLoggerImpl running = new ErrorLoggerImpl();
         TestResolvers.inject(running, this.context.resourceResolver());
         running.activate();
         TestResolvers.set(running, "shutdownWait", 2_000L);
         // Hold the writer's one thread, so that stopping has to wait for it. Queuing a tally instead does not:
-        // draining it takes microseconds, and an executor with nothing left to do returns from awaitTermination at
-        // once without ever consulting the interrupt flag, leaving the interrupted path below unreached. The
-        // assertion passed either way, since nothing clears the flag, so only this path's coverage noticed — and it
-        // was a coin toss, failing this module's build on about every other run
+        // draining it takes microseconds, and an executor with nothing left to do returns from awaitTermination
+        // without consulting the interrupt flag, leaving the path below unreached. The assertion passes either
+        // way, so only coverage notices.
+        //
+        // execute() only queues, so wait for the task to be running before interrupting. Without that, an
+        // executor that has not picked it up yet terminates at once and the same path goes uncovered.
+        final CountDownLatch holding = new CountDownLatch(1);
         final CountDownLatch occupied = new CountDownLatch(1);
         final ScheduledExecutorService writer =
             (ScheduledExecutorService) TestResolvers.get(running, "ownWriter");
         writer.execute(() -> {
+            holding.countDown();
             try {
                 occupied.await(5, TimeUnit.SECONDS);
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
+        assertTrue(holding.await(5, TimeUnit.SECONDS), "the writer never picked the task up");
         Thread.currentThread().interrupt();
 
         try {
