@@ -188,9 +188,10 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final ResourceResolver resolver = task.getResourceResolver();
         return RepositoryFailures.retryingConflicts(CONFLICT_RETRIES, () -> {
             try {
-                this.taskCompletion.apply(resolver, Objects.requireNonNull(resolver.getResource(task.getPath()),
-                    "A task is never deleted while its instance runs"), event, actor,
-                    dispatcher().performer(event, actor));
+                final Resource current = Objects.requireNonNull(resolver.getResource(task.getPath()),
+                    "A task is never deleted while its instance runs");
+                this.taskCompletion.apply(resolver, current, event, actor, dispatcher().performer(event, actor));
+                EntityRevision.stamp(current);
                 resolver.commit();
                 return new WorkflowResult(Map.of());
             } catch (final PersistenceException e) {
@@ -219,6 +220,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final ResourceResolver resolver = target.getResourceResolver();
         try {
             final Map<String, Object> variables = dispatcher().runSystemWorkflow(target, event, start, actor, 0);
+            EntityRevision.stamp(target);
             resolver.commit();
             return new WorkflowResult(variables);
         } catch (final PersistenceException e) {

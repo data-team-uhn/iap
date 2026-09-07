@@ -45,6 +45,10 @@
   // Hardcode the supertype to the parent data/Entity type.
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
 
+  // An opaque token replaced with a fresh value by every committed change, identifying each version.
+  // This also prevents concurrent changes from succeeding through a bad merge.
+  - revision (STRING)
+
 //-----------------------------------------------------------------------------
 //
 // Entity Part: the base node type for a piece of information we can collect, like a specific question, or a specific answer.
