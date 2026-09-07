@@ -20,13 +20,18 @@ package io.uhndata.iap.search.internal;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.lang.reflect.Field;
+import java.security.Principal;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.jcr.RepositoryException;
@@ -43,6 +48,7 @@ import javax.jcr.query.RowIterator;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 
+import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.Resource;
@@ -53,6 +59,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import io.uhndata.iap.principals.internal.MeResolver;
+import io.uhndata.iap.principals.internal.PrincipalServiceImpl;
+import io.uhndata.iap.principals.spi.SpecialNameResolver;
 
 /**
  * Unit tests for {@link PaginationServlet}.
@@ -122,6 +132,7 @@ public class PaginationServletTest
         });
 
         mockHomepage("sub/SubmissionsHomepage", null);
+        vocabulary();
     }
 
     @Test
@@ -605,4 +616,148 @@ public class PaginationServletTest
         Assertions.assertTrue(getResponseJson().containsKey("error"));
     }
 
+    @Test
+    public void myPrincipalsExpandsIntoAnOrOverEverythingTheSessionActsAs() throws Exception
+    {
+        // A property naming who may act holds principals, not user ids, so "waiting for me" is "any of the things
+        // I act as". The client cannot build that itself: it would have to be told its own group memberships first
+        jackrabbitSession("testUser", "reviewers", "everyone");
+        withParameter("childType", "wf:TaskInstance");
+        withParameter("childFieldName", "performers");
+        withParameter("childFieldValue", "@myPrincipals");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n"
+                + " inner join [wf:TaskInstance] as c0 on isdescendantnode(c0, n)"
+                + " where isdescendantnode(n, '/Submissions')"
+                + " and (c0.[performers] = $p0 or c0.[performers] = $p1 or c0.[performers] = $p2)"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+        Assertions.assertEquals(Map.of("p0", "testUser", "p1", "reviewers", "p2", "everyone"),
+            this.boundValues);
+    }
+
+    @Test
+    public void myPrincipalsNarrowsToTheUserWhenTheSessionActsAsNothingElse() throws Exception
+    {
+        // Never no condition at all: dropping the filter would list everybody's work, the opposite of what asking
+        // for one's own means. The plain mock session cannot be asked what it is bound to, which is the same case
+        withParameter("fieldName", "performers");
+        withParameter("fieldValue", "@myPrincipals");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
+                + " and (n.[performers] = $p0)"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+        Assertions.assertEquals(Map.of("p0", "testUser"), this.boundValues);
+    }
+
+    @Test
+    public void myPrincipalsStaysInTheGroupTheCallerAskedFor() throws Exception
+    {
+        // So that "waiting for me, or already assigned to somebody" can be one OR rather than two ANDed conditions
+        jackrabbitSession("testUser", "reviewers");
+        withParameter("fieldName", "performers", "assignee");
+        withParameter("fieldValue", "@myPrincipals", "someone-else");
+        withParameter("fieldGroup", "mine", "mine");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
+                + " and (n.[performers] = $p0 or n.[performers] = $p1 or n.[assignee] = $p2)"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+        Assertions.assertEquals(Map.of("p0", "testUser", "p1", "reviewers", "p2", "someone-else"),
+            this.boundValues);
+    }
+
+    @Test
+    public void aNameTheVocabularyKnowsIsResolvedWhereverItCameFrom() throws Exception
+    {
+        // The point of asking the principals service rather than knowing the names here: a module that teaches it
+        // `@reviewers` makes that filterable without this servlet learning what a reviewer is
+        vocabulary(new MeResolver(), resolverFor("@reviewers", List.of("alice", "bob")));
+        withParameter("fieldName", "assignee");
+        withParameter("fieldValue", "@reviewers");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
+                + " and (n.[assignee] = $p0 or n.[assignee] = $p1)"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+        Assertions.assertEquals(Map.of("p0", "alice", "p1", "bob"), this.boundValues);
+    }
+
+    @Test
+    public void aNameStandingForNobodyMatchesNothingRatherThanEverything() throws Exception
+    {
+        // A typo in a filter must not widen the listing to everybody's work: kept as written, it matches nothing,
+        // because no stored property holds a name starting with `@`
+        withParameter("fieldName", "assignee");
+        withParameter("fieldValue", "@nobodyKnows");
+        final ArgumentCaptor<String> statement = mockResults();
+        this.servlet.doGet(this.request, this.response);
+        Assertions.assertEquals(
+            "select n.* from [sub:Submission] as n where isdescendantnode(n, '/Submissions')"
+                + " and (n.[assignee] = $p0)"
+                + " order by n.[jcr:created] ASC", statement.getValue());
+        // Bound as written, so it is compared rather than injected, and no stored property holds it
+        Assertions.assertEquals(Map.of("p0", "@nobodyKnows"), this.boundValues);
+    }
+
+    /**
+     * Gives the servlet the real principals service, carrying the given vocabulary, so that these tests assert on
+     * what a deployment resolves rather than on stubbed answers. Called with the platform's own {@code @me}
+     * resolver by default.
+     *
+     * @param resolvers the special-name resolvers to register, {@link MeResolver} if none are given
+     * @throws ReflectiveOperationException if either component's shape changes
+     */
+    private void vocabulary(final SpecialNameResolver... resolvers) throws ReflectiveOperationException
+    {
+        final PrincipalServiceImpl principals = new PrincipalServiceImpl();
+        setField(PrincipalServiceImpl.class, principals, "resolvers",
+            resolvers.length == 0 ? List.of(new MeResolver()) : List.of(resolvers));
+        setField(PaginationServlet.class, this.servlet, "principals", principals);
+    }
+
+    private static void setField(final Class<?> owner, final Object target, final String name, final Object value)
+        throws ReflectiveOperationException
+    {
+        final Field field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    private static SpecialNameResolver resolverFor(final String name, final List<String> answer)
+    {
+        final SpecialNameResolver resolver = Mockito.mock(SpecialNameResolver.class);
+        Mockito.when(resolver.getName()).thenReturn(name);
+        Mockito.when(resolver.resolve(Mockito.any())).thenReturn(answer);
+        return resolver;
+    }
+
+    /**
+     * Replaces the plain mock session with one that can be asked what it is bound to, reporting the given
+     * principals.
+     *
+     * @param userId the user the session belongs to
+     * @param principalNames the principals it acts as
+     * @throws RepositoryException never, but the API the stubs stand in for declares it
+     */
+    private void jackrabbitSession(final String userId, final String... principalNames) throws RepositoryException
+    {
+        final JackrabbitSession bound = Mockito.mock(JackrabbitSession.class);
+        // Both read out of the mock before the stubbing starts: a call on a mock inside thenReturn() is
+        // stubbing nested in unfinished stubbing, which Mockito refuses
+        final Workspace workspace = this.session.getWorkspace();
+        final ValueFactory values = this.session.getValueFactory();
+        Mockito.when(bound.getUserID()).thenReturn(userId);
+        Mockito.when(bound.getWorkspace()).thenReturn(workspace);
+        Mockito.when(bound.getValueFactory()).thenReturn(values);
+        Mockito.when(bound.getBoundPrincipals()).thenReturn(Arrays.stream(principalNames)
+            .map(name -> (Principal) () -> name)
+            .collect(Collectors.toCollection(LinkedHashSet::new)));
+        Mockito.when(this.resolver.adaptTo(Session.class)).thenReturn(bound);
+    }
 }

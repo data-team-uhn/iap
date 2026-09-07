@@ -42,6 +42,13 @@
       <artifactId>iap-search-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- Who a filter value starting with `@` stands for. This servlet knows only that it names somebody -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-principals</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- `@me` resolves to the id the repository uses, not the spelling the login was typed with -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>
@@ -55,6 +62,12 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <!-- Only the tests name Jackrabbit's session: the main code asks UserIds what a session acts as -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-jackrabbit-api</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.sling</groupId>

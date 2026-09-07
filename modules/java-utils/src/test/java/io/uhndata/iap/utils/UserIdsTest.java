@@ -18,9 +18,14 @@
 package io.uhndata.iap.utils;
 
 import java.lang.reflect.Constructor;
+import java.security.Principal;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import javax.jcr.Session;
 
+import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -69,6 +74,56 @@ class UserIdsTest
         final ResourceResolver resolver = Mockito.mock(ResourceResolver.class);
 
         assertNull(UserIds.canonical(resolver));
+    }
+
+    @Test
+    void answersWithEverythingASessionIsBoundTo() throws Exception
+    {
+        // The user's own id first, then the principals: a task's performers name principals, so "is this mine"
+        // is a question about the whole set rather than about the user id alone
+        final JackrabbitSession session = boundTo("priya", "reviewers", "everyone");
+
+        assertEquals(List.of("priya", "reviewers", "everyone"), UserIds.principalsOf(session));
+    }
+
+    @Test
+    void answersWithJustTheUserWhereTheSessionIsNotJackrabbitsToAsk() throws Exception
+    {
+        // Never the empty list: a caller filtering on nothing would widen its question to everybody, which is the
+        // opposite of asking what is theirs
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getUserID()).thenReturn("priya");
+
+        assertEquals(List.of("priya"), UserIds.principalsOf(session));
+    }
+
+    @Test
+    void namesEachPrincipalOnce() throws Exception
+    {
+        // A session is bound to a principal for its own user as well, so the user id would otherwise appear twice
+        final JackrabbitSession session = boundTo("priya", "priya", "everyone");
+
+        assertEquals(List.of("priya", "everyone"), UserIds.principalsOf(session));
+    }
+
+    /**
+     * A Jackrabbit session reporting the given principals.
+     *
+     * @param userId the user the session belongs to
+     * @param principalNames the principals it is bound to
+     * @return the mocked session
+     * @throws Exception never, but the API being stubbed declares it
+     */
+    private JackrabbitSession boundTo(final String userId, final String... principalNames) throws Exception
+    {
+        final JackrabbitSession session = Mockito.mock(JackrabbitSession.class);
+        Mockito.when(session.getUserID()).thenReturn(userId);
+        final Set<Principal> principals = new LinkedHashSet<>();
+        for (final String name : principalNames) {
+            principals.add((Principal) () -> name);
+        }
+        Mockito.when(session.getBoundPrincipals()).thenReturn(principals);
+        return session;
     }
 
     @Test
