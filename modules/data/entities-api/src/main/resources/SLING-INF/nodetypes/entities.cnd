@@ -35,6 +35,10 @@
 
   - sling:resourceSuperType (STRING) = "data/Entity" mandatory autocreated protected
 
+  // A token the workflow engine replaces whenever it commits an event aimed at
+  // the entity or one of its parts, so that two such events at once conflict.
+  - revision (STRING) IGNORE
+
 //-----------------------------------------------------------------------------
 //
 // Entity part: the base node type of a piece of an entity, such as a question

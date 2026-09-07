@@ -51,6 +51,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.nodetypes.NodeTypeRules;
 import io.uhndata.iap.history.api.HistoryRecorder;
 import io.uhndata.iap.history.api.RecordedAction;
@@ -358,6 +359,12 @@ class HistoryRecordingTest
             request.setProperty("jcr:lastModified", new GregorianCalendar());
             request.setProperty("jcr:lastModifiedBy", REQUESTER);
         });
+    }
+
+    @Test
+    void leavesOutTheRevisionToken() throws Exception
+    {
+        assertRecordsNothing(() -> this.session.getNode(REQUEST).setProperty(Entity.REVISION_PROPERTY, "token"));
     }
 
     @Test

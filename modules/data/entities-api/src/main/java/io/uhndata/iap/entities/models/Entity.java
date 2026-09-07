@@ -43,6 +43,12 @@ public class Entity extends Content implements Referenceable
     /** The resource type of {@code data:Entity}, which the resource type of every entity extends. */
     public static final String RESOURCE_TYPE = "data/Entity";
 
+    /**
+     * The property holding the entity's revision token, which the workflow engine replaces whenever it commits an
+     * event aimed at the entity or one of its parts.
+     */
+    public static final String REVISION_PROPERTY = "revision";
+
     @ValueMapValue(name = "jcr:lastModified")
     private Calendar lastModified;
 

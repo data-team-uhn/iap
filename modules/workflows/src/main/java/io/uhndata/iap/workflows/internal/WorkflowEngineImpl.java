@@ -181,6 +181,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 final Resource current = Objects.requireNonNull(resolver.getResource(task.getPath()),
                     "A task is never deleted while its instance runs");
                 this.taskCompletion.apply(resolver, current, event, actor, attempt.performer(event, actor));
+                EntityRevision.stamp(current);
                 this.recorder.commit(resolver, attempt.recordedAsTask(actor, event, current));
                 return attempt;
             } catch (final PersistenceException e) {
@@ -213,6 +214,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final Map<String, Object> variables;
         try {
             variables = dispatcher.runSystemWorkflow(target, event, start, actor, 0);
+            EntityRevision.stamp(target);
             this.recorder.commit(resolver, dispatcher.recordedAsSystemWorkflow(actor, event, start));
         } catch (final PersistenceException e) {
             revert(resolver);
