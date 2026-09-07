@@ -32,6 +32,19 @@ const AUTHORIZATION = `Basic ${Buffer.from('admin:admin').toString('base64')}`;
 /** Health check outcomes that mean the instance is not usable yet. */
 const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAILABLE'];
 
+/** The tag the startup gate watches. Every check carrying it must be OK, a WARN included. */
+const GATE_TAG = 'systemalive';
+
+/**
+ * How long the gate's checks must have been passing before an instance counts as ready.
+ *
+ * An open gate is not a safe one. It opens as soon as its checks have held briefly, and only stops being
+ * able to refuse anything once they have held for its settle period. In between, one blip closes it again
+ * and answers whatever is in flight with a bare 503. So wait for the rule the gate applies to itself. 40s
+ * sits above its own 30s settle period, and the two poll independently.
+ */
+const GATE_SETTLED_MS = 40_000;
+
 /**
  * Whether an instance is ready to be tested.
  *
@@ -43,6 +56,11 @@ const BLOCKING_STATUSES = ['CRITICAL', 'HEALTH_CHECK_ERROR', 'TEMPORARILY_UNAVAI
  *
  * A WARN is deliberately not blocking. It means something is worth looking at, not that the instance is
  * unusable, and treating it as fatal here would turn a passing suite into a startup timeout.
+ *
+ * Except for the checks the startup gate watches, where a WARN means "not yet". The gate holds until
+ * every `systemalive` check is OK and 503s everything meanwhile. An instance judged ready on the looser
+ * rule serves its pages while every asset they import is refused, so the dashboard renders without its
+ * widgets and a test waiting for one of them times out.
  */
 const isReady = async (instance: ActiveInstance): Promise<boolean> => {
   try {
@@ -54,6 +72,16 @@ const isReady = async (instance: ActiveInstance): Promise<boolean> => {
     }
     const body = (await health.json()) as { results?: { status?: string }[] };
     if ((body.results ?? []).some(result => BLOCKING_STATUSES.includes(result.status ?? ''))) {
+      return false;
+    }
+    const gate = await fetch(`${instance.baseURL}/system/health.json?tags=${GATE_TAG}`, {
+      headers: { Authorization: AUTHORIZATION },
+    });
+    if (!gate.ok) {
+      return false;
+    }
+    const gateBody = (await gate.json()) as { results?: { status?: string }[] };
+    if ((gateBody.results ?? []).some(result => result.status !== 'OK')) {
       return false;
     }
     const loginPage = await fetch(`${instance.baseURL}/login`);
@@ -75,11 +103,19 @@ const isReady = async (instance: ActiveInstance): Promise<boolean> => {
 const waitFor = async (instance: ActiveInstance): Promise<void> => {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let lastError = 'no response';
+  // When the current unbroken stretch of readiness began
+  let readySince: number | undefined;
   while (Date.now() < deadline) {
     if (await isReady(instance)) {
-      return;
+      readySince ??= Date.now();
+      if (Date.now() - readySince >= GATE_SETTLED_MS) {
+        return;
+      }
+      lastError = 'the startup gate had not settled';
+    } else {
+      readySince = undefined;
+      lastError = 'health checks not passing';
     }
-    lastError = 'health checks not passing';
     await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
   }
   throw new Error(
