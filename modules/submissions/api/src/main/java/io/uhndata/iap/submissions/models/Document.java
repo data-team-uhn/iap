@@ -26,7 +26,7 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.schemas.models.Fulfiller;
 import io.uhndata.iap.schemas.models.Requirement;
 
 /**
@@ -36,9 +36,10 @@ import io.uhndata.iap.schemas.models.Requirement;
  * @version $Id$
  * @since 0.1.0
  */
-@Model(adaptables = Resource.class, resourceType = Document.RESOURCE_TYPE,
+@Model(adaptables = Resource.class, adapters = { Document.class, Fulfiller.class },
+    resourceType = Document.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class Document extends EntityPart
+public class Document extends Fulfiller
 {
     /** The {@code sling:resourceType} of a {@code sub:Document} node. */
     public static final String RESOURCE_TYPE = "sub/Document";
@@ -80,6 +81,7 @@ public class Document extends EntityPart
      * @return a requirement, or {@code null} if not set or unresolvable
      */
     @Nullable
+    @Override
     public Requirement getFulfills()
     {
         return this.getReference(this.fulfills, Requirement.class);

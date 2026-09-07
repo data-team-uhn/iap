@@ -35,6 +35,7 @@
     that every capability is proved by something in use rather than only by its own unit tests.
   -->
   <modules>
+    <module>data-study</module>
     <module>time-off-request</module>
   </modules>
 </project>

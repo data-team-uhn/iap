@@ -106,7 +106,8 @@ Options:
                                  `iap-test-data` feature).
       --demo                     Additionally load the demo projects (the
                                  `iap-demo-*` features): complete, working
-                                 processes rather than sample content.
+                                 processes rather than sample content, along
+                                 with any optional module a demo is built on.
   -h, --help                     Show this help message and exit.
 
 Notes:
@@ -404,8 +405,13 @@ def main(argv):
     if options['test']:
         launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-test-data/%s/slingosgifeature' % platform_version]
     if options['demo']:
-        launcher_args += ['-f', 'mvn:io.uhndata.iap/iap-demo-time-off-request/%s/slingosgifeature'
-                          % platform_version]
+        # The data study demo is built on the data requirement module, which is optional and so not
+        # part of the distribution being launched: without it the demo's content names node types
+        # nobody registered.
+        for feature in ('iap-demo-time-off-request', 'iap-data-requirement-impl',
+                        'iap-demo-data-study'):
+            launcher_args += ['-f', 'mvn:io.uhndata.iap/%s/%s/slingosgifeature'
+                              % (feature, platform_version)]
     if options['projects']:
         features = resolve_project_features(options['projects'], platform_version, project_version,
                                             options['permissions'])

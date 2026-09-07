@@ -33,6 +33,7 @@ import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
@@ -72,7 +73,7 @@ final class ConstraintFixture
         final String... values) throws Exception
     {
         context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, SchemaVersion.class,
-            FormRequirement.class, Question.class, Answer.class, Submission.class);
+            FormRequirement.class, Question.class, Answer.class, AnswerSet.class, Submission.class);
         context.create().resource(VERSION_PATH, Map.of(TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0"));
         // sling:resourceSuperType is autocreated from the node type in a real repository, and by nothing in a
         // mock one, so it is set explicitly for the schema walk's type matching
@@ -88,9 +89,12 @@ final class ConstraintFixture
             Map.of(TYPE, Submission.RESOURCE_TYPE, "title", "One"));
         reference(context, SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
         if (values.length > 0) {
-            context.create().resource(SUBMISSION_PATH + "/a1",
+            // Answers hang under the set naming the requirement they were given for, so the fixture builds both
+            context.create().resource(SUBMISSION_PATH + "/answers", Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
+            reference(context, SUBMISSION_PATH + "/answers", VERSION_PATH + "/form", "fulfills");
+            context.create().resource(SUBMISSION_PATH + "/answers/a1",
                 Map.of(TYPE, Answer.RESOURCE_TYPE, "value", values));
-            reference(context, SUBMISSION_PATH + "/a1", VERSION_PATH + "/form/q", "question");
+            reference(context, SUBMISSION_PATH + "/answers/a1", VERSION_PATH + "/form/q", "question");
         }
         return submission.adaptTo(Submission.class);
     }

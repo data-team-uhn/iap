@@ -198,17 +198,41 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
                 aria-label="What is being submitted"
                 value={selected}
                 onChange={event => setSelected(event.target.value)}
+                sx={{ gap: 1 }}
               >
                 { choices.map(choice => (
                   <FormControlLabel
                     key={choice.path}
                     value={choice.path}
                     control={<Radio />}
+                    // One box per choice. A description long enough to be worth reading is also long
+                    // enough that, stacked, the eye cannot tell where one option ends and the next
+                    // begins; the outline says so without needing a rule between them. The control is
+                    // pulled to the top for the same reason — centred against a tall label it marks
+                    // the middle of an option rather than its start.
+                    sx={{
+                      alignItems: "flex-start",
+                      m: 0,
+                      p: 1.5,
+                      border: 1,
+                      borderRadius: 1,
+                      borderColor: choice.path === selected ? "primary.main" : "divider",
+                    }}
                     label={
                       <>
-                        <Typography component="span">{`${choice.title} ${choice.version}`.trim()}</Typography>
+                        {/* Both spans: a label is itself a span, and a <p> inside one is invalid. */}
+                        <Typography component="span" sx={{ display: "block", fontWeight: "medium" }}>
+                          {`${choice.title} ${choice.version}`.trim()}
+                        </Typography>
                         { choice.description && (
-                          <Typography variant="body2" color="text.secondary">{choice.description}</Typography>
+                          <Typography
+                            component="span"
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{ display: "block" }}
+                          >
+                            {choice.description}
+                          </Typography>
                         ) }
                       </>
                     }

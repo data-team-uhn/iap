@@ -125,7 +125,7 @@ class RecordReviewHandlerTest
         final Review review = onlyReview();
         assertEquals(APPROVER, review.getReviewer());
         // The requirement, so that a schema asking for several approvals can tell them apart
-        assertEquals(APPROVAL_PATH, Objects.requireNonNull(review.getRequirement()).getPath());
+        assertEquals(APPROVAL_PATH, Objects.requireNonNull(review.getFulfills()).getPath());
         // The outcome as the tag, which is what the model reads to decide whether the approval was granted
         assertTrue(review.isApproved());
     }
@@ -135,7 +135,7 @@ class RecordReviewHandlerTest
     {
         this.handler.execute(context(APPROVAL_PATH, Map.of("outcome", "approved")));
 
-        assertEquals(APPROVAL_PATH, Objects.requireNonNull(onlyReview().getRequirement()).getPath());
+        assertEquals(APPROVAL_PATH, Objects.requireNonNull(onlyReview().getFulfills()).getPath());
     }
 
     @Test

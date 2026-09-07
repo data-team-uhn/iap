@@ -112,41 +112,47 @@ const DEEP_SUBMISSION = {
       "@name": "ExtraForm",
     },
   },
-  "a1": {
-    "@path": "/Submissions/demo-1/a1",
-    "sling:resourceType": "sub/Answer",
-    "question": {
-      "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/StudyTitle",
-      "sling:resourceType": "sch/Question",
-      "text": "What is the full title of the study?",
+  // Answers hang under the set that says which requirement they were given for, which is where the
+  // page now looks for them
+  "answers": {
+    "@path": "/Submissions/demo-1/answers",
+    "sling:resourceType": "sub/AnswerSet",
+    "a1": {
+      "@path": "/Submissions/demo-1/a1",
+      "sling:resourceType": "sub/Answer",
+      "question": {
+        "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/StudyTitle",
+        "sling:resourceType": "sch/Question",
+        "text": "What is the full title of the study?",
+      },
+      "value": "A wonder drug against everything",
     },
-    "value": "A wonder drug against everything",
-  },
-  "a2": {
-    "@path": "/Submissions/demo-1/a2",
-    "sling:resourceType": "sub/Answer",
-    "question": { "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/Keywords" },
-    // A multi-valued answer, mixing in a non-string entry
-    "value": ["pharmacology", true],
-  },
-  "a3": {
-    "@path": "/Submissions/demo-1/a3",
-    "sling:resourceType": "sub/Answer",
-    "question": { "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/Blinded" },
-    "value": false,
-  },
-  "a4": {
-    "@path": "/Submissions/demo-1/a4",
-    "sling:resourceType": "sub/Answer",
-    "question": { "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/Duration" },
-    "value": 36,
-  },
-  "a5": {
-    "@path": "/Submissions/demo-1/a5",
-    "sling:resourceType": "sub/Answer",
-    "question": { "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/Consent" },
-    // A nested node has no meaningful text form, so this reads as unanswered
-    "value": { "jcr:primaryType": "nt:unstructured" },
+    "a2": {
+      "@path": "/Submissions/demo-1/a2",
+      "sling:resourceType": "sub/Answer",
+      "question": { "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/Keywords" },
+      // A multi-valued answer, mixing in a non-string entry
+      "value": ["pharmacology", true],
+    },
+    "a3": {
+      "@path": "/Submissions/demo-1/a3",
+      "sling:resourceType": "sub/Answer",
+      "question": { "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/Blinded" },
+      "value": false,
+    },
+    "a4": {
+      "@path": "/Submissions/demo-1/a4",
+      "sling:resourceType": "sub/Answer",
+      "question": { "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/Duration" },
+      "value": 36,
+    },
+    "a5": {
+      "@path": "/Submissions/demo-1/a5",
+      "sling:resourceType": "sub/Answer",
+      "question": { "@path": "/Schemas/ClinicalTrial/1.0/BasicInformation/Consent" },
+      // A nested node has no meaningful text form, so this reads as unanswered
+      "value": { "jcr:primaryType": "nt:unstructured" },
+    },
   },
   "r1": {
     "@path": "/Submissions/demo-1/r1",

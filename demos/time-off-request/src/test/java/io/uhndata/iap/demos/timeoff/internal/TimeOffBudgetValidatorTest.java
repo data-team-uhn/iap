@@ -37,6 +37,7 @@ import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityPart;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Submission;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -70,7 +71,7 @@ class TimeOffBudgetValidatorTest
     void setUp()
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Submission.class,
-            Answer.class, Question.class);
+            Answer.class, AnswerSet.class, Question.class);
         for (final String name : new String[] {"duration", "startDate", "endDate"}) {
             this.context.create().resource(VERSION_PATH + "/" + name, Map.of(
                 TYPE, Question.RESOURCE_TYPE, "text", name));
@@ -161,9 +162,9 @@ class TimeOffBudgetValidatorTest
         final Resource request = this.context.create().resource(REQUEST_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A long weekend",
             TimeOffBudgetHandler.REMAINING_DAYS, 0L));
-        this.context.create().resource(request.getPath() + "/orphan", Map.of(
+        this.context.create().resource(this.answers(request).getPath() + "/orphan", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"full-day"}));
-        this.reference(this.context.create().resource(request.getPath() + "/empty", Map.of(
+        this.reference(this.context.create().resource(this.answers(request).getPath() + "/empty", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[0])), VERSION_PATH + "/duration");
 
         assertNull(this.validator.validate(request.adaptTo(Submission.class), REQUESTER));
@@ -183,9 +184,19 @@ class TimeOffBudgetValidatorTest
 
     private void answer(final Resource request, final String question, final String value)
     {
-        final Resource answer = this.context.create().resource(request.getPath() + "/" + question, Map.of(
-            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
+        final Resource answer = this.context.create().resource(
+            this.answers(request).getPath() + "/" + question,
+            Map.of(TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
         this.reference(answer, VERSION_PATH + "/" + question);
+    }
+
+    /** The set a request's answers live in, created the first time one is filed. */
+    private Resource answers(final Resource request)
+    {
+        final String path = request.getPath() + "/answers";
+        final Resource existing = this.context.resourceResolver().getResource(path);
+        return existing != null ? existing
+            : this.context.create().resource(path, Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
     }
 
     /** Points an answer at its question the way the save handler does: a real REFERENCE, not a path. */

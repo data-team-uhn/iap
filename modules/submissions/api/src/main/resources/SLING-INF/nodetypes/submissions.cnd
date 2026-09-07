@@ -77,14 +77,40 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The submitter's answers to the schema questions
-  + * (sub:Answer) = sub:Answer
+  // The submitter's answers, grouped by the requirement they are given for. Note the residual
+  // below accepts a sub:Answer directly as well: a named child definition documents what belongs
+  // where, it does not forbid anything else.
+  + * (sub:AnswerSet) = sub:AnswerSet
 
   // Attached documents, e.g. the signed patient consent
   + * (sub:Document) = sub:Document
 
   // Reviews added by reviewers
   + * (sub:Review) = sub:Review
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The answers given for one form requirement, and the thing that says so.
+//
+// Answers name a question rather than a requirement, so without this a set of
+// questions would be the one kind of requirement that cannot say what answers
+// it: every other kind is met by a part carrying `fulfills`, and this makes
+// questions no different. Named by a UUID, because what it answers is a
+// reference rather than a label.
+[sub:AnswerSet] > data:EntityPart
+  - sling:resourceType (STRING) = "sub/AnswerSet" mandatory autocreated protected
+
+  // The sch:FormRequirement these answers are given for
+  - fulfills (REFERENCE) mandatory
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The answers themselves
+  + * (sub:Answer) = sub:Answer
 
   // Allow any other children for extensibility
   + * (nt:base) = nt:unstructured

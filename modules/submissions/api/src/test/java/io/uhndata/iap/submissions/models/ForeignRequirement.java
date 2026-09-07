@@ -1,0 +1,43 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.uhndata.iap.submissions.models;
+
+import org.apache.sling.api.resource.Resource;
+import org.apache.sling.models.annotations.DefaultInjectionStrategy;
+import org.apache.sling.models.annotations.Model;
+
+import io.uhndata.iap.schemas.models.Requirement;
+
+/**
+ * A kind of requirement declared somewhere else, standing in for the real ones other modules bring.
+ *
+ * <p>Registered the way those are — a concrete model adapting to the abstract {@code Requirement} — because
+ * that is what makes the difference the test is about: a resource type nothing has registered does not adapt
+ * at all and never reaches the walk, so an unregistered node would prove nothing.</p>
+ *
+ * @version $Id$
+ * @since 0.1.0
+ */
+@Model(adaptables = Resource.class, adapters = Requirement.class,
+    resourceType = ForeignRequirement.RESOURCE_TYPE,
+    defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
+public class ForeignRequirement extends Requirement
+{
+    /** Deliberately in nobody's namespace: this module must not recognise it. */
+    public static final String RESOURCE_TYPE = "elsewhere/ForeignRequirement";
+}

@@ -42,6 +42,7 @@ import org.mockito.Mockito;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
@@ -85,6 +86,7 @@ class MarkUrgencyHandlerTest
             TYPE, Question.RESOURCE_TYPE, "text", "Which day does your time off start?", "dataType", "date"));
         this.target = this.context.create().resource(SUBMISSION_PATH, Map.of(
             TYPE, Submission.RESOURCE_TYPE, "title", "A day off", "tags", new String[] {"submitted"}));
+        this.context.create().resource(SUBMISSION_PATH + "/answers", Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
     }
 
     @Test
@@ -98,7 +100,7 @@ class MarkUrgencyHandlerTest
     {
         // Tomorrow as the handler will read it: it judges against the day it runs, which is the only sensible
         // reading of "about to start" and the reason the date is not stored anywhere
-        this.context.create().resource(SUBMISSION_PATH + "/start", Map.of(
+        this.context.create().resource(SUBMISSION_PATH + "/answers/start", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "question", identifierOf(VERSION_PATH + "/details/startDate"),
             "value", new String[] {LocalDate.now().plusDays(1).toString()}));
 

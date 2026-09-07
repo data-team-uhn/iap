@@ -69,6 +69,7 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
+import io.uhndata.iap.submissions.models.AnswerSet;
 import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Review;
 import io.uhndata.iap.submissions.models.Submission;
@@ -134,8 +135,8 @@ class SubmissionFormServletTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, EntityPart.class, Schema.class,
             SchemaVersion.class, FormRequirement.class, DocumentRequirement.class, ApprovalRequirement.class,
-            Section.class, Question.class, AnswerOption.class, Answer.class, Document.class, Review.class,
-            Submission.class);
+            Section.class, Question.class, AnswerOption.class, Answer.class, AnswerSet.class,
+            Document.class, Review.class, Submission.class);
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
@@ -303,6 +304,25 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void namesEveryRequirementEvenWhenNothingDescribesItsKind() throws Exception
+    {
+        // A whiteboard field is null until something registers. A form that dropped what it could not describe
+        // would report a schema asking for nothing at all, which is worse than one that says less about each
+        set(SubmissionFormServlet.class, this.servlet, "describers", null);
+
+        final JsonObject form = form(REQUESTER);
+
+        assertEquals(Set.of(DETAILS, "doctorsNote", "signedForm", APPROVAL),
+            names(form.getJsonArray("requirements")));
+        final JsonObject note = requirement(form, "doctorsNote");
+        assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
+        assertEquals("Doctor's note", note.getString("label"));
+        // Nothing of the kind's own, because nothing claimed it
+        assertFalse(note.containsKey("acceptedFileTypes"));
+        assertFalse(requirement(form, DETAILS).containsKey("items"));
+    }
+
+    @Test
     void namesWhatHasAlreadyBeenAttachedForARequirement() throws IOException
     {
         // Named rather than counted, so that a form reopened later says which document is there: an upload control
@@ -408,7 +428,7 @@ class SubmissionFormServletTest
     void passesOverAnAnswerWhoseQuestionIsGone() throws IOException
     {
         // A question removed from the schema leaves its answer behind; it is the answer to nothing being asked
-        this.context.create().resource(SUBMISSION_PATH + "/orphan", Map.of(
+        this.context.create().resource(this.answerSet(DETAILS).getPath() + "/orphan", Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"stale"}));
 
         assertTrue(item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonArray("value").isEmpty());
@@ -584,14 +604,41 @@ class SubmissionFormServletTest
             decided.set(Calendar.MILLISECOND, 500);
             modify(review.getPath(), "jcr:created", decided);
         }
-        reference(review.getPath(), VERSION_PATH + "/" + APPROVAL, "requirement");
+        reference(review.getPath(), VERSION_PATH + "/" + APPROVAL, "fulfills");
     }
 
     private void answer(final String questionPath, final String value)
     {
-        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + value.hashCode(), Map.of(
-            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
+        final Resource set = this.answerSet(requirementOf(questionPath));
+        final Resource answer = this.context.create().resource(
+            set.getPath() + "/" + value.hashCode(), Map.of(
+                TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
         reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+    }
+
+    /** The requirement a question belongs to: the first segment of its path, as the handler reads it. */
+    private static String requirementOf(final String questionPath)
+    {
+        final int boundary = questionPath.indexOf('/');
+        return boundary < 0 ? questionPath : questionPath.substring(0, boundary);
+    }
+
+    /**
+     * The set of answers for one requirement, made once and shared by every answer given for it.
+     *
+     * @param requirement the requirement's name, which is the first segment of a question's path
+     * @return the set to hang the answer under
+     */
+    private Resource answerSet(final String requirement)
+    {
+        final String path = SUBMISSION_PATH + "/answers-" + requirement;
+        final Resource existing = this.context.resourceResolver().getResource(path);
+        if (existing != null) {
+            return existing;
+        }
+        final Resource set = this.context.create().resource(path, Map.of(TYPE, AnswerSet.RESOURCE_TYPE));
+        reference(set.getPath(), VERSION_PATH + "/" + requirement, "fulfills");
+        return set;
     }
 
     private void reference(final String fromPath, final String toPath, final String property)
@@ -623,8 +670,29 @@ class SubmissionFormServletTest
     {
         // The house idiom for a component under unit test: DS metadata only exists in the packaged bundle, so the
         // references are set by reflection rather than by registerInjectActivateService
-        final var field = SubmissionFormServlet.class.getDeclaredField("conditions");
+        set(SubmissionFormServlet.class, servlet, "conditions", evaluator);
+        // The real describers rather than stand-ins, because what these cases pin is the document a reader is
+        // served — which of them writes a given key is exactly the thing that should be free to move
+        final FormRequirementDescriber forms = new FormRequirementDescriber();
+        set(FormRequirementDescriber.class, forms, "conditions", evaluator);
+        set(SubmissionFormServlet.class, servlet, "describers",
+            List.of(forms, new DocumentRequirementDescriber(), new ApprovalRequirementDescriber()));
+    }
+
+    /**
+     * Sets one OSGi reference by reflection.
+     *
+     * @param type the class declaring the field
+     * @param target the instance to set it on
+     * @param name the field's name
+     * @param value what to set it to
+     * @throws ReflectiveOperationException if no such field exists
+     */
+    private static void set(final Class<?> type, final Object target, final String name, final Object value)
+        throws ReflectiveOperationException
+    {
+        final var field = type.getDeclaredField(name);
         field.setAccessible(true);
-        field.set(servlet, evaluator);
+        field.set(target, value);
     }
 }
