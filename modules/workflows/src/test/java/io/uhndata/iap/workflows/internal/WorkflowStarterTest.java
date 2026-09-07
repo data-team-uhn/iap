@@ -47,6 +47,8 @@ import io.uhndata.iap.workflows.models.WorkflowFixture;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.STATE;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.ACTIVE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -80,9 +82,9 @@ class WorkflowStarterTest
         this.context.create().resource(HOST, TYPE, "sub/Submission");
         this.context.create().resource(HOST + "/wf:instances", TYPE, "wf/WorkflowInstances");
         this.context.create().resource("/Workflows/timeOffRequest", Map.of(
-            TYPE, "wf/WorkflowDefinition", "title", "Time off request", "active", true));
+            TYPE, "wf/WorkflowDefinition", "title", "Time off request"));
         this.context.create().resource(VERSION, Map.of(
-            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", STATE, ACTIVE));
         // Start straight to an end: this suite is about finding the workflow, not about running it
         this.context.create().resource(VERSION + "/start", Map.of(
             TYPE, StartEvent.RESOURCE_TYPE, "elementId", "start"));
@@ -166,11 +168,12 @@ class WorkflowStarterTest
     }
 
     @Test
-    void refusesAnInactiveWorkflow() throws Exception
+    void refusesARetiredVersion() throws Exception
     {
         reference(HOST, "workflow", VERSION);
         this.context.resourceResolver().getResource(VERSION)
-            .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class).put("active", false);
+            .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class)
+            .put(STATE, WorkflowVersion.State.RETIRED.name());
 
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
             () -> WorkflowStarter.execute(context("workflow", HOST), performer(),

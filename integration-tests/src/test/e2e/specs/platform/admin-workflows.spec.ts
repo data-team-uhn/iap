@@ -43,33 +43,37 @@ test.describe('the workflow editor as an administrative tool', () => {
     expect(titles.indexOf('Submission categories')).toBeLessThan(titles.indexOf('Workflows'));
   });
 
-  test('says so on the console when no workflows are defined', async ({ page }) => {
+  test('counts the workflows in each place they are stored', async ({ page }) => {
     await signInAs(page, ADMIN);
     await page.goto('/admin');
 
-    // The bare platform ships the /Workflows tree but no definitions, so this is the empty state.
-    // Ensure that there are indeed no workflows in the base platform, and that the widget says so.
-    await expect(page.getByText('No workflows are defined yet.')).toBeVisible();
+    // The widget answers what a dashboard is for - is there anything here, and how much - one line
+    // per homepage. A count rather than a particular count: this project shares one instance across
+    // its specs, and creating workflows is what several of them are about.
+    const stored = page.getByRole('listitem')
+      .filter({ has: page.getByRole('link', { name: 'Workflows', exact: true }) });
+    await expect(stored).toContainText(/\d/);
   });
 
-  test('opens the BPMN editor at its own address', async ({ page }) => {
+  test('opens the console at the homepage the dashboard points at', async ({ page }) => {
     await signInAs(page, ADMIN);
     await page.goto('/admin');
     await page.getByRole('link', { name: 'Manage workflows' }).click();
 
-    await expect(page).toHaveURL(/\/admin\/workflows$/);
+    // The console's root is deliberately not a page: one segment below it names a homepage, and the
+    // dashboard's action leads to the one every deployment has
+    await expect(page).toHaveURL(/\/admin\/workflows\/Workflows$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Workflows' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Load' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New workflow' })).toBeVisible();
   });
 
-  // No real node is created behind /admin/workflows, check that the URL still resolves correctly
-  test('serves its own address to a request that starts there', async ({ page }) => {
+  // No real node is created behind /admin/workflows/*, check that the URL still resolves correctly
+  test('serves a homepage to a request that starts there', async ({ page }) => {
     await signInAs(page, ADMIN);
-    await page.goto('/admin/workflows');
+    await page.goto('/admin/workflows/Workflows');
 
     await expect(page.getByRole('heading', { level: 1, name: 'Workflows' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Load' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New workflow' })).toBeVisible();
   });
 
   test('serves it to nobody who cannot reach the console', async ({ request }) => {

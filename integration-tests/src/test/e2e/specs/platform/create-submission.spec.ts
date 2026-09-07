@@ -65,8 +65,8 @@ test.describe('creating a submission through the bootstrap system workflow', () 
     const response = await request.get('/SystemWorkflows/createSubmission/v1.json', { headers: asAdmin });
 
     expect(response.ok()).toBeTruthy();
-    const version = (await response.json()) as { active?: boolean; targetResourceType?: string };
-    expect(version.active).toBe(true);
+    const version = (await response.json()) as { state?: string; targetResourceType?: string };
+    expect(version.state).toBe('ACTIVE');
     expect(version.targetResourceType).toBe('sub/SubmissionsHomepage');
   });
 });

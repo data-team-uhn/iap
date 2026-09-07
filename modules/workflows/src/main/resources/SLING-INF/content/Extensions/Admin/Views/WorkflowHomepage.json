@@ -1,0 +1,9 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "Workflows",
+  "ext:hint": "The workflows stored in one homepage, with a tab for each of the others beside it. One segment below the console's root is a homepage, and this is the shallowest thing the console shows: the root itself is deliberately not registered, so that it is neither a page nor a step in the trail - it named the same listing this does, which is one duplicate URL and one duplicate crumb.",
+  "ext:targetURL": "/admin/workflows/:homepage",
+  "ext:renderURL": "asset:iap-workflows.WorkflowConsole.js?lazy",
+  "defaultOrder": 10
+}

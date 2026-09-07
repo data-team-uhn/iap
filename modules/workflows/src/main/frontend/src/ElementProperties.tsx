@@ -1,24 +1,23 @@
-//
-//  Licensed to the Apache Software Foundation (ASF) under one
-//  or more contributor license agreements.  See the NOTICE file
-//  distributed with this work for additional information
-//  regarding copyright ownership.  The ASF licenses this file
-//  to you under the Apache License, Version 2.0 (the
-//  "License"); you may not use this file except in compliance
-//  with the License.  You may obtain a copy of the License at
-//
-//   http://www.apache.org/licenses/LICENSE-2.0
-//
-//  Unless required by applicable law or agreed to in writing,
-//  software distributed under the License is distributed on an
-//  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-//  KIND, either express or implied.  See the License for the
-//  specific language governing permissions and limitations
-//  under the License.
-//
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 import {
-  useEffect,
+  useState,
 } from "react";
 
 import {
@@ -26,41 +25,62 @@ import {
   Typography,
 } from "@mui/material";
 
+import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type BpmnModeling from "bpmn-js/lib/features/modeling/Modeling";
 import type { Element } from "bpmn-js/lib/model/Types";
-import type Modeler from "bpmn-js/lib/Modeler";
+
+const nameOf = (element: Element) => (element.businessObject as { name?: string } | undefined)?.name ?? "";
 
 interface ElementPropertiesProps {
   element: Element;
-  modeler: Modeler;
+  viewer: BaseViewer;
+  // Incremented by the parent every time the canvas reports a change to this element, which is the cue to reread it.
+  revision?: number;
+  readOnly?: boolean;
 }
 
 export default function ElementProperties(props: ElementPropertiesProps) {
   const {
     element,
-    modeler
+    viewer,
+    revision = 0,
+    readOnly = false
   } = props;
 
-  useEffect(() => {
-    // Do nothing: need a useEffect on element to trigger a re-render
-  }, [element])
+  // Local copy of name: bpmn-js mutates the businessObject in place, so it wouldn't otherwise trigger a re-render.
+  const [ name, setName ] = useState(() => nameOf(element));
 
-  const updateName = (name: string) => {
-    const modeling = modeler.get<BpmnModeling>('modeling');
-    modeling.updateLabel(element, name);
+  // Since that mutation leaves the element object itself unchanged, a rename elsewhere is only visible as a bumped
+  // revision; rereading is harmless when the rename was this field's own, as the name read back is what was typed.
+  const [ syncedRevision, setSyncedRevision ] = useState(revision);
+  if (revision !== syncedRevision) {
+    setSyncedRevision(revision);
+    setName(nameOf(element));
+  }
+
+  const updateName = (value: string) => {
+    setName(value);
+    const modeling = viewer.get<BpmnModeling>('modeling');
+    modeling.updateLabel(element, value);
   }
 
   return (
     <div key={ element.id }>
       <Typography>Identifier: {element.id}</Typography>
 
-      <Typography>
-        Name:
-        <TextField
-          value={(element.businessObject as { name?: string } | undefined)?.name ?? ""}
-          onChange={(event) => updateName(event.target.value)}
-        />
-      </Typography>
+      {
+        readOnly
+          ? <Typography>Name: {name}</Typography>
+          : (
+            <Typography>
+              Name:
+              <TextField
+                value={name}
+                onChange={(event) => updateName(event.target.value)}
+              />
+            </Typography>
+          )
+      }
     </div>
   );
 }

@@ -1,7 +1,0 @@
-{
-  "jcr:primaryType": "ext:Extension",
-  "ext:pointId": "iap/coreUI/view",
-  "ext:name": "Workflows",
-  "ext:targetURL": "/admin/workflows",
-  "ext:renderURL": "asset:iap-workflows.WorkflowsManager.js?lazy"
-}

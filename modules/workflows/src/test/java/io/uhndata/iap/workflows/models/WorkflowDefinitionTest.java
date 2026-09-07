@@ -62,13 +62,29 @@ class WorkflowDefinitionTest
     {
         final Resource resource = this.context.create().resource(PATH, Map.of(
             TYPE, WorkflowDefinition.RESOURCE_TYPE,
-            "title", "Time off request",
-            "active", true));
+            "title", "Time off request"));
         final WorkflowDefinition definition = resource.adaptTo(WorkflowDefinition.class);
 
         assertNotNull(definition);
         assertEquals("Time off request", definition.getTitle());
-        assertTrue(definition.isActive());
+    }
+
+    @Test
+    void runsWhileOneOfItsVersionsIsActive()
+    {
+        // Not a flag of the definition's own: a workflow runs through a version or not at all, so this is the same
+        // question as whether it has an active version, asked of the definition
+        assertTrue(this.createDefinitionWithVersions("RETIRED", "ACTIVE", "DRAFT")
+            .adaptTo(WorkflowDefinition.class).isActive());
+    }
+
+    @Test
+    void doesNotRunWhileNoVersionOfItIsActive()
+    {
+        // A version on trial is not the one instances are created from, so a workflow whose only versions are a
+        // draft and a trial still runs nothing
+        assertFalse(this.createDefinitionWithVersions("DRAFT", "TRIAL", "RETIRED")
+            .adaptTo(WorkflowDefinition.class).isActive());
     }
 
     @Test
@@ -98,6 +114,27 @@ class WorkflowDefinitionTest
         assertEquals(2, versions.size());
         assertEquals("1.0", versions.get(0).getVersion());
         assertEquals("2.0", versions.get(1).getVersion());
+    }
+
+    @Test
+    void namesTheActiveVersionAmongItsVersions()
+    {
+        final Resource resource = this.createDefinitionWithVersions("RETIRED", "ACTIVE", "DRAFT");
+
+        final WorkflowVersion active = resource.adaptTo(WorkflowDefinition.class).getActiveVersion();
+
+        assertNotNull(active);
+        assertEquals("2.0", active.getVersion());
+    }
+
+    @Test
+    void hasNoActiveVersionWhileEveryVersionIsADraft()
+    {
+        // Between a workflow's first draft and its promotion there is nothing to run, and the same is true again
+        // once an active version is retired without a replacement
+        final Resource resource = this.createDefinitionWithVersions("DRAFT", "DRAFT", "RETIRED");
+
+        assertNull(resource.adaptTo(WorkflowDefinition.class).getActiveVersion());
     }
 
     @Test
@@ -133,5 +170,23 @@ class WorkflowDefinitionTest
         final Content content = resource.adaptTo(Content.class);
         assertNotNull(content);
         assertEquals(WorkflowDefinition.RESOURCE_TYPE, content.getType());
+    }
+
+    /**
+     * Creates a definition holding one version per given state, labelled {@code 1.0}, {@code 2.0}, and so on.
+     *
+     * @param states the lifecycle state of each version to create, in order
+     * @return the definition's resource
+     */
+    private Resource createDefinitionWithVersions(final String... states)
+    {
+        final Resource resource = this.context.create().resource(PATH, Map.of(
+            TYPE, WorkflowDefinition.RESOURCE_TYPE, "title", "Time off request"));
+        for (int i = 0; i < states.length; ++i) {
+            final String label = (i + 1) + ".0";
+            this.context.create().resource(PATH + "/" + label, Map.of(
+                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", label, "state", states[i]));
+        }
+        return resource;
     }
 }

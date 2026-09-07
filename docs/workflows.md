@@ -5,9 +5,9 @@ may happen while they do, and when it is finished. Workflows are authored as BPM
 the repository as a graph of nodes, and executed by creating an *instance* of one and moving tokens
 through that graph.
 
-This page describes the data model, the Sling Models over it, and the engine that runs both kinds of
-workflow: the *system* ones that are the platform's own behavior, and the *user* ones that persist as
-instances while people work through them.
+This page describes the data model, the Sling Models over it, the administration console workflows are
+authored in, and the engine that runs both kinds of workflow: the *system* ones that are the platform's own
+behavior, and the *user* ones that persist as instances while people work through them.
 
 ## The four trees
 
@@ -22,8 +22,8 @@ instances while people work through them.
 
 ```
 /Workflows                         wf:WorkflowsHomepage
-└── timeOffRequest                 wf:WorkflowDefinition   title, active
-    └── 1.0                        wf:WorkflowVersion      version, active, bpmnXmlParsedHash,
+└── timeOffRequest                 wf:WorkflowDefinition   title
+    └── 1.0                        wf:WorkflowVersion      version, state, bpmnXmlParsedHash,
                                                            targetResourceType
         ├── bpmn.xml               nt:file                 the BPMN 2.0 source
         ├── start_1                wf:StartEvent           elementId, label, flowNodeType
@@ -35,7 +35,30 @@ instances while people work through them.
 ```
 
 A definition holds versions, and everything that runs, runs against a specific version — the same split
-as a schema and its schema versions. A version keeps both representations of its graph: the `bpmn.xml` it
+as a schema and its schema versions. Each version carries a `state`, which is its whole lifecycle:
+
+| `state` | What it means | Editable | Moves to |
+|---|---|---|---|
+| `DRAFT` | Still being authored, and never instantiated | yes | `TRIAL`, `ACTIVE` |
+| `TRIAL` | Being tried out before the workflow commits to it; still not what instances are created from | no | `DRAFT`, `ACTIVE` |
+| `ACTIVE` | The one version new instances are created from | no | — (retired by a promotion in its place) |
+| `RETIRED` | Superseded: the instances already running carry on, no new ones start | no | — (carried forward by drafting a copy) |
+
+Only a draft may be edited, and that is enforced rather than merely offered: the `saveWorkflowDiagram`
+handler refuses a diagram for anything else. Every later state is one something may be following, or about
+to follow, so changing its diagram would change a process out from under whatever is executing it — which
+is why a trial that needs another look goes back to being a draft rather than being edited where it stands,
+while an active or retired version is carried forward by drafting a copy of it.
+
+At most one version of a definition is active at a time, and that is an invariant of the transition rather
+than of the node type: promoting a version retires the one it supersedes in the same save, so there is no
+moment at which two versions claim to be current.
+
+**A definition has no `active` flag of its own.** Whether a workflow may run is whether one of its versions
+is active, and `WorkflowDefinition.isActive()` computes exactly that. Stored as well, the two could
+disagree, and the stored one would be the side nothing enforces.
+
+A version keeps both representations of its graph: the `bpmn.xml` it
 was authored as, which the visual editor loads and saves, and the flow nodes that XML was parsed into,
 which is what the engine reads. `bpmnXmlParsedHash` records the source as of the last successful parse,
 so a graph that has fallen behind its diagram can be spotted.
@@ -48,12 +71,13 @@ binary, both when shipped by a bundle and when downloaded from the repository. I
 version with no diagram yet still answers that path with a plain 404 — nothing renders a
 `wf:WorkflowVersion` as `xml`.
 
-Writing it means a multipart POST with a part named `./bpmn.xml` and the `nt:file` type hint. Creating a
-version and uploading its diagram are two requests, since Sling creates the node a file part's path
-implies before it applies `jcr:primaryType`, and one combined request would leave a `sling:Folder`
-behind. Its on-parent-version is `COPY`, so checking a version in captures the diagram with it.
-`WorkflowVersion.getBpmnFile()` hands back the file rather than its contents, leaving the caller — the
-BPMN parser, when it exists — to decide how to read a document of unknown size.
+Writing it is an event rather than a repository write: a diagram is a multipart part named `bpmn.xml` on a
+`save` or `createVersion` event, and the handler behind that event decides where it lands — so a version
+and the diagram it starts from arrive in one request, in one commit. A `draft` event carries no diagram at
+all: it copies the one the version it is drafted from holds. See
+[Managing workflows](#managing-workflows) for the events themselves. Its on-parent-version is `COPY`, so
+checking a version in captures the diagram with it. `WorkflowVersion.getBpmnFile()` hands back the file
+rather than its contents, leaving the caller to decide how to read a document of unknown size.
 
 Two things about how the graph is addressed:
 
@@ -80,8 +104,8 @@ likewise true, and it is meaningful only on an attached event; on a free-standin
 
 ### What an executable graph carries
 
-Six properties exist for the engine rather than for the diagram, all set by hand today and by the BPMN
-parser once it exists:
+Six properties exist for the engine rather than for the diagram, derived from the diagram's `iap:*`
+extension attributes wherever a version says its BPMN is authoritative, and set by hand elsewhere:
 
 - **`messageName` on an event** is the domain event name it catches or throws, resolved from the BPMN
   `messageRef`. It is what an incoming event is matched against.
@@ -235,6 +259,200 @@ inside yet — which is the main reason to doubt they should persist an instance
 trail**, if one is needed, wants to survive deletion and restore, so it would be its own tree rather than
 a child.
 
+## Managing workflows
+
+Authoring lives in the administration console, under `/admin/workflows`. A URL there carries the whole
+repository path of what is being looked at, and names the page in its query only when the page needs
+naming, so one set of pages serves the workflows of any homepage — this location's, the platform's own, a
+later one's:
+
+| URL | Page |
+|---|---|
+| `/admin/workflows/SystemWorkflows` | The workflows stored in one homepage, a tab per homepage beside it |
+| `/admin/workflows/Workflows/review` | One workflow: its properties, and its versions with their actions |
+| `/admin/workflows/Workflows/review/2-0` | That version's diagram, read-only |
+| `/admin/workflows/Workflows/review/2-0?page=edit` | The same diagram, editable — drafts only |
+
+**The page is asked for in the query rather than in the path**, because the viewer and the editor are not
+one inside the other. They are the same version seen two ways, reached from the same listing, and neither
+reports anything the other does not — so the editor is a mode of one page rather than a page below it: the
+same URL, the same crumb, asked a second way. Each screen offers the way to the others: a draft being
+looked at offers **Edit**, and the editor offers **Save**, **Save and view**, and **Save and close** — the
+same save, differing only in where it leaves the user afterwards. A save the engine refuses navigates
+nowhere, since leaving would take the only copy of what was drawn with it.
+
+**A listing belongs to a homepage, and `/admin/workflows` is not a page.** Nothing is registered there, so
+it is neither routed nor named: the shallowest thing the console shows is a homepage. The dashboard
+widget's "Manage workflows" action leads to `/Workflows`, the homepage every deployment has, and each
+homepage the widget counts links to its own listing beside it.
+
+**Every prefix down to the homepage is a page in its own right**, which is the whole point of the shape:
+dropping a segment moves up to the thing that contained what was being looked at, so a breadcrumb built by
+cutting the URL down leads somewhere at every step.
+
+The price of carrying a repository path is that the URL does not say which of the three things it is about.
+A homepage is found by node type wherever it is, so a path is of no predictable depth: `/Workflows/review`
+and `/Content/Workflows/review` are both a workflow, and counting segments from the root would read the
+second as a version of `/Content/Workflows`. **Depth is therefore counted from the homepage**, which is the
+only fixed point — below one it is always homepage, workflow, version — so resolving a console URL takes the
+list of homepages this instance has. That list is the one the tabs are built from —
+`GET /Workflows.homepages.json`, described below — fetched once and kept for the session, so it costs a
+request when the console is first opened and nothing on any navigation after it.
+
+Two things fall out of counting rather than keyword-matching. A version named `edit` is read as itself:
+nothing in a path is ever a page, so no name below a homepage is reserved. And a URL that places nowhere —
+a tree that is not a homepage here, more segments than a version can account for — is said to name nothing,
+rather than being handed to a page that would render an empty workflow for it.
+
+What this buys the breadcrumbs above the page: every step of a console URL is a page, so each is
+rendered as a link that leads somewhere. Naming them takes one registration per depth, because a crumb
+is labelled with the `ext:name` of the view whose target matches it, and a single view spanning the whole
+tree would name every step alike. So the console registers `:homepage`, `:homepage/:workflow` and
+`:homepage/:workflow/:version` as views of their own, all rendering the same page, and a trail reads
+`Administration / Workflows / Workflow`.
+
+Two things fall out of registering by depth rather than behind one splat. A view is what makes a URL a
+crumb, so leaving the console's root unregistered is what removes it from the trail — there is no way
+to be a route without also being a step. And the depths only line up for a homepage of one segment:
+`/Content/Workflows` is a homepage the trail would call a workflow. Its pages still work, since a
+`:homepage/*` view catches every depth the named three do not, ordered last so the named ones are
+found first; only the labels are off, and only for a homepage stored deeper than everyone's.
+
+**Every one of those views renders the same page.** `ext:targetURL` is handed to the router as-is, and a
+route may only end in a splat, so no pattern can pick out a page that comes *after* a path of unknown
+length — which means none of them can say, by its pattern alone, which of the three things its URL is
+about. They are registered separately so that the trail can name them, and what each URL actually
+addresses is worked out once, by the page they all mount.
+
+Two things about that split are load-bearing. **The read-only view is a different bpmn-js class**, a
+`NavigatedViewer` rather than a `Modeler`: it can pan and zoom and has no palette, no context pad and no
+editing behaviours, so a version instances are following is not an editor being trusted to behave. And
+**editing is refused for anything but a draft**, in the page as well as in the URL: an active version is
+what running instances are following, a retired one is what the instances that outlived it are still
+following, and a trial is being tried as it stands, so changing any of them would alter a process out from
+under the things reading it. A trial is changed by being returned to a draft; an active or retired version
+is carried forward by drafting a copy, which is offered next to it.
+
+The per-version buttons are contributed on the **`WorkflowVersionActions`** extension point rather than
+written into the manager page, the way `SubjectActions` works in the sibling `cards` project. Six ship
+with the module — view, edit, start-trial, activate, return-to-draft, and draft-a-copy — and each decides
+for itself which states it applies to; a seventh needs an `ext:Extension` and an asset, and no change to
+any existing file. The point is addressed by two names, as every extension point is: the page asks for the
+node, `/apps/iap/ExtensionPoints/WorkflowVersionActions`, and an extension declares the
+`ext:pointId` that node carries, `wf/workflowVersion/actions`.
+
+**Every one of these actions is a workflow, not a write.** Creating a workflow, opening a version of one,
+renaming it, saving a diagram, and each of the three lifecycle moves are domain events posted at the thing
+they concern, matched to a system workflow under `/SystemWorkflows` and run to an end event in one commit.
+Nothing in this UI writes a node.
+
+| Request | Event | Definition |
+|---|---|---|
+| `POST /Workflows` | `create` | `createWorkflow` |
+| `POST /SystemWorkflows` | `create` | `createSystemWorkflow` |
+| `POST <workflow>` | `save` | `saveWorkflow` |
+| `POST <workflow>.createVersion.json` | `createVersion` | `createVersion` |
+| `POST <version>` | `save` | `saveWorkflowDiagram` |
+| `POST <version>.activate.json` | `activate` | `activateVersion` |
+| `POST <version>.startTrial.json` | `startTrial` | `startVersionTrial` |
+| `POST <version>.returnToDraft.json` | `returnToDraft` | `returnVersionToDraft` |
+| `POST <version>.draft.json` | `draft` | `draftVersion` |
+
+A POST with no selector means the target's *default* event, which follows from what it is: `create` at an
+entity homepage, `save` at an entity, `complete` at a user task. Everything else names its event outright.
+That rule is the resource type hierarchy's rather than a list of paths, so a homepage a later module adds
+comes under it without the servlet learning about it.
+
+**A diagram is parsed wherever it is saved.** `BpmnXmlSyncEditor` asks a root child what it *holds* rather
+than what it is called: both homepages autocreate a protected `childNodeType = wf:WorkflowDefinition`, so
+`/SystemWorkflows` and any homepage a deployment adds are covered, and a tree holding anything else is
+walked straight past. That is the same question `GET /Workflows.homepages.json` answers to decide which tabs
+the manager shows, so a tree that can be listed is exactly a tree whose diagrams are parsed — one answer
+rather than two that could drift apart. A tree the editor skipped would store diagrams and derive no flow
+nodes from them, leaving versions that look authored with no graph the engine can run.
+
+Everything below a workflow homepage is reached by *node type* rather than by path — `wf/WorkflowDefinition`
+and `wf/WorkflowVersion` — so the same requests manage a system workflow and a user one. The two
+homepages differ only in that each has its own `create` definition: a version's `targetResourceType` names
+one type, and the only type both homepages share is the one every entity homepage shares, which would have
+had `/Submissions` catching it too. Two definitions is also the more useful answer — adding a process a
+deployment runs and adding behavior the platform performs on its own are different acts, and each names its
+own performers.
+
+**Binding a resource type to the event servlet is what closes the direct-CRUD door, and forgetting one is
+silent.** An unbound POST does not 404: it reaches the Sling POST servlet, which does exactly what it says —
+a `title` sent to an unbound homepage sets that property *on the homepage* rather than being refused. A
+bound type with no definition waiting answers a clean 409 instead, which is why anything a workflow is meant
+to manage belongs in `resourceTypes` whether or not its definitions exist yet.
+
+Three things this buys, none of which an endpoint could:
+
+- **Who may do each of these is one property, in the file that says what it does.** `performers` on the
+  start event, editable per deployment. That is why there are three lifecycle definitions rather than one
+  `setState` — a single move endpoint could only ever say who may change state *at all*, where separate
+  definitions can say that an author may return their own trial to a draft while only an administrator may
+  activate one.
+- **The lifecycle table is content.** `toState` and `fromStates` on the promote step say which versions a
+  move applies to; a fifth state is a new definition rather than a new row in Java. A move a version is
+  past the moment for is refused with a 409 naming the states it *is* for.
+- **What each action does can grow without touching the platform.** A validation step before a version is
+  opened, a notification when one is activated: another service task on the definition.
+
+Two of them are more than one write, which is the reason the run commits once:
+
+- **Activating** is `retireActiveVersions` then `setVersionState`. Retiring the outgoing version in a
+  second request would leave a window in which two versions of one workflow both claim to be current, and
+  a client that failed between the two would leave it that way for good. As two steps of one run there is
+  no moment at which the invariant does not hold, and a promotion that cannot complete retires nothing.
+- **Opening or drafting a version** stores its diagram in the same run — carried as a `bpmn.xml` payload
+  part when a version is opened, copied from the source when one is drafted — so the version node and its
+  diagram arrive together or neither does. Posting directly cannot do that: Sling creates the node a file
+  part's path implies before it applies `jcr:primaryType`, so a combined write leaves a `sling:Folder`
+  behind and the diagram has to follow in a second request.
+
+Drafting a copy leaves `bpmnXmlParsedHash` off deliberately, so a draft never claims a parse that has not
+happened for it; that missing hash is also what has the commit editor look at the copied diagram in the
+first place.
+
+What happens to the *graph* follows `bpmnAuthoritative`, which the copy inherits because it describes how
+a version was authored rather than a state it moves through. Where the diagram owns the graph, the flow
+nodes are not copied: the editor derives the whole tree from the diagram that just arrived, in the same
+commit, and a copied tree would only be waiting to be replaced by the identical one. Where it does not —
+a version whose flow nodes were authored by hand, because the translation cannot yet carry everything
+they hold — the graph is copied as it stands, nested as flow nodes nest, extension properties and all:
+nothing will ever derive it, so a draft without it would be a copy of a process with the process left
+out.
+
+Saving a workflow's own properties goes through `saveProperties`, which writes only what the activity's
+`editable` list names and refuses what its `required` list says must arrive with a value. That listing is
+the whole of the safety: without it the handler would be an open write to whatever a caller cared to name,
+`jcr:primaryType` included, which is exactly the direct-CRUD door these workflows replace. It also means a
+deployment that wants the description editable adds a word to a definition rather than shipping code.
+
+A version created through the UI is marked `bpmnAuthoritative` on creation. It starts from the shipped
+starting diagram and has no hand-written graph for a reparse to throw away, so its diagram is the only
+thing its flow nodes could come from — and without the flag the version would be stored and its diagram
+never parsed into anything the engine can run.
+
+Listing covers every homepage, one at a time. `GET /Workflows.homepages.json` answers with every entity
+homepage holding `wf:WorkflowDefinition` entities **that the caller can read** — a homepage they may not
+read is simply absent, so the list describes what this user may list rather than what exists — and the
+page gives each of them a tab bearing its name, listing one at a time. Every listing is then a plain query
+over one tree, so paging, sorting and the total belong to a homepage rather than to a union of them, only
+the tab being looked at is fetched, and a page of workflows always says where its workflows are stored.
+Nothing on either side hardcodes which trees a deployment has.
+
+Which tab is open is in the URL, and the answer to this question is what reads it, so the two cannot
+disagree about what a homepage is: a tab is a page, its path is a prefix of every workflow URL below it,
+and the console resolves that prefix against this same list. It is asked for once and kept for the rest of
+the session — homepages appear and disappear when a bundle is installed, which is a restart and so a new
+session — so the depth of a console URL is worked out without a request.
+
+The dashboard widget asks the same question and shows only the answer's size: one count per homepage,
+fetched as a page of no rows at all (`.paginate.json?offset=0&limit=0`), with the frame's "Manage
+workflows" action leading to the page that lists them. A grid does not fit a dashboard frame; a count
+does.
+
 ## Sling Models
 
 Everything above is reachable as Sling Models in `io.uhndata.iap.workflows.models`, so callers never touch
@@ -283,6 +501,13 @@ or firing timers will feed the same door. Receiving an event answers three quest
 failure maps to its own HTTP status: is anything waiting for this event here (no → **409**), may this user
 fire it (no → **403**), and is what it carries usable (no → **400**)?
 
+A fourth refusal shares the first one's status without being the same question. `WorkflowConflictException`
+is a handler saying the *target* is not in a state that admits this — promoting a version that has already
+been retired, drafting a label some other version carries. A 409 either way, because nothing about the
+request would be improved by sending it differently; what has to change is the target. A client can act on
+the difference: `NoApplicableWorkflowException` means a stale page offering a button that does not exist
+here, `WorkflowConflictException` one offering a button whose moment has passed.
+
 ### Who is allowed: the workflow decides
 
 The middle question is the one the whole design turns on. **Nobody holds rights on the content workflows
@@ -322,7 +547,7 @@ administrative, raising a submission is what users are here for. The rules:
 Two consequences worth stating plainly. First, since the engine is privileged, *nothing downstream will
 refuse an actor who gets past the check* — by the time a handler runs, the repository will not say no. A
 handler that wants to treat something as invisible or forbidden has to say so itself. Second, an access
-denial coming back from the repository no longer means the user was refused; it means the engine's own
+denial coming back from the repository does not mean the user was refused; it means the engine's own
 service user is short of rights, which is a deployment fault and a **500**.
 
 Because the engine does the writing, `jcr:createdBy` on everything it creates names the service user. The
@@ -365,8 +590,17 @@ for POSTs to `/Workflows`.
 
 Because it is content, not code, a deployment can change what happens when a workflow is requested — add
 a validation step, a notification — by editing this definition rather than the platform. That is the
-point of doing it this way, and it is why the definition ships `active` and editable rather than being
-hardwired into the servlet.
+point of doing it this way, and it is why the definition ships as an `ACTIVE` version, editable in place,
+rather than being hardwired into the servlet.
+
+**Everything else that authors a workflow works the same way**, which is what makes that claim more than
+a demonstration: `createSystemWorkflow`, `createVersion`, `saveWorkflow`, `saveWorkflowDiagram`,
+`activateVersion`, `startVersionTrial`, `returnVersionToDraft` and `draftVersion` all ship beside it, over
+six handlers of their own — `createWorkflowVersion`, `saveProperties`, `saveWorkflowDiagram`,
+`setVersionState`, `retireActiveVersions` and `draftWorkflowVersion` — plus `createEntity`, shared with the
+bootstrap. The workflow module manages its own content the way it asks every other module to manage theirs,
+and the management UI holds no privileged path of its own. See
+[Managing workflows](#managing-workflows) for the request each one answers.
 
 `/Submissions` works the same way, and shows the intended division of labor: the bootstrap definition
 `/SystemWorkflows/createSubmission` and its `createSubmission` handler ship with the *submissions* module,
@@ -550,6 +784,21 @@ branches arriving at the same task simply mean two tasks, each completed on its 
   level, which is what the engine's event dictionary will need. The vocabulary can copy XML *attributes*;
   these payloads live in nested *elements*, and the mechanism for reaching them is best designed alongside
   the parser that needs it.
+- **Widening a `performers` list on a workflow-authoring definition needs an ACL to match.** Sling resolves
+  the posted-to resource before dispatching, and the only read granted under `/Workflows` is the homepage
+  node itself, restricted by node type — so a non-administrator named as a performer of `saveWorkflow` or
+  `activateVersion` would get a 404 from the resolver rather than the engine's own answer, because the
+  definition or version they posted to is invisible to them. Administrators bypass access control, which is
+  why the shipped definitions (all `iap-administrators`) work as they stand. Widening any of them means
+  granting `jcr:read` on `wf:WorkflowDefinition`/`wf:WorkflowVersion` nodes too, and that is a deliberate
+  visibility decision rather than a mechanical one — which is why it is not done pre-emptively here.
+- **"At most one active version" is enforced by the workflow, not by the repository.** Activating retires
+  the outgoing version in the same commit, and reading a version's state tolerates finding two actives (a
+  promotion retires all of them). Nothing *else* can now set `state` — the direct-write door is closed,
+  since no user holds rights on this content and the only way in is the definitions — but a service user
+  or a repoinit script still could, and a definition that named `setVersionState` with the wrong
+  `fromStates` would too. A commit editor, the way `BpmnXmlSyncEditor` guards the parsed graph, is the way
+  to close that last gap if it ever matters.
 - **`performers` is a principal list, not a condition.** It cannot express "and only if the schema they
   name belongs to their institution". That data-dependent half is a job for the conditions module,
   evaluated against the actor alongside the list rather than instead of it: a list can be enumerated to
@@ -565,4 +814,4 @@ branches arriving at the same task simply mean two tasks, each completed on its 
 - **The `bpmn:` prefix is matched literally** rather than by namespace URI. Safe while every diagram comes
   from the in-app editor, which always emits that prefix; a document from elsewhere using `bpmn2:` or a
   default namespace would not be recognized.
-- **No `oak:index` definitions**, and no frontend beyond the proof-of-concept BPMN editor.
+- **No `oak:index` definitions.** The console's listings and the homepage discovery both query without one.

@@ -73,7 +73,11 @@ public class BpmnXmlSyncEditor extends DefaultEditor
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(BpmnXmlSyncEditor.class);
 
-    private static final String WORKFLOWS_ROOT_NAME = "Workflows";
+    /** The property a homepage uses to name child nodes that it stores. */
+    private static final String CHILD_NODE_TYPE_PROPERTY = "childNodeType";
+
+    /** The child node type that workflow definitions homepages store. */
+    private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
 
     private static final String WORKFLOW_TYPES_ROOT_NAME = "WorkflowTypes";
 
@@ -104,9 +108,9 @@ public class BpmnXmlSyncEditor extends DefaultEditor
      */
     private enum Stage
     {
-        /** The repository root; only descends into {@code /Workflows}. */
+        /** The repository root; only descends into homepages that hold workflow definitions. */
         ROOT,
-        /** Somewhere under {@code /Workflows}, not yet known to be a {@code wf:WorkflowVersion}. */
+        /** Somewhere under such a homepage, not yet known to be a {@code wf:WorkflowVersion}. */
         WORKFLOWS_SUBTREE,
         /** A {@code wf:WorkflowVersion} node; only descends into its {@code bpmn.xml} child. */
         WORKFLOW_VERSION,
@@ -206,7 +210,8 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     private Editor childEditor(final String name)
     {
         return switch (this.stage) {
-            case ROOT -> WORKFLOWS_ROOT_NAME.equals(name) ? descend(name, Stage.WORKFLOWS_SUBTREE, null, null) : null;
+            case ROOT -> holdsWorkflowDefinitions(this.node.getChildNode(name))
+                ? descend(name, Stage.WORKFLOWS_SUBTREE, null, null) : null;
             case WORKFLOWS_SUBTREE -> {
                 final NodeBuilder child = this.node.getChildNode(name);
                 yield isWorkflowVersion(child) ? descend(name, Stage.WORKFLOW_VERSION, child, childPath(name))
@@ -336,9 +341,25 @@ public class BpmnXmlSyncEditor extends DefaultEditor
     }
 
     /**
+     * Whether a child of the root is a homepage holding workflow definitions, identified by its own
+     * {@code childNodeType} property so a deployment can add trees beyond {@code /Workflows} and
+     * {@code /SystemWorkflows}.
+     *
+     * @param node the root child to consider
+     * @return {@code true} if it is a homepage holding workflow definitions
+     */
+    private static boolean holdsWorkflowDefinitions(final NodeBuilder node)
+    {
+        return WORKFLOW_DEFINITION_TYPE.equals(node.getString(CHILD_NODE_TYPE_PROPERTY));
+    }
+
+    /**
      * Whether this node is a workflow version, accepting subtypes: the node types in
-     * {@code workflowDefinitions.cnd} are meant to be extended, and a subtype whose diagram is silently never parsed
-     * would be the least visible way to fail.
+     * {@code workflowDefinitions.cnd} are meant to be extended, and a subtype whose diagram is silently never
+     * parsed would be the least visible way to fail.
+     *
+     * @param node the node to consider
+     * @return {@code true} if it is a {@code wf:WorkflowVersion}, or a subtype of one
      */
     private boolean isWorkflowVersion(final NodeBuilder node)
     {

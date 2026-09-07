@@ -72,6 +72,7 @@ import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 
+import static io.uhndata.iap.workflows.models.WorkflowFixture.STATE;
 import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 
 /**
@@ -515,26 +516,39 @@ final class EngineFixture
     }
 
     /**
-     * Creates {@code /SystemWorkflows} holding one definition with one version, both active unless told
-     * otherwise, targeting {@code wf/WorkflowsHomepage} — without any flow nodes yet.
+     * Creates {@code /SystemWorkflows} holding one definition with one {@link WorkflowVersion.State#ACTIVE active}
+     * version targeting {@code wf/WorkflowsHomepage} — without any flow nodes yet.
      *
      * @param context the Sling context to build in
-     * @param definitionActive whether the definition accepts instantiation
-     * @param versionActive whether the version accepts instantiation
      * @param targetResourceType the resource type the version declares itself for, or {@code null} for none
      */
-    static void createSystemWorkflow(final SlingContext context, final boolean definitionActive,
-        final boolean versionActive, final String targetResourceType)
+    static void createSystemWorkflow(final SlingContext context, final String targetResourceType)
+    {
+        createSystemWorkflow(context, WorkflowVersion.State.ACTIVE, targetResourceType);
+    }
+
+    /**
+     * Creates {@code /SystemWorkflows} holding one definition with one version in the given lifecycle state,
+     * targeting {@code wf/WorkflowsHomepage}, without any flow nodes yet. Only the version's state is settable
+     * here, since a definition accepts instantiation exactly when one of its versions is
+     * {@link WorkflowVersion.State#ACTIVE active}.
+     *
+     * @param context the Sling context to build in
+     * @param state the lifecycle state the version is in
+     * @param targetResourceType the resource type the version declares itself for, or {@code null} for none
+     */
+    static void createSystemWorkflow(final SlingContext context, final WorkflowVersion.State state,
+        final String targetResourceType)
     {
         context.create().resource(SystemWorkflowsHomepage.PATH, TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
         context.create().resource(WORKFLOW, Map.of(
-            TYPE, WorkflowDefinition.RESOURCE_TYPE, "title", "Create a workflow", "active", definitionActive));
+            TYPE, WorkflowDefinition.RESOURCE_TYPE, "title", "Create a workflow"));
         if (targetResourceType == null) {
             context.create().resource(VERSION, Map.of(
-                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive));
+                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", STATE, state.name()));
         } else {
             context.create().resource(VERSION, Map.of(
-                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive,
+                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", STATE, state.name(),
                 "targetResourceType", targetResourceType));
         }
     }

@@ -1,0 +1,44 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Rename a workflow",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "state": "ACTIVE",
+    "targetResourceType": "wf/WorkflowDefinition",
+    "description": "What happens when a workflow's own properties are saved: the properties this deployment says are editable are written onto it, and nothing else the request happened to name. Which those are is the activity's `editable` list rather than the handler's code, so a deployment that wants the description editable here adds a word to it. A workflow's versions are not among them - whether it runs is read off them, and is changed by activating one.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Properties saved",
+      "messageName": "save",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toSave": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSave",
+        "targetRef": "save"
+      }
+    },
+    "save": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "save",
+      "label": "Record the new properties",
+      "handler": "saveProperties",
+      "editable": ["title"],
+      "required": ["title"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Workflow saved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}
