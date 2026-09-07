@@ -42,11 +42,17 @@
 //-----------------------------------------------------------------------------
 // The container of the workflow instances running over one resource.
 //
-// IGNORE, on both this node and the instances inside it, is load-bearing. Hosts
-// are typically versionable (every data:Entity is), and under the default
-// on-parent-version setting checking one in would copy the whole live workflow
-// into version storage, and restoring an earlier version would roll the workflow
-// back with it — quietly un-approving things. Verified against Oak, not assumed.
+// IGNORE, on both this node and the instances inside it. Hosts are typically
+// versionable (every data:Entity is), and under the default on-parent-version
+// setting checking one in would copy the whole live workflow into version
+// storage, and restoring an earlier version would roll the workflow back with
+// it — quietly un-approving things. Verified against Oak, not assumed.
+//
+// Belt and braces since instances became entity *parts*: a part is not
+// versionable in its own right, so there is less to copy. Kept because what a
+// child of a versionable host does on check-in is decided by this setting and
+// not by the child's own type, and because "nothing here is versionable today"
+// is a fact about the current types rather than a rule anybody stated.
 [wf:WorkflowInstances] > data:Content, rep:AccessControllable
   - sling:resourceType (STRING) = "wf/WorkflowInstances" mandatory autocreated protected
 
@@ -68,7 +74,7 @@
 
 //-----------------------------------------------------------------------------
 // A running or completed execution of a workflow definition.
-[wf:WorkflowInstance] > data:Entity
+[wf:WorkflowInstance] > data:EntityPart
   - sling:resourceType (STRING) = "wf/WorkflowInstance" mandatory autocreated protected
 
   // The definition this instance was created from
@@ -117,7 +123,7 @@
 
 //-----------------------------------------------------------------------------
 // A running instance of a user task within a workflow instance.
-[wf:TaskInstance] > data:Entity
+[wf:TaskInstance] > data:EntityPart
   - sling:resourceType (STRING) = "wf/TaskInstance" mandatory autocreated protected
 
   // elementId of the wf:Activity this task was created from
@@ -141,8 +147,21 @@
   // Optional deadline for completing this task
   - dueDate (DATE)
 
+  // The elementId of the boundary event whose timer set that deadline, so that
+  // what happens when it passes is read from the definition rather than guessed
+  // at: an activity may be watched by several events, and only one of them is
+  // the one the clock is counting down to.
+  - dueEventId (STRING)
+
   // Value recorded at completion; used for downstream gateway routing
   - outcome (STRING)
+
+  // What whoever completed the task said about their decision, kept beside the
+  // outcome it explains. Deciding is not choosing a value: a refusal usually has
+  // to say why, and an approval may carry a condition. This is the part of the
+  // decision the process does not interpret -- nothing routes on it -- which is
+  // exactly why it has to be recorded rather than left to be remembered.
+  - outcomeNote (STRING)
 
   // The decisions this task may be completed with, copied from its defining
   // activity when the task was raised. Copied rather than looked up, for the same
@@ -150,7 +169,7 @@
   // on terms the definition may have grown since, and the person doing it cannot
   // necessarily read the definition at all. A task offering none is one there is
   // nothing to decide about — it is done, or it is not.
-  - offeredOutcomes (STRING) multiple
+  - outcomeOptions (STRING) multiple
 
   // The principals who may complete this task, as its defining activity named
   // them when the task was raised, with "@creator" answered against the host so
@@ -158,8 +177,15 @@
   // me" is a question about tasks, answerable without reading the definitions —
   // which the person owing the decision cannot necessarily do. It decides
   // nothing: the definition remains the authority every completion is checked
-  // against, exactly as offeredOutcomes describes rather than enforces.
+  // against, exactly as outcomeOptions describes rather than enforces.
   - performers (STRING) multiple
+
+  // The elementIds of the boundary events of this task that have already fired.
+  // Only a non-interrupting one can fire and leave the task open behind it, so
+  // without this the sweep looking for passed deadlines would deliver the same
+  // one again on every pass. It also says which deadline dueDate now belongs to
+  // when a task is watched by several.
+  - firedEvents (STRING) multiple
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

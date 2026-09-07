@@ -2,11 +2,240 @@
   "jcr:primaryType": "wf:WorkflowDefinition",
   "title": "Time off request",
   "active": true,
-  "systemWorkflow": false,
   "v1": {
     "jcr:primaryType": "wf:WorkflowVersion",
     "version": "1.0",
+    // The diagram beside this descriptor is now the source of the flow nodes below: everything they hold is
+    // expressible in it, so the editor derives them and removes whatever the diagram stops saying. The nodes
+    // stay here as the initial content that installs the workflow; a reparse produces the same tree.
+    "bpmnAuthoritative": true,
     "active": true,
-    "description": "Someone asks for a day off; their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built."
+    "description": "Someone asks for time off; a service task looks up what they have left, they fill the request in and send it, and their approver accepts or refuses it. The whole process, so that every piece of the engine has something real to run as it is built. Filling in is a task like any other, performed by @creator - the person who raised this particular request, which no group can name - and it is what holds the request in draft: while its token rests there the request is editable, and sending it is completing it, which is the same act as an approver deciding. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element - and the parser now produces exactly them, which is what `bpmnAuthoritative` above says. They stay here because initial content is what installs the workflow in the first place; the editor reparses the diagram and replaces them with the same tree. Nothing the nodes hold is missing from the diagram any more: what a handler is called, what being at a node means to the submission, who may perform it and what they may decide are all extension attributes in the IAP namespace, and a condition is a System View subtree in the arc's extensionElements. Keep the two in step - a flow node changed here and not there is a change the next reparse throws away.",
+    "requestSubmitted": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requestSubmitted",
+      "label": "Request submitted",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toBudget": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toBudget",
+        "targetRef": "checkBudget"
+      }
+    },
+    "checkBudget": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "checkBudget",
+      "label": "Check the time off budget",
+      "handler": "checkTimeOffBudget",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toFillIn": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toFillIn",
+        "targetRef": "fillIn"
+      }
+    },
+    "fillIn": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "fillIn",
+      "label": "Say when you want to be away",
+      "performers": [
+        "@creator"
+      ],
+      "hostTag": "draft",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toApproval": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproval",
+        "targetRef": "markUrgency"
+      }
+    },
+    "markUrgency": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "markUrgency",
+      "label": "Note how soon this starts",
+      // Sending the request is the first moment its answers are final, so it is the first moment the start date
+      // can be judged. A nightly sweep judges it again when the calendar moves, which is the only other way a
+      // request becomes urgent - and neither is a correction of the other.
+      "handler": "markTimeOffUrgency",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toApprovalTask": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApprovalTask",
+        "targetRef": "approveRequest"
+      }
+    },
+    "approveRequest": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "approveRequest",
+      "label": "Approve the request",
+      "performers": [
+        "time-off-approvers"
+      ],
+      "hostTag": "submitted",
+      "outcomeOptions": [
+        "approved",
+        "rejected"
+      ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toRecordReview": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRecordReview",
+        "targetRef": "recordReview"
+      },
+      // Two deadlines on this task, both stored inside the activity they watch - which is what makes them
+      // boundary events: they listen only for as long as the task is open, and the engine starts their clocks
+      // when it is raised.
+      "approvalReminder": {
+        "jcr:primaryType": "wf:IntermediateCatchingEvent",
+        "elementId": "approvalReminder",
+        "label": "Waiting too long",
+        "timerDuration": "P2D",
+        // The whole difference between the two deadlines on this task. This one leaves the task open: the request
+        // is marked overdue and stays on the desk it was already on, and the token that fires here is a second
+        // branch beside the one still waiting. `overdue` is in its own tag category for the same reason - it is
+        // not a lifecycle state, so it must not retire `submitted`; the request is still submitted, just late.
+        "interrupting": false,
+        "hostTag": "overdue",
+        "jcr:reference:flowNodeType": "/WorkflowTypes/TimerBoundaryEvent",
+        "toReminded": {
+          "jcr:primaryType": "wf:SequenceFlow",
+          "elementId": "toReminded",
+          "targetRef": "reminded"
+        }
+      },
+      "approvalOverdue": {
+        "jcr:primaryType": "wf:IntermediateCatchingEvent",
+        "elementId": "approvalOverdue",
+        "label": "Not decided in time",
+        "timerDuration": "P5D",
+        // Interrupting, so this deadline passing gives up on the task rather than starting a branch beside it.
+        // The whole of what tells the two apart.
+        "interrupting": true,
+        "jcr:reference:flowNodeType": "/WorkflowTypes/TimerBoundaryEvent",
+        "toExpired": {
+          "jcr:primaryType": "wf:SequenceFlow",
+          "elementId": "toExpired",
+          "targetRef": "requestExpired"
+        }
+      }
+    },
+    // Writing the decision down is a step of the process rather than something the engine does behind it. The
+    // outcome the approver recorded already routes the gateway below, but routing leaves no record of what was
+    // decided about *what*: the schema asks for an approval, and only a review naming that requirement fulfils
+    // it. Which requirement is named here, in the definition, because a process may raise several decisions and
+    // only the diagram knows which is which.
+    "recordReview": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "recordReview",
+      "label": "Write the decision down",
+      "handler": "recordReview",
+      "requirement": "approval",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDecision": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDecision",
+        "targetRef": "decision"
+      }
+    },
+    "decision": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "decision",
+      "label": "Approved?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toApproved": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproved",
+        "targetRef": "notifyApproved",
+        // The same structured condition mechanism a schema item uses to say when it applies, asked here of the
+        // running instance: the `variable` operand source reads what the execution knows, and what it knows at
+        // this point is the outcome the approver recorded when they completed their task.
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "variable",
+            "value": [ "outcome" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "approved" ]
+          }
+        }
+      },
+      "toRejected": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejected",
+        "targetRef": "notifyRejected",
+        "isDefault": true
+      }
+    },
+    // Telling the requester is a step of the process, not a side effect of one: it is on the diagram, it can be
+    // moved or removed by whoever draws it, and what it says lives in a template rather than in Java. Both of
+    // these name the same handler - what differs is the wording and the audience, which is the whole point of
+    // there being one notification action rather than one per message.
+    "notifyApproved": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "notifyApproved",
+      "label": "Tell them it was approved",
+      "handler": "notify",
+      "event": "approved",
+      "template": "/libs/iap/notificationTemplates/timeOffApproved",
+      // The same role vocabulary the performers use, so `@creator` means the same person in both places
+      "notify": [ "@creator" ],
+      // A decision is worth interrupting somebody for; a reply to a comment would not be
+      "urgency": "immediate",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toApprovedEnd": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApprovedEnd",
+        "targetRef": "requestApproved"
+      }
+    },
+    "notifyRejected": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "notifyRejected",
+      "label": "Tell them it was refused",
+      "handler": "notify",
+      "event": "rejected",
+      "template": "/libs/iap/notificationTemplates/timeOffRejected",
+      "notify": [ "@creator" ],
+      "urgency": "immediate",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toRejectedEnd": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejectedEnd",
+        "targetRef": "requestRejected"
+      }
+    },
+    "requestApproved": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestApproved",
+      "label": "Time off approved",
+      "hostTag": "approved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "requestRejected": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestRejected",
+      "label": "Time off refused",
+      "hostTag": "rejected",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "reminded": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "reminded",
+      "label": "Reminder sent",
+      // No hostTag deliberately: reaching here says nothing further about the request, and a tag in the same
+      // category as `overdue` would retire the one the reminder just placed.
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "requestExpired": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "requestExpired",
+      "label": "Nobody decided in time",
+      "hostTag": "expired",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
   }
 }

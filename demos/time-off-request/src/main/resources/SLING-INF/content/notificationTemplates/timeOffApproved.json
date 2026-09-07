@@ -1,0 +1,6 @@
+{
+  // The wording folder for one notification: one rendering per channel inside, so a channel that finds no
+  // rendering of its own simply carries nothing. The line is the one-sentence form the in-app list shows.
+  "jcr:primaryType": "sling:Folder",
+  "line": "Your time off request “${subjectTitle}” was approved"
+}

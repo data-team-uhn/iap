@@ -1,0 +1,87 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<nt = 'http://www.jcp.org/jcr/nt/1.0'>
+<data = 'https://iap.uhndata.io/data/'>
+<notif = 'https://iap.uhndata.io/notifications/'>
+
+
+// The root of the stored notifications, /Notifications. Extending data:EntityHomepage is what gives it the
+// pagination servlet for free, which is the whole read side of this module: the interface lists somebody's
+// notifications by filtering on recipient=@me, on their own session, so the repository's access control - not any
+// code here - decides what a listing can contain.
+[notif:Homepage] > data:EntityHomepage
+  // Attributes:
+
+  // We can query the notifications
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "notif/Homepage" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/EntityHomepage" mandatory autocreated protected
+
+  // The type of the children listed by the pagination servlet
+  - childNodeType (STRING) = "notif:Notification" mandatory autocreated protected
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // The notifications themselves, filed into prefix-tree buckets to keep every parent small
+  + * (notif:Notification)
+  + * (nt:base) = nt:unstructured
+
+// One thing one person was told. Everything a listing shows is on the node itself - most importantly the
+// pre-rendered line - because the subject it reports on may change or be deleted later, and a notification is a
+// record of what was said, not a live view of what it was said about.
+[notif:Notification] > data:Content
+  // Attributes:
+
+  // We can query notifications, e.g. counting somebody's unread ones
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "notif/Notification" mandatory autocreated protected
+  - sling:resourceSuperType (STRING) = "data/Content" mandatory autocreated protected
+
+  // Who this is for, as their repository user id; also the only account granted read on this node
+  - recipient (STRING) mandatory
+
+  // The one-sentence form shown in a list, already rendered: wording may change, what was said may not
+  - line (STRING) mandatory
+
+  // What happened, as the event name the notification was raised with
+  - event (STRING)
+
+  // The path of what it happened to, for a list entry to link to; the target may well be gone by the time
+  // somebody follows it, which the deletion machinery explains better than a broken link would
+  - subject (STRING)
+
+  // Who caused it, when somebody did
+  - actor (STRING)
+
+  // How soon the workflow wanted the recipient to know; kept so a digest can tell what it may hold back
+  - urgency (STRING)
+
+  // Whether the recipient has seen it; the recipient themselves may flip it, since it is their own reading state
+  - read (BOOLEAN) = 'false' mandatory autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple

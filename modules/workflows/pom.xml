@@ -30,6 +30,11 @@
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.sling</groupId>
+        <artifactId>slingfeature-maven-plugin</artifactId>
+      </plugin>
+
       <!-- This is an OSGi bundle -->
       <plugin>
         <groupId>org.apache.felix</groupId>
@@ -48,6 +53,7 @@
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/wf/;path:=/libs/wf/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/WorkflowTypes;path:=/;overwriteProperties:=true;uninstall:=true,
+              SLING-INF/content/SystemWorkflows;path:=/SystemWorkflows;overwriteProperties:=true;uninstall:=true;ignoreImportProviders:="xml",
             </Sling-Initial-Content>
           </instructions>
         </configuration>
@@ -61,10 +67,21 @@
       <artifactId>iap-error-tracking-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- The JSON processor SPI, for saying whether a task waits for whoever is reading it -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-serialization-json</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- Nullability annotations for the exported API -->
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
@@ -73,7 +90,25 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
+      <artifactId>iap-principals</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
       <artifactId>iap-data-entities-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- A gateway's guards are ordinary structured conditions, evaluated by this module's evaluator, and the
+         engine contributes the operand source that reads a running instance's variables -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-conditions</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- An end event records what finishing meant by tagging the host, so the engine speaks the tag vocabulary -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <!-- The /WorkflowTypes vocabulary documents itself through this -->
@@ -100,6 +135,20 @@
     <dependency>
       <groupId>jakarta.json</groupId>
       <artifactId>jakarta.json-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.servlets.annotations</artifactId>
+    </dependency>
+    <!-- A deadline is met by a periodic sweep: the clock is the one thing in a workflow with no session of its
+         own to fire an event from -->
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.commons.scheduler</artifactId>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>
@@ -158,9 +207,18 @@
       <artifactId>mockito-core</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.framework</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
-      <scope>test</scope>
+    </dependency>
+    <!-- Group membership: deciding who a workflow admits needs the user store, which plain JCR does not expose -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-jackrabbit-api</artifactId>
     </dependency>
     <dependency>
       <groupId>javax.annotation</groupId>

@@ -20,6 +20,7 @@
 <sling = 'http://sling.apache.org/jcr/sling/1.0'>
 <tag = 'https://iap.uhndata.io/tag/'>
 <data = 'https://iap.uhndata.io/data/'>
+<cond = 'https://iap.uhndata.io/cond/'>
 <wf = 'https://iap.uhndata.io/wf/'>
 
 //-----------------------------------------------------------------------------
@@ -114,6 +115,21 @@
 
   // SHA-256 hash of the bpmnXml file at the time of the last successful parse into flow nodes
   - bpmnXmlParsedHash (STRING)
+
+  // Whether this version's diagram is the source of its flow nodes. When true the editor owns them
+  // outright: it derives them from the bpmn.xml and removes whatever the diagram no longer says,
+  // which is what lets a workflow be authored in the diagram editor and nowhere else.
+  //
+  // False for a version whose flow nodes were written by hand, because the translation cannot yet
+  // carry everything they hold - a multi-valued `performers`, a timer's duration, a condition
+  // subtree. Deriving such a version would quietly drop what it cannot express, and merging the two
+  // would be worse: nothing in a diagram says whether an absent property was inexpressible or
+  // deleted, and a node reused under the same id may have been redrawn as something else entirely.
+  // So the choice is made once, per version, by whoever knows - and this property records it.
+  //
+  // The flag is temporary. It goes away when the translation is complete, because then every version
+  // can be derived and the question stops being a question.
+  - bpmnAuthoritative (BOOLEAN) = false
 
   // When false, no new instances may be created from this version
   - active (BOOLEAN) = false
@@ -293,6 +309,18 @@
   // second token can reach.
   - interrupting (BOOLEAN) = true autocreated
 
+  // How long this event waits before firing, as an ISO-8601 duration such as
+  // P5D or PT48H, which is what makes it a timer: an event with one is fired by
+  // the clock, and an event without one waits for something to be delivered to
+  // it. Relative rather than absolute because it is a definition, shared by every
+  // instance -- when the waiting starts is a fact about the run, and is recorded
+  // on the task the event watches.
+  //
+  // The BPMN counterpart lives in a nested timeEventDefinition element rather
+  // than in an attribute, so the parser will have to reach into the element to
+  // fill this in; the vocabulary can only copy attributes across.
+  - timerDuration (STRING)
+
 //-----------------------------------------------------------------------------
 // A throwing event occurring mid-process.
 [wf:IntermediateThrowingEvent] > wf:IntermediateEvent
@@ -325,7 +353,7 @@
   // would be completed with no decision at all and quietly take the default arc.
   // So a task that names no outcomes is one there is nothing to decide about —
   // it is done or it is not — and that is the difference a task list needs.
-  - outcomes (STRING) multiple
+  - outcomeOptions (STRING) multiple
 
   // Any events that can occur while this activity is active. Nesting them here is
   // what makes them boundary events; the same node type standing directly under
@@ -373,7 +401,7 @@
 //-----------------------------------------------------------------------------
 // A directed arc connecting two flow nodes.
 // Stored as a child node of the source flow node.
-[wf:SequenceFlow] > data:EntityPart
+[wf:SequenceFlow] > data:EntityPart, cond:Conditionable
   - sling:resourceType (STRING) = "wf/SequenceFlow" mandatory autocreated protected
 
   // Stable BPMN element identifier
@@ -385,11 +413,11 @@
   // Optional label shown on the arc
   - label (STRING)
 
-  // Guard condition evaluated for exclusive/inclusive gateways.
-  // TODO: replace this raw expression with the structured conditions mechanism
-  // (the cond:Conditionable mixin plus a cond:condition child), the same way
-  // schema items express their conditions, once the conditions module lands.
-  - conditionExpression (STRING)
+  // The guard a gateway evaluates before taking this arc is the cond:condition
+  // child the cond:Conditionable supertype brings, the same way schema items
+  // express theirs. An arc with none is unconditional, which for a gateway means
+  // it is taken as soon as it is considered - so ordering, and the default arc,
+  // are what keep such an arc from swallowing every decision.
 
   // When true, this is the default outgoing flow of its source gateway
   - isDefault (BOOLEAN)

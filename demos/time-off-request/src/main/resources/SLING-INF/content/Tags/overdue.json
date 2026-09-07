@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "tag:Definition",
+  "label": "Overdue",
+  "description": "Nobody has decided this yet and the time allowed for it has passed. The request is still waiting on the same person; this only says that it has been waiting too long.",
+  "category": ["timeliness"],
+  "targetResourceTypes": ["sub/Submission"],
+  "system": true,
+  "color": "#8a1f1f",
+  "icon": "AlarmOutlined",
+  "order": 30
+}

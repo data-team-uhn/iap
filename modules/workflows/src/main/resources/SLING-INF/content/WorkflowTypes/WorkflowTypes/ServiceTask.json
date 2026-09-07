@@ -5,5 +5,16 @@
   "category": ["Activities"],
   "priority": 0,
   "xmlElement": "bpmn:serviceTask",
-  "jcrNodeType": "wf:Activity"
+  "jcrNodeType": "wf:Activity",
+  "properties": [
+    "{https://iap.uhndata.io/bpmn}handler=handler",
+    "{https://iap.uhndata.io/bpmn}hostTag=hostTag",
+    "{https://iap.uhndata.io/bpmn}entityType=entityType",
+    "{https://iap.uhndata.io/bpmn}workflowFrom=workflowFrom",
+    "{https://iap.uhndata.io/bpmn}event=event",
+    "{https://iap.uhndata.io/bpmn}template=template",
+    "{https://iap.uhndata.io/bpmn}urgency=urgency",
+    "{https://iap.uhndata.io/bpmn}notify=notify[]",
+    "{https://iap.uhndata.io/bpmn}requirement=requirement"
+  ]
 }

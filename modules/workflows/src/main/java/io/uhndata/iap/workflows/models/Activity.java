@@ -46,7 +46,7 @@ public class Activity extends FlowNode
     private String handler;
 
     @ValueMapValue
-    private String[] outcomes;
+    private String[] outcomeOptions;
 
     /**
      * The name of the {@code ServiceTaskHandler} that performs this activity. Only meaningful on
@@ -67,7 +67,7 @@ public class Activity extends FlowNode
      * decided.
      *
      * <p>Declared here because a task list has to know what to offer, and the only other record of which outcomes
-     * exist is the {@link SequenceFlow#getConditionExpression() condition} on some later gateway's arcs — which is
+     * exist is the {@link SequenceFlow#getCondition() condition} on some later gateway's arcs — which is
      * where they are <em>consumed</em>, not where they are announced, and which the person doing the task cannot
      * necessarily read. So an empty list is a statement, not a gap: this is a task there is nothing to decide
      * about, done or not done, and completing it records no decision.</p>
@@ -75,9 +75,9 @@ public class Activity extends FlowNode
      * @return the outcomes this task offers, empty when completing it is not a decision
      */
     @NotNull
-    public List<String> getOutcomes()
+    public List<String> getOutcomeOptions()
     {
-        return this.outcomes == null ? List.of() : List.of(this.outcomes);
+        return this.outcomeOptions == null ? List.of() : List.of(this.outcomeOptions);
     }
 
     /**

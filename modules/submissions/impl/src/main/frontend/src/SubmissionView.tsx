@@ -18,29 +18,58 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 
-import { Alert, Box, Divider, Link, Paper, Stack, Typography } from "@mui/material";
-import { Link as RouterLink, useLocation } from "react-router";
+import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import {
+  Alert,
+  Box,
+  Divider,
+  Link,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography
+} from "@mui/material";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
+import ApprovalState from "./ApprovalState";
+import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
+import SubmissionEditor from "./SubmissionEditor";
+import {
+  APPROVAL_REQUIREMENT, DOCUMENT_REQUIREMENT, type FormRequirement, type SubmissionForm, fetchForm,
+  formatDate,
+} from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
+import SubmissionTasks from "./SubmissionTasks";
 
-// A serialized JCR node: its properties, plus its children as nested objects.
-type JsonNode = Record<string, unknown>;
+// The extension that asks for the editor rather than the read-only page
+const EDIT = ".edit";
 
-function isNode(value: unknown): value is JsonNode {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+// The tag the save workflow places when something the schema asks for has not been answered
+const INCOMPLETE = "incomplete";
+
+
+// A single-valued property is serialized as a bare string, not as a one-element array.
+function asList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return (value as unknown[]).filter((entry): entry is string => typeof entry === "string");
+  }
+  return typeof value === "string" ? [value] : [];
 }
 
-// The children of a serialized node having the given resource type, in their storage order.
-function childrenOfType(node: JsonNode, resourceType: string): JsonNode[] {
-  return Object.values(node)
-    .filter(isNode)
-    .filter(child => child["sling:resourceType"] === resourceType);
+// Whether the request is still missing an answer, read from the submission this page already holds
+// rather than by asking for its form: the save workflow worked it out and recorded it.
+function isIncomplete(submission: JsonNode | undefined): boolean {
+  return asList(submission?.tags).includes(INCOMPLETE);
 }
+
+
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) {
@@ -59,9 +88,13 @@ function fileHref(path: unknown, name: string): string {
   return [...String(path).split("/"), name].map(encodeURIComponent).join("/");
 }
 
-// JCR dates are serialized as ISO 8601 strings; anything else is not a date
-function formatDate(value: unknown): string {
-  return typeof value === "string" && value !== "" ? new Date(value).toLocaleString() : "";
+// Who raised this submission. `createdBy` rather than `jcr:createdBy`, and for the same reason the
+// dashboard's "my submissions" filter selects on it: the engine writes every submission as its own
+// service user, so the JCR property credits the engine. It is still the fallback here, where the Java
+// model's own `getCreatedBy()` puts it — a page saying "Created by" and then nothing is worse than one
+// naming whoever did write it, which for seeded content is all there is to say.
+function createdBy(submission: JsonNode): unknown {
+  return submission.createdBy ?? submission["jcr:createdBy"];
 }
 
 // One question with its answer (or a placeholder when unanswered).
@@ -118,30 +151,99 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   );
 }
 
-// The documents attached to the submission, with download links for their files.
-function Documents({ documents }: { documents: JsonNode[] }) {
+// One attached document: what it is called and links to download whatever files it holds.
+function Attachment({ document, named }: { document: JsonNode; named: boolean }) {
+  const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
+  const files = Object.entries(document)
+    .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+  // A reference is serialized with whatever the referenced node holds, and a requirement need not
+  // carry a label. Worth saying only where the grouping does not already say it, and only where
+  // there is something to say: `fulfills "undefined"` is worse than nothing at all.
+  const fulfills = named && typeof requirement?.label === "string" ? requirement.label : undefined;
   return (
-    <Stack spacing={2}>
-      {documents.map((document, index) => {
-        const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
-        const files = Object.entries(document)
-          .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+    <Box>
+      <Typography variant="subtitle2">
+        {String(document.title ?? document["@name"])}
+        {fulfills ? ` — fulfills "${fulfills}"` : ""}
+      </Typography>
+      {document.description
+        ? <Typography color="text.secondary">{formatValue(document.description)}</Typography>
+        : null}
+      <Stack>
+        {files.map(([name]) =>
+          <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
+      </Stack>
+    </Box>
+  );
+}
+
+// What the schema asks for and what has been attached against it. Reading only: a document is
+// attached while the request is being filled in, which is what the editor is, so this is the page
+// that says where things stand rather than a second way to change them.
+//
+// The requirements come from the form projection rather than from the submission this page already
+// holds, because a requirement can be conditional: the demo asks for a doctor's note only for sick
+// leave, and conditions are resolved on the server by design. Reading them off the schema instead
+// would list a doctor's note on a holiday request.
+function Documents({ form, documents }: {
+  form: SubmissionForm | undefined;
+  documents: JsonNode[];
+}) {
+  const requirements = (form?.requirements ?? [])
+    .filter(requirement => requirement.type === DOCUMENT_REQUIREMENT);
+  const fulfilling = (requirement: FormRequirement) => documents.filter(document =>
+    isNode(document.fulfills) && document.fulfills["@name"] === requirement.name);
+  // Anything whose requirement does not currently apply, is gone from the schema, or that never named
+  // one: still somebody's evidence, so shown rather than silently dropped
+  const claimed = new Set(requirements.flatMap(requirement =>
+    fulfilling(requirement).map(document => document["@path"])));
+  const unattributed = documents.filter(document => !claimed.has(document["@path"]));
+
+  if (requirements.length === 0 && documents.length === 0) {
+    return <Typography color="text.secondary">This request asks for no documents</Typography>;
+  }
+
+  return (
+    <Stack spacing={2} divider={<Divider />}>
+      {requirements.map(requirement => {
+        const attached = fulfilling(requirement);
         return (
-          <Box key={"document-" + index}>
-            <Typography variant="subtitle2">
-              {String(document.title ?? document["@name"])}
-              {requirement ? ` — fulfills "${String(requirement.label)}"` : ""}
-            </Typography>
-            {document.description
-              ? <Typography color="text.secondary">{formatValue(document.description)}</Typography>
+          <Stack key={requirement.name} spacing={1}>
+            <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+            {requirement.description
+              ? <Typography color="text.secondary">{requirement.description}</Typography>
               : null}
-            <Stack>
-              {files.map(([name]) =>
-                <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
-            </Stack>
-          </Box>
+            {attached.length > 0
+              ? attached.map((document, position) =>
+                <Attachment key={"attached-" + position} document={document} named={false} />)
+              : <Typography color="text.secondary">Nothing attached yet</Typography>}
+          </Stack>
         );
       })}
+      {unattributed.map((document, index) =>
+        <Attachment key={"other-" + index} document={document} named />)}
+    </Stack>
+  );
+}
+
+// The approvals this request needs, and where each of them stands. Read from the same projection the
+// editor reads, so the two modes cannot disagree about what is still waiting — and shown in view mode
+// because a request parked on somebody else's decision is exactly what a reader has come to find out.
+function Approvals({ requirements }: { requirements: FormRequirement[] }) {
+  if (requirements.length === 0) {
+    return <Typography color="text.secondary">This request needs no approvals</Typography>;
+  }
+  return (
+    <Stack spacing={2} divider={<Divider />}>
+      {requirements.map(requirement => (
+        <Stack key={requirement.name} spacing={1}>
+          <Typography variant="subtitle1">{requirement.label || requirement.name}</Typography>
+          {requirement.description
+            ? <Typography color="text.secondary">{requirement.description}</Typography>
+            : null}
+          <ApprovalState requirement={requirement} />
+        </Stack>
+      ))}
     </Stack>
   );
 }
@@ -189,16 +291,56 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
 // documents and the reviews. Editing is deliberately out of scope for now.
 function SubmissionView() {
   const location = useLocation();
-  // The page URL is the submission's repository path (a trailing .html is tolerated)
-  const path = location.pathname.replace(/\.html$/, "");
+  const navigate = useNavigate();
+  // The page URL is the submission's repository path (a trailing .html is tolerated). A trailing
+  // `.edit` asks for the editor: which view of a submission is shown is addressed the way every
+  // other view here is, by extension rather than by a query parameter, and the server serves the
+  // same shell for it.
+  const address = location.pathname.replace(/\.html$/, "");
+  const editing = address.endsWith(EDIT);
+  const path = editing ? address.slice(0, -EDIT.length) : address;
   const [submission, setSubmission] = useState<JsonNode>();
+  // The form projection, read once for the whole page: two sections ask what this request is being
+  // asked for — the documents and the approvals — and a requirement can be conditional, so neither
+  // can read it off the schema. Fetching it in each of them would ask the server the same question
+  // twice and let the two disagree while one of the answers was still in flight.
+  const [form, setForm] = useState<SubmissionForm | undefined>(undefined);
   const [error, setError] = useState<string>();
   // Loading is derived, not toggled inside the fetch effect: the view is loading until the
   // fetch for the currently displayed path has settled, one way or the other
   const [loadedPath, setLoadedPath] = useState<string>();
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
+  // Bumped when something else on the page changes the submission, so that the fetch below runs
+  // again for a path it has already loaded — which is the one thing its own dependencies cannot say
+  const [reloads, setReloads] = useState(0);
 
+  useEffect(() => {
+    let cancelled = false;
+    // A projection that cannot be read leaves those sections showing what is there and saying nothing
+    // about what was asked, which is the half that can still be trusted
+    fetchForm(path).then(
+      next => {
+        if (!cancelled) {
+          setForm(next);
+        }
+      },
+      () => {
+        if (!cancelled) {
+          setForm(undefined);
+        }
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [path, reloads]);
+
+  // Read in both modes, because the step offered above the two of them is decided by what the request
+  // is still missing, and that changes while somebody is filling it in. Skipping the read while the
+  // editor was open left that control refusing a request that had just been completed — for the whole
+  // editing session, since nothing else re-read the page. The editor says when it has changed
+  // something rather than this guessing, so the extra read costs one request per editor opened.
   useEffect(() => {
     let cancelled = false;
     fetchUtil(`${path}.deep.json`)
@@ -227,13 +369,85 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path, fetchUtil]);
+  }, [path, fetchUtil, reloads]);
 
+  // Reading and filling in are two modes of the same page, so the way between them belongs to the
+  // page rather than to either mode — and it is rendered whatever the page is doing, because the
+  // states with nothing to show are exactly the ones somebody needs a way out of. Before this, the
+  // editor was reachable only from a listing and, once open, offered no way back at all.
+  const header = (
+    <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+      <Link component={RouterLink} to="/">← Back to the dashboard</Link>
+      <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+        {/* Whatever the process is waiting for, offered where the page's other actions are and in
+            both modes. Sending a request is a step of its workflow, so it belongs beside the way of
+            looking at it rather than at the bottom of one of the two views. */}
+        <SubmissionTasks
+          path={path}
+          blockedReason={isIncomplete(submission)
+            ? "Answer everything this request asks for before sending it."
+            : undefined}
+          onCompleted={() => {
+            // Back to reading it: what was just done has usually made it read-only, and it is what
+            // has changed that the person now wants to see
+            setReloads(current => current + 1);
+            void navigate(path);
+          }}
+        />
+        <ToggleButtonGroup
+          exclusive
+          value={editing ? "edit" : "view"}
+          // An exclusive group reports null when the selected button is clicked again. That is a
+          // deselection, and there is no third mode to land in, so it leaves the page as it is.
+          onChange={(_event, next: string | null) => {
+            if (next) {
+              void navigate(next === "edit" ? `${path}${EDIT}` : path);
+            }
+          }}
+          aria-label="How to show this submission"
+        >
+          <ToggleButton value="view">
+            <VisibilityIcon fontSize="small" sx={{ mr: 0.5 }} />
+            View
+          </ToggleButton>
+          {/* Offered to whoever is looking. Whether it can actually be edited is the server's answer,
+              given by the form it serves, and the editor says so plainly when it may not be — the same
+              rule the listing's Edit action follows. */}
+          <ToggleButton value="edit">
+            <EditIcon fontSize="small" sx={{ mr: 0.5 }} />
+            Edit
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Stack>
+    </Stack>
+  );
+
+  if (editing) {
+    return (
+      <Stack spacing={2}>
+        {header}
+        {/* Answering or attaching can be the thing that completes the request, and whether it is
+            complete decides whether the step above offers to send it. Re-read here rather than
+            worked out again: the save workflow already recorded it on the submission. */}
+        <SubmissionEditor path={path} onChanged={() => setReloads(current => current + 1)} />
+      </Stack>
+    );
+  }
   if (loading) {
-    return <LoadingOverlay open />;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <LoadingOverlay open />
+      </Stack>
+    );
   }
   if (error || !submission) {
-    return <Alert severity="error">{error ?? "This submission cannot be displayed"}</Alert>;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <Alert severity="error">{error ?? "This submission cannot be displayed"}</Alert>
+      </Stack>
+    );
   }
 
   const schemaVersion = isNode(submission.schemaVersion) ? submission.schemaVersion : undefined;
@@ -241,24 +455,19 @@ function SubmissionView() {
   const documents = childrenOfType(submission, "sub/Document");
   const reviews = childrenOfType(submission, "sub/Review");
   const forms = schemaVersion ? childrenOfType(schemaVersion, "sch/FormRequirement") : [];
-  const documentRequirements = schemaVersion ? childrenOfType(schemaVersion, "sch/DocumentRequirement") : [];
-  const missingDocuments = "No documents attached yet"
-    + (documentRequirements.length > 0
-      ? `; expected: ${documentRequirements.map(requirement => String(requirement.label)).join(", ")}`
-      : "");
 
   return (
     <Stack spacing={2}>
+      {header}
       <Box>
-        <Link component={RouterLink} to="/">← Back to the dashboard</Link>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "center", mt: 1 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>
           <TagChip tags={submission.tags} category="lifecycle" />
         </Stack>
         <Typography color="text.secondary">
           {schemaLabel(schemaVersion)}
           {submission["jcr:created"]
-            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(submission["jcr:createdBy"])}`
+            ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(createdBy(submission))}`
             : ""}
           {submission["jcr:lastModified"] ? ` • Last modified ${formatDate(submission["jcr:lastModified"])}` : ""}
         </Typography>
@@ -273,9 +482,12 @@ function SubmissionView() {
         </Section>
       ))}
       <Section title="Documents">
-        {documents.length > 0
-          ? <Documents documents={documents} />
-          : <Typography color="text.secondary">{missingDocuments}</Typography>}
+        <Documents form={form} documents={documents} />
+      </Section>
+      <Section title="Approvals">
+        <Approvals requirements={(form?.requirements ?? [])
+          .filter(requirement => requirement.type === APPROVAL_REQUIREMENT)}
+        />
       </Section>
       <Section title="Reviews">
         {reviews.length > 0

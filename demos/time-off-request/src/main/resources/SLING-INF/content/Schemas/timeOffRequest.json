@@ -7,16 +7,96 @@
     "version": "1.0",
     "active": true,
     "jcr:reference:workflow": "/Workflows/timeOffRequest/v1",
-    "description": "One day off, asked for and approved. The starting point the rest of the demo grows from.",
+    "description": "Ask to be away from work, and have it approved. Say when you want to go and why; a sick leave also asks for a doctor's note. Your manager sees how much of your allowance is left before deciding, and you are told either way.",
     "details": {
       "jcr:primaryType": "sch:FormRequirement",
       "label": "Request details",
-      "description": "When you would like to be away.",
-      "day": {
+      "description": "When you would like to be away, and why.",
+      "duration": {
         "jcr:primaryType": "sch:Question",
-        "text": "Which day are you taking off?",
+        "text": "Is this a half day, a full day, or several days?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "halfDay": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "half-day",
+          "label": "Half day"
+        },
+        "fullDay": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "full-day",
+          "label": "Full day"
+        },
+        "multipleDays": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "multiple-days",
+          "label": "Several days"
+        }
+      },
+      "startDate": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which day does your time off start?",
         "dataType": "date",
-        "required": true
+        "minAnswers": 1
+      },
+      "endDate": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which day are you back?",
+        "dataType": "date",
+        "minAnswers": 1,
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "answer",
+            "value": [ "details/duration" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "multiple-days" ]
+          }
+        }
+      },
+      "absenceType": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What kind of absence is this?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "personal": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "personal",
+          "label": "Personal"
+        },
+        "vacation": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "vacation",
+          "label": "Vacation"
+        },
+        "sick": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "sick",
+          "label": "Sick leave"
+        }
+      }
+    },
+    "doctorsNote": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Doctor's note",
+      "description": "A note from your doctor covering the days you were unwell.",
+      "acceptedFileTypes": [ "application/pdf", "image/jpeg", "image/png" ],
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "equals",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "answer",
+          "value": [ "details/absenceType" ]
+        },
+        "operandB": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "value": [ "sick" ]
+        }
       }
     },
     "approval": {

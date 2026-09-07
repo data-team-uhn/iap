@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
 import SubmissionView from "@iap/submissions/SubmissionView";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
-import { tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
+import { jsonResponse, tagAwareFetch } from "@iap/tags/tagDefinitions.fixture";
 
 // A submission as returned by the `deep` serialization: children nested, references expanded
 const DEEP_SUBMISSION = {
@@ -228,12 +229,55 @@ const BARE_SUBMISSION = {
   },
 };
 
+// The form projection as the SubmissionFormServlet would serve it, asking nothing: enough to tell
+// the editor apart from the read-only page without restating what the editor's own tests cover.
+const EMPTY_FORM = {
+  path: "/Submissions/demo-1",
+  title: "Test my drug",
+  editable: true,
+  requirements: [],
+};
+
+// Answers the tag definitions, the deep serialization and the form projection alike, so that a test
+// can move between the page's two modes the way a reader does.
+function bothModes(submission: unknown = DEEP_SUBMISSION) {
+  const otherwise = tagAwareFetch(submission);
+  return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+    ? Promise.resolve({ ok: true, json: () => Promise.resolve(EMPTY_FORM) } as unknown as Response)
+    : otherwise(url));
+}
+
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <SubmissionView />
     </MemoryRouter>
   );
+}
+
+// The container SubmissionTasks asks for, holding one open step. Without it the page has no send
+// control at all, and a test about whether sending is offered would assert nothing.
+const WAITING = {
+  timeOffRequest: {
+    "sling:resourceType": "wf/WorkflowInstance",
+    "@path": "/Submissions/demo-1/wf:instances/timeOffRequest",
+    "fillIn": {
+      "sling:resourceType": "wf/TaskInstance",
+      "@path": "/Submissions/demo-1/wf:instances/timeOffRequest/fillIn",
+      "status": "created",
+      "label": "Send it",
+      "outcomeOptions": [] as string[],
+      // The server saying this step waits for whoever is reading
+      "@mine": true,
+    },
+  },
+};
+
+// The page's own fetch plus that container, so the send control is really on the page
+function servingWithSendStep(submission: unknown) {
+  return vi.fn((url: string) => url.includes("wf:instances")
+    ? jsonResponse(WAITING)
+    : tagAwareFetch(submission)(url));
 }
 
 describe("SubmissionView", () => {
@@ -255,7 +299,9 @@ describe("SubmissionView", () => {
     expect(screen.getByText(/by admin/)).toBeInTheDocument();
 
     // The submission itself was fetched with the deep serialization
-    expect(fetchMock.mock.calls[0][0]).toBe("/Submissions/demo-1.deep.json");
+    // Among the page's requests, not necessarily its first: the header asks what the request is
+    // waiting for, and a child's effect runs before its parent's
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
 
     // The form requirement, its section, and its questions, with and without answers
     expect(screen.getByText("Basic information")).toBeInTheDocument();
@@ -282,9 +328,9 @@ describe("SubmissionView", () => {
     expect(screen.getByText("Fax")).toBeInTheDocument();
     expect(screen.getByText("ExtraForm")).toBeInTheDocument();
 
-    // No documents attached, but the schema says one is expected
-    expect(screen.getByText(/No documents attached yet/)).toBeInTheDocument();
-    expect(screen.getByText(/expected: Study protocol/)).toBeInTheDocument();
+    // The documents section asks the server what this request is being asked for, which this
+    // fixture does not answer; what it asks for is its own group of tests
+    expect(screen.getByText("This request asks for no documents")).toBeInTheDocument();
 
     // The review with its threaded comment ("jdoe" appears as reviewer and as comment author);
     // its state is a review-category tag chip
@@ -298,6 +344,54 @@ describe("SubmissionView", () => {
     expect(screen.getByText("on Study protocol")).toBeInTheDocument();
     expect(screen.getByText(/Formatting fixed/)).toBeInTheDocument();
     expect(screen.getByText(/✓/)).toBeInTheDocument();
+  });
+
+  it("offers to send a request once nothing it asks for is missing", async () => {
+    vi.stubGlobal("fetch", servingWithSendStep(DEEP_SUBMISSION));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeEnabled();
+  });
+
+  it("will not offer to send one that is still missing an answer", async () => {
+    // The save workflow placed the tag, so the page knows without asking for the form
+    vi.stubGlobal("fetch", servingWithSendStep({ ...DEEP_SUBMISSION, "tags": ["draft", "incomplete"] }));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeDisabled();
+  });
+
+  it("reads a lone tag written as a bare string", async () => {
+    // A single-valued property is serialized as a string, not as a one-element array, so a request
+    // whose only tag is `incomplete` would otherwise read as having no tags at all
+    vi.stubGlobal("fetch", servingWithSendStep({ ...DEEP_SUBMISSION, "tags": "incomplete" }));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByRole("button", { name: /Send it/ })).toBeDisabled();
+  });
+
+  it("credits whoever raised the submission, not the engine that wrote it", async () => {
+    // Every submission is written by the engine's service user, so jcr:createdBy names the engine; the
+    // person it acted for is recorded as createdBy, and that is who the page has to say created it
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "workflows", "createdBy": "demo-requester" })));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByText(/by demo-requester/)).toBeInTheDocument();
+  });
+
+  it("falls back on who wrote it when nothing recorded who it was for", async () => {
+    // Seeded content has no createdBy at all, and naming its writer is more use than naming nobody
+    vi.stubGlobal("fetch", vi.fn(tagAwareFetch({ ...DEEP_SUBMISSION,
+      "jcr:createdBy": "sling-jcr-content-loader" })));
+
+    renderAt("/Submissions/demo-1");
+
+    expect(await screen.findByText(/by sling-jcr-content-loader/)).toBeInTheDocument();
   });
 
   it("displays attached documents with download links, and minimal submissions without extras", async () => {
@@ -382,7 +476,7 @@ describe("SubmissionView", () => {
     renderAt("/Submissions/demo-1.html");
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
-    expect(fetchMock.mock.calls[0][0]).toBe("/Submissions/demo-1.deep.json");
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
   });
 
   it("reports inaccessible submissions", async () => {
@@ -393,5 +487,380 @@ describe("SubmissionView", () => {
 
     // The shared vocabulary for a status, rather than wording this view invented for itself
     expect(await screen.findByText(/It could not be found on the server/)).toBeInTheDocument();
+  });
+
+  // The page's own share of the submit button: offering it in both modes, and doing the right
+  // thing once it has been pressed
+  describe("what the request is waiting for", () => {
+    // The submission's own workflow, parked on a step with nothing to decide
+    const WAITING = {
+      timeOffRequest: {
+        "@path": "/Submissions/demo-1/wf:instances/timeOffRequest",
+        "sling:resourceType": "wf/WorkflowInstance",
+        "fillIn": {
+          "@path": "/Submissions/demo-1/wf:instances/timeOffRequest/fillIn",
+          "sling:resourceType": "wf/TaskInstance",
+          "label": "Say when you want to be away",
+          "status": "created",
+          "@mine": true,
+        },
+      },
+    };
+
+    // The page as it really answers: its own serialization, the form projection, the tag
+    // definitions, and — once the step has been completed — a workflow with nothing left waiting
+    function withATaskWaiting() {
+      const otherwise = bothModes();
+      let done = false;
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
+        if (init?.method === "POST") {
+          done = true;
+          return Promise.resolve({ url, ok: true, json: () => Promise.resolve({}) } as unknown as Response);
+        }
+        if (url.includes("wf:instances")) {
+          return Promise.resolve(
+            { url, ok: true, json: () => Promise.resolve(done ? {} : WAITING) } as unknown as Response);
+        }
+        return otherwise(url).then(response => ({ ...response, url }));
+      });
+    }
+
+    it("offers the waiting step while filling the request in, not only while reading it", async () => {
+      vi.stubGlobal("fetch", withATaskWaiting());
+
+      renderAt("/Submissions/demo-1.edit");
+
+      expect(await screen.findByRole("button", { name: /Say when you want to be away/ })).toBeInTheDocument();
+    });
+
+    it("goes back to reading the request once the step is done, and reads it again", async () => {
+      const fetchMock = withATaskWaiting();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1.edit");
+
+      await user.click(await screen.findByRole("button", { name: /Say when you want to be away/ }));
+
+      // Sending it has usually made it read-only, and what has changed is what the person now
+      // wants to see — so the page shows it rather than leaving them in an editor that will refuse.
+      // Asserted in the order it happens: the page changes mode straight away, and only then has
+      // to read the submission again before it can show anything.
+      expect(await screen.findByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Say when you want/ })).toBeNull();
+    });
+  });
+
+  describe("the documents section", () => {
+    // Reading only: a document is attached while the request is being filled in, which is the
+    // editor's job. What this page owes is an accurate account of where things stand.
+    const DRAFT_SUBMISSION = { ...DEEP_SUBMISSION, tags: ["draft"] };
+
+    const PROTOCOL = {
+      name: "Protocol",
+      type: "sch/DocumentRequirement",
+      label: "Study protocol",
+      description: "The full protocol, signed",
+      acceptedFileTypes: ["application/pdf"],
+      attached: [] as string[],
+    };
+
+    function serving(form: unknown, submission: unknown = DRAFT_SUBMISSION) {
+      const otherwise = tagAwareFetch(submission);
+      return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+        ? Promise.resolve({ ok: true, json: () => Promise.resolve(form) } as unknown as Response)
+        : otherwise(url));
+    }
+
+    function projection(requirements: unknown[] = [PROTOCOL]) {
+      return { path: "/Submissions/demo-1", title: "Test my drug", editable: true, requirements };
+    }
+
+    // One approval requirement, with whatever the projection is saying about it
+    function approval(state: Record<string, unknown>) {
+      return { name: "reb", type: "sch/ApprovalRequirement", label: "REB approval", ...state };
+    }
+
+    it("lists what the request is being asked for, and says nothing answers it yet", async () => {
+      // From the projection rather than from the schema this page already holds: a document
+      // requirement can be conditional, and conditions are resolved on the server
+      vi.stubGlobal("fetch", serving(projection()));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(screen.getByText("The full protocol, signed")).toBeInTheDocument();
+      expect(screen.getByText("Nothing attached yet")).toBeInTheDocument();
+    });
+
+    it("says which approvals the request is waiting on, and on whom", async () => {
+      // In view mode as much as in the editor: a request parked on somebody else's decision is what a
+      // reader has come to find out, and switching to edit to learn it would be absurd
+      vi.stubGlobal("fetch", serving(projection([ approval({ approverGroup: "reb-members" }) ])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("REB approval")).toBeInTheDocument();
+      expect(screen.getByText("Waiting for approval from reb-members")).toBeInTheDocument();
+    });
+
+    it("reports the decision once one has been made", async () => {
+      vi.stubGlobal("fetch", serving(projection([ approval({
+        approved: true, decidedBy: "priya", decidedAt: "2026-08-27T09:15:30.500-05:00",
+      }) ])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText(/Approved by priya on /)).toBeInTheDocument();
+    });
+
+    it("says so plainly when the request needs no approval at all", async () => {
+      vi.stubGlobal("fetch", serving(projection()));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("This request needs no approvals")).toBeInTheDocument();
+    });
+
+    it("never offers to attach one, whoever is reading", async () => {
+      // Attaching belongs to the editor, so there is only ever one control for it
+      vi.stubGlobal("fetch", serving(projection()));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Attach a file/)).toBeNull();
+    });
+
+    it("names a requirement by its node name when it carries no label", async () => {
+      vi.stubGlobal("fetch", serving(projection([{ ...PROTOCOL, label: "" }])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Protocol" })).toBeInTheDocument();
+    });
+
+    it("shows a requirement that says nothing beyond its name", async () => {
+      vi.stubGlobal("fetch", serving(projection([
+        { name: "Protocol", type: "sch/DocumentRequirement", label: "Study protocol" }
+      ])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(screen.queryByText("The full protocol, signed")).toBeNull();
+    });
+
+    it("groups an attached document under the requirement it answers", async () => {
+      const answered = {
+        ...DRAFT_SUBMISSION,
+        d1: {
+          "@path": "/Submissions/demo-1/d1",
+          "@name": "d1",
+          "sling:resourceType": "sub/Document",
+          "title": "protocol.pdf",
+          "fulfills": { "@path": "/Schemas/ClinicalTrial/1.0/Protocol", "@name": "Protocol" },
+          "protocol.pdf": {
+            "@path": "/Submissions/demo-1/d1/protocol.pdf",
+            "@name": "protocol.pdf",
+            "jcr:primaryType": "nt:file",
+          },
+        },
+      };
+      vi.stubGlobal("fetch", serving(projection(), answered));
+
+      renderAt("/Submissions/demo-1");
+
+      // The requirement first: what is attached comes from the submission and what it answers comes
+      // from the projection, so the grouping is only settled once both have arrived
+      expect(await screen.findByRole("heading", { name: "Study protocol" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "protocol.pdf" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText("Nothing attached yet")).toBeNull());
+      // The grouping already says which requirement it answers, so the document does not repeat it
+      expect(screen.queryByText(/fulfills/)).toBeNull();
+    });
+
+    it("still shows a document whose requirement no longer applies", async () => {
+      // A doctor's note attached while the absence was sick leave, and then changed to a holiday: the
+      // requirement is gone from the projection but the file is still somebody's evidence
+      const answered = {
+        ...DRAFT_SUBMISSION,
+        d1: {
+          "@path": "/Submissions/demo-1/d1",
+          "@name": "d1",
+          "sling:resourceType": "sub/Document",
+          "title": "note.pdf",
+          "fulfills": { "@path": "/Schemas/ClinicalTrial/1.0/Protocol", "@name": "Protocol" },
+        },
+      };
+      vi.stubGlobal("fetch", serving(projection([]), answered));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("note.pdf")).toBeInTheDocument();
+    });
+
+    it("says so when a request asks for no documents and holds none", async () => {
+      vi.stubGlobal("fetch", serving(projection([])));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("This request asks for no documents")).toBeInTheDocument();
+    });
+
+    it("says nothing about what was asked when the projection cannot be read", async () => {
+      // The half that can still be trusted: what is attached comes from the submission itself
+      const otherwise = tagAwareFetch(DRAFT_SUBMISSION);
+      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+        ? Promise.reject(new Error("no projection"))
+        : otherwise(url)));
+
+      renderAt("/Submissions/demo-1");
+
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(screen.getByText("This request asks for no documents")).toBeInTheDocument();
+    });
+
+    it("drops a projection that arrives after the page is gone", async () => {
+      // Nothing to assert but the absence of a warning: setting state on an unmounted component is
+      // what the cancelled flag exists to prevent, and React reports it on the console
+      let deliver: (form: unknown) => void = () => undefined;
+      const otherwise = tagAwareFetch(DRAFT_SUBMISSION);
+      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+        ? new Promise<Response>(resolve => {
+          deliver = form => resolve({ ok: true, json: () => Promise.resolve(form) } as unknown as Response);
+        })
+        : otherwise(url)));
+      const complain = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      const view = renderAt("/Submissions/demo-1");
+      await screen.findByText("Test my drug");
+      view.unmount();
+      await act(async () => {
+        deliver(projection());
+        await Promise.resolve();
+      });
+
+      expect(complain).not.toHaveBeenCalled();
+      complain.mockRestore();
+    });
+  });
+
+  describe("what the request is still missing, while it is being filled in", () => {
+    // The send control lives above both modes and is decided by the submission, not by the form. So the
+    // page has to keep reading the submission while the editor is open — otherwise the control answers
+    // from whatever was true when the editor was opened, for the whole session.
+    const INCOMPLETE_THEN_NOT = [
+      { ...DEEP_SUBMISSION, tags: ["draft", "incomplete"] },
+      { ...DEEP_SUBMISSION, tags: ["draft"] },
+    ];
+
+    function servingInTurn(submissions: unknown[]) {
+      let read = 0;
+      return vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url, init) => {
+        if (url.endsWith(".deep.json")) {
+          const next = submissions[Math.min(read, submissions.length - 1)];
+          read += 1;
+          return tagAwareFetch(next)(url);
+        }
+        if (url.endsWith(".form.json")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              path: "/Submissions/demo-1", title: "Test my drug", editable: true,
+              requirements: [ { name: "details", type: "sch/FormRequirement", label: "Request details",
+                items: [ { name: "why", type: "sch/Question", path: "details/why", text: "Why?",
+                  dataType: "text", minAnswers: 1, maxAnswers: 1, options: [], value: [] } ] } ],
+            }),
+          } as unknown as Response);
+        }
+        if (init?.method === "POST") {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as unknown as Response);
+        }
+        return tagAwareFetch(submissions[submissions.length - 1])(url);
+      });
+    }
+
+    it("reads the submission again while the editor is open, not only on the way out", async () => {
+      const fetchMock = servingInTurn(INCOMPLETE_THEN_NOT);
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderAt("/Submissions/demo-1.edit");
+
+      // Read once for the page itself, even though the editor is what is showing
+      await waitFor(() => expect(fetchMock.mock.calls
+        .filter(call => call[0].endsWith(".deep.json")).length).toBeGreaterThan(0));
+
+      // Finishing an answer says the request changed, and the page reads it again rather than
+      // assuming the answer changed nothing about what is still outstanding
+      await userEvent.type(await screen.findByLabelText(/Why\?/), "because");
+      await userEvent.tab();
+
+      await waitFor(() => expect(fetchMock.mock.calls
+        .filter(call => call[0].endsWith(".deep.json")).length).toBeGreaterThan(1));
+    });
+  });
+
+  describe("switching between reading and filling in", () => {
+    it("opens the editor, which asks the server what the form is", async () => {
+      const fetchMock = bothModes();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1");
+      await screen.findByText("Test my drug");
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+
+      expect(await screen.findByText("This request asks nothing yet.")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.form.json");
+    });
+
+    // The editor used to be a dead end: reachable only from a listing, with nothing on it leading
+    // anywhere. Going back also re-reads, since the editor saves as it goes.
+    it("comes back out of the editor, reading the submission afresh", async () => {
+      const fetchMock = bothModes();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1.edit");
+      await screen.findByText("This request asks nothing yet.");
+
+      await user.click(screen.getByRole("button", { name: "View" }));
+
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
+    });
+
+    it("says which of the two is showing", async () => {
+      vi.stubGlobal("fetch", bothModes());
+      renderAt("/Submissions/demo-1.edit");
+
+      expect(await screen.findByRole("button", { name: "Edit", pressed: true })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "View", pressed: false })).toBeInTheDocument();
+    });
+
+    // An exclusive toggle group reports a deselection as null; there is no third mode to land in
+    it("stays where it is when the mode already showing is chosen again", async () => {
+      vi.stubGlobal("fetch", bothModes());
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1");
+      await screen.findByText("Test my drug");
+
+      await user.click(screen.getByRole("button", { name: "View" }));
+
+      expect(screen.getByText("Test my drug")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
+    });
+
+    // The states with nothing to show are the ones somebody most needs a way out of
+    it("keeps the way out of a submission that cannot be loaded", async () => {
+      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
+        () => Promise.resolve({ ok: false, status: 403 } as unknown as Response)));
+
+      renderAt("/Submissions/secret");
+
+      expect(await screen.findByText(/You do not have permission to do this/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Back to the dashboard/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    });
   });
 });

@@ -27,7 +27,7 @@ import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import io.uhndata.iap.entities.models.Entity;
+import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code wf:WorkflowInstance} node: one execution of a {@link WorkflowVersion}, running or
@@ -44,7 +44,7 @@ import io.uhndata.iap.entities.models.Entity;
  */
 @Model(adaptables = Resource.class, resourceType = WorkflowInstance.RESOURCE_TYPE,
     defaultInjectionStrategy = DefaultInjectionStrategy.OPTIONAL)
-public class WorkflowInstance extends Entity
+public class WorkflowInstance extends EntityPart
 {
     /** The {@code sling:resourceType} of a {@code wf:WorkflowInstance} node. */
     public static final String RESOURCE_TYPE = "wf/WorkflowInstance";
