@@ -34,6 +34,10 @@ const views = [
   { "ext:name": "Dashboard", "ext:targetURL": "/" },
   { "ext:name": "Administration", "ext:targetURL": "/admin" },
   { "ext:name": "Submission categories", "ext:targetURL": "/admin/categories" },
+  // A splat with no page of its own, and a splat beside the page it details
+  { "ext:name": "Submission", "ext:targetURL": "/Submissions/*" },
+  { "ext:name": "Archive", "ext:targetURL": "/admin/archive" },
+  { "ext:name": "Archive entry", "ext:targetURL": "/admin/archive/*" },
 ];
 
 const renderAt = (url: string) => render(
@@ -69,6 +73,22 @@ describe("Breadcrumbs", () => {
     expect(crumb).toHaveAttribute("href", "/admin");
     // The current page itself is not part of the trail - its title is the page heading
     expect(screen.queryByText("Submission categories")).not.toBeInTheDocument();
+  });
+
+  // The path carries three bucket segments that are not pages, and all three match /Submissions/*
+  it("puts no crumb on the buckets a treed submission is filed under", async () => {
+    const { container } = renderAt("/Submissions/95/21/a8/6f3c1e2a-0b44-4d21-9a77-51e0c9d3b8fa");
+
+    await waitFor(() => expect(mockedGetRoutes).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  // Both targets match, and which one `find` reaches first is the order the extensions came back in
+  it("names an ancestor after its own page, not after the view detailing one of its children", async () => {
+    renderAt("/admin/archive/6f3c1e2a");
+
+    expect(await screen.findByRole("link", { name: "Archive" })).toHaveAttribute("href", "/admin/archive");
+    expect(screen.queryByText("Archive entry")).not.toBeInTheDocument();
   });
 
   it("skips ancestors that have no registered view, e.g. views the user cannot read", async () => {

@@ -52,13 +52,18 @@ function Breadcrumbs() {
   }, []);
 
   // Match each ancestor against the views' target URLs with the router's own semantics, so a
-  // parameterized view (e.g. /Submissions/:id) still names the right crumb; the catch-all
-  // pattern would claim every ancestor, so it never becomes a crumb.
+  // parameterized view like /Submissions/:id still names the right crumb.
+  //
+  // A splat target never names one. It matches any number of segments, so /Submissions/* claims
+  // every path under /Submissions, and a submission filed in a prefix tree gets four crumbs called
+  // "Submission" for buckets that are not pages. Excluding splats loses nothing: a splat view that
+  // does cover a real page sits beside that page's own exact registration, as /admin/archive/* does
+  // beside /admin/archive.
   const crumbs = ancestorPaths(pathname)
     .map(path => {
       const view = views.find(candidate => {
         const target = candidate["ext:targetURL"] as string | undefined;
-        return target && target !== "*" && matchPath({ path: target, end: true }, path);
+        return target && !target.includes("*") && matchPath({ path: target, end: true }, path);
       });
       return view && { path, label: (view["ext:name"] as string | undefined) ?? path };
     })
