@@ -34,6 +34,5 @@
          registration follows bundle start order -->
     <module>content-api</module>
     <module>entities-api</module>
-    <module>impl</module>
   </modules>
 </project>

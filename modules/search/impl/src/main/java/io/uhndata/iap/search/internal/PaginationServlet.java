@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.entities.internal;
+package io.uhndata.iap.search.internal;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,12 +145,13 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             builder.withChildFilters(request.getParameter("childType" + suffix),
                 parseFilters(request, "childField" + suffix, session.getUserID()));
         }
-        final String statement = builder
+        final BoundStatement bound = builder
             .withFullText(request.getParameter("filter"))
             .withSort(request.getParameter("sortBy"), Boolean.parseBoolean(request.getParameter("descending")))
             .build();
-        LOGGER.debug("Pagination query: {}", statement);
-        return session.getWorkspace().getQueryManager().createQuery(statement, Query.JCR_SQL2);
+        // Only the statement is logged, never the bindings. The bindings are the caller's search terms.
+        LOGGER.debug("Pagination query: {}", bound.statement());
+        return bound.createQuery(session);
     }
 
     /**
