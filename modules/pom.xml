@@ -51,6 +51,7 @@
     <module>links</module>
     <module>login</module>
     <module>metrics</module>
+    <module>principals</module>
     <module>schemas</module>
     <module>search</module>
     <module>serialization</module>

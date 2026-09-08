@@ -17,9 +17,17 @@
  */
 package io.uhndata.iap.utils;
 
+import java.security.Principal;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.sling.api.resource.ResourceResolver;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -60,10 +68,32 @@ public final class UserIds
      * @return the user id to record and to compare against, or {@code null} if nothing knows one
      */
     @Nullable
-    public static String canonical(final ResourceResolver resolver)
+    public static String canonical(@NotNull final ResourceResolver resolver)
     {
         final Session session = resolver.adaptTo(Session.class);
         return session == null ? resolver.getUserID() : session.getUserID();
     }
 
+    /**
+     * Everything a session acts as: its own user id, then every principal it is bound to. Never empty, so a
+     * caller filtering on it narrows its question rather than widening it to everybody.
+     *
+     * <p>Read from the bound principals, not from group memberships looked up through a {@code UserManager}.
+     * Under dynamic membership an identity provider's roles arrive as principals with no local group node behind
+     * them, so a membership lookup reports that the session belongs to nothing.</p>
+     *
+     * @param session the session to describe
+     * @return the principal names, the user's own id first; never empty
+     * @throws RepositoryException if the session cannot say what it is bound to
+     */
+    @NotNull
+    public static List<String> principalsOf(@NotNull final Session session) throws RepositoryException
+    {
+        final Stream<String> bound = session instanceof JackrabbitSession
+            ? ((JackrabbitSession) session).getBoundPrincipals().stream().map(Principal::getName)
+            : Stream.empty();
+        return Stream.concat(Stream.ofNullable(session.getUserID()), bound)
+            .distinct()
+            .collect(Collectors.toList());
+    }
 }
