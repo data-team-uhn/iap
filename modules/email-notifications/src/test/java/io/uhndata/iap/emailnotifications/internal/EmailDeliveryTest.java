@@ -47,9 +47,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>
  * These assert on <strong>what was actually assembled</strong> rather than on the delivery having returned true.
- * That distinction matters: this path has form for reporting success where nothing was built, such as an
- * endpoint answering 200 for a message that was never assembled, so the subject line, the recipient and the
- * rendered body are captured off the builder and checked, interpolation and all.
+ * That distinction matters: this path has form for reporting success where nothing was built, an endpoint
+ * answering 200 for a message that was never assembled. So the subject line, the recipient and the rendered
+ * body are captured off the builder and checked, interpolation and all.
  * </p>
  *
  * @version $Id$
@@ -163,7 +163,6 @@ class EmailDeliveryTest
         Mockito.verify(this.mailService).sendMessage(Mockito.any());
     }
 
-    // Every message can say these without the workflow having to pass them
     @Test
     void alwaysOffersTheSubjectsOwnDetailsToTheTemplate() throws Exception
     {
@@ -178,7 +177,6 @@ class EmailDeliveryTest
         assertTrue(text.getValue().contains("approved"), text.getValue());
     }
 
-    // Anything the workflow could not read off the subject travels on the notification and reaches the wording
     @Test
     void interpolatesWhateverTheNotificationCarries() throws Exception
     {
@@ -200,8 +198,6 @@ class EmailDeliveryTest
         assertEquals("Approved for 3 days", subject.getValue());
     }
 
-    // What makes urgency mean something today rather than only in principle: a batched notification is
-    // delivered by nothing yet, visibly, instead of being quietly emailed anyway
     @Test
     void declinesAnythingThatIsNotImmediate() throws Exception
     {
@@ -213,7 +209,6 @@ class EmailDeliveryTest
         Mockito.verify(this.mailService, Mockito.never()).sendMessage(Mockito.any());
     }
 
-    // A fact about that person's account, not an error
     @Test
     void declinesSomebodyWithNoAddress()
     {
@@ -225,7 +220,6 @@ class EmailDeliveryTest
             this.account("blank", "Nobody", "  ")));
     }
 
-    // This delivery has no wording of its own to fall back on
     @Test
     void declinesANotificationWithNoTemplate()
     {

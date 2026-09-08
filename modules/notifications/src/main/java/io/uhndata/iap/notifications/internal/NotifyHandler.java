@@ -37,10 +37,10 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  *
  * <p>
  * <strong>One handler, however many notifications a process sends.</strong> What differs between "your request
- * was approved" and "your request was refused" is wording and audience, and both are written in the workflow
- * definition rather than in Java: a service task naming this handler carries the template folder, the roles to
- * tell and how urgent it is. Adding a notification is adding a node and a template rather than a component,
- * which is the only way a workflow author who cannot write Java can add one at all.
+ * was approved" and "your request was refused" is wording and audience. Both are written in the workflow
+ * definition rather than in Java. A service task naming this handler carries the template folder, the roles
+ * to tell, and how urgent it is. So adding a notification is adding a node and a template, not a component.
+ * A workflow author who cannot write Java can add one.
  * </p>
  *
  * {@snippet lang="json" :
@@ -55,9 +55,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * }
  *
  * <p>
- * <strong>It never fails the workflow.</strong> A decision that has been made has been made, and a process that
- * rolled back because a mail server was unreachable would be a worse outcome than one whose author was not told.
- * Anything that goes wrong is recorded and the run carries on.
+ * <strong>It never fails the workflow.</strong> A decision that has been made has been made. Rolling a
+ * process back because a mail server was unreachable is worse than leaving its author untold. Anything that
+ * goes wrong is recorded and the run carries on.
  * </p>
  *
  * @version $Id$
@@ -79,9 +79,9 @@ public class NotifyHandler implements ServiceTaskHandler
     static final String URGENCY = "urgency";
 
     /**
-     * The activity property naming what happened. Separate from the node's own id so that two nodes can report
-     * the same event with different wording, and so that a user setting keys on something a definition chose
-     * rather than on whatever the node happened to be called.
+     * The activity property naming what happened. Separate from the node's own id, so that two nodes can
+     * report the same event with different wording. It also means a user setting keys on something a
+     * definition chose, not on whatever the node happened to be called.
      */
     static final String EVENT = "event";
 

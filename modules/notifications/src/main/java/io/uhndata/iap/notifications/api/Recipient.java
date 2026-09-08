@@ -37,7 +37,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>
  * The account is only alive for the duration of {@link io.uhndata.iap.notifications.spi.NotificationDelivery#deliver
- * NotificationDelivery.deliver}: it is closed with the session that resolved it, so a delivery that queues work
+ * NotificationDelivery.deliver}, and is closed with the session that resolved it. A delivery that queues work
  * for later, such as a digest collector, must read what it needs and let go rather than store the resource.
  * </p>
  *

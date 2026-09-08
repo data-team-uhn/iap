@@ -48,17 +48,17 @@ import io.uhndata.iap.notifications.spi.NotificationDelivery;
  * Sends a notification as an email, straight away.
  *
  * <p>
- * It accepts what it can carry and declines the rest, rather than assuming every notification is its business:
- * a recipient with no address is declined, which is a fact about that person's account and not an error, and so is a
- * notification with no template, since this channel has no wording of its own to fall back on. Declining is a
- * normal answer, because another delivery may well carry what this one cannot.
+ * It accepts what it can carry and declines the rest. A recipient with no address is declined: that is a fact
+ * about their account, not an error. So is a notification with no template, since this channel has no wording of
+ * its own to fall back on. Declining is a normal answer, because another delivery may carry what this one
+ * cannot.
  * </p>
  *
  * <p>
  * It also declines anything that is not {@link NotificationContext#IMMEDIATE}. That is what makes urgency mean
- * something today rather than only in principle: a {@code batched} notification is currently delivered by
- * nothing, which is visible in the log, instead of being quietly emailed as though the workflow had never said
- * otherwise. The collector that will accept those is a second delivery, not a change here.
+ * something today rather than only in principle. A {@code batched} notification is currently delivered by
+ * nothing, and the log says so. Emailing it anyway would pretend the workflow had never said otherwise. The
+ * collector that will accept those is a second delivery, not a change here.
  * </p>
  *
  * @version $Id$
@@ -72,9 +72,9 @@ public class EmailDelivery implements NotificationDelivery
     /** The child of a notification's wording folder holding this channel's rendering. */
     private static final String EMAIL_RENDERING = "email";
 
-    // Dynamic and greedy for the same reason the test endpoint's reference is: a deployment substituting a mail
-    // service, a development instance catching mail rather than sending it, should win on ranking rather than on
-    // having happened to start first
+    // Dynamic and greedy, for the same reason the test endpoint's reference is. A deployment substituting a
+    // mail service should win on ranking, not on having started first. So should a development instance
+    // catching mail rather than sending it.
     @Reference(policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
     private volatile MailService mailService;
 
@@ -84,8 +84,6 @@ public class EmailDelivery implements NotificationDelivery
         if (!NotificationContext.IMMEDIATE.equals(notification.getUrgency())) {
             return false;
         }
-        // Whether the platform knows how to email somebody is a fact about their account, read here because
-        // this is the one delivery that needs it
         final String address = addressOf(recipient);
         if (address == null || address.isBlank()) {
             LOGGER.info("{} has no email address, so the {} notification was not emailed", recipient.userId(),
@@ -122,8 +120,8 @@ public class EmailDelivery implements NotificationDelivery
                     notification.getEvent(), templatePath);
                 return false;
             }
-            // The template folder holds one rendering per channel; this notification simply has no email wording
-            // when the folder carries no email child, which is a choice its author made, not an error
+            // The template folder holds one rendering per channel. A folder with no email child means this
+            // notification has no email wording, which is its author's choice rather than an error.
             final Resource emailRendering = templateResource.getChild(EMAIL_RENDERING);
             if (emailRendering == null) {
                 LOGGER.info("The template {} has no {} rendering, so the {} notification was not emailed",
@@ -136,9 +134,9 @@ public class EmailDelivery implements NotificationDelivery
             final Email email = template.getEmailBuilder(variables(notification))
                 .withRecipient(address, recipient.name())
                 .build();
-            // Sent as whatever the template actually has: demanding HTML would refuse a plain-text-only
-            // template, and refuse it quietly, since the caller is a workflow that carries on regardless, so
-            // the wording an author wrote would simply never arrive.
+            // Sent as whatever the template has. Demanding HTML would refuse a plain-text-only template,
+            // and refuse it quietly. The caller is a workflow that carries on regardless, so an author's
+            // wording would never arrive.
             EmailUtils.sendEmail(email, this.mailService);
             LOGGER.debug("Emailed the {} notification about {} to {}", notification.getEvent(),
                 subject.getPath(), recipient.userId());

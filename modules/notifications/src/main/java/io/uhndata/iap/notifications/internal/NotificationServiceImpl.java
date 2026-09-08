@@ -39,9 +39,9 @@ import io.uhndata.iap.principals.api.PrincipalService;
  * Resolves who a notification concerns and offers it to every registered way of telling them.
  *
  * <p>
- * The only judgement here is <em>who</em>. <em>How</em> is each delivery's own answer, and a notification that no
- * delivery accepts is a notification nobody was told, which is a normal outcome rather than a failure: somebody with no
- * address and no other channel simply is not reachable, and the workflow that raised it carries on.
+ * The only judgement here is <em>who</em>. <em>How</em> is each delivery's own answer. A notification no
+ * delivery accepts is one nobody was told. That is a normal outcome, not a failure: somebody with no address
+ * and no other channel is simply not reachable.
  * </p>
  *
  * @version $Id$
@@ -71,8 +71,8 @@ public class NotificationServiceImpl implements NotificationService
             return;
         }
         final ResourceResolver resolver = notification.getSubject().getResourceResolver();
-        // Resolved and expanded by the shared vocabulary, so "notify the approvers" and "the approvers may act"
-        // name the same people; enumerated here because telling, unlike checking, has to name each person
+        // Resolved and expanded by the shared vocabulary, so "notify the approvers" and "the approvers may
+        // act" name the same people. Enumerated here because telling, unlike checking, names each person.
         final List<String> userIds = this.principals.expandToUsers(
             this.principals.resolve(roles,
                 new PrincipalContext(notification.getSubject(), notification.getActor())),
@@ -85,8 +85,8 @@ public class NotificationServiceImpl implements NotificationService
     /**
      * Offers one notification to every delivery, in turn.
      *
-     * <p>Every one of them, not the first that accepts: a person may want both an email now and a marker in the
-     * interface, and which combination that is belongs to them rather than to whichever delivery was asked
+     * <p>Every one of them, not the first that accepts. A person may want both an email now and a marker in
+     * the interface. Which combination that is belongs to them, not to whichever delivery was asked
      * first.</p>
      *
      * @param channels the registered deliveries
@@ -101,8 +101,8 @@ public class NotificationServiceImpl implements NotificationService
             try {
                 any |= channel.deliver(notification, recipient);
             } catch (final RuntimeException e) {
-                // One channel failing is not the others' problem, and is certainly not the workflow's: a
-                // notification is an attempt to inform, and the process it reports on has already happened
+                // One channel failing is not the others' problem, nor the workflow's: the process it
+                // reports on has already happened.
                 LOGGER.error("A notification about {} could not be delivered to {}: {}",
                     notification.getEvent(), recipient.userId(), e.getMessage(), e);
             }

@@ -47,10 +47,10 @@ import io.uhndata.iap.storednotifications.api.StoredNotifications;
  * </p>
  *
  * <p>
- * The write goes through the caller's own session, so who may flip the marker is the repository's answer, not
- * this servlet's: the delivery granted exactly one person write on each notification. Everybody else cannot
- * even see the node, and gets the same refusal the repository gives them everywhere. Marking an already-read
- * notification read again is fine and does nothing, since reading twice is not an event.
+ * The write goes through the caller's own session, so who may flip the marker is the repository's answer
+ * rather than this servlet's. The delivery granted exactly one person write on each notification. Everybody
+ * else cannot even see the node, and gets the refusal the repository gives them everywhere. Marking an
+ * already-read notification read again is fine and does nothing: reading twice is not an event.
  * </p>
  *
  * @version $Id$
@@ -70,8 +70,8 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         final Resource target = request.getResource();
-        // Asking the repository for a writable view is how "may they?" is decided: it answers for whatever
-        // access control is configured, where comparing names would answer only for one deployment
+        // Asking the repository for a writable view is how "may they?" is decided. It answers for whatever
+        // access control is configured; comparing names would answer for one deployment only.
         final ModifiableValueMap writable = target.adaptTo(ModifiableValueMap.class);
         if (writable == null) {
             reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark");

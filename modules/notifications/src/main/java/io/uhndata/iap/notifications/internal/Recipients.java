@@ -39,8 +39,8 @@ import io.uhndata.iap.notifications.api.Recipient;
  * <p>
  * Who a role names is not judged here. The principals service resolves special names and
  * expands groups, the same way the workflow engine reads performers, so a definition means the same person in
- * both places. What is left for this class is the notification-specific half: finding each person's account and
- * handing it over, so that a delivery can read whatever channel facts it needs without rights of its own.
+ * both places. What is left for this class is the notification-specific half: finding each person's account
+ * and handing it over. A delivery can then read whatever channel facts it needs without rights of its own.
  * </p>
  *
  * @version $Id$

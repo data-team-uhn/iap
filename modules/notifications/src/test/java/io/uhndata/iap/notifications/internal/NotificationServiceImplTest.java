@@ -42,8 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link NotificationServiceImpl}: the only judgement it makes is who, delivery is observed at the
- * channels rather than reported back, and a channel's failure is the channel's own business.
+ * Tests for {@link NotificationServiceImpl}. The only judgement it makes is who. Delivery is observed at the
+ * channels rather than reported back, and a channel's failure is its own business.
  *
  * @version $Id$
  * @since 0.1.0
@@ -110,8 +110,7 @@ class NotificationServiceImplTest
         reference.set(target, value);
     }
 
-    // Nothing registered is not a crash; it is a platform with no way to tell anybody anything, which is worth
-    // a warning and nothing more
+    // No channel at all is a platform that cannot tell anybody anything: worth a warning, not a crash
     @Test
     void tellsNobodyWhenNothingCanDeliver()
     {
@@ -121,8 +120,6 @@ class NotificationServiceImplTest
     @Test
     void offersTheNotificationToEveryChannel() throws Exception
     {
-        // Both, not the first that accepts: somebody may want an email and a marker in the interface, and which
-        // combination that is belongs to them
         final Recording first = new Recording(true);
         final Recording second = new Recording(true);
         this.deliveries(first, second);
@@ -133,12 +130,9 @@ class NotificationServiceImplTest
         assertEquals(1, first.told.size());
         assertEquals(1, second.told.size());
         assertEquals(CREATOR, first.told.get(0).userId());
-        // The account rides along, so a channel can read its own facts off it without rights of its own
         assertNotNull(first.told.get(0).account());
     }
 
-    // A group role reaches each person in it, once, resolved through the same vocabulary the engine reads
-    // performers in
     @Test
     void aGroupRoleReachesItsPeopleOnce() throws Exception
     {
@@ -147,14 +141,13 @@ class NotificationServiceImplTest
         final var ann = Accounts.create(this.context, "ann", "ann@example.com");
         Accounts.group(this.context, "reviewers", ann);
 
-        // ann is named twice - directly and through the group - and told once
+        // ann is named twice, directly and through the group, and told once
         this.service.notify(this.notification(), List.of("ann", "reviewers"));
 
         assertEquals(1, channel.told.size());
         assertEquals("ann", channel.told.get(0).userId());
     }
 
-    // Every channel declining is a normal outcome: somebody unreachable is not an error
     @Test
     void carriesOnWhenEveryChannelDeclines() throws Exception
     {
@@ -167,8 +160,6 @@ class NotificationServiceImplTest
         assertEquals(1, declining.told.size());
     }
 
-    // One channel throwing is not the others' problem, and certainly not the workflow's: the process this
-    // reports on has already happened
     @Test
     void carriesOnWhenAChannelThrows() throws Exception
     {
@@ -183,7 +174,7 @@ class NotificationServiceImplTest
         assertEquals(1, working.told.size());
     }
 
-    // A subject nothing raised makes @creator name nobody, and nobody is told anything
+    // A subject nothing raised makes @creator name nobody
     @Test
     void aRoleNamingNobodyTellsNobody() throws Exception
     {

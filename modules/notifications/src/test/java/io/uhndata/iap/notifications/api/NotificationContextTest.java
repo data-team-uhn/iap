@@ -68,7 +68,6 @@ class NotificationContextTest
         assertEquals(3, notification.getVariables().get("days"));
     }
 
-    // Something nobody thought about is more likely to matter than not, so silence means immediate
     @Test
     void isImmediateUnlessToldOtherwise()
     {

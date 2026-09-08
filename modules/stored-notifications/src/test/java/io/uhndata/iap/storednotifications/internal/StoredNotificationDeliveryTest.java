@@ -135,7 +135,7 @@ class StoredNotificationDeliveryTest
     @Test
     void fallsBackToTheSubjectsTitleAndTheEvent()
     {
-        // Raised by nobody - a deadline, say - which is also fine to store
+        // Nobody raised it, a deadline say; storing it is still fine
         assertTrue(this.delivery.deliver(
             NotificationContext.about(this.submission).becauseOf("approved").build(), this.requester));
 
@@ -159,7 +159,6 @@ class StoredNotificationDeliveryTest
             this.storedNotification().getValueMap().get(StoredNotifications.LINE, String.class));
     }
 
-    // A typo stays visible in the list instead of vanishing
     @Test
     void leavesAnUnknownPlaceholderAsWritten()
     {
@@ -202,9 +201,8 @@ class StoredNotificationDeliveryTest
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
     }
 
-    // A notification its recipient cannot see is not delivered, it is lost - so the whole delivery is declined
-    // and the uncommitted write is discarded with the session (which the mock repository cannot show, since it
-    // has no transient space to discard)
+    // The write goes with the discarded session, which the mock repository cannot show: it has no transient
+    // space to discard
     @Test
     void declinesWhenTheGrantFails()
     {

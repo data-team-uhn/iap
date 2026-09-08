@@ -47,8 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link NotifyHandler}: that a workflow's own words, the template and the roles and the urgency, are what
- * reaches the notification service, and that nothing it can go wrong at fails the process.
+ * Tests for {@link NotifyHandler}. What reaches the notification service is the workflow's own words: the
+ * template, the roles, the urgency. Nothing the handler can fail at fails the process.
  *
  * @version $Id$
  * @since 0.1.0
@@ -128,8 +128,6 @@ class NotifyHandlerTest
         assertEquals(NotifyHandler.NAME, this.handler.getName());
     }
 
-    // Everything that differs between one notification and the next is read off the node, which is what lets a
-    // workflow author add one without writing Java
     @Test
     void raisesWhatTheWorkflowNodeSays() throws Exception
     {
@@ -150,8 +148,6 @@ class NotifyHandlerTest
         assertEquals(List.of(PrincipalService.CREATOR), this.audiences.get(0));
     }
 
-    // A template asks `#if($outcomeNote)`, so what the deciding person said has to reach it, and only when they
-    // actually said something, since a variable that is always there but sometimes empty answers that wrongly
     @Test
     void carriesTheDecisionAndItsReasonToTheWording() throws Exception
     {
@@ -178,8 +174,6 @@ class NotifyHandlerTest
         assertFalse(variables.containsKey("unrelated"));
     }
 
-    // Two nodes may report the same event with different wording, so the event is named rather than taken from
-    // whatever the node happened to be called, but the node's own id is a sane fallback
     @Test
     void fallsBackOnTheNodesIdWhenNoEventIsNamed() throws Exception
     {
@@ -199,8 +193,6 @@ class NotifyHandlerTest
         assertNull(this.raised.get(0).getTemplate());
     }
 
-    // A notify task that tells nobody is a definition somebody meant to finish, and raising a notification for
-    // an empty audience would only hide that
     @Test
     void raisesNothingWhenTheNodeNamesNobody() throws Exception
     {
@@ -209,8 +201,6 @@ class NotifyHandlerTest
         assertTrue(this.raised.isEmpty());
     }
 
-    // The decision this reports has already been taken; undoing it because nobody could be told would be the
-    // worse of the two outcomes
     @Test
     void doesNotFailTheWorkflowWhenNotifyingThrows() throws Exception
     {

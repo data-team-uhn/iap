@@ -28,9 +28,9 @@ import io.uhndata.iap.notifications.api.Recipient;
  *
  * <p>
  * <strong>They are not alternatives.</strong> Every delivery is offered every notification, so the same one
- * routinely goes out more than once: emailed straight away, and kept as a record somebody can come back
- * to, which is what the two shipped deliveries do. That is the intended behaviour, not double-telling: each
- * channel answers a different question, "did I hear about this" and "what happened while I was away". A digest
+ * routinely goes out more than once. The two shipped deliveries do exactly that: emailed straight away, and
+ * kept as a record to come back to. That is intended, not double-telling: each channel answers a different
+ * question, "did I hear about this" and "what happened while I was away". A digest
  * collector added later would accept only {@link NotificationContext#BATCHED} and write the notification down
  * instead of sending anything, again alongside the rest. None of it changes a workflow definition, which is the
  * point of the split.

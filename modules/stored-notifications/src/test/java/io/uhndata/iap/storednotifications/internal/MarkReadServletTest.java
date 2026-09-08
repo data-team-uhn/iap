@@ -78,8 +78,8 @@ class MarkReadServletTest
         assertEquals(Boolean.TRUE, notification.getValueMap().get(StoredNotifications.READ, Boolean.class));
     }
 
-    // The repository said no - a session with no write on the node gets no writable view of it - and the servlet
-    // carries that answer rather than second-guessing it
+    // A session with no write on the node gets no writable view of it. The servlet carries that answer
+    // rather than second-guessing it
     @Test
     void refusesWhoeverTheRepositoryRefuses() throws IOException
     {

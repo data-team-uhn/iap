@@ -58,17 +58,16 @@ import io.uhndata.iap.utils.PrefixTree;
  * {@code /Notifications}, readable by its one recipient, for the interface to show.
  *
  * <p>
- * It accepts every urgency, because storing is not interrupting: an {@code immediate} decision and a
- * {@code batched} aside both belong in the list of what happened, and how loudly each was announced was the other
- * channels' business. What it declines is a notification it cannot word: no template line, and a subject with no
- * title leaves nothing worth listing.
+ * It accepts every urgency, because storing is not interrupting. An {@code immediate} decision and a
+ * {@code batched} aside both belong in the list of what happened; how loudly each was announced was the other
+ * channels' business. What it declines is a notification it cannot word: no template line and no title leave
+ * nothing worth listing.
  * </p>
  *
  * <p>
  * The write happens on the delivery's own session, committed before this method returns. That is safe because
- * deliveries run in plain service code, never inside a commit hook, and it means a notification can exist for a
- * workflow whose own commit fails a moment later, which is the same window the email channel already accepts: a
- * notification is an attempt to inform, made at the moment the workflow said to make it.
+ * deliveries run in plain service code, never inside a commit hook. It does mean a notification can exist for
+ * a workflow whose own commit fails a moment later. That is the window the email channel already accepts.
  * </p>
  *
  * @version $Id$
@@ -152,7 +151,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
 
     /**
      * Lets the one recipient read, and mark as read, what was stored for them. Everything else about the node
-     * stays invisible to everybody, which is what makes a listing on the reader's own session already-filtered.
+     * stays invisible to everybody. That is what makes a listing on the reader's own session already filtered.
      *
      * @param resolver this delivery's own session
      * @param path the stored notification
@@ -173,8 +172,8 @@ public class StoredNotificationDelivery implements NotificationDelivery
         }
         final AccessControlManager manager = session.getAccessControlManager();
         final AccessControlList acl = listFor(manager, path);
-        // Read to see it, modifyProperties to flip its read marker: the node holds nothing about anybody else,
-        // so the worst the recipient can do with the grant is rewrite what they alone can see
+        // Read to see it, modifyProperties to flip its read marker. The node holds nothing about anybody
+        // else, so the worst the recipient can do is rewrite what they alone can see
         acl.addAccessControlEntry(account.getPrincipal(), new Privilege[] {
             manager.privilegeFromName(Privilege.JCR_READ),
             manager.privilegeFromName(Privilege.JCR_MODIFY_PROPERTIES) });
@@ -208,8 +207,8 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * The sentence a list will show for this notification: the template's {@code line} with its placeholders
-     * filled in, or a plain statement of title and event when the wording folder does not carry one.
+     * The sentence a list will show for this notification. Either the template's {@code line} with its
+     * placeholders filled in, or a plain statement of title and event when the folder carries no wording.
      *
      * @param notification what happened
      * @return the rendered line, or {@code null} when there is nothing to say

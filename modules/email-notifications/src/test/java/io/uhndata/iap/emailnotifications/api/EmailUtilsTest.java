@@ -56,8 +56,8 @@ class EmailUtilsTest
     @BeforeEach
     void setUp()
     {
-        // The mail implementation is not on the test classpath, so the built message stays an unusable stand-in;
-        // what matters here is which builder calls were made, and that the result was handed to the service
+        // The mail implementation is not on the test classpath, so the built message stays an unusable
+        // stand-in. What matters is which builder calls were made, and that the result reached the service
         when(this.mailService.getMessageBuilder()).thenReturn(this.message);
     }
 

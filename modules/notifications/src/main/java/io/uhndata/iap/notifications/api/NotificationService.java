@@ -26,18 +26,15 @@ import org.jetbrains.annotations.NotNull;
  *
  * <p>
  * <strong>This is not "send an email".</strong> A caller states that something happened, who it concerns and
- * how soon they should know. What that turns into is decided here and below, from the recipients' own settings:
- * an email now, a line in tonight's digest, an unread marker for somebody who has turned email off. A caller
- * that chose the channel itself would have to be revisited whenever somebody changed their mind about how they
- * want to be told.
+ * how soon they should know. What that turns into is decided here and below, from the recipients' own
+ * settings. A caller that chose the channel itself would need revisiting whenever somebody changed their
+ * mind.
  * </p>
  *
  * <p>
- * Recipients are named by <em>role</em> rather than by address, and who a role names is not this module's
- * judgement to make: the names are resolved by the principals service, the same one the workflow engine asks who
- * may act, so {@code @creator} means the same person whether it is being asked to approve something or being told
- * the outcome. A workflow definition therefore never carries an address, which is what keeps it true when people
- * change.
+ * Recipients are named by role rather than by address, in the vocabulary a workflow already uses to say who
+ * may act. So {@code @creator} means the same person whether they are being asked to approve something or
+ * told the outcome, and a definition never carries an address to go stale.
  * </p>
  *
  * @version $Id$
@@ -53,9 +50,8 @@ public interface NotificationService
      * attempt to inform, and the workflow that raised it carries on either way.</p>
      *
      * <p>Nothing comes back. A delivery accepting says nothing about a message arriving, so a list of "the
-     * people told" would claim more than anything here can know. And the one thing a caller could do with such a
-     * list is decide how people are told, which is the decision this service exists to take away from
-     * callers.</p>
+     * people told" would claim more than anything here can know. And the one thing a caller could do with such
+     * a list is decide how people are told. That is the decision this service exists to take away.</p>
      *
      * @param notification what happened
      * @param roles who it concerns, in the same vocabulary a workflow names performers in
