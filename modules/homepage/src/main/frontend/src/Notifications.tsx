@@ -29,9 +29,8 @@ import { useNotifications } from "./useNotifications";
 const SHOWN = 10;
 
 // The notifications bell in the app bar, revealing the current user's notifications as a dropdown.
-// Opening the list is what "reading" means here: everything unread is marked read once shown, the
-// same way glancing at a stack of letters takes them off the doormat. Registered on the
-// `iap/appBar/entry` extension point, end section.
+// Opening the list marks what it shows as read. Registered on the `iap/appBar/entry` extension
+// point, end section.
 function Notifications() {
   const navigate = useNavigate();
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);

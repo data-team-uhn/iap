@@ -33,12 +33,12 @@ import {
 // The notification bell's I/O, in one place: what it polls for, how often, and what marking
 // something read amounts to. Parsing lives in notificationsModel.
 
-// How often the badge re-asks whether something happened. Nothing else in the interface polls, but
-// nothing else announces events either: a badge that only updated on page loads would routinely be
-// stale on the page somebody keeps open all day.
+// How often the badge re-asks whether something happened. Nothing else in the interface polls, and
+// nothing else announces events either. A badge that only updated on page loads would be stale all
+// day on a page somebody keeps open.
 const REFRESH_MILLIS = 60_000;
 
-/** How many to ask for. The dropdown shows fewer; the rest are old news, still stored. */
+/** How many to ask for. The dropdown shows fewer. */
 const LIMIT = 100;
 
 /** The current user's notifications, newest first. */
@@ -74,10 +74,9 @@ export interface NotificationsFeed {
 /**
  * The bell's notifications, polled while the page is open.
  *
- * Opening the list is what reading means here: everything unread is marked read once shown, the
- * same way glancing at a stack of letters takes them off the doormat. That is one operation rather
- * than a read and a write for a caller to sequence, because doing only half of it leaves the badge
- * disagreeing with the list under it.
+ * Opening the list is what reading means here: everything unread is marked read once shown, like
+ * a glance at the doormat taking the letters off it. It is one operation, not a read and a write
+ * for a caller to sequence. Doing half of it leaves the badge disagreeing with the list under it.
  *
  * @returns the feed and the one operation a caller performs on it
  */

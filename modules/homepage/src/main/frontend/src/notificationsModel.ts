@@ -17,11 +17,11 @@
  */
 
 // What a notification is, where they live, and how to read one out of a listing row. No React, no
-// fetch: everything here is a pure function of its arguments, so it can be tested without rendering
-// anything or stubbing a response. The I/O that uses it is in useNotifications.
+// fetch: everything here is a pure function of its arguments. The I/O that uses it is in
+// useNotifications.
 //
-// There is no "mine" parameter anywhere: each notification is readable by exactly one account, its
-// recipient, so listing on the caller's own session already answers "my notifications" - the
+// There is no "mine" parameter anywhere. Each notification is readable by exactly one account, its
+// recipient, so listing on the caller's own session already answers "my notifications": the
 // repository did the filtering.
 
 import { type EntityRow } from "@iap/frontend-commons/entityGrid/pagination";
