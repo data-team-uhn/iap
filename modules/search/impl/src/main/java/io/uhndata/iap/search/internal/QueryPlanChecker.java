@@ -99,10 +99,9 @@ final class QueryPlanChecker
     }
 
     /**
-     * Prepares a statement for a log message. A statement the client sent whole is logged as it is, so a line break
-     * in it would let a client write log entries of its own choosing. A generated statement carries nothing the user
-     * typed — the text is bound, and the bindings are never logged — so the length cap is the only part of this that
-     * still applies to one.
+     * Prepares a statement for a log message. A statement the client sent whole is logged as it is. A line break in
+     * it would let a client write log entries of its own choosing. A generated statement carries nothing the user
+     * typed. Only the length cap applies to one.
      *
      * @param statement the statement to log
      * @return the statement on a single line, no longer than {@value #MAX_LOGGED_STATEMENT} characters
