@@ -175,29 +175,31 @@ options. The manual steps are documented here as the reference the script implem
 
 ## Running locally with Docker Compose
 
-[`tools/dev/keycloak/`](../tools/dev/keycloak/) has a Dockerised dev stack — two Compose files (kept
-separate so Keycloak runs detached while IAP runs in the foreground) plus an env template:
+[`tools/deploy/generate_compose.py`](../tools/deploy/generate_compose.py) writes a Compose file
+running IAP alongside whatever it needs to talk to; `--keycloak` adds a Keycloak container and sets
+the environment IAP reaches it with. See [tools/deploy/README.md](../tools/deploy/README.md) for the
+other options.
 
-- `docker-compose.keycloak.yml` — Keycloak on the shared `iap` network, published to the host at
-  `127.0.0.1:8084`, with `KC_HOSTNAME` pinned so the issuer/front-channel URL is stable and
-  `KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true` so IAP can reach it in-network (the front/back-channel split
-  is explained below).
-- `docker-compose.iap.yml` — IAP on the same network.
-- `.env.example` — the environment both files read; `keycloak_setup.sh --write-env` fills in a `.env`
-  from it (client id, secret, front-channel URL). The real `.env` is gitignored — it holds the secret.
+Keycloak has to be running before its realm can be created, so it comes up ahead of everything else:
 
 ```bash
-docker network create iap                              # once
-cd tools/dev/keycloak
-docker compose -f docker-compose.keycloak.yml up -d    # 1. Keycloak
-./keycloak_setup.sh --write-env                        # 2. realm/client/roles; writes .env (secret + URLs)
-docker compose -f docker-compose.iap.yml up            # 3. IAP (foreground; Ctrl+C to stop, `down` to remove)
+cd tools/deploy
+python3 generate_compose.py --storage postgres --keycloak
+docker compose up -d keycloak
+ENV_FILE=$PWD/.env ../dev/keycloak/keycloak_setup.sh --write-env
+docker compose up -d
 ```
 
-`--write-env` creates `.env` from `.env.example` if absent and updates the client id, secret, and
-`FRONTEND_KEYCLOAK_REALM_URL` in place — so there's no copy-the-secret-by-hand step. It leaves
-`BACKEND_KEYCLOAK_REALM_URL` alone (the in-network URL it can't infer), which the template already
-sets to `http://keycloak:8080/realms/iap`.
+Until step 3 has run, IAP starts but no one can sign in. `keycloak_setup.sh` still lives in
+`tools/dev/keycloak/`; `ENV_FILE` points it at the `.env` the generator wrote, where `--write-env`
+fills in the client id, secret and `FRONTEND_KEYCLOAK_REALM_URL` — so there is no
+copy-the-secret-by-hand step. It leaves `BACKEND_KEYCLOAK_REALM_URL` alone, the in-network URL it
+cannot infer, which the generator has already set.
+
+The Keycloak admin console is at `localhost:8084` as `admin`, with the password in `.env`. An
+existing `.env` is only ever topped up, never rewritten, so re-running the generator will not
+clobber the secret written in step 3. `docker compose down` stops everything and keeps the
+repository; `./cleanup.sh` throws it all away, realm included.
 
 The two realm URLs in `.env` encode the front/back-channel split: `BACKEND_KEYCLOAK_REALM_URL` is
 IAP's in-network view (`http://keycloak:8080/...`, Keycloak's **container** port) while
