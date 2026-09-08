@@ -20,6 +20,8 @@ package io.uhndata.iap.entities.internal;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -167,8 +169,7 @@ public class PaginationServletTest
     @Test
     public void lookaheadIsBoundedForLargePageSizes() throws Exception
     {
-        // 100 pages of lookahead at this page size would mean counting 20 000 rows; the absolute
-        // row bound kicks in instead
+        // 100 pages of lookahead at this page size would count 20 000 rows; the absolute row bound applies instead
         withParameter("limit", "200");
         mockResults(IntStream.range(0, 10_150).mapToObj(i -> "/Submissions/s" + i).toArray(String[]::new));
         this.servlet.doGet(this.request, this.response);
@@ -430,6 +431,35 @@ public class PaginationServletTest
             .thenThrow(new RepositoryException("Query engine down"));
         this.servlet.doGet(this.request, this.response);
         assertError(SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+
+    @Test
+    public void aFailureWhileReadingTheResultsStillLeavesParsableJson() throws Exception
+    {
+        // The result set is lazy, so a read can fail once part of the response has already gone out
+        final Query query = Mockito.mock(Query.class);
+        Mockito.when(this.queryManager.createQuery(Mockito.anyString(), Mockito.eq(Query.JCR_SQL2)))
+            .thenReturn(query);
+        final QueryResult result = Mockito.mock(QueryResult.class);
+        Mockito.when(query.execute()).thenReturn(result);
+        final Deque<String> remaining = new ArrayDeque<>(List.of(SCOPE + "/s1"));
+        final RowIterator rows = Mockito.mock(RowIterator.class);
+        Mockito.when(rows.hasNext()).thenReturn(true);
+        Mockito.when(rows.nextRow()).thenAnswer(invocation -> {
+            if (remaining.isEmpty()) {
+                throw new RepositoryException("The session went away");
+            }
+            final Row row = Mockito.mock(Row.class);
+            Mockito.when(row.getPath("n")).thenReturn(remaining.removeFirst());
+            return row;
+        });
+        Mockito.when(result.getRows()).thenReturn(rows);
+
+        this.servlet.doGet(this.request, this.response);
+        final JsonObject written = getResponseJson();
+        Assertions.assertEquals(1, written.getJsonArray("rows").size());
+        Assertions.assertEquals("Failed to read all the results", written.getString("error"));
+        Assertions.assertTrue(written.getBoolean("partial"));
     }
 
     private void mockHomepage(final String resourceType, final String childNodeType)

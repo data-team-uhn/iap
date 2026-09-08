@@ -21,9 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
@@ -49,16 +47,17 @@ import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.utils.PaginatedJsonResponse;
+
 /**
- * A servlet that lists, in pages, the entities stored under an entity homepage. It is registered on
- * {@code data/EntityHomepage} with the {@code paginate} selector, so, through the {@code sling:resourceSuperType}
- * chain of the concrete homepage types, it serves e.g. {@code /Submissions.paginate.json} or
- * {@code /Schemas.paginate.json}.
+ * Lists, in pages, the entities stored under an entity homepage. Registered on {@code data/EntityHomepage} with the
+ * {@code paginate} selector. The {@code sling:resourceSuperType} chain of the concrete homepage types brings it e.g.
+ * {@code /Submissions.paginate.json} and {@code /Schemas.paginate.json}.
  *
  * <p>
- * The type of the listed entities is, by convention, derived from the homepage's resource type (e.g.
- * {@code sub/SubmissionsHomepage} lists {@code sub:Submission} nodes), unless the homepage node explicitly names
- * another type in a {@code childNodeType} property.
+ * The type of the listed entities is derived from the homepage's resource type: {@code sub/SubmissionsHomepage}
+ * lists {@code sub:Submission} nodes. A {@code childNodeType} property on the homepage node names another type
+ * instead.
  * </p>
  *
  * <p>
@@ -77,8 +76,8 @@ import org.slf4j.LoggerFactory;
  * {@code LIKE}), {@code NOT ILIKE}, {@code IS NULL} and {@code IS NOT NULL}; if no
  * comparators are sent, {@code =} is used; the special value {@code @me} is replaced with the current user's id</li>
  * <li>{@code fieldGroup}: optional group identifiers aligned with the field triples; conditions sharing a
- * (non-empty) group are ORed together, while distinct groups and ungrouped conditions are ANDed, so e.g.
- * {@code status = a OR status = b} is expressed as two conditions sharing a group</li>
+ * (non-empty) group are ORed together, while distinct groups and ungrouped conditions are ANDed, e.g.
+ * {@code status = a OR status = b} is two conditions sharing a group</li>
  * <li>{@code childType}, {@code childFieldName}, {@code childFieldComparator}, {@code childFieldValue},
  * {@code childFieldGroup}: same, but the conditions apply to a descendant of the entity, e.g. only submissions
  * having a {@code sub:Review} descendant with {@code reviewer = @me}; multiple independent descendant conditions
@@ -102,25 +101,6 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PaginationServlet.class);
 
-    /** The number of entities returned when no {@code limit} is requested. */
-    private static final long DEFAULT_LIMIT = 10;
-
-    /** The maximum number of entities returned in one response, no matter the requested {@code limit}. */
-    private static final long MAX_LIMIT = 1000;
-
-    /**
-     * How far past the requested page, in pages, to keep counting the total number of matches before declaring the
-     * total approximate. Counting means iterating the indexed query results, which is cheap but not free; a deep
-     * horizon keeps the reported total exact for all but the largest collections, and a good estimate beyond that.
-     */
-    private static final long LOOKAHEAD_PAGES = 100;
-
-    /**
-     * The most rows one counting batch may span, whatever the requested page size: without this bound, a
-     * maximum-limit request could demand counting a hundred thousand rows in one go.
-     */
-    private static final long MAX_LOOKAHEAD_ROWS = 10_000;
-
     /** Matches the parameter names of the descendant condition families, capturing the family's number. */
     private static final Pattern CHILD_PARAMETER =
         Pattern.compile("childType(\\d*+)|childField(\\d*+)(?:Name|Comparator|Value|Group)");
@@ -135,10 +115,10 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
             final RowIterator rows = prepareQuery(request).execute().getRows();
             writeResponse(request, response, rows);
         } catch (final IllegalArgumentException e) {
-            writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_BAD_REQUEST, e.getMessage());
         } catch (final RepositoryException e) {
             LOGGER.warn("Failed to execute pagination query: {}", e.getMessage(), e);
-            writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+            PaginatedJsonResponse.writeError(response, SlingJakartaHttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "Failed to execute query");
         }
     }
@@ -174,9 +154,9 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     }
 
     /**
-     * The type of nodes listed by the targeted homepage: the explicit {@code childNodeType} property if the
-     * homepage node has one, otherwise the type derived from the homepage's resource type by the
-     * {@code sub/SubmissionsHomepage} holds {@code sub:Submission} naming convention.
+     * The type of nodes listed by the targeted homepage: the {@code childNodeType} property if the homepage node has
+     * one, otherwise the resource type with {@code /} replaced by {@code :} and a trailing {@code sHomepage} cut,
+     * turning {@code sub/SubmissionsHomepage} into {@code sub:Submission}.
      *
      * @param homepage the homepage resource targeted by the request
      * @return a node type name
@@ -193,16 +173,16 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
     /**
      * Collects the descendant condition families present in the request: the empty suffix for the plain
      * {@code childType}/{@code childField*} parameters, and one numeric suffix per
-     * {@code childTypeN}/{@code childFieldN*} family. The suffixes are returned in numeric order, with the plain
-     * family first, so the mapping of families onto query joins is deterministic.
+     * {@code childTypeN}/{@code childFieldN*} family. The suffixes come back in numeric order, the plain family
+     * first. The mapping of families onto query joins is then deterministic.
      *
      * @param request the current request
      * @return the family suffixes present in the request, possibly empty
      */
     private Collection<String> getChildFilterSuffixes(final SlingJakartaHttpServletRequest request)
     {
-        // Shorter digit strings are smaller numbers, so length-then-lexicographic is numeric order without the
-        // overflow risk of actually parsing untrusted numbers
+        // Shorter digit strings are smaller numbers. Length then lexicographic is numeric order, without parsing
+        // untrusted numbers that may overflow.
         final Set<String> suffixes =
             new TreeSet<>(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()));
         for (final String name : request.getParameterMap().keySet()) {
@@ -272,75 +252,63 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
      * Writes the successful response: the requested page of serialized entities, followed by a summary of the
      * pagination status.
      *
+     * <p>
+     * The query has already run, but its result set is lazy. Reading the rows can still fail once part of the
+     * response has gone out. Such a failure is reported in the summary, not as an error response, which by then
+     * could only be appended to a body that already holds one.
+     * </p>
+     *
      * @param request the current request
      * @param response the HTTP response
      * @param rows the query results to paginate over
      * @throws IOException if writing the response fails
-     * @throws RepositoryException if reading the query results fails
      */
     private void writeResponse(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response, final RowIterator rows)
-        throws IOException, RepositoryException
+        throws IOException
     {
-        final long offset = Math.max(0, parseLong(request.getParameter("offset"), 0));
-        final long limit = Math.min(Math.max(0, parseLong(request.getParameter("limit"), DEFAULT_LIMIT)), MAX_LIMIT);
-        // The writer doesn't need to be explicitly closed, closing the generator closes it too
+        // Closing the generator closes the writer too
         try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
             json.writeStartObject();
             json.writeStartArray("rows");
-            final long[] counts = writeRows(json, rows, request, offset, limit);
+            final PaginatedJsonResponse page = PaginatedJsonResponse.forRequest(json, request);
+            String error = null;
+            try {
+                writeRows(page, rows, request);
+            } catch (final RepositoryException | RuntimeException e) {
+                // Unchecked as much as checked. Oak signals much of what can go wrong while a lazy result set is
+                // read, such as a read or memory limit reached, with an unchecked exception. Letting one out here
+                // would abandon the response half-written: the generator closed on an incomplete document, with too
+                // much of the body already on the wire for an error status to replace it.
+                LOGGER.warn("Failed to read the results of a pagination query: {}", e.getMessage(), e);
+                error = "Failed to read all the results";
+            }
             json.writeEnd();
-            writeSummary(json, request, offset, limit, counts);
+            page.writeSummary(request.getParameter("req"), error);
             json.writeEnd().flush();
         }
     }
 
     /**
-     * Writes the requested page of entities, and counts the total number of matches. Two Oak limitations shape
-     * this: queries can't request distinct results, so when a descendant join produces the same entity multiple
-     * times the duplicates must be skipped manually; and the query doesn't report a total number of matches, so the
-     * results must be counted one by one. To keep the effort bounded, counting stops a fixed number of pages past
-     * the requested page, and the total is reported as approximate if there were still more results at that point.
+     * Feeds the query results to the paginator, which writes the requested page and counts the matches. An Oak query
+     * cannot ask for distinct results. A descendant join returns the same entity once per matching descendant, and
+     * the paginator drops those duplicates by path.
      *
-     * @param json the generator where the serialized entities are written
+     * @param page the paginator for the requested page, positioned inside the {@code rows} array
      * @param rows the query results to paginate over
      * @param request the current request
-     * @param offset how many unique matches to skip
-     * @param limit how many unique matches to include in the response
-     * @return the resulting counts: the number of rows written, the number of unique matches seen, and whether that
-     *         total is approximate ({@code 1}) or exact ({@code 0})
      * @throws RepositoryException if reading the query results fails
      */
-    private long[] writeRows(final JsonGenerator json, final RowIterator rows,
-        final SlingJakartaHttpServletRequest request, final long offset, final long limit)
-        throws RepositoryException
+    private void writeRows(final PaginatedJsonResponse page, final RowIterator rows,
+        final SlingJakartaHttpServletRequest request) throws RepositoryException
     {
-        final String selectors = getResourceSelectors(request);
-        final Set<String> seen = new HashSet<>();
-        long returned = 0;
-        final long batchSize = Math.min(LOOKAHEAD_PAGES * Math.max(limit, 1), MAX_LOOKAHEAD_ROWS);
-        // Count until the end of the batch of pages containing the requested page, plus one more result to know
-        // whether the reported total is exact
-        final long lookahead = ((offset + Math.max(limit, 1) + batchSize - 1) / batchSize) * batchSize + 1;
-        boolean more = false;
-        while (rows.hasNext()) {
+        final String selectors = PaginatedJsonResponse.getResourceSelectors(request);
+        final ResourceResolver resolver = request.getResourceResolver();
+        boolean more = true;
+        while (rows.hasNext() && more) {
             final String path = rows.nextRow().getPath("n");
-            if (!seen.add(path)) {
-                continue;
-            }
-            if (seen.size() > offset && returned < limit) {
-                final JsonObject row = serializeRow(request.getResourceResolver(), path, selectors);
-                if (row != null) {
-                    json.write(row);
-                    ++returned;
-                }
-            }
-            if (seen.size() >= lookahead) {
-                more = true;
-                break;
-            }
+            more = page.offer(path, () -> serializeRow(resolver, path, selectors));
         }
-        return new long[] { returned, seen.size() - (more ? 1 : 0), more ? 1 : 0 };
     }
 
     /**
@@ -362,80 +330,4 @@ public class PaginationServlet extends SlingJakartaSafeMethodsServlet
         }
     }
 
-    /**
-     * The extra serialization selectors requested by the client, cleaned up for appending to a resource path.
-     *
-     * @param request the current request
-     * @return a string safe to append to a repository path, either empty or in the form {@code .sel1.sel2}
-     */
-    private String getResourceSelectors(final SlingJakartaHttpServletRequest request)
-    {
-        final String selectors = request.getParameter("resourceSelectors");
-        if (selectors == null || selectors.isBlank()) {
-            return "";
-        }
-        return ("." + selectors).replaceAll("[/\\s]", "").replaceAll("\\.+", ".");
-    }
-
-    /**
-     * Writes the summary of the pagination status: the effective offset and limit, the number of returned rows, and
-     * the (possibly approximate) total number of matches. The opaque {@code req} request parameter, if sent, is
-     * echoed back so the client can match the response to its request.
-     *
-     * @param json the generator where the summary is written
-     * @param request the current request
-     * @param offset how many matches were skipped
-     * @param limit how many matches were requested
-     * @param counts the counts computed while writing the rows: rows written, total matches, and whether the total
-     *            is approximate
-     */
-    private void writeSummary(final JsonGenerator json, final SlingJakartaHttpServletRequest request,
-        final long offset, final long limit, final long[] counts)
-    {
-        final String req = request.getParameter("req");
-        if (req != null) {
-            json.write("req", req);
-        }
-        json.write("offset", offset);
-        json.write("limit", limit);
-        json.write("returnedrows", counts[0]);
-        json.write("totalrows", counts[1]);
-        json.write("totalIsApproximate", counts[2] == 1);
-    }
-
-    /**
-     * Writes an error response as a small JSON object.
-     *
-     * @param response the HTTP response
-     * @param status the HTTP status code to send
-     * @param message the error message to include in the response
-     * @throws IOException if writing the response fails
-     */
-    private void writeError(final SlingJakartaHttpServletResponse response, final int status, final String message)
-        throws IOException
-    {
-        response.setStatus(status);
-        try (JsonGenerator json = Json.createGenerator(response.getWriter())) {
-            json.writeStartObject();
-            json.write("error", Objects.requireNonNullElse(message, "Invalid request"));
-            json.writeEnd().flush();
-        }
-    }
-
-    /**
-     * Converts a request parameter, which may be missing or invalid, into a proper long, with fallback to a default
-     * value.
-     *
-     * @param value the string to convert, may be {@code null} or not a number
-     * @param defaultValue the value to use if the input cannot be converted to a number
-     * @return the parsed input, if valid, or the default value
-     */
-    private long parseLong(final String value, final long defaultValue)
-    {
-        try {
-            return Long.parseLong(value);
-        } catch (final NumberFormatException e) {
-            return defaultValue;
-        }
-    }
 }

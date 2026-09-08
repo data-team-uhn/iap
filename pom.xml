@@ -374,6 +374,15 @@
         <version>26.1.0</version>
         <scope>provided</scope>
       </dependency>
+      <!-- @SuppressFBWarnings, for the rare finding that states a real invariant SpotBugs cannot see rather than a
+           defect to fix. CLASS retention, so nothing is needed at runtime; but a module compiling against an
+           annotated class needs it too, or javac warns that it cannot read the annotation and -Werror fails it. -->
+      <dependency>
+        <groupId>com.github.spotbugs</groupId>
+        <artifactId>spotbugs-annotations</artifactId>
+        <version>4.10.4</version>
+        <scope>provided</scope>
+      </dependency>
       <!-- TEST -->
       <dependency>
         <groupId>org.junit.jupiter</groupId>

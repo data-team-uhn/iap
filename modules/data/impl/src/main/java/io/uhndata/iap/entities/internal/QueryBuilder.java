@@ -27,9 +27,8 @@ import java.util.stream.Collectors;
 
 /**
  * Assembles the JCR-SQL2 statement for a pagination request: nodes of one type under a scope path, optionally
- * filtered by their own properties and by the properties of descendant nodes, ordered by one of their properties.
- * Every name interpolated into the statement is validated, and every value is escaped, so the resulting statement
- * only queries what the caller declared.
+ * filtered by their own properties and by those of descendant nodes, ordered by one of their properties. Every
+ * interpolated name is validated, and every interpolated value is escaped.
  *
  * @version $Id$
  * @since 0.1.0
@@ -82,11 +81,10 @@ final class QueryBuilder
     }
 
     /**
-     * Adds conditions on the properties of a descendant node: a queried node only matches if it has at least one
-     * descendant of the given type satisfying all of the given conditions. Each call adds a new required
-     * descendant, so calling this multiple times with distinct types requires one matching descendant per type;
-     * calling it again with an already required type adds to that type's conditions. A call with a {@code null} or
-     * blank type and no conditions is a no-op, leaving previously added descendant conditions untouched.
+     * Adds conditions on the properties of a descendant node. A queried node matches only if it has at least one
+     * descendant of the given type satisfying all the given conditions. Each distinct type adds a separate required
+     * descendant; repeating a type adds to that type's conditions. A {@code null} or blank type with no conditions
+     * is a no-op, and leaves previously added descendant conditions alone.
      *
      * @param newChildType the node type of the descendant, e.g. {@code sub:Review}; may be {@code null} or blank if
      *            no descendant conditions are needed
@@ -222,9 +220,8 @@ final class QueryBuilder
     }
 
     /**
-     * Escapes a literal value before it is interpolated into a query string. Doubling the quote is JCR-SQL2's
-     * only string escape: backslashes are ordinary characters in a string literal, and a {@code \'} sequence is
-     * a parse error, which used to turn every value containing an apostrophe into a failed query.
+     * Escapes a literal value before it is interpolated into a query string. Doubling the quote is JCR-SQL2's only
+     * string escape. A backslash is an ordinary character in a string literal, and {@code \'} is a parse error.
      *
      * @param value the value to escape, may be {@code null}
      * @return the value with quotes doubled, or an empty string if the value was {@code null}
@@ -235,23 +232,36 @@ final class QueryBuilder
     }
 
     /**
-     * Escapes a full text search term before it is interpolated into a {@code contains()} call. On top of the
-     * string literal escaping, the full text search grammar has its own layer, where the backslash escapes and
-     * the double quote opens a phrase: both have to be neutralized, the backslash so that a trailing one does
-     * not escape the closing quote, and the double quote so that an odd number of them — one apostrophe's worth
-     * of ordinary typing — does not leave a phrase unterminated and fail the whole query to parse.
+     * Escapes a full text search term before it is interpolated into a {@code contains()} call. The full text
+     * grammar is a second layer on top of the string literal: the backslash escapes, and both quote characters open
+     * a phrase. All three are neutralized. A trailing backslash would otherwise escape the closing quote, and an odd
+     * number of quotes would leave a phrase unterminated; either one makes the whole statement fail to parse.
      *
      * <p>
-     * What this deliberately leaves alone is the grammar's <em>meaning</em>, as opposed to its syntax: a leading
-     * {@code -} still excludes a term and {@code OR} still reads as the operator, so a search reaching those is
-     * answered oddly rather than refused. Making them literal would take away the only way to ask for them.
+     * The grammar's escaping goes on <em>before</em> the string literal's. Parsing the statement undoes the
+     * literal's: doubling an apostrophe hides it from the statement and hands it to the full text parser, where it
+     * opens a phrase that never ends. The backslash has to be added to what reaches that parser, before the
+     * doubling.
+     * </p>
      *
-     * @param value the value to escape, may be {@code null}
-     * @return the escaped search expression, or an empty string if the value was {@code null}
+     * <p>
+     * The grammar's <em>meaning</em> is left alone. A leading {@code -} still excludes a term, and {@code OR} still
+     * reads as the operator. Making them literal would remove the only way to ask for them.
+     * </p>
+     *
+     * <p>
+     * The term is stripped first. A full text expression has to start with a term. A leading space makes it fail to
+     * parse, and the whole listing comes back as a bad request. A trailing space, and any amount of space between
+     * the words, are already fine.
+     * </p>
+     *
+     * @param value the value to escape, never {@code null} or blank; the only caller has already checked that there
+     *            is a term to search for
+     * @return the escaped search expression
      */
     private static String escapeFullText(final String value)
     {
         // Backslash first, or it would escape the escapes added after it
-        return escape(value).replace("\\", "\\\\").replace("\"", "\\\"");
+        return escape(value.strip().replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'"));
     }
 }
