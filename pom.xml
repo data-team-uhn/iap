@@ -2180,8 +2180,11 @@
             <includes>
               <include>**/*Test.java</include>
             </includes>
-            <parallel>classesAndMethods</parallel>
-            <threadCount>4</threadCount>
+            <!-- No parallelism here on purpose. The JUnit Platform provider ignores surefire's own
+                 <parallel>, so the setting that used to sit here never had any effect: two tests given a
+                 sleep both ran on `main`, one after the other. Switching it on for real takes
+                 junit.jupiter.execution.parallel.* configuration parameters, and tests that share global
+                 state have to be fenced first. Several bind and unbind the static ErrorLogger facade. -->
           </configuration>
         </plugin>
         <plugin>
