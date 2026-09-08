@@ -39,10 +39,6 @@
             "start-order":"24"
         },
         {
-            "id":"${project.groupId}:iap-data-impl:${project.version}",
-            "start-order":"24"
-        },
-        {
             "id":"${project.groupId}:iap-aggregated-frontend:${project.version}",
             "start-order":"25"
         },

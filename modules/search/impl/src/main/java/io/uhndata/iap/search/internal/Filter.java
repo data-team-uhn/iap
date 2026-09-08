@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.entities.internal;
+package io.uhndata.iap.search.internal;
 
 /**
  * One property condition parsed from a pagination request: a property name, a comparator, and, unless the comparator

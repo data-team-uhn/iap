@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.entities.internal;
+package io.uhndata.iap.search.internal;
 
 import java.util.List;
 import java.util.Map;
@@ -43,7 +43,7 @@ public class QueryBuilderTest
     @Test
     public void minimalQueryListsTypeUnderScopeOrderedByCreation()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE).build();
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE).build();
         Assertions.assertEquals(BASE_QUERY + ORDER, query.statement());
         Assertions.assertEquals(Map.of(), query.bindings());
     }
@@ -51,7 +51,7 @@ public class QueryBuilderTest
     @Test
     public void filtersAreAppendedAsConditions()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(
                 new Filter("status", "=", "draft"),
                 new Filter("title", "LIKE", "%consent%"),
@@ -69,7 +69,7 @@ public class QueryBuilderTest
     @Test
     public void caseInsensitiveLikeLowercasesBothSides()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "ILIKE", "%CARdiac's%")))
             .build();
         Assertions.assertEquals(BASE_QUERY + " and (LOWER(n.[title]) LIKE $p0)" + ORDER, query.statement());
@@ -80,7 +80,7 @@ public class QueryBuilderTest
     @Test
     public void negatedCaseInsensitiveLikeIsSupported()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "NOT ILIKE", "%Cardiac%")))
             .build();
         Assertions.assertEquals(BASE_QUERY + " and (not LOWER(n.[title]) LIKE $p0)" + ORDER, query.statement());
@@ -90,7 +90,7 @@ public class QueryBuilderTest
     @Test
     public void negatedLikeIsSupported()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "NOT LIKE", "%Cardiac%")))
             .build();
         Assertions.assertEquals(BASE_QUERY + " and (not n.[title] LIKE $p0)" + ORDER, query.statement());
@@ -101,7 +101,7 @@ public class QueryBuilderTest
     @Test
     public void filtersSharingAGroupAreOredTogether()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(
                 new Filter("jcr:createdBy", "=", "admin"),
                 new Filter("status", "=", "submitted", "g1"),
@@ -125,7 +125,7 @@ public class QueryBuilderTest
     @Test
     public void notEqualsIsConvertedToNegatedEquals()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("status", "<>", "draft")))
             .build();
         Assertions.assertEquals(BASE_QUERY + " and (not n.[status] = $p0)" + ORDER, query.statement());
@@ -135,7 +135,7 @@ public class QueryBuilderTest
     @Test
     public void childFiltersJoinOnDescendants()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withChildFilters("sub:Review", List.of(
                 new Filter("reviewer", "=", "alice"),
                 new Filter("status", "<>", "approved")))
@@ -153,7 +153,7 @@ public class QueryBuilderTest
     @Test
     public void multipleChildTypesEachJoinOnTheirOwnDescendant()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withChildFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice")))
             .withChildFilters("sub:Signature", List.of(new Filter("signer", "=", "bob")))
             .build();
@@ -171,7 +171,7 @@ public class QueryBuilderTest
     @Test
     public void repeatedChildTypeMergesItsFilters()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withChildFilters("sub:Review", List.of(new Filter("reviewer", "=", "alice")))
             .withChildFilters("sub:Review", List.of(new Filter("status", "=", "approved")))
             .build();
@@ -218,7 +218,7 @@ public class QueryBuilderTest
     @Test
     public void fullTextSearchIsAppended()
     {
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE).withFullText("tumor").build();
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE).withFullText("tumor").build();
         Assertions.assertEquals(BASE_QUERY + " and contains(n.*, $p0)" + ORDER, query.statement());
         Assertions.assertEquals(Map.of("p0", "tumor"), query.bindings());
         Assertions.assertEquals(BASE_QUERY + ORDER,
@@ -233,7 +233,7 @@ public class QueryBuilderTest
         // The value never reaches the statement, so there is nothing to escape and nothing to get wrong. Before
         // binding, this needed the quote doubling that is JCR-SQL2's only string escape, and a backslash escape
         // instead was a parse error that turned an ordinary surname into a failed query.
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement query = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("title", "=", "O'Brien"))).build();
         Assertions.assertEquals(BASE_QUERY + " and (n.[title] = $p0)" + ORDER, query.statement());
         Assertions.assertEquals(Map.of("p0", "O'Brien"), query.bindings());
@@ -244,7 +244,7 @@ public class QueryBuilderTest
     {
         // Binding removes the string literal's escaping, not the full text grammar's. The grammar is applied to
         // whatever the variable holds, and a backslash is still doubled to keep the term inert.
-        final QueryBuilder.BoundQuery query =
+        final BoundStatement query =
             new QueryBuilder(SUBMISSION, SCOPE).withFullText("O'Brien \\ ties").build();
         Assertions.assertEquals(BASE_QUERY + " and contains(n.*, $p0)" + ORDER, query.statement());
         Assertions.assertEquals(Map.of("p0", "O\\'Brien \\\\ ties"), query.bindings());
@@ -303,7 +303,7 @@ public class QueryBuilderTest
         // isdescendantnode takes a path, not a static operand. JCR-SQL2 accepts no bind variable there, and the
         // scope path keeps its quote doubling. Every other value is bound, backslash included. A backslash needs no
         // escaping in a comparison; only the full text grammar makes it mean anything.
-        final QueryBuilder.BoundQuery query = new QueryBuilder(SUBMISSION, "/Sub'missions")
+        final BoundStatement query = new QueryBuilder(SUBMISSION, "/Sub'missions")
             .withFilters(List.of(new Filter("title", "=", "It's a \\ test"), new Filter("status", "=", null)))
             .withFullText("some'text")
             .build();
@@ -321,9 +321,9 @@ public class QueryBuilderTest
     public void theSameShapeOfRequestAlwaysProducesTheSameStatement()
     {
         // What a caller sends changes the bindings, never the statement.
-        final QueryBuilder.BoundQuery first = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement first = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("owner", "=", "alice"))).build();
-        final QueryBuilder.BoundQuery second = new QueryBuilder(SUBMISSION, SCOPE)
+        final BoundStatement second = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("owner", "=", "'; drop--"))).build();
         Assertions.assertEquals(first.statement(), second.statement());
         Assertions.assertNotEquals(first.bindings(), second.bindings());
@@ -337,8 +337,8 @@ public class QueryBuilderTest
         // first one's variables.
         final QueryBuilder builder = new QueryBuilder(SUBMISSION, SCOPE)
             .withFilters(List.of(new Filter("owner", "=", "alice")));
-        final QueryBuilder.BoundQuery first = builder.build();
-        final QueryBuilder.BoundQuery second = builder.build();
+        final BoundStatement first = builder.build();
+        final BoundStatement second = builder.build();
         Assertions.assertEquals(first.statement(), second.statement());
         Assertions.assertEquals(first.bindings(), second.bindings());
         Assertions.assertEquals(1, second.bindings().size());

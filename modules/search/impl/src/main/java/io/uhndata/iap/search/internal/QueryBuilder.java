@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.entities.internal;
+package io.uhndata.iap.search.internal;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -149,7 +149,7 @@ final class QueryBuilder
      *
      * @return a valid JCR-SQL2 statement together with the value of every bind variable it names
      */
-    BoundQuery build()
+    BoundStatement build()
     {
         final Map<String, String> bindings = new LinkedHashMap<>();
         final StringBuilder query = new StringBuilder("select n.* from [").append(this.nodeType).append("] as n");
@@ -172,7 +172,7 @@ final class QueryBuilder
             query.append(" and contains(n.*, ").append(bind(bindings, escapeFullText(this.fullText))).append(')');
         }
         query.append(" order by n.[").append(this.sortBy).append(this.descending ? "] DESC" : "] ASC");
-        return new BoundQuery(query.toString(), Map.copyOf(bindings));
+        return new BoundStatement(query.toString(), Map.copyOf(bindings));
     }
 
     private static void appendConditions(final StringBuilder query, final String source, final List<Filter> filters,
@@ -307,17 +307,4 @@ final class QueryBuilder
         return value.strip().replace("\\", "\\\\").replace("\"", "\\\"").replace("'", "\\'");
     }
 
-    /**
-     * A JCR-SQL2 statement together with the value of every bind variable it names. Keeping the two together is what
-     * lets the statement be assembled without ever holding a requested value.
-     *
-     * @param statement the statement, naming one bind variable per value
-     * @param bindings the value of each bind variable, keyed by name without the {@code $}
-     *
-     * @version $Id$
-     * @since 0.1.0
-     */
-    record BoundQuery(String statement, Map<String, String> bindings)
-    {
-    }
 }

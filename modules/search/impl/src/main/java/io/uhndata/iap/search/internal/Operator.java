@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.entities.internal;
+package io.uhndata.iap.search.internal;
 
 import java.util.Locale;
 import java.util.function.BinaryOperator;
