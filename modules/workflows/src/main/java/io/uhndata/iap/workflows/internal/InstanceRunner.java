@@ -69,8 +69,11 @@ final class InstanceRunner
     /** The variable a completed task's outcome is recorded under. Gateways route on it. */
     static final String OUTCOME_VARIABLE = "outcome";
 
-    /** How many nodes one delivery may pass through before the definition is declared broken. */
-    private static final int MAX_STEPS = 50;
+    /**
+     * How many nodes one delivery may pass through before the definition is declared broken. Far above anything a
+     * real workflow needs. It is there so a definition whose arcs form a cycle fails fast instead of spinning.
+     */
+    static final int MAX_STEPS = 50;
 
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 

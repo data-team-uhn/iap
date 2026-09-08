@@ -77,13 +77,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** Where the human an execution acted for is recorded, {@code jcr:createdBy} being the engine itself. */
     private static final String CREATED_BY_PROPERTY = "createdBy";
 
-    /**
-     * How many nodes a single execution may pass through before the engine declares the definition broken. Far
-     * above anything a real straight-through workflow needs; only there so a definition whose arcs form a cycle
-     * fails fast instead of spinning.
-     */
-    private static final int MAX_STEPS = 50;
-
     @Reference
     private ResourceResolverFactory resolverFactory;
 
@@ -163,7 +156,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
         final Map<String, Object> variables = new LinkedHashMap<>();
         try {
             FlowNode node = start;
-            for (int step = 0; step < MAX_STEPS; step++) {
+            for (int step = 0; step < InstanceRunner.MAX_STEPS; step++) {
                 if (node instanceof EndEvent) {
                     recordActor(resolver, variables, actor);
                     resolver.commit();
@@ -181,7 +174,7 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 node = advance(node);
             }
             throw new WorkflowDefinitionException("The workflow did not reach an end event within "
-                + MAX_STEPS + " steps; its sequence flows probably form a cycle");
+                + InstanceRunner.MAX_STEPS + " steps; its sequence flows probably form a cycle");
         } catch (final PersistenceException e) {
             revert(resolver);
             throw RepositoryFailures.translate(e);

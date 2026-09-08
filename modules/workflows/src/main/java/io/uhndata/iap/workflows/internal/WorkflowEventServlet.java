@@ -37,6 +37,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NoApplicableWorkflowException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
@@ -97,9 +99,15 @@ public class WorkflowEventServlet extends SlingJakartaAllMethodsServlet
         } catch (final InvalidPayloadException e) {
             reply(response, HttpServletResponse.SC_BAD_REQUEST, "error", e.getMessage());
         } catch (final WorkflowException e) {
-            // A broken definition or failed machinery: not the client's fault, so log it for the deployer
+            // A broken definition or failed machinery: not the client's fault, and the one refusal here that
+            // nobody outside can act on. Recorded as well as logged, because whoever has to fix it is the
+            // deployer, and /LoggedErrors is where they look
             LOGGER.error("Executing the {} event on {} failed: {}", eventName(request),
                 request.getResource().getPath(), e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(WorkflowEventServlet.class, "receiveEvent")
+                .about(request.getResource())
+                .actingFor(request.getResourceResolver().getUserID())
+                .with("event", eventName(request)));
             reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "error", e.getMessage());
         }
     }
