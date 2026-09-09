@@ -153,7 +153,7 @@
         "org.apache.jackrabbit.oak.spi.security.authentication.external.impl.DefaultSyncHandler~keycloak":{
             "handler.name":"keycloak",
             "user.dynamicMembership":true,
-            "user.expirationTime":"1h",
+            "user.expirationTime":"0", // Resync every login
             "user.membershipExpTime":"1h",
             "user.membershipNestingDepth:Integer":"1",
             "user.pathPrefix":"oidc",

@@ -22,6 +22,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 import javax.jcr.Value;
 
 import jakarta.servlet.http.Cookie;
@@ -117,18 +118,12 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     }
 
     /**
-     * Reads the user's refresh token from their home node and decrypts it.
+     * Reads the user's refresh token from their home node and decrypts it. Must be called while the request still
+     * carries the user's identity.
      *
      * <p>
-     * Must be called while the request still carries the user's identity, which is why this runs from
-     * {@code dropCredentials} rather than from the end-session servlet: by the time that servlet is reached the
-     * session is gone and the token is no longer readable.
-     * </p>
-     *
-     * <p>
-     * Never throws. Every reason the token might be unavailable -- a local login, an unsynced property, a
-     * ciphertext this key cannot read -- only means the provider session cannot be ended this way, and logout must
-     * still proceed.
+     * Never throws. Every reason the token might be unavailable (local login, unsynced property, unreadable
+     * ciphertext) only means the provider session cannot be ended this way, but logout must still proceed.
      * </p>
      *
      * @param request the logout request, still carrying the authenticated resolver
@@ -136,14 +131,7 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
      */
     private String readRefreshToken(final HttpServletRequest request)
     {
-        final Object resolverAttribute = request.getAttribute(AuthenticationSupport.REQUEST_ATTRIBUTE_RESOLVER);
-        if (!(resolverAttribute instanceof ResourceResolver))
-        {
-            return null;
-        }
-        // Resolves against the request's own identity, so the user's randomly-named home node never has to be
-        // located: getProperty takes a path relative to it.
-        final User user = ((ResourceResolver) resolverAttribute).adaptTo(User.class);
+        final User user = currentUser(request);
         if (user == null)
         {
             return null;
@@ -165,6 +153,61 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
             LOGGER.warn("Could not decrypt the stored refresh token", e);
         }
         return null;
+    }
+
+    /**
+     * Removes the stored refresh token, once the provider has accepted it and revoked it.
+     *
+     * <p>
+     * Never throws. Failing to clear it is not a reason to fail the logout that has already succeeded.
+     * </p>
+     *
+     * @param request the logout request, still carrying the authenticated resolver
+     */
+    private void clearRefreshToken(final HttpServletRequest request)
+    {
+        final Object resolverAttribute = request.getAttribute(AuthenticationSupport.REQUEST_ATTRIBUTE_RESOLVER);
+        if (!(resolverAttribute instanceof ResourceResolver))
+        {
+            return;
+        }
+        final ResourceResolver resolver = (ResourceResolver) resolverAttribute;
+        final User user = resolver.adaptTo(User.class);
+        final Session session = resolver.adaptTo(Session.class);
+        if (user == null || session == null)
+        {
+            return;
+        }
+        try
+        {
+            if (user.removeProperty(this.refreshTokenPath))
+            {
+                session.save();
+            }
+        } catch (final RepositoryException e) {
+            LOGGER.warn("Could not clear the stored refresh token; it has already been revoked at the provider", e);
+        }
+    }
+
+    /**
+     * The user this request is authenticated as, or {@code null} if it is not authenticated as one.
+     *
+     * <p>
+     * Resolving against the request's own identity is what lets the token be addressed by a path relative to the
+     * user's home node, so its randomly-generated name never has to be located.
+     * </p>
+     *
+     * @param request the request to take the identity from
+     * @return the user, or {@code null} when the request carries no usable resolver
+     */
+    private static User currentUser(final HttpServletRequest request)
+    {
+        final Object resolverAttribute = request.getAttribute(AuthenticationSupport.REQUEST_ATTRIBUTE_RESOLVER);
+        if (!(resolverAttribute instanceof ResourceResolver))
+        {
+            return null;
+        }
+        return ((ResourceResolver) resolverAttribute).adaptTo(User.class);
     }
 
     /**
@@ -266,8 +309,11 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         // End the provider's session via the stored refresh token
         // Note: failure is logged but not thrown, so we redirect if the backchannel fails
         boolean endedSession = endProviderSession(readRefreshToken(request));
-        if (!endedSession && !this.postLogoutPath.isBlank())
+        if (endedSession)
         {
+            // The provider has revoked it, clear our cached token
+            clearRefreshToken(request);
+        } else if (!this.postLogoutPath.isBlank()) {
             request.setAttribute("resource", this.postLogoutPath);
         }
     }
