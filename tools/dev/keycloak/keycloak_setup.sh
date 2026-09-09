@@ -39,7 +39,7 @@
 #   IAP_PUBLIC_URL        public base URL of IAP, for the redirect URI (default: http://localhost:8080)
 #   KEYCLOAK_ROLES        space-separated realm roles to create (default: "reader writer admin")
 #   GROUPS_CLAIM          token claim name for the roles mapper (default: groups)
-#   KEYCLOAK_GENERATE_TEST_USER   set to 1 to create a test user (default: 0)
+#   KEYCLOAK_GENERATE_TEST_USER   set to 0 to skip creating a test user (default: 1)
 #   TEST_USER / TEST_PASSWORD / TEST_USER_ROLE   the test user (default: test/test/writer)
 
 set -euo pipefail
@@ -220,8 +220,8 @@ echo    "  export KEYCLOAK_CLIENT_ID=${CLIENT_ID}"
 echo    "  export KEYCLOAK_CLIENT_SECRET=${SECRET}"
 echo    "  export IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword # replace with any actual password"
 echo -e "${DEFAULT}"
-echo    "(BACKEND_KEYCLOAK_BASE_URL must be the realm URL that IAP can reach, and"
-echo    " FRONTEND_KEYCLOAK_BASE_URL must be the realm URL that users can reach; adjust the host if"
+echo    "(BACKEND_KEYCLOAK_REALM_URL must be the realm URL that IAP can reach, and"
+echo    " FRONTEND_KEYCLOAK_REALM_URL must be the realm URL that users can reach; adjust the host if"
 echo    " IAP and Keycloak are on different networks.)"
 
 # ---- optionally sync the compose .env ------------------------------------------
