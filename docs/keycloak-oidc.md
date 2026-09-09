@@ -277,8 +277,10 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 9. Confirm logout: open `/system/sling/logout`, and confirm that no prompt from Keycloak appears.
    Then re-check `/system/sling/info.sessionInfo.json`: The user should be back to anonymous.
 10. Confirm back-channel logout: open Keycloak's web console, go to the iap realm and users view ' (default
-    `http://localhost:8084/admin/master/console/#/iap`). Then go to the generated user and confirm that
-    no sessions exist under the sessions tab
+   `http://localhost:8084/admin/master/console/#/iap`). Then go to the generated user and confirm that
+   no sessions exist under the sessions tab.
+11. Double-check back-channel logout: From the `/login` page, click "Continue with institutional
+   credentials" and confirm that it re-prompts you to log out with Keycloak
 
 ## Troubleshooting: `No IDP found with name keycloak`
 
