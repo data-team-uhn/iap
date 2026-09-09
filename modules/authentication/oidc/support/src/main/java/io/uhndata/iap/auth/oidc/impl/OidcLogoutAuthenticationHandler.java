@@ -29,6 +29,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.auth.core.AuthenticationSupport;
@@ -226,8 +227,7 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
      */
     boolean endProviderSession(final String refreshToken)
     {
-        if (this.backchannelLogoutEndpoint == null || this.backchannelLogoutEndpoint.isBlank()
-            || refreshToken == null || refreshToken.isBlank())
+        if (StringUtils.isAnyBlank(this.backchannelLogoutEndpoint, refreshToken, this.clientId, this.clientSecret))
         {
             return false;
         }
