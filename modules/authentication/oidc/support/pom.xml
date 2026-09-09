@@ -110,6 +110,12 @@
       <scope>provided</scope>
     </dependency>
 
+    <!-- Never called, but ResourceResolver's signatures reference it and Mockito cannot mock it without -->
+    <dependency>
+      <groupId>javax.servlet</groupId>
+      <artifactId>javax.servlet-api</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-api</artifactId>
