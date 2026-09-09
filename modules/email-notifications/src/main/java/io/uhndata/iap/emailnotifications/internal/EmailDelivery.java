@@ -40,6 +40,8 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.emailnotifications.api.Email;
 import io.uhndata.iap.emailnotifications.api.EmailTemplate;
 import io.uhndata.iap.emailnotifications.api.EmailUtils;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.Recipient;
 import io.uhndata.iap.notifications.spi.NotificationDelivery;
@@ -86,13 +88,13 @@ public class EmailDelivery implements NotificationDelivery
         }
         final String address = addressOf(recipient);
         if (address == null || address.isBlank()) {
-            LOGGER.info("{} has no email address, so the {} notification was not emailed", recipient.userId(),
+            LOGGER.debug("A recipient has no email address, so the {} notification was not emailed",
                 notification.getEvent());
             return false;
         }
         final String templatePath = notification.getTemplate();
         if (templatePath == null) {
-            LOGGER.warn("The {} notification names no template, so there is nothing to email",
+            LOGGER.debug("The {} notification names no template, so there is nothing to email",
                 notification.getEvent());
             return false;
         }
@@ -118,6 +120,11 @@ public class EmailDelivery implements NotificationDelivery
             if (templateResource == null) {
                 LOGGER.warn("The {} notification names the template {}, which does not exist",
                     notification.getEvent(), templatePath);
+                ErrorLogger.logProblem("A notification names a wording folder that is not there",
+                    ErrorContext.of(EmailDelivery.class, "send")
+                        .about(notification.getSubject().getPath())
+                        .with("event", notification.getEvent())
+                        .with("template", templatePath));
                 return false;
             }
             // The template folder holds one rendering per channel. A folder with no email child means this
@@ -135,12 +142,16 @@ public class EmailDelivery implements NotificationDelivery
                 .withRecipient(address, recipient.name())
                 .build();
             EmailUtils.sendEmail(email, this.mailService);
-            LOGGER.debug("Emailed the {} notification about {} to {}", notification.getEvent(),
-                subject.getPath(), recipient.userId());
+            LOGGER.debug("Emailed the {} notification about {}", notification.getEvent(),
+                subject.getPath());
             return true;
         } catch (final RepositoryException | IOException | MessagingException | RuntimeException e) {
-            LOGGER.error("The {} notification could not be emailed to {}: {}", notification.getEvent(),
-                recipient.userId(), e.getMessage(), e);
+            LOGGER.error("The {} notification could not be emailed: {}", notification.getEvent(),
+                e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(EmailDelivery.class, "send")
+                .about(notification.getSubject().getPath())
+                .with("event", notification.getEvent())
+                .with("recipient", recipient.userId()));
             return false;
         }
     }
@@ -169,9 +180,9 @@ public class EmailDelivery implements NotificationDelivery
     {
         final Map<String, Object> variables = new HashMap<>(notification.getVariables());
         // Always available, so that a template can name them without the workflow having to pass them. The
-        // subject is the resource, not a rendering of it, so that wording can read a property nobody here
+        // subjectResource is the resource itself, so that wording can read a property nobody here
         // thought to pass; the two shorthands beside it are what most wording actually needs
-        variables.put("subject", notification.getSubject());
+        variables.put("subjectResource", notification.getSubject());
         variables.put("subjectPath", notification.getSubject().getPath());
         variables.put("subjectTitle", notification.getSubject().getValueMap().get("title", ""));
         variables.put("event", notification.getEvent());

@@ -28,6 +28,8 @@ import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.notifications.api.Recipient;
@@ -68,6 +70,10 @@ public class NotificationServiceImpl implements NotificationService
         if (channels.isEmpty()) {
             LOGGER.warn("Nothing is registered to deliver notifications, so nobody was told about {} on {}",
                 notification.getEvent(), notification.getSubject().getPath());
+            ErrorLogger.logProblem("No notification delivery is registered, so nobody can be told anything",
+                ErrorContext.of(NotificationServiceImpl.class, "notify")
+                    .about(notification.getSubject().getPath())
+                    .with("event", notification.getEvent()));
             return;
         }
         final ResourceResolver resolver = notification.getSubject().getResourceResolver();
@@ -101,8 +107,13 @@ public class NotificationServiceImpl implements NotificationService
             } catch (final RuntimeException e) {
                 // One channel failing is not the others' problem, nor the workflow's: the process it
                 // reports on has already happened.
-                LOGGER.error("A notification about {} could not be delivered to {}: {}",
-                    notification.getEvent(), recipient.userId(), e.getMessage(), e);
+                LOGGER.error("A notification about {} could not be delivered: {}",
+                    notification.getEvent(), e.getMessage(), e);
+                ErrorLogger.logError(e, ErrorContext.of(NotificationServiceImpl.class, "deliver")
+                    .about(notification.getSubject().getPath())
+                    .with("event", notification.getEvent())
+                    .with("channel", channel.getClass().getName())
+                    .with("recipient", recipient.userId()));
             }
         }
     }

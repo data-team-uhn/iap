@@ -97,14 +97,16 @@ public class StoredNotificationDelivery implements NotificationDelivery
             final Resource stored = store(resolver, notification, recipient, line);
             grantRead(resolver, stored.getPath(), recipient.userId());
             resolver.commit();
-            LOGGER.debug("Stored the {} notification about {} for {}", notification.getEvent(),
-                notification.getSubject().getPath(), recipient.userId());
+            LOGGER.debug("Stored the {} notification about {}", notification.getEvent(),
+                notification.getSubject().getPath());
             return true;
         } catch (final LoginException | PersistenceException | RepositoryException | RuntimeException e) {
-            LOGGER.error("The {} notification could not be stored for {}: {}", notification.getEvent(),
-                recipient.userId(), e.getMessage(), e);
+            LOGGER.error("The {} notification could not be stored: {}", notification.getEvent(),
+                e.getMessage(), e);
             ErrorLogger.logError(e, ErrorContext.of(StoredNotificationDelivery.class, "deliver")
-                .about(notification.getSubject().getPath()));
+                .about(notification.getSubject().getPath())
+                .with("event", notification.getEvent())
+                .with("recipient", recipient.userId()));
             return false;
         }
     }

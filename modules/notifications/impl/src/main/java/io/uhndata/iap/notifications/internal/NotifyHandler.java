@@ -25,6 +25,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.NotificationService;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -110,6 +112,8 @@ public class NotifyHandler implements ServiceTaskHandler
         if (roles.isEmpty()) {
             // Said out loud: a notify task that tells nobody is a definition somebody meant to finish
             LOGGER.warn("The notification task {} names nobody to tell", activity.getPath());
+            ErrorLogger.logProblem("A notify task names nobody to tell",
+                ErrorContext.of(NotifyHandler.class, "execute").about(activity.getPath()));
             return;
         }
         final String event = activity.get(EVENT_NAME_PARAMETER, String.class);
@@ -131,6 +135,9 @@ public class NotifyHandler implements ServiceTaskHandler
             // because nobody could be told would be the worse of the two outcomes
             LOGGER.error("The {} notification from {} could not be sent: {}", notification.getEvent(),
                 activity.getPath(), e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(NotifyHandler.class, "execute")
+                .about(activity.getPath())
+                .with("event", notification.getEvent()));
         }
     }
 

@@ -209,7 +209,7 @@ class EmailDeliveryTest
         this.context.create().resource(EMAIL, Map.of(
             "jcr:primaryType", "sling:Folder",
             "senderAddress", "platform@example.com",
-            "subject", "${subject.valueMap.get('reference')} at ${subject.path}"));
+            "subject", "${subjectResource.valueMap.get('reference')} at ${subjectResource.path}"));
         this.file(EMAIL + "/bodyTemplate.txt", "text/plain", "Body");
 
         this.delivery.deliver(NotificationContext.about(referenced)

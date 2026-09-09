@@ -83,8 +83,8 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         final String recipient = writable.get(StoredNotifications.RECIPIENT_PROPERTY, String.class);
         final String caller = UserIds.canonical(target.getResourceResolver());
         if (recipient == null || !recipient.equals(caller)) {
-            LOGGER.info("{} may write {} but is not its recipient, so the marker stays as it is",
-                caller, target.getPath());
+            LOGGER.warn("Somebody who may write {} is not its recipient, so the marker stays as it is",
+                target.getPath());
             reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark");
             return;
         }

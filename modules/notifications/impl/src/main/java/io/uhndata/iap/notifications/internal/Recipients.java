@@ -31,6 +31,8 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.notifications.api.Recipient;
 
 /**
@@ -88,17 +90,19 @@ final class Recipients
         try {
             final Authorizable account = users.getAuthorizable(userId);
             if (account == null) {
-                LOGGER.warn("{} has no account in this repository, so they cannot be told anything", userId);
+                LOGGER.warn("A recipient has no account in this repository, so they cannot be told anything");
                 return null;
             }
             final Resource home = resolver.getResource(account.getPath());
             if (home == null) {
-                LOGGER.warn("The account of {} is not readable, so they cannot be told anything", userId);
+                LOGGER.warn("A recipient's account is not readable, so they cannot be told anything");
                 return null;
             }
             return new Recipient(userId, home);
         } catch (final RepositoryException e) {
-            LOGGER.warn("The account of {} could not be read: {}", userId, e.getMessage(), e);
+            LOGGER.warn("A recipient's account could not be read: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(Recipients.class, "describe")
+                .with("recipient", userId));
             return null;
         }
     }
@@ -114,12 +118,15 @@ final class Recipients
         final Session session = resolver.adaptTo(Session.class);
         if (!(session instanceof JackrabbitSession)) {
             LOGGER.warn("Notifications need a Jackrabbit session to find out who to tell");
+            ErrorLogger.logProblem("Notifications cannot resolve anybody: the session is not a Jackrabbit one",
+                ErrorContext.of(Recipients.class, "userManager"));
             return null;
         }
         try {
             return ((JackrabbitSession) session).getUserManager();
         } catch (final RepositoryException e) {
             LOGGER.warn("The user manager is not available: {}", e.getMessage(), e);
+            ErrorLogger.logError(e, ErrorContext.of(Recipients.class, "userManager"));
             return null;
         }
     }
