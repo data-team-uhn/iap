@@ -82,9 +82,9 @@ export function countUnread(notifications: readonly Notification[]): number {
  * The `.json` extension is not optional: Sling reads the last dot-separated token as the extension,
  * so a bare `.markRead` matches no servlet and falls through.
  *
- * @param path the notification node, as its row reports it
+ * @param notification the one to mark
  * @returns the URL to post to
  */
-export function markReadUrl(path: string): string {
-  return `${path}.markRead.json`;
+export function markReadUrl(notification: Notification): string {
+  return `${notification.path}.markRead.json`;
 }

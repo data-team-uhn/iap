@@ -18,7 +18,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import Notifications from "@iap/homepage/Notifications";
+import Notifications from "@iap/stored-notifications/Notifications";
 
 const navigate = vi.fn();
 

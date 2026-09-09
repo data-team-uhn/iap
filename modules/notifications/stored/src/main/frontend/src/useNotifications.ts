@@ -55,8 +55,8 @@ const list = async (fetchUtil: AuthenticatedFetch): Promise<Notification[]> => {
 };
 
 /** Marks one notification as read, or rejects with the status the server refused it with. */
-const mark = async (fetchUtil: AuthenticatedFetch, path: string): Promise<void> => {
-  const response = await fetchUtil(markReadUrl(path), { method: "POST" });
+const mark = async (fetchUtil: AuthenticatedFetch, notification: Notification): Promise<void> => {
+  const response = await fetchUtil(markReadUrl(notification), { method: "POST" });
   if (!response.ok) {
     throw new RequestError(response.status);
   }
@@ -66,7 +66,7 @@ export interface NotificationsFeed {
   /** What the current user was told, newest first. */
   notifications: Notification[];
   /** How many of those have not been seen. */
-  unread: number;
+  unreadCount: number;
   /** True when the last attempt failed, so the dropdown can say so rather than look empty. */
   failed: boolean;
   /** Re-reads, then marks everything now showing as read. Resolves once it has settled. */
@@ -85,13 +85,13 @@ export interface NotificationsFeed {
 export function useNotifications(): NotificationsFeed {
   const doFetch = useAuthenticatedFetch();
   const [ notifications, setNotifications ] = useState<Notification[]>([]);
-  const [ unread, setUnread ] = useState(0);
+  const [ unreadCount, setUnreadCount ] = useState(0);
   const [ failed, setFailed ] = useState(false);
 
   const refresh = useCallback(async (): Promise<Notification[]> => {
     const recent = await list(doFetch);
     setNotifications(recent);
-    setUnread(countUnread(recent));
+    setUnreadCount(countUnread(recent));
     setFailed(false);
     return recent;
   }, [ doFetch ]);
@@ -111,13 +111,13 @@ export function useNotifications(): NotificationsFeed {
       const recent = await refresh();
       // Shown is read: the entries stay highlighted for this look, and stop counting from now on
       await Promise.all(recent.filter(notification => !notification.read)
-        .map(notification => mark(doFetch, notification.path)));
-      setUnread(0);
+        .map(notification => mark(doFetch, notification)));
+      setUnreadCount(0);
     } catch {
       // The list may be mid-air when the session expires; the dropdown says so instead of lying
       setFailed(true);
     }
   }, [ doFetch, refresh ]);
 
-  return { notifications, unread, failed, read };
+  return { notifications, unreadCount, failed, read };
 }

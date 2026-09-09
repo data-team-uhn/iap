@@ -21,7 +21,7 @@ import {
   markReadUrl,
   type Notification,
   parseNotification,
-} from "@iap/homepage/notificationsModel";
+} from "@iap/stored-notifications/notificationsModel";
 
 describe("parseNotification", () => {
   it("reads what a row says", () => {
@@ -51,6 +51,7 @@ describe("parseNotification", () => {
     // A notification whose subject was deleted, and one the serializer sent without a line
     const sparse = parseNotification({ "@path": "/n" });
     expect(sparse.line).toBe("");
+    expect(sparse.read).toBe(false);
     expect(sparse.subject).toBeUndefined();
     expect(sparse.created).toBeUndefined();
   });
@@ -82,6 +83,7 @@ describe("countUnread", () => {
 
 describe("markReadUrl", () => {
   it("keeps the json extension, without which Sling matches no servlet", () => {
-    expect(markReadUrl("/Notifications/aa/bb/cc/one")).toBe("/Notifications/aa/bb/cc/one.markRead.json");
+    expect(markReadUrl({ path: "/Notifications/aa/bb/cc/one", line: "", read: false }))
+      .toBe("/Notifications/aa/bb/cc/one.markRead.json");
   });
 });

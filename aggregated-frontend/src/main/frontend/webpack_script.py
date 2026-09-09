@@ -26,16 +26,31 @@ package_name = 'iap-aggregated-frontend'
 # Collect lines of assets.config file into aggregated array.
 # Entry paths are declared relative to the module's own frontend root (./src/...), and are
 # rewritten to the module's dedicated subdirectory in the aggregated tree (./src/<module>/...).
-# A directory named after a packaging layer rather than after itself — the api/impl split a Maven
-# module makes — is not what its UI should be imported as: modules/submissions/impl holds the
-# submissions UI, not "the impl UI". Such a directory is aggregated under its parent's name instead,
-# which keeps @iap/<module> the module's own identity and keeps one module's impl from colliding
-# with another's.
-PACKAGING_LAYER_NAMES = {'api', 'impl'}
+# That subdirectory, and the @iap/<module> name the UI is imported by, come from the module's
+# artifactId rather than from the directory holding it. Which directory a module's UI sits in is an
+# organisational choice — directly under modules/<module>/, or a level deeper in whichever submodule
+# ships it — and rearranging that should not rename anybody's import path. The artifactId is the
+# module's published identity, so it stays put when the files move. It is stripped of the project
+# prefix, and of a suffix naming a packaging layer rather than the module: modules/submissions/impl
+# holds the submissions UI, not "the impl UI".
+def namespace_for(module_dir):
+    artifact = artifact_id(module_dir)
+    if artifact is None:
+        sys.exit('The frontend sources in %s belong to no Maven module, so there is no artifactId to '
+            'import them by. Move them into a module, or give that directory a pom.xml.' % module_dir)
+    return re.sub(r'-(impl|api)$', '', re.sub(r'^iap-', '', artifact))
 
 
-def namespace_for(root, dir_name):
-    return path.basename(root) if dir_name in PACKAGING_LAYER_NAMES else dir_name
+# A pom declares its parent before itself, so reading the first <artifactId> in the file answers
+# iap-modules for every module in the repository. Read past the parent block instead.
+def artifact_id(module_dir):
+    pom = path.join(module_dir, 'pom.xml')
+    if not path.exists(pom):
+        return None
+    with open(pom, 'rt') as ins:
+        own = ins.read().split('</parent>')[-1]
+    found = re.search(r'<artifactId>(.*?)</artifactId>', own)
+    return found.group(1) if found else None
 
 
 def merge_webpack_files(root, dir_name, namespace, aggregated_frontend_dir, webpack_config_entries):
@@ -144,17 +159,20 @@ def main(args=sys.argv[1:]):
             for name in dirs:
                 if not name == "aggregated-frontend":
                     module_dir = path.join(root, name)
-                    namespace = namespace_for(root, name)
                     has_sources = path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'src'))
-                    if has_sources \
-                            or path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'assets.config')):
-                        if namespace in seen_modules:
-                            sys.exit('Frontend module name collision: both %s and %s would be aggregated as '
-                                'src/%s/. Rename one of the module directories.'
-                                % (seen_modules[namespace], module_dir, namespace))
-                        seen_modules[namespace] = module_dir
-                        if has_sources:
-                            source_modules.append(namespace)
+                    has_config = path.exists(path.join(module_dir, 'src', 'main', 'frontend', 'assets.config'))
+                    # Asking a directory that ships no UI for its artifactId would fail on every
+                    # ordinary directory in the tree, so only the ones being aggregated are asked
+                    if not has_sources and not has_config:
+                        continue
+                    namespace = namespace_for(module_dir)
+                    if namespace in seen_modules:
+                        sys.exit('Frontend module name collision: both %s and %s would be aggregated as '
+                            'src/%s/. Rename one of the module artifactIds.'
+                            % (seen_modules[namespace], module_dir, namespace))
+                    seen_modules[namespace] = module_dir
+                    if has_sources:
+                        source_modules.append(namespace)
                     merge_webpack_files(root, name, namespace, aggregated_frontend_dir, webpack_config_entries)
                     merge_ui_files(root, name, namespace, aggregated_frontend_dir)
                     if include_tests:

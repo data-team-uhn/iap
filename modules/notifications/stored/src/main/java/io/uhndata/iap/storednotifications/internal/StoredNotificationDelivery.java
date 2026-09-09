@@ -21,8 +21,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -33,6 +31,7 @@ import javax.jcr.security.AccessControlPolicy;
 import javax.jcr.security.AccessControlPolicyIterator;
 import javax.jcr.security.Privilege;
 
+import org.apache.commons.text.StringSubstitutor;
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.sling.api.resource.LoginException;
@@ -81,9 +80,6 @@ public class StoredNotificationDelivery implements NotificationDelivery
 
     private static final Logger LOGGER = LoggerFactory.getLogger(StoredNotificationDelivery.class);
 
-    /** A {@code ${name}} placeholder in a template line. */
-    private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{(\\w+)}");
-
     @Reference
     private ResourceResolverFactory resolverFactory;
 
@@ -92,7 +88,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
     {
         final String line = lineOf(notification);
         if (line == null || line.isBlank()) {
-            LOGGER.info("The {} notification has no line and its subject no title, so there is nothing to list",
+            LOGGER.debug("The {} notification has no line and its subject no title, so there is nothing to list",
                 notification.getEvent());
             return false;
         }
@@ -101,7 +97,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
             final Resource stored = store(resolver, notification, recipient, line);
             grantRead(resolver, stored.getPath(), recipient.userId());
             resolver.commit();
-            LOGGER.info("Stored the {} notification about {} for {}", notification.getEvent(),
+            LOGGER.debug("Stored the {} notification about {} for {}", notification.getEvent(),
                 notification.getSubject().getPath(), recipient.userId());
             return true;
         } catch (final LoginException | PersistenceException | RepositoryException | RuntimeException e) {
@@ -218,10 +214,12 @@ public class StoredNotificationDelivery implements NotificationDelivery
         final Map<String, String> variables = variables(notification);
         final String template = lineTemplate(notification);
         if (template != null) {
-            final Matcher placeholders = PLACEHOLDER.matcher(template);
-            // Unknown placeholders stay as written, so a typo is visible in the list instead of vanishing
-            return placeholders.replaceAll(match -> Matcher.quoteReplacement(
-                variables.getOrDefault(match.group(1), match.group())));
+            final StringSubstitutor substitutor = new StringSubstitutor(variables);
+            // What somebody typed is text, not a template: an outcome note containing ${...} says that,
+            // it does not ask for it. A placeholder nothing answers stays as written, so a typo shows up
+            // in the list rather than vanishing from it
+            substitutor.setDisableSubstitutionInValues(true);
+            return substitutor.replace(template);
         }
         // Always present in the map, possibly empty: variables() fills it from the subject with a default
         final String title = variables.get("subjectTitle");

@@ -34,7 +34,7 @@ const SHOWN = 10;
 function Notifications() {
   const navigate = useNavigate();
   const [ anchor, setAnchor ] = useState<HTMLElement | null>(null);
-  const { notifications, unread, failed, read } = useNotifications();
+  const { notifications, unreadCount, failed, read } = useNotifications();
 
   const open = (target: HTMLElement) => {
     setAnchor(target);
@@ -56,8 +56,8 @@ function Notifications() {
           onClick={event => open(event.currentTarget)}
           size="small"
         >
-          { /* The badge hides itself while the count is 0 */ }
-          <Badge badgeContent={unread} color="secondary">
+          { /* Hides itself at 0, and stops at 99+ rather than widening to fit */ }
+          <Badge badgeContent={unreadCount} max={99} color="secondary">
             <NotificationsNoneIcon />
           </Badge>
         </IconButton>

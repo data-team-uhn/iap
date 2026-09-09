@@ -213,5 +213,4 @@ class NotifyHandlerTest
         this.handler.execute(this.taskWith(Map.of(
             "notify", new String[] { PrincipalService.CREATOR })));
     }
-
 }

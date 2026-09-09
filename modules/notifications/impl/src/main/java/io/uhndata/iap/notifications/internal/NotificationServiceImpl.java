@@ -86,8 +86,7 @@ public class NotificationServiceImpl implements NotificationService
      * Offers one notification to every delivery, in turn.
      *
      * <p>Every one of them, not the first that accepts. A person may want both an email now and a marker in
-     * the interface. Which combination that is belongs to them, not to whichever delivery was asked
-     * first.</p>
+     * the interface.</p>
      *
      * @param channels the registered deliveries
      * @param notification what happened
@@ -96,20 +95,15 @@ public class NotificationServiceImpl implements NotificationService
     private static void deliver(final List<NotificationDelivery> channels,
         final NotificationContext notification, final Recipient recipient)
     {
-        boolean any = false;
         for (final NotificationDelivery channel : channels) {
             try {
-                any |= channel.deliver(notification, recipient);
+                channel.deliver(notification, recipient);
             } catch (final RuntimeException e) {
                 // One channel failing is not the others' problem, nor the workflow's: the process it
                 // reports on has already happened.
                 LOGGER.error("A notification about {} could not be delivered to {}: {}",
                     notification.getEvent(), recipient.userId(), e.getMessage(), e);
             }
-        }
-        if (!any) {
-            LOGGER.info("Nothing delivered the {} notification to {}", notification.getEvent(),
-                recipient.userId());
         }
     }
 

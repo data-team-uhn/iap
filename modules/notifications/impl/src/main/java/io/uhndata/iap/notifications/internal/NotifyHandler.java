@@ -39,8 +39,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <strong>One handler, however many notifications a process sends.</strong> What differs between "your request
  * was approved" and "your request was refused" is wording and audience. Both are written in the workflow
  * definition rather than in Java. A service task naming this handler carries the template folder, the roles
- * to tell, and how urgent it is. So adding a notification is adding a node and a template, not a component.
- * A workflow author who cannot write Java can add one.
+ * to tell, and how urgent it is.
  * </p>
  *
  * {@snippet lang="json" :

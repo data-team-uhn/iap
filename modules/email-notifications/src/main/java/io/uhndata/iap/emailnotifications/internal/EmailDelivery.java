@@ -124,7 +124,7 @@ public class EmailDelivery implements NotificationDelivery
             // notification has no email wording, which is its author's choice rather than an error.
             final Resource emailRendering = templateResource.getChild(EMAIL_RENDERING);
             if (emailRendering == null) {
-                LOGGER.info("The template {} has no {} rendering, so the {} notification was not emailed",
+                LOGGER.debug("The template {} has no {} rendering, so the {} notification was not emailed",
                     templatePath, EMAIL_RENDERING, notification.getEvent());
                 return false;
             }
@@ -134,9 +134,6 @@ public class EmailDelivery implements NotificationDelivery
             final Email email = template.getEmailBuilder(variables(notification))
                 .withRecipient(address, recipient.name())
                 .build();
-            // Sent as whatever the template has. Demanding HTML would refuse a plain-text-only template,
-            // and refuse it quietly. The caller is a workflow that carries on regardless, so an author's
-            // wording would never arrive.
             EmailUtils.sendEmail(email, this.mailService);
             LOGGER.debug("Emailed the {} notification about {} to {}", notification.getEvent(),
                 subject.getPath(), recipient.userId());

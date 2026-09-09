@@ -27,14 +27,13 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * <strong>This is not "send an email".</strong> A caller states that something happened, who it concerns and
  * how soon they should know. What that turns into is decided here and below, from the recipients' own
- * settings. A caller that chose the channel itself would need revisiting whenever somebody changed their
- * mind.
+ * settings.
  * </p>
  *
  * <p>
  * Recipients are named by role rather than by address, in the vocabulary a workflow already uses to say who
- * may act. So {@code @creator} means the same person whether they are being asked to approve something or
- * told the outcome, and a definition never carries an address to go stale.
+ * may act. {@code PrincipalService} turns those roles into people, so a definition never carries an address
+ * to go stale.
  * </p>
  *
  * @version $Id$
