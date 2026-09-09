@@ -274,6 +274,11 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 7. Confirm authorization once ACLs are written: the user can read/write the granted path; a user
    without the role gets `403` (not a login bounce).
 8. Regression: local login still works via "Use a local account instead".
+9. Confirm logout: open `/system/sling/logout`, and confirm that no prompt from Keycloak appears.
+   Then re-check `/system/sling/info.sessionInfo.json`: The user should be back to anonymous.
+10. Confirm back-channel logout: open Keycloak's web console, go to the iap realm and users view ' (default
+    `http://localhost:8084/admin/master/console/#/iap`). Then go to the generated user and confirm that
+    no sessions exist under the sessions tab
 
 ## Troubleshooting: `No IDP found with name keycloak`
 
