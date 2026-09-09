@@ -86,7 +86,7 @@
     <!-- The delivery extension point this module's email sender implements -->
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>iap-notifications</artifactId>
+      <artifactId>iap-notifications-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

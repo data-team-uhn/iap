@@ -19,6 +19,12 @@
   "description": "Telling the people something concerns, by whatever means each of them is reached by",
   "bundles":[
     {
+      // Nothing but the Sling API stands behind these types, but no delivery resolves without them, so they
+      // go in alongside the implementation rather than any later
+      "id":"${project.groupId}:iap-notifications-api:${project.version}",
+      "start-order":"26"
+    },
+    {
       // After the workflows bundle whose handler extension point it plugs into, and after the content and
       // entity node types the models it reads are built on
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
