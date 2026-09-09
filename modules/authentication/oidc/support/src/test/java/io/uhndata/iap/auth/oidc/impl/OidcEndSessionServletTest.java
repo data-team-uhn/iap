@@ -19,10 +19,14 @@ package io.uhndata.iap.auth.oidc.impl;
 
 import java.io.IOException;
 
+import jakarta.servlet.http.Cookie;
+
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 /**
@@ -40,6 +44,8 @@ public class OidcEndSessionServletTest
 
     private static final String POST_LOGOUT = "http://localhost:8080/login";
 
+    private static final String COOKIE_NAME = "sling.oidcauth";
+
     private OidcEndSessionServlet servlet;
 
     @BeforeEach
@@ -49,6 +55,7 @@ public class OidcEndSessionServletTest
         Mockito.when(config.endSessionEndpoint()).thenReturn(END_SESSION);
         Mockito.when(config.clientId()).thenReturn(CLIENT_ID);
         Mockito.when(config.postLogoutRedirectUri()).thenReturn(POST_LOGOUT);
+        Mockito.when(config.cookieName()).thenReturn(COOKIE_NAME);
         this.servlet = new OidcEndSessionServlet();
         this.servlet.activate(config);
     }
@@ -64,6 +71,48 @@ public class OidcEndSessionServletTest
         Mockito.verify(response).sendRedirect(END_SESSION
             + "?client_id=iap-sling"
             + "&post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Flogin");
-        Mockito.verifyNoInteractions(request);
+    }
+
+    @Test
+    void expiresTheSessionCookieSoADirectHitCannotLeaveTheLocalSessionBehind() throws IOException
+    {
+        // Reached without going through Sling's logout, nothing else expires the cookie, and the
+        // provider's session would end while this one carried on
+        final SlingJakartaHttpServletRequest request = Mockito.mock(SlingJakartaHttpServletRequest.class);
+        final SlingJakartaHttpServletResponse response = Mockito.mock(SlingJakartaHttpServletResponse.class);
+        Mockito.when(request.isSecure()).thenReturn(true);
+
+        this.servlet.doGet(request, response);
+
+        final ArgumentCaptor<Cookie> captor = ArgumentCaptor.forClass(Cookie.class);
+        Mockito.verify(response).addCookie(captor.capture());
+        final Cookie expired = captor.getValue();
+        Assertions.assertEquals(COOKIE_NAME, expired.getName());
+        Assertions.assertEquals(0, expired.getMaxAge());
+        Assertions.assertEquals("/", expired.getPath());
+        Assertions.assertEquals(true, expired.isHttpOnly());
+        Assertions.assertEquals(true, expired.getSecure());
+    }
+
+    @Test
+    void misconfiguredEndpointStillExpiresTheCookie() throws IOException
+    {
+        // sendError commits the response, so the cookie has to be added before it or it is dropped:
+        // a deployment that cannot reach the provider must still be able to end the local session
+        final OidcEndSessionConfiguration broken = Mockito.mock(OidcEndSessionConfiguration.class);
+        Mockito.when(broken.endSessionEndpoint()).thenReturn("kc.example/logout");
+        Mockito.when(broken.cookieName()).thenReturn(COOKIE_NAME);
+        final OidcEndSessionServlet servletWithBadEndpoint = new OidcEndSessionServlet();
+        servletWithBadEndpoint.activate(broken);
+        final SlingJakartaHttpServletRequest request = Mockito.mock(SlingJakartaHttpServletRequest.class);
+        final SlingJakartaHttpServletResponse response = Mockito.mock(SlingJakartaHttpServletResponse.class);
+
+        servletWithBadEndpoint.doGet(request, response);
+
+        final ArgumentCaptor<Cookie> captor = ArgumentCaptor.forClass(Cookie.class);
+        Mockito.verify(response).addCookie(captor.capture());
+        Assertions.assertEquals(0, captor.getValue().getMaxAge());
+        Mockito.verify(response).sendError(Mockito.eq(500), Mockito.anyString());
+        Mockito.verify(response, Mockito.never()).sendRedirect(Mockito.anyString());
     }
 }

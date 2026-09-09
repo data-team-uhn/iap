@@ -259,6 +259,28 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
+    /**
+     * A cookie that replaces the session cookie with an expired one. Shared with
+     * {@link OidcEndSessionServlet}, which expires the same cookie when it is reached directly.
+     *
+     * @param name the session cookie's name
+     * @param secure whether the request arrived over HTTPS, since a Secure cookie cannot be replaced by one without
+     * @return a cookie that expires immediately
+     */
+    static Cookie expiredSessionCookie(final String name, final boolean secure)
+    {
+        // The attributes have to match the ones the cookie was set with, or the browser treats this as a
+        // different cookie and keeps the original, even though logout appears to work. The cookie is HttpOnly,
+        // so only the server can clear it.
+        final Cookie expired = new Cookie(name, "");
+        expired.setPath("/");
+        expired.setMaxAge(0);
+        expired.setHttpOnly(true);
+        expired.setAttribute("SameSite", "Lax");
+        expired.setSecure(secure);
+        return expired;
+    }
+
     @Override
     public AuthenticationInfo extractCredentials(final HttpServletRequest request, final HttpServletResponse response)
     {
@@ -296,15 +318,7 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
             return;
         }
 
-        // The cookie is HttpOnly, so only the server can clear it. Match the name and path it was set
-        // with (Path=/) and expire it immediately.
-        final Cookie expired = new Cookie(this.cookieName, "");
-        expired.setPath("/");
-        expired.setMaxAge(0);
-        expired.setHttpOnly(true);
-        expired.setAttribute("SameSite", "Lax");
-        expired.setSecure(request.isSecure());
-        response.addCookie(expired);
+        response.addCookie(expiredSessionCookie(this.cookieName, request.isSecure()));
 
         // End the provider's session via the stored refresh token
         // Note: failure is logged but not thrown, so we redirect if the backchannel fails

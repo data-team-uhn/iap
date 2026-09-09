@@ -72,18 +72,24 @@ public class OidcEndSessionServlet extends SlingJakartaSafeMethodsServlet
 
     private String postLogoutRedirectUri;
 
+    private String cookieName;
+
     @Activate
     void activate(final OidcEndSessionConfiguration config)
     {
         this.endSessionEndpoint = config.endSessionEndpoint();
         this.clientId = config.clientId();
         this.postLogoutRedirectUri = config.postLogoutRedirectUri();
+        this.cookieName = config.cookieName();
     }
 
     @Override
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
+        // If reached directly (instead of via Sling logout), clear the cookie.
+        response.addCookie(OidcLogoutAuthenticationHandler.expiredSessionCookie(this.cookieName, request.isSecure()));
+
         if (this.endSessionEndpoint == null || !(this.endSessionEndpoint.startsWith("http://")
             || this.endSessionEndpoint.startsWith("https://")))
         {

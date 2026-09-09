@@ -91,9 +91,27 @@ public class OidcLogoutAuthenticationHandlerTest
         Assertions.assertEquals("/", expired.getPath());
         Assertions.assertEquals(0, expired.getMaxAge());
         Assertions.assertEquals(true, expired.isHttpOnly());
+        Assertions.assertEquals("Lax", expired.getAttribute("SameSite"));
         // Http requests emit non-secure cookies
         Assertions.assertEquals(false, expired.getSecure());
         Mockito.verify(request).setAttribute(RESOURCE_ATTR, LOGOUT_PATH);
+    }
+
+    @Test
+    void expiredCookieIsSecureOverHttps()
+    {
+        // The expiring cookie has to carry the same Secure flag as the one being replaced, or the
+        // browser keeps the original and the session survives the logout
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
+        Mockito.when(request.getCookies()).thenReturn(oidcCookies());
+        Mockito.when(request.isSecure()).thenReturn(true);
+
+        this.handler.dropCredentials(request, response);
+
+        final ArgumentCaptor<Cookie> captor = ArgumentCaptor.forClass(Cookie.class);
+        Mockito.verify(response).addCookie(captor.capture());
+        Assertions.assertEquals(true, captor.getValue().getSecure());
     }
 
     @Test

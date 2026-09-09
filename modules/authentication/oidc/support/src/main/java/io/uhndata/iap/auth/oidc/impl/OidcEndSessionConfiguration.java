@@ -60,4 +60,14 @@ public @interface OidcEndSessionConfiguration
         description = "Absolute URL the provider returns the browser to after logout; must be registered as a valid "
             + "post-logout redirect URI on the provider client.")
     String postLogoutRedirectUri() default "";
+
+    /**
+     * The session cookie to expire when this servlet is reached directly.
+     *
+     * @return the cookie name, which must match the logout handler's
+     */
+    @AttributeDefinition(name = "Cookie name",
+        description = "The session cookie to expire, for a request that reaches this servlet without going through "
+            + "Sling's logout. Must match the logout handler's cookieName.")
+    String cookieName() default "sling.oidcauth";
 }
