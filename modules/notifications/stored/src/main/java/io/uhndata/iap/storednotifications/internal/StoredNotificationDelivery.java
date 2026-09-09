@@ -127,7 +127,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
     private static Resource store(final ResourceResolver resolver, final NotificationContext notification,
         final Recipient recipient, final String line) throws RepositoryException, PersistenceException
     {
-        final Resource root = Objects.requireNonNull(resolver.getResource(StoredNotifications.PATH),
+        final Resource root = Objects.requireNonNull(resolver.getResource(StoredNotifications.HOMEPAGE_PATH),
             "The stored notifications homepage is created by repoinit before this bundle can run");
         // Filed by a fresh uniformly-distributed name, which is what keeps every bucket small forever
         final String name = UUID.randomUUID().toString().replace("-", "");
@@ -138,8 +138,8 @@ public class StoredNotificationDelivery implements NotificationDelivery
             "A bucket this session just created is visible to it");
         final Map<String, Object> properties = new HashMap<>();
         properties.put("jcr:primaryType", "notif:Notification");
-        properties.put(StoredNotifications.RECIPIENT, recipient.userId());
-        properties.put(StoredNotifications.LINE, line);
+        properties.put(StoredNotifications.RECIPIENT_PROPERTY, recipient.userId());
+        properties.put(StoredNotifications.LINE_PROPERTY, line);
         properties.put("event", notification.getEvent());
         properties.put("subject", notification.getSubject().getPath());
         properties.put("urgency", notification.getUrgency());
@@ -241,7 +241,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
             return null;
         }
         final Resource wording = notification.getSubject().getResourceResolver().getResource(template);
-        return wording == null ? null : wording.getValueMap().get(StoredNotifications.LINE, String.class);
+        return wording == null ? null : wording.getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class);
     }
 
     /**

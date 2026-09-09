@@ -59,7 +59,7 @@ import io.uhndata.iap.utils.UserIds;
  * @since 0.1.0
  */
 @Component(service = { Servlet.class })
-@SlingServletResourceTypes(resourceTypes = { StoredNotifications.RESOURCE_TYPE }, methods = { "POST" },
+@SlingServletResourceTypes(resourceTypes = { StoredNotifications.NOTIFICATION_RESOURCE_TYPE }, methods = { "POST" },
     selectors = { "markRead" }, extensions = { "json" })
 public class MarkReadServlet extends SlingJakartaAllMethodsServlet
 {
@@ -80,7 +80,7 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         }
         // And whose it is, because an administrative session is handed a writable view of everything.
         // A notification naming nobody is nobody's to mark, which is why the recipient is asked first
-        final String recipient = writable.get(StoredNotifications.RECIPIENT, String.class);
+        final String recipient = writable.get(StoredNotifications.RECIPIENT_PROPERTY, String.class);
         final String caller = UserIds.canonical(target.getResourceResolver());
         if (recipient == null || !recipient.equals(caller)) {
             LOGGER.info("{} may write {} but is not its recipient, so the marker stays as it is",
@@ -89,7 +89,7 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
             return;
         }
         try {
-            writable.put(StoredNotifications.READ, Boolean.TRUE);
+            writable.put(StoredNotifications.READ_PROPERTY, Boolean.TRUE);
             target.getResourceResolver().commit();
             reply(response, HttpServletResponse.SC_OK, null);
         } catch (final PersistenceException e) {

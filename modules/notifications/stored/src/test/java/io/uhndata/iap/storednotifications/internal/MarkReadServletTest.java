@@ -65,7 +65,7 @@ class MarkReadServletTest
 
         assertEquals(HttpServletResponse.SC_OK, response.getStatus());
         assertTrue(response.getOutputAsString().contains("ok"));
-        assertEquals(Boolean.TRUE, notification.getValueMap().get(StoredNotifications.READ, Boolean.class));
+        assertEquals(Boolean.TRUE, notification.getValueMap().get(StoredNotifications.READ_PROPERTY, Boolean.class));
     }
 
     // Reading twice is not an event
@@ -78,7 +78,7 @@ class MarkReadServletTest
         final MockSlingJakartaHttpServletResponse response = this.post(notification);
 
         assertEquals(HttpServletResponse.SC_OK, response.getStatus());
-        assertEquals(Boolean.TRUE, notification.getValueMap().get(StoredNotifications.READ, Boolean.class));
+        assertEquals(Boolean.TRUE, notification.getValueMap().get(StoredNotifications.READ_PROPERTY, Boolean.class));
     }
 
     // A session with no write on the node gets no writable view of it. The servlet carries that answer
@@ -113,7 +113,7 @@ class MarkReadServletTest
 
         assertEquals(HttpServletResponse.SC_FORBIDDEN, response.getStatus());
         assertNotNull(notification.adaptTo(ModifiableValueMap.class), "the write itself was allowed");
-        assertEquals(Boolean.FALSE, notification.getValueMap().get(StoredNotifications.READ, Boolean.class));
+        assertEquals(Boolean.FALSE, notification.getValueMap().get(StoredNotifications.READ_PROPERTY, Boolean.class));
     }
 
     // Nobody's to mark, which is what a notification with no recipient recorded on it would be
@@ -121,9 +121,9 @@ class MarkReadServletTest
     void refusesANotificationThatNamesNobody() throws IOException
     {
         final Resource nobodys = this.context.create().resource("/Notifications/aa/bb/cc/two",
-            "sling:resourceType", StoredNotifications.RESOURCE_TYPE,
-            StoredNotifications.LINE, "It happened",
-            StoredNotifications.READ, Boolean.FALSE);
+            "sling:resourceType", StoredNotifications.NOTIFICATION_RESOURCE_TYPE,
+            StoredNotifications.LINE_PROPERTY, "It happened",
+            StoredNotifications.READ_PROPERTY, Boolean.FALSE);
 
         final MockSlingJakartaHttpServletResponse response = this.post(this.readBy(nobodys, RECIPIENT));
 
@@ -160,10 +160,10 @@ class MarkReadServletTest
     private Resource notification()
     {
         return this.context.create().resource("/Notifications/aa/bb/cc/one",
-            "sling:resourceType", StoredNotifications.RESOURCE_TYPE,
-            StoredNotifications.RECIPIENT, RECIPIENT,
-            StoredNotifications.LINE, "It happened",
-            StoredNotifications.READ, Boolean.FALSE);
+            "sling:resourceType", StoredNotifications.NOTIFICATION_RESOURCE_TYPE,
+            StoredNotifications.RECIPIENT_PROPERTY, RECIPIENT,
+            StoredNotifications.LINE_PROPERTY, "It happened",
+            StoredNotifications.READ_PROPERTY, Boolean.FALSE);
     }
 
     /** The mock resolver reports no user of its own, so who is asking is said here. */

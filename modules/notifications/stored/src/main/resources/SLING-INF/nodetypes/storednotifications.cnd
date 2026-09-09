@@ -69,9 +69,9 @@
   // What happened, as the event name the notification was raised with
   - event (STRING)
 
-  // The path of what it happened to, for a list entry to link to; the target may well be gone by the time
-  // somebody follows it, which the deletion machinery explains better than a broken link would
-  - subject (STRING)
+  // What it happened to, for a list entry to link to. A path rather than a reference: the target may well
+  // be gone by the time somebody follows it, and a path is what the deletion machinery can explain
+  - subject (PATH)
 
   // Who caused it, when somebody did
   - actor (STRING)

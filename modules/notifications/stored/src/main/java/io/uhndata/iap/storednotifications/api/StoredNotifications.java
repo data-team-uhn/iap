@@ -26,22 +26,22 @@ package io.uhndata.iap.storednotifications.api;
 public final class StoredNotifications
 {
     /** The path of the homepage holding every stored notification. */
-    public static final String PATH = "/Notifications";
+    public static final String HOMEPAGE_PATH = "/Notifications";
 
     /** The resource type of the homepage. */
     public static final String HOMEPAGE_RESOURCE_TYPE = "notif/Homepage";
 
     /** The resource type of one stored notification. */
-    public static final String RESOURCE_TYPE = "notif/Notification";
+    public static final String NOTIFICATION_RESOURCE_TYPE = "notif/Notification";
 
     /** The property naming who a notification is for. */
-    public static final String RECIPIENT = "recipient";
+    public static final String RECIPIENT_PROPERTY = "recipient";
 
     /** The property carrying the rendered one-sentence form a list shows. */
-    public static final String LINE = "line";
+    public static final String LINE_PROPERTY = "line";
 
     /** The property saying whether the recipient has seen it. */
-    public static final String READ = "read";
+    public static final String READ_PROPERTY = "read";
 
     private StoredNotifications()
     {

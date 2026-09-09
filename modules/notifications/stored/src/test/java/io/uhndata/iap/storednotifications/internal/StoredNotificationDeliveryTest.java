@@ -84,7 +84,7 @@ class StoredNotificationDeliveryTest
     @BeforeEach
     void setUp() throws Exception
     {
-        this.context.create().resource(StoredNotifications.PATH,
+        this.context.create().resource(StoredNotifications.HOMEPAGE_PATH,
             "sling:resourceType", StoredNotifications.HOMEPAGE_RESOURCE_TYPE);
         this.submission = this.context.create().resource("/Submissions/one", "title", "A long weekend");
         final var users = ((JackrabbitSession) this.context.resourceResolver().adaptTo(Session.class))
@@ -112,8 +112,8 @@ class StoredNotificationDeliveryTest
         final Resource stored = this.storedNotification();
         assertNotNull(stored);
         assertEquals("Your request “A long weekend” was approved for 3 days",
-            stored.getValueMap().get(StoredNotifications.LINE, String.class));
-        assertEquals("the-requester", stored.getValueMap().get(StoredNotifications.RECIPIENT, String.class));
+            stored.getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
+        assertEquals("the-requester", stored.getValueMap().get(StoredNotifications.RECIPIENT_PROPERTY, String.class));
         assertEquals("approved", stored.getValueMap().get("event", String.class));
         assertEquals("/Submissions/one", stored.getValueMap().get("subject", String.class));
         assertEquals(NotificationContext.IMMEDIATE, stored.getValueMap().get("urgency", String.class));
@@ -141,7 +141,7 @@ class StoredNotificationDeliveryTest
 
         final Resource stored = this.storedNotification();
         assertEquals("A long weekend: approved",
-            stored.getValueMap().get(StoredNotifications.LINE, String.class));
+            stored.getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
         assertNull(stored.getValueMap().get("actor", String.class));
     }
 
@@ -156,7 +156,7 @@ class StoredNotificationDeliveryTest
             this.notification("/libs/iap/notificationTemplates/gone"), this.requester));
 
         assertEquals("A long weekend: approved",
-            this.storedNotification().getValueMap().get(StoredNotifications.LINE, String.class));
+            this.storedNotification().getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
     }
 
     @Test
@@ -167,7 +167,7 @@ class StoredNotificationDeliveryTest
         assertTrue(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
 
         assertEquals("${nonsense} was approved",
-            this.storedNotification().getValueMap().get(StoredNotifications.LINE, String.class));
+            this.storedNotification().getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
     }
 
     // A wording folder may say the empty thing, which is still nothing to list
@@ -294,7 +294,7 @@ class StoredNotificationDeliveryTest
     /** The one stored notification, found through the prefix tree, or {@code null} when nothing was stored. */
     private Resource storedNotification()
     {
-        return this.find(this.context.resourceResolver().getResource(StoredNotifications.PATH), 0);
+        return this.find(this.context.resourceResolver().getResource(StoredNotifications.HOMEPAGE_PATH), 0);
     }
 
     private Resource find(final Resource under, final int depth)
