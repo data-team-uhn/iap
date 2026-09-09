@@ -150,8 +150,8 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Lets the one recipient read, and mark as read, what was stored for them. Everything else about the node
-     * stays invisible to everybody. That is what makes a listing on the reader's own session already filtered.
+     * Lets the one recipient read, and mark as read, what was stored for them. Nobody else can see it, with
+     * the standing exception of an administrative session, which access control does not apply to at all.
      *
      * @param resolver this delivery's own session
      * @param path the stored notification

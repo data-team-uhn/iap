@@ -27,8 +27,8 @@ end
 
 # Enough for a signed-in reader to traverse down to their own notifications, and not one node more: the homepage
 # and the prefix-tree buckets (plain folders) are readable, while each notif:Notification below them is invisible
-# until the delivery grants its one recipient read on it. A listing therefore never needs filtering code - the
-# repository already answered who may see what.
+# until the delivery grants its one recipient read on it. This is most of the filtering, not all of it: an
+# administrative session bypasses access control, so the listing also asks for its own recipient by name.
 set ACL on /Notifications
     allow jcr:read for everyone restriction(rep:ntNames,notif:Homepage,sling:Folder)
 end

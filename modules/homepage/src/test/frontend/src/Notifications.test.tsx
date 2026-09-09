@@ -95,6 +95,21 @@ describe("Notifications", () => {
       "/Notifications/aa/bb/cc/two.markRead.json", { method: "POST" });
   });
 
+  // Asking for one's own is not left to access control, which an administrative session bypasses
+  it("asks only for the caller's own notifications", async () => {
+    servesNotifications([ row("one", false) ]);
+
+    render(<Notifications />);
+
+    await waitFor(() => {
+      expect(doFetch).toHaveBeenCalled();
+    });
+    const requested = doFetch.mock.calls.map(call => String(call[0]))
+      .find(url => url.startsWith("/Notifications.paginate.json"));
+    expect(requested).toContain("fieldName=recipient");
+    expect(requested).toContain("fieldValue=%40me");
+  });
+
   it("says so when there are no notifications", async () => {
     servesNotifications([]);
     render(<Notifications />);

@@ -37,11 +37,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.storednotifications.api.StoredNotifications;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link MarkReadServlet}: the repository decides who may flip the marker, and the servlet only carries
- * the answer.
+ * Tests for {@link MarkReadServlet}. Both halves of "may they?" are exercised: what access control says, and
+ * whether the notification is the caller's at all.
  *
  * @version $Id$
  * @since 0.1.0
@@ -49,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class MarkReadServletTest
 {
+    private static final String RECIPIENT = "the-requester";
+
     private final SlingContext context = new SlingContext();
 
     private final MarkReadServlet servlet = new MarkReadServlet();
@@ -58,7 +61,7 @@ class MarkReadServletTest
     {
         final Resource notification = this.notification();
 
-        final MockSlingJakartaHttpServletResponse response = this.post(notification);
+        final MockSlingJakartaHttpServletResponse response = this.post(this.readBy(notification, RECIPIENT));
 
         assertEquals(HttpServletResponse.SC_OK, response.getStatus());
         assertTrue(response.getOutputAsString().contains("ok"));
@@ -69,7 +72,7 @@ class MarkReadServletTest
     @Test
     void markingItAgainIsFine() throws IOException
     {
-        final Resource notification = this.notification();
+        final Resource notification = this.readBy(this.notification(), RECIPIENT);
 
         this.post(notification);
         final MockSlingJakartaHttpServletResponse response = this.post(notification);
@@ -98,11 +101,40 @@ class MarkReadServletTest
         assertTrue(response.getOutputAsString().contains("error"));
     }
 
+    // The case access control cannot catch: this session may write the node and still has no business
+    // marking it, which is every administrator's session
+    @Test
+    void refusesSomebodyElsesNotificationTheyCanWrite() throws IOException
+    {
+        final Resource notification = this.notification();
+
+        final MockSlingJakartaHttpServletResponse response =
+            this.post(this.readBy(notification, "an-administrator"));
+
+        assertEquals(HttpServletResponse.SC_FORBIDDEN, response.getStatus());
+        assertNotNull(notification.adaptTo(ModifiableValueMap.class), "the write itself was allowed");
+        assertEquals(Boolean.FALSE, notification.getValueMap().get(StoredNotifications.READ, Boolean.class));
+    }
+
+    // Nobody's to mark, which is what a notification with no recipient recorded on it would be
+    @Test
+    void refusesANotificationThatNamesNobody() throws IOException
+    {
+        final Resource nobodys = this.context.create().resource("/Notifications/aa/bb/cc/two",
+            "sling:resourceType", StoredNotifications.RESOURCE_TYPE,
+            StoredNotifications.LINE, "It happened",
+            StoredNotifications.READ, Boolean.FALSE);
+
+        final MockSlingJakartaHttpServletResponse response = this.post(this.readBy(nobodys, RECIPIENT));
+
+        assertEquals(HttpServletResponse.SC_FORBIDDEN, response.getStatus());
+    }
+
     @Test
     void reportsAWriteThatCouldNotBeSaved() throws IOException
     {
         final Resource notification = this.notification();
-        final ResourceResolver failing = new ResourceResolverWrapper(this.context.resourceResolver())
+        final ResourceResolver failing = new ResourceResolverWrapper(this.sessionOf(RECIPIENT))
         {
             @Override
             public void commit() throws PersistenceException
@@ -129,9 +161,35 @@ class MarkReadServletTest
     {
         return this.context.create().resource("/Notifications/aa/bb/cc/one",
             "sling:resourceType", StoredNotifications.RESOURCE_TYPE,
-            StoredNotifications.RECIPIENT, "the-requester",
+            StoredNotifications.RECIPIENT, RECIPIENT,
             StoredNotifications.LINE, "It happened",
             StoredNotifications.READ, Boolean.FALSE);
+    }
+
+    /** The mock resolver reports no user of its own, so who is asking is said here. */
+    private ResourceResolver sessionOf(final String userId)
+    {
+        return new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public String getUserID()
+            {
+                return userId;
+            }
+        };
+    }
+
+    private Resource readBy(final Resource target, final String userId)
+    {
+        final ResourceResolver session = this.sessionOf(userId);
+        return new ResourceWrapper(target)
+        {
+            @Override
+            public ResourceResolver getResourceResolver()
+            {
+                return session;
+            }
+        };
     }
 
     private MockSlingJakartaHttpServletResponse post(final Resource target) throws IOException

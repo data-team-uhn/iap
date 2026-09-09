@@ -28,6 +28,7 @@ import {
   type Notification,
   NOTIFICATIONS_PATH,
   parseNotification,
+  RECIPIENT,
 } from "./notificationsModel";
 
 // The notification bell's I/O, in one place: what it polls for, how often, and what marking
@@ -48,6 +49,7 @@ const list = async (fetchUtil: AuthenticatedFetch): Promise<Notification[]> => {
     limit: LIMIT,
     sortBy: "jcr:created",
     descending: true,
+    filters: [ { name: RECIPIENT, value: "@me" } ],
   });
   return page.rows.map(parseNotification);
 };

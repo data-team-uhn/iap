@@ -20,14 +20,17 @@
 // fetch: everything here is a pure function of its arguments. The I/O that uses it is in
 // useNotifications.
 //
-// There is no "mine" parameter anywhere. Each notification is readable by exactly one account, its
-// recipient, so listing on the caller's own session already answers "my notifications": the
-// repository did the filtering.
+// A listing asks for its own recipient by name, and is read on the caller's own session, which can
+// see nobody else's notification. Belt and braces on purpose: access control does not apply to an
+// administrative session, and an administrator asking for everyone's would mark them all read.
 
 import { type EntityRow } from "@iap/frontend-commons/entityGrid/pagination";
 
 /** Where the stored notifications live. */
 export const NOTIFICATIONS_PATH = "/Notifications";
+
+/** The property naming who a notification is for. `@me` is resolved to the caller by the server. */
+export const RECIPIENT = "recipient";
 
 /** One thing the current user was told. */
 export interface Notification {

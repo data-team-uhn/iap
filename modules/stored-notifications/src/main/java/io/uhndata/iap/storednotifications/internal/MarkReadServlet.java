@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.storednotifications.api.StoredNotifications;
+import io.uhndata.iap.utils.UserIds;
 
 /**
  * Marks one stored notification as read: {@code POST /Notifications/…/<id>.markRead.json}.
@@ -47,10 +48,11 @@ import io.uhndata.iap.storednotifications.api.StoredNotifications;
  * </p>
  *
  * <p>
- * The write goes through the caller's own session, so who may flip the marker is the repository's answer
- * rather than this servlet's. The delivery granted exactly one person write on each notification. Everybody
- * else cannot even see the node, and gets the refusal the repository gives them everywhere. Marking an
- * already-read notification read again is fine and does nothing: reading twice is not an event.
+ * Two answers have to agree: the repository must give the caller's own session a writable view, and the
+ * notification must name them as its recipient. The second is not redundant. An administrative session
+ * bypasses access control, so on the repository's answer alone an administrator opening their own bell would
+ * mark everybody's notifications read. Marking an already-read notification read again is fine and does
+ * nothing: reading twice is not an event.
  * </p>
  *
  * @version $Id$
@@ -70,10 +72,19 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         final Resource target = request.getResource();
-        // Asking the repository for a writable view is how "may they?" is decided. It answers for whatever
-        // access control is configured; comparing names would answer for one deployment only.
+        // Whatever access control is configured, asked of the caller's own session
         final ModifiableValueMap writable = target.adaptTo(ModifiableValueMap.class);
         if (writable == null) {
+            reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark");
+            return;
+        }
+        // And whose it is, because an administrative session is handed a writable view of everything.
+        // A notification naming nobody is nobody's to mark, which is why the recipient is asked first
+        final String recipient = writable.get(StoredNotifications.RECIPIENT, String.class);
+        final String caller = UserIds.canonical(target.getResourceResolver());
+        if (recipient == null || !recipient.equals(caller)) {
+            LOGGER.info("{} may write {} but is not its recipient, so the marker stays as it is",
+                caller, target.getPath());
             reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark");
             return;
         }
