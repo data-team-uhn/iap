@@ -84,10 +84,12 @@ public class OidcEndSessionServlet extends SlingJakartaSafeMethodsServlet
     protected void doGet(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
         throws IOException
     {
-        if (this.endSessionEndpoint == null || this.endSessionEndpoint.isEmpty())
+        if (this.endSessionEndpoint == null || !(this.endSessionEndpoint.startsWith("http://")
+            || this.endSessionEndpoint.startsWith("https://")))
         {
-            LOGGER.error("The end session endpoint is not configured during OidcEndSessionServlet logout");
-            response.sendError(500, "The end session endpoint is not configured; please let an administrator know");
+            LOGGER.error("The end session endpoint is not configured or is missing a protocol (http:// or https://)");
+            response.sendError(500, "The end session endpoint is not configured properly or is missing a protocol "
+                + "(http:// or https://); please let an administrator know");
             return;
         }
 
