@@ -163,13 +163,15 @@ public class EmailDelivery implements NotificationDelivery
      * say about itself.
      *
      * @param notification what happened
-     * @return the variables, as the strings a template substitutes
+     * @return the variables, under the names a template refers to them by
      */
-    private static Map<String, String> variables(final NotificationContext notification)
+    private static Map<String, Object> variables(final NotificationContext notification)
     {
-        final Map<String, String> variables = new HashMap<>();
-        notification.getVariables().forEach((name, value) -> variables.put(name, Objects.toString(value, "")));
-        // Always available, so that a template can name them without the workflow having to pass them
+        final Map<String, Object> variables = new HashMap<>(notification.getVariables());
+        // Always available, so that a template can name them without the workflow having to pass them. The
+        // subject is the resource, not a rendering of it, so that wording can read a property nobody here
+        // thought to pass; the two shorthands beside it are what most wording actually needs
+        variables.put("subject", notification.getSubject());
         variables.put("subjectPath", notification.getSubject().getPath());
         variables.put("subjectTitle", notification.getSubject().getValueMap().get("title", ""));
         variables.put("event", notification.getEvent());

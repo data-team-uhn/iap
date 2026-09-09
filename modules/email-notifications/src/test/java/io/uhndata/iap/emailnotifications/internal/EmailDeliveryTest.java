@@ -198,6 +198,30 @@ class EmailDeliveryTest
         assertEquals("Approved for 3 days", subject.getValue());
     }
 
+    // The subject travels as the resource, so wording can read a property nobody thought to pass. Worth a test
+    // of its own because the engine is sandboxed: SecureUberspector decides what a template may call
+    @Test
+    void letsWordingReadTheSubjectItself() throws Exception
+    {
+        final Resource referenced = this.context.create().resource("/Submissions/two",
+            "title", "A long weekend", "reference", "REQ-42");
+        this.context.create().resource(TEMPLATE, Map.of("jcr:primaryType", "sling:Folder"));
+        this.context.create().resource(EMAIL, Map.of(
+            "jcr:primaryType", "sling:Folder",
+            "senderAddress", "platform@example.com",
+            "subject", "${subject.valueMap.get('reference')} at ${subject.path}"));
+        this.file(EMAIL + "/bodyTemplate.txt", "text/plain", "Body");
+
+        this.delivery.deliver(NotificationContext.about(referenced)
+            .becauseOf("approved")
+            .using(TEMPLATE)
+            .build(), this.requester);
+
+        final ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(this.builder).subject(subject.capture());
+        assertEquals("REQ-42 at /Submissions/two", subject.getValue());
+    }
+
     @Test
     void declinesAnythingThatIsNotImmediate() throws Exception
     {
