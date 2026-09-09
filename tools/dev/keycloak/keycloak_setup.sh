@@ -39,7 +39,7 @@
 #   IAP_PUBLIC_URL        public base URL of IAP, for the redirect URI (default: http://localhost:8080)
 #   KEYCLOAK_ROLES        space-separated realm roles to create (default: "reader writer admin")
 #   GROUPS_CLAIM          token claim name for the roles mapper (default: groups)
-#   KEYCLOAK_GENERATE_TEST_USER   set to 1 to create a test user (default: 0)
+#   KEYCLOAK_GENERATE_TEST_USER   set to 0 to skip creating a test user (default: 1)
 #   TEST_USER / TEST_PASSWORD / TEST_USER_ROLE   the test user (default: test/test/writer)
 
 set -euo pipefail
@@ -73,7 +73,7 @@ CLIENT_ID="${KEYCLOAK_CLIENT_ID:-iap-sling}"
 IAP_PUBLIC_URL="${IAP_PUBLIC_URL:-http://localhost:8080}"
 ROLES="${KEYCLOAK_ROLES:-reader writer admin}"
 GROUPS_CLAIM="${GROUPS_CLAIM:-groups}"
-CREATE_TEST_USER="${KEYCLOAK_GENERATE_TEST_USER:-0}"
+CREATE_TEST_USER="${KEYCLOAK_GENERATE_TEST_USER:-1}"
 TEST_USER="${TEST_USER:-test}"
 TEST_PASSWORD="${TEST_PASSWORD:-test}"
 TEST_USER_ROLE="${TEST_USER_ROLE:-writer}"
@@ -82,6 +82,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
 
 REDIRECT_URI="${IAP_PUBLIC_URL%/}/system/sling/oauth/callback"
+# Where Keycloak returns the browser after an RP-initiated logout; must match the servlet's
+# post_logout_redirect_uri ($[env:IAP_PUBLIC_URL]/login) and be registered on the client.
+POST_LOGOUT_REDIRECT_URI="${IAP_PUBLIC_URL%/}/login"
 
 # ---- kcadm wrapper -------------------------------------------------------------
 # Runs a kcadm command, either via a local kcadm.sh (KC_CADM) or inside the
@@ -145,7 +148,7 @@ done
 
 # ---- confidential client -------------------------------------------------------
 # Look up the client's internal id; create it if absent. PKCE (S256) is enforced
-# to match pkceEnabled=true in core/oidc.json.
+# to match pkceEnabled=true in the OIDC support feature.
 client_uuid() {
     kc get clients -r "$REALM" -q "clientId=${CLIENT_ID}" --fields id --format csv --noquotes 2>/dev/null | tr -d '\r' | head -n1
 }
@@ -160,14 +163,16 @@ if [[ -z "$CID" ]]; then
         -s serviceAccountsEnabled=false \
         -s "redirectUris=[\"${REDIRECT_URI}\"]" \
         -s "webOrigins=[\"${IAP_PUBLIC_URL%/}\"]" \
+        -s 'attributes."post.logout.redirect.uris"='"${POST_LOGOUT_REDIRECT_URI}" \
         -s 'attributes."pkce.code.challenge.method"=S256' >/dev/null
     CID="$(client_uuid)"
     echo -e "${GREEN}created client '${CLIENT_ID}'${DEFAULT}"
 else
     kc update "clients/${CID}" -r "$REALM" \
         -s "redirectUris=[\"${REDIRECT_URI}\"]" \
-        -s "webOrigins=[\"${IAP_PUBLIC_URL%/}\"]" >/dev/null
-    echo -e "${BLUE}client '${CLIENT_ID}' already exists (redirect URI refreshed)${DEFAULT}"
+        -s "webOrigins=[\"${IAP_PUBLIC_URL%/}\"]" \
+        -s 'attributes."post.logout.redirect.uris"='"${POST_LOGOUT_REDIRECT_URI}" >/dev/null
+    echo -e "${BLUE}client '${CLIENT_ID}' already exists (redirect URIs refreshed)${DEFAULT}"
 fi
 
 # ---- realm-role -> groups claim mapper -----------------------------------------
@@ -215,7 +220,8 @@ echo    "  export KEYCLOAK_CLIENT_ID=${CLIENT_ID}"
 echo    "  export KEYCLOAK_CLIENT_SECRET=${SECRET}"
 echo    "  export IAP_OAUTH_ENCRYPTION_PASSWORD=devpassword # replace with any actual password"
 echo -e "${DEFAULT}"
-echo    "(KEYCLOAK_BASE_URL must be the realm URL that IAP can reach; adjust the host if"
+echo    "(BACKEND_KEYCLOAK_REALM_URL must be the realm URL that IAP can reach, and"
+echo    " FRONTEND_KEYCLOAK_REALM_URL must be the realm URL that users can reach; adjust the host if"
 echo    " IAP and Keycloak are on different networks.)"
 
 # ---- optionally sync the compose .env ------------------------------------------
