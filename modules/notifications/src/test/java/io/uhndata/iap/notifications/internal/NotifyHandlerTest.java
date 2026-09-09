@@ -125,7 +125,7 @@ class NotifyHandlerTest
     @Test
     void hasItsAdvertisedName()
     {
-        assertEquals(NotifyHandler.NAME, this.handler.getName());
+        assertEquals(NotifyHandler.HANDLER_NAME, this.handler.getName());
     }
 
     @Test

@@ -67,29 +67,29 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 public class NotifyHandler implements ServiceTaskHandler
 {
     /** The name activities use to point at this handler. */
-    public static final String NAME = "notify";
+    public static final String HANDLER_NAME = "notify";
 
     /** The activity property naming the template folder. */
-    static final String TEMPLATE = "template";
+    static final String TEMPLATE_PARAMETER = "template";
 
     /** The activity property listing the roles to tell. */
-    static final String NOTIFY = "notify";
+    static final String NOTIFY_ROLES_PARAMETER = "notify";
 
     /** The activity property saying how soon they should hear. */
-    static final String URGENCY = "urgency";
+    static final String URGENCY_PARAMETER = "urgency";
 
     /**
      * The activity property naming what happened. Separate from the node's own id, so that two nodes can
      * report the same event with different wording. It also means a user setting keys on something a
      * definition chose, not on whatever the node happened to be called.
      */
-    static final String EVENT = "event";
+    static final String EVENT_NAME_PARAMETER = "event";
 
     /** The payload entry carrying the decision a person just made, when this follows a completed task. */
-    static final String OUTCOME = "outcome";
+    static final String OUTCOME_ENTRY = "outcome";
 
     /** The payload entry carrying what they said about it. */
-    static final String OUTCOME_NOTE = "outcomeNote";
+    static final String OUTCOME_NOTE_ENTRY = "outcomeNote";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NotifyHandler.class);
 
@@ -99,31 +99,31 @@ public class NotifyHandler implements ServiceTaskHandler
     @Override
     public String getName()
     {
-        return NAME;
+        return HANDLER_NAME;
     }
 
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException
     {
         final Activity activity = context.getActivity();
-        final String[] named = activity.get(NOTIFY, String[].class);
+        final String[] named = activity.get(NOTIFY_ROLES_PARAMETER, String[].class);
         final List<String> roles = named == null ? List.of() : Arrays.asList(named);
         if (roles.isEmpty()) {
             // Said out loud: a notify task that tells nobody is a definition somebody meant to finish
             LOGGER.warn("The notification task {} names nobody to tell", activity.getPath());
             return;
         }
-        final String event = activity.get(EVENT, String.class);
+        final String event = activity.get(EVENT_NAME_PARAMETER, String.class);
         final NotificationContext.Builder builder = NotificationContext.about(context.getTarget())
             .becauseOf(event == null ? activity.getElementId() : event)
             .by(context.getActor())
-            .urgency(activity.get(URGENCY, String.class))
-            .using(activity.get(TEMPLATE, String.class));
+            .urgency(activity.get(URGENCY_PARAMETER, String.class))
+            .using(activity.get(TEMPLATE_PARAMETER, String.class));
         // What the person deciding chose and what they said about it, so that wording can quote the reason a
         // request was refused. Only when they are actually there: a template asks `#if($outcomeNote)`, and a
         // variable that is always present but sometimes empty would answer that question wrongly
-        carry(context, builder, OUTCOME);
-        carry(context, builder, OUTCOME_NOTE);
+        carry(context, builder, OUTCOME_ENTRY);
+        carry(context, builder, OUTCOME_NOTE_ENTRY);
         final NotificationContext notification = builder.build();
         try {
             this.notifications.notify(notification, roles);
