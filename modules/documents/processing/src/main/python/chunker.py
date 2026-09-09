@@ -36,8 +36,6 @@ Every chunk is listed in ``catalog.json``::
     [
       {
         "chunk_id": "Chunk-1.md",
-        "summary": "",
-        "rubric_tags": [],
         "pageStart": 1,
         "pageEnd": 2
       }, ...
@@ -463,8 +461,6 @@ def build_chunk_tree(
         chunks.append({"file": name, "text": text})
         catalog_chunks.append({
             "chunk_id": name,
-            "summary": "",
-            "rubric_tags": [],
             "pageStart": page_start,
             "pageEnd": page_end,
         })
