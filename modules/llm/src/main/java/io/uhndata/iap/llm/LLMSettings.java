@@ -20,6 +20,10 @@ package io.uhndata.iap.llm;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Immutable snapshot of the settings for the active LLM provider and model, resolved from the JCR
@@ -58,7 +62,8 @@ public final class LLMSettings
 
     private static final long DEFAULT_TIMEOUT_SECONDS = 120;
 
-    private static final long DEFAULT_MAX_OUTPUT_TOKENS = 1000;
+    /** Matches the CND default for {@code maxOutputTokens} ({@code llms.cnd}); keep the two in step. */
+    private static final long DEFAULT_MAX_OUTPUT_TOKENS = 2000;
 
     private final String providerName;
 
@@ -76,8 +81,8 @@ public final class LLMSettings
      * @param modelName the name of the active model node
      * @param modelProperties the properties of the active model node
      */
-    public LLMSettings(final String providerName, final Map<String, Object> providerProperties,
-        final String modelName, final Map<String, Object> modelProperties)
+    public LLMSettings(@NotNull final String providerName, @Nullable final Map<String, Object> providerProperties,
+        @NotNull final String modelName, @Nullable final Map<String, Object> modelProperties)
     {
         this.providerName = providerName;
         this.modelName = modelName;
@@ -92,6 +97,7 @@ public final class LLMSettings
      *
      * @return the provider node name
      */
+    @NotNull
     public String getProviderName()
     {
         return this.providerName;
@@ -102,6 +108,7 @@ public final class LLMSettings
      *
      * @return the model node name
      */
+    @NotNull
     public String getModelName()
     {
         return this.modelName;
@@ -112,6 +119,7 @@ public final class LLMSettings
      *
      * @return the endpoint URL, or {@code null} if not set
      */
+    @Nullable
     public String getEndpoint()
     {
         return string(this.providerProperties, ENDPOINT);
@@ -122,6 +130,7 @@ public final class LLMSettings
      *
      * @return the environment variable name, or {@code null} if not set
      */
+    @Nullable
     public String getApiKeyEnvVar()
     {
         return string(this.providerProperties, API_KEY_ENV_VAR);
@@ -206,6 +215,7 @@ public final class LLMSettings
      *
      * @return the developer name, or {@code null} if not set
      */
+    @Nullable
     public String getDeveloper()
     {
         return string(this.modelProperties, DEVELOPER);
@@ -218,7 +228,8 @@ public final class LLMSettings
      * @param name the property name
      * @return the property value as a string, or {@code null} if not set
      */
-    public String getProviderProperty(final String name)
+    @Nullable
+    public String getProviderProperty(@NotNull final String name)
     {
         return string(this.providerProperties, name);
     }
@@ -229,9 +240,31 @@ public final class LLMSettings
      * @param name the property name
      * @return the property value as a string, or {@code null} if not set
      */
-    public String getModelProperty(final String name)
+    @Nullable
+    public String getModelProperty(@NotNull final String name)
     {
         return string(this.modelProperties, name);
+    }
+
+    @Override
+    public boolean equals(final Object other)
+    {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof LLMSettings)) {
+            return false;
+        }
+        final LLMSettings that = (LLMSettings) other;
+        return this.providerName.equals(that.providerName) && this.modelName.equals(that.modelName)
+            && this.providerProperties.equals(that.providerProperties)
+            && this.modelProperties.equals(that.modelProperties);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(this.providerName, this.modelName, this.providerProperties, this.modelProperties);
     }
 
     private static String string(final Map<String, Object> properties, final String key)

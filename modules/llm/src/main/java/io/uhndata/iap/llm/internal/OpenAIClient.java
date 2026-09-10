@@ -18,26 +18,20 @@
 package io.uhndata.iap.llm.internal;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import jakarta.json.Json;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
-import jakarta.json.JsonString;
-import jakarta.json.JsonValue;
+import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -45,6 +39,8 @@ import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.llm.DefaultLLMClient;
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMConfigurationService;
@@ -64,6 +60,12 @@ import io.uhndata.iap.llm.LLMSettings;
  * verbatim through the model's {@code customParameters} (serialized as top-level request fields). All settings
  * come from the active provider and model in the JCR LLM configuration.
  *
+ * <p>
+ * Building an {@link OpenAiChatModel} sets up its own HTTP client, so the last one built is kept and reused as
+ * long as the settings and per-call options that shaped it have not changed, rather than rebuilding it for
+ * every chat call.
+ * </p>
+ *
  * @version $Id$
  * @since 0.1.0
  */
@@ -76,6 +78,20 @@ public class OpenAIClient extends DefaultLLMClient
     private static final String CHAT_COMPLETIONS_PATH = "/chat/completions";
 
     private static final String PROJECT_ID = "projectId";
+
+    /**
+     * How long to wait for the TCP connection to the provider to be established. Kept short and separate from
+     * the read timeout (the active provider's configured {@code timeoutSeconds}, which for a slow model can
+     * legitimately run to several minutes): without this, a provider that accepts a connection but never
+     * completes it ties up the calling thread for as long as the read timeout allows, and since this call runs
+     * synchronously inside a request to this server, enough stuck providers exhaust its thread pool.
+     */
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /** The model built for the most recent settings/options combination, reused while neither has changed. */
+    private volatile CachedModel cachedModel;
 
     @Reference
     void bindConfigurationService(final LLMConfigurationService service)
@@ -98,29 +114,56 @@ public class OpenAIClient extends DefaultLLMClient
     protected String doChat(final String systemPrompt, final List<LLMMessage> messages,
         final LLMRequestOptions options) throws IOException
     {
-        final LLMSettings settings = getConfigurationService().getActiveSettings();
-        final OpenAiChatModel model = buildModel(settings, options);
         try {
+            final LLMSettings settings = getConfigurationService().getActiveSettings();
+            final OpenAiChatModel model = modelFor(settings, options);
             final ChatResponse response = model.chat(toChatMessages(systemPrompt, messages));
             return response.aiMessage().text();
+        } catch (final IOException e) {
+            ErrorLogger.logError(e, ErrorContext.of(OpenAIClient.class, "doChat"));
+            throw e;
         } catch (final RuntimeException e) {
             // LangChain4j signals transport / HTTP / provider errors with runtime exceptions; the pipeline
             // expects an IOException it can surface to the servlet, so translate rather than let it escape raw.
+            ErrorLogger.logError(e, ErrorContext.of(OpenAIClient.class, "doChat"));
             throw new IOException("OpenAI-compatible LLM request failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * The model built for this settings/options combination, reusing the previous one when neither has
+     * changed since. Not synchronized: two concurrent calls that both miss the cache each build their own
+     * model, which is wasted work but not a correctness problem, and cheaper than serializing every call
+     * through a lock for the common case where nothing has changed.
+     *
+     * @param settings the active settings
+     * @param options the per-call options, or {@code null}
+     * @return a model matching this settings/options combination
+     */
+    private OpenAiChatModel modelFor(final LLMSettings settings, final LLMRequestOptions options)
+    {
+        final CachedModel current = this.cachedModel;
+        if (current != null && current.settings.equals(settings) && Objects.equals(current.options, options)) {
+            return current.model;
+        }
+        final OpenAiChatModel model = buildModel(settings, options);
+        this.cachedModel = new CachedModel(settings, options, model);
+        return model;
     }
 
     private OpenAiChatModel buildModel(final LLMSettings settings, final LLMRequestOptions options)
     {
         final long maxTokens = options == null
             ? settings.getMaxOutputTokens() : options.resolveMaxOutputTokens(settings.getMaxOutputTokens());
+        final JdkHttpClientBuilder httpClientBuilder = new JdkHttpClientBuilder()
+            .connectTimeout(CONNECT_TIMEOUT)
+            .readTimeout(Duration.ofSeconds(settings.getTimeoutSeconds()));
         final OpenAiChatModel.OpenAiChatModelBuilder builder = OpenAiChatModel.builder()
-            .httpClientBuilder(new JdkHttpClientBuilder())
+            .httpClientBuilder(httpClientBuilder)
             .baseUrl(resolveBaseUrl(settings.getEndpoint()))
             .modelName(settings.getModelName())
             .temperature(settings.getTemperature())
             .maxTokens((int) maxTokens)
-            .timeout(Duration.ofSeconds(settings.getTimeoutSeconds()))
             .customParameters(customParameters(settings, options));
         final String apiKey = resolveApiKey(settings);
         if (StringUtils.isNotBlank(apiKey)) {
@@ -193,10 +236,20 @@ public class OpenAIClient extends DefaultLLMClient
         return format;
     }
 
+    /**
+     * Parse a JSON Schema string into plain Java objects (maps, lists, strings, numbers, booleans, null) so
+     * LangChain4j's Jackson serializer emits it as native nested JSON in the request body, rather than escaping
+     * it as a string.
+     *
+     * @param schema the JSON Schema, as raw JSON text
+     * @return the equivalent plain Java object
+     */
     private static Object parseSchema(final String schema)
     {
-        try (JsonReader reader = Json.createReader(new StringReader(schema))) {
-            return toJava(reader.readValue());
+        try {
+            return OBJECT_MAPPER.readValue(schema, Object.class);
+        } catch (final JsonProcessingException e) {
+            throw new IllegalArgumentException("The response schema is not valid JSON: " + e.getMessage(), e);
         }
     }
 
@@ -225,58 +278,24 @@ public class OpenAIClient extends DefaultLLMClient
     }
 
     /**
-     * Convert a parsed {@code jakarta.json} value into plain Java objects (maps, lists, strings, numbers,
-     * booleans, null) so LangChain4j's Jackson serializer emits it as native nested JSON in the request body,
-     * rather than trying to serialize the {@code jakarta.json} types as beans.
+     * The model built for one settings/options combination, kept so an unchanged combination is not rebuilt.
      *
-     * @param value the parsed JSON value
-     * @return the equivalent plain Java object
+     * @version $Id$
+     * @since 0.1.0
      */
-    private static Object toJava(final JsonValue value)
+    private static final class CachedModel
     {
-        final Object result;
-        final JsonValue.ValueType type = value.getValueType();
-        if (type == JsonValue.ValueType.OBJECT) {
-            result = toMap(value.asJsonObject());
-        } else if (type == JsonValue.ValueType.ARRAY) {
-            result = toList(value.asJsonArray());
-        } else if (type == JsonValue.ValueType.STRING) {
-            result = ((JsonString) value).getString();
-        } else if (type == JsonValue.ValueType.NUMBER) {
-            result = toNumber((JsonNumber) value);
-        } else if (type == JsonValue.ValueType.TRUE) {
-            result = Boolean.TRUE;
-        } else if (type == JsonValue.ValueType.FALSE) {
-            result = Boolean.FALSE;
-        } else {
-            result = null;
-        }
-        return result;
-    }
+        private final LLMSettings settings;
 
-    private static Map<String, Object> toMap(final JsonObject object)
-    {
-        final Map<String, Object> map = new LinkedHashMap<>();
-        for (final Map.Entry<String, JsonValue> entry : object.entrySet()) {
-            map.put(entry.getKey(), toJava(entry.getValue()));
-        }
-        return map;
-    }
+        private final LLMRequestOptions options;
 
-    private static List<Object> toList(final JsonArray array)
-    {
-        final List<Object> list = new ArrayList<>();
-        for (final JsonValue item : array) {
-            list.add(toJava(item));
-        }
-        return list;
-    }
+        private final OpenAiChatModel model;
 
-    private static Object toNumber(final JsonNumber number)
-    {
-        if (number.isIntegral()) {
-            return Long.valueOf(number.longValue());
+        CachedModel(final LLMSettings settings, final LLMRequestOptions options, final OpenAiChatModel model)
+        {
+            this.settings = settings;
+            this.options = options;
+            this.model = model;
         }
-        return Double.valueOf(number.doubleValue());
     }
 }

@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.llm;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * A single turn in a conversation: a role ({@code "user"} or {@code "assistant"}) and its text content.
  *
@@ -35,7 +37,7 @@ public final class LLMMessage
      * @param role who is speaking: {@code "user"}, {@code "assistant"} or {@code "system"}
      * @param content the text of the turn
      */
-    public LLMMessage(final String role, final String content)
+    public LLMMessage(@NotNull final String role, @NotNull final String content)
     {
         this.role = role;
         this.content = content;
@@ -46,6 +48,7 @@ public final class LLMMessage
      *
      * @return the role of this turn
      */
+    @NotNull
     public String getRole()
     {
         return this.role;
@@ -56,6 +59,7 @@ public final class LLMMessage
      *
      * @return the content
      */
+    @NotNull
     public String getContent()
     {
         return this.content;

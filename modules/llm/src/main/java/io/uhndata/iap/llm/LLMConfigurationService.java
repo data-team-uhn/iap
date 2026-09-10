@@ -19,6 +19,8 @@ package io.uhndata.iap.llm;
 
 import java.io.IOException;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Service that resolves the active LLM provider and model from the JCR configuration stored under
  * {@code /apps/iap/config/LLM}. The catalog of available providers and models is seeded from initial
@@ -37,5 +39,6 @@ public interface LLMConfigurationService
      * @throws IOException if the configuration is missing, the active selection is not set, or it points to a
      *             provider or model that does not exist
      */
+    @NotNull
     LLMSettings getActiveSettings() throws IOException;
 }

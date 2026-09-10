@@ -19,6 +19,7 @@ package io.uhndata.iap.llm.internal;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -51,7 +52,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class LLMConfigServletTest
 {
-    private static final String CONFIG_PATH = "/apps/iap/config/LLM";
+    private static final String SELECTION_PATH = "/apps/iap/config/LLM";
+
+    private static final String CATALOG_PATH = "/libs/iap/config/LLM";
 
     private static final String ACTIVE_PROVIDER = "activeProvider";
 
@@ -75,21 +78,25 @@ class LLMConfigServletTest
         config.put("title", "LLM Configuration");
         config.put(ACTIVE_PROVIDER, PROVIDER);
         config.put(ACTIVE_MODEL, MODEL);
-        this.context.create().resource(CONFIG_PATH, config);
+        this.context.create().resource(SELECTION_PATH, config);
 
-        this.context.create().resource(CONFIG_PATH + "/" + PROVIDER, Map.of(
+        this.context.create().resource(CATALOG_PATH, Map.of("jcr:primaryType", "nt:unstructured"));
+        this.context.create().resource(CATALOG_PATH + "/" + PROVIDER, Map.of(
             "sling:resourceType", "llm/Provider",
             "label", "Local (Ollama)",
             "api", "openai",
             "endpoint", "http://localhost:11434/v1",
             "timeoutSeconds", 600L));
-        this.context.create().resource(CONFIG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
+        this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
+            "sling:resourceType", "llm/Model",
             "maxOutputTokens", 1024L,
             "temperature", 0.25d,
             "chunked", Boolean.TRUE,
             "developer", "meta"));
-        this.context.create().resource(CONFIG_PATH + "/" + PROVIDER + "/other-model", Map.of(
-            "maxOutputTokens", 2048L));
+        this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/other-model", Map.of(
+            "sling:resourceType", "llm/Model",
+            "maxOutputTokens", 2048L,
+            "chunked", Boolean.FALSE));
     }
 
     private MockSlingJakartaHttpServletRequest request(final Resource resource)
@@ -102,7 +109,7 @@ class LLMConfigServletTest
 
     private MockSlingJakartaHttpServletRequest requestConfig()
     {
-        return request(this.context.resourceResolver().getResource(CONFIG_PATH));
+        return request(this.context.resourceResolver().getResource(SELECTION_PATH));
     }
 
     private JsonObject responseBody(final MockSlingJakartaHttpServletResponse response) throws IOException
@@ -135,6 +142,34 @@ class LLMConfigServletTest
         assertEquals(0.25d, model.getJsonNumber("temperature").doubleValue());
         assertTrue(model.getBoolean("chunked"));
         assertEquals("meta", model.getString("developer"));
+
+        final JsonObject otherModel = provider.getJsonArray("models").getJsonObject(1);
+        assertEquals("other-model", otherModel.getString("name"));
+        assertFalse(otherModel.getBoolean("chunked"));
+    }
+
+    @Test
+    void rendersMultivaluedAndDecimalPropertiesCorrectly() throws IOException
+    {
+        this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/decimal-model", Map.of(
+            "sling:resourceType", "llm/Model",
+            "temperature", new BigDecimal("0.15"),
+            "tags", new String[] { "fast", "cheap" }));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doGet(requestConfig(), response);
+
+        final JsonObject provider = responseBody(response).getJsonArray("providers").getJsonObject(0);
+        JsonObject decimalModel = null;
+        for (final JsonObject model : provider.getJsonArray("models").getValuesAs(JsonObject.class)) {
+            if ("decimal-model".equals(model.getString("name"))) {
+                decimalModel = model;
+            }
+        }
+        assertEquals(new BigDecimal("0.15"), decimalModel.getJsonNumber("temperature").bigDecimalValue());
+        assertEquals(2, decimalModel.getJsonArray("tags").size());
+        assertEquals("fast", decimalModel.getJsonArray("tags").getString(0));
+        assertEquals("cheap", decimalModel.getJsonArray("tags").getString(1));
     }
 
     @Test
@@ -161,6 +196,22 @@ class LLMConfigServletTest
         final JsonObject body = responseBody(response);
         assertFalse(body.containsKey(ACTIVE_PROVIDER));
         assertFalse(body.containsKey(ACTIVE_MODEL));
+        // The catalog is read from its own fixed location, independent of which resource answers the
+        // request, so it is still there even though this resource carries no active selection
+        assertFalse(body.getJsonArray("providers").isEmpty());
+    }
+
+    @Test
+    void servesAnEmptyCatalogWhenTheCatalogNodeIsMissing() throws IOException
+    {
+        this.context.resourceResolver().delete(this.context.resourceResolver().getResource(CATALOG_PATH));
+        this.context.resourceResolver().commit();
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doGet(requestConfig(), response);
+
+        final JsonObject body = responseBody(response);
+        assertEquals(PROVIDER, body.getString(ACTIVE_PROVIDER));
         assertTrue(body.getJsonArray("providers").isEmpty());
     }
 
@@ -176,7 +227,7 @@ class LLMConfigServletTest
         this.servlet.doPost(request, response);
 
         assertEquals("other-model", responseBody(response).getString(ACTIVE_MODEL));
-        assertEquals("other-model", this.context.resourceResolver().getResource(CONFIG_PATH)
+        assertEquals("other-model", this.context.resourceResolver().getResource(SELECTION_PATH)
             .getValueMap().get(ACTIVE_MODEL, String.class));
     }
 
@@ -228,9 +279,74 @@ class LLMConfigServletTest
     }
 
     @Test
+    void refusesAProviderNameThatIsAPathRatherThanAName() throws IOException
+    {
+        final MockSlingJakartaHttpServletRequest request = requestConfig();
+        request.setParameterMap(Map.of(
+            ACTIVE_PROVIDER, "../../evil/provider",
+            ACTIVE_MODEL, MODEL));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request, response);
+
+        assertEquals(400, response.getStatus());
+        assertTrue(responseBody(response).getString("error").contains("provider"));
+    }
+
+    @Test
+    void refusesAModelNameThatIsAPathRatherThanAName() throws IOException
+    {
+        final MockSlingJakartaHttpServletRequest request = requestConfig();
+        request.setParameterMap(Map.of(
+            ACTIVE_PROVIDER, PROVIDER,
+            ACTIVE_MODEL, "../other-model"));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request, response);
+
+        assertEquals(400, response.getStatus());
+        assertTrue(responseBody(response).getString("error").contains("model"));
+    }
+
+    @Test
+    void refusesAProviderNameThatResolvesToSomethingOfTheWrongType() throws IOException
+    {
+        // Same name as a real node under the catalog root, but not itself a provider
+        this.context.create().resource(CATALOG_PATH + "/not-a-provider", Map.of(
+            "sling:resourceType", "nt:unstructured"));
+        final MockSlingJakartaHttpServletRequest request = requestConfig();
+        request.setParameterMap(Map.of(
+            ACTIVE_PROVIDER, "not-a-provider",
+            ACTIVE_MODEL, MODEL));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request, response);
+
+        assertEquals(400, response.getStatus());
+        assertTrue(responseBody(response).getString("error").contains("provider"));
+    }
+
+    @Test
+    void refusesAModelNameThatResolvesToSomethingOfTheWrongType() throws IOException
+    {
+        this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/not-a-model", Map.of(
+            "sling:resourceType", "nt:unstructured"));
+        final MockSlingJakartaHttpServletRequest request = requestConfig();
+        request.setParameterMap(Map.of(
+            ACTIVE_PROVIDER, PROVIDER,
+            ACTIVE_MODEL, "not-a-model"));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request, response);
+
+        assertEquals(400, response.getStatus());
+        assertTrue(responseBody(response).getString("error").contains("model"));
+    }
+
+    @Test
     void refusesToWriteForSomeoneWithoutPermission() throws IOException
     {
-        final Resource real = this.context.resourceResolver().getResource(CONFIG_PATH);
+        final Resource real = this.context.resourceResolver().getResource(SELECTION_PATH);
         final Resource readOnly = Mockito.spy(real);
         Mockito.doReturn(null).when(readOnly).adaptTo(ModifiableValueMap.class);
         final MockSlingJakartaHttpServletRequest request = request(readOnly);

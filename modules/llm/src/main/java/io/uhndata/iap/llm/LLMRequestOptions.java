@@ -17,6 +17,11 @@
  */
 package io.uhndata.iap.llm;
 
+import java.util.Objects;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Per-call overrides for a single {@link LLMClient} request. Every override is optional: an unset value means
  * "fall back to the active model's configured setting" (see {@link LLMSettings}). Two overrides are supported:
@@ -52,6 +57,7 @@ public final class LLMRequestOptions
      *
      * @return a new, empty builder
      */
+    @NotNull
     public static Builder builder()
     {
         return new Builder();
@@ -62,6 +68,7 @@ public final class LLMRequestOptions
      *
      * @return a request-options instance with no overrides
      */
+    @NotNull
     public static LLMRequestOptions defaults()
     {
         return new Builder().build();
@@ -73,6 +80,7 @@ public final class LLMRequestOptions
      * @param maxOutputTokens the maximum number of tokens to generate; must be positive
      * @return a request-options instance carrying the given output-token ceiling
      */
+    @NotNull
     public static LLMRequestOptions withMaxOutputTokens(final long maxOutputTokens)
     {
         return new Builder().maxOutputTokens(maxOutputTokens).build();
@@ -83,6 +91,7 @@ public final class LLMRequestOptions
      *
      * @return the override, or {@code null} when not set
      */
+    @Nullable
     public Long getMaxOutputTokens()
     {
         return this.maxOutputTokens;
@@ -105,6 +114,7 @@ public final class LLMRequestOptions
      *
      * @return the schema name, or {@code null} when no schema override is set
      */
+    @Nullable
     public String getResponseSchemaName()
     {
         return this.responseSchemaName;
@@ -115,6 +125,7 @@ public final class LLMRequestOptions
      *
      * @return the schema JSON, or {@code null} when no schema override is set
      */
+    @Nullable
     public String getResponseSchema()
     {
         return this.responseSchema;
@@ -129,6 +140,27 @@ public final class LLMRequestOptions
     {
         return this.responseSchema != null && !this.responseSchema.isBlank()
             && this.responseSchemaName != null && !this.responseSchemaName.isBlank();
+    }
+
+    @Override
+    public boolean equals(final Object other)
+    {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof LLMRequestOptions)) {
+            return false;
+        }
+        final LLMRequestOptions that = (LLMRequestOptions) other;
+        return Objects.equals(this.maxOutputTokens, that.maxOutputTokens)
+            && Objects.equals(this.responseSchemaName, that.responseSchemaName)
+            && Objects.equals(this.responseSchema, that.responseSchema);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(this.maxOutputTokens, this.responseSchemaName, this.responseSchema);
     }
 
     /**
@@ -155,6 +187,7 @@ public final class LLMRequestOptions
          * @param tokens the maximum number of tokens to generate; must be positive
          * @return this builder
          */
+        @NotNull
         public Builder maxOutputTokens(final long tokens)
         {
             this.maxOutputTokens = tokens;
@@ -168,7 +201,8 @@ public final class LLMRequestOptions
          * @param schema the JSON Schema, as a raw JSON string, the response must conform to
          * @return this builder
          */
-        public Builder jsonSchema(final String name, final String schema)
+        @NotNull
+        public Builder jsonSchema(@Nullable final String name, @Nullable final String schema)
         {
             this.responseSchemaName = name;
             this.responseSchema = schema;
@@ -180,6 +214,7 @@ public final class LLMRequestOptions
          *
          * @return the assembled request options
          */
+        @NotNull
         public LLMRequestOptions build()
         {
             return new LLMRequestOptions(this);
