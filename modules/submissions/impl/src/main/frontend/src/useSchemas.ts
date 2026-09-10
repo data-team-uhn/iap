@@ -18,6 +18,8 @@
 
 import { useEffect, useState } from "react";
 
+import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
+
 import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
 
 // Reading what a submission may be raised against, once. The parsing is in schemaModel.
@@ -27,7 +29,8 @@ export interface SchemasOnOffer {
   choices: SchemaChoice[];
   /** True until the read settles, one way or the other. */
   loading: boolean;
-  /** Why the read failed, so a caller can say so rather than show an empty list. */
+  /** Why the read failed, in the submitter's terms, so a caller can say so rather than show an
+   * empty list. */
   error?: string;
 }
 
@@ -50,7 +53,7 @@ export function useSchemas(): SchemasOnOffer {
     fetch(SCHEMAS_URL)
       .then(response => {
         if (!response.ok) {
-          throw new Error(`The list of schemas could not be loaded (${response.status})`);
+          throw new RequestError(response.status);
         }
         return response.json() as Promise<JsonNode>;
       })
@@ -61,7 +64,7 @@ export function useSchemas(): SchemasOnOffer {
       })
       .catch((failure: unknown) => {
         if (!cancelled) {
-          setError(failure instanceof Error ? failure.message : String(failure));
+          setError(describeRequestFailure(failure));
         }
       })
       .finally(() => {

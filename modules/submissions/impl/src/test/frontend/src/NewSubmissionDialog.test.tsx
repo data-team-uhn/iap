@@ -67,7 +67,7 @@ describe("NewSubmissionDialog", () => {
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
 
-    expect(await screen.findByText(/could not be loaded \(503\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/ran into a problem.*\(HTTP 503\)/)).toBeInTheDocument();
   });
 
   it("raises the submission through the /Submissions endpoint and reports where it went", async () => {
@@ -134,7 +134,7 @@ describe("NewSubmissionDialog", () => {
     await userEvent.type(screen.getByLabelText(/Title/), "Something");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText(/could not be raised \(409\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/conflicts with a more recent change.*\(HTTP 409\)/)).toBeInTheDocument();
   });
 
   it("reports an empty path when the engine created nothing to open", async () => {
@@ -157,7 +157,7 @@ describe("NewSubmissionDialog", () => {
 
     render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
 
-    expect(await screen.findByText("the network went away")).toBeInTheDocument();
+    expect(await screen.findByText(/Something went wrong: the network went away/)).toBeInTheDocument();
   });
 
   it("reports a refusal that failed with something that is not an Error", async () => {
@@ -171,7 +171,7 @@ describe("NewSubmissionDialog", () => {
     await userEvent.type(screen.getByLabelText(/Title/), "Something");
     await userEvent.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText("the network went away")).toBeInTheDocument();
+    expect(await screen.findByText(/Something went wrong: the network went away/)).toBeInTheDocument();
   });
 
   it("keeps quiet when it is closed while still loading", async () => {
