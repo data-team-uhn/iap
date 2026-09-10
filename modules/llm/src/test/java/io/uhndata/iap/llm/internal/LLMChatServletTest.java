@@ -46,20 +46,20 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link LLMServlet}, the chat endpoint: what it accepts as a request body, and how it reports
- * a refusal or an upstream failure.
+ * Unit tests for {@link LLMChatServlet}, the chat endpoint: what it accepts as a request body, and how it
+ * reports a refusal or an upstream failure.
  *
  * @version $Id$
  * @since 0.1.0
  */
 @ExtendWith(SlingContextExtension.class)
-class LLMServletTest
+class LLMChatServletTest
 {
     private static final String REPLY = "Hello there";
 
     private final SlingContext context = new SlingContext();
 
-    private LLMServlet servlet;
+    private LLMChatServlet servlet;
 
     private RecordingClient client;
 
@@ -80,12 +80,14 @@ class LLMServletTest
 
         private IOException failure;
 
+        private boolean returnsNull;
+
         private String answer() throws IOException
         {
             if (this.failure != null) {
                 throw this.failure;
             }
-            return REPLY;
+            return this.returnsNull ? null : REPLY;
         }
 
         @Override
@@ -122,7 +124,7 @@ class LLMServletTest
     @BeforeEach
     void setUp() throws Exception
     {
-        this.servlet = new LLMServlet();
+        this.servlet = new LLMChatServlet();
         this.client = new RecordingClient();
 
         final LLMClientFactory factory = new LLMClientFactory()
@@ -130,19 +132,19 @@ class LLMServletTest
             @Override
             public LLMClient getClient(final String providerApi)
             {
-                return LLMServletTest.this.client;
+                return LLMChatServletTest.this.client;
             }
 
             @Override
             public LLMClient getActiveClient() throws IOException
             {
-                if (LLMServletTest.this.factoryFailure != null) {
-                    throw LLMServletTest.this.factoryFailure;
+                if (LLMChatServletTest.this.factoryFailure != null) {
+                    throw LLMChatServletTest.this.factoryFailure;
                 }
-                return LLMServletTest.this.client;
+                return LLMChatServletTest.this.client;
             }
         };
-        final Field field = LLMServlet.class.getDeclaredField("llmClientFactory");
+        final Field field = LLMChatServlet.class.getDeclaredField("llmClientFactory");
         field.setAccessible(true);
         field.set(this.servlet, factory);
     }
@@ -226,6 +228,53 @@ class LLMServletTest
 
         assertEquals(400, this.lastResponse.getStatus());
         assertTrue(responseBody().getString("error").contains("message"));
+    }
+
+    @Test
+    void refusesMessagesThatIsNotAnArray() throws IOException
+    {
+        post("{\"messages\":\"not an array\"}");
+
+        assertEquals(400, this.lastResponse.getStatus());
+        assertTrue(responseBody().getString("error").contains("messages"));
+    }
+
+    @Test
+    void refusesAMessagesEntryThatIsNotAnObject() throws IOException
+    {
+        post("{\"messages\":[\"not an object\"]}");
+
+        assertEquals(400, this.lastResponse.getStatus());
+        assertTrue(responseBody().getString("error").contains("messages"));
+    }
+
+    @Test
+    void refusesAMessagesEntryMissingRoleOrContent() throws IOException
+    {
+        post("{\"messages\":[{\"role\":\"user\"}]}");
+
+        assertEquals(400, this.lastResponse.getStatus());
+        assertTrue(responseBody().getString("error").contains("messages"));
+    }
+
+    @Test
+    void refusesAMessagesEntryWhoseRoleIsNotAString() throws IOException
+    {
+        post("{\"messages\":[{\"role\":1,\"content\":\"Hello\"}]}");
+
+        assertEquals(400, this.lastResponse.getStatus());
+        assertTrue(responseBody().getString("error").contains("messages"));
+    }
+
+    @Test
+    void reportsAMissingReplyAsABadGateway() throws IOException
+    {
+        this.client.returnsNull = true;
+
+        post("{\"message\":\"Hello\"}");
+
+        assertEquals(502, this.lastResponse.getStatus());
+        assertEquals("The LLM request could not be completed", responseBody().getString("error"));
     }
 
     @Test

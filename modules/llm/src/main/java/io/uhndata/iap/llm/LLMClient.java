@@ -20,6 +20,9 @@ package io.uhndata.iap.llm;
 import java.io.IOException;
 import java.util.List;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Interface for sending chat requests to an LLM. Concrete clients (see {@link DefaultLLMClient}) are registered
  * as OSGi services with an {@code llm.provider} property naming the provider they serve, and are resolved by
@@ -38,7 +41,8 @@ public interface LLMClient
      * @return the assistant's text response
      * @throws IOException on network failure or a non-200 API response
      */
-    String chat(String userMessage) throws IOException;
+    @NotNull
+    String chat(@NotNull String userMessage) throws IOException;
 
     /**
      * Send a single user message with a system prompt and return the assistant's reply.
@@ -48,7 +52,8 @@ public interface LLMClient
      * @return the assistant's text response
      * @throws IOException on network failure or a non-200 API response
      */
-    String chat(String systemPrompt, String userMessage) throws IOException;
+    @NotNull
+    String chat(@Nullable String systemPrompt, @NotNull String userMessage) throws IOException;
 
     /**
      * Send a multi-turn conversation with an optional system prompt.
@@ -58,7 +63,8 @@ public interface LLMClient
      * @return the assistant's text response
      * @throws IOException on network failure or a non-200 API response
      */
-    String chat(String systemPrompt, List<LLMMessage> messages) throws IOException;
+    @NotNull
+    String chat(@Nullable String systemPrompt, @NotNull List<LLMMessage> messages) throws IOException;
 
     /**
      * Send a multi-turn conversation with an optional system prompt and per-call request overrides.
@@ -70,5 +76,7 @@ public interface LLMClient
      * @return the assistant's text response
      * @throws IOException on network failure or a non-200 API response
      */
-    String chat(String systemPrompt, List<LLMMessage> messages, LLMRequestOptions options) throws IOException;
+    @NotNull
+    String chat(@Nullable String systemPrompt, @NotNull List<LLMMessage> messages, @Nullable LLMRequestOptions options)
+        throws IOException;
 }

@@ -79,4 +79,28 @@ class LLMRequestOptionsTest
         assertFalse(LLMRequestOptions.builder().jsonSchema("name", null).build().hasResponseSchema());
         assertFalse(LLMRequestOptions.builder().jsonSchema("name", "  ").build().hasResponseSchema());
     }
+
+    @Test
+    void equalsAndHashCodeConsiderEveryField()
+    {
+        final LLMRequestOptions options = LLMRequestOptions.builder()
+            .maxOutputTokens(64)
+            .jsonSchema("document_summary", SCHEMA)
+            .build();
+        final LLMRequestOptions same = LLMRequestOptions.builder()
+            .maxOutputTokens(64)
+            .jsonSchema("document_summary", SCHEMA)
+            .build();
+
+        assertEquals(options, options);
+        assertEquals(options, same);
+        assertEquals(options.hashCode(), same.hashCode());
+        assertFalse(options.equals(null));
+        assertFalse(options.equals("not an LLMRequestOptions"));
+        assertFalse(options.equals(LLMRequestOptions.builder().jsonSchema("document_summary", SCHEMA).build()));
+        assertFalse(options.equals(LLMRequestOptions.builder().maxOutputTokens(64).jsonSchema("other", SCHEMA)
+            .build()));
+        assertFalse(options.equals(LLMRequestOptions.builder().maxOutputTokens(64)
+            .jsonSchema("document_summary", "{}").build()));
+    }
 }

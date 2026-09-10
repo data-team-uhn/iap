@@ -39,10 +39,12 @@
           <!--
             These are embedded into the bundle (see Embed-Dependency) for LangChain4j's runtime use, but this
             module's own source does not import them directly, so the analyzer would otherwise flag them.
+            Jackson is declared but not embedded (see Import-Package below): this module's own source uses
+            jackson-databind directly, so it is not unused, but jackson-core and jackson-annotations are only
+            ever reached transitively (through jackson-databind and through LangChain4j).
           -->
           <ignoredUnusedDeclaredDependencies combine.children="append">
             <ignoredUnusedDeclaredDependency>dev.langchain4j:langchain4j-http-client</ignoredUnusedDeclaredDependency>
-            <ignoredUnusedDeclaredDependency>com.fasterxml.jackson.core:jackson-databind</ignoredUnusedDeclaredDependency>
             <ignoredUnusedDeclaredDependency>com.fasterxml.jackson.core:jackson-core</ignoredUnusedDeclaredDependency>
             <ignoredUnusedDeclaredDependency>com.fasterxml.jackson.core:jackson-annotations</ignoredUnusedDeclaredDependency>
             <ignoredUnusedDeclaredDependency>com.knuddels:jtokkit</ignoredUnusedDeclaredDependency>
@@ -57,20 +59,19 @@
         <configuration>
           <instructions>
             <!-- Only the public API package is exported; the internal package and every embedded library
-                 (LangChain4j + its JDK HTTP client + Jackson + jtokkit) stay private to this bundle. -->
+                 (LangChain4j + its JDK HTTP client + jtokkit) stay private to this bundle. -->
             <Export-Package>io.uhndata.iap.llm</Export-Package>
-            <!-- LangChain4j and its non-OSGi dependencies are embedded into this bundle (fat bundle), since
-                 they are plain JARs with no OSGi metadata. jtokkit and the Jackson artifacts are transitive
-                 dependencies of LangChain4j, embedded here by artifactId. -->
+            <!-- LangChain4j itself and its JDK HTTP client transport are embedded into this bundle (fat
+                 bundle), since they are plain JARs with no OSGi metadata. jtokkit is a transitive dependency
+                 of LangChain4j, embedded here by artifactId. Jackson is NOT embedded: the platform already
+                 ships it as a proper OSGi bundle (see base.json), so this bundle imports those packages
+                 instead of carrying a second, private copy that could drift to a different version. -->
             <Embed-Dependency>
               langchain4j-open-ai,
               langchain4j-core,
               langchain4j-http-client,
               langchain4j-http-client-jdk,
-              jtokkit,
-              jackson-databind,
-              jackson-core,
-              jackson-annotations
+              jtokkit
             </Embed-Dependency>
             <!-- Keep the genuine platform dependencies as mandatory imports (they are provided by the OSGi
                  runtime); make every other package the embedded libraries reference optional, so the self
@@ -78,16 +79,25 @@
             <Import-Package>
               jakarta.json,
               jakarta.servlet,
+              com.fasterxml.jackson.core,
+              com.fasterxml.jackson.databind,
               org.apache.commons.lang3,
               org.apache.sling.api,
               org.apache.sling.api.resource,
               org.apache.sling.api.servlets,
               org.slf4j,
+              io.uhndata.iap.errortracking.api,
+              io.uhndata.iap.utils,
               *;resolution:=optional
             </Import-Package>
             <Sling-Nodetypes>SLING-INF/nodetypes/llms.cnd</Sling-Nodetypes>
-            <!-- overwrite:=false so redeploying never resets the provider and model picked at runtime -->
+            <!-- The catalog (available providers and models) is reseeded from the sources on every deploy, so
+                 shipping a new provider or model reaches a running instance without a manual step. The active
+                 selection is a separate, much smaller tree that is seeded once and never overwritten after
+                 that, since it holds the choice an administrator made at runtime, which a redeploy must not
+                 silently reset. See LLMConfigurationServiceImpl. -->
             <Sling-Initial-Content>
+              SLING-INF/content/libs/iap/config/;path:=/libs/iap/config/;overwrite:=true,
               SLING-INF/content/apps/iap/config/;path:=/apps/iap/config/;overwrite:=false,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
@@ -126,6 +136,25 @@
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.service.component.annotations</artifactId>
     </dependency>
+    <!-- Nullability annotations for the exported API -->
+    <dependency>
+      <groupId>org.jetbrains</groupId>
+      <artifactId>annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.github.spotbugs</groupId>
+      <artifactId>spotbugs-annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-error-tracking-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-java-utils</artifactId>
+      <version>${project.version}</version>
+    </dependency>
 
     <!--
       LangChain4j is the LLM transport (see OpenAIClient). These artifacts, together with the Jackson and
@@ -158,22 +187,28 @@
       <version>1.16.3</version>
       <optional>true</optional>
     </dependency>
+    <!--
+      Jackson versions match what the platform's base feature (see base.json) already exports, since this
+      module imports those packages rather than embedding its own copy (see Import-Package above).
+      jackson-databind is used directly by OpenAIClient; jackson-core and jackson-annotations are only ever
+      reached transitively (through jackson-databind and through LangChain4j).
+    -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.21.3</version>
+      <version>${jackson.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
-      <version>2.21.3</version>
+      <version>${jackson.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
-      <version>2.21</version>
+      <version>2.22</version>
       <optional>true</optional>
     </dependency>
     <dependency>

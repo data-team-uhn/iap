@@ -22,10 +22,35 @@
     }
   ],
   "configurations":{
-    // Read-only access to the LLM configuration stored under /apps/iap/config/LLM
+    "org.apache.sling.jcr.repoinit.RepositoryInitializer~iapllm":{
+      "service.ranking:Integer": 300,
+      "scripts":[
+        // The ACLs below are set on these two parent folders, not on .../LLM itself: repoinit
+        // scripts run before this bundle's own Sling-Initial-Content is loaded, and .../LLM is
+        // seeded with overwrite:=false (see pom.xml), which skips loading altogether if the node
+        // already exists -- so creating it here first would leave it permanently empty. Nothing
+        // else lives under either folder today, so the parent is exactly the LLM subtree.
+        "create path (sling:Folder) /libs/iap/config,/apps/iap/config",
+        // A dedicated user for LLMConfigurationServiceImpl: it only ever reads the catalog
+        // (/libs/iap/config/LLM) and the active selection (/apps/iap/config/LLM), so it gets
+        // read on exactly those two, not the broad read-everything sling-readall carried.
+        "create service user llm-config \n set ACL for llm-config \n allow jcr:read on /libs/iap/config,/apps/iap/config \n end",
+        // The group the shipped administration screens name as their operator; it exists so
+        // that a grant has something real to point at, who belongs to it is a deployment's
+        // business. Created here too (harmless if another module already has) since this ACL
+        // does not depend on that module being present.
+        "create group iap-administrators \n set ACL for iap-administrators \n allow jcr:read on /libs/iap/config,/apps/iap/config \n allow rep:write on /apps/iap/config \n end",
+        // Both /libs and /apps are world-readable by default, which would otherwise let any
+        // caller, authenticated or not, read the catalog and the active selection straight off
+        // the repository. The administrators grant above is set first, and an Oak ACL answers
+        // a permission check with the first entry that matches any of the caller's principals,
+        // so it is still honoured despite this deny.
+        "set ACL for everyone \n deny jcr:read on /libs/iap/config,/apps/iap/config \n end"
+      ]
+    },
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapllm":{
       "user.mapping":[
-        "io.uhndata.iap.llm:llmConfig=[sling-readall]"
+        "io.uhndata.iap.llm:llmConfig=[llm-config]"
       ]
     }
   }

@@ -302,4 +302,35 @@ class OpenAIClientTest
         final IOException failure = assertThrows(IOException.class, () -> client().chat(HELLO));
         assertTrue(failure.getMessage().startsWith("OpenAI-compatible LLM request failed"));
     }
+
+    @Test
+    void reportsAConfigurationFailureUnchanged()
+    {
+        final OpenAIClient client = new OpenAIClient();
+        client.bindConfigurationService(() -> {
+            throw new IOException("no active provider");
+        });
+
+        final IOException failure = assertThrows(IOException.class, () -> client.chat(HELLO));
+        assertEquals("no active provider", failure.getMessage());
+    }
+
+    @Test
+    void reportsAnInvalidResponseSchemaAsAnIOException()
+    {
+        final IOException failure = assertThrows(IOException.class,
+            () -> client().chat(BE_BRIEF, List.of(new LLMMessage("user", HELLO)),
+                LLMRequestOptions.builder().jsonSchema("bad-schema", "not json").build()));
+
+        assertTrue(failure.getMessage().startsWith("OpenAI-compatible LLM request failed"));
+    }
+
+    @Test
+    void reusesTheModelForRepeatedCallsWithUnchangedSettings() throws IOException
+    {
+        final TestClient reused = client();
+
+        assertEquals(REPLY, reused.chat(HELLO));
+        assertEquals(REPLY, reused.chat(HELLO));
+    }
 }

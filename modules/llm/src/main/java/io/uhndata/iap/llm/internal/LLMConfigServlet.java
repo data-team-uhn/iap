@@ -19,12 +19,14 @@ package io.uhndata.iap.llm.internal;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.math.BigDecimal;
 import java.util.Map;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
+import jakarta.json.JsonValue;
 import jakarta.servlet.Servlet;
 
 import org.apache.commons.lang3.StringUtils;
@@ -37,15 +39,20 @@ import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
 
+import io.uhndata.iap.utils.PaginatedJsonResponse;
+
 /**
  * Servlet that exposes the LLM configuration catalog (providers and their models, with all parameters)
  * and the active selection, and lets administrators change which provider and model are active.
  *
- * <p>Endpoint: bound to the {@code llm/Configuration} node, selector {@code llm}, extension {@code json},
- * i.e. {@code /apps/iap/config/LLM.llm.json}.
+ * <p>Endpoint: bound to the {@link LLMConfigurationServiceImpl#SELECTION_PATH} node, selector {@code llm},
+ * extension {@code json}, i.e. {@code /apps/iap/config/LLM.llm.json}. The catalog itself is read separately,
+ * from {@link LLMConfigurationServiceImpl#CATALOG_PATH}; see there for why the two are apart.
  *
  * <p>{@code GET .../LLM.llm.json} returns:
- * <pre>{"activeProvider": "...", "activeModel": "...", "providers": [{"name": "...", ..., "models": [{...}]}]}</pre>
+ * {@snippet lang=json :
+ * {"activeProvider": "...", "activeModel": "...", "providers": [{"name": "...", ..., "models": [{...}]}]}
+ * }
  *
  * <p>{@code POST .../LLM.llm.json} with parameters {@code activeProvider} and {@code activeModel} updates the
  * active selection and returns the refreshed catalog.
@@ -67,13 +74,18 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
 
     private static final String ACTIVE_MODEL = "activeModel";
 
+    private static final String PROVIDER_RESOURCE_TYPE = "llm/Provider";
+
+    private static final String MODEL_RESOURCE_TYPE = "llm/Model";
+
     @Override
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         response.setContentType("application/json;charset=UTF-8");
+        final Resource selection = request.getResource();
         try (Writer out = response.getWriter()) {
-            out.write(buildCatalog(request.getResource()).toString());
+            out.write(buildCatalog(selection, catalog(selection)).toString());
         }
     }
 
@@ -83,55 +95,91 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
     {
         response.setContentType("application/json;charset=UTF-8");
 
-        final Resource config = request.getResource();
+        final Resource selection = request.getResource();
+        final Resource catalog = catalog(selection);
         final String provider = request.getParameter(ACTIVE_PROVIDER);
         final String model = request.getParameter(ACTIVE_MODEL);
 
         if (StringUtils.isBlank(provider) || StringUtils.isBlank(model)) {
-            sendError(response, 400, "Both 'activeProvider' and 'activeModel' are required");
+            PaginatedJsonResponse.writeError(response, 400, "Both 'activeProvider' and 'activeModel' are required");
             return;
         }
 
-        final Resource providerResource = config.getChild(provider);
+        final Resource providerResource = validChild(catalog, provider, PROVIDER_RESOURCE_TYPE);
         if (providerResource == null) {
-            sendError(response, 400, "The requested provider is not in the catalog");
+            PaginatedJsonResponse.writeError(response, 400, "The requested provider is not in the catalog");
             return;
         }
-        if (providerResource.getChild(model) == null) {
-            sendError(response, 400, "The requested model is not offered by that provider");
+        if (validChild(providerResource, model, MODEL_RESOURCE_TYPE) == null) {
+            PaginatedJsonResponse.writeError(response, 400, "The requested model is not offered by that provider");
             return;
         }
 
-        final ModifiableValueMap properties = config.adaptTo(ModifiableValueMap.class);
+        final ModifiableValueMap properties = selection.adaptTo(ModifiableValueMap.class);
         if (properties == null) {
-            sendError(response, 403, "Not allowed to modify the LLM configuration");
+            PaginatedJsonResponse.writeError(response, 403, "Not allowed to modify the LLM configuration");
             return;
         }
         properties.put(ACTIVE_PROVIDER, provider);
         properties.put(ACTIVE_MODEL, model);
-        config.getResourceResolver().commit();
+        selection.getResourceResolver().commit();
 
         try (Writer out = response.getWriter()) {
-            out.write(buildCatalog(config).toString());
+            out.write(buildCatalog(selection, catalog).toString());
         }
     }
 
-    private JsonObject buildCatalog(final Resource config)
+    /**
+     * Resolve the catalog resource the selection resource points into.
+     *
+     * @param selection the bound selection resource
+     * @return the catalog resource, or {@code null} if it does not exist
+     */
+    private static Resource catalog(final Resource selection)
+    {
+        return selection.getResourceResolver().getResource(LLMConfigurationServiceImpl.CATALOG_PATH);
+    }
+
+    /**
+     * Resolve and validate a catalog child by name: it must be a direct child of {@code parent} (a name
+     * containing {@code /} is refused before ever being resolved, since {@link Resource#getChild} treats it as
+     * a path rather than a single node name) and must carry the expected resource type, so a request cannot
+     * point the active selection at an unrelated node.
+     *
+     * @param parent the catalog or provider resource to look under, may be {@code null} when the catalog itself
+     *            is missing
+     * @param name the requested child name, from the request
+     * @param expectedResourceType the resource type a genuine catalog entry carries
+     * @return the validated child, or {@code null} when it does not exist, is reached through a path, or is
+     *         not of the expected type
+     */
+    private static Resource validChild(final Resource parent, final String name, final String expectedResourceType)
+    {
+        if (parent == null || name.indexOf('/') >= 0) {
+            return null;
+        }
+        final Resource child = parent.getChild(name);
+        return child != null && child.isResourceType(expectedResourceType) ? child : null;
+    }
+
+    private JsonObject buildCatalog(final Resource selection, final Resource catalog)
     {
         final JsonObjectBuilder root = Json.createObjectBuilder();
-        final ValueMap configProperties = config.getValueMap();
-        addString(root, ACTIVE_PROVIDER, configProperties.get(ACTIVE_PROVIDER, String.class));
-        addString(root, ACTIVE_MODEL, configProperties.get(ACTIVE_MODEL, String.class));
+        final ValueMap selectionProperties = selection.getValueMap();
+        addString(root, ACTIVE_PROVIDER, selectionProperties.get(ACTIVE_PROVIDER, String.class));
+        addString(root, ACTIVE_MODEL, selectionProperties.get(ACTIVE_MODEL, String.class));
 
         final JsonArrayBuilder providers = Json.createArrayBuilder();
-        for (final Resource provider : config.getChildren()) {
-            final JsonObjectBuilder providerJson = propertiesToJson(provider);
-            final JsonArrayBuilder models = Json.createArrayBuilder();
-            for (final Resource model : provider.getChildren()) {
-                models.add(propertiesToJson(model));
+        if (catalog != null) {
+            for (final Resource provider : catalog.getChildren()) {
+                final JsonObjectBuilder providerJson = propertiesToJson(provider);
+                final JsonArrayBuilder models = Json.createArrayBuilder();
+                for (final Resource model : provider.getChildren()) {
+                    models.add(propertiesToJson(model));
+                }
+                providerJson.add("models", models);
+                providers.add(providerJson);
             }
-            providerJson.add("models", models);
-            providers.add(providerJson);
         }
         root.add("providers", providers);
         return root.build();
@@ -152,30 +200,46 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
 
     private void addValue(final JsonObjectBuilder json, final String key, final Object value)
     {
-        if (value instanceof Double || value instanceof Float) {
-            json.add(key, ((Number) value).doubleValue());
-        } else if (value instanceof Number) {
-            json.add(key, ((Number) value).longValue());
-        } else if (value instanceof Boolean) {
-            json.add(key, (Boolean) value);
+        if (value instanceof Object[]) {
+            final JsonArrayBuilder array = Json.createArrayBuilder();
+            for (final Object item : (Object[]) value) {
+                array.add(toJsonValue(item));
+            }
+            json.add(key, array);
         } else if (value != null) {
-            json.add(key, value.toString());
+            json.add(key, toJsonValue(value));
         }
+    }
+
+    /**
+     * Convert a JCR property value to the JSON value it should be rendered as. {@link BigDecimal} is handled
+     * before the general {@link Number} case, which narrows to {@code long} and would otherwise truncate a
+     * decimal value.
+     *
+     * @param value a single JCR property value, never {@code null} or an array
+     * @return the equivalent JSON value
+     */
+    private static JsonValue toJsonValue(final Object value)
+    {
+        if (value instanceof BigDecimal) {
+            return Json.createValue((BigDecimal) value);
+        }
+        if (value instanceof Double || value instanceof Float) {
+            return Json.createValue(((Number) value).doubleValue());
+        }
+        if (value instanceof Number) {
+            return Json.createValue(((Number) value).longValue());
+        }
+        if (value instanceof Boolean) {
+            return ((Boolean) value) ? JsonValue.TRUE : JsonValue.FALSE;
+        }
+        return Json.createValue(value.toString());
     }
 
     private void addString(final JsonObjectBuilder json, final String key, final String value)
     {
         if (value != null) {
             json.add(key, value);
-        }
-    }
-
-    private void sendError(final SlingJakartaHttpServletResponse response, final int status, final String message)
-        throws IOException
-    {
-        response.setStatus(status);
-        try (Writer out = response.getWriter()) {
-            out.write(Json.createObjectBuilder().add("error", message).build().toString());
         }
     }
 }

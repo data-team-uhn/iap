@@ -33,8 +33,16 @@ import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMSettings;
 
 /**
- * Default {@link LLMConfigurationService} that reads the active provider and model from the JCR node at
- * {@link #CONFIG_PATH}, using a dedicated read-only service user.
+ * Default {@link LLMConfigurationService} that reads the active selection from {@link #SELECTION_PATH} and the
+ * catalog of providers and models it selects from from {@link #CATALOG_PATH}, using a dedicated read-only
+ * service user.
+ *
+ * <p>
+ * The two live under different roots because they change on a different schedule. {@link #CATALOG_PATH} is
+ * seeded from initial content and overwritten on every deploy, so shipping a new provider or model reaches a
+ * running instance without a manual step. {@link #SELECTION_PATH} is seeded once and never overwritten after
+ * that, since it holds the choice an administrator made at runtime, which a redeploy must not silently reset.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,8 +50,11 @@ import io.uhndata.iap.llm.LLMSettings;
 @Component(service = LLMConfigurationService.class)
 public class LLMConfigurationServiceImpl implements LLMConfigurationService
 {
-    /** The JCR path of the LLM configuration node. */
-    public static final String CONFIG_PATH = "/apps/iap/config/LLM";
+    /** The JCR path of the node holding the active provider/model selection. */
+    public static final String SELECTION_PATH = "/apps/iap/config/LLM";
+
+    /** The JCR path of the node holding the catalog of providers and models the selection is made from. */
+    public static final String CATALOG_PATH = "/libs/iap/config/LLM";
 
     private static final String SUBSERVICE = "llmConfig";
 
@@ -59,17 +70,21 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
     {
         try (ResourceResolver resolver = this.resolverFactory
             .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
-            final Resource config = resolver.getResource(CONFIG_PATH);
-            if (config == null) {
-                throw new IOException("LLM configuration not found at " + CONFIG_PATH);
+            final Resource selection = resolver.getResource(SELECTION_PATH);
+            if (selection == null) {
+                throw new IOException("LLM configuration not found at " + SELECTION_PATH);
             }
-            final ValueMap configProps = config.getValueMap();
+            final ValueMap configProps = selection.getValueMap();
             final String providerName = configProps.get(ACTIVE_PROVIDER, String.class);
             final String modelName = configProps.get(ACTIVE_MODEL, String.class);
             if (providerName == null || providerName.isBlank() || modelName == null || modelName.isBlank()) {
-                throw new IOException("No active LLM provider/model is selected in " + CONFIG_PATH);
+                throw new IOException("No active LLM provider/model is selected in " + SELECTION_PATH);
             }
-            final Resource provider = config.getChild(providerName);
+            final Resource catalog = resolver.getResource(CATALOG_PATH);
+            if (catalog == null) {
+                throw new IOException("LLM catalog not found at " + CATALOG_PATH);
+            }
+            final Resource provider = catalog.getChild(providerName);
             if (provider == null) {
                 throw new IOException("Active LLM provider '" + providerName + "' does not exist");
             }

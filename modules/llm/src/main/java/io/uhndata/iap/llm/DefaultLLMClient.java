@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Base class for {@link LLMClient} implementations. It wires the four {@link LLMClient} chat overloads to a
  * single {@link #doChat(String, List, LLMRequestOptions)} hook that the concrete client implements, and holds
@@ -43,26 +46,31 @@ public abstract class DefaultLLMClient implements LLMClient
     private LLMConfigurationService configurationService;
 
     @Override
-    public String chat(final String userMessage) throws IOException
+    @NotNull
+    public String chat(@NotNull final String userMessage) throws IOException
     {
         return doChat(null, Collections.singletonList(new LLMMessage("user", userMessage)), null);
     }
 
     @Override
-    public String chat(final String systemPrompt, final String userMessage) throws IOException
+    @NotNull
+    public String chat(@Nullable final String systemPrompt, @NotNull final String userMessage) throws IOException
     {
         return doChat(systemPrompt, Collections.singletonList(new LLMMessage("user", userMessage)), null);
     }
 
     @Override
-    public String chat(final String systemPrompt, final List<LLMMessage> messages) throws IOException
+    @NotNull
+    public String chat(@Nullable final String systemPrompt, @NotNull final List<LLMMessage> messages)
+        throws IOException
     {
         return doChat(systemPrompt, messages, null);
     }
 
     @Override
-    public String chat(final String systemPrompt, final List<LLMMessage> messages, final LLMRequestOptions options)
-        throws IOException
+    @NotNull
+    public String chat(@Nullable final String systemPrompt, @NotNull final List<LLMMessage> messages,
+        @Nullable final LLMRequestOptions options) throws IOException
     {
         return doChat(systemPrompt, messages, options);
     }
@@ -73,6 +81,7 @@ public abstract class DefaultLLMClient implements LLMClient
      *
      * @return the configuration service
      */
+    @NotNull
     protected LLMConfigurationService getConfigurationService()
     {
         return this.configurationService;
@@ -83,7 +92,7 @@ public abstract class DefaultLLMClient implements LLMClient
      *
      * @param service the configuration service to use
      */
-    protected void setConfigurationService(final LLMConfigurationService service)
+    protected void setConfigurationService(@NotNull final LLMConfigurationService service)
     {
         this.configurationService = service;
     }
@@ -98,6 +107,7 @@ public abstract class DefaultLLMClient implements LLMClient
      * @return the assistant's reply
      * @throws IOException on configuration, network or API errors
      */
-    protected abstract String doChat(String systemPrompt, List<LLMMessage> messages, LLMRequestOptions options)
-        throws IOException;
+    @NotNull
+    protected abstract String doChat(@Nullable String systemPrompt, @NotNull List<LLMMessage> messages,
+        @Nullable LLMRequestOptions options) throws IOException;
 }

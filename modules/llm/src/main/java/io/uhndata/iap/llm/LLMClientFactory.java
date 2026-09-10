@@ -19,6 +19,9 @@ package io.uhndata.iap.llm;
 
 import java.io.IOException;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
  * Resolves the {@link LLMClient} that handles a given provider. Each client is registered as an OSGi service
  * with an {@code llm.provider} property naming the provider it serves; this factory looks them up by that
@@ -35,7 +38,8 @@ public interface LLMClientFactory
      * @param providerApi the provider api property, matching a client's {@code llm.provider} service property
      * @return the matching client, or {@code null} if no client is registered for that provider
      */
-    LLMClient getClient(String providerApi);
+    @Nullable
+    LLMClient getClient(@NotNull String providerApi);
 
     /**
      * Return the client for the provider that is currently active in the JCR LLM configuration.
@@ -43,5 +47,6 @@ public interface LLMClientFactory
      * @return the active provider's client
      * @throws IOException if there is no active selection or no client is registered for the active provider
      */
+    @NotNull
     LLMClient getActiveClient() throws IOException;
 }
