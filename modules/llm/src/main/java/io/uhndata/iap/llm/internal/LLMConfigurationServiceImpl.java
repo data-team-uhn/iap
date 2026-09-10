@@ -20,6 +20,7 @@ package io.uhndata.iap.llm.internal;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
@@ -31,6 +32,10 @@ import org.osgi.service.component.annotations.Reference;
 
 import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMSettings;
+import io.uhndata.iap.llm.LLMSettings.ModelSettings;
+import io.uhndata.iap.llm.LLMSettings.ProviderSettings;
+import io.uhndata.iap.llm.internal.models.LLMModelNode;
+import io.uhndata.iap.llm.internal.models.LLMProviderNode;
 
 /**
  * Default {@link LLMConfigurationService} that reads the active selection from {@link #SELECTION_PATH} and the
@@ -42,6 +47,12 @@ import io.uhndata.iap.llm.LLMSettings;
  * seeded from initial content and overwritten on every deploy, so shipping a new provider or model reaches a
  * running instance without a manual step. {@link #SELECTION_PATH} is seeded once and never overwritten after
  * that, since it holds the choice an administrator made at runtime, which a redeploy must not silently reset.
+ * </p>
+ *
+ * <p>
+ * The provider and model nodes are read through {@link LLMProviderNode} and {@link LLMModelNode} — Sling
+ * Models that give the known, typed properties a name instead of another hand-rolled pass over a raw
+ * {@code ValueMap} — and their fields are copied into the {@link LLMSettings} snapshot this service returns.
  * </p>
  *
  * @version $Id$
@@ -61,6 +72,14 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
     private static final String ACTIVE_PROVIDER = "activeProvider";
 
     private static final String ACTIVE_MODEL = "activeModel";
+
+    /** Provider properties with a dedicated {@link LLMProviderNode} field, left out of {@code extra}. */
+    private static final Set<String> KNOWN_PROVIDER_PROPERTIES =
+        Set.of("endpoint", "apiKeyEnvVar", "timeoutSeconds");
+
+    /** Model properties with a dedicated {@link LLMModelNode} field, left out of {@code extra}. */
+    private static final Set<String> KNOWN_MODEL_PROPERTIES = Set.of("contextLimitTokens", "maxOutputTokens",
+        "temperature", "chunkTokenSize", "wholeDocumentTokenLimit", "developer");
 
     @Reference
     private ResourceResolverFactory resolverFactory;
@@ -93,19 +112,48 @@ public class LLMConfigurationServiceImpl implements LLMConfigurationService
                 throw new IOException("Active LLM model '" + modelName + "' does not exist under provider '"
                     + providerName + "'");
             }
-            return new LLMSettings(providerName, toMap(provider.getValueMap()),
-                modelName, toMap(model.getValueMap()));
+            return new LLMSettings(providerName, providerSettings(provider), modelName, modelSettings(model));
         } catch (LoginException e) {
             throw new IOException("Could not access the LLM configuration", e);
         }
     }
 
-    private static Map<String, Object> toMap(final ValueMap valueMap)
+    private static ProviderSettings providerSettings(final Resource provider) throws IOException
+    {
+        final LLMProviderNode node = provider.adaptTo(LLMProviderNode.class);
+        if (node == null) {
+            throw new IOException("Could not read the LLM provider at " + provider.getPath());
+        }
+        return new ProviderSettings(node.getEndpoint(), node.getApiKeyEnvVar(), node.getTimeoutSeconds(),
+            extra(provider.getValueMap(), KNOWN_PROVIDER_PROPERTIES));
+    }
+
+    private static ModelSettings modelSettings(final Resource model) throws IOException
+    {
+        final LLMModelNode node = model.adaptTo(LLMModelNode.class);
+        if (node == null) {
+            throw new IOException("Could not read the LLM model at " + model.getPath());
+        }
+        return new ModelSettings(node.getContextLimitTokens(), node.getMaxOutputTokens(), node.getTemperature(),
+            node.getChunkTokenSize(), node.getWholeDocumentTokenLimit(), node.getDeveloper(),
+            extra(model.getValueMap(), KNOWN_MODEL_PROPERTIES));
+    }
+
+    /**
+     * The properties of a node that are neither JCR/Sling bookkeeping nor already exposed through a dedicated
+     * field, i.e. exactly what {@link LLMSettings#getProviderProperty} / {@code getModelProperty} can still
+     * answer.
+     *
+     * @param valueMap the node's properties
+     * @param known the property names already covered by a dedicated field
+     * @return the remaining properties, by name
+     */
+    private static Map<String, Object> extra(final ValueMap valueMap, final Set<String> known)
     {
         final Map<String, Object> result = new HashMap<>();
         for (final Map.Entry<String, Object> entry : valueMap.entrySet()) {
             final String key = entry.getKey();
-            if (!key.startsWith("jcr:") && !key.startsWith("sling:")) {
+            if (!key.startsWith("jcr:") && !key.startsWith("sling:") && !known.contains(key)) {
                 result.put(key, entry.getValue());
             }
         }
