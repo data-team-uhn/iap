@@ -28,6 +28,7 @@ import {
   DialogContentText,
   FormControl,
   FormControlLabel,
+  FormLabel,
   Radio,
   RadioGroup,
   Stack,
@@ -36,7 +37,7 @@ import {
 } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
-import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { isNotAuthenticated, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { useSchemas } from "./useSchemas";
@@ -72,6 +73,13 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
       body: new URLSearchParams({ title: title.trim(), schemaVersion: selected }),
     })
       .then(async response => {
+        // Answered with a redirect to what it created, which fetch has already followed: this
+        // response describes that page, so a read that failed here says nothing about whether the
+        // submission exists. Asked before the status, or a created submission reads as refused.
+        if (response.redirected) {
+          onCreated(new URL(response.url).pathname);
+          return;
+        }
         if (!response.ok) {
           // The engine answers a refusal with the reason: no applicable workflow, not allowed to
           // raise this, or a payload it will not accept. Its words are already in the submitter's
@@ -83,18 +91,20 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
           }
           throw new RequestError(response.status);
         }
-        // The engine answers with a redirect to what it created, so the final URL of the followed
-        // request is where the new submission lives
-        onCreated(response.redirected ? new URL(response.url).pathname : "");
+        // Accepted without creating anything, so there is nowhere to send the submitter
+        onCreated("");
       })
-      .catch((error: unknown) => setSubmitError(describeRequestFailure(error)))
+      .catch((error: unknown) => setSubmitError(isNotAuthenticated(error)
+        ? "You are no longer signed in, so the submission was not raised. Sign in and try again."
+        : describeRequestFailure(error)))
       .finally(() => setSubmitting(false));
   }, [ doFetch, onCreated, selected, title ]);
 
   const empty = !loading && !loadError && choices.length === 0;
 
   return (
-    <ResponsiveDialog title="New submission" withCloseButton open onClose={onClose}>
+    <ResponsiveDialog title="New submission" withCloseButton open onClose={onClose}
+      closeDisabled={submitting}>
       <DialogContent dividers>
         { loading && (
           <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
@@ -112,10 +122,15 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
         { choices.length > 0 && (
           <Stack spacing={2}>
             <FormControl>
+              <FormLabel id="new-submission-schema">What is being submitted</FormLabel>
               <RadioGroup
-                aria-label="What is being submitted"
+                aria-labelledby="new-submission-schema"
                 value={selected}
-                onChange={event => setSelected(event.target.value)}
+                onChange={event => {
+                  setSelected(event.target.value);
+                  // A refusal was about the choice that was made, so it does not stand over a new one
+                  setSubmitError(undefined);
+                }}
               >
                 { choices.map(choice => (
                   <FormControlLabel
@@ -126,7 +141,8 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
                       <>
                         <Typography component="span">{`${choice.title} ${choice.version}`.trim()}</Typography>
                         { choice.description && (
-                          <Typography variant="body2" color="text.secondary">{choice.description}</Typography>
+                          <Typography component="span" variant="body2" color="text.secondary"
+                            sx={{ display: "block" }}>{choice.description}</Typography>
                         ) }
                       </>
                     }
@@ -146,7 +162,7 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
         ) }
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} disabled={submitting}>Cancel</Button>
         <Button
           variant="contained"
           // Both are required by the workflow that raises the submission, so a request that

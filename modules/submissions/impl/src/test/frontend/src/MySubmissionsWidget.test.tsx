@@ -18,7 +18,7 @@
 
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 
 import MySubmissionsWidget from "@iap/submissions/MySubmissionsWidget";
 import { clearTagDefinitionsCache } from "@iap/tags/tagDefinitions";
@@ -58,6 +58,20 @@ const SCHEMAS = {
     },
   },
 };
+
+// Reports where the router ended up, so navigation can be asserted on rather than assumed
+function Whereabouts() {
+  return <span data-testid="where">{useLocation().pathname}</span>;
+}
+
+function inRouter({ children }: { children: React.ReactNode }) {
+  return (
+    <MemoryRouter>
+      {children}
+      <Whereabouts />
+    </MemoryRouter>
+  );
+}
 
 function page(rows: unknown[]) {
   return { rows, offset: 0, limit: 5, returnedrows: rows.length, totalrows: rows.length, totalIsApproximate: false };
@@ -111,7 +125,7 @@ describe("MySubmissionsWidget", () => {
     const fetchMock = widgetFetch({ rows: [ ROW ] });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
 
     expect(await screen.findByText("Test my drug")).toBeInTheDocument();
     expect(screen.getByText("ClinicalTrial 1.0")).toBeInTheDocument();
@@ -131,7 +145,7 @@ describe("MySubmissionsWidget", () => {
     // The dashboard is told to skip its own header for this widget
     vi.stubGlobal("fetch", widgetFetch());
 
-    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
 
     expect(await screen.findByRole("heading", { name: "Submissions" })).toBeInTheDocument();
     expect(screen.getByText("The submissions you created")).toBeInTheDocument();
@@ -144,7 +158,7 @@ describe("MySubmissionsWidget", () => {
     const listings = () =>
       fetchMock.mock.calls.filter(([ url ]) => String(url).includes(".paginate.json")).length;
 
-    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
     await screen.findByText("Test my drug");
 
     expect(screen.getByRole("button", { name: "View" })).toBeInTheDocument();
@@ -164,7 +178,7 @@ describe("MySubmissionsWidget", () => {
     const fetchMock = widgetFetch();
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
 
     // The dialog is only mounted once it is asked for, so nothing reads the schemas on the way to
     // showing a dashboard that may never open it
@@ -172,20 +186,37 @@ describe("MySubmissionsWidget", () => {
 
     await raiseOne();
 
-    // The dialog closes and the new submission's own page is opened, which is also what makes the
-    // listing behind it current again when the submitter comes back
     await waitFor(() => expect(screen.queryByRole("radio")).not.toBeInTheDocument());
+    // Where it went, not merely that the dialog closed: two other things turn on this navigation
+    // happening at the right moment
+    await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent(SUBMISSION_PATH));
   });
 
   it("stays on the dashboard when the engine created nothing to open", async () => {
     // Accepted without raising anything, so the dashboard is where the submitter stays
     vi.stubGlobal("fetch", widgetFetch({ redirected: false }));
 
-    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
     await raiseOne();
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /New submission/ })).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent("/");
+  });
+
+  // The grid never unmounted, so nothing re-reads unless it is told; without that a submission
+  // that was raised is indistinguishable from nothing having happened
+  it("re-reads the listing even when there is nowhere to send the submitter", async () => {
+    const fetchMock = widgetFetch({ redirected: false });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: inRouter });
+    const listings = () => fetchMock.mock.calls
+      .filter(call => String(call[0]).startsWith("/Submissions.paginate.json")).length;
+    await waitFor(() => expect(listings()).toBe(1));
+
+    await raiseOne();
+
+    await waitFor(() => expect(listings()).toBe(2));
   });
 
   it("renders without a title when the dashboard passes no extension", async () => {
