@@ -93,7 +93,10 @@ class LLMClientFactoryImplTest
 
     private static LLMSettings settings(final String providerName, final String api)
     {
-        return new LLMSettings(providerName, api == null ? Map.of() : Map.of("api", api), "a-model", Map.of());
+        final LLMSettings.ProviderSettings provider = new LLMSettings.ProviderSettings(null, null, 0,
+            api == null ? null : Map.of("api", api));
+        final LLMSettings.ModelSettings model = new LLMSettings.ModelSettings(0, 0, 0.0, 0, 0, null, null);
+        return new LLMSettings(providerName, provider, "a-model", model);
     }
 
     private static void inject(final Object target, final String fieldName, final Object value) throws Exception

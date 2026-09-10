@@ -19,7 +19,6 @@ package io.uhndata.iap.llm;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -125,7 +124,8 @@ class DefaultLLMClientTest
     {
         assertNull(this.client.configurationService());
 
-        final LLMSettings settings = new LLMSettings("local", Map.of(), "llama3.2-3b", Map.of());
+        final LLMSettings settings = new LLMSettings("local", new LLMSettings.ProviderSettings(null, null, 0, null),
+            "llama3.2-3b", new LLMSettings.ModelSettings(0, 0, 0.0, 0, 0, null, null));
         final LLMConfigurationService service = () -> settings;
         this.client.setConfigurationService(service);
 

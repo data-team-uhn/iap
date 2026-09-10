@@ -29,7 +29,16 @@ import org.jetbrains.annotations.Nullable;
  * Immutable snapshot of the settings for the active LLM provider and model, resolved from the JCR
  * configuration. A provider carries connection-level settings (endpoint, credentials, timeout) plus
  * format-specific extras (such as {@code projectId} for Prompter), while a model carries generation
- * settings (the model identifier, token limits and temperature).
+ * settings (the model identifier, token limits and temperature). {@link ProviderSettings} and
+ * {@link ModelSettings} carry the two halves; this class only pairs them with the node names they came from.
+ *
+ * <p>
+ * A snapshot never needs a live JCR resource to exist: everything it can answer is copied in at construction.
+ * {@link io.uhndata.iap.llm.internal.LLMConfigurationServiceImpl} is the one place that resolves a snapshot
+ * from the repository, reading the provider and model nodes through the Sling Models in
+ * {@code io.uhndata.iap.llm.internal.models} and copying their fields in; everywhere else, including every
+ * test in this module, builds a snapshot directly.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -42,54 +51,29 @@ public final class LLMSettings
      */
     public static final long DEFAULT_WHOLE_DOCUMENT_TOKEN_LIMIT = 20000L;
 
-    private static final String ENDPOINT = "endpoint";
-
-    private static final String API_KEY_ENV_VAR = "apiKeyEnvVar";
-
-    private static final String TIMEOUT_SECONDS = "timeoutSeconds";
-
-    private static final String MAX_OUTPUT_TOKENS = "maxOutputTokens";
-
-    private static final String TEMPERATURE = "temperature";
-
-    private static final String CONTEXT_LIMIT_TOKENS = "contextLimitTokens";
-
-    private static final String CHUNK_TOKEN_SIZE = "chunkTokenSize";
-
-    private static final String WHOLE_DOCUMENT_TOKEN_LIMIT = "wholeDocumentTokenLimit";
-
-    private static final String DEVELOPER = "developer";
-
-    private static final long DEFAULT_TIMEOUT_SECONDS = 120;
-
-    /** Matches the CND default for {@code maxOutputTokens} ({@code llms.cnd}); keep the two in step. */
-    private static final long DEFAULT_MAX_OUTPUT_TOKENS = 2000;
-
     private final String providerName;
 
     private final String modelName;
 
-    private final Map<String, Object> providerProperties;
+    private final ProviderSettings provider;
 
-    private final Map<String, Object> modelProperties;
+    private final ModelSettings model;
 
     /**
      * Create a settings snapshot.
      *
      * @param providerName the name of the active provider node
-     * @param providerProperties the properties of the active provider node
+     * @param provider the settings of the active provider node
      * @param modelName the name of the active model node
-     * @param modelProperties the properties of the active model node
+     * @param model the settings of the active model node
      */
-    public LLMSettings(@NotNull final String providerName, @Nullable final Map<String, Object> providerProperties,
-        @NotNull final String modelName, @Nullable final Map<String, Object> modelProperties)
+    public LLMSettings(@NotNull final String providerName, @NotNull final ProviderSettings provider,
+        @NotNull final String modelName, @NotNull final ModelSettings model)
     {
         this.providerName = providerName;
+        this.provider = provider;
         this.modelName = modelName;
-        this.providerProperties = providerProperties == null
-            ? Collections.emptyMap() : new HashMap<>(providerProperties);
-        this.modelProperties = modelProperties == null
-            ? Collections.emptyMap() : new HashMap<>(modelProperties);
+        this.model = model;
     }
 
     /**
@@ -122,7 +106,7 @@ public final class LLMSettings
     @Nullable
     public String getEndpoint()
     {
-        return string(this.providerProperties, ENDPOINT);
+        return this.provider.getEndpoint();
     }
 
     /**
@@ -133,68 +117,57 @@ public final class LLMSettings
     @Nullable
     public String getApiKeyEnvVar()
     {
-        return string(this.providerProperties, API_KEY_ENV_VAR);
+        return this.provider.getApiKeyEnvVar();
     }
 
     /**
      * The request timeout for the active provider, in seconds.
      *
-     * @return the timeout in seconds, or a default of 120 if not set
+     * @return the timeout in seconds
      */
     public long getTimeoutSeconds()
     {
-        return number(this.providerProperties, TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS);
+        return this.provider.getTimeoutSeconds();
     }
 
     /**
      * The maximum number of tokens to generate in the response for the active model.
      *
-     * @return the maximum output tokens, or a default of 1000 if not set
+     * @return the maximum output tokens
      */
     public long getMaxOutputTokens()
     {
-        return number(this.modelProperties, MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS);
+        return this.model.getMaxOutputTokens();
     }
 
     /**
      * The sampling temperature for the active model.
      *
-     * @return the temperature, or 0.0 if not set
+     * @return the temperature
      */
     public double getTemperature()
     {
-        final Object value = this.modelProperties.get(TEMPERATURE);
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
-        }
-        if (value != null) {
-            try {
-                return Double.parseDouble(value.toString());
-            } catch (NumberFormatException e) {
-                return 0.0;
-            }
-        }
-        return 0.0;
+        return this.model.getTemperature();
     }
 
     /**
      * The maximum context window of the active model, in tokens.
      *
-     * @return the context limit in tokens, or 0 if not set
+     * @return the context limit in tokens
      */
     public long getContextLimitTokens()
     {
-        return number(this.modelProperties, CONTEXT_LIMIT_TOKENS, 0);
+        return this.model.getContextLimitTokens();
     }
 
     /**
      * The number of input tokens to send per chunk when the input exceeds the context window.
      *
-     * @return the chunk token size, or 0 if not set
+     * @return the chunk token size
      */
     public long getChunkTokenSize()
     {
-        return number(this.modelProperties, CHUNK_TOKEN_SIZE, 0);
+        return this.model.getChunkTokenSize();
     }
 
     /**
@@ -203,11 +176,11 @@ public final class LLMSettings
      * small-document routing decision: the document parser receives it as its {@code min_structure_tokens}
      * parameter, which decides whether the document is chunked at all.
      *
-     * @return the whole-document token limit, or a default of 20000 if not set
+     * @return the whole-document token limit
      */
     public long getWholeDocumentTokenLimit()
     {
-        return number(this.modelProperties, WHOLE_DOCUMENT_TOKEN_LIMIT, DEFAULT_WHOLE_DOCUMENT_TOKEN_LIMIT);
+        return this.model.getWholeDocumentTokenLimit();
     }
 
     /**
@@ -218,7 +191,7 @@ public final class LLMSettings
     @Nullable
     public String getDeveloper()
     {
-        return string(this.modelProperties, DEVELOPER);
+        return this.model.getDeveloper();
     }
 
     /**
@@ -231,7 +204,7 @@ public final class LLMSettings
     @Nullable
     public String getProviderProperty(@NotNull final String name)
     {
-        return string(this.providerProperties, name);
+        return this.provider.getProperty(name);
     }
 
     /**
@@ -243,7 +216,7 @@ public final class LLMSettings
     @Nullable
     public String getModelProperty(@NotNull final String name)
     {
-        return string(this.modelProperties, name);
+        return this.model.getProperty(name);
     }
 
     @Override
@@ -257,35 +230,263 @@ public final class LLMSettings
         }
         final LLMSettings that = (LLMSettings) other;
         return this.providerName.equals(that.providerName) && this.modelName.equals(that.modelName)
-            && this.providerProperties.equals(that.providerProperties)
-            && this.modelProperties.equals(that.modelProperties);
+            && this.provider.equals(that.provider) && this.model.equals(that.model);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(this.providerName, this.modelName, this.providerProperties, this.modelProperties);
+        return Objects.hash(this.providerName, this.modelName, this.provider, this.model);
     }
 
-    private static String string(final Map<String, Object> properties, final String key)
+    /**
+     * The connection-level settings of one LLM provider: endpoint, credentials, timeout, plus whatever
+     * format-specific extras it carries. Instances are immutable.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    public static final class ProviderSettings
     {
-        final Object value = properties.get(key);
-        return value == null ? null : value.toString();
-    }
+        private final String endpoint;
 
-    private static long number(final Map<String, Object> properties, final String key, final long defaultValue)
-    {
-        final Object value = properties.get(key);
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
+        private final String apiKeyEnvVar;
+
+        private final long timeoutSeconds;
+
+        private final Map<String, Object> extra;
+
+        /**
+         * Create a provider settings snapshot.
+         *
+         * @param endpoint the base URL of the provider's API, or {@code null} if not set
+         * @param apiKeyEnvVar the name of the environment variable holding the API key, or {@code null} if not set
+         * @param timeoutSeconds the request timeout, in seconds
+         * @param extra format-specific extras with no dedicated field of their own (such as {@code projectId}),
+         *            or {@code null} for none
+         */
+        public ProviderSettings(@Nullable final String endpoint, @Nullable final String apiKeyEnvVar,
+            final long timeoutSeconds, @Nullable final Map<String, Object> extra)
+        {
+            this.endpoint = endpoint;
+            this.apiKeyEnvVar = apiKeyEnvVar;
+            this.timeoutSeconds = timeoutSeconds;
+            this.extra = extra == null ? Collections.emptyMap() : new HashMap<>(extra);
         }
-        if (value != null) {
-            try {
-                return Long.parseLong(value.toString());
-            } catch (NumberFormatException e) {
-                return defaultValue;
+
+        /**
+         * The base URL of this provider's API.
+         *
+         * @return the endpoint URL, or {@code null} if not set
+         */
+        @Nullable
+        public String getEndpoint()
+        {
+            return this.endpoint;
+        }
+
+        /**
+         * The name of the environment variable holding this provider's API key.
+         *
+         * @return the environment variable name, or {@code null} if not set
+         */
+        @Nullable
+        public String getApiKeyEnvVar()
+        {
+            return this.apiKeyEnvVar;
+        }
+
+        /**
+         * The request timeout for this provider, in seconds.
+         *
+         * @return the timeout in seconds
+         */
+        public long getTimeoutSeconds()
+        {
+            return this.timeoutSeconds;
+        }
+
+        /**
+         * Read an arbitrary, format-specific property (such as {@code projectId} or {@code apiVersion}) that has
+         * no dedicated field of its own.
+         *
+         * @param name the property name
+         * @return the property value as a string, or {@code null} if not set
+         */
+        @Nullable
+        public String getProperty(@NotNull final String name)
+        {
+            final Object value = this.extra.get(name);
+            return value == null ? null : value.toString();
+        }
+
+        @Override
+        public boolean equals(final Object other)
+        {
+            if (this == other) {
+                return true;
             }
+            if (!(other instanceof ProviderSettings)) {
+                return false;
+            }
+            final ProviderSettings that = (ProviderSettings) other;
+            return this.timeoutSeconds == that.timeoutSeconds && Objects.equals(this.endpoint, that.endpoint)
+                && Objects.equals(this.apiKeyEnvVar, that.apiKeyEnvVar) && this.extra.equals(that.extra);
         }
-        return defaultValue;
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(this.endpoint, this.apiKeyEnvVar, this.timeoutSeconds, this.extra);
+        }
+    }
+
+    /**
+     * The generation settings of one model offered by a provider: token limits, temperature, chunking
+     * thresholds, plus whatever format-specific extras it carries. Instances are immutable.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    public static final class ModelSettings
+    {
+        private final long contextLimitTokens;
+
+        private final long maxOutputTokens;
+
+        private final double temperature;
+
+        private final long chunkTokenSize;
+
+        private final long wholeDocumentTokenLimit;
+
+        private final String developer;
+
+        private final Map<String, Object> extra;
+
+        /**
+         * Create a model settings snapshot.
+         *
+         * @param contextLimitTokens the maximum context window, in tokens
+         * @param maxOutputTokens the maximum number of tokens to generate in the response
+         * @param temperature the sampling temperature
+         * @param chunkTokenSize the number of input tokens to send per chunk when the input exceeds the context
+         *            window
+         * @param wholeDocumentTokenLimit the whole-document token limit
+         * @param developer the organization that developed the model, or {@code null} if not set
+         * @param extra format-specific extras with no dedicated field of their own, or {@code null} for none
+         */
+        public ModelSettings(final long contextLimitTokens, final long maxOutputTokens, final double temperature,
+            final long chunkTokenSize, final long wholeDocumentTokenLimit, @Nullable final String developer,
+            @Nullable final Map<String, Object> extra)
+        {
+            this.contextLimitTokens = contextLimitTokens;
+            this.maxOutputTokens = maxOutputTokens;
+            this.temperature = temperature;
+            this.chunkTokenSize = chunkTokenSize;
+            this.wholeDocumentTokenLimit = wholeDocumentTokenLimit;
+            this.developer = developer;
+            this.extra = extra == null ? Collections.emptyMap() : new HashMap<>(extra);
+        }
+
+        /**
+         * The maximum context window of this model, in tokens.
+         *
+         * @return the context limit in tokens
+         */
+        public long getContextLimitTokens()
+        {
+            return this.contextLimitTokens;
+        }
+
+        /**
+         * The maximum number of tokens to generate in the response.
+         *
+         * @return the maximum output tokens
+         */
+        public long getMaxOutputTokens()
+        {
+            return this.maxOutputTokens;
+        }
+
+        /**
+         * The sampling temperature.
+         *
+         * @return the temperature
+         */
+        public double getTemperature()
+        {
+            return this.temperature;
+        }
+
+        /**
+         * The number of input tokens to send per chunk when the input exceeds the context window.
+         *
+         * @return the chunk token size
+         */
+        public long getChunkTokenSize()
+        {
+            return this.chunkTokenSize;
+        }
+
+        /**
+         * The document-size threshold, in estimated tokens, below which an uploaded document is sent to the model
+         * whole rather than chunked.
+         *
+         * @return the whole-document token limit
+         */
+        public long getWholeDocumentTokenLimit()
+        {
+            return this.wholeDocumentTokenLimit;
+        }
+
+        /**
+         * The organization that developed this model.
+         *
+         * @return the developer name, or {@code null} if not set
+         */
+        @Nullable
+        public String getDeveloper()
+        {
+            return this.developer;
+        }
+
+        /**
+         * Read an arbitrary, format-specific property that has no dedicated field of its own.
+         *
+         * @param name the property name
+         * @return the property value as a string, or {@code null} if not set
+         */
+        @Nullable
+        public String getProperty(@NotNull final String name)
+        {
+            final Object value = this.extra.get(name);
+            return value == null ? null : value.toString();
+        }
+
+        @Override
+        public boolean equals(final Object other)
+        {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof ModelSettings)) {
+                return false;
+            }
+            final ModelSettings that = (ModelSettings) other;
+            return this.contextLimitTokens == that.contextLimitTokens
+                && this.maxOutputTokens == that.maxOutputTokens
+                && Double.compare(this.temperature, that.temperature) == 0
+                && this.chunkTokenSize == that.chunkTokenSize
+                && this.wholeDocumentTokenLimit == that.wholeDocumentTokenLimit
+                && Objects.equals(this.developer, that.developer) && this.extra.equals(that.extra);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(this.contextLimitTokens, this.maxOutputTokens, this.temperature,
+                this.chunkTokenSize, this.wholeDocumentTokenLimit, this.developer, this.extra);
+        }
     }
 }

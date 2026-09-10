@@ -23,15 +23,20 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
+import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 import io.uhndata.iap.llm.LLMSettings;
+import io.uhndata.iap.llm.internal.models.LLMModelNode;
+import io.uhndata.iap.llm.internal.models.LLMProviderNode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -67,6 +72,7 @@ class LLMConfigurationServiceImplTest
     @BeforeEach
     void setUp() throws Exception
     {
+        this.context.addModelsForClasses(LLMProviderNode.class, LLMModelNode.class);
         this.service = new LLMConfigurationServiceImpl();
         inject(this.service, new TestResolverFactory(this.context.resourceResolver()));
     }
@@ -195,6 +201,62 @@ class LLMConfigurationServiceImplTest
 
         final IOException failure = assertThrows(IOException.class, () -> this.service.getActiveSettings());
         assertTrue(failure.getMessage().contains("Could not access the LLM configuration"));
+    }
+
+    @Test
+    void failsWhenTheProviderNodeCannotBeAdapted() throws Exception
+    {
+        createConfiguration(PROVIDER, MODEL);
+        final Resource realProvider = this.context.resourceResolver().getResource(CATALOG_PATH + "/" + PROVIDER);
+        final Resource brokenProvider = Mockito.spy(realProvider);
+        Mockito.doReturn(null).when(brokenProvider).adaptTo(LLMProviderNode.class);
+        final Resource realCatalog = this.context.resourceResolver().getResource(CATALOG_PATH);
+        final Resource catalog = Mockito.spy(realCatalog);
+        Mockito.doReturn(brokenProvider).when(catalog).getChild(PROVIDER);
+        inject(this.service, new TestResolverFactory(resolverReturning(CATALOG_PATH, catalog)));
+
+        final IOException failure = assertThrows(IOException.class, () -> this.service.getActiveSettings());
+        assertTrue(failure.getMessage().contains("Could not read the LLM provider"));
+    }
+
+    @Test
+    void failsWhenTheModelNodeCannotBeAdapted() throws Exception
+    {
+        createConfiguration(PROVIDER, MODEL);
+        final Resource realModel =
+            this.context.resourceResolver().getResource(CATALOG_PATH + "/" + PROVIDER + "/" + MODEL);
+        final Resource brokenModel = Mockito.spy(realModel);
+        Mockito.doReturn(null).when(brokenModel).adaptTo(LLMModelNode.class);
+        final Resource realProvider = this.context.resourceResolver().getResource(CATALOG_PATH + "/" + PROVIDER);
+        final Resource provider = Mockito.spy(realProvider);
+        Mockito.doReturn(brokenModel).when(provider).getChild(MODEL);
+        final Resource realCatalog = this.context.resourceResolver().getResource(CATALOG_PATH);
+        final Resource catalog = Mockito.spy(realCatalog);
+        Mockito.doReturn(provider).when(catalog).getChild(PROVIDER);
+        inject(this.service, new TestResolverFactory(resolverReturning(CATALOG_PATH, catalog)));
+
+        final IOException failure = assertThrows(IOException.class, () -> this.service.getActiveSettings());
+        assertTrue(failure.getMessage().contains("Could not read the LLM model"));
+    }
+
+    /**
+     * Wraps the test's own resolver, answering one specific path with a given resource instead of the real
+     * one, so a test can substitute a resource that refuses to adapt without disturbing anything else.
+     *
+     * @param path the path to intercept
+     * @param resource the resource to answer with for that path
+     * @return a resolver overriding just that one lookup
+     */
+    private ResourceResolver resolverReturning(final String path, final Resource resource)
+    {
+        return new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public Resource getResource(final String requestedPath)
+            {
+                return path.equals(requestedPath) ? resource : super.getResource(requestedPath);
+            }
+        };
     }
 
     @Test

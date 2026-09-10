@@ -40,6 +40,8 @@ import com.sun.net.httpserver.HttpServer;
 import io.uhndata.iap.llm.LLMMessage;
 import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
+import io.uhndata.iap.llm.LLMSettings.ModelSettings;
+import io.uhndata.iap.llm.LLMSettings.ProviderSettings;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -143,13 +145,10 @@ class OpenAIClientTest
 
     private LLMSettings settings(final Map<String, Object> providerExtras)
     {
-        final Map<String, Object> provider = new HashMap<>();
-        provider.put("endpoint", endpoint());
-        provider.put("timeoutSeconds", 10L);
-        provider.putAll(providerExtras);
-        final Map<String, Object> model = new HashMap<>();
-        model.put("maxOutputTokens", 100L);
-        model.put("temperature", 0.25d);
+        final Map<String, Object> extra = new HashMap<>(providerExtras);
+        final String apiKeyEnvVar = (String) extra.remove("apiKeyEnvVar");
+        final ProviderSettings provider = new ProviderSettings(endpoint(), apiKeyEnvVar, 10, extra);
+        final ModelSettings model = new ModelSettings(0, 100, 0.25, 0, 0, null, Map.of());
         return new LLMSettings("local", provider, MODEL, model);
     }
 
@@ -269,11 +268,10 @@ class OpenAIClientTest
     @Test
     void acceptsAnEndpointThatAlreadyNamesTheChatCompletionsPath() throws IOException
     {
-        final Map<String, Object> provider = new HashMap<>();
-        provider.put("endpoint", endpoint() + "/chat/completions/");
-        provider.put("timeoutSeconds", 10L);
-        final LLMSettings settings =
-            new LLMSettings("local", provider, MODEL, Map.of("maxOutputTokens", 100L));
+        final ProviderSettings provider =
+            new ProviderSettings(endpoint() + "/chat/completions/", null, 10, null);
+        final ModelSettings model = new ModelSettings(0, 100, 0.0, 0, 0, null, null);
+        final LLMSettings settings = new LLMSettings("local", provider, MODEL, model);
 
         assertEquals(REPLY, new TestClient(settings, Map.of()).chat(HELLO));
     }
