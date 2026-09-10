@@ -94,9 +94,10 @@ interface EntityDataGridProps {
   searchLabel?: string;
   // Render all rows at once instead of virtualizing; needed in test environments with no layout
   disableVirtualization?: boolean;
-  // Columns this grid adds to the entity type's own, e.g. the actions offered on each row. Kept
-  // out of the type's registered presentation because what may be done with an entity depends on
-  // why it is being listed, not on what it is.
+  // Columns this grid adds to the entity type's own, e.g. the actions offered on each row. Kept out
+  // of the type's registered presentation because what may be done with an entity depends on why it
+  // is being listed: the same submission offers deleting it in the submitter's own list and not in a
+  // reviewer's queue.
   extraColumns?: EntityGridColumn[];
   // Change this to make the grid read the current page again, for when something outside it
   // changed what the listing should say, such as a row deleted from an actions column. Any new value
@@ -542,10 +543,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     refreshToken = 0,
   } = props;
   const config = getEntityTypeConfig(entityType);
-  // The type's own presentation plus whatever this particular grid adds. Per-grid rather than
-  // registered with the type because what may be *done* with an entity depends on why it is being
-  // listed: the same submission offers deleting it in the submitter's own list and not in a
-  // reviewer's queue.
+  // The type's own presentation plus whatever this particular grid adds.
   const columns = useMemo(
     () => extraColumns.length === 0 ? config?.columns ?? [] : [ ...config?.columns ?? [], ...extraColumns ],
     [ config?.columns, extraColumns ]);
