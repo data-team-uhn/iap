@@ -141,9 +141,10 @@ def main(args=sys.argv[1:]):
     # regular/production build (invoked by Maven without this flag) never pulls them in.
     include_tests = '--with-tests' in args
 
-    # A module's namespace — normally its directory's base name, its parent's when the directory
-    # only names a packaging layer — becomes both its subdirectory in the aggregated tree and its
-    # @iap/<module> import name, so it must be unique across the whole project
+    # A module's namespace — its artifactId, stripped of the project prefix and of a packaging-layer
+    # suffix — becomes both its subdirectory in the aggregated tree and its @iap/<module> import name,
+    # so it must be unique across the whole project. Renaming a directory does not change it; renaming
+    # an artifactId does
     seen_modules = {}
     # Of those, the ones that actually ship sources (rather than only an assets.config), which
     # are the ones the project-root tsconfig.json has to map

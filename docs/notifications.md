@@ -349,15 +349,15 @@ them off the doormat — and each entry leads to the thing it reports on.
 
 ## Future work
 
-- **Nothing produces messages yet** beyond the status report, and nothing sends an email yet.
-  Both are wiring, and the workflow engine is the natural place for it: an email belongs to
-  a submission changing state. The catcher above is what makes that testable — a workflow
-  that mails somebody can be asserted on without a mail server.
-- **Filling a template in from a submission.** The engine can already reach into whatever
-  a caller passes, so what is left is deciding what a caller *should* pass — the
-  submission, its answers, the actor, the workflow instance — and that is best designed
-  alongside the workflow actions that will trigger these emails rather than guessed at now.
-- **A shared notion of a message.** Chat producers return webhook attachments, and email
-  is written as templates; a third channel would need one or the other, or something
-  above both. Worth settling when there is a second source of messages to design it
-  against.
+- **A channel that collects rather than interrupts.** Both shipped deliveries act at once,
+  so a notification marked `batched` reaches the stored list and no further. A digest that
+  accepts it, gathers a day of them and mails one summary is the missing half of what
+  urgency already says.
+- **Settings that belong to the person, not the workflow.** A notification says what
+  happened and who it concerns; how loudly each of them hears about it should be theirs to
+  choose, including turning a channel off. The account handle on `Recipient` is where that
+  would be read from.
+- **Somewhere to see all of them.** The bell shows the latest few, and nothing lists the
+  rest — so a notification scrolls out of reach rather than being filed. A page over the
+  same listing would also give "mark these read" a home that is not "whatever the dropdown
+  happened to show".

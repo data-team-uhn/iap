@@ -17,6 +17,8 @@
  */
 package io.uhndata.iap.notifications.api;
 
+import java.util.Map;
+
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -89,6 +91,19 @@ class NotificationContextTest
         assertNull(notification.getTemplate());
         assertEquals("", notification.getEvent());
         assertTrue(notification.getVariables().isEmpty());
+    }
+
+    // A null is what a caller passes for something it has nothing to say about, so it leaves the variable
+    // out. Before, it reached Map.copyOf and threw from build() naming nothing
+    @Test
+    void leavesOutAVariableWithNoValue()
+    {
+        final NotificationContext notification = NotificationContext.about(this.subject)
+            .with("days", 3)
+            .with("note", null)
+            .build();
+
+        assertEquals(Map.of("days", 3), notification.getVariables());
     }
 
     // The variables are read by deliveries that may run later and elsewhere; handing out a live map would let a

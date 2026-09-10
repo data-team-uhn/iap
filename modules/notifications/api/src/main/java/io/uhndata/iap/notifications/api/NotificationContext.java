@@ -251,13 +251,18 @@ public final class NotificationContext
          * One more thing a template may need.
          *
          * @param name the variable name
-         * @param value its value
+         * @param value its value, or {@code null} to leave the variable out entirely
          * @return this builder
          */
         @NotNull
         public Builder with(@NotNull final String name, @Nullable final Object value)
         {
-            this.variables.put(name, value);
+            // A value that is not there leaves the variable out rather than putting an empty one in. A
+            // template asks `#if($note)`, and one that is always present but sometimes empty answers that
+            // question wrongly. It is also the only reading the finished map allows, holding no nulls
+            if (value != null) {
+                this.variables.put(name, value);
+            }
             return this;
         }
 

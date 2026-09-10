@@ -88,6 +88,8 @@ final class Recipients
         final String userId)
     {
         try {
+            // Neither of the next two is recorded, unlike the repository failure below: they are facts
+            // about one account, not something an administrator can act on for everybody
             final Authorizable account = users.getAuthorizable(userId);
             if (account == null) {
                 LOGGER.warn("A recipient has no account in this repository, so they cannot be told anything");

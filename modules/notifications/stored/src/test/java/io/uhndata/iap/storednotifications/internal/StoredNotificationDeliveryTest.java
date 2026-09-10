@@ -354,6 +354,17 @@ class StoredNotificationDeliveryTest
         }
     }
 
+    /**
+     * An access control manager that records the entry instead of applying it.
+     *
+     * <p>So these tests prove the grant was <em>requested</em>, with the right principal and privileges,
+     * and nothing about whether a repository accepts it. That half was measured separately, against a
+     * scratch Oak 2.6.0 on 2026-09-10: {@code setPolicy} succeeds on a {@code notif:Notification} even
+     * though the type declares no {@code rep:AccessControllable}, because Oak adds that mixin itself.
+     * A sling-mock context could not have answered it either way, since it runs as an administrator.</p>
+     *
+     * @return the recording manager
+     */
     private AccessControlManager recordingAccessControl() throws IllegalStateException
     {
         try {

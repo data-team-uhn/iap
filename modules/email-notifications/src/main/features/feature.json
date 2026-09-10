@@ -78,8 +78,9 @@
       "start-order":"24"
     },
     {
-      // After the notifications bundle whose delivery extension point this implements, which is itself after
-      // the workflows bundle it reads flow nodes through
+      // After the notifications bundles whose delivery extension point this implements. Those sit at the
+      // same order as the workflows bundle rather than after it, which is enough because a handler
+      // resolves what it needs per request, not when its component activates
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
       "start-order":"27"
     }
