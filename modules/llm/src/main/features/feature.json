@@ -30,7 +30,8 @@
         // seeded with overwrite:=false (see pom.xml), which skips loading altogether if the node
         // already exists -- so creating it here first would leave it permanently empty. Nothing
         // else lives under either folder today, so the parent is exactly the LLM subtree.
-        "create path (sling:Folder) /libs/iap/config,/apps/iap/config",
+        "create path (sling:Folder) /libs/iap/config",
+        "create path (sling:Folder) /apps/iap/config",
         // A dedicated user for LLMConfigurationServiceImpl: it only ever reads the catalog
         // (/libs/iap/config/LLM) and the active selection (/apps/iap/config/LLM), so it gets
         // read on exactly those two, not the broad read-everything sling-readall carried.
