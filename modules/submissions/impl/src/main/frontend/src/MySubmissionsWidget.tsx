@@ -78,11 +78,12 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
     ),
   } ], []);
 
-  // The grid reads the server on mount, so opening what was just created shows it and coming back
-  // lists it. No refresh of our own, and nothing stale left on screen either way. A submission
-  // raised without a redirect to follow leaves the dashboard as it is.
+  // The listing has changed whether or not there is somewhere to send the submitter, and the grid
+  // never unmounted, so it is told either way. Without that, a submission raised with no redirect
+  // to follow is indistinguishable from nothing having happened.
   const created = (path: string) => {
     setDialogOpen(false);
+    setRefreshToken(current => current + 1);
     if (path) {
       void navigate(path);
     }
