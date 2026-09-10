@@ -59,7 +59,7 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
   const [ refreshToken, setRefreshToken ] = useState(0);
   const navigate = useNavigate();
 
-  const columns: EntityGridColumn[] = useMemo(() => [ {
+  const extraColumns: EntityGridColumn[] = useMemo(() => [ {
     field: "__actions__",
     headerName: "Actions",
     width: 130,
@@ -109,7 +109,7 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
       <EntityDataGrid
         entityType={SUBMISSION_TYPE}
         filters={MY_SUBMISSIONS}
-        extraColumns={columns}
+        extraColumns={extraColumns}
         refreshToken={refreshToken}
         emptyMessage="No submissions"
         noResultsMessage="No matching submissions"
