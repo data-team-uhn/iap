@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import {
   Alert,
@@ -37,67 +37,7 @@ import {
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
 
-// One serialized node: its own properties, plus its children under their node names. The
-// `@path`/`@name` keys are what the serializer's identification step adds, and what tells a
-// child node apart from an ordinary property value.
-type JsonNode = Record<string, unknown>;
-
-// What the submitter picks: a schema that is open for submissions, together with the version
-// their submission will actually answer.
-export interface SchemaChoice {
-  // The active version's path, which is what raising a submission is asked for
-  path: string;
-  // The schema's human-readable name
-  title: string;
-  // The version's own label, shown because two submissions against the same schema can answer
-  // different versions of it, and which one applies is not a detail
-  version: string;
-  description?: string;
-}
-
-const SCHEMA_PRIMARY_TYPE = "sch:Schema";
-
-const SCHEMA_VERSION_PRIMARY_TYPE = "sch:SchemaVersion";
-
-// The children of the given primary type. Both node types end their definition with `+ * (nt:base)`
-// for extensibility, so neither the homepage's children are all schemas nor a schema's children all
-// versions, and the type is the only thing that says which are which.
-function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
-  return Object.values(node)
-    .filter((value): value is JsonNode =>
-      typeof value === "object" && value !== null
-        && typeof (value as JsonNode)["@path"] === "string"
-        && (value as JsonNode)["jcr:primaryType"] === primaryType);
-}
-
-function text(node: JsonNode, key: string): string | undefined {
-  const value = node[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-// The schemas a submission may be raised against: those marked active, each paired with its
-// active version. Both halves have to be active: a retired version of a live schema is no more open
-// than a live version of a retired one. That is the rule the server enforces when
-// the submission is actually raised, checked here only so that unusable choices are not offered.
-export function schemaChoices(tree: JsonNode): SchemaChoice[] {
-  return childNodes(tree, SCHEMA_PRIMARY_TYPE)
-    .filter(schema => schema.active === true)
-    .flatMap(schema => {
-      const version = childNodes(schema, SCHEMA_VERSION_PRIMARY_TYPE)
-        .find(candidate => candidate.active === true);
-      if (!version) {
-        return [];
-      }
-      return [ {
-        path: version["@path"] as string,
-        // A schema's title is mandatory, so the node name is a fallback for content that
-        // predates the constraint rather than an expected case
-        title: text(schema, "title") ?? text(schema, "@name") ?? "",
-        version: text(version, "version") ?? "",
-        description: text(version, "description"),
-      } ];
-    });
-}
+import { useSchemas } from "./useSchemas";
 
 interface NewSubmissionDialogProps {
   onClose: () => void;
@@ -113,46 +53,11 @@ interface NewSubmissionDialogProps {
 // Mounted only while it is open, so each opening starts from nothing. What is on offer is read
 // afresh, and a half-filled attempt is not still sitting there next time.
 function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
-  const [ choices, setChoices ] = useState<SchemaChoice[]>([]);
-  const [ loadError, setLoadError ] = useState<string>();
-  // Derived rather than toggled inside the effect: the dialog is loading until the fetch it starts
-  // on mount has settled, one way or the other
-  const [ settled, setSettled ] = useState(false);
+  const { choices, loading, error: loadError } = useSchemas();
   const [ selected, setSelected ] = useState("");
   const [ title, setTitle ] = useState("");
   const [ submitting, setSubmitting ] = useState(false);
   const [ submitError, setSubmitError ] = useState<string>();
-
-  // Depth 2 reaches the schemas and their versions. Dereferencing is off because each version
-  // references its workflow, a whole process definition per row, none of which this dialog reads.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/Schemas.2.-dereference.json")
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`The list of schemas could not be loaded (${response.status})`);
-        }
-        return response.json() as Promise<JsonNode>;
-      })
-      .then(tree => {
-        if (!cancelled) {
-          setChoices(schemaChoices(tree));
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setLoadError(error instanceof Error ? error.message : String(error));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setSettled(true);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const submit = useCallback(() => {
     setSubmitting(true);
@@ -178,12 +83,12 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
       .finally(() => setSubmitting(false));
   }, [ onCreated, selected, title ]);
 
-  const empty = settled && !loadError && choices.length === 0;
+  const empty = !loading && !loadError && choices.length === 0;
 
   return (
     <ResponsiveDialog title="New submission" withCloseButton open onClose={onClose}>
       <DialogContent dividers>
-        { !settled && (
+        { loading && (
           <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
             <CircularProgress aria-label="Loading the schemas" />
           </Box>
