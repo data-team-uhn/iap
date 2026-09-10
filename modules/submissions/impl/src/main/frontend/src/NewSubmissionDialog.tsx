@@ -55,10 +55,19 @@ export interface SchemaChoice {
   description?: string;
 }
 
-function childNodes(node: JsonNode): JsonNode[] {
+const SCHEMA_PRIMARY_TYPE = "sch:Schema";
+
+const SCHEMA_VERSION_PRIMARY_TYPE = "sch:SchemaVersion";
+
+// The children of the given primary type. Both node types end their definition with `+ * (nt:base)`
+// for extensibility, so neither the homepage's children are all schemas nor a schema's children all
+// versions, and the type is the only thing that says which are which.
+function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
   return Object.values(node)
     .filter((value): value is JsonNode =>
-      typeof value === "object" && value !== null && typeof (value as JsonNode)["@path"] === "string");
+      typeof value === "object" && value !== null
+        && typeof (value as JsonNode)["@path"] === "string"
+        && (value as JsonNode)["jcr:primaryType"] === primaryType);
 }
 
 function text(node: JsonNode, key: string): string | undefined {
@@ -71,10 +80,11 @@ function text(node: JsonNode, key: string): string | undefined {
 // than a live version of a retired one. That is the rule the server enforces when
 // the submission is actually raised, checked here only so that unusable choices are not offered.
 export function schemaChoices(tree: JsonNode): SchemaChoice[] {
-  return childNodes(tree)
+  return childNodes(tree, SCHEMA_PRIMARY_TYPE)
     .filter(schema => schema.active === true)
     .flatMap(schema => {
-      const version = childNodes(schema).find(candidate => candidate.active === true);
+      const version = childNodes(schema, SCHEMA_VERSION_PRIMARY_TYPE)
+        .find(candidate => candidate.active === true);
       if (!version) {
         return [];
       }
