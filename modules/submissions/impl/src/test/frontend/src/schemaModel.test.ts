@@ -78,6 +78,14 @@ describe("schemaChoices", () => {
     expect(schemaChoices(withNotes)).toEqual([]);
   });
 
+  // Oak permits an empty value for a mandatory property, and "" is not nullish, so the fallback has
+  // to fire on it rather than only on a missing title
+  it("falls back to the node name for a schema whose title is empty", () => {
+    const blank = { s: { ...SCHEMAS.timeOffRequest, title: "" } };
+
+    expect(schemaChoices(blank)[0].title).toBe("timeOffRequest");
+  });
+
   it("offers a nameless schema rather than dropping it", () => {
     // Title and node name are both mandatory in practice. Content that somehow lacks them is still
     // offered: a choice missing its label beats a missing choice

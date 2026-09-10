@@ -543,9 +543,12 @@ function EntityDataGrid(props: EntityDataGridProps) {
     refreshToken = 0,
   } = props;
   const config = getEntityTypeConfig(entityType);
-  // The type's own presentation plus whatever this particular grid adds.
+  // The type's own presentation plus whatever this particular grid adds. An added column is not
+  // something the server can sort or filter on, since it usually names no property at all: the
+  // defaults say so, and a caller whose column does name one can still say otherwise.
   const columns = useMemo(
-    () => extraColumns.length === 0 ? config?.columns ?? [] : [ ...config?.columns ?? [], ...extraColumns ],
+    () => extraColumns.length === 0 ? config?.columns ?? [] : [ ...config?.columns ?? [],
+      ...extraColumns.map(column => ({ sortable: false, filterable: false, ...column })) ],
     [ config?.columns, extraColumns ]);
   const navigate = useNavigate();
   const theme = useTheme();
@@ -616,7 +619,8 @@ function EntityDataGrid(props: EntityDataGridProps) {
     return () => {
       cancelled = true;
     };
-  }, [config, fetchUtil, paginationModel, sortModel, filterKey, fullText, retryCount, refreshToken]);
+  }, [columns, config, fetchUtil, paginationModel, sortModel, filterKey, fullText, retryCount,
+    refreshToken]);
 
   const changeColumnVisibility = (model: GridColumnVisibilityModel) => {
     setColumnVisibilityModel(model);
@@ -663,7 +667,11 @@ function EntityDataGrid(props: EntityDataGridProps) {
   // A column absent from the model is visible; the model's index type hides the undefined
   const visibleColumns = columns
     .filter(column => (columnVisibilityModel[column.field] as boolean | undefined) !== false);
-  const visibleFields = new Set(visibleColumns.map(column => column.field));
+  // The type's own fields only: a bespoke renderer is asked to honour the user's column selection,
+  // and knows nothing about a column this particular grid added.
+  const registeredFields = new Set(config.columns.map(column => column.field));
+  const visibleFields = new Set(visibleColumns.map(column => column.field)
+    .filter(field => registeredFields.has(field)));
   const listColumn: GridListViewColDef<EntityRow> = {
     field: "__listItem__",
     renderCell: params => config.listItem

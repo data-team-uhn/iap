@@ -19,8 +19,12 @@
 // What a schema listing says, and how to read a submitter's choices out of it. No React, no fetch:
 // everything here is a pure function of its arguments. The I/O that uses it is in useSchemas.
 
-/** What is read, and how deep. */
-export const SCHEMAS_URL = "/Schemas.2.-dereference.json";
+/**
+ * What is read, and how deep. Depth 2 reaches the schemas and their versions, and `simple` drops
+ * what a picker never shows: every version's requirement subtree, and the `mix:versionable`
+ * bookkeeping each node repeats.
+ */
+export const SCHEMAS_URL = "/Schemas.2.simple.json";
 
 /**
  * One serialized node: its own properties, plus its children under their node names. The
@@ -61,9 +65,11 @@ function childNodes(node: JsonNode, primaryType: string): JsonNode[] {
         && (value as JsonNode)["jcr:primaryType"] === primaryType);
 }
 
+// An empty string is not a value here: `title` is mandatory in the CND and Oak still permits "",
+// so a caller's `?? fallback` has to fire on it.
 function text(node: JsonNode, key: string): string | undefined {
   const value = node[key];
-  return typeof value === "string" ? value : undefined;
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 /**

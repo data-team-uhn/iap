@@ -113,6 +113,52 @@ describe("NewSubmissionDialog", () => {
     expect(create).toBeEnabled();
   });
 
+  // fetch has already followed the redirect, so this status describes the page it landed on. A
+  // submitter with no read on /Submissions must not be told their submission was refused
+  it("reports where the submission went even when reading that page failed", async () => {
+    const created = vi.fn();
+    const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
+      ? { ...jsonResponse({}, { ok: false, status: 403 }), redirected: true,
+        url: "http://localhost/Submissions/aLongWeekend" }
+      : jsonResponse(SCHEMAS)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<NewSubmissionDialog onClose={() => {}} onCreated={created} />);
+    await userEvent.click(await screen.findByRole("radio"));
+    await userEvent.type(screen.getByLabelText(/Title/), "A long weekend");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(created).toHaveBeenCalledWith("/Submissions/aLongWeekend"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // A body that parses to null is well-formed JSON and still not a node
+  it("says the listing could not be read when the body is null", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(null))));
+
+    render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
+
+    expect(await screen.findByText(/response could not be read/)).toBeInTheDocument();
+  });
+
+  it("cannot be dismissed while the submission is being raised", async () => {
+    let release: (value: unknown) => void = () => {};
+    const fetchMock = vi.fn((url: string) => url === "/Submissions"
+      ? new Promise(resolve => {
+        release = resolve;
+      })
+      : Promise.resolve(jsonResponse(SCHEMAS)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<NewSubmissionDialog onClose={() => {}} onCreated={() => {}} />);
+    await userEvent.click(await screen.findByRole("radio"));
+    await userEvent.type(screen.getByLabelText(/Title/), "A long weekend");
+    await userEvent.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled());
+    release(jsonResponse({}));
+  });
+
   it("shows the engine's own reason for refusing", async () => {
     // A refusal carries why: no applicable workflow, not allowed, or a payload it will not take.
     // Repeating that verbatim beats inventing a generic message over the top of it
