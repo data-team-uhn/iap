@@ -79,7 +79,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
             freeName(context.getTarget(), (String) title),
             Map.of("jcr:primaryType", "sub:Submission", TITLE, title));
         reference(created, version);
-        context.setVariable(WorkflowResult.CREATED_PATH, created.getPath());
+        context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
     }
 
     /**
@@ -146,7 +146,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
      * @param parent the submissions homepage the submission will be created under
      * @param title the human-given title
      * @return a free, camel-cased name
-     * @throws InvalidPayloadException when the title yields no usable name, or every variant is taken
+     * @throws InvalidPayloadException when the title yields no usable name
      */
     private String freeName(final Resource parent, final String title) throws InvalidPayloadException
     {
@@ -154,11 +154,8 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         if (base.isEmpty()) {
             throw new InvalidPayloadException("The title must contain at least one letter or digit");
         }
-        final String name = NodeNameUtils.findFreeName(parent, base);
-        if (name == null) {
-            throw new InvalidPayloadException(
-                "Too many submissions are already named " + base + "; pick a different title");
-        }
-        return name;
+        // Always answers: past a hundred siblings the suffix turns random rather than giving up, since
+        // refusing to record a submission that was raised is the worse of the two outcomes
+        return NodeNameUtils.findFreeName(parent, base);
     }
 }

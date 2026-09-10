@@ -21,6 +21,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -46,6 +49,7 @@ import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -97,14 +101,14 @@ class CreateSubmissionHandlerTest
 
         this.handler.execute(taskContext);
 
-        assertEquals("/Submissions/myDayOff", taskContext.getVariable(WorkflowResult.CREATED_PATH));
+        assertEquals("/Submissions/myDayOff", taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
         final Resource created = this.context.resourceResolver().getResource("/Submissions/myDayOff");
         assertNotNull(created);
         assertEquals("sub:Submission", created.getValueMap().get("jcr:primaryType"));
         assertEquals("My day off", created.getValueMap().get("title"));
         // A real REFERENCE, holding the version node's own identifier
-        final javax.jcr.Node versionNode =
-            this.context.resourceResolver().getResource(VERSION_PATH).adaptTo(javax.jcr.Node.class);
+        final Node versionNode =
+            this.context.resourceResolver().getResource(VERSION_PATH).adaptTo(Node.class);
         assertEquals(versionNode.getIdentifier(),
             created.getValueMap().get("schemaVersion", String.class));
     }
@@ -118,18 +122,23 @@ class CreateSubmissionHandlerTest
 
         this.handler.execute(taskContext);
 
-        assertEquals("/Submissions/myDayOff2", taskContext.getVariable(WorkflowResult.CREATED_PATH));
+        assertEquals("/Submissions/myDayOff2", taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
+    // Past a hundred siblings the name turns ugly rather than the submission being refused, which is
+    // what NodeNameUtils promises every caller
     @Test
-    void givesUpWhenEveryNameVariantIsTaken()
+    void takesAnUglyNameRatherThanGivingUp() throws WorkflowException, PersistenceException
     {
         IntStream.rangeClosed(1, 100).forEach(attempt -> this.context.create().resource(
             "/Submissions/" + (attempt == 1 ? "busy" : "busy" + attempt), TYPE, "sub/Submission"));
 
-        final InvalidPayloadException rejection = assertThrows(InvalidPayloadException.class,
-            () -> this.handler.execute(context(Map.of("title", "Busy", "schemaVersion", VERSION_PATH))));
-        assertTrue(rejection.getMessage().contains("pick a different title"));
+        final WorkflowTaskContext taskContext = context(Map.of("title", "Busy", "schemaVersion", VERSION_PATH));
+        this.handler.execute(taskContext);
+
+        final String created = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
+        assertTrue(created.startsWith("/Submissions/busy"), created);
+        assertNotEquals("/Submissions/busy", created);
     }
 
     @Test
@@ -137,8 +146,8 @@ class CreateSubmissionHandlerTest
     {
         // A schema version whose JCR node fails on any use: the reference cannot be written, and the failure
         // must surface as a persistence problem for the engine to translate, not as a raw repository error
-        final javax.jcr.Node explosive = Mockito.mock(javax.jcr.Node.class, invocation -> {
-            throw new javax.jcr.RepositoryException("boom");
+        final Node explosive = Mockito.mock(Node.class, invocation -> {
+            throw new RepositoryException("boom");
         });
         final ResourceResolver resolver = this.context.resourceResolver();
         final ResourceResolver sabotaged = new ResourceResolverWrapper(resolver)
@@ -155,7 +164,7 @@ class CreateSubmissionHandlerTest
                     @Override
                     public <T> T adaptTo(final Class<T> type)
                     {
-                        return type == javax.jcr.Node.class ? type.cast(explosive) : super.adaptTo(type);
+                        return type == Node.class ? type.cast(explosive) : super.adaptTo(type);
                     }
                 };
             }

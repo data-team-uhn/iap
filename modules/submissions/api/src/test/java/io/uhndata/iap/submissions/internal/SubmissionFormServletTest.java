@@ -60,6 +60,7 @@ import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.submissions.models.Tagging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
