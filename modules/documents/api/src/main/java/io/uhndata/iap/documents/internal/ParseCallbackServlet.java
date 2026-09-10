@@ -87,7 +87,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     private transient byte[] expectedAuthorization;
 
     /**
-     * Read the shared callback token: the {@link ParseJob#TOKEN_PROPERTY} OSGi property when set, the
+     * Read the shared authorization token: the {@link ParseJob#TOKEN_PROPERTY} OSGi property when set, the
      * {@link ParseJob#TOKEN_VARIABLE} environment variable otherwise.
      *
      * @param configuration the component configuration
@@ -99,7 +99,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
         final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
         if (token.isEmpty()) {
             this.expectedAuthorization = null;
-            LOGGER.warn("No callback token is configured ({} or the {} environment variable);"
+            LOGGER.warn("No authorization token is configured ({} or the {} environment variable);"
                 + " parse callbacks will be refused", ParseJob.TOKEN_PROPERTY, ParseJob.TOKEN_VARIABLE);
         } else {
             this.expectedAuthorization = ("Bearer " + token).getBytes(StandardCharsets.UTF_8);
@@ -112,11 +112,12 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     {
         if (this.expectedAuthorization == null) {
             JsonResponse.error(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
-                "Callback authentication is not configured");
+                "Authorization is not configured");
             return;
         }
         if (!isAuthorized(request.getHeader("Authorization"))) {
-            JsonResponse.error(response, HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid callback token");
+            JsonResponse.error(response, HttpServletResponse.SC_UNAUTHORIZED,
+                "Missing or invalid authorization token");
             return;
         }
         final JsonObject outcome;
@@ -134,7 +135,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
         final String markdown = outcome.getString("markdown_path", null);
         if (outcome.getBoolean("ok", false) && markdown == null) {
             JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST,
-                "A successful outcome needs a markdown_path");
+                "Missing required parameter markdown_path in request body");
             return;
         }
         record(jobId, outcome, markdown, response);
