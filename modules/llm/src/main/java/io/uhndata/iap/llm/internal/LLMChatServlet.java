@@ -53,10 +53,14 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
  * <p>Endpoint: {@code POST /system/llm/chat}
  *
  * <p>Single-turn request:
- * {@snippet lang=json : {"message": "Hello", "system": "(optional)"} }
+ * {@snippet lang=json :
+ * {"message": "Hello", "system": "(optional)"}
+ * }
  *
  * <p>Multi-turn request:
- * {@snippet lang=json : {"messages": [{"role": "user", "content": "Hello"}, ...], "system": "(optional)"} }
+ * {@snippet lang=json :
+ * {"messages": [{"role": "user", "content": "Hello"}, ...], "system": "(optional)"}
+ * }
  *
  * <p>Response: {@code {"response": "..."}}
  *
