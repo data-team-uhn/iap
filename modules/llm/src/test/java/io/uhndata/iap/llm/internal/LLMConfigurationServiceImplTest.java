@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
@@ -47,7 +48,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(SlingContextExtension.class)
 class LLMConfigurationServiceImplTest
 {
-    private static final String CONFIG_PATH = "/apps/iap/config/LLM";
+    private static final String SELECTION_PATH = "/apps/iap/config/LLM";
+
+    private static final String CATALOG_PATH = "/libs/iap/config/LLM";
 
     private static final String ACTIVE_PROVIDER = "activeProvider";
 
@@ -87,14 +90,15 @@ class LLMConfigurationServiceImplTest
         if (activeModel != null) {
             configProperties.put(ACTIVE_MODEL, activeModel);
         }
-        this.context.create().resource(CONFIG_PATH, configProperties);
-        this.context.create().resource(CONFIG_PATH + "/" + PROVIDER, Map.of(
+        this.context.create().resource(SELECTION_PATH, configProperties);
+        this.context.create().resource(CATALOG_PATH, Map.of("jcr:primaryType", "nt:unstructured"));
+        this.context.create().resource(CATALOG_PATH + "/" + PROVIDER, Map.of(
             "sling:resourceType", "llm/Provider",
             "label", "Local (Ollama)",
             "api", "openai",
             "endpoint", "http://localhost:11434/v1",
             "timeoutSeconds", 600L));
-        this.context.create().resource(CONFIG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
+        this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
             "sling:resourceType", "llm/Model",
             "maxOutputTokens", 1024L,
             "temperature", 0.0d,
@@ -133,7 +137,18 @@ class LLMConfigurationServiceImplTest
     void failsWhenThereIsNoConfigurationNode()
     {
         final IOException failure = assertThrows(IOException.class, () -> this.service.getActiveSettings());
-        assertTrue(failure.getMessage().contains(CONFIG_PATH));
+        assertTrue(failure.getMessage().contains(SELECTION_PATH));
+    }
+
+    @Test
+    void failsWhenThereIsNoCatalogNode()
+    {
+        this.context.create().resource(SELECTION_PATH, Map.of(
+            ACTIVE_PROVIDER, PROVIDER,
+            ACTIVE_MODEL, MODEL));
+
+        final IOException failure = assertThrows(IOException.class, () -> this.service.getActiveSettings());
+        assertTrue(failure.getMessage().contains(CATALOG_PATH));
     }
 
     @Test
@@ -190,7 +205,7 @@ class LLMConfigurationServiceImplTest
         inject(this.service, new TestResolverFactory(this.context.resourceResolver())
         {
             @Override
-            public org.apache.sling.api.resource.ResourceResolver getServiceResourceResolver(
+            public ResourceResolver getServiceResourceResolver(
                 final Map<String, Object> authenticationInfo)
             {
                 requested.set(authenticationInfo);

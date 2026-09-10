@@ -83,7 +83,7 @@
   - projectId (String)
 
   // Maximum time to wait for a request to this provider, in seconds.
-  - timeoutSeconds (LONG) = '120'
+  - timeoutSeconds (LONG) = '120' autocreated
 
   // Allow provider-specific extra properties (for example apiVersion).
   - * (undefined)
@@ -103,16 +103,16 @@
   - contextLimitTokens (LONG)
 
   // The maximum number of tokens to generate in the response.
-  - maxOutputTokens (LONG) = '2000'
+  - maxOutputTokens (LONG) = '2000' autocreated
 
   // The sampling temperature passed to the model.
-  - temperature (DOUBLE) = '0.0'
+  - temperature (DOUBLE) = '0.0' autocreated
 
   // The number of input tokens to send per chunk when the input exceeds the context window.
   - chunkTokenSize (LONG)
 
   // Documents estimated at fewer tokens than this are sent to the model whole, never chunked.
-  - wholeDocumentTokenLimit (LONG) = '20000'
+  - wholeDocumentTokenLimit (LONG) = '20000' autocreated
 
   // The organization that developed this model (e.g. google, anthropic, alibaba).
   - developer (String)

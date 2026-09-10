@@ -23,6 +23,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
@@ -53,7 +54,7 @@ class LLMSettingsTest
         assertNull(settings.getEndpoint());
         assertNull(settings.getDeveloper());
         assertEquals(120, settings.getTimeoutSeconds());
-        assertEquals(1000, settings.getMaxOutputTokens());
+        assertEquals(2000, settings.getMaxOutputTokens());
     }
 
     @Test
@@ -100,7 +101,7 @@ class LLMSettingsTest
         final LLMSettings settings = new LLMSettings(PROVIDER, Map.of(), MODEL, Map.of());
 
         assertEquals(120, settings.getTimeoutSeconds());
-        assertEquals(1000, settings.getMaxOutputTokens());
+        assertEquals(2000, settings.getMaxOutputTokens());
         assertEquals(0.0d, settings.getTemperature());
         assertEquals(0, settings.getContextLimitTokens());
         assertEquals(0, settings.getChunkTokenSize());
@@ -126,7 +127,7 @@ class LLMSettingsTest
             Map.of("maxOutputTokens", "many", "temperature", "warm"));
 
         assertEquals(120, settings.getTimeoutSeconds());
-        assertEquals(1000, settings.getMaxOutputTokens());
+        assertEquals(2000, settings.getMaxOutputTokens());
         assertEquals(0.0d, settings.getTemperature());
     }
 
@@ -155,5 +156,28 @@ class LLMSettingsTest
 
         assertEquals("https://example.invalid/v1", settings.getEndpoint());
         assertEquals("meta", settings.getDeveloper());
+    }
+
+    @Test
+    void equalsAndHashCodeConsiderEveryField()
+    {
+        final LLMSettings settings = new LLMSettings(PROVIDER, Map.of("endpoint", "https://example.invalid/v1"),
+            MODEL, Map.of("developer", "openai"));
+        final LLMSettings same = new LLMSettings(PROVIDER, Map.of("endpoint", "https://example.invalid/v1"),
+            MODEL, Map.of("developer", "openai"));
+
+        assertEquals(settings, settings);
+        assertEquals(settings, same);
+        assertEquals(settings.hashCode(), same.hashCode());
+        assertFalse(settings.equals(null));
+        assertFalse(settings.equals("not an LLMSettings"));
+        assertFalse(settings.equals(new LLMSettings("other-provider", Map.of("endpoint", "https://example.invalid/v1"),
+            MODEL, Map.of("developer", "openai"))));
+        assertFalse(settings.equals(new LLMSettings(PROVIDER, Map.of("endpoint", "https://example.invalid/v1"),
+            "other-model", Map.of("developer", "openai"))));
+        assertFalse(settings.equals(new LLMSettings(PROVIDER, Map.of("endpoint", "https://elsewhere.invalid/v1"),
+            MODEL, Map.of("developer", "openai"))));
+        assertFalse(settings.equals(new LLMSettings(PROVIDER, Map.of("endpoint", "https://example.invalid/v1"),
+            MODEL, Map.of("developer", "anthropic"))));
     }
 }
