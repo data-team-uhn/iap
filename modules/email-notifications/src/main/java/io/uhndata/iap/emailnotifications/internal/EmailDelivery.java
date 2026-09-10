@@ -139,7 +139,8 @@ public class EmailDelivery implements NotificationDelivery
                 .withRecipient(address, recipient.name())
                 .build();
             EmailUtils.sendEmail(email, this.mailService);
-            LOGGER.debug("Emailed the {} notification about {}", notification.getEvent(),
+            // Handed over, not delivered: the send finishes on a thread pool, and EmailUtils records how
+            LOGGER.debug("Handed the {} notification about {} to the mail service", notification.getEvent(),
                 subject.getPath());
             return true;
         } catch (final RepositoryException | IOException | MessagingException | RuntimeException e) {

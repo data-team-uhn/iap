@@ -19,6 +19,7 @@ package io.uhndata.iap.emailnotifications.api;
 
 import java.lang.reflect.Constructor;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -29,12 +30,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
+import io.uhndata.iap.errortracking.api.ErrorLoggerService;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -59,6 +65,30 @@ class EmailUtilsTest
         // The mail implementation is not on the test classpath, so the built message stays an unusable
         // stand-in. What matters is which builder calls were made, and that the result reached the service
         when(this.mailService.getMessageBuilder()).thenReturn(this.message);
+        // A real MailService always answers with a future; the outcome is watched, so it may not be null
+        when(this.mailService.sendMessage(ArgumentMatchers.<MimeMessage>any()))
+            .thenReturn(CompletableFuture.completedFuture(null));
+    }
+
+    // The send finishes on a thread pool long after the caller has moved on, so a dropped future loses the
+    // failure altogether. Recording it belongs to the sender, which is why no caller does it
+    @Test
+    void recordsASendThatFailsAfterTheCallerHasGone() throws MessagingException
+    {
+        // Mocked rather than hand-written: the interface has methods this test has no opinion about
+        final ErrorLoggerService recorder = mock(ErrorLoggerService.class);
+        final IllegalStateException refused = new IllegalStateException("the relay refused it");
+        when(this.mailService.sendMessage(ArgumentMatchers.<MimeMessage>any()))
+            .thenReturn(CompletableFuture.failedFuture(refused));
+        ErrorLogger.setService(recorder);
+        try {
+            // The caller is told nothing and is not made to wait
+            EmailUtils.sendTextEmail(email("Bob"), this.mailService);
+        } finally {
+            ErrorLogger.unsetService(recorder);
+        }
+
+        verify(recorder).logError(eq(refused), any(ErrorContext.class));
     }
 
     @Test
