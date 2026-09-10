@@ -48,10 +48,10 @@ interface MySubmissionsWidgetProps {
 // The dashboard widget listing the current user's own submissions, newest activity first,
 // registered on the `iap/dashboard/widget` extension point.
 //
-// It draws its own header, asked for by the extension's `ext:widgetHideHeader`, so that
-// the action for raising a submission sits on the title's line, where it reads as something the
-// widget offers, rather than floating in a band of its own above the table. Title and subtitle
-// still come from the extension, so they are declared in exactly one place.
+// It draws its own header, asked for by the extension's `ext:widgetHideHeader`. That puts the
+// action for raising a submission on the title's line. There it reads as something the widget
+// offers, not as a band floating above the table. Title and subtitle still come
+// from the extension, so they are declared in exactly one place.
 function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
   const [ dialogOpen, setDialogOpen ] = useState(false);
   // Bumped when a row is deleted, which is a change to what the listing should say that the grid
@@ -78,9 +78,9 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
     ),
   } ], []);
 
-  // The grid reads the server on mount, so opening what was just created shows it, and coming
-  // back lists it: no refresh of our own, and nothing stale left on screen either way. A
-  // submission raised without a redirect to follow leaves the dashboard as it is.
+  // The grid reads the server on mount, so opening what was just created shows it and coming back
+  // lists it. No refresh of our own, and nothing stale left on screen either way. A submission
+  // raised without a redirect to follow leaves the dashboard as it is.
   const created = (path: string) => {
     setDialogOpen(false);
     if (path) {

@@ -57,8 +57,8 @@ function page(rows: unknown[]) {
 }
 
 function json(body: unknown) {
-  // A real Response rather than an object literal: the deletion controls fetch through
-  // useAuthenticatedFetch, which reads `response.url` to tell an expired session from an answer, and
+  // A real Response rather than an object literal. The deletion controls fetch through
+  // useAuthenticatedFetch, which reads `response.url` to tell an expired session from an answer;
   // a literal without one throws there instead
   return Promise.resolve(new Response(JSON.stringify(body), {
     status: 200,
@@ -66,9 +66,9 @@ function json(body: unknown) {
   }));
 }
 
-// A fetch covering everything the widget and the controls inside it ask for: the listing, the
-// schemas on offer, the POST that raises a submission, and the two DELETEs (the dry run that the
-// confirmation is built from, then the deletion itself).
+// A fetch covering everything the widget and the controls inside it ask for. The listing, the
+// schemas on offer, the POST that raises a submission, and the two DELETEs: the dry run the
+// confirmation is built from, then the deletion itself.
 function widgetFetch(options: { rows?: unknown[]; redirected?: boolean } = {}) {
   const { rows = [], redirected = true } = options;
   return vi.fn((input: string | URL, init?: { method?: string }) => {
@@ -121,8 +121,7 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("draws its own header, so the action sits on the title's line", async () => {
-    // The dashboard is told to skip its own header for this widget; the title and subtitle still
-    // come from the extension, so they are declared in exactly one place
+    // The dashboard is told to skip its own header for this widget
     vi.stubGlobal("fetch", widgetFetch());
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });
@@ -172,8 +171,7 @@ describe("MySubmissionsWidget", () => {
   });
 
   it("stays on the dashboard when the engine created nothing to open", async () => {
-    // A plain 200 rather than a redirect means the delivery was accepted without raising anything,
-    // so there is nowhere to send the submitter and the dashboard is where they stay
+    // Accepted without raising anything, so the dashboard is where the submitter stays
     vi.stubGlobal("fetch", widgetFetch({ redirected: false }));
 
     render(<MySubmissionsWidget extension={EXTENSION} />, { wrapper: MemoryRouter });

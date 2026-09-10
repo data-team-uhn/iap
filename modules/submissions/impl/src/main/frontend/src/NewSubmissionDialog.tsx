@@ -97,11 +97,11 @@ interface NewSubmissionDialogProps {
 
 // Raising a submission: pick what is being submitted against, name it, and let the workflow
 // engine do the rest. The POST goes to the /Submissions homepage rather than to any CRUD
-// endpoint: what a POST there means is decided by a system workflow definition, so this
-// dialog knows only the two things that definition asks for.
+// endpoint. What a POST there means is a system workflow definition's to decide, so this dialog
+// knows only the two things that definition asks for.
 //
-// Mounted only while it is open, so that each opening starts from nothing: what is on offer is
-// read afresh, and a half-filled attempt is not still sitting there next time.
+// Mounted only while it is open, so each opening starts from nothing. What is on offer is read
+// afresh, and a half-filled attempt is not still sitting there next time.
 function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
   const [ choices, setChoices ] = useState<SchemaChoice[]>([]);
   const [ loadError, setLoadError ] = useState<string>();
@@ -113,9 +113,8 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
   const [ submitting, setSubmitting ] = useState(false);
   const [ submitError, setSubmitError ] = useState<string>();
 
-  // Depth 2 reaches the schemas and their versions, and dereferencing is switched off because
-  // each version references the workflow it freezes, a whole process definition per row, none
-  // of which this dialog reads.
+  // Depth 2 reaches the schemas and their versions. Dereferencing is off because each version
+  // references its workflow, a whole process definition per row, none of which this dialog reads.
   useEffect(() => {
     let cancelled = false;
     fetch("/Schemas.2.-dereference.json")
@@ -150,7 +149,7 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
     setSubmitError(undefined);
     fetch("/Submissions", {
       method: "POST",
-      // Trimmed because the name the submission gets is derived from the title, and surrounding
+      // Trimmed because the submission's name is derived from its title, and surrounding
       // whitespace would be carried into it
       body: new URLSearchParams({ title: title.trim(), schemaVersion: selected }),
     })

@@ -71,8 +71,6 @@ describe("SubmissionActions", () => {
   });
 
   it("keeps its clicks away from the row around it", async () => {
-    // Every row in the grid is a link to the submission, so a control inside one has to stop the click
-    // from also being a click on the row
     const rowClick = vi.fn();
     render(
       <MemoryRouter>

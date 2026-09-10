@@ -67,8 +67,6 @@ describe("schemaChoices", () => {
   });
 
   it("offers nothing for a retired schema, whatever its versions say", () => {
-    // Both halves have to be open, which is the rule the server enforces when the submission is
-    // actually raised; offering the choice anyway would just move the refusal later
     const retired = { s: { ...SCHEMAS.timeOffRequest, active: false } };
 
     expect(schemaChoices(retired)).toEqual([]);
@@ -91,8 +89,8 @@ describe("schemaChoices", () => {
   });
 
   it("offers a nameless schema rather than dropping it", () => {
-    // Both the title and the node name are mandatory in practice; the point is that content which
-    // somehow lacks them is still offered, since a choice missing its label beats a missing choice
+    // Title and node name are both mandatory in practice. Content that somehow lacks them is still
+    // offered: a choice missing its label beats a missing choice
     const nameless = { s: { ...SCHEMAS.timeOffRequest, title: undefined, "@name": undefined } };
 
     expect(schemaChoices(nameless)[0]).toMatchObject({ title: "", path: "/Schemas/timeOffRequest/v1" });
@@ -118,7 +116,6 @@ describe("NewSubmissionDialog", () => {
 
     expect(await screen.findByText("Time off request 1.0")).toBeInTheDocument();
     expect(screen.getByText("Asking for a day off")).toBeInTheDocument();
-    // Dereferencing off: each version references the whole workflow it freezes, and none of it is read here
     expect(fetchMock).toHaveBeenCalledWith("/Schemas.2.-dereference.json");
   });
 
@@ -178,7 +175,7 @@ describe("NewSubmissionDialog", () => {
 
   it("shows the engine's own reason for refusing", async () => {
     // A refusal carries why: no applicable workflow, not allowed, or a payload it will not take.
-    // and repeating that verbatim beats inventing a generic message over the top of it
+    // Repeating that verbatim beats inventing a generic message over the top of it
     const fetchMock = vi.fn((url: string) => Promise.resolve(url === "/Submissions"
       ? jsonResponse({ error: "The user is not allowed to perform this action" }, { ok: false, status: 403 })
       : jsonResponse(SCHEMAS)));
@@ -207,8 +204,7 @@ describe("NewSubmissionDialog", () => {
   });
 
   it("reports an empty path when the engine created nothing to open", async () => {
-    // A 200 rather than a redirect means the delivery was accepted without creating anything, so
-    // there is nowhere to send the submitter
+    // Accepted without creating anything, so the dialog has nothing to hand back
     const created = vi.fn();
     const fetchMock = vi.fn((url: string) => Promise.resolve(
       url === "/Submissions" ? jsonResponse({}) : jsonResponse(SCHEMAS)));
@@ -246,7 +242,7 @@ describe("NewSubmissionDialog", () => {
 
   it("keeps quiet when it is closed while still loading", async () => {
     // The dialog is unmounted the moment it is closed, so a list that arrives afterwards has
-    // nowhere to go; it must be dropped rather than set on a component that is gone
+    // nowhere to go. Setting it on a component that is gone is what has to be avoided
     let deliver: (value: unknown) => void = () => {};
     const inFlight = new Promise(resolve => {
       deliver = resolve;

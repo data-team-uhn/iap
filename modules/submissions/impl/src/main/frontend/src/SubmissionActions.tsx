@@ -33,8 +33,8 @@ interface SubmissionActionsProps {
 
 // The actions offered on one row of a submissions listing.
 //
-// Clicks are kept from reaching the row, which would otherwise navigate to the submission: the
-// whole row is a link, so every control sitting inside one has to say that it is not part of it.
+// The whole row is a link, so every control inside one has to stop its own clicks reaching it.
+// Otherwise pressing a button here would navigate to the submission as well.
 function SubmissionActions({ path, title, onDeleted }: SubmissionActionsProps) {
   const navigate = useNavigate();
 
