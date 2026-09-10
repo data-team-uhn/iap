@@ -20,6 +20,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import NewSubmissionDialog from "@iap/submissions/NewSubmissionDialog";
+import { SCHEMAS_URL } from "@iap/submissions/schemaModel";
 
 import { SCHEMAS } from "./schemas.fixture";
 
@@ -33,8 +34,12 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
   };
 }
 
+// Answers the listing and nothing else, so that a request the dialog is not expected to make shows
+// up as an empty tree rather than as schemas
 function schemasFetch() {
-  return vi.fn(() => Promise.resolve(jsonResponse(SCHEMAS)));
+  return vi.fn((url: string) => Promise.resolve(url === SCHEMAS_URL
+    ? jsonResponse(SCHEMAS)
+    : jsonResponse({})));
 }
 
 describe("NewSubmissionDialog", () => {
@@ -50,7 +55,8 @@ describe("NewSubmissionDialog", () => {
 
     expect(await screen.findByText("Time off request 1.0")).toBeInTheDocument();
     expect(screen.getByText("Asking for a day off")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith("/Schemas.2.-dereference.json");
+    // The URL alone: the reauthenticating fetch forwards an init argument of its own
+    expect(fetchMock.mock.calls.map(call => call[0])).toContain(SCHEMAS_URL);
   });
 
   it("says when nothing is open for submissions, rather than showing an empty dialog", async () => {

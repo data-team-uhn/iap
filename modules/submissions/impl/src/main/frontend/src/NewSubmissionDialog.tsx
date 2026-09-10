@@ -36,6 +36,7 @@ import {
 } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { useSchemas } from "./useSchemas";
@@ -54,6 +55,7 @@ interface NewSubmissionDialogProps {
 // Mounted only while it is open, so each opening starts from nothing. What is on offer is read
 // afresh, and a half-filled attempt is not still sitting there next time.
 function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
+  const doFetch = useAuthenticatedFetch();
   const { choices, loading, error: loadError } = useSchemas();
   const [ selected, setSelected ] = useState("");
   const [ title, setTitle ] = useState("");
@@ -63,7 +65,7 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
   const submit = useCallback(() => {
     setSubmitting(true);
     setSubmitError(undefined);
-    fetch("/Submissions", {
+    doFetch("/Submissions", {
       method: "POST",
       // Trimmed because the submission's name is derived from its title, and surrounding
       // whitespace would be carried into it
@@ -87,7 +89,7 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
       })
       .catch((error: unknown) => setSubmitError(describeRequestFailure(error)))
       .finally(() => setSubmitting(false));
-  }, [ onCreated, selected, title ]);
+  }, [ doFetch, onCreated, selected, title ]);
 
   const empty = !loading && !loadError && choices.length === 0;
 

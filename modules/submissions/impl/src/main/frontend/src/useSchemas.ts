@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { type JsonNode, type SchemaChoice, SCHEMAS_URL, schemaChoices } from "./schemaModel";
@@ -43,6 +44,7 @@ export interface SchemasOnOffer {
  * @returns what may be picked, and how the read went
  */
 export function useSchemas(): SchemasOnOffer {
+  const doFetch = useAuthenticatedFetch();
   const [ choices, setChoices ] = useState<SchemaChoice[]>([]);
   const [ error, setError ] = useState<string>();
   // Settled rather than loading, so that the initial state needs no separate "not started yet"
@@ -50,7 +52,7 @@ export function useSchemas(): SchemasOnOffer {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(SCHEMAS_URL)
+    doFetch(SCHEMAS_URL)
       .then(response => {
         if (!response.ok) {
           throw new RequestError(response.status);
@@ -76,7 +78,7 @@ export function useSchemas(): SchemasOnOffer {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ doFetch ]);
 
   return { choices, loading: !settled, error };
 }
