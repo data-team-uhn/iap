@@ -50,6 +50,16 @@ final class ParseJob
     /** The OSGi property overriding {@link #TOKEN_VARIABLE} on the Java side. */
     static final String TOKEN_PROPERTY = "callbackToken";
 
+    /**
+     * The environment variable carrying the daemon's own optional access token, the same name on both sides. Unlike
+     * {@link #TOKEN_VARIABLE} this one is not required: the daemon accepts {@code /parse} with no credential unless
+     * it is configured with one, and this side only needs to send it when it is.
+     */
+    static final String DAEMON_TOKEN_VARIABLE = "IAP_DOCLING_TOKEN";
+
+    /** The OSGi property overriding {@link #DAEMON_TOKEN_VARIABLE} on the Java side. */
+    static final String DAEMON_TOKEN_PROPERTY = "daemonToken";
+
     /** The name of the subservice performing all repository access to the job nodes. */
     static final String SUBSERVICE = "parse-jobs";
 

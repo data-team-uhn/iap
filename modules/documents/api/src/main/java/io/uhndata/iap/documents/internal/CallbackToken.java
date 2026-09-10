@@ -33,7 +33,7 @@ final class CallbackToken
     }
 
     /**
-     * Read the shared callback token: the {@link ParseJob#TOKEN_PROPERTY} OSGi property when set, the environment
+     * Read the shared authorization token: the {@link ParseJob#TOKEN_PROPERTY} OSGi property when set, the environment
      * value otherwise.
      *
      * @param configuration the component configuration

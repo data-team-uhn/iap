@@ -520,6 +520,11 @@ def iap_environment(args):
         comment(environment, "outcome back. Compared as an opaque string, so any value does, but")
         comment(environment, "it must be the one the daemon is given. In .env.")
         environment['IAP_DOCLING_CALLBACK_JWT'] = '${IAP_DOCLING_CALLBACK_JWT}'
+        comment(environment, "Only needed if the daemon itself requires one (also")
+        comment(environment, "IAP_DOCLING_TOKEN, set on the docling service below); sent as this")
+        comment(environment, "side's own Authorization header when dispatching a parse. Empty by")
+        comment(environment, "default, matching the daemon's default of requiring no credential.")
+        environment['IAP_DOCLING_TOKEN'] = '${IAP_DOCLING_TOKEN:-}'
 
     if args.features:
         comment(environment, "Started in addition to the distribution the image already carries.")

@@ -72,7 +72,7 @@ import org.slf4j.LoggerFactory;
  * </p>
  *
  * <p>
- * Dispatch is refused when no callback token is configured ({@link ParseJob#TOKEN_PROPERTY} or
+ * Dispatch is refused when no authorization token is configured ({@link ParseJob#TOKEN_PROPERTY} or
  * {@link ParseJob#TOKEN_VARIABLE}): without it {@link ParseCallbackServlet} cannot accept the daemon's delivery, so
  * starting the parse would only leave the job hung as {@code active}. The daemon answer must itself be an async
  * accept ({@code {"job_id", "status": "queued"}}); a synchronous success body (as from an older daemon that ignores
@@ -90,6 +90,13 @@ import org.slf4j.LoggerFactory;
  * Configurable through OSGi with {@code daemonUrl} (default {@code http://localhost:18765}) and
  * {@code responseTimeout} (seconds to wait for the daemon to accept a dispatch, default 30 — accepting is quick, only
  * the conversion is slow).
+ * </p>
+ *
+ * <p>
+ * When the daemon is configured with its own access token ({@code IAP_DOCLING_TOKEN}), this dispatch must present it
+ * too, as {@code Authorization: Bearer <token>} — read the same way as the callback token, from
+ * {@link ParseJob#DAEMON_TOKEN_PROPERTY} or the {@link ParseJob#DAEMON_TOKEN_VARIABLE} environment variable. Nothing
+ * is sent when neither is set, matching the daemon's own default of requiring no credential.
  * </p>
  *
  * @version $Id$
@@ -121,8 +128,11 @@ public class ParseJobConsumer implements JobConsumer
 
     private Duration responseTimeout;
 
-    /** Whether a callback token is configured so the daemon's delivery can be accepted. */
+    /** Whether an authorization token is configured so the daemon's delivery can be accepted. */
     private boolean callbackConfigured;
+
+    /** The {@code Authorization} header to send with each dispatch, or {@code null} when the daemon needs none. */
+    private String daemonAuthorization;
 
     /**
      * Read the configuration, applying the defaults.
@@ -147,10 +157,30 @@ public class ParseJobConsumer implements JobConsumer
         final String token = CallbackToken.resolve(configuration, environment(ParseJob.TOKEN_VARIABLE));
         this.callbackConfigured = !token.isEmpty();
         if (!this.callbackConfigured) {
-            LOGGER.warn("No callback token is configured ({} or the {} environment variable);"
+            LOGGER.warn("No authorization token is configured ({} or the {} environment variable);"
                 + " parse jobs will be refused until one is set",
                 ParseJob.TOKEN_PROPERTY, ParseJob.TOKEN_VARIABLE);
         }
+        final String daemonToken = daemonToken(configuration);
+        this.daemonAuthorization = daemonToken.isEmpty() ? null : "Bearer " + daemonToken;
+    }
+
+    /**
+     * Resolve the daemon's own optional access token: the {@link ParseJob#DAEMON_TOKEN_PROPERTY} OSGi property when
+     * set, the {@link ParseJob#DAEMON_TOKEN_VARIABLE} environment variable otherwise.
+     *
+     * @param configuration the component configuration
+     * @return the token to send with each dispatch, or an empty string when the daemon needs none
+     */
+    private String daemonToken(final Map<String, Object> configuration)
+    {
+        final String configured =
+            String.valueOf(configuration.getOrDefault(ParseJob.DAEMON_TOKEN_PROPERTY, "")).trim();
+        if (!configured.isEmpty()) {
+            return configured;
+        }
+        final String env = environment(ParseJob.DAEMON_TOKEN_VARIABLE);
+        return env == null ? "" : env.trim();
     }
 
     @Override
@@ -218,7 +248,7 @@ public class ParseJobConsumer implements JobConsumer
             return JobResult.CANCEL;
         }
         if (!this.callbackConfigured) {
-            fail(jobId, "Callback authentication is not configured");
+            fail(jobId, "Authorization is not configured");
             return JobResult.CANCEL;
         }
         return dispatch(jobId, path, chunk);
@@ -271,8 +301,15 @@ public class ParseJobConsumer implements JobConsumer
         final String url = this.daemonUrl + "/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
             + "&chunk=" + chunk
             + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8);
+        if (this.daemonAuthorization == null) {
+            return HttpRequest.newBuilder(URI.create(url))
+                .timeout(this.responseTimeout)
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+        }
         return HttpRequest.newBuilder(URI.create(url))
             .timeout(this.responseTimeout)
+            .header("Authorization", this.daemonAuthorization)
             .POST(HttpRequest.BodyPublishers.noBody())
             .build();
     }

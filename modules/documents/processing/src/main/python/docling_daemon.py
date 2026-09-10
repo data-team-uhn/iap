@@ -547,10 +547,13 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         @param chunk: whether the document should also be chunked
         @param options: validated ``max_tokens`` / ``min_structure_tokens`` overrides
         @return: the status and body ``_handle_parse`` should send
-        @raise ParseRequestError: when the job_id is malformed
+        @raise ParseRequestError: when the job_id is malformed, or the document is oversized
         """
         if len(job_id) > 200:
             raise ParseRequestError("job_id is unreasonably long")
+        # The sync path only checks this once a slot is held; here there is no slot yet to hold,
+        # so check up front instead of queuing a background task that would only fail later.
+        refuse_oversized_input(input_path)
         callback_url = parse_callbacks.callback_url()
         token = parse_callbacks.callback_token()
         missing = [

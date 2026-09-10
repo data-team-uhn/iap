@@ -93,7 +93,7 @@ class ParseJobConsumerTest
     {
         this.sentRequest = null;
         this.sendFailure = null;
-        this.consumer = consumerWithEnvironment(null);
+        this.consumer = consumerWithEnvironment(null, null);
         inject(this.consumer, new TestResolverFactory(this.context.resourceResolver()));
         activate(this.consumer);
         Mockito.when(this.job.getProperty(ParseJob.PN_JOB_ID, String.class)).thenReturn(JOB_ID);
@@ -218,7 +218,7 @@ class ParseJobConsumerTest
     @Test
     void missingCallbackTokenFailsWithoutCallingTheDaemon() throws Exception
     {
-        final ParseJobConsumer unconfigured = consumerWithEnvironment(null);
+        final ParseJobConsumer unconfigured = consumerWithEnvironment(null, null);
         inject(unconfigured, new TestResolverFactory(this.context.resourceResolver()));
         unconfigured.activate(Map.of());
         jobNode(Boolean.TRUE);
@@ -226,7 +226,7 @@ class ParseJobConsumerTest
         assertEquals(JobResult.CANCEL, unconfigured.process(this.job));
 
         assertEquals(ParseJob.STATUS_FAILED, jobProperties().get(ParseJob.PN_STATUS, String.class));
-        assertEquals("Callback authentication is not configured",
+        assertEquals("Authorization is not configured",
             jobProperties().get(ParseJob.PN_ERROR, String.class));
         assertNull(this.sentRequest);
     }
@@ -234,7 +234,7 @@ class ParseJobConsumerTest
     @Test
     void theTokenCanComeFromTheEnvironment() throws Exception
     {
-        final ParseJobConsumer fromEnvironment = consumerWithEnvironment("  " + TOKEN + "  ");
+        final ParseJobConsumer fromEnvironment = consumerWithEnvironment("  " + TOKEN + "  ", null);
         inject(fromEnvironment, new TestResolverFactory(this.context.resourceResolver()));
         fromEnvironment.activate(Map.of());
         jobNode(Boolean.TRUE);
@@ -424,6 +424,43 @@ class ParseJobConsumerTest
     }
 
     @Test
+    void noAuthorizationHeaderWhenTheDaemonNeedsNoToken()
+    {
+        jobNode(Boolean.TRUE);
+        daemonAnswers(202, ACCEPTED_BODY);
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertTrue(this.sentRequest.headers().firstValue("Authorization").isEmpty());
+    }
+
+    @Test
+    void configuredDaemonTokenIsSentAsAnAuthorizationHeader()
+    {
+        activate(this.consumer, Map.of(ParseJob.DAEMON_TOKEN_PROPERTY, "daemon-secret"));
+        jobNode(Boolean.TRUE);
+        daemonAnswers(202, ACCEPTED_BODY);
+
+        assertEquals(JobResult.OK, this.consumer.process(this.job));
+
+        assertEquals("Bearer daemon-secret", this.sentRequest.headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
+    void daemonTokenEnvironmentVariableIsUsedWhenNoPropertyIsConfigured() throws Exception
+    {
+        final ParseJobConsumer envConsumer = consumerWithEnvironment(null, "env-daemon-secret");
+        inject(envConsumer, new TestResolverFactory(this.context.resourceResolver()));
+        activate(envConsumer);
+        jobNode(Boolean.TRUE);
+        daemonAnswers(202, ACCEPTED_BODY);
+
+        assertEquals(JobResult.OK, envConsumer.process(this.job));
+
+        assertEquals("Bearer env-daemon-secret", this.sentRequest.headers().firstValue("Authorization").orElseThrow());
+    }
+
+    @Test
     void theCallbackDestinationIsNeverSentToTheDaemon()
     {
         activate(this.consumer, Map.of("callbackUrl", "http://attacker.example/steal"));
@@ -490,12 +527,14 @@ class ParseJobConsumerTest
     }
 
     /**
-     * Build a consumer whose {@code send} is stubbed and whose environment lookup answers with the given value.
+     * Build a consumer whose {@code send} is stubbed and whose environment lookup answers with the given values.
      *
      * @param environmentToken what {@code IAP_DOCLING_CALLBACK_JWT} should appear to hold, {@code null} for unset
+     * @param daemonEnvironmentToken what {@code IAP_DOCLING_TOKEN} should appear to hold, {@code null} for unset
      * @return a consumer ready for {@link #inject} and {@link #activate}
      */
-    private ParseJobConsumer consumerWithEnvironment(final String environmentToken)
+    private ParseJobConsumer consumerWithEnvironment(final String environmentToken,
+        final String daemonEnvironmentToken)
     {
         return new ParseJobConsumer()
         {
@@ -512,7 +551,13 @@ class ParseJobConsumerTest
             @Override
             protected String environment(final String name)
             {
-                return ParseJob.TOKEN_VARIABLE.equals(name) ? environmentToken : null;
+                if (ParseJob.TOKEN_VARIABLE.equals(name)) {
+                    return environmentToken;
+                }
+                if (ParseJob.DAEMON_TOKEN_VARIABLE.equals(name)) {
+                    return daemonEnvironmentToken;
+                }
+                return null;
             }
         };
     }

@@ -111,7 +111,9 @@ site the operator visits could otherwise spend the worker pool or stop the daemo
 
 Setting **`IAP_DOCLING_TOKEN`** additionally requires `Authorization: Bearer <token>` on those two
 endpoints, so that reaching the port is not by itself authority to use it. `GET /health` stays
-open, so container probes need no credential.
+open, so container probes need no credential. IAP's own dispatch (`ParseJobConsumer`) reads the
+same variable and presents it back, so setting it on the daemon side means setting it on IAP's
+side too — see `modules/documents/api`.
 
 With no token set the port is the only boundary, and parsing is slow, which makes a reachable
 endpoint a cheap denial-of-service target. Two more ways to hold that line:
