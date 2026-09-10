@@ -1,0 +1,11 @@
+{
+  "jcr:primaryType": "profile:FieldDefinition",
+  "label": "Institution",
+  "description": "The organization you are affiliated with.",
+  "kind": "profile",
+  "dataType": "text",
+  "readableBy": "authenticated",
+  "writableBy": "owner",
+  "category": ["Identity"],
+  "order": 30
+}

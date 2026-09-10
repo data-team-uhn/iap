@@ -1,0 +1,55 @@
+#  Copyright 2026 DATA @ UHN. See the NOTICE file
+#  distributed with this work for additional information
+#  regarding copyright ownership.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+
+create path (profile:FieldsHomepage) /ProfileFields
+
+# The catalogue says what may be recorded about a person and who may change it, not what is recorded about anyone.
+# It is readable by everyone because the profile form has to render the fields, and because a field whose existence
+# is a secret would be a poor place to keep one: the values are what carry the per-field read rules.
+set ACL for everyone
+    allow   jcr:read    on /ProfileFields
+end
+
+# Profiles are read and written with the platform's own credentials, not the caller's, for two independent reasons:
+# user homes are not readable by everyone, so reaching anybody else's account needs rights the requester does not
+# have; and a synchronized account is protected against every session but a system one, so this is the only thing
+# that can write inside one. The per-field rules are applied in code, by the profile service, against the catalogue.
+#
+# Restricted to the two subtrees the profile fields live in rather than granted the whole of /home/users: this may
+# maintain what a person's profile says and nothing else -- not their password, not their group membership, not the
+# tokens an identity provider integration keeps under the same home.
+#
+# The third grant is for a field a definition points somewhere else entirely: `rep:fullname` is the one the node type
+# gives as an example and the one the identity provider synchronisation is configured to write, and it sits directly
+# on the home node rather than under either subtree. Without it such a field passes every rule the catalogue has and
+# then fails at commit, which the API can only report as though the account were not there.
+create service user iap-userprofile
+
+set ACL for iap-userprofile
+    # The catalogue is this service's own dependency, so it is granted here rather than relied upon through the
+    # blanket read `everyone` has: a deployment that tightened that grant would otherwise take the whole profile API
+    # down, and the failure would look like "no such account" rather than "cannot read the catalogue".
+    allow   jcr:read    on /ProfileFields
+    allow   jcr:read    on /home/users
+    allow   rep:write   on /home/users restriction(rep:glob,*/profile*)
+    allow   rep:write   on /home/users restriction(rep:glob,*/preferences*)
+    allow   rep:write   on /home/users restriction(rep:glob,*/rep:fullname)
+end
+
+# The principals allowed to read and change anybody's profile. A local group, because the roles an identity provider
+# asserts describe an institution and not this platform; the profile service compares principal names, so a role
+# arriving from an identity provider works here too if a deployment configures one.
+create group iap-user-administrators

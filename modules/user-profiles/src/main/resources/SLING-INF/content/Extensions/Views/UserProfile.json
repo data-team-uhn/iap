@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/view",
+  "ext:name": "My profile",
+  "ext:targetURL": "/profile",
+  "ext:renderURL": "asset:iap-user-profiles.UserProfile.js?lazy"
+}
