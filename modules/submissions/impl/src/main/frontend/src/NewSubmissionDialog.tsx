@@ -36,6 +36,7 @@ import {
 } from "@mui/material";
 
 import ResponsiveDialog from "@iap/frontend-commons/components/ResponsiveDialog";
+import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import { useSchemas } from "./useSchemas";
 
@@ -71,15 +72,20 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
       .then(async response => {
         if (!response.ok) {
           // The engine answers a refusal with the reason: no applicable workflow, not allowed to
-          // raise this, or a payload it will not accept
+          // raise this, or a payload it will not accept. Its words are already in the submitter's
+          // terms, so they are shown as they stand rather than described
           const body = (await response.json().catch(() => ({}))) as { error?: string };
-          throw new Error(body.error ?? `The submission could not be raised (${response.status})`);
+          if (body.error) {
+            setSubmitError(body.error);
+            return;
+          }
+          throw new RequestError(response.status);
         }
         // The engine answers with a redirect to what it created, so the final URL of the followed
         // request is where the new submission lives
         onCreated(response.redirected ? new URL(response.url).pathname : "");
       })
-      .catch((error: unknown) => setSubmitError(error instanceof Error ? error.message : String(error)))
+      .catch((error: unknown) => setSubmitError(describeRequestFailure(error)))
       .finally(() => setSubmitting(false));
   }, [ onCreated, selected, title ]);
 
