@@ -28,11 +28,13 @@ const SCHEMAS = {
   "@path": "/Schemas",
   "@name": "Schemas",
   "timeOffRequest": {
+    "jcr:primaryType": "sch:Schema",
     "@path": "/Schemas/timeOffRequest",
     "@name": "timeOffRequest",
     "title": "Time off request",
     "active": true,
     "v1": {
+      "jcr:primaryType": "sch:SchemaVersion",
       "@path": "/Schemas/timeOffRequest/v1",
       "@name": "v1",
       "version": "1.0",
@@ -86,6 +88,32 @@ describe("schemaChoices", () => {
 
   it("ignores the homepage's own properties, which are not schemas", () => {
     expect(schemaChoices({ "jcr:primaryType": "sch:SchemasHomepage", "count": 3 })).toEqual([]);
+  });
+
+  // Both node types allow any other child, so a listing carries more than schemas and versions
+  it("passes over a child of the homepage that is not a schema", () => {
+    const alien = {
+      s: SCHEMAS.timeOffRequest,
+      "rep:policy": { "jcr:primaryType": "rep:ACL", "@path": "/Schemas/rep:policy", "active": true },
+    };
+
+    expect(schemaChoices(alien).map(choice => choice.path)).toEqual([ "/Schemas/timeOffRequest/v1" ]);
+  });
+
+  it("does not take a schema's other children for one of its versions", () => {
+    const withNotes = {
+      s: {
+        ...SCHEMAS.timeOffRequest,
+        v1: { ...SCHEMAS.timeOffRequest.v1, active: false },
+        notes: {
+          "jcr:primaryType": "nt:unstructured",
+          "@path": "/Schemas/timeOffRequest/notes",
+          "active": true,
+        },
+      },
+    };
+
+    expect(schemaChoices(withNotes)).toEqual([]);
   });
 
   it("offers a nameless schema rather than dropping it", () => {
