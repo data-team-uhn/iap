@@ -1,0 +1,25 @@
+# What plain `docker build` must not send as build context.
+#
+# Keep this and .maven-dockerignore identical: the Maven one is read only by the fabric8
+# docker-maven-plugin, this one only by plain `docker build`, and nothing checks that they
+# agree. Without this file the documented no-Maven build --
+#
+#   docker build -t iap/docling:latest modules/documents/processing
+#
+# -- shipped target/, the test suite and whatever __pycache__ happened to be lying around into
+# the image, including bytecode for modules that no longer exist on the branch.
+target/
+src/test/
+pom.xml
+pytest.ini
+docker-compose.yml
+*.md
+
+# Test byproducts
+.pytest_cache/
+.coverage
+
+# Never bake bytecode: it is rebuilt in the container anyway, and a stale .pyc is confusing
+# at best.
+**/__pycache__
+**/*.pyc
