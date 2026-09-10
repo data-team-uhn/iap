@@ -59,6 +59,9 @@ public class Submission extends Entity
     /** The {@code sling:resourceType} of a {@code sub:Submission} node. */
     public static final String RESOURCE_TYPE = "sub/Submission";
 
+    /** The {@code lifecycle} tag a submission carries until it is submitted. */
+    public static final String DRAFT_TAG = "draft";
+
     /** The {@code lifecycle} tag a submission carries once the reviewers have accepted it. */
     public static final String APPROVED_TAG = "approved";
 
@@ -154,6 +157,19 @@ public class Submission extends Entity
     {
         final Taggable tags = this.as(Taggable.class);
         return tags != null && tags.hasOwnTag(APPROVED_TAG);
+    }
+
+    /**
+     * Whether this submission is still being written, i.e. it carries the {@code draft} lifecycle tag. A
+     * submission that has moved on is read-only to its submitter, so this is what an editor asks before
+     * offering to edit.
+     *
+     * @return {@code true} while it is a draft, {@code false} also when the tags service is unavailable
+     */
+    public boolean isDraft()
+    {
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && tags.hasOwnTag(DRAFT_TAG);
     }
 
     /**
