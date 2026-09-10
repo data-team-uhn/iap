@@ -35,6 +35,15 @@ export const RECIPIENT = "recipient";
 /** The property holding the read marker. A filter value of `false` matches an unread one. */
 export const READ = "read";
 
+/**
+ * How many the dropdown shows.
+ *
+ * It lives here rather than beside the markup because opening the list marks what it shows as read,
+ * and there is no way back from that. The count that decides what is displayed and the count that
+ * decides what is marked have to be the same one.
+ */
+export const SHOWN = 10;
+
 /** One thing the current user was told. */
 export interface Notification {
   /** The notification node itself, where the read marker is posted. */

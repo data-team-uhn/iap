@@ -166,7 +166,7 @@ describe("Notifications", () => {
     expect(await screen.findByText("The notifications could not be loaded")).toBeInTheDocument();
   });
 
-  it("admits when the read markers cannot be recorded", async () => {
+  it("keeps showing the list when only the read markers fail", async () => {
     doFetch.mockImplementation((url: string) => {
       if (url.startsWith("/Notifications.paginate.json")) {
         return Promise.resolve(respond({ rows: [row("one", false)], offset: 0, limit: 100,
@@ -178,7 +178,9 @@ describe("Notifications", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Notifications" }));
 
-    expect(await screen.findByText("The notifications could not be loaded")).toBeInTheDocument();
+    // The entry loaded and is what the reader came for; only marking it failed
+    expect(await screen.findByText("Something happened to one")).toBeInTheDocument();
+    expect(screen.queryByText("The notifications could not be loaded")).not.toBeInTheDocument();
   });
 
   it("keeps the badge fresh while the page stays open", async () => {

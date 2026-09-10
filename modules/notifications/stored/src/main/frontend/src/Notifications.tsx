@@ -22,11 +22,8 @@ import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import { Badge, IconButton, ListItemText, Menu, MenuItem, Tooltip } from "@mui/material";
 import { useNavigate } from "react-router";
 
-import { type Notification } from "./notificationsModel";
+import { type Notification, SHOWN } from "./notificationsModel";
 import { useNotifications } from "./useNotifications";
-
-// How many entries the dropdown shows; the rest are old news, still stored, just not listed here
-const SHOWN = 10;
 
 // The notifications bell in the app bar, revealing the current user's notifications as a dropdown.
 // Opening the list marks what it shows as read. Registered on the `iap/appBar/entry` extension

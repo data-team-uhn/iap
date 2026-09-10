@@ -29,6 +29,7 @@ import {
   READ,
   parseNotification,
   RECIPIENT,
+  SHOWN,
 } from "./notificationsModel";
 
 // The notification bell's I/O, in one place: what it polls for, how often, and what marking
@@ -83,7 +84,7 @@ export interface NotificationsFeed {
   unreadCount: number;
   /** True when the last attempt failed, so the dropdown can say so rather than look empty. */
   failed: boolean;
-  /** Re-reads, then marks everything now showing as read. Resolves once it has settled. */
+  /** Re-reads, then marks what the list now shows as read. Resolves once it has settled. */
   read: () => Promise<void>;
 }
 
@@ -121,15 +122,24 @@ export function useNotifications(): NotificationsFeed {
   }, [ refresh ]);
 
   const read = useCallback(async (): Promise<void> => {
+    let recent: Notification[];
     try {
-      const recent = await refresh();
-      // Shown is read: the entries stay highlighted for this look, and stop counting from now on
-      await Promise.all(recent.filter(notification => !notification.read)
-        .map(notification => mark(doFetch, notification)));
-      setUnreadCount(0);
+      recent = await refresh();
     } catch {
-      // The list may be mid-air when the session expires; the dropdown says so instead of lying
+      // There is nothing to show, so the dropdown says so rather than looking empty
       setFailed(true);
+      return;
+    }
+    try {
+      // Only what the dropdown puts on screen. Marking the rest of the page would consume
+      // notifications the person never saw, and nothing can un-read one
+      await Promise.all(recent.slice(0, SHOWN).filter(notification => !notification.read)
+        .map(notification => mark(doFetch, notification)));
+      setUnreadCount(await countUnread(doFetch));
+    } catch {
+      // The list is on screen and correct; only the markers failed. Saying "could not be loaded"
+      // would hide what the reader is looking at, so the count stands and the next poll settles it
+      setUnreadCount(await countUnread(doFetch));
     }
   }, [ doFetch, refresh ]);
 
