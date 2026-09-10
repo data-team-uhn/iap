@@ -160,12 +160,10 @@ class LLMConfigServletTest
         this.servlet.doGet(requestConfig(), response);
 
         final JsonObject provider = responseBody(response).getJsonArray("providers").getJsonObject(0);
-        JsonObject decimalModel = null;
-        for (final JsonObject model : provider.getJsonArray("models").getValuesAs(JsonObject.class)) {
-            if ("decimal-model".equals(model.getString("name"))) {
-                decimalModel = model;
-            }
-        }
+        final JsonObject decimalModel = provider.getJsonArray("models").getValuesAs(JsonObject.class).stream()
+            .filter(model -> "decimal-model".equals(model.getString("name")))
+            .findFirst()
+            .orElseThrow();
         assertEquals(new BigDecimal("0.15"), decimalModel.getJsonNumber("temperature").bigDecimalValue());
         assertEquals(2, decimalModel.getJsonArray("tags").size());
         assertEquals("fast", decimalModel.getJsonArray("tags").getString(0));
