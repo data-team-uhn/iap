@@ -88,8 +88,11 @@
               org.slf4j,
               io.uhndata.iap.errortracking.api,
               io.uhndata.iap.utils,
+              org.apache.sling.models.annotations,
+              org.apache.sling.models.annotations.injectorspecific,
               *;resolution:=optional
             </Import-Package>
+            <Sling-Model-Packages>io.uhndata.iap.llm.internal.models</Sling-Model-Packages>
             <Sling-Nodetypes>SLING-INF/nodetypes/llms.cnd</Sling-Nodetypes>
             <!-- The catalog (available providers and models) is reseeded from the sources on every deploy, so
                  shipping a new provider or model reaches a running instance without a manual step. The active
@@ -111,6 +114,11 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.models.api</artifactId>
+      <version>2.0.0</version>
     </dependency>
     <dependency>
       <groupId>jakarta.json</groupId>
