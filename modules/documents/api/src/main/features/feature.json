@@ -36,7 +36,7 @@
     // ...internal.ParseCallbackServlet or ...internal.ParseJobConsumer configuration).
     // Without it the consumer refuses to dispatch, since callbacks could not be accepted.
     "io.uhndata.iap.documents.internal.ParseJobConsumer":{
-      "daemonUrl":"http://localhost:18765"
+      "daemonUrl":"http://docling:18765"
     }
   },
   "repoinit:TEXT|true": "@file"
