@@ -56,12 +56,14 @@ describe("SubmissionActions", () => {
     expect(screen.getByTestId("where")).toHaveTextContent(PATH);
   });
 
-  it("offers editing but cannot do it yet", () => {
-    // Disabled rather than absent: "not yet" is a different answer from "not for you", and a missing
-    // control would say the second
+  it("opens the submission for editing, at its own address", async () => {
+    // The same page asked for by extension, the way every other view here is addressed. Whether it
+    // can actually be edited is the server's answer, given by the form it serves.
     renderActions();
 
-    expect(screen.getByRole("button", { name: "Edit" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(screen.getByTestId("where")).toHaveTextContent(`${PATH}.edit`);
   });
 
   it("renders nothing for a row with no path to act on", () => {

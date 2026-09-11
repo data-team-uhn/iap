@@ -5,8 +5,9 @@ may happen while they do, and when it is finished. Workflows are authored as BPM
 the repository as a graph of nodes, and executed by creating an *instance* of one and moving tokens
 through that graph.
 
-This page describes the data model and the Sling Models over it. The execution engine is not written yet;
-what exists today is everything it will read and write.
+This page describes the data model, the Sling Models over it, and the engine that runs both kinds of
+workflow: the *system* ones that are the platform's own behavior, and the *user* ones that persist as
+instances while people work through them.
 
 ## The four trees
 
@@ -261,14 +262,184 @@ without those nodes the chain from `wf/StartEvent` up to `wf/FlowNode` cannot be
 dispatch quietly stops matching. **A new `wf:` node type needs a `/libs/wf/<Type>/ROOT.json` alongside
 it.**
 
+## The engine, and system workflows
+
+The first thing the engine runs is the platform itself. A *system workflow* is ordinary workflow content —
+the same node types, the same models — stored under `/SystemWorkflows`, and that location is what makes it
+one: it describes something the platform does on its own behalf, like turning "someone POSTed to
+/Workflows" into a new workflow definition.
+
+```
+HTTP POST /Workflows ──▶ WorkflowEventServlet ──▶ WorkflowEngine.receiveEvent(target, event)
+                          (a deliberately dumb        │  find the one system workflow whose message
+                           translator: builds a       │  start event catches this event on this target
+                           `create` event from        │  walk it: start ─ service tasks ─ end
+                           the POST parameters)       ▼  one commit at the end
+                                              302 Location: /Workflows/<created>
+```
+
+Everything goes through `WorkflowEngine.receiveEvent` — HTTP is just one *translator*, and inbound email
+or firing timers will feed the same door. Receiving an event answers three questions in order, and each
+failure maps to its own HTTP status: is anything waiting for this event here (no → **409**), may this user
+fire it (no → **403**), and is what it carries usable (no → **400**)?
+
+### Who is allowed: the workflow decides
+
+The middle question is the one the whole design turns on. **Nobody holds rights on the content workflows
+manage.** There is no ACL granting users write access to `/Workflows` or `/Submissions`, and none is
+coming: the engine reads and writes everything as its own service user. What a user may do is therefore
+not what an access control list says about the data — it is what the definitions say, which means there
+is exactly one way in and no second mechanism to keep in agreement with the first.
+
+A flow node names the principals it admits in its `performers` property:
+
+```json
+"requested": {
+  "jcr:primaryType": "wf:StartEvent",
+  "messageName": "create",
+  "performers": ["iap-administrators"]
+}
+```
+
+That is the answer to "who can create a workflow": one property, in the same file that says what creating
+a workflow does, editable per deployment without touching code. The shipped bootstraps read
+`["iap-administrators"]` for `/Workflows` and `["everyone"]` for `/Submissions` — authoring processes is
+administrative, raising a submission is what users are here for. The rules:
+
+- **An empty or absent list admits nobody.** A definition that forgot to say who may use it refuses
+  everyone until it does; silence is never permission.
+- **`everyone` means any authenticated user**, matched by name because it is a dynamic principal an
+  authorizable does not necessarily report belonging to.
+- **Groups are matched transitively**, so naming a group also admits the members of its member groups.
+- **Administrators pass regardless**, exactly as they bypass access control in the repository itself.
+  Without that, one bad definition could lock out the very people who could repair it.
+
+Two consequences worth stating plainly. First, since the engine is privileged, *nothing downstream will
+refuse an actor who gets past the check* — by the time a handler runs, the repository will not say no. A
+handler that wants to treat something as invisible or forbidden has to say so itself. Second, an access
+denial coming back from the repository no longer means the user was refused; it means the engine's own
+service user is short of rights, which is a deployment fault and a **500**.
+
+Because the engine does the writing, `jcr:createdBy` on everything it creates names the service user. The
+human is recorded separately, in `createdBy`, which is what an audit trail and any "things I raised"
+listing have to read.
+
+The one grant ordinary users do get is `jcr:read` on the homepage nodes themselves — `/Workflows` and
+`/Submissions`, restricted by node type so that nothing below them is included. That is not a policy
+decision but a mechanical one: Sling resolves the posted-to resource *before* dispatching to a servlet, so
+an invisible `/Submissions` would answer 404 and the workflow would never get to decide anything.
+`/SystemWorkflows` gets no such grant — it is the engine's own tree, nothing is posted to it, and which
+definitions govern a user is none of their business.
+
+**System workflows run to quiescence inside the request and persist no instance.** That settles the
+question of their state by construction: there is none. The corollary is a hard validation rule — a system
+workflow must be *straight-through*. No user tasks, no mid-process catching events, exactly one arc out of
+every node it passes; a definition that would have to wait is rejected as broken (**500**), because there
+is no persisted token that could rest there. Everything a run changes lands in a single commit, so an
+event either fully happened or didn't happen at all.
+
+### Service tasks and the handler SPI
+
+What a service task *does* is a registered `ServiceTaskHandler` (in `io.uhndata.iap.workflows.spi`): the
+activity names its handler in the `handler` property, and the activity's other properties are that
+handler's configuration. This is the extension point that lets a project plug its own behavior into a
+workflow without touching the platform. Handlers write through the context's resolver and never commit —
+the engine owns the transaction — and communicate through execution variables
+(`context.setVariable(...)`), which is also how results reach the channel that fired the event.
+
+The first built-in handler is `createEntity`: create a node of the configured `entityType` under the
+target, named by camel-casing the payload's `title`, dodging collisions with a numeric suffix, and report
+the created path in the `createdPath` variable — which is what the servlet turns into a redirect.
+
+### The bootstrap: creating workflows is itself a workflow
+
+`/SystemWorkflows/createWorkflow` ships with the platform: a `create`-catching message start event, a
+`createEntity` service task configured with `entityType = wf:WorkflowDefinition`, an end event. Its
+version declares `targetResourceType = wf/WorkflowsHomepage`, which is how the engine knows it answers
+for POSTs to `/Workflows`.
+
+Because it is content, not code, a deployment can change what happens when a workflow is requested — add
+a validation step, a notification — by editing this definition rather than the platform. That is the
+point of doing it this way, and it is why the definition ships `active` and editable rather than being
+hardwired into the servlet.
+
+`/Submissions` works the same way, and shows the intended division of labor: the bootstrap definition
+`/SystemWorkflows/createSubmission` and its `createSubmission` handler ship with the *submissions* module,
+not the workflows one — each module contributes the system workflows for its own homepages, plugged in
+through the handler SPI exactly as a project would. That handler is also where "no new submissions may be
+created from an inactive version" stops being a comment in the CND and becomes an enforced refusal, and it
+sets the submission's `schemaVersion` as a real JCR REFERENCE — the strict node type rejects a
+stringly-typed identifier at commit.
+
+Four properties carry the engine's matching, authorization and dispatch, all set by hand today and by the
+BPMN parser once it exists: `messageName` on events (the domain event name), `targetResourceType` on
+versions (what a system workflow answers for), `performers` on flow nodes (who may pass through), and
+`handler` on activities (who performs a service task).
+
+## User workflows: the part that persists
+
+A system workflow runs inside the request and leaves nothing behind. A *user* workflow is the opposite: it
+outlives the request, because the next thing that has to happen is a person doing something. It persists as
+a `wf:WorkflowInstance` **inside the resource it drives** — found, secured and deleted along with it — plus
+a token recording where it has got to and a `wf:TaskInstance` for each thing somebody still owes.
+
+Running one is always the same walk, from wherever the token rests through whatever can be passed
+automatically, until it has to stop:
+
+```
+POST /Submissions ──▶ createSubmission ──▶ startWorkflow ──▶ [instance created, walked to its first wait]
+                                                                        │
+                                             wf:instances/timeOffRequest │  token parked on approveRequest
+                                                                        ▼
+POST …/approveRequest {outcome} ──▶ complete ──▶ [task closed, gateway routed, end event reached]
+                                                        │
+                                                        ▼  hostStatus: the submission is now "approved"
+```
+
+**Starting is a service task, not a special case.** `startWorkflow` is built into the engine — putting an
+entity under a workflow is the engine's own business — but it is reached as an ordinary activity, so *which*
+entities get a workflow, and when, stays editable content. Which workflow is found by following the chain of
+references named in the activity's `workflowFrom`: for submissions, `schemaVersion/workflow`, since it is the
+schema version a submission answers that decides what it must go through. That indirection is what keeps the
+workflows module from having to know what a submission is. An entity whose data names no workflow simply has
+none, which is not an error.
+
+**A user task is an activity with no handler.** Nothing can perform it automatically, so the engine parks the
+token there and creates the task; a `complete` event aimed at that task closes it, records the outcome, and
+carries the instance on. Who may complete it is the same `performers` mechanism as everywhere else, asked one
+step later — of the task's *defining activity* rather than of a start event. Seeing a task and being allowed
+to decide it are different questions, and this is where the second is answered.
+
+**Reaching an end event can mean something to the host.** `hostStatus` on the end event is written to the
+host's `status`, which is how a process says what finishing *this particular way* means to the thing being
+processed, without a service task whose only job is to write it down.
+
+**Read access is materialized when the instance starts.** Acting is authorized by the definitions, but
+reading cannot be — a query returns rows, and no engine can run a workflow per row — so the workflow declares
+and the engine writes an ACL: the person it is being run for, plus the performers of every user task in the
+version. Deriving that from `performers` rather than inventing a second vocabulary means the two can never
+disagree.
+
 ## Known gaps
 
-- **No execution engine.** The runtime node types exist and nothing yet writes them.
+- **Gateway conditions are an interim placeholder.** An arc is taken when its `conditionExpression` equals
+  the instance's `outcome` variable, and the arc marked default is taken when none matches. That covers the
+  approve-or-reject shape and deliberately nothing more; the demo's BPMN carries the real expression
+  (`outcome == 'approved'`) which the conditions module will compile, and the stored graph carries the
+  literal the engine can match today.
+- **One token at a time.** Parallel and inclusive gateways are rejected rather than forked, and `terminate`
+  on an end event is not yet distinguished from an ordinary one, since with a single token there is nothing
+  else to discard.
+- **Instance variables are not exposed to handlers.** The runtime persists `outcome` as a `wf:Variable`, but
+  a service task inside an instance gets variables that live only for that delivery. Typed variables are
+  already in the node types; wiring them to the SPI is what is missing.
+- **Nothing delivers a timer or a message.** An instance that reaches a mid-process catching event is
+  refused rather than parked, because nothing could ever wake it up again.
+- **Read access is granted for the life of the instance**, not only while a task is open, and is never
+  revoked. Narrowing it as state changes is a refinement for when there is a reason to want it.
 - **`wf:SequenceFlow.conditionExpression` is a raw string.** It should use the structured conditions
   mechanism, the way schema items express their conditions; it is left as an expression until the
   conditions module lands.
-- **Whether system workflows persist state at all** is undecided. User workflows live inside the resource
-  they drive; the bootstrap ones have no such resource yet when they run.
 - **Event definitions carry no payload yet.** A timer event is recognized as a timer, but there is
   nowhere to put its duration, and a message event records its `messageRef` without resolving it to the
   `<bpmn:message>` declared at document level — which is what the engine's event dictionary will need.

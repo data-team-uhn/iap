@@ -18,15 +18,31 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 
-import { Alert, Box, Divider, Link, Paper, Stack, Typography } from "@mui/material";
-import { Link as RouterLink, useLocation } from "react-router";
+import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import {
+  Alert,
+  Box,
+  Divider,
+  Link,
+  Paper,
+  Stack,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography
+} from "@mui/material";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import LoadingOverlay from "@iap/frontend-commons/components/LoadingOverlay";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, RequestError } from "@iap/frontend-commons/requestFailure";
 import TagChip from "@iap/tags/TagChip";
 
+import SubmissionEditor from "./SubmissionEditor";
 import { schemaLabel } from "./submissionGrid";
+
+// The extension that asks for the editor rather than the read-only page
+const EDIT = ".edit";
 
 // A serialized JCR node: its properties, plus its children as nested objects.
 type JsonNode = Record<string, unknown>;
@@ -53,8 +69,8 @@ function formatValue(value: unknown): string {
   return ["string", "number"].includes(typeof value) ? String(value) : "";
 }
 
-// A repository path plus a file name as a usable URL: every segment percent-encoded, so
-// names containing #, ? or % survive as path characters instead of being parsed as syntax
+// A repository path plus a file name as a usable URL. Every segment is percent-encoded, so names
+// containing #, ? or % survive as path characters instead of being parsed as syntax
 function fileHref(path: unknown, name: string): string {
   return [...String(path).split("/"), name].map(encodeURIComponent).join("/");
 }
@@ -184,13 +200,18 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
 
 // The read-only page displaying one submission, registered as a view on the `iap/coreUI/view`
 // extension point for `/Submissions/*`. The submission is fetched with the `deep` serialization,
-// which also expands the referenced schema version (and its requirements), so the answers can be
-// presented grouped the way the schema's forms and sections define, alongside the attached
-// documents and the reviews. Editing is deliberately out of scope for now.
+// which also expands the referenced schema version and its requirements. The answers can then be
+// grouped the way the schema's forms and sections define, alongside the attached documents and the
+// reviews.
 function SubmissionView() {
   const location = useLocation();
-  // The page URL is the submission's repository path (a trailing .html is tolerated)
-  const path = location.pathname.replace(/\.html$/, "");
+  const navigate = useNavigate();
+  // The page URL is the submission's repository path (a trailing .html is tolerated). A trailing
+  // `.edit` asks for the editor. Which view is shown is addressed the way every other view here is:
+  // by extension rather than by a query parameter. The server serves the same shell for it.
+  const address = location.pathname.replace(/\.html$/, "");
+  const editing = address.endsWith(EDIT);
+  const path = editing ? address.slice(0, -EDIT.length) : address;
   const [submission, setSubmission] = useState<JsonNode>();
   const [error, setError] = useState<string>();
   // Loading is derived, not toggled inside the fetch effect: the view is loading until the
@@ -199,7 +220,12 @@ function SubmissionView() {
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
 
+  // Reading depends on the mode as well as the path, and not only so that leaving the editor
+  // fetches at all. The editor saves as it goes, so what it changed is what coming back should show.
   useEffect(() => {
+    if (editing) {
+      return undefined;
+    }
     let cancelled = false;
     fetchUtil(`${path}.deep.json`)
       .then(response => {
@@ -227,13 +253,65 @@ function SubmissionView() {
     return () => {
       cancelled = true;
     };
-  }, [path, fetchUtil]);
+  }, [path, fetchUtil, editing]);
 
+  // Reading and filling in are two modes of the same page, so the way between them belongs to the
+  // page rather than to either mode. It is rendered whatever the page is doing, because the states
+  // with nothing to show are exactly the ones somebody needs a way out of. Before this, the
+  // editor was reachable only from a listing and, once open, offered no way back at all.
+  const header = (
+    <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>
+      <Link component={RouterLink} to="/">← Back to the dashboard</Link>
+      <ToggleButtonGroup
+        exclusive
+        value={editing ? "edit" : "view"}
+        // An exclusive group reports null when the selected button is clicked again. That is a
+        // deselection, and there is no third mode to land in, so it leaves the page as it is.
+        onChange={(_event, next: string | null) => {
+          if (next) {
+            void navigate(next === "edit" ? `${path}${EDIT}` : path);
+          }
+        }}
+        aria-label="How to show this submission"
+      >
+        <ToggleButton value="view">
+          <VisibilityIcon fontSize="small" sx={{ mr: 0.5 }} />
+          View
+        </ToggleButton>
+        {/* Offered to whoever is looking. Whether it can actually be edited is the server's answer,
+            given by the form it serves, and the editor says so plainly when it may not be — the same
+            rule the listing's Edit action follows. */}
+        <ToggleButton value="edit">
+          <EditIcon fontSize="small" sx={{ mr: 0.5 }} />
+          Edit
+        </ToggleButton>
+      </ToggleButtonGroup>
+    </Stack>
+  );
+
+  if (editing) {
+    return (
+      <Stack spacing={2}>
+        {header}
+        <SubmissionEditor path={path} />
+      </Stack>
+    );
+  }
   if (loading) {
-    return <LoadingOverlay open />;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <LoadingOverlay open />
+      </Stack>
+    );
   }
   if (error || !submission) {
-    return <Alert severity="error">{error ?? "This submission cannot be displayed"}</Alert>;
+    return (
+      <Stack spacing={2}>
+        {header}
+        <Alert severity="error">{error ?? "This submission cannot be displayed"}</Alert>
+      </Stack>
+    );
   }
 
   const schemaVersion = isNode(submission.schemaVersion) ? submission.schemaVersion : undefined;
@@ -249,9 +327,9 @@ function SubmissionView() {
 
   return (
     <Stack spacing={2}>
+      {header}
       <Box>
-        <Link component={RouterLink} to="/">← Back to the dashboard</Link>
-        <Stack direction="row" spacing={2} sx={{ alignItems: "center", mt: 1 }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>
           <TagChip tags={submission.tags} category="lifecycle" />
         </Stack>
