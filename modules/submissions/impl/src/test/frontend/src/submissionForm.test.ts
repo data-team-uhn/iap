@@ -37,8 +37,6 @@ function response(body: unknown, init: { ok?: boolean; status?: number } = {}) {
 
 describe("isQuestion", () => {
   it("tells a question apart from a section", () => {
-    // The projection reports the schema's own resource types rather than a vocabulary of its own,
-    // so this is the only place the distinction is made
     expect(isQuestion({ type: QUESTION } as FormItem)).toBe(true);
     expect(isQuestion({ type: SECTION } as FormItem)).toBe(false);
   });
@@ -74,8 +72,6 @@ describe("saveAnswer", () => {
 
     await saveAnswer(PATH, "details/startDate", [ "2026-10-06" ]);
 
-    // Posted to the submission, not to a CRUD endpoint: it is a `save` event, matched by a system
-    // workflow, and the question is named by its path relative to the schema version
     const [ url, options ] = fetchMock.mock.calls[0] as unknown as
       [ string, { method: string; body: URLSearchParams } ];
     expect(url).toBe(PATH);
@@ -95,7 +91,7 @@ describe("saveAnswer", () => {
   });
 
   it("reports the engine's own reason for refusing", async () => {
-    // A refusal carries why — not the submitter's request, or no longer a draft — and repeating that
+    // A refusal carries why: not the submitter's request, or no longer a draft. Repeating that
     // verbatim beats inventing a message over the top of it
     vi.stubGlobal("fetch", vi.fn(() => response(
       { error: "This request has been submitted and can no longer be changed" },

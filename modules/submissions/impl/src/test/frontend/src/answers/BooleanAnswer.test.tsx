@@ -34,8 +34,6 @@ function renderBoolean(overrides: Partial<FormQuestion> = {}, values: string[] =
 }
 
 describe("BooleanAnswer", () => {
-  // A tick is a finished answer the moment it happens: there is no field to leave, so waiting for a
-  // blur the way the typed inputs do would lose it
   it("saves as the box is ticked, without waiting to be left", async () => {
     const onAnswered = renderBoolean();
 

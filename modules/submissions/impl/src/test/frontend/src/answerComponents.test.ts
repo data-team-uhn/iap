@@ -103,8 +103,8 @@ describe("the answer component registry", () => {
       registerBuiltinAnswerComponents();
 
       expect(getAnswerComponent(question())).toBe(TextAnswer);
-      // The duplicate would be invisible through the resolver, so count the candidates by making one
-      // of them lose: a second copy of the text candidate would still answer after this
+      // The duplicate would be invisible through the resolver, so the candidates are counted by
+      // making one lose. A second copy of the text candidate would still answer after this
       registerAnswerComponent(() => [ Stub, 90 ]);
       expect(getAnswerComponent(question())).toBe(Stub);
     });

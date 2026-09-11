@@ -36,8 +36,8 @@ function renderNumber(dataType: string, values: string[] = []) {
 }
 
 describe("NumberAnswer", () => {
-  // The schema asking for a long rather than a double is a statement about the answer, and the input
-  // is where it should be enforced — not in a save that comes back refused
+  // The schema asking for a long rather than a double is a statement about the answer. The input is
+  // where it should be enforced, not a save that comes back refused
   it("steps in whole numbers for a long", () => {
     const { input } = renderNumber("long");
 

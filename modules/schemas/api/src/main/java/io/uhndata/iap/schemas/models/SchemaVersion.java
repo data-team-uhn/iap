@@ -99,8 +99,8 @@ public class SchemaVersion extends Entity
     }
 
     /**
-     * The version of the workflow driving submissions filed under this schema version: what a submission is put
-     * through once it exists, as against what this schema says a submission must contain.
+     * The version of the workflow driving submissions filed under this schema version. What a submission is
+     * put through once it exists, as against what this schema says a submission must contain.
      *
      * @return a workflow version, or {@code null} if this schema version drives no workflow, or the reference
      *         cannot be resolved
