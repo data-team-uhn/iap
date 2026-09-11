@@ -616,6 +616,7 @@
             <exclude>bnd.bnd</exclude>
             <!-- Ignore email template files since we do not send a license in emails -->
             <exclude>**/mailTemplates/**</exclude>
+            <exclude>**/notificationTemplates/**</exclude>
           </inputExcludes>
         </configuration>
         <executions>
@@ -2224,6 +2225,8 @@
               <!-- Models extending Entity inherit from Content without referencing it directly in main code,
                    but it is still needed on the main compile classpath to resolve the class hierarchy -->
               <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-content-api</ignoredNonTestScopedDependency>
+              <!-- Same for EntityPart, which the flow node models extend -->
+              <ignoredNonTestScopedDependency>io.uhndata.iap:iap-data-entities-api</ignoredNonTestScopedDependency>
             </ignoredNonTestScopedDependencies>
           </configuration>
         </plugin>

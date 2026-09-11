@@ -1,0 +1,147 @@
+/*
+ * Copyright 2026 DATA @ UHN. See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+
+import { fetchEntityPage } from "@iap/frontend-commons/entityGrid/pagination";
+import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+import { RequestError } from "@iap/frontend-commons/requestFailure";
+
+import {
+  markReadUrl,
+  type Notification,
+  NOTIFICATIONS_PATH,
+  READ,
+  parseNotification,
+  RECIPIENT,
+  SHOWN,
+} from "./notificationsModel";
+
+// The notification bell's I/O, in one place: what it polls for, how often, and what marking
+// something read amounts to. Parsing lives in notificationsModel.
+
+// How often the badge re-asks whether something happened. Nothing else in the interface polls, and
+// nothing else announces events either. A badge that only updated on page loads would be stale all
+// day on a page somebody keeps open.
+const REFRESH_MILLIS = 60_000;
+
+/** How many to ask for. The dropdown shows fewer. */
+const LIMIT = 100;
+
+/** The current user's notifications, newest first. */
+const list = async (fetchUtil: AuthenticatedFetch): Promise<Notification[]> => {
+  const page = await fetchEntityPage(fetchUtil, {
+    homepage: NOTIFICATIONS_PATH,
+    limit: LIMIT,
+    sortBy: "jcr:created",
+    descending: true,
+    filters: [ { name: RECIPIENT, value: "@me" } ],
+  });
+  return page.rows.map(parseNotification);
+};
+
+/**
+ * How many are unread, counted by the server. The dropdown only ever holds one page, so counting
+ * what it holds would under-report the moment an older notification outside that page is unread.
+ * Asking for one row is enough: the answer wanted is the total, and the badge stops at 99 anyway.
+ */
+const countUnread = async (fetchUtil: AuthenticatedFetch): Promise<number> => {
+  const page = await fetchEntityPage(fetchUtil, {
+    homepage: NOTIFICATIONS_PATH,
+    limit: 1,
+    filters: [ { name: RECIPIENT, value: "@me" }, { name: READ, value: "false" } ],
+  });
+  return page.totalrows;
+};
+
+/** Marks one notification as read, or rejects with the status the server refused it with. */
+const mark = async (fetchUtil: AuthenticatedFetch, notification: Notification): Promise<void> => {
+  const response = await fetchUtil(markReadUrl(notification), { method: "POST" });
+  if (!response.ok) {
+    throw new RequestError(response.status);
+  }
+};
+
+export interface NotificationsFeed {
+  /** What the current user was told, newest first. */
+  notifications: Notification[];
+  /** How many of those have not been seen. */
+  unreadCount: number;
+  /** True when the last attempt failed, so the dropdown can say so rather than look empty. */
+  failed: boolean;
+  /** Re-reads, then marks what the list now shows as read. Resolves once it has settled. */
+  read: () => Promise<void>;
+}
+
+/**
+ * The bell's notifications, polled while the page is open.
+ *
+ * Opening the list is what reading means here: everything unread is marked read once shown, like
+ * a glance at the doormat taking the letters off it. It is one operation, not a read and a write
+ * for a caller to sequence. Doing half of it leaves the badge disagreeing with the list under it.
+ *
+ * @returns the feed and the one operation a caller performs on it
+ */
+export function useNotifications(): NotificationsFeed {
+  const doFetch = useAuthenticatedFetch();
+  const [ notifications, setNotifications ] = useState<Notification[]>([]);
+  const [ unreadCount, setUnreadCount ] = useState(0);
+  const [ failed, setFailed ] = useState(false);
+
+  const refresh = useCallback(async (): Promise<Notification[]> => {
+    const [ recent, unread ] = await Promise.all([ list(doFetch), countUnread(doFetch) ]);
+    setNotifications(recent);
+    setUnreadCount(unread);
+    setFailed(false);
+    return recent;
+  }, [ doFetch ]);
+
+  useEffect(() => {
+    // A badge that cannot be refreshed keeps its last value quietly; the next tick tries again
+    const quietly = () => {
+      void refresh().catch(() => undefined);
+    };
+    quietly();
+    const timer = setInterval(quietly, REFRESH_MILLIS);
+    return () => clearInterval(timer);
+  }, [ refresh ]);
+
+  const read = useCallback(async (): Promise<void> => {
+    let recent: Notification[];
+    try {
+      recent = await refresh();
+    } catch {
+      // There is nothing to show, so the dropdown says so rather than looking empty
+      setFailed(true);
+      return;
+    }
+    try {
+      // Only what the dropdown puts on screen. Marking the rest of the page would consume
+      // notifications the person never saw, and nothing can un-read one
+      await Promise.all(recent.slice(0, SHOWN).filter(notification => !notification.read)
+        .map(notification => mark(doFetch, notification)));
+      setUnreadCount(await countUnread(doFetch));
+    } catch {
+      // The list is on screen and correct; only the markers failed. Saying "could not be loaded"
+      // would hide what the reader is looking at, so the count stands and the next poll settles it
+      setUnreadCount(await countUnread(doFetch));
+    }
+  }, [ doFetch, refresh ]);
+
+  return { notifications, unreadCount, failed, read };
+}
