@@ -27,9 +27,9 @@ import { textAnswerCandidate } from "./TextAnswer";
 /**
  * Registers the answer components that ship with this module.
  *
- * An explicit call rather than a side effect of importing each component, so that what is registered
- * does not depend on which module something happened to import first, and so that a test can start
- * from a known-empty registry. Calling it more than once is harmless: the registry itself ignores a
+ * An explicit call rather than a side effect of importing each component. What is registered then
+ * does not depend on which module something happened to import first, and a test can start from a
+ * known-empty registry. Calling it more than once is harmless, since the registry ignores a
  * candidate it already holds.
  */
 export function registerBuiltinAnswerComponents(): void {

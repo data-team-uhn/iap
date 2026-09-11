@@ -67,8 +67,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link SubmissionFormServlet}: what a submitter is shown, what is left out because it does not
- * currently apply, and how a question says where its answer should be posted.
+ * Unit tests for {@link SubmissionFormServlet}. What a submitter is shown, what is left out because it does
+ * not currently apply, and how a question says where its answer should be posted.
  *
  * @version $Id$
  * @since 0.1.0
@@ -79,9 +79,9 @@ class SubmissionFormServletTest
     private static final String TYPE = "sling:resourceType";
 
     /**
-     * The supertype a real repository autocreates from the node type, and a mock repository does not. It is what
-     * `getChildren(Requirement.RESOURCE_TYPE, ...)` selects on — the models reach the concrete kinds through their
-     * abstract base — so without it a schema version reports no requirements at all.
+     * The supertype a real repository autocreates from the node type, and a mock repository does not. It is
+     * what `getChildren(Requirement.RESOURCE_TYPE, ...)` selects on, since the models reach the concrete kinds
+     * through their abstract base. Without it a schema version reports no requirements at all.
      */
     private static final String SUPER_TYPE = "sling:resourceSuperType";
 
@@ -118,8 +118,8 @@ class SubmissionFormServletTest
         // Whether a request may still be answered is read from its lifecycle tag, which needs the view the
         // tags bundle provides
         Tagging.enable(this.context);
-        // Everything applies unless a test says otherwise; the evaluator itself is exercised by its own module's
-        // tests, and what matters here is that this servlet asks it about every part and honors the answer
+        // Everything applies unless a test says otherwise. The evaluator is exercised by its own module's
+        // tests; what matters here is that this servlet asks it about every part and honors the answer
         final ConditionEvaluator evaluator = Mockito.mock(ConditionEvaluator.class);
         Mockito.when(evaluator.applies(Mockito.any(), Mockito.any()))
             .thenAnswer(call -> !this.hidden.contains(((Content) call.getArgument(0)).getName()));
@@ -172,8 +172,6 @@ class SubmissionFormServletTest
     @Test
     void tellsEachQuestionWhereItsAnswerGoes() throws IOException
     {
-        // The path the save endpoint expects, relative to the schema version. Given rather than constructed, so
-        // that only one side of the exchange decides how a question is addressed.
         assertEquals(START_DATE, item(requirement(form(REQUESTER), DETAILS), "startDate").getString("path"));
     }
 
@@ -199,8 +197,6 @@ class SubmissionFormServletTest
     @Test
     void describesRequirementsThatHoldNoQuestions() throws IOException
     {
-        // A document requirement has no items, and must still be described: it is something the submitter has to
-        // do, and an editor that only rendered questions would silently drop it
         final JsonObject note = requirement(form(REQUESTER), "doctorsNote");
 
         assertEquals(DocumentRequirement.RESOURCE_TYPE, note.getString("type"));
@@ -233,8 +229,6 @@ class SubmissionFormServletTest
     @Test
     void reportsNotEditableToAnybodyElse() throws IOException
     {
-        // The same two rules the save handler enforces, so an editor offers editing only where a save would be
-        // accepted rather than finding out from a refusal
         assertFalse(form("demo-approver").getBoolean("editable"));
     }
 

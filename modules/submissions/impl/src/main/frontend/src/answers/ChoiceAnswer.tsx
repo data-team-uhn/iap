@@ -35,9 +35,9 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 //
 // Picking is a finished answer as it happens, like a tick and unlike typing, so it saves on change.
 //
-// What is stored is the option's *value*, never its label: the value is what a condition compares
-// against, so a schema may reword a label — or translate it — without changing the meaning of any
-// answer already recorded, and without changing which questions a request goes on to ask.
+// What is stored is the option's value, never its label. The value is what a condition compares
+// against. A schema may reword a label, or translate it, without changing what an answer already
+// recorded means, or which questions a request goes on to ask.
 function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   const label = questionLabel(question);
   const help = question.description;
@@ -95,8 +95,8 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
   );
 }
 
-// Offering a fixed set of answers is a stronger statement about a question than its data type is,
-// so this outbids the component that would otherwise type the answer in
+// Offering a fixed set of answers says more about a question than its data type does, so this
+// outbids the component that would otherwise type the answer in
 export const choiceAnswerCandidate: AnswerComponentCandidate = question =>
   question.options.length > 0 ? [ ChoiceAnswer, 60 ] : null;
 
