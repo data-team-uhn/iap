@@ -22,8 +22,8 @@ import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A yes/no answer. A tick is a finished answer the moment it happens — there is nothing to leave —
-// so it saves on change rather than on blur, which is what every other input here waits for.
+// A yes/no answer. A tick is a finished answer the moment it happens: there is nothing to leave.
+// So it saves on change rather than on blur, as every other input here does.
 function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   return (
     <Stack>

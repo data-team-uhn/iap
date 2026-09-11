@@ -39,9 +39,6 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
 
 describe("AnswerField", () => {
   it("saves a typed answer when the field is left, not while typing", async () => {
-    // The whole design rests on this: saving each answer as it is finished is what keeps the stored
-    // answers current enough for the server to re-decide which questions apply, without a request
-    // per keystroke
     const answered = vi.fn();
     render(<AnswerField question={question({ dataType: "text" })} state="idle" onAnswered={answered} />);
 
@@ -54,7 +51,6 @@ describe("AnswerField", () => {
   });
 
   it("does not save an answer that did not change", async () => {
-    // Leaving a field one did not edit would otherwise be a workflow event that means nothing
     const answered = vi.fn();
     render(<AnswerField question={question({ value: [ "2026-10-06" ] })} state="idle" onAnswered={answered} />);
 
@@ -85,8 +81,6 @@ describe("AnswerField", () => {
     expect(screen.getByLabelText(/Which day/)).toHaveAttribute("type", "text");
   });
 
-  // Deliberately not a text box: typing into an input never meant for this question stores a value
-  // the schema does not accept, and nothing notices until a condition somewhere stops matching
   it("says so when a question asks for something it has no way to answer", () => {
     render(<AnswerField question={question({ dataType: "invented" })} state="idle" onAnswered={vi.fn()} />);
 
@@ -94,8 +88,6 @@ describe("AnswerField", () => {
     expect(screen.queryByLabelText(/Which day/)).not.toBeInTheDocument();
   });
 
-  // Offering answers says more about a question than its data type does, so the choice component
-  // outbids the one that would otherwise have typed it in
   it("offers the answers a question declares instead of a box to type in", async () => {
     const answered = vi.fn();
     render(<AnswerField
@@ -157,9 +149,8 @@ describe("AnswerField", () => {
   });
 
   it("adopts a new stored answer, and keeps what is being typed when nothing changed", async () => {
-    // Each read of the form returns fresh arrays, so following the prop by identity would reset every
-    // field on every save — including one somebody is halfway through typing in, because a *different*
-    // field was saved. It follows the content instead.
+    // Each read of the form returns fresh arrays, so following the prop by identity would reset
+    // every field on every save. It follows the content instead.
     const initial = question({ dataType: "text" });
     const { rerender } = render(<AnswerField question={initial} state="idle" onAnswered={vi.fn()} />);
     await userEvent.type(screen.getByLabelText(/Which day/), "half day");
@@ -175,7 +166,7 @@ describe("AnswerField", () => {
   it("tells a regrouped multi-value answer from the same text stored as one value", () => {
     // The values are compared as one joined string, so the separator has to be a character an answer
     // cannot contain. Joining on a space would make [ "Monday", "Tuesday" ] and [ "Monday Tuesday" ]
-    // equal, and a re-read that regrouped them would leave the field showing the grouping it replaced.
+    // equal, and a re-read would leave the field showing the grouping it replaced.
     const many = { dataType: "text", multiple: true };
     const { rerender } = render(
       <AnswerField question={question({ ...many, value: [ "Monday", "Tuesday" ] })} state="saved" onAnswered={vi.fn()} />);

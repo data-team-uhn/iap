@@ -25,7 +25,7 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // A calendar day.
 //
 // A date input stores what it shows as `yyyy-mm-dd` whatever the reader's locale displays, which is
-// what makes it safe to compare: a condition matching a date compares the stored string, and any
+// what makes it safe to compare. A condition matching a date compares the stored string, and a
 // format that varied by who typed it would compare differently for different people. Picking a day
 // finishes the answer, but typing one digit at a time does not, so this still saves on blur.
 function DateAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {

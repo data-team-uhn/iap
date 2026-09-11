@@ -39,14 +39,13 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
  * Leaves retired schemas and schema versions out of the schema tree's serialization. The name of this processor is
  * {@code active}, and it is enabled by default; ask for {@code -active} to see everything.
  *
- * <p>What it is for: anyone choosing what to submit against reads this tree, and a retired schema is not something
- * they may choose — the server refuses a submission against one — so listing it only offers a choice that will be
- * taken away again. Filtering it here rather than in each reader means the rule is stated once, and on the side that
- * actually knows it.</p>
+ * <p>Anyone choosing what to submit against reads this tree, and a retired schema is not something they may
+ * choose: the server refuses a submission against one. Listing it only offers a choice that will be taken away
+ * again. Filtering here rather than in each reader states the rule once, on the side that knows it.</p>
  *
- * <p>It filters <em>children</em>, so a retired schema requested directly still serializes: whoever asked for it by
- * path already knows which one they want, and somebody has to be able to read one in order to bring it back. What
- * disappears is the retired schema in a listing of schemas, and the retired version in a listing of versions.</p>
+ * <p>It filters <em>children</em>, so a retired schema requested directly still serializes. Whoever asked for
+ * it by path already knows which one they want, and somebody has to be able to read one in order to bring it
+ * back. What disappears is the retired schema in a listing, and the retired version in a listing of versions.</p>
  *
  * <p>Absent counts as retired, because that is what the node type says: {@code active} defaults to {@code false},
  * so a schema is something someone deliberately opens rather than something that arrives open.</p>
@@ -75,8 +74,8 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     @Override
     public int getPriority()
     {
-        // After `deep` (10), which is what turns a child into JSON in the first place: discarding it has to be the
-        // later word, or the child would be serialized back in after being left out
+        // After `deep` (10), which is what turns a child into JSON in the first place. Discarding it has to be
+        // the later word, or the child would be serialized back in after being left out
         return 20;
     }
 
@@ -104,8 +103,8 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
      * Whether a child belongs in the serialization: everything that is not a schema or a version does, and those do
      * only while they are active.
      *
-     * <p>A child that cannot be read is kept. Hiding a schema that is in fact open would leave a submitter with
-     * nothing to choose and no way to tell why, whereas keeping a retired one costs at most a refusal from the
+     * <p>A child that cannot be read is kept. Hiding a schema that is in fact open would leave a submitter
+     * with nothing to choose and no way to tell why. Keeping a retired one costs at most a refusal from the
      * server, which enforces this properly rather than relying on what a listing showed.</p>
      *
      * @param child the child node being serialized

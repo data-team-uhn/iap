@@ -28,8 +28,8 @@ import io.uhndata.iap.tags.models.Taggable;
 
 /**
  * Makes the {@code Taggable} view available in a mock repository. The tags service the model delegates to does not
- * run under sling-mock, so the one thing these models ask of it — whether a tag is placed on a node itself — is
- * answered here from the node's own {@code tags} property, which is what the service reads for real.
+ * run under sling-mock. The one thing these models ask of it is whether a tag is placed on a node itself.
+ * That is answered here from the node's own {@code tags} property, which is what the service reads for real.
  *
  * @version $Id$
  * @since 0.1.0

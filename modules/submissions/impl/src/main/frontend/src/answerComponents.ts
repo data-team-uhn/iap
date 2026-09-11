@@ -31,7 +31,7 @@ export interface AnswerComponentProps {
   disabled: boolean;
   // While the answer is being composed, so that what was typed is what is shown
   onChange: (values: string[]) => void;
-  // When the answer is finished — a field left, a box ticked, an option picked. This is what gets
+  // When the answer is finished: a field left, a box ticked, an option picked. This is what gets
   // saved, so a component decides for its own kind of input when an answer is done being given
   onAnswered: (values: string[]) => void;
 }
@@ -40,9 +40,8 @@ export type AnswerComponent = (props: AnswerComponentProps) => ReactElement | nu
 
 /**
  * How well a component suits a question: the component, and a confidence between 0 and 100. The
- * highest confidence wins, so a candidate answering a narrow question — one dataType, or one
- * dataType with options — outbids a general one without either having to know about the other.
- * Returning null means "not mine".
+ * highest confidence wins, so a candidate answering a narrow question outbids a general one without
+ * either having to know about the other. Returning null means "not mine".
  */
 export type AnswerComponentCandidate = (question: FormQuestion) => [AnswerComponent, number] | null;
 
@@ -51,9 +50,9 @@ const candidates: AnswerComponentCandidate[] = [];
 /**
  * Offers a component for the questions it recognizes.
  *
- * Registering the same candidate again does nothing, so that whoever registers need not track
- * whether they already have: the same module evaluated twice, or two modules each making sure their
- * own components are present, leave one registration and not several.
+ * Registering the same candidate again does nothing, so whoever registers need not track whether
+ * they already have. The same module evaluated twice, or two modules each making sure their own
+ * components are present, leave one registration and not several.
  */
 export function registerAnswerComponent(candidate: AnswerComponentCandidate): void {
   if (!candidates.includes(candidate)) {
@@ -69,10 +68,9 @@ export function clearAnswerComponents(): void {
 /**
  * The registered component that fits this question best, or null when nothing does.
  *
- * Answering with null rather than falling back to some default is deliberate: a question whose kind
- * this deployment has no component for should say so, because typing an answer into an input that
- * was never meant for it produces a value the schema does not accept and nobody notices until a
- * condition somewhere quietly stops matching.
+ * Null rather than a fallback to some default. A question whose kind this deployment has no
+ * component for should say so. Typing an answer into an input never meant for it produces a value
+ * the schema does not accept, and nobody notices until a condition somewhere stops matching.
  */
 export function getAnswerComponent(question: FormQuestion): AnswerComponent | null {
   let best: AnswerComponent | null = null;

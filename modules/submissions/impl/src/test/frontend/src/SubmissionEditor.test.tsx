@@ -86,9 +86,8 @@ describe("SubmissionEditor", () => {
   });
 
   it("saves an answer and shows what the server then asks", async () => {
-    // The point of the whole design: which questions apply depends on the answers, the server decides
-    // it, and the way the editor finds out is by reading the form again. Nothing here evaluates a
-    // condition — the return-date question simply appears in the next read.
+    // Which questions apply depends on the answers, and the server decides it. The editor finds out
+    // by reading the form again: the return-date question simply appears in the next read.
     const withEndDate = form({
       requirements: [ {
         name: "details", type: FORM_REQUIREMENT, label: "Request details",
@@ -108,8 +107,8 @@ describe("SubmissionEditor", () => {
   });
 
   it("reports a refused save on the field it belongs to", async () => {
-    // A save can be refused — somebody submitted the request in another tab — and the field is where
-    // that has to show, since the rest of the form is untouched
+    // A save can be refused, because somebody submitted the request in another tab. The field is
+    // where that has to show, since the rest of the form is untouched
     const fetchMock = vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
       ? json({ error: "This request has been submitted" }, { ok: false, status: 403 })
       : json(form()));
@@ -123,8 +122,6 @@ describe("SubmissionEditor", () => {
   });
 
   it("cannot be answered once the request is no longer the submitter's to change", async () => {
-    // The same two rules the save workflow enforces, answered by the server, so the editor offers
-    // editing only where a save would be accepted rather than finding out from a refusal
     vi.stubGlobal("fetch", serving(form({ editable: false })));
 
     render(<SubmissionEditor path={PATH} />);
@@ -163,8 +160,8 @@ describe("SubmissionEditor", () => {
 
   it("falls back on the name when a requirement or a section is unlabelled", async () => {
     // The projection always carries a label and empties it rather than omitting it
-    // (`Objects.toString(getLabel(), "")`), so this is what an unlabelled block actually arrives as —
-    // and it still has to be identifiable rather than headed by nothing
+    // (`Objects.toString(getLabel(), "")`), so this is what an unlabelled block arrives as. It still
+    // has to be identifiable rather than headed by nothing
     vi.stubGlobal("fetch", serving(form({
       requirements: [ {
         name: "details", type: FORM_REQUIREMENT, label: "",
@@ -179,8 +176,8 @@ describe("SubmissionEditor", () => {
   });
 
   it("reports a save that failed without an Error to explain it", async () => {
-    // A rejection is not necessarily an Error — a thrown string reaches the same handler — and the
-    // field still has to say what happened rather than "undefined"
+    // A rejection is not necessarily an Error, since a thrown string reaches the same handler, and
+    // the field still has to say what happened rather than "undefined"
     const fetchMock = vi.fn((url: string, options?: { method?: string }) => options?.method === "POST"
       ? Promise.reject("the request went nowhere")
       : json(form()));
@@ -212,8 +209,6 @@ describe("SubmissionEditor", () => {
   });
 
   it("keeps the newest answer when two are finished in quick succession", async () => {
-    // Saves are sent in the order they were given, but their reads can land out of order, and an
-    // older form would put back what the newer one replaced
     let resolveFirst: (value: Response) => void = () => {};
     const first = new Promise<Response>(resolve => {
       resolveFirst = resolve;

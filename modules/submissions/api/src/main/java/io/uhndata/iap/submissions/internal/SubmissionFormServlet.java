@@ -48,22 +48,22 @@ import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 
 /**
- * The form a submitter fills in: what this submission's schema version asks of it, with the answers it already
- * holds, and with everything that does not currently apply left out. Served as
+ * The form a submitter fills in: what this submission's schema version asks of it, with the answers it
+ * already holds. Everything that does not currently apply is left out. Served as
  * {@code /Submissions/…/….form.json}.
  *
  * <p><strong>Why this exists rather than a filtered node serialization.</strong> Whether a question applies
- * depends on the answers <em>this</em> submission holds, so it cannot be decided by looking at the schema alone —
- * and the schema reaches an ordinary serialization as a dereferenced property, where filtering inside an embedded
- * subtree would be surgery. What an editor needs is a different document from either: the schema's structure and
- * the submission's answers, merged, with conditions already resolved.</p>
+ * depends on the answers <em>this</em> submission holds, so it cannot be decided by looking at the schema
+ * alone. The schema also reaches an ordinary serialization as a dereferenced property, where filtering inside
+ * an embedded subtree would be surgery. What an editor needs is a different document from either: the schema's
+ * structure and the submission's answers, merged, with conditions already resolved.</p>
  *
  * <p><strong>Why conditions are resolved here and nowhere else.</strong> {@link ConditionEvaluator} is extensible
- * through a whiteboard of operand resolvers, which a downstream project may add to; an editor that evaluated
- * conditions itself could not see those, could not know it could not see them, and would silently hide content
- * because a condition it cannot evaluate is never satisfied. So the browser is told <em>what to show</em> rather
- * than what to work out, and the same evaluator that decides whether a submission is complete decides what its
- * form looks like — the two can never disagree.</p>
+ * through a whiteboard of operand resolvers, which a downstream project may add to. An editor that evaluated
+ * conditions itself could not see those, and could not know it could not see them. It would silently hide
+ * content, because a condition it cannot evaluate is never satisfied. So the browser is told
+ * <em>what to show</em> rather than what to work out. The same evaluator that decides whether a
+ * submission is complete decides what its form looks like, so the two can never disagree.</p>
  *
  * <p>Each question carries the path the save endpoint expects, relative to the schema version, so an editor never
  * has to construct one.</p>
@@ -99,8 +99,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     protected void doGet(final SlingJakartaHttpServletRequest request,
         final SlingJakartaHttpServletResponse response) throws IOException
     {
-        // This servlet is bound to the submission resource type, so what it is handed is always one: a null here
-        // would mean the models are not registered at all, not that this particular request was odd
+        // This servlet is bound to the submission resource type, so what it is handed is always one. A null
+        // here would mean the models are not registered at all, not that this request was odd
         final Submission submission = Objects.requireNonNull(request.getResource().adaptTo(Submission.class),
             "A submission resource always reads as a submission");
         response.setContentType("application/json");
@@ -125,15 +125,15 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         return Json.createObjectBuilder()
             .add("path", submission.getPath())
             .add("title", Objects.toString(submission.getTitle(), ""))
-            // The same two rules the save handler enforces, so an editor can offer editing only where a save
-            // would actually be accepted rather than discovering it from a refusal
+            // The same two rules the save handler enforces. An editor can then offer editing only where a
+            // save would be accepted, rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
             .add("requirements", requirements)
             .build();
     }
 
     /**
-     * One requirement: its own presentation, and — for a set of questions — the items that currently apply.
+     * One requirement: its own presentation, and, for a set of questions, the items that currently apply.
      *
      * @param requirement the requirement to describe
      * @param submission the submission it is being resolved against
@@ -145,8 +145,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME, requirement.getName())
-            // The resource type itself, not a vocabulary of our own: a requirement kind added later names itself
-            // here without this servlet having to learn about it, and the reader already keys on resource types
+            // The resource type itself, not a vocabulary of our own. A requirement kind added later names
+            // itself here without this servlet learning about it, and the reader already keys on resource types
             .add(TYPE, requirement.getType())
             .add(LABEL, Objects.toString(requirement.getLabel(), ""))
             .add(DESCRIPTION, Objects.toString(requirement.getDescription(), ""));
@@ -192,8 +192,8 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     /**
      * One question, with the answer it already has.
      *
-     * <p>It carries its own {@code path} — relative to the schema version, which is what the save endpoint asks
-     * for — so that an editor posts back what it was given instead of working out how to address a question.</p>
+     * <p>It carries its own {@code path}, relative to the schema version, which is what the save endpoint
+     * asks for. An editor posts back what it was given instead of working out how to address a question.</p>
      *
      * @param question the question to describe
      * @param path its path relative to the schema version
@@ -226,10 +226,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      */
     private static Map<String, List<String>> answersByQuestion(final Submission submission)
     {
-        // A loop rather than a stream on purpose: the question has to be read once into a local — asking twice
-        // around a null check is what makes a @Nullable accessor look safe to dereference — and collecting to a
-        // map would need a merge function for a collision that only degenerate content can produce, which is a
-        // branch nothing would ever cover.
+        // A loop rather than a stream, for two reasons. The question has to be read once into a local, since
+        // asking twice around a null check is what makes a @Nullable accessor look safe to dereference. And
+        // collecting to a map would need a merge function for a collision only degenerate content can produce,
+        // which is a branch nothing would ever cover.
         final Map<String, List<String>> byQuestion = new HashMap<>();
         for (final Answer answer : submission.getAnswers()) {
             final Question question = answer.getQuestion();

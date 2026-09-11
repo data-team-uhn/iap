@@ -144,8 +144,8 @@ class CreateSubmissionHandlerTest
     @Test
     void translatesAFailedReferenceIntoAPersistenceFailure()
     {
-        // A schema version whose JCR node fails on any use: the reference cannot be written, and the failure
-        // must surface as a persistence problem for the engine to translate, not as a raw repository error
+        // A schema version whose JCR node fails on any use, so the reference cannot be written. The failure
+        // has to surface as a persistence problem for the engine to translate, not as a raw repository error
         final Node explosive = Mockito.mock(Node.class, invocation -> {
             throw new RepositoryException("boom");
         });
@@ -202,8 +202,8 @@ class CreateSubmissionHandlerTest
     @Test
     void refusesAPathWithNothingAtIt()
     {
-        // Note that this is not a visibility check: the handler works through the engine's privileged session, so
-        // "there is nothing there" means exactly that, and who may submit was settled before it ran
+        // Not a visibility check. The handler works through the engine's privileged session, so "there is
+        // nothing there" means exactly that, and who may submit was settled before it ran
         final InvalidPayloadException rejection = assertThrows(InvalidPayloadException.class,
             () -> this.handler.execute(context(Map.of(
                 "title", "My day off", "schemaVersion", "/Schemas/nowhere/v1"))));

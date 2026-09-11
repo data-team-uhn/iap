@@ -69,8 +69,8 @@ function formatValue(value: unknown): string {
   return ["string", "number"].includes(typeof value) ? String(value) : "";
 }
 
-// A repository path plus a file name as a usable URL: every segment percent-encoded, so
-// names containing #, ? or % survive as path characters instead of being parsed as syntax
+// A repository path plus a file name as a usable URL. Every segment is percent-encoded, so names
+// containing #, ? or % survive as path characters instead of being parsed as syntax
 function fileHref(path: unknown, name: string): string {
   return [...String(path).split("/"), name].map(encodeURIComponent).join("/");
 }
@@ -200,16 +200,15 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
 
 // The read-only page displaying one submission, registered as a view on the `iap/coreUI/view`
 // extension point for `/Submissions/*`. The submission is fetched with the `deep` serialization,
-// which also expands the referenced schema version (and its requirements), so the answers can be
-// presented grouped the way the schema's forms and sections define, alongside the attached
-// documents and the reviews. Editing is deliberately out of scope for now.
+// which also expands the referenced schema version and its requirements. The answers can then be
+// grouped the way the schema's forms and sections define, alongside the attached documents and the
+// reviews.
 function SubmissionView() {
   const location = useLocation();
   const navigate = useNavigate();
   // The page URL is the submission's repository path (a trailing .html is tolerated). A trailing
-  // `.edit` asks for the editor: which view of a submission is shown is addressed the way every
-  // other view here is, by extension rather than by a query parameter, and the server serves the
-  // same shell for it.
+  // `.edit` asks for the editor. Which view is shown is addressed the way every other view here is:
+  // by extension rather than by a query parameter. The server serves the same shell for it.
   const address = location.pathname.replace(/\.html$/, "");
   const editing = address.endsWith(EDIT);
   const path = editing ? address.slice(0, -EDIT.length) : address;
@@ -221,8 +220,8 @@ function SubmissionView() {
   const loading = loadedPath !== path;
   const fetchUtil = useAuthenticatedFetch();
 
-  // Reading depends on the mode as well as the path, and not only so that leaving the editor fetches
-  // at all: the editor saves as it goes, so whatever it changed is what coming back here should show.
+  // Reading depends on the mode as well as the path, and not only so that leaving the editor
+  // fetches at all. The editor saves as it goes, so what it changed is what coming back should show.
   useEffect(() => {
     if (editing) {
       return undefined;
@@ -257,8 +256,8 @@ function SubmissionView() {
   }, [path, fetchUtil, editing]);
 
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
-  // page rather than to either mode — and it is rendered whatever the page is doing, because the
-  // states with nothing to show are exactly the ones somebody needs a way out of. Before this, the
+  // page rather than to either mode. It is rendered whatever the page is doing, because the states
+  // with nothing to show are exactly the ones somebody needs a way out of. Before this, the
   // editor was reachable only from a listing and, once open, offered no way back at all.
   const header = (
     <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "space-between" }}>

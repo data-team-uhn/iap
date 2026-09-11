@@ -229,8 +229,8 @@ const BARE_SUBMISSION = {
   },
 };
 
-// The form projection as the SubmissionFormServlet would serve it, asking nothing: enough to tell
-// the editor apart from the read-only page without restating what the editor's own tests cover.
+// The form projection as the SubmissionFormServlet would serve it, asking nothing. Enough to tell
+// the editor apart from the read-only page, without restating what the editor's own tests cover.
 const EMPTY_FORM = {
   path: "/Submissions/demo-1",
   title: "Test my drug",
@@ -291,9 +291,9 @@ describe("SubmissionView", () => {
     expect(screen.getByText("36")).toBeInTheDocument();
     expect(screen.getAllByText("Not answered yet").length).toBe(2);
 
-    // A question with no text falls back to its node name; non-question schema children are
-    // skipped; a nested section shows its own description at a deeper level; untitled sections
-    // and forms fall back to their node names
+    // Four fallbacks at once. A question with no text takes its node name, non-question schema
+    // children are skipped, a nested section shows its description a level deeper, and untitled
+    // sections and forms take their node names
     expect(screen.getByText("Duration")).toBeInTheDocument();
     expect(screen.queryByText("Fill this form carefully")).toBeNull();
     expect(screen.getByText("Mailing address")).toBeInTheDocument();
@@ -451,7 +451,6 @@ describe("SubmissionView", () => {
       expect(screen.getByRole("button", { name: "View", pressed: false })).toBeInTheDocument();
     });
 
-    // An exclusive toggle group reports a deselection as null; there is no third mode to land in
     it("stays where it is when the mode already showing is chosen again", async () => {
       vi.stubGlobal("fetch", bothModes());
       const user = userEvent.setup();
@@ -464,7 +463,6 @@ describe("SubmissionView", () => {
       expect(screen.getByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
     });
 
-    // The states with nothing to show are the ones somebody most needs a way out of
     it("keeps the way out of a submission that cannot be loaded", async () => {
       vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
         () => Promise.resolve({ ok: false, status: 403 } as unknown as Response)));

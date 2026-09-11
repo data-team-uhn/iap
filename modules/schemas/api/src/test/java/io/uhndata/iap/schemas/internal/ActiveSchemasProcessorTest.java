@@ -98,8 +98,6 @@ class ActiveSchemasProcessorTest
     @Test
     void dropsASchemaThatWasNeverOpened() throws RepositoryException
     {
-        // The node type defaults `active` to false, so a schema is something someone deliberately opens; a missing
-        // property is therefore an answer rather than a gap
         assertNull(process(node("sch:Schema", null)));
     }
 
@@ -122,8 +120,6 @@ class ActiveSchemasProcessorTest
     @Test
     void keepsAChildItCannotRead() throws RepositoryException
     {
-        // Hiding a schema that is in fact open would leave a submitter with nothing to choose and no way to tell
-        // why; keeping a retired one costs at most a refusal from the server, which enforces this properly
         final Node unreadable = Mockito.mock(Node.class);
         Mockito.when(unreadable.isNodeType(Mockito.anyString())).thenThrow(new RepositoryException("boom"));
 

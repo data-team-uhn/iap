@@ -76,9 +76,9 @@ function Items({ items, disabled, states, onAnswered }: {
   );
 }
 
-// One requirement. A requirement that holds no questions — a document to provide, an approval to
-// obtain — is still shown: it is something the submitter has to do, and leaving it out would say
-// the request asks less than it does.
+// One requirement. One that holds no questions, a document to provide or an approval to obtain, is
+// still shown. It is something the submitter has to do, and leaving it out would say the request
+// asks less than it does.
 function Requirement({ requirement, disabled, states, onAnswered }: {
   requirement: FormRequirement;
   disabled: boolean;
@@ -105,8 +105,8 @@ function Requirement({ requirement, disabled, states, onAnswered }: {
 
 // Filling a submission in.
 //
-// There is no Save button: an answer is saved when it is *finished* — a field left, a box ticked —
-// and the form is then read again. That is what keeps the questions on screen correct, because
+// There is no Save button. An answer is saved when it is finished, meaning a field left or a box
+// ticked, and the form is then read again. That is what keeps the questions on screen correct, because
 // which of them apply depends on the answers, and the server is the only thing that decides it.
 // Nothing here evaluates a condition; a question that stops applying simply stops being sent.
 function SubmissionEditor({ path }: { path: string }) {
@@ -115,8 +115,8 @@ function SubmissionEditor({ path }: { path: string }) {
   // Absent until a field has been saved at least once, so reading one may find nothing
   const [ states, setStates ] = useState<Record<string, FieldState | undefined>>({});
   // Which read is the current one. Answers finished in quick succession are saved in the order they
-  // were given, but their reads can land out of order, and an older form would put back what was
-  // just replaced.
+  // were given, but their reads can land out of order. An older form would put back what was just
+  // replaced.
   const latest = useRef(0);
 
   const reload = useCallback((token: number) => fetchForm(path).then(next => {
@@ -137,8 +137,8 @@ function SubmissionEditor({ path }: { path: string }) {
     setStates(current => ({ ...current, [question.path]: { state: "saving" } }));
     saveAnswer(path, question.path, values)
       .then(() => {
-        // The field's own outcome, whether or not a later answer has overtaken this one: a save that
-        // succeeded should not be reported as still saving because something else happened after it
+        // The field's own outcome, whether or not a later answer has overtaken this one. A save that
+        // succeeded is not reported as still saving because something else happened after it
         setStates(current => ({ ...current, [question.path]: { state: "saved" } }));
         return reload(token);
       })
