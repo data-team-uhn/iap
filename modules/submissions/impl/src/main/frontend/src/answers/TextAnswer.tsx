@@ -23,7 +23,7 @@ import { questionLabel } from "./label";
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
 // Typed-in text. Several values are typed one per line: a set of inputs that grow and shrink is a
-// good deal more machinery, and a question that offers its answers is a choice question instead.
+// good deal more machinery. A question that offers its answers is a choice one instead.
 function TextAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
   const many = question.multiple;
   const helperText = many

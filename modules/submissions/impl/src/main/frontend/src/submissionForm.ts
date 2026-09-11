@@ -18,10 +18,10 @@
 
 // The form a submitter fills in, as the server projects it, and the one way to change it.
 //
-// Both halves of this are deliberately thin. What to show is decided server-side — conditions are
-// resolved there, so a question absent from this document is a question that does not currently
-// apply — and what a change means is decided by a workflow. Nothing here evaluates a condition or
-// writes to the repository.
+// Neither half of this decides anything. What to show is decided server-side, where the
+// conditions are resolved, so a question absent from this document is one that does not currently
+// apply. What a change means is decided by a workflow. Nothing here evaluates a condition or writes
+// to the repository.
 
 // The resource types the projection reports. It names the schema's own types rather than a
 // vocabulary of its own, so a requirement kind added later arrives here without a release.
@@ -76,8 +76,8 @@ export interface FormRequirement {
 export interface SubmissionForm {
   path: string;
   title: string;
-  // Whether this reader may still answer: the same two rules the save workflow enforces, so the
-  // editor offers editing only where a save would be accepted rather than learning from a refusal
+  // Whether this reader may still answer: the same two rules the save workflow enforces. The editor
+  // then offers editing only where a save would be accepted, rather than learning from a refusal
   editable: boolean;
   requirements: FormRequirement[];
 }
@@ -96,9 +96,9 @@ export async function fetchForm(path: string): Promise<SubmissionForm> {
   return (await response.json()) as SubmissionForm;
 }
 
-// Records one answer, by posting it to the submission itself. That POST is a `save` event, matched
-// by a system workflow — filling a request in is a workflow event and not a write — so a refusal
-// arrives as the engine's own reason rather than as a repository error.
+// Records one answer, by posting it to the submission itself. That POST is a `save` event matched
+// by a system workflow, because filling a request in is a workflow event and not a write. A refusal
+// therefore arrives as the engine's own reason rather than as a repository error.
 export async function saveAnswer(path: string, question: string, values: string[]): Promise<void> {
   const body = new URLSearchParams();
   // A question that may hold several values is answered by repeating it, which is what the handler

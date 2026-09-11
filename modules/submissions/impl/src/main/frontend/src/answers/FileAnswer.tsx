@@ -25,9 +25,9 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 // A question asking for a file, which cannot be answered here yet: uploading through the workflow
 // engine is its own mechanism and is not built.
 //
-// This says so rather than leaving the question out. A form that silently omits a question it cannot
-// ask reads as complete when it is not, and a text box in its place would store a filename that
-// nothing points at — a wrong answer being easier to give than no answer at all.
+// This says so rather than leaving the question out. A form that silently omits a question it
+// cannot ask reads as complete when it is not. A text box in its place would store a filename that
+// nothing points at, and a wrong answer is easier to give than no answer at all.
 function FileAnswer({ question }: AnswerComponentProps) {
   return (
     <Stack>

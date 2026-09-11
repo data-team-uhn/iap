@@ -65,8 +65,8 @@ describe("ChoiceAnswer", () => {
       expect(screen.getByRole("radio", { name: option.label })).toBeInTheDocument());
   });
 
-  // The label is what the submitter reads; the value is what an answer means, and what a condition
-  // compares against — so rewording a label must not change any answer already recorded
+  // The label is what the submitter reads. The value is what an answer means, and what a condition
+  // compares against, so rewording a label must not change any answer already recorded
   it("stores the value behind the label, not the label", async () => {
     const onAnswered = renderChoice();
 

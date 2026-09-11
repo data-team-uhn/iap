@@ -38,13 +38,13 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
 /**
  * The service task that raises a new submission: what the bootstrap workflow on {@code /Submissions} performs.
- * The event's {@code title} names the submission, and its {@code schemaVersion} — the <em>path</em> of a
- * {@code sch:SchemaVersion} — says what is being submitted against; the created submission holds a real
+ * The event's {@code title} names the submission, and its {@code schemaVersion}, the <em>path</em> of a
+ * {@code sch:SchemaVersion}, says what is being submitted against. The created submission holds a real
  * reference to it, and starts in the {@code draft} status the node type declares.
  *
- * <p>This lives in the submissions module, not the workflows one, on purpose: what it takes to create a
- * submission — an <em>active</em> schema version — is submissions business, plugged into the engine through the
- * {@link ServiceTaskHandler} extension point like any project's own behavior would be.</p>
+ * <p>This lives in the submissions module, not the workflows one, on purpose. What it takes to create a
+ * submission is an <em>active</em> schema version, which is submissions business. It plugs into the engine
+ * through the {@link ServiceTaskHandler} extension point, like any project's own behavior would.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -84,7 +84,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
 
     /**
      * Points the fresh submission at its schema version with a real {@code REFERENCE}. This has to go through
-     * the JCR API: a plain string property would carry the right identifier but the wrong type, and the strict
+     * the JCR API. A plain string property would carry the right identifier but the wrong type, and the strict
      * {@code sub:Submission} definition rejects it at commit.
      *
      * @param created the submission just created
@@ -105,15 +105,15 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     }
 
     /**
-     * Resolves and vets the schema version the payload points at: it must exist, be a schema version rather than
-     * whatever else happens to sit at that path, and both it and its schema must be active — which is where "no
-     * new submissions may be created from an inactive version" is actually enforced.
+     * Resolves and vets the schema version the payload points at. It must exist, be a schema version rather
+     * than whatever else sits at that path, and both it and its schema must be active. That last one
+     * is where "no new submissions may be created from an inactive version" is actually enforced.
      *
      * <p>Every one of those checks has to be made here. The lookup runs on the engine's privileged session, so
-     * nothing is hidden from it and nothing will be refused on the caller's behalf; being allowed to raise a
-     * submission is a question the start event already answered, and it is not the same question as which schema
-     * versions this particular user should be able to answer. When the platform can express the narrower rule —
-     * institutions, study teams — it belongs in the definition next to the performers, not here.</p>
+     * nothing is hidden from it and nothing will be refused on the caller's behalf. Being allowed to raise a
+     * submission is a question the start event already answered. It is not the same question as which schema
+     * versions this particular user should be able to answer. When the platform can express the narrower
+     * rule, for institutions or study teams, it belongs in the definition next to the performers, not here.</p>
      *
      * @param context the executing task's context
      * @return the resolved schema version's resource
@@ -154,8 +154,8 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         if (base.isEmpty()) {
             throw new InvalidPayloadException("The title must contain at least one letter or digit");
         }
-        // Always answers: past a hundred siblings the suffix turns random rather than giving up, since
-        // refusing to record a submission that was raised is the worse of the two outcomes
+        // Always answers. Past a hundred siblings the suffix turns random rather than giving up: refusing
+        // to record a submission that was raised is the worse outcome
         return NodeNameUtils.findFreeName(parent, base);
     }
 }
