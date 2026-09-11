@@ -43,11 +43,6 @@ import io.uhndata.iap.utils.UserIds;
  * Marks one stored notification as read: {@code POST /Notifications/…/<id>.markRead.json}.
  *
  * <p>
- * <strong>The {@code .json} extension is not optional.</strong> Sling reads the last dot-separated token as
- * the extension, so a bare {@code .markRead} matches no selector and falls through to the default POST servlet.
- * </p>
- *
- * <p>
  * Two answers have to agree: the repository must give the caller's own session a writable view, and the
  * notification must name them as its recipient. The second is not redundant. An administrative session
  * bypasses access control, so on the repository's answer alone an administrator opening their own bell would
@@ -75,7 +70,7 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         // Whatever access control is configured, asked of the caller's own session
         final ModifiableValueMap writable = target.adaptTo(ModifiableValueMap.class);
         if (writable == null) {
-            reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark");
+            reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark as read");
             return;
         }
         // And whose it is, because an administrative session is handed a writable view of everything.
@@ -83,9 +78,9 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         final String recipient = writable.get(StoredNotifications.RECIPIENT_PROPERTY, String.class);
         final String caller = UserIds.canonical(target.getResourceResolver());
         if (recipient == null || !recipient.equals(caller)) {
-            LOGGER.warn("Somebody who may write {} is not its recipient, so the marker stays as it is",
+            LOGGER.warn("Did not mark {} as read due to not being its recipient",
                 target.getPath());
-            reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark");
+            reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark as read");
             return;
         }
         try {
@@ -96,7 +91,7 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
             LOGGER.error("Could not mark {} as read: {}", target.getPath(), e.getMessage(), e);
             ErrorLogger.logError(e,
                 ErrorContext.of(MarkReadServlet.class, "markRead").about(target.getPath()));
-            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Could not record this");
+            reply(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Unable to mark as read");
         }
     }
 

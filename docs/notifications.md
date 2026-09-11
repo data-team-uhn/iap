@@ -74,8 +74,8 @@ those modules. A producer for another channel would get the same reports for fre
 ## Workflow notifications
 
 A workflow can tell people what happened. A service task naming the `notify` handler carries the
-event name, who to tell, how urgent it is, and where the wording lives — so adding a notification is
-adding a node and some wording, never Java. Who to tell is written in the same vocabulary the
+event name, who to tell, how urgent it is, and where its template lives, so adding a notification is
+adding a node and a template, never Java. Who to tell is written in the same vocabulary the
 workflow uses to say who may act: `@creator` is whoever raised the thing in question, and anything
 else is a person or a group, expanded into its members when the moment comes. The same name always
 means the same people in both places, because both are answered by the same service.
@@ -86,9 +86,9 @@ installed — an email right away, a marker in the interface, or nothing at all 
 cannot be reached. A channel that cannot carry a notification simply declines it, and that is a
 normal answer: the workflow has already moved on either way.
 
-### Where the wording lives
+### Where the templates live
 
-Each notification's wording is a folder under `/libs/iap/notificationTemplates/`, holding one
+Each notification's template is a folder under `/libs/iap/notificationTemplates/`, holding one
 rendering per channel. A `line` property on the folder is the one-sentence form a compact list can
 show; an `email` child carries the email rendering described below. A folder with no rendering for
 some channel simply says nothing through that channel — which is a choice its author made, not an
@@ -180,8 +180,8 @@ EmailUtils.sendHtmlEmail(email, this.mailService);
 
 `getEmailBuilder(variables)` fills in the subject and both bodies; what the caller passes
 overrides the template's own properties. **A value can be anything, not only a string** —
-the template decides how to read it — which is what lets the wording of an email stay in
-the template while the caller just hands over the submission. `EmailTemplate.builder()`
+the template decides how to read it, which is what lets the text of an email stay in the
+template while the caller just hands over the submission. `EmailTemplate.builder()`
 also takes no arguments, for a template assembled in code rather than read from a node.
 
 `sendTextEmail` sends only the plain text part. `sendHtmlEmail` sends the HTML one, the
@@ -333,9 +333,9 @@ interface shows each person theirs. It accepts every urgency, because storing is
 an urgent decision and a quiet aside both belong in the list of what happened while nobody was
 looking.
 
-Each record carries the rendered sentence (the wording folder's `line`, or the subject's title and
+Each record carries the rendered sentence (the template's `line`, or the subject's title and
 the event when there is none), a link to what it is about, who caused it, and whether it has been
-read. The sentence is rendered at the moment of delivery, deliberately: wording can be reworded and
+read. The sentence is rendered at the moment of delivery, deliberately: templates can be reworded and
 subjects can be deleted, but what somebody was told should read tomorrow the way it read today.
 
 Who may see a notification is the repository's answer, not filtering code: the record is created

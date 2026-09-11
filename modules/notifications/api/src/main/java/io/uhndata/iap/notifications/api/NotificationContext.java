@@ -140,7 +140,7 @@ public final class NotificationContext
     }
 
     /**
-     * Where the wording lives, or {@code null} when the caller left it to the delivery to decide.
+     * Where the template lives, or {@code null} when the caller left it to the delivery to decide.
      *
      * <p>Just a name. The deliveries that ship read it as the path of a template folder holding one rendering
      * per channel, but nothing here requires that. A delivery rendering its text some other way, from a bundle
@@ -148,7 +148,7 @@ public final class NotificationContext
      * passed to each delivery because one workflow node states it alongside the event and the urgency. A
      * delivery that renders no text ignores it.</p>
      *
-     * @return where this notification's wording is to be found, or {@code null}
+     * @return where this notification's template is to be found, or {@code null}
      */
     @Nullable
     public String getTemplate()
@@ -235,9 +235,9 @@ public final class NotificationContext
         }
 
         /**
-         * Where the wording lives, in whatever terms the deliveries that will render it understand.
+         * Where the template lives, in whatever terms the deliveries that render it understand.
          *
-         * @param template where to find the wording, e.g. the path of a template folder
+         * @param template where to find it, e.g. the path of a template folder
          * @return this builder
          */
         @NotNull

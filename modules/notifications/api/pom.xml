@@ -28,8 +28,7 @@
   <artifactId>iap-notifications-api</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Notifications - Definitions, APIs and SPIs</name>
-  <description>What a notification is, who it reaches, and the extension point each delivery channel plugs
-    into.</description>
+  <description>Defines what a notification is and the extension point each delivery channel plugs into</description>
 
   <dependencies>
     <!-- Nullability annotations for the exported API/SPI -->

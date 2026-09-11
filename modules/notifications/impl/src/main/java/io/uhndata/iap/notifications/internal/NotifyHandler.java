@@ -39,7 +39,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  *
  * <p>
  * <strong>One handler, however many notifications a process sends.</strong> What differs between "your request
- * was approved" and "your request was refused" is wording and audience. Both are written in the workflow
+ * was approved" and "your request was refused" is the template and the audience. Both are written in the workflow
  * definition rather than in Java. A service task naming this handler carries the template folder, the roles
  * to tell, and how urgent it is.
  * </p>
@@ -49,7 +49,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  *   "jcr:primaryType": "wf:ServiceTask",
  *   "handler": "notify",
  *   "template": "/libs/iap/notificationTemplates/submissionApproved",
- *   "notify": [ "@creator" ],
+ *   "recipients": [ "@creator" ],
  *   "urgency": "immediate",
  *   "event": "approved"
  * }
@@ -73,15 +73,15 @@ public class NotifyHandler implements ServiceTaskHandler
     /** The activity property naming the template folder. */
     static final String TEMPLATE_PARAMETER = "template";
 
-    /** The activity property listing the roles to tell. */
-    static final String NOTIFY_ROLES_PARAMETER = "notify";
+    /** The activity property listing who to tell. */
+    static final String RECIPIENTS_PARAMETER = "recipients";
 
     /** The activity property saying how soon they should hear. */
     static final String URGENCY_PARAMETER = "urgency";
 
     /**
      * The activity property naming what happened. Separate from the node's own id, so that two nodes can
-     * report the same event with different wording. It also means a user setting keys on something a
+     * report the same event with different templates. It also means a user setting keys on something a
      * definition chose, not on whatever the node happened to be called.
      */
     static final String EVENT_NAME_PARAMETER = "event";
@@ -107,12 +107,12 @@ public class NotifyHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException
     {
         final Activity activity = context.getActivity();
-        final String[] named = activity.get(NOTIFY_ROLES_PARAMETER, String[].class);
+        final String[] named = activity.get(RECIPIENTS_PARAMETER, String[].class);
         final List<String> roles = named == null ? List.of() : Arrays.asList(named);
         if (roles.isEmpty()) {
             // Said out loud: a notify task that tells nobody is a definition somebody meant to finish
-            LOGGER.warn("The notification task {} names nobody to tell", activity.getPath());
-            ErrorLogger.logProblem("A notify task names nobody to tell",
+            LOGGER.warn("The notification task {} names no recipients", activity.getPath());
+            ErrorLogger.logProblem("A notify task names no recipients",
                 ErrorContext.of(NotifyHandler.class, "execute").about(activity.getPath()));
             return;
         }
@@ -122,7 +122,7 @@ public class NotifyHandler implements ServiceTaskHandler
             .by(context.getActor())
             .urgency(activity.get(URGENCY_PARAMETER, String.class))
             .using(activity.get(TEMPLATE_PARAMETER, String.class));
-        // What the person deciding chose and what they said about it, so that wording can quote the reason a
+        // What the person deciding chose and what they said about it, so that a template can quote the reason a
         // request was refused. Only when they are actually there: a template asks `#if($outcomeNote)`, and a
         // variable that is always present but sometimes empty would answer that question wrongly
         carry(context, builder, OUTCOME_ENTRY);

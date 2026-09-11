@@ -66,7 +66,7 @@ import io.uhndata.iap.utils.PrefixTree;
  * <p>
  * The write happens on the delivery's own session, committed before this method returns. That is safe because
  * deliveries run in plain service code, never inside a commit hook. It does mean a notification can exist for
- * a workflow whose own commit fails a moment later. That is the window the email channel already accepts.
+ * a workflow whose own commit fails a moment later.
  * </p>
  *
  * @version $Id$
@@ -206,7 +206,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
 
     /**
      * The sentence a list will show for this notification. Either the template's {@code line} with its
-     * placeholders filled in, or a plain statement of title and event when the folder carries no wording.
+     * placeholders filled in, or a plain statement of title and event when the template carries no line.
      *
      * @param notification what happened
      * @return the rendered line, or {@code null} when there is nothing to say
@@ -229,7 +229,8 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * The {@code line} the notification's wording folder carries, when it names one and it does.
+     * The {@code line} the notification's template carries, when it names a template and that template
+     * has one.
      *
      * @param notification what happened
      * @return the raw line template, or {@code null}
@@ -240,13 +241,13 @@ public class StoredNotificationDelivery implements NotificationDelivery
         if (template == null) {
             return null;
         }
-        final Resource wording = notification.getSubject().getResourceResolver().getResource(template);
-        return wording == null ? null : wording.getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class);
+        final Resource folder = notification.getSubject().getResourceResolver().getResource(template);
+        return folder == null ? null : folder.getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class);
     }
 
     /**
      * What a line may interpolate: whatever the notification carries, plus the few things every message can say
-     * about itself, the same set the email wording gets.
+     * about itself, the same set an email template gets.
      *
      * @param notification what happened
      * @return the variables, as the strings a line substitutes

@@ -40,7 +40,7 @@ import io.uhndata.iap.emailnotifications.api.EmailTemplateException;
  * <strong>Why a template engine at all.</strong> Placeholder substitution can only put a value where a name is. An
  * email that has something to say about a submission needs to say different things depending on what happened to it,
  * list however many answers or reviewers there are, and leave out a paragraph that does not apply -- none of which is
- * substitution. Doing it in Java instead would move the wording into code, and the whole point of keeping templates in
+ * substitution. Doing it in Java instead would move the text into code, which is what keeping templates in
  * the repository is that a deployment can reword what the platform says without a rebuild.
  * </p>
  *

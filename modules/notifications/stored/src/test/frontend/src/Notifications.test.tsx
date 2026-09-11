@@ -51,8 +51,14 @@ function respond(body: unknown, ok = true) {
   return { ok, status: ok ? 200 : 500, json: () => Promise.resolve(body) };
 }
 
-function servesNotifications(rows: Record<string, unknown>[]) {
+function servesNotifications(rows: Record<string, unknown>[], unread?: number) {
   doFetch.mockImplementation((url: string) => {
+    // The count is its own request, asking for one row and reading the total
+    if (url.includes("fieldName=read")) {
+      const total = unread ?? rows.filter(row => row.read !== true && row.read !== "true").length;
+      return Promise.resolve(respond({ rows: [], offset: 0, limit: 1,
+        returnedrows: 0, totalrows: total, totalIsApproximate: false }));
+    }
     if (url.startsWith("/Notifications.paginate.json")) {
       return Promise.resolve(respond({ rows, offset: 0, limit: 100,
         returnedrows: rows.length, totalrows: rows.length, totalIsApproximate: false }));
@@ -108,6 +114,15 @@ describe("Notifications", () => {
       .find(url => url.startsWith("/Notifications.paginate.json"));
     expect(requested).toContain("fieldName=recipient");
     expect(requested).toContain("fieldValue=%40me");
+  });
+
+  // The dropdown holds one page, so an unread notification older than that page is still counted
+  it("shows the server's count, not what the page it fetched happens to hold", async () => {
+    servesNotifications([ row("one", true), row("two", true) ], 120);
+
+    render(<Notifications />);
+
+    expect(await screen.findByText("99+")).toBeInTheDocument();
   });
 
   it("says so when there are no notifications", async () => {
@@ -170,13 +185,17 @@ describe("Notifications", () => {
     servesNotifications([]);
     vi.useFakeTimers();
     try {
+      // Listings, not requests: a refresh also asks the server for the unread count
+      const listings = () => doFetch.mock.calls.map(call => String(call[0]))
+        .filter(url => url.startsWith("/Notifications.paginate.json")
+          && !url.includes("fieldName=read")).length;
       render(<Notifications />);
-      await vi.waitFor(() => expect(doFetch).toHaveBeenCalledTimes(1));
+      await vi.waitFor(() => expect(listings()).toBe(1));
 
       servesNotifications([row("one", false)]);
       await vi.advanceTimersByTimeAsync(60_000);
 
-      expect(doFetch).toHaveBeenCalledTimes(2);
+      expect(listings()).toBe(2);
     } finally {
       vi.useRealTimers();
     }

@@ -23,10 +23,10 @@ import { type AuthenticatedFetch, useAuthenticatedFetch } from "@iap/frontend-co
 import { RequestError } from "@iap/frontend-commons/requestFailure";
 
 import {
-  countUnread,
   markReadUrl,
   type Notification,
   NOTIFICATIONS_PATH,
+  READ,
   parseNotification,
   RECIPIENT,
 } from "./notificationsModel";
@@ -52,6 +52,20 @@ const list = async (fetchUtil: AuthenticatedFetch): Promise<Notification[]> => {
     filters: [ { name: RECIPIENT, value: "@me" } ],
   });
   return page.rows.map(parseNotification);
+};
+
+/**
+ * How many are unread, counted by the server. The dropdown only ever holds one page, so counting
+ * what it holds would under-report the moment an older notification outside that page is unread.
+ * Asking for one row is enough: the answer wanted is the total, and the badge stops at 99 anyway.
+ */
+const countUnread = async (fetchUtil: AuthenticatedFetch): Promise<number> => {
+  const page = await fetchEntityPage(fetchUtil, {
+    homepage: NOTIFICATIONS_PATH,
+    limit: 1,
+    filters: [ { name: RECIPIENT, value: "@me" }, { name: READ, value: "false" } ],
+  });
+  return page.totalrows;
 };
 
 /** Marks one notification as read, or rejects with the status the server refused it with. */
@@ -89,9 +103,9 @@ export function useNotifications(): NotificationsFeed {
   const [ failed, setFailed ] = useState(false);
 
   const refresh = useCallback(async (): Promise<Notification[]> => {
-    const recent = await list(doFetch);
+    const [ recent, unread ] = await Promise.all([ list(doFetch), countUnread(doFetch) ]);
     setNotifications(recent);
-    setUnreadCount(countUnread(recent));
+    setUnreadCount(unread);
     setFailed(false);
     return recent;
   }, [ doFetch ]);

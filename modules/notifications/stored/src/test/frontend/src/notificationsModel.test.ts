@@ -16,12 +16,7 @@
  * limitations under the License.
  */
 
-import {
-  countUnread,
-  markReadUrl,
-  type Notification,
-  parseNotification,
-} from "@iap/stored-notifications/notificationsModel";
+import { markReadUrl, parseNotification } from "@iap/stored-notifications/notificationsModel";
 
 describe("parseNotification", () => {
   it("reads what a row says", () => {
@@ -61,23 +56,6 @@ describe("parseNotification", () => {
     expect(odd.line).toBe("");
     expect(odd.subject).toBeUndefined();
     expect(odd.created).toBeUndefined();
-  });
-});
-
-describe("countUnread", () => {
-  const of = (...flags: boolean[]): Notification[] =>
-    flags.map((read, index) => ({ path: `/n${String(index)}`, line: "", read }));
-
-  it("counts the ones not yet seen", () => {
-    expect(countUnread(of(false, true, false))).toBe(2);
-  });
-
-  it("counts nothing when everything has been seen", () => {
-    expect(countUnread(of(true, true))).toBe(0);
-  });
-
-  it("counts nothing when there is nothing", () => {
-    expect(countUnread([])).toBe(0);
   });
 });
 

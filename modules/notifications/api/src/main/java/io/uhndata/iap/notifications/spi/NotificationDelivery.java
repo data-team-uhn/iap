@@ -28,12 +28,9 @@ import io.uhndata.iap.notifications.api.Recipient;
  *
  * <p>
  * <strong>They are not alternatives.</strong> Every delivery is offered every notification, so the same one
- * routinely goes out more than once. The two shipped deliveries do exactly that: emailed straight away, and
- * kept as a record to show in the UI and come back to. That is intended, not double-telling: each channel
- * answers a different question, "did I hear about this" and "what happened while I was away". A digest
- * collector added later would accept only {@link NotificationContext#BATCHED} and write the notification down
- * instead of sending anything, again alongside the rest. None of it changes a workflow definition, which is the
- * point of the split.
+ * routinely goes out more than once. That is intended, not double-telling: a channel answers a question of its
+ * own, "did I hear about this" or "what happened while I was away". Which channels exist changes nothing in a
+ * workflow definition, which is the point of the split.
  * </p>
  *
  * <p>
@@ -50,10 +47,10 @@ public interface NotificationDelivery
     /**
      * Tells one person about one thing, if this is a way to tell them.
      *
-     * @param notification what happened, including where its wording lives
+     * @param notification what happened, including where its template lives
      * @param recipient who to tell
-     * @return {@code true} if this delivery carried it, {@code false} if it declined; other deliveries are
-     *         offered it either way
+     * @return {@code true} if this delivery acted on this request, {@code false} if it declined to act;
+     *         other deliveries are offered it either way
      */
     boolean deliver(@NotNull NotificationContext notification, @NotNull Recipient recipient);
 }

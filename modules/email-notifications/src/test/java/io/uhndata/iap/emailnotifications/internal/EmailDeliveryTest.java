@@ -60,7 +60,7 @@ class EmailDeliveryTest
 {
     private static final String TEMPLATE = "/libs/iap/notificationTemplates/approved";
 
-    /** The wording folder's child holding the email rendering. */
+    /** The template's child holding the email rendering. */
     private static final String EMAIL = TEMPLATE + "/email";
 
     // JCR-backed: a template is read through the JCR API, from nt:file children
@@ -94,7 +94,7 @@ class EmailDeliveryTest
         field.set(this.delivery, this.mailService);
     }
 
-    /** Installs a wording folder whose email rendering has both bodies. */
+    /** Installs a template whose email rendering has both bodies. */
     private void template()
     {
         this.context.create().resource(TEMPLATE, Map.of("jcr:primaryType", "sling:Folder"));
@@ -198,7 +198,7 @@ class EmailDeliveryTest
         assertEquals("Approved for 3 days", subject.getValue());
     }
 
-    // The subject travels as the resource, so wording can read a property nobody thought to pass. Worth a test
+    // The subject travels as the resource, so a template can read a property nobody thought to pass. Worth a test
     // of its own because the engine is sandboxed: SecureUberspector decides what a template may call
     @Test
     void letsWordingReadTheSubjectItself() throws Exception
@@ -258,7 +258,7 @@ class EmailDeliveryTest
             this.requester));
     }
 
-    // The wording folder holds one rendering per channel; carrying no email one is its author's choice
+    // A template holds one rendering per channel; carrying no email one is its author's choice
     @Test
     void declinesATemplateWithNoEmailRendering()
     {

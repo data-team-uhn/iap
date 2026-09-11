@@ -32,6 +32,9 @@ export const NOTIFICATIONS_PATH = "/Notifications";
 /** The property naming who a notification is for. `@me` is resolved to the caller by the server. */
 export const RECIPIENT = "recipient";
 
+/** The property holding the read marker. A filter value of `false` matches an unread one. */
+export const READ = "read";
+
 /** One thing the current user was told. */
 export interface Notification {
   /** The notification node itself, where the read marker is posted. */
@@ -63,28 +66,6 @@ export function parseNotification(row: EntityRow): Notification {
   };
 }
 
-/**
- * How many of these have not been seen yet.
- *
- * Counted here rather than on the server: the badge shows what the dropdown will show, so both come
- * from the one listing. A separate count could disagree with the list beneath it.
- *
- * @param notifications the notifications to count
- * @returns how many are unread
- */
-export function countUnread(notifications: readonly Notification[]): number {
-  return notifications.filter(notification => !notification.read).length;
-}
-
-/**
- * Where a notification's read marker is posted.
- *
- * The `.json` extension is not optional: Sling reads the last dot-separated token as the extension,
- * so a bare `.markRead` matches no servlet and falls through.
- *
- * @param notification the one to mark
- * @returns the URL to post to
- */
 export function markReadUrl(notification: Notification): string {
   return `${notification.path}.markRead.json`;
 }

@@ -16,7 +16,7 @@
 
 {
   "title": "IAP - Stored notifications",
-  "description": "The notification channel that keeps them, as content only each recipient can read",
+  "description": "Stores notifications so that only their intended recipient can read them",
   "bundles":[
     {
       // After the notifications bundle whose delivery extension point it plugs into, and after the entity node

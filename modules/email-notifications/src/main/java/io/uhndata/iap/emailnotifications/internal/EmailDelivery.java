@@ -51,16 +51,13 @@ import io.uhndata.iap.notifications.spi.NotificationDelivery;
  *
  * <p>
  * It accepts what it can carry and declines the rest. A recipient with no address is declined: that is a fact
- * about their account, not an error. So is a notification with no template, since this channel has no wording of
+ * about their account, not an error. So is a notification with no template, since this channel has no text of
  * its own to fall back on. Declining is a normal answer, because another delivery may carry what this one
  * cannot.
  * </p>
  *
  * <p>
- * It also declines anything that is not {@link NotificationContext#IMMEDIATE}. That is what makes urgency mean
- * something today rather than only in principle. A {@code batched} notification is currently delivered by
- * nothing, and the log says so. Emailing it anyway would pretend the workflow had never said otherwise. The
- * collector that will accept those is a second delivery, not a change here.
+ * It declines any urgency other than {@link NotificationContext#IMMEDIATE}.
  * </p>
  *
  * @version $Id$
@@ -71,7 +68,7 @@ public class EmailDelivery implements NotificationDelivery
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(EmailDelivery.class);
 
-    /** The child of a notification's wording folder holding this channel's rendering. */
+    /** The child of a notification's template holding this channel's rendering. */
     private static final String EMAIL_RENDERING = "email";
 
     // Dynamic and greedy, for the same reason the test endpoint's reference is. A deployment substituting a
@@ -107,7 +104,7 @@ public class EmailDelivery implements NotificationDelivery
      * @param notification what happened
      * @param recipient who to tell
      * @param address where to send it, already known to be there
-     * @param templatePath where the wording lives
+     * @param templatePath where the template lives
      * @return {@code true} if a message was handed to the mail service
      */
     private boolean send(final NotificationContext notification, final Recipient recipient, final String address,
@@ -120,7 +117,7 @@ public class EmailDelivery implements NotificationDelivery
             if (templateResource == null) {
                 LOGGER.warn("The {} notification names the template {}, which does not exist",
                     notification.getEvent(), templatePath);
-                ErrorLogger.logProblem("A notification names a wording folder that is not there",
+                ErrorLogger.logProblem("A notification names a template that is not there",
                     ErrorContext.of(EmailDelivery.class, "send")
                         .about(notification.getSubject().getPath())
                         .with("event", notification.getEvent())
@@ -128,7 +125,7 @@ public class EmailDelivery implements NotificationDelivery
                 return false;
             }
             // The template folder holds one rendering per channel. A folder with no email child means this
-            // notification has no email wording, which is its author's choice rather than an error.
+            // notification has no email rendering, which is its author's choice rather than an error.
             final Resource emailRendering = templateResource.getChild(EMAIL_RENDERING);
             if (emailRendering == null) {
                 LOGGER.debug("The template {} has no {} rendering, so the {} notification was not emailed",
@@ -180,8 +177,8 @@ public class EmailDelivery implements NotificationDelivery
     {
         final Map<String, Object> variables = new HashMap<>(notification.getVariables());
         // Always available, so that a template can name them without the workflow having to pass them. The
-        // subjectResource is the resource itself, so that wording can read a property nobody here
-        // thought to pass; the two shorthands beside it are what most wording actually needs
+        // subjectResource is the resource itself, so that a template can read a property nobody here
+        // thought to pass; the two shorthands beside it are what most templates actually need
         variables.put("subjectResource", notification.getSubject());
         variables.put("subjectPath", notification.getSubject().getPath());
         variables.put("subjectTitle", notification.getSubject().getValueMap().get("title", ""));

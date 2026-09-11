@@ -28,8 +28,7 @@
   <artifactId>iap-stored-notifications</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Stored notifications</name>
-  <description>The notification channel that keeps them: each notification is stored as content only its recipient
-    can read, so the interface can show what happened while nobody was looking.</description>
+  <description>Stores notifications so that only their intended recipient can read them</description>
 
   <build>
     <plugins>

@@ -16,7 +16,7 @@
 
 {
   "title": "IAP - Notifications",
-  "description": "Telling the people something concerns, by whatever means each of them is reached by",
+  "description": "Tells people what happened, by whatever means reaches each of them",
   "bundles":[
     {
       // Nothing but the Sling API stands behind these types, but no delivery resolves without them, so they

@@ -135,7 +135,7 @@ class NotifyHandlerTest
             "handler", "notify",
             "event", "approved",
             "template", "/libs/iap/notificationTemplates/timeOffApproved",
-            "notify", new String[] { PrincipalService.CREATOR },
+            "recipients", new String[] { PrincipalService.CREATOR },
             "urgency", NotificationContext.IMMEDIATE)));
 
         assertEquals(1, this.raised.size());
@@ -152,7 +152,7 @@ class NotifyHandlerTest
     void carriesTheDecisionAndItsReasonToTheWording() throws Exception
     {
         this.handler.execute(this.taskWith(
-            Map.of("event", "rejected", "notify", new String[] { PrincipalService.CREATOR }),
+            Map.of("event", "rejected", "recipients", new String[] { PrincipalService.CREATOR }),
             Map.of("outcome", "rejected", "outcomeNote", "We are short-staffed that week")));
 
         final Map<String, Object> variables = this.raised.get(0).getVariables();
@@ -164,13 +164,13 @@ class NotifyHandlerTest
     void leavesOutADecisionNoteThatWasNotGiven() throws Exception
     {
         this.handler.execute(this.taskWith(
-            Map.of("event", "approved", "notify", new String[] { PrincipalService.CREATOR }),
+            Map.of("event", "approved", "recipients", new String[] { PrincipalService.CREATOR }),
             Map.of("outcome", "approved", "outcomeNote", "   ", "unrelated", 7)));
 
         final Map<String, Object> variables = this.raised.get(0).getVariables();
         assertEquals("approved", variables.get("outcome"));
         assertFalse(variables.containsKey("outcomeNote"));
-        // The handler names which entries travel; the rest of a payload is not the wording's business
+        // The handler names which entries travel; the rest of a payload is not the template's business
         assertFalse(variables.containsKey("unrelated"));
     }
 
@@ -178,7 +178,7 @@ class NotifyHandlerTest
     void fallsBackOnTheNodesIdWhenNoEventIsNamed() throws Exception
     {
         this.handler.execute(this.taskWith(Map.of(
-            "notify", new String[] { PrincipalService.CREATOR })));
+            "recipients", new String[] { PrincipalService.CREATOR })));
 
         assertEquals("notifyApproved", this.raised.get(0).getEvent());
     }
@@ -187,7 +187,7 @@ class NotifyHandlerTest
     void defaultsToImmediateWhenTheNodeDoesNotSay() throws Exception
     {
         this.handler.execute(this.taskWith(Map.of(
-            "notify", new String[] { PrincipalService.CREATOR })));
+            "recipients", new String[] { PrincipalService.CREATOR })));
 
         assertEquals(NotificationContext.IMMEDIATE, this.raised.get(0).getUrgency());
         assertNull(this.raised.get(0).getTemplate());
@@ -211,6 +211,6 @@ class NotifyHandlerTest
         });
 
         this.handler.execute(this.taskWith(Map.of(
-            "notify", new String[] { PrincipalService.CREATOR })));
+            "recipients", new String[] { PrincipalService.CREATOR })));
     }
 }

@@ -131,7 +131,7 @@ class StoredNotificationDeliveryTest
             + javax.jcr.security.Privilege.JCR_MODIFY_PROPERTIES), this.granted);
     }
 
-    // No wording folder at all: the subject can still say what it is about
+    // No template at all: the subject can still say what it is about
     @Test
     void fallsBackToTheSubjectsTitleAndTheEvent()
     {
@@ -170,7 +170,7 @@ class StoredNotificationDeliveryTest
             this.storedNotification().getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
     }
 
-    // A wording folder may say the empty thing, which is still nothing to list
+    // A template may say the empty thing, which is still nothing to list
     @Test
     void declinesABlankLine()
     {

@@ -147,7 +147,7 @@ class EmailTemplateTest
     void fillsInFromSomethingThatIsNotAString()
     {
         // What a template engine buys over placeholder substitution: the caller hands over the thing it has, and
-        // the wording of how to read it stays in the template
+        // how to read it stays in the template
         final Email email = minimal()
             .withTextTemplate("#foreach($a in $answers)- $a\n#end#if($urgent)Please hurry.#end")
             .build()
