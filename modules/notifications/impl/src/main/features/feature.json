@@ -19,8 +19,6 @@
   "description": "Tells people what happened, by whatever means reaches each of them",
   "bundles":[
     {
-      // Nothing but the Sling API stands behind these types, but no delivery resolves without them, so they
-      // go in alongside the implementation rather than any later
       "id":"${project.groupId}:iap-notifications-api:${project.version}",
       "start-order":"26"
     },

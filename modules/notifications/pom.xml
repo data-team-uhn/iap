@@ -28,14 +28,11 @@
   <artifactId>iap-notifications</artifactId>
   <packaging>pom</packaging>
   <name>IAP - Notifications</name>
-  <description>Telling the people something concerns, by whatever means each of them is reached by: the workflow
-    action, the recipient roles, and the delivery extension point.</description>
+  <description>Informing people of important events/changes in the system.</description>
 
   <modules>
     <module>api</module>
     <module>impl</module>
-    <!-- A delivery, and a sibling of impl rather than part of it: it implements the SPI that api declares,
-         and the service works with however many of these are installed, including none -->
     <module>stored</module>
   </modules>
 </project>

@@ -23,20 +23,16 @@ import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.Recipient;
 
 /**
- * One way of telling somebody something. Any bundle may register one; each is offered every notification and
+ * One way of delivering a notification. Any bundle may register one; each is offered every notification and
  * decides for itself whether to carry it.
  *
  * <p>
- * <strong>They are not alternatives.</strong> Every delivery is offered every notification, so the same one
- * routinely goes out more than once. That is intended, not double-telling: a channel answers a question of its
- * own, "did I hear about this" or "what happened while I was away". Which channels exist changes nothing in a
- * workflow definition, which is the point of the split.
+ * <strong>They are not alternatives.</strong> Every delivery is offered every notification.
  * </p>
  *
  * <p>
- * <strong>Deciding not to deliver is a normal answer, not a failure.</strong> A delivery declines by returning
- * {@code false}, and the caller carries on: a notification the recipient has opted out of is still a notification
- * that was correctly handled.
+ * <strong>Deciding not to deliver is a normal answer, not a failure.</strong> A delivery can decline, and the caller
+ * carries on: a notification the recipient has opted out of is still a notification that was correctly handled.
  * </p>
  *
  * @version $Id$
@@ -45,7 +41,7 @@ import io.uhndata.iap.notifications.api.Recipient;
 public interface NotificationDelivery
 {
     /**
-     * Tells one person about one thing, if this is a way to tell them.
+     * Tells one person about one thing, if this is an accepted way to tell them.
      *
      * @param notification what happened, including where its template lives
      * @param recipient who to tell
