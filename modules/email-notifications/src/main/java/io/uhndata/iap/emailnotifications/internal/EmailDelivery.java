@@ -47,17 +47,11 @@ import io.uhndata.iap.notifications.api.Recipient;
 import io.uhndata.iap.notifications.spi.NotificationDelivery;
 
 /**
- * Sends a notification as an email, straight away.
+ * Sends a notification as an immediate email.
  *
  * <p>
- * It accepts what it can carry and declines the rest. A recipient with no address is declined: that is a fact
- * about their account, not an error. So is a notification with no template, since this channel has no text of
- * its own to fall back on. Declining is a normal answer, because another delivery may carry what this one
- * cannot.
- * </p>
- *
- * <p>
- * It declines any urgency other than {@link NotificationContext#IMMEDIATE}.
+ * It declines any urgency other than {@link NotificationContext#IMMEDIATE}. It only proceeds if the recipient
+ * has a valid email address, didn't opt out of emails, and the notification context names a valid email template.
  * </p>
  *
  * @version $Id$
@@ -71,9 +65,7 @@ public class EmailDelivery implements NotificationDelivery
     /** The child of a notification's template holding this channel's rendering. */
     private static final String EMAIL_RENDERING = "email";
 
-    // Dynamic and greedy, for the same reason the test endpoint's reference is. A deployment substituting a
-    // mail service should win on ranking, not on having started first. So should a development instance
-    // catching mail rather than sending it.
+    // Dynamic and greedy, to always reference the highest ranking mail service that is enabled at the moment.
     @Reference(policy = ReferencePolicy.DYNAMIC, policyOption = ReferencePolicyOption.GREEDY)
     private volatile MailService mailService;
 
@@ -155,11 +147,10 @@ public class EmailDelivery implements NotificationDelivery
     }
 
     /**
-     * Where this person can be emailed, as their account tells it: the {@code profile/email} Keycloak's sync
-     * handler writes, and the profile editor lets people correct.
+     * Where this person can be emailed, as their account tells it: the {@code profile/email} property.
      *
      * @param recipient who to reach
-     * @return their address, or {@code null} when the account does not carry one
+     * @return their address, or {@code null} when the account does not mention one
      */
     private static String addressOf(final Recipient recipient)
     {
@@ -177,9 +168,9 @@ public class EmailDelivery implements NotificationDelivery
     private static Map<String, Object> variables(final NotificationContext notification)
     {
         final Map<String, Object> variables = new HashMap<>(notification.getVariables());
-        // Always available, so that a template can name them without the workflow having to pass them. The
-        // subjectResource is the resource itself, so that a template can read a property nobody here
-        // thought to pass; the two shorthands beside it are what most templates actually need
+        // Always available, so that a template can name them without the workflow having to pass them.
+        // The subjectResource is the resource itself, so that a template can read any property from it;
+        // the two shorthands beside it are what most templates actually need
         variables.put("subjectResource", notification.getSubject());
         variables.put("subjectPath", notification.getSubject().getPath());
         variables.put("subjectTitle", notification.getSubject().getValueMap().get("title", ""));

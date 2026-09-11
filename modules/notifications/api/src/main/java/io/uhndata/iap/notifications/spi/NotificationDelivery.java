@@ -23,20 +23,16 @@ import io.uhndata.iap.notifications.api.NotificationContext;
 import io.uhndata.iap.notifications.api.Recipient;
 
 /**
- * One way of telling somebody something. Any bundle may register one; each is offered every notification and
- * decides for itself whether to carry it.
+ * One way of delivering a notification. Any bundle may register one; each is offered every notification and
+ * decides for itself whether to deliverit it and how.
  *
  * <p>
- * <strong>They are not alternatives.</strong> Every delivery is offered every notification, so the same one
- * routinely goes out more than once. That is intended, not double-telling: a channel answers a question of its
- * own, "did I hear about this" or "what happened while I was away". Which channels exist changes nothing in a
- * workflow definition, which is the point of the split.
+ * <strong>They are not alternatives.</strong> Every delivery method is offered every notification.
  * </p>
  *
  * <p>
- * <strong>Deciding not to deliver is a normal answer, not a failure.</strong> A delivery declines by returning
- * {@code false}, and the caller carries on: a notification the recipient has opted out of is still a notification
- * that was correctly handled.
+ * <strong>Deciding not to deliver is a normal answer, not a failure.</strong> A delivery can decline, and the caller
+ * carries on: a notification the recipient has opted out of is still a notification that was correctly handled.
  * </p>
  *
  * @version $Id$
@@ -45,10 +41,10 @@ import io.uhndata.iap.notifications.api.Recipient;
 public interface NotificationDelivery
 {
     /**
-     * Tells one person about one thing, if this is a way to tell them.
+     * Offer to deliver a notification to one person using this delivery method.
      *
      * @param notification what happened, including where its template lives
-     * @param recipient who to tell
+     * @param recipient who to tell, an individual person rather than an abstract role
      * @return {@code true} if this delivery acted on this request, {@code false} if it declined to act;
      *         other deliveries are offered it either way
      */

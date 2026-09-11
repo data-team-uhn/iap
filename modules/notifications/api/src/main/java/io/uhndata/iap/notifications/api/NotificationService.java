@@ -22,18 +22,17 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Tells people something happened, by whatever means reaches each of them.
+ * The notification service, used to tell people something happened, by whatever means reaches each of them.
  *
  * <p>
- * <strong>This is not "send an email".</strong> A caller states that something happened, who it concerns and
- * how soon they should know. What that turns into is decided here and below, from the recipients' own
- * settings.
+ * <strong>This is not "send an email".</strong> A caller states that something happened, who it concerns, and
+ * how soon they should know. What that turns into depends on the context of the notification, which delivery channels
+ * are enabled, and the recipients' own settings.
  * </p>
  *
  * <p>
- * Recipients are named by role rather than by address, in the vocabulary a workflow already uses to say who
- * may act. {@code PrincipalService} turns those roles into people, so a definition never carries an address
- * to go stale.
+ * Recipients are named by role rather than by address, in the same vocabulary workflows already use to say who
+ * may act. {@code PrincipalService} turns those roles into people.
  * </p>
  *
  * @version $Id$
@@ -42,18 +41,16 @@ import org.jetbrains.annotations.NotNull;
 public interface NotificationService
 {
     /**
-     * Notifies everyone the given roles resolve to.
+     * Send a notification to the given roles. Delivery is not guaranteed, this is a quick "fire-and-forget" service
+     * that will pass on the notification to each delivery channel and each user the target roles resolve to, but will
+     * not wait for confirmation of delivery or receipt.
      *
-     * <p>Nothing is guaranteed to reach anybody. A role may resolve to nobody, a person may have no channel
-     * that accepts, and a person may have asked not to be told. None of those is an error: a notification is an
+     * <p>Nothing is guaranteed to reach anybody. A role may resolve to nobody, a person may have no configured channel
+     * that accepts, and a person may have opted out of notifications. None of those is an error: a notification is an
      * attempt to inform, and the workflow that raised it carries on either way.</p>
      *
-     * <p>Nothing comes back. A delivery accepting says nothing about a message arriving, so a list of "the
-     * people told" would claim more than anything here can know. And the one thing a caller could do with such
-     * a list is decide how people are told. That is the decision this service exists to take away.</p>
-     *
      * @param notification what happened
-     * @param roles who it concerns, in the same vocabulary a workflow names performers in
+     * @param roles who it concerns, as a list of roles
      */
     void notify(@NotNull NotificationContext notification, @NotNull List<String> roles);
 }

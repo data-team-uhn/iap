@@ -38,11 +38,9 @@ import io.uhndata.iap.errortracking.api.ErrorLogger;
  * Filling in email templates, and handing the result to the mail service.
  *
  * <p>
- * Sending is fire and forget, and the outcome is recorded here rather than by whoever asked for it. The mail
- * service sends on a thread pool, so a refused address or an unreachable relay fails long after the caller has
- * moved on; a caller that dropped that future would lose the failure entirely. Watching it once, here, is what
- * lets every sender stay a single call. Anything that must know the answer waits on the mail service's own
- * future instead.
+ * Sending is fire and forget. The mail service sends asynchronously on a thread pool, so a refused address or an
+ * unreachable relay fails long after the caller has moved on. The outcome is recorded here rather than by whoever
+ * asked for it.
  * </p>
  *
  * @version $Id$
@@ -97,13 +95,11 @@ public final class EmailUtils
     }
 
     /**
-     * Sends an email as whatever it turns out to carry: as HTML when there is an HTML body, as plain text
-     * otherwise.
+     * Sends an email. This accepts either/both HTML or plain text bodies.
      *
      * <p>
-     * This is the method for a caller that is passing on somebody else's template and has no opinion about its
-     * shape. Choosing {@link #sendTextEmail} or {@link #sendHtmlEmail} instead states which shape the email is
-     * required to have, and refuses the other.
+     * This is the method for a caller that is passing on somebody else's email template and has no opinion about its
+     * shape.
      * </p>
      *
      * @param email the email to send

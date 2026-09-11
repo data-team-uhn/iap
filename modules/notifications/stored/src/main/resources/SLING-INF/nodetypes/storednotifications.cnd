@@ -63,7 +63,7 @@
   // Who this is for, as their repository user id; also the only account granted read on this node
   - recipient (STRING) mandatory
 
-  // The one-sentence form shown in a list, already rendered: wording may change, what was said may not
+  // The one-sentence form shown in a list, already rendered
   - line (STRING) mandatory
 
   // What happened, as the event name the notification was raised with

@@ -49,6 +49,13 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
+    <!-- Activity extends EntityPart, so javac needs this to resolve the hierarchy even though no source here
+         names it. A test also registers the model. -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-data-entities-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-workflows</artifactId>
@@ -67,13 +74,6 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-principals</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <!-- Activity extends EntityPart, so javac needs this to resolve the hierarchy even though no source here
-         names it. A test also registers the model. -->
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-data-entities-api</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

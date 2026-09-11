@@ -25,24 +25,23 @@ import org.jetbrains.annotations.Nullable;
  * One person a notification is for: who they are, and their account to read the rest from.
  *
  * <p>
- * Nothing about any channel. How to reach somebody is a fact about their account, read by the one delivery
- * that needs it. The email delivery reads {@code profile/email} and declines accounts without one; a channel
- * added later reads its own facts without this record learning what they are.
+ * Nothing about any channel. How to reach somebody is a fact about their account, read by each delivery
+ * that needs it. For example, an email delivery reads {@code profile/email} and declines accounts without one.
  * </p>
  *
  * <p>
- * Carrying the account rather than pre-reading it also keeps the reading contained. The account resource is
- * backed by the notification service's own session, so a delivery reads accounts without rights of its own.
+ * Carrying the account resource keeps the reading contained. The account resource is backed by the notification
+ * service's own session, so a delivery can read account details without rights of its own.
  * </p>
  *
  * <p>
  * The account is only alive for the duration of {@link io.uhndata.iap.notifications.spi.NotificationDelivery#deliver
- * NotificationDelivery.deliver}, and is closed with the session that resolved it. A delivery that queues work
- * for later must read what it needs and let go rather than store the resource.
+ * delivery}, and is closed with the session that resolved it. A delivery that queues work for later must read what it
+ * needs and let go rather than store the resource.
  * </p>
  *
  * @param userId the repository user id, which is what a per-user setting is keyed on
- * @param account the user's account, home of everything else about them
+ * @param account the user's account resource, home of everything else about them
  * @version $Id$
  * @since 0.1.0
  */

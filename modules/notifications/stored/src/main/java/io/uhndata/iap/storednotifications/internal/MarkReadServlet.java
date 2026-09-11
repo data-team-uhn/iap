@@ -43,11 +43,9 @@ import io.uhndata.iap.utils.UserIds;
  * Marks one stored notification as read: {@code POST /Notifications/…/<id>.markRead.json}.
  *
  * <p>
- * Two answers have to agree: the repository must give the caller's own session a writable view, and the
- * notification must name them as its recipient. The second is not redundant. An administrative session
- * bypasses access control, so on the repository's answer alone an administrator opening their own bell would
- * mark everybody's notifications read. Marking an already-read notification read again is fine and does
- * nothing: reading twice is not an event.
+ * Two checks have to agree: the repository must give the caller's own session a writable view, and the
+ * notification must name them as its recipient. Marking an already-read notification read again is fine and does
+ * nothing.
  * </p>
  *
  * @version $Id$
@@ -67,14 +65,11 @@ public class MarkReadServlet extends SlingJakartaAllMethodsServlet
         final SlingJakartaHttpServletResponse response) throws IOException
     {
         final Resource target = request.getResource();
-        // Whatever access control is configured, asked of the caller's own session
         final ModifiableValueMap writable = target.adaptTo(ModifiableValueMap.class);
         if (writable == null) {
             reply(response, HttpServletResponse.SC_FORBIDDEN, "This is not yours to mark as read");
             return;
         }
-        // And whose it is, because an administrative session is handed a writable view of everything.
-        // A notification naming nobody is nobody's to mark, which is why the recipient is asked first
         final String recipient = writable.get(StoredNotifications.RECIPIENT_PROPERTY, String.class);
         final String caller = UserIds.canonical(target.getResourceResolver());
         if (recipient == null || !recipient.equals(caller)) {

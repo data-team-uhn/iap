@@ -28,7 +28,7 @@
   <artifactId>iap-stored-notifications</artifactId>
   <packaging>bundle</packaging>
   <name>IAP - Stored notifications</name>
-  <description>Stores notifications so that only their intended recipient can read them</description>
+  <description>Stores notifications so that their intended recipient can read them in the application.</description>
 
   <build>
     <plugins>
@@ -68,7 +68,7 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.api</artifactId>
     </dependency>
-    <!-- Substitutes the ${...} placeholders of a wording template -->
+    <!-- Substitutes the ${...} placeholders of a template -->
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-text</artifactId>

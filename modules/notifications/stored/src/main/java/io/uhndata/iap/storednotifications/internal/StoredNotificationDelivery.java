@@ -53,14 +53,11 @@ import io.uhndata.iap.storednotifications.api.StoredNotifications;
 import io.uhndata.iap.utils.PrefixTree;
 
 /**
- * The delivery that keeps notifications: each one becomes a {@code notif:Notification} under
- * {@code /Notifications}, readable by its one recipient, for the interface to show.
+ * The delivery that keeps notifications in the platform: each one becomes a {@code notif:Notification} under
+ * {@code /Notifications}, readable by its one recipient, shown in the browser.
  *
  * <p>
- * It accepts every urgency, because storing is not interrupting. An {@code immediate} decision and a
- * {@code batched} aside both belong in the list of what happened; how loudly each was announced was the other
- * channels' business. What it declines is a notification it cannot word: no template line and no title leave
- * nothing worth listing.
+ * It accepts every notification that has a template, no matter the urgency.
  * </p>
  *
  * <p>
@@ -86,15 +83,14 @@ public class StoredNotificationDelivery implements NotificationDelivery
     @Override
     public boolean deliver(final NotificationContext notification, final Recipient recipient)
     {
-        final String line = lineOf(notification);
-        if (line == null || line.isBlank()) {
-            LOGGER.debug("The {} notification has no line and its subject no title, so there is nothing to list",
-                notification.getEvent());
+        final String message = renderMessage(notification);
+        if (message == null || message.isBlank()) {
+            LOGGER.debug("The {} notification has no message, skipping", notification.getEvent());
             return false;
         }
         try (ResourceResolver resolver = this.resolverFactory
             .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
-            final Resource stored = store(resolver, notification, recipient, line);
+            final Resource stored = store(resolver, notification, recipient, message);
             grantRead(resolver, stored.getPath(), recipient.userId());
             resolver.commit();
             LOGGER.debug("Stored the {} notification about {}", notification.getEvent(),
@@ -117,17 +113,16 @@ public class StoredNotificationDelivery implements NotificationDelivery
      * @param resolver this delivery's own session
      * @param notification what happened
      * @param recipient who it is for
-     * @param line the rendered sentence a list will show
+     * @param message the rendered notification message
      * @return the created resource
      * @throws RepositoryException when the bucket cannot be reached
      * @throws PersistenceException when the notification cannot be written
      */
     private static Resource store(final ResourceResolver resolver, final NotificationContext notification,
-        final Recipient recipient, final String line) throws RepositoryException, PersistenceException
+        final Recipient recipient, final String message) throws RepositoryException, PersistenceException
     {
         final Resource root = Objects.requireNonNull(resolver.getResource(StoredNotifications.HOMEPAGE_PATH),
             "The stored notifications homepage is created by repoinit before this bundle can run");
-        // Filed by a fresh uniformly-distributed name, which is what keeps every bucket small forever
         final String name = UUID.randomUUID().toString().replace("-", "");
         final Node bucket = PrefixTree.bucketFor(
             Objects.requireNonNull(root.adaptTo(Node.class), "A repoinit-created resource is backed by a node"),
@@ -137,7 +132,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
         final Map<String, Object> properties = new HashMap<>();
         properties.put("jcr:primaryType", "notif:Notification");
         properties.put(StoredNotifications.RECIPIENT_PROPERTY, recipient.userId());
-        properties.put(StoredNotifications.LINE_PROPERTY, line);
+        properties.put(StoredNotifications.LINE_PROPERTY, message);
         properties.put("event", notification.getEvent());
         properties.put("subject", notification.getSubject().getPath());
         properties.put("urgency", notification.getUrgency());
@@ -148,14 +143,12 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Lets the one recipient read, and mark as read, what was stored for them. Nobody else can see it, with
-     * the standing exception of an administrative session, which access control does not apply to at all.
+     * Lets the one recipient read, and mark as read, what was stored for them.
      *
      * @param resolver this delivery's own session
      * @param path the stored notification
-     * @param userId who may read it
-     * @throws RepositoryException when the entry cannot be written, which fails the whole delivery: a
-     *             notification its recipient cannot see is not delivered, it is lost
+     * @param userId who may read it, the notification recipient
+     * @throws RepositoryException when the entry cannot be written, which fails the whole delivery
      */
     private static void grantRead(final ResourceResolver resolver, final String path, final String userId)
         throws RepositoryException
@@ -170,8 +163,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
         }
         final AccessControlManager manager = session.getAccessControlManager();
         final AccessControlList acl = listFor(manager, path);
-        // Read to see it, modifyProperties to flip its read marker. The node holds nothing about anybody
-        // else, so the worst the recipient can do is rewrite what they alone can see
+        // Read to see it, modifyProperties to flip its read marker
         acl.addAccessControlEntry(account.getPrincipal(), new Privilege[] {
             manager.privilegeFromName(Privilege.JCR_READ),
             manager.privilegeFromName(Privilege.JCR_MODIFY_PROPERTIES) });
@@ -179,7 +171,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * The resource's own access control list, whether it already has one or is getting its first.
+     * Get or create he resource's own access control list.
      *
      * @param manager the repository's access control manager
      * @param path the resource
@@ -201,25 +193,25 @@ public class StoredNotificationDelivery implements NotificationDelivery
                 return list;
             }
         }
-        throw new RepositoryException("No access control list can be put on " + path);
+        throw new RepositoryException("The access control list cannot be put on " + path);
     }
 
     /**
-     * The sentence a list will show for this notification. Either the template's {@code line} with its
-     * placeholders filled in, or a plain statement of title and event when the template carries no line.
+     * Render the message of this notification. Either the template's {@code line} with its placeholders filled in,
+     * or a plain statement composed of the title and event name when the template has no message template.
      *
      * @param notification what happened
-     * @return the rendered line, or {@code null} when there is nothing to say
+     * @return the rendered message, or {@code null} when there is nothing to say
      */
-    private static String lineOf(final NotificationContext notification)
+    private static String renderMessage(final NotificationContext notification)
     {
         final Map<String, String> variables = variables(notification);
-        final String template = lineTemplate(notification);
+        final String template = messageTemplate(notification);
         if (template != null) {
             final StringSubstitutor substitutor = new StringSubstitutor(variables);
-            // What somebody typed is text, not a template: an outcome note containing ${...} says that,
-            // it does not ask for it. A placeholder nothing answers stays as written, so a typo shows up
-            // in the list rather than vanishing from it
+            // The variables usually come from what somebody typed, and that is user-entered text, not a template:
+            // an outcome note containing ${...} should not be further interpolated as a variable.
+            // A placeholder without a value stays as written, so a typo shows up in the list rather than vanishing.
             substitutor.setDisableSubstitutionInValues(true);
             return substitutor.replace(template);
         }
@@ -230,12 +222,12 @@ public class StoredNotificationDelivery implements NotificationDelivery
 
     /**
      * The {@code line} the notification's template carries, when it names a template and that template
-     * has one.
+     * has a message template.
      *
      * @param notification what happened
-     * @return the raw line template, or {@code null}
+     * @return the raw message template, or {@code null}
      */
-    private static String lineTemplate(final NotificationContext notification)
+    private static String messageTemplate(final NotificationContext notification)
     {
         final String template = notification.getTemplate();
         if (template == null) {
@@ -246,11 +238,11 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * What a line may interpolate: whatever the notification carries, plus the few things every message can say
+     * What a message may interpolate: whatever the notification carries, plus the few things every message can say
      * about itself, the same set an email template gets.
      *
      * @param notification what happened
-     * @return the variables, as the strings a line substitutes
+     * @return the variables, as the strings a message substitutes
      */
     private static Map<String, String> variables(final NotificationContext notification)
     {

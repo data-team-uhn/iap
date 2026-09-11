@@ -2217,6 +2217,7 @@
               <!-- Loaded reflectively at test runtime by the Sling Models implementation, never imported -->
               <ignoredUnusedDeclaredDependency>javax.annotation:javax.annotation-api</ignoredUnusedDeclaredDependency>
               <ignoredUnusedDeclaredDependency>io.uhndata.iap:iap-data-content-api</ignoredUnusedDeclaredDependency>
+              <ignoredUnusedDeclaredDependency>io.uhndata.iap:iap-data-entities-api</ignoredUnusedDeclaredDependency>
               <!-- MailService extends MessageService, so this is needed to resolve the class hierarchy even
                    though no code references it directly -->
               <ignoredUnusedDeclaredDependency>org.apache.sling:org.apache.sling.commons.messaging</ignoredUnusedDeclaredDependency>

@@ -25,28 +25,21 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * What happened, who it concerns and how soon they should hear about it: everything a notification is, before
- * anybody decides how to deliver it.
+ * The details about a notification: what happened, who it concerns, and how soon they should hear about it.
  *
  * <p>The subject is a resource, not a path. A notification is always about something: a submission, a review, a
  * task. Carrying the resource is what lets the rest of the system work from it. Recipient roles resolve against
- * it, a template reads its properties, a per-user setting can be scoped to it. A path would make each of those a
- * second lookup.</p>
+ * it, a template reads its properties, a per-user setting can be scoped to it.</p>
  *
- * <p>There is no recipient here. One thing happening produces one notification and several deliveries. The same
- * approval may be emailed to its author now, batched into tomorrow's digest for an administrator, and left
- * unread for somebody who has turned email off. Naming a recipient here would push that choice up into
- * the workflow definition. A workflow says what happened and who it concerns; a person's own settings say how
- * they hear about it.</p>
+ * <p>There is no explicit recipient and delivery method here. A workflow says what happened and who it concerns.
+ * A person's own settings say how they hear about it. One thing happening produces one notification and several
+ * deliveries. The same notice of approval may be emailed to its author now, batched into the weekly digest for an
+ * administrator, and left as an unread notice in the UI for the watcher who has turned email off.</p>
  *
  * <p>{@link #getUrgency() Urgency} is the workflow's side of that: a statement about the message, not about the
  * channel. "A decision was made" is {@link #IMMEDIATE}; "somebody replied to a comment" can wait to be
- * batched.</p>
- *
- * <p>It is a string rather than an enum because the vocabulary is open. A deployment adding a weekly digest
- * names its own urgency in a workflow definition and registers a delivery that accepts it. An enum would make
- * every such word a change to this bundle, and would have to decide what to do with one it did not recognise. A
- * string reaches every delivery, all of which decline it, which is already the right outcome.</p>
+ * batched. It is a string rather than an enum because the vocabulary is open. A deployment adding a weekly digest
+ * sent to a Slack channel names its own urgency in a workflow definition and registers a delivery that accepts it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -83,7 +76,7 @@ public final class NotificationContext
     }
 
     /**
-     * Starts describing a notification about something.
+     * Starts describing a notification about a resource.
      *
      * @param subject what the notification is about
      * @return a builder
@@ -106,7 +99,7 @@ public final class NotificationContext
     }
 
     /**
-     * What happened to it, as the name a template and a user setting both key on, e.g. {@code approved}.
+     * What happened to it, as the event name in the workflow, e.g. {@code approved}.
      *
      * @return the event name
      */
@@ -128,8 +121,7 @@ public final class NotificationContext
     }
 
     /**
-     * How soon the recipient should hear about it: {@link #IMMEDIATE}, {@link #BATCHED}, or whatever else a
-     * deployment names. Advice from the workflow, not an instruction to a channel.
+     * How soon the recipient should hear about it. Advice from the workflow, not a direction to a channel.
      *
      * @return the urgency
      */
@@ -142,11 +134,9 @@ public final class NotificationContext
     /**
      * Where the template lives, or {@code null} when the caller left it to the delivery to decide.
      *
-     * <p>Just a name. The deliveries that ship read it as the path of a template folder holding one rendering
-     * per channel, but nothing here requires that. A delivery rendering its text some other way, from a bundle
-     * resource or a message catalogue key, reads the same string its own way. It sits here rather than being
-     * passed to each delivery because one workflow node states it alongside the event and the urgency. A
-     * delivery that renders no text ignores it.</p>
+     * <p>Just a name. Deliveries usually read it as the path of a template folder holding one rendering per channel,
+     * but that is not required. A delivery rendering its text some other way, from a bundle resource or a message
+     * catalogue key, reads the same string its own way. A delivery that renders no text may ignore it.</p>
      *
      * @return where this notification's template is to be found, or {@code null}
      */
@@ -208,7 +198,7 @@ public final class NotificationContext
         /**
          * Who caused it.
          *
-         * @param userId the actor's repository user id, or {@code null} when nobody did
+         * @param userId the actor's repository user id, or {@code null} when there is no explicit actor
          * @return this builder
          */
         @NotNull
@@ -219,10 +209,9 @@ public final class NotificationContext
         }
 
         /**
-         * How soon the recipient should hear about it. Defaults to {@link #IMMEDIATE} when not said: a
-         * notification nobody thought about is more likely to be one that matters than one that does not.
+         * How soon the recipient should hear about it. Defaults to {@link #IMMEDIATE} when not said.
          *
-         * @param level the urgency
+         * @param level the implied urgency
          * @return this builder
          */
         @NotNull
@@ -248,7 +237,8 @@ public final class NotificationContext
         }
 
         /**
-         * One more thing a template may need.
+         * One more thing a template may need, a variable and its value made available to the template (and the delivery
+         * channel in general).
          *
          * @param name the variable name
          * @param value its value, or {@code null} to leave the variable out entirely
@@ -262,6 +252,8 @@ public final class NotificationContext
             // question wrongly. It is also the only reading the finished map allows, holding no nulls
             if (value != null) {
                 this.variables.put(name, value);
+            } else {
+                this.variables.remove(name);
             }
             return this;
         }

@@ -48,13 +48,13 @@ export const SHOWN = 10;
 export interface Notification {
   /** The notification node itself, where the read marker is posted. */
   path: string;
-  /** The rendered sentence to show. */
+  /** The rendered message to show. */
   line: string;
   /** Whether it has been seen before. */
   read: boolean;
   /** What it is about, to link to; possibly gone by now, which the deletion machinery explains. */
   subject?: string;
-  /** When it was raised, as the repository serialized it. */
+  /** When it was raised, as a JCR ISO datetime. */
   created?: string;
 }
 
