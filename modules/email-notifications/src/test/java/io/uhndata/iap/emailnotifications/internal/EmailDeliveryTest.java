@@ -151,7 +151,7 @@ class EmailDeliveryTest
         this.template();
 
         assertTrue(this.delivery.deliver(
-            this.notification(NotificationContext.IMMEDIATE, TEMPLATE), this.requester));
+            this.notification(NotificationContext.IMMEDIATE_URGENCY, TEMPLATE), this.requester));
 
         // Interpolated from what the notification carries, not from anything the caller passed
         final ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
@@ -168,7 +168,7 @@ class EmailDeliveryTest
     {
         this.template();
 
-        this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, TEMPLATE), this.requester);
+        this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE_URGENCY, TEMPLATE), this.requester);
 
         final ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
         Mockito.verify(this.builder).text(text.capture());
@@ -228,7 +228,7 @@ class EmailDeliveryTest
         this.template();
 
         assertFalse(this.delivery.deliver(
-            this.notification(NotificationContext.BATCHED, TEMPLATE), this.requester));
+            this.notification(NotificationContext.BATCHED_URGENCY, TEMPLATE), this.requester));
 
         Mockito.verify(this.mailService, Mockito.never()).sendMessage(Mockito.any());
     }
@@ -238,23 +238,24 @@ class EmailDeliveryTest
     {
         this.template();
 
-        assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, TEMPLATE),
+        assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE_URGENCY, TEMPLATE),
             this.account("unlisted", "Nobody", null)));
-        assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, TEMPLATE),
+        assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE_URGENCY, TEMPLATE),
             this.account("blank", "Nobody", "  ")));
     }
 
     @Test
     void declinesANotificationWithNoTemplate()
     {
-        assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE, null), this.requester));
+        assertFalse(this.delivery.deliver(this.notification(NotificationContext.IMMEDIATE_URGENCY, null),
+            this.requester));
     }
 
     @Test
     void declinesATemplateThatIsNotThere()
     {
         assertFalse(this.delivery.deliver(
-            this.notification(NotificationContext.IMMEDIATE, "/libs/iap/notificationTemplates/gone"),
+            this.notification(NotificationContext.IMMEDIATE_URGENCY, "/libs/iap/notificationTemplates/gone"),
             this.requester));
     }
 
@@ -267,7 +268,7 @@ class EmailDeliveryTest
             "line", "Only the in-app list shows this one"));
 
         assertFalse(this.delivery.deliver(
-            this.notification(NotificationContext.IMMEDIATE, TEMPLATE), this.requester));
+            this.notification(NotificationContext.IMMEDIATE_URGENCY, TEMPLATE), this.requester));
         Mockito.verify(this.mailService, Mockito.never()).sendMessage(Mockito.any());
     }
 
@@ -279,6 +280,6 @@ class EmailDeliveryTest
         this.context.create().resource(EMAIL, Map.of("jcr:primaryType", "sling:Folder"));
 
         assertFalse(this.delivery.deliver(
-            this.notification(NotificationContext.IMMEDIATE, TEMPLATE), this.requester));
+            this.notification(NotificationContext.IMMEDIATE_URGENCY, TEMPLATE), this.requester));
     }
 }

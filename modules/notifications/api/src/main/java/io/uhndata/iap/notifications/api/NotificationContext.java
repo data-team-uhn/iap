@@ -37,7 +37,7 @@ import org.jetbrains.annotations.Nullable;
  * administrator, and left as an unread notice in the UI for the watcher who has turned email off.</p>
  *
  * <p>{@link #getUrgency() Urgency} is the workflow's side of that: a statement about the message, not about the
- * channel. "A decision was made" is {@link #IMMEDIATE}; "somebody replied to a comment" can wait to be
+ * channel. "A decision was made" is {@link #IMMEDIATE_URGENCY}; "somebody replied to a comment" can wait to be
  * batched. It is a string rather than an enum because the vocabulary is open. A deployment adding a weekly digest
  * sent to a Slack channel names its own urgency in a workflow definition and registers a delivery that accepts it.</p>
  *
@@ -47,10 +47,10 @@ import org.jetbrains.annotations.Nullable;
 public final class NotificationContext
 {
     /** Urgency for something the recipient should hear about as soon as it happens. */
-    public static final String IMMEDIATE = "immediate";
+    public static final String IMMEDIATE_URGENCY = "immediate";
 
     /** Urgency for something that can wait to be collected into a digest. */
-    public static final String BATCHED = "batched";
+    public static final String BATCHED_URGENCY = "batched";
 
     private final Resource subject;
 
@@ -173,7 +173,7 @@ public final class NotificationContext
 
         private String actor;
 
-        private String urgency = IMMEDIATE;
+        private String urgency = IMMEDIATE_URGENCY;
 
         private String template;
 
@@ -209,7 +209,7 @@ public final class NotificationContext
         }
 
         /**
-         * How soon the recipient should hear about it. Defaults to {@link #IMMEDIATE} when not said.
+         * How soon the recipient should hear about it. Defaults to {@link #IMMEDIATE_URGENCY} when not said.
          *
          * @param level the implied urgency
          * @return this builder

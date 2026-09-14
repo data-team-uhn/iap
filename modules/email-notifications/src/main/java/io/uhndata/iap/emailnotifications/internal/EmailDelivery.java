@@ -50,7 +50,7 @@ import io.uhndata.iap.notifications.spi.NotificationDelivery;
  * Sends a notification as an immediate email.
  *
  * <p>
- * It declines any urgency other than {@link NotificationContext#IMMEDIATE}. It only proceeds if the recipient
+ * It declines any urgency other than {@link NotificationContext#IMMEDIATE_URGENCY}. It only proceeds if the recipient
  * has a valid email address, didn't opt out of emails, and the notification context names a valid email template.
  * </p>
  *
@@ -72,7 +72,7 @@ public class EmailDelivery implements NotificationDelivery
     @Override
     public boolean deliver(final NotificationContext notification, final Recipient recipient)
     {
-        if (!NotificationContext.IMMEDIATE.equals(notification.getUrgency())) {
+        if (!NotificationContext.IMMEDIATE_URGENCY.equals(notification.getUrgency())) {
             return false;
         }
         final String address = addressOf(recipient);

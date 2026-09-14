@@ -57,7 +57,7 @@ class NotificationContextTest
         final NotificationContext notification = NotificationContext.about(this.subject)
             .becauseOf("approved")
             .by("an-approver")
-            .urgency(NotificationContext.BATCHED)
+            .urgency(NotificationContext.BATCHED_URGENCY)
             .using("/libs/iap/notificationTemplates/approved")
             .with("days", 3)
             .build();
@@ -65,7 +65,7 @@ class NotificationContextTest
         assertSame(this.subject, notification.getSubject());
         assertEquals("approved", notification.getEvent());
         assertEquals("an-approver", notification.getActor());
-        assertEquals(NotificationContext.BATCHED, notification.getUrgency());
+        assertEquals(NotificationContext.BATCHED_URGENCY, notification.getUrgency());
         assertEquals("/libs/iap/notificationTemplates/approved", notification.getTemplate());
         assertEquals(3, notification.getVariables().get("days"));
     }
@@ -73,11 +73,11 @@ class NotificationContextTest
     @Test
     void isImmediateUnlessToldOtherwise()
     {
-        assertEquals(NotificationContext.IMMEDIATE,
+        assertEquals(NotificationContext.IMMEDIATE_URGENCY,
             NotificationContext.about(this.subject).build().getUrgency());
-        assertEquals(NotificationContext.IMMEDIATE,
+        assertEquals(NotificationContext.IMMEDIATE_URGENCY,
             NotificationContext.about(this.subject).urgency(null).build().getUrgency());
-        assertEquals(NotificationContext.IMMEDIATE,
+        assertEquals(NotificationContext.IMMEDIATE_URGENCY,
             NotificationContext.about(this.subject).urgency("  ").build().getUrgency());
     }
 

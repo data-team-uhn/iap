@@ -116,7 +116,7 @@ class StoredNotificationDeliveryTest
         assertEquals("the-requester", stored.getValueMap().get(StoredNotifications.RECIPIENT_PROPERTY, String.class));
         assertEquals("approved", stored.getValueMap().get("event", String.class));
         assertEquals("/Submissions/one", stored.getValueMap().get("subject", String.class));
-        assertEquals(NotificationContext.IMMEDIATE, stored.getValueMap().get("urgency", String.class));
+        assertEquals(NotificationContext.IMMEDIATE_URGENCY, stored.getValueMap().get("urgency", String.class));
         assertEquals("an-approver", stored.getValueMap().get("actor", String.class));
     }
 

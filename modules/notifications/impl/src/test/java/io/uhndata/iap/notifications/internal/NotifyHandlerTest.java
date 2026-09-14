@@ -136,13 +136,13 @@ class NotifyHandlerTest
             "event", "approved",
             "template", "/libs/iap/notificationTemplates/timeOffApproved",
             "recipients", new String[] { PrincipalService.CREATOR },
-            "urgency", NotificationContext.IMMEDIATE)));
+            "urgency", NotificationContext.IMMEDIATE_URGENCY)));
 
         assertEquals(1, this.raised.size());
         final NotificationContext notification = this.raised.get(0);
         assertEquals("approved", notification.getEvent());
         assertEquals("/libs/iap/notificationTemplates/timeOffApproved", notification.getTemplate());
-        assertEquals(NotificationContext.IMMEDIATE, notification.getUrgency());
+        assertEquals(NotificationContext.IMMEDIATE_URGENCY, notification.getUrgency());
         assertEquals(this.submission.getPath(), notification.getSubject().getPath());
         assertEquals("an-approver", notification.getActor());
         assertEquals(List.of(PrincipalService.CREATOR), this.audiences.get(0));
@@ -189,7 +189,7 @@ class NotifyHandlerTest
         this.handler.execute(this.taskWith(Map.of(
             "recipients", new String[] { PrincipalService.CREATOR })));
 
-        assertEquals(NotificationContext.IMMEDIATE, this.raised.get(0).getUrgency());
+        assertEquals(NotificationContext.IMMEDIATE_URGENCY, this.raised.get(0).getUrgency());
         assertNull(this.raised.get(0).getTemplate());
     }
 
