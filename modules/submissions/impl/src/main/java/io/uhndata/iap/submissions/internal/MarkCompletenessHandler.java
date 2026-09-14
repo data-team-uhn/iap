@@ -136,7 +136,7 @@ public class MarkCompletenessHandler implements ServiceTaskHandler
      */
     private static Resource subject(final WorkflowTaskContext context) throws WorkflowDefinitionException
     {
-        final Object created = context.getVariable(WorkflowResult.CREATED_PATH);
+        final Object created = context.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
         if (!(created instanceof String)) {
             return context.getTarget();
         }

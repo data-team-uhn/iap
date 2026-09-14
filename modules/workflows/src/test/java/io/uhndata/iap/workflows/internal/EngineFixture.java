@@ -39,6 +39,7 @@ import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.principal.PrincipalManager;
+import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
@@ -474,7 +475,7 @@ public final class EngineFixture
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
             // Membership is asked of the group, about the member; only the ordinary user is in it
             Mockito.when(requesters.isMember(Mockito.any())).thenAnswer(invocation ->
-                REQUESTER.equals(((org.apache.jackrabbit.api.security.user.Authorizable)
+                REQUESTER.equals(((Authorizable)
                     invocation.getArgument(0)).getID()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));

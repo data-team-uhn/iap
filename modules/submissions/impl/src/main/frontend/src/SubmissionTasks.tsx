@@ -27,7 +27,7 @@ import {
 
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
-import { type SubmissionTask, completeTask, fetchOpenTasks } from "./submissionTasks";
+import { type SubmissionTask, completeTask, fetchOpenTasks } from "./openTasks";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
