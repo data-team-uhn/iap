@@ -1009,14 +1009,14 @@ public final class WorkflowDefinitionUtils
      * with the declared type rather than as a string.
      *
      * <p>A {@code []} suffix on the JCR property name makes it multi-valued: the attribute is split on commas
-     * and each part trimmed, so <code>{...}performers=performers[]</code> reads
+     * and each part trimmed, so {@code {...}performers=performers[]} reads
      * {@code performers="approvers, @creator"} as two values. Marked in the rule rather than inferred, because
      * the parser cannot see the node type's cardinality and a value that happens to contain a comma must not
      * become a list by accident — which is the whole difference between "one performer whose name has a comma in
      * it" and "two performers".</p>
      *
      * <p>An attribute outside BPMN's own vocabulary is named by namespace rather than by prefix:
-     * <code>{https://iap.uhndata.io/bpmn}handler=handler</code>. BPMN carries nothing that says which code a
+     * {@code {https://iap.uhndata.io/bpmn}handler=handler}. BPMN carries nothing that says which code a
      * service task runs or what reaching a node means to the thing being decided, so those arrive as extension
      * attributes — and a prefix is the file's choice, not the schema's. A diagram editor that renormalises
      * {@code iap:} to {@code ns0:} on save would otherwise silently stop carrying them, which is the same class of
@@ -1049,7 +1049,7 @@ public final class WorkflowDefinitionUtils
      * One attribute's value, by namespace where the rule gives one and by plain name otherwise.
      *
      * @param element the XML element being read
-     * @param name either {@code local} or <code>{namespaceUri}local</code>
+     * @param name either {@code local} or {@code {namespaceUri}local}
      * @return the attribute's value, or the empty string when the element does not carry it
      */
     private static String attributeValue(final Element element, final String name)

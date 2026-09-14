@@ -125,7 +125,7 @@ final class WorkflowTaskContextImpl implements WorkflowTaskContext
      */
     void recordActor() throws PersistenceException
     {
-        final Object created = this.variables.get(WorkflowResult.CREATED_PATH);
+        final Object created = this.variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
         if (!(created instanceof String)) {
             return;
         }

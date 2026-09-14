@@ -24,6 +24,7 @@ import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -145,7 +146,7 @@ class WorkflowStarterTest
     {
         // A reference to something that has since been removed, which a repository reports as simply not there
         this.context.resourceResolver().getResource(HOST)
-            .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class)
+            .adaptTo(ModifiableValueMap.class)
             .put("workflow", "1e17e5b1-0000-0000-0000-000000000000");
 
         assertDoesNotThrow(
@@ -171,7 +172,7 @@ class WorkflowStarterTest
     {
         reference(HOST, "workflow", VERSION);
         this.context.resourceResolver().getResource(VERSION)
-            .adaptTo(org.apache.sling.api.resource.ModifiableValueMap.class).put("active", false);
+            .adaptTo(ModifiableValueMap.class).put("active", false);
 
         final WorkflowDefinitionException rejection = assertThrows(WorkflowDefinitionException.class,
             () -> WorkflowStarter.execute(context("workflow", HOST), performer(),

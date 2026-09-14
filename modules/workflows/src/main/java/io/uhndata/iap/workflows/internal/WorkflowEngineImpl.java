@@ -74,9 +74,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** The subservice name under which the engine's service user is mapped. */
     private static final String SUBSERVICE_NAME = "workflows";
 
-    /** Where the human an execution acted for is recorded, {@code jcr:createdBy} being the engine itself. */
-    private static final String CREATED_BY_PROPERTY = "createdBy";
-
     @Reference
     private ResourceResolverFactory resolverFactory;
 
@@ -250,45 +247,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
     }
 
     /**
-     * How an instance performs a service task it meets, through the same dispatch a system workflow uses. A
-     * handler behaves identically whichever kind of workflow reached it. The variables belong to this delivery;
-     * an instance's persisted variables are not yet exposed to handlers.
-     *
-     * @param event the event being delivered
-     * @param actor the user the instance is being moved for
-     * @return a performer bound to this delivery
-     */
-    private InstanceRunner.ServiceTaskPerformer performer(final WorkflowEvent event, final String actor)
-    {
-        final Map<String, Object> variables = new LinkedHashMap<>();
-        return (activity, instance) -> perform(activity,
-            new WorkflowTaskContextImpl(hostOf(instance), event, activity, variables, actor));
-    }
-
-    /**
-     * Records who an execution acted for, on whatever it created. The write itself was the engine's, so
-     * {@code jcr:createdBy} names the service user. Nothing else would remember the human, and both the audit
-     * trail and every "things I raised" listing need it.
-     *
-     * @param resolver the engine's session, still uncommitted
-     * @param variables the execution's variables, consulted for what was created
-     * @param actor the user who fired the event
-     * @throws PersistenceException when the created node cannot be written to
-     */
-    private void recordActor(final ResourceResolver resolver, final Map<String, Object> variables,
-        final String actor) throws PersistenceException
-    {
-        final Object created = variables.get(WorkflowResult.CREATED_PATH_VARIABLE);
-        if (!(created instanceof String)) {
-            return;
-        }
-        final Resource resource = Objects.requireNonNull(resolver.getResource((String) created),
-            "A handler reported creating something that is not there");
-        Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class),
-            "A node the engine just created is always modifiable").put(CREATED_BY_PROPERTY, actor);
-    }
-
-    /**
      * Follows the single outgoing arc of a straight-through node.
      *
      * @param node the node execution is leaving
@@ -308,18 +266,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
                 + " points at " + flows.get(0).getTargetRef() + ", which does not exist in this workflow");
         }
         return next;
-    }
-
-    /**
-     * The resource an instance drives, two levels up past its container.
-     *
-     * @param instance a running instance
-     * @return the host resource
-     */
-    private Resource hostOf(final Resource instance)
-    {
-        return Objects.requireNonNull(Objects.requireNonNull(instance.getParent(),
-            "An instance always lives in a container").getParent(), "A container always lives in its host");
     }
 
     /**
