@@ -19,8 +19,8 @@
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { DescendantFilter } from "@iap/frontend-commons/entityGrid/pagination";
 
+import { TASK_INSTANCE_NODE_TYPE } from "./openTasks";
 import { SUBMISSION_TYPE } from "./submissionGrid";
-import { TASK_INSTANCE_NODE_TYPE } from "./submissionTasks";
 
 // Only the submissions with something still open that names one of the principals the reader acts as.
 //

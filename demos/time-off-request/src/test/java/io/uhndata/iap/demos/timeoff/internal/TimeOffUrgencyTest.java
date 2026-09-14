@@ -19,6 +19,7 @@ package io.uhndata.iap.demos.timeoff.internal;
 
 import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -320,7 +321,7 @@ class TimeOffUrgencyTest
         if (properties == null) {
             return false;
         }
-        final Set<String> tags = new java.util.LinkedHashSet<>(
+        final Set<String> tags = new LinkedHashSet<>(
             Set.of(properties.get("tags", new String[0])));
         final boolean changed = placing ? tags.add(tag) : tags.remove(tag);
         properties.put("tags", tags.toArray(String[]::new));

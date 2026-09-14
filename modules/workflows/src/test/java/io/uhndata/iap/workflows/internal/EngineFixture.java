@@ -39,6 +39,7 @@ import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.principal.PrincipalManager;
+import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
@@ -72,7 +73,7 @@ import io.uhndata.iap.workflows.models.WorkflowDefinition;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
 import io.uhndata.iap.workflows.models.WorkflowsHomepage;
 
-import static io.uhndata.iap.workflows.models.WorkflowFixture.JCR_PRIMARY_TYPE_PROPERTY;
+import static io.uhndata.iap.workflows.models.WorkflowFixture.TYPE;
 
 /**
  * Shared setup for the engine tests: the {@code /Workflows} homepage events are aimed at, builders for system
@@ -253,7 +254,7 @@ final class EngineFixture
      */
     static Resource createTarget(final SlingContext context, final String actor)
     {
-        final Resource homepage = context.create().resource("/Workflows", JCR_PRIMARY_TYPE_PROPERTY, WorkflowsHomepage.RESOURCE_TYPE);
+        final Resource homepage = context.create().resource("/Workflows", TYPE, WorkflowsHomepage.RESOURCE_TYPE);
         final ResourceResolver resolver = actingAs(homepage.getResourceResolver(), actor);
         return new ResourceWrapper(homepage)
         {
@@ -385,11 +386,11 @@ final class EngineFixture
     {
         final Object primaryType = properties == null ? null : properties.get("jcr:primaryType");
         if (!(primaryType instanceof String) || !((String) primaryType).startsWith("wf:")
-            || properties.containsKey(JCR_PRIMARY_TYPE_PROPERTY)) {
+            || properties.containsKey(TYPE)) {
             return properties;
         }
         final Map<String, Object> stamped = new HashMap<>(properties);
-        stamped.put(JCR_PRIMARY_TYPE_PROPERTY, ((String) primaryType).replace(':', '/'));
+        stamped.put(TYPE, ((String) primaryType).replace(':', '/'));
         return stamped;
     }
 
@@ -436,7 +437,7 @@ final class EngineFixture
             Mockito.when(userManager.getAuthorizable(REQUESTERS)).thenReturn(requesters);
             // Membership is asked of the group, about the member; only the ordinary user is in it
             Mockito.when(requesters.isMember(Mockito.any())).thenAnswer(invocation ->
-                REQUESTER.equals(((org.apache.jackrabbit.api.security.user.Authorizable)
+                REQUESTER.equals(((Authorizable)
                     invocation.getArgument(0)).getID()));
             final JackrabbitSession session =
                 Mockito.mock(JackrabbitSession.class, AdditionalAnswers.delegatesTo(real));
@@ -526,15 +527,15 @@ final class EngineFixture
     static void createSystemWorkflow(final SlingContext context, final boolean definitionActive,
         final boolean versionActive, final String targetResourceType)
     {
-        context.create().resource(SystemWorkflowsHomepage.PATH, JCR_PRIMARY_TYPE_PROPERTY, SystemWorkflowsHomepage.RESOURCE_TYPE);
+        context.create().resource(SystemWorkflowsHomepage.PATH, TYPE, SystemWorkflowsHomepage.RESOURCE_TYPE);
         context.create().resource(WORKFLOW, Map.of(
-            JCR_PRIMARY_TYPE_PROPERTY, WorkflowDefinition.RESOURCE_TYPE, "title", "Create a workflow", "active", definitionActive));
+            TYPE, WorkflowDefinition.RESOURCE_TYPE, "title", "Create a workflow", "active", definitionActive));
         if (targetResourceType == null) {
             context.create().resource(VERSION, Map.of(
-                JCR_PRIMARY_TYPE_PROPERTY, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive));
+                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive));
         } else {
             context.create().resource(VERSION, Map.of(
-                JCR_PRIMARY_TYPE_PROPERTY, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive,
+                TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "active", versionActive,
                 "targetResourceType", targetResourceType));
         }
     }
@@ -550,16 +551,16 @@ final class EngineFixture
     static void createBootstrapGraph(final SlingContext context, final String... performers)
     {
         context.create().resource(VERSION + "/requested", Map.of(
-            JCR_PRIMARY_TYPE_PROPERTY, StartEvent.RESOURCE_TYPE, "elementId", "requested", "messageName", "create",
+            TYPE, StartEvent.RESOURCE_TYPE, "elementId", "requested", "messageName", "create",
             "performers", performers));
         context.create().resource(VERSION + "/requested/toCreate", Map.of(
-            JCR_PRIMARY_TYPE_PROPERTY, SequenceFlow.RESOURCE_TYPE, "elementId", "toCreate", "targetRef", "create"));
+            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "toCreate", "targetRef", "create"));
         context.create().resource(VERSION + "/create", Map.of(
-            JCR_PRIMARY_TYPE_PROPERTY, Activity.RESOURCE_TYPE, "elementId", "create",
+            TYPE, Activity.RESOURCE_TYPE, "elementId", "create",
             "handler", CreateEntityHandler.HANDLER_NAME, "entityType", "wf:WorkflowDefinition"));
         context.create().resource(VERSION + "/create/toDone", Map.of(
-            JCR_PRIMARY_TYPE_PROPERTY, SequenceFlow.RESOURCE_TYPE, "elementId", "toDone", "targetRef", "done"));
+            TYPE, SequenceFlow.RESOURCE_TYPE, "elementId", "toDone", "targetRef", "done"));
         context.create().resource(VERSION + "/done", Map.of(
-            JCR_PRIMARY_TYPE_PROPERTY, EndEvent.RESOURCE_TYPE, "elementId", "done"));
+            TYPE, EndEvent.RESOURCE_TYPE, "elementId", "done"));
     }
 }

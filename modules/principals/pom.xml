@@ -32,13 +32,6 @@
     a pluggable SPI, groups expanded into people, and membership answered the same way everywhere.</description>
 
   <dependencies>
-    <!-- The `@me` filter value has to resolve to the id the repository uses, not the one the login was typed
-         with; UserIds is where that difference is dealt with once -->
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-java-utils</artifactId>
-      <version>${project.version}</version>
-    </dependency>
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
@@ -60,6 +53,8 @@
       <artifactId>iap-data-content-api</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- `@me` has to resolve to the id the repository uses, not the one the login was typed with;
+         UserIds is where that difference is dealt with once -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>

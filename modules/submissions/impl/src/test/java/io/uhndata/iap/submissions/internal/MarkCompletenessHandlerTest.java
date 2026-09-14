@@ -378,7 +378,7 @@ class MarkCompletenessHandlerTest
             @Override
             public Object getVariable(final String name)
             {
-                return WorkflowResult.CREATED_PATH.equals(name) ? createdPath : null;
+                return WorkflowResult.CREATED_PATH_VARIABLE.equals(name) ? createdPath : null;
             }
 
             @Override

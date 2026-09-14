@@ -98,7 +98,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
         final Resource created = context.getResourceResolver().create(bucketFor(context, name),
             name, Map.of("jcr:primaryType", "sub:Submission", TITLE, title, "tags", new String[] {DRAFT}));
         reference(created, version);
-        context.setVariable(WorkflowResult.CREATED_PATH, created.getPath());
+        context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
     }
 
     /**

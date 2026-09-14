@@ -22,6 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
@@ -101,21 +104,21 @@ class CreateSubmissionHandlerTest
 
         this.handler.execute(taskContext);
 
-        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH);
+        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
         final Resource created = this.context.resourceResolver().getResource(path);
         assertNotNull(created);
         assertEquals("sub:Submission", created.getValueMap().get("jcr:primaryType"));
         assertEquals("My day off", created.getValueMap().get("title"));
         assertEquals(List.of(DRAFT), List.of(created.getValueMap().get("tags", new String[0])));
         // Real REFERENCEs, holding the version's and the schema's own identifiers
-        final javax.jcr.Node versionNode =
-            this.context.resourceResolver().getResource(VERSION_PATH).adaptTo(javax.jcr.Node.class);
+        final Node versionNode =
+            this.context.resourceResolver().getResource(VERSION_PATH).adaptTo(Node.class);
         assertEquals(versionNode.getIdentifier(),
             created.getValueMap().get("schemaVersion", String.class));
         // Both, so that "everything submitted against this schema" is one comparison rather than a join — and
         // so that nobody raising a submission has to state a fact the version already implies
-        final javax.jcr.Node schemaNode = this.context.resourceResolver()
-            .getResource("/Schemas/timeOffRequest").adaptTo(javax.jcr.Node.class);
+        final Node schemaNode = this.context.resourceResolver()
+            .getResource("/Schemas/timeOffRequest").adaptTo(Node.class);
         assertEquals(schemaNode.getIdentifier(), created.getValueMap().get("schema", String.class));
     }
 
@@ -129,7 +132,7 @@ class CreateSubmissionHandlerTest
 
         // The name is a UUID, and the path is the one the prefix tree computes for it — asserted through
         // PrefixTree rather than by spelling the layout out here, since the layout is its business
-        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH);
+        final String path = (String) taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE);
         final String name = path.substring(path.lastIndexOf('/') + 1);
         assertEquals(UUID.fromString(name).toString(), name);
         assertEquals(PrefixTree.pathFor("/Submissions", name), path);
@@ -149,8 +152,8 @@ class CreateSubmissionHandlerTest
         this.handler.execute(first);
         this.handler.execute(second);
 
-        assertNotEquals(first.getVariable(WorkflowResult.CREATED_PATH),
-            second.getVariable(WorkflowResult.CREATED_PATH));
+        assertNotEquals(first.getVariable(WorkflowResult.CREATED_PATH_VARIABLE),
+            second.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
     @Test
@@ -159,15 +162,15 @@ class CreateSubmissionHandlerTest
         // The homepage's own JCR node fails on any use, so the prefix tree's buckets cannot be opened. Like the
         // reference failure below, that has to reach the engine as a persistence problem it knows how to translate
         // rather than as a raw repository error escaping a handler.
-        final javax.jcr.Node explosive = Mockito.mock(javax.jcr.Node.class, invocation -> {
-            throw new javax.jcr.RepositoryException("boom");
+        final Node explosive = Mockito.mock(Node.class, invocation -> {
+            throw new RepositoryException("boom");
         });
         this.target = new ResourceWrapper(this.target)
         {
             @Override
             public <T> T adaptTo(final Class<T> type)
             {
-                return type == javax.jcr.Node.class ? type.cast(explosive) : super.adaptTo(type);
+                return type == Node.class ? type.cast(explosive) : super.adaptTo(type);
             }
         };
 
@@ -181,8 +184,8 @@ class CreateSubmissionHandlerTest
     {
         // A schema version whose JCR node fails on any use: the reference cannot be written, and the failure
         // must surface as a persistence problem for the engine to translate, not as a raw repository error
-        final javax.jcr.Node explosive = Mockito.mock(javax.jcr.Node.class, invocation -> {
-            throw new javax.jcr.RepositoryException("boom");
+        final Node explosive = Mockito.mock(Node.class, invocation -> {
+            throw new RepositoryException("boom");
         });
         final ResourceResolver resolver = this.context.resourceResolver();
         final ResourceResolver sabotaged = new ResourceResolverWrapper(resolver)
@@ -199,7 +202,7 @@ class CreateSubmissionHandlerTest
                     @Override
                     public <T> T adaptTo(final Class<T> type)
                     {
-                        return type == javax.jcr.Node.class ? type.cast(explosive) : super.adaptTo(type);
+                        return type == Node.class ? type.cast(explosive) : super.adaptTo(type);
                     }
                 };
             }
@@ -228,7 +231,7 @@ class CreateSubmissionHandlerTest
 
         this.handler.execute(taskContext);
 
-        assertNotNull(taskContext.getVariable(WorkflowResult.CREATED_PATH));
+        assertNotNull(taskContext.getVariable(WorkflowResult.CREATED_PATH_VARIABLE));
     }
 
     @Test

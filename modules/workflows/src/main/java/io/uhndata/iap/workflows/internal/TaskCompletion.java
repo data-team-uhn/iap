@@ -108,7 +108,7 @@ final class TaskCompletion
             InstanceRunner.hostOf(Objects.requireNonNull(taskResource.getParent(),
                 "A task always lives inside its instance")), definition, actor);
 
-        final Object outcome = event.get(OUTCOME_VARIABLE);
+        final Object outcome = event.get(OUTCOME_PARAMETER);
         final Object note = event.get(OUTCOME_NOTE);
         new InstanceRunner(resolver, performer, actor, new FlowRouting(conditions), principals)
             .complete(task, outcome instanceof String ? (String) outcome : null,
