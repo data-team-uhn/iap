@@ -18,7 +18,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { completeTask, fetchOpenTasks } from "@iap/submissions/submissionTasks";
+import { completeTask, fetchOpenTasks } from "@iap/submissions/openTasks";
 
 const PATH = "/Submissions/a/b/demo-1";
 

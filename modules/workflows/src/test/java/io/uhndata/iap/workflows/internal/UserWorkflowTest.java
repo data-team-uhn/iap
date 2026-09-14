@@ -664,7 +664,8 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
-            Map.of(TaskCompletion.OUTCOME, "approved", TaskCompletion.OUTCOME_NOTE, "Cover arranged with Dev")));
+            Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved",
+                TaskCompletion.OUTCOME_NOTE, "Cover arranged with Dev")));
 
         assertEquals("approved", read(TASK).get("outcome"));
         assertEquals("Cover arranged with Dev", read(TASK).get("outcomeNote"));
@@ -679,7 +680,7 @@ class UserWorkflowTest
         final WorkflowEngine engine = started();
 
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(TaskCompletion.COMPLETE_EVENT,
-            Map.of(TaskCompletion.OUTCOME, "approved", TaskCompletion.OUTCOME_NOTE, "   ")));
+            Map.of(TaskCompletion.OUTCOME_PARAMETER, "approved", TaskCompletion.OUTCOME_NOTE, "   ")));
 
         assertEquals("approved", read(TASK).get("outcome"));
         assertFalse(read(TASK).containsKey("outcomeNote"));

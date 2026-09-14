@@ -77,7 +77,6 @@ public class WorkflowEngineImpl implements WorkflowEngine
     /** The subservice name under which the engine's service user is mapped. */
     private static final String SUBSERVICE_NAME = "workflows";
 
-    /** Where the human an execution acted for is recorded, {@code jcr:createdBy} being the engine itself. */
     @Reference
     private ResourceResolverFactory resolverFactory;
 

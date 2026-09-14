@@ -18,6 +18,7 @@
 package io.uhndata.iap.workflows.internal;
 
 import java.lang.reflect.Field;
+import java.util.Arrays;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
@@ -182,7 +183,7 @@ class DueTimersTest
             remaining[i] = true;
         }
         remaining[paths.length] = false;
-        Mockito.when(nodes.hasNext()).thenReturn(remaining[0], java.util.Arrays.copyOfRange(remaining, 1,
+        Mockito.when(nodes.hasNext()).thenReturn(remaining[0], Arrays.copyOfRange(remaining, 1,
             remaining.length));
         if (paths.length > 0) {
             final Node[] found = new Node[paths.length];
@@ -191,7 +192,7 @@ class DueTimersTest
                 Mockito.when(found[i].getPath()).thenReturn(paths[i]);
             }
             Mockito.when(nodes.nextNode()).thenReturn(found[0],
-                java.util.Arrays.copyOfRange(found, 1, found.length));
+                Arrays.copyOfRange(found, 1, found.length));
         }
     }
 

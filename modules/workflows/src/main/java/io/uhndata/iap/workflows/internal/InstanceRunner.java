@@ -88,6 +88,9 @@ final class InstanceRunner
      */
     static final int MAX_STEPS = 200;
 
+    /** Where what the deciding person said about their decision is kept, on the task alone. */
+    private static final String OUTCOME_NOTE = "outcomeNote";
+
     private static final String JCR_PRIMARY_TYPE_PROPERTY = "jcr:primaryType";
 
     private static final String STATUS_PROPERTY = "status";
