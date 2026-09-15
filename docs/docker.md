@@ -151,14 +151,14 @@ the runtime stays offline after downloading.
 mutating endpoints (`/parse`, `/shutdown`) refuse requests carrying an `Origin` header so a page in
 the operator's browser cannot drive them. Set `IAP_DOCLING_TOKEN` to require a bearer token on top
 of that; `GET /health` stays open for probes. Otherwise the port is what keeps the daemon private.
-`modules/documents/processing/docker-compose.yml` publishes it as
+`generate_compose.py --docling` publishes it as
 `127.0.0.1:18765:18765` — bound to loopback on the host, reachable from the host for local work but
 not from the network. If you change that mapping, keep the `127.0.0.1:` prefix.
 
-`http://docling:18765` — reaching it by service name — works only when IAP is a service in the
-same Compose project. The daemon's own `docker-compose.yml` defines just the `docling` service
-and no network of its own, so it is not enough on its own; add IAP to that project (or the
-daemon to IAP's) and Compose's default network resolves the name.
+`http://docling:18765` — reaching it by service name — works because the generated file puts the
+daemon and IAP on the same `iap` network. The parse outcomes travel the other way over that same
+network, to `IAP_DOCLING_CALLBACK_URL`, authenticated with the shared `IAP_DOCLING_CALLBACK_JWT`
+both containers read from `.env`. Neither side does asynchronous parsing without it.
 
 `POST /parse` is **path-based**, not an upload. The caller stages the document on the volume shared
 with the daemon (`IAP_SHARED_DOCS`, `/shared-docs` in the image) and passes its path:
