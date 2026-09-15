@@ -27,17 +27,29 @@ import org.apache.sling.commons.messaging.mail.MailService;
 import org.apache.sling.commons.messaging.mail.MessageBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.uhndata.iap.emailnotifications.internal.EmailTemplateRenderer;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 
 /**
  * Filling in email templates, and handing the result to the mail service.
+ *
+ * <p>
+ * Sending is fire and forget. The mail service sends asynchronously on a thread pool, so a refused address or an
+ * unreachable relay fails long after the caller has moved on. The outcome is recorded here rather than by whoever
+ * asked for it.
+ * </p>
  *
  * @version $Id$
  * @since 0.1.0
  */
 public final class EmailUtils
 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(EmailUtils.class);
+
     /** Only static methods, no instances. */
     private EmailUtils()
     {
@@ -49,8 +61,8 @@ public final class EmailUtils
      *
      * <p>
      * Templates are written in <a href="https://velocity.apache.org/engine/devel/user-guide.html">Apache Velocity</a>,
-     * rendered in strict mode: a name that was never supplied is an error rather than something to mail to a person;
-     * write {@code #if($name)} around anything genuinely optional.
+     * rendered in strict mode. A name that was never supplied is an error rather than something to mail to a
+     * person, so write {@code #if($name)} around anything genuinely optional.
      * </p>
      *
      * @param template the text to fill in, may be {@code null}
@@ -83,6 +95,30 @@ public final class EmailUtils
     }
 
     /**
+     * Sends an email. This accepts either/both HTML or plain text bodies.
+     *
+     * <p>
+     * This is the method for a caller that is passing on somebody else's email template and has no opinion about its
+     * shape.
+     * </p>
+     *
+     * @param email the email to send
+     * @param mailService the service that sends it
+     * @throws MessagingException if sending the email fails
+     * @throws IllegalArgumentException if the email has no body at all
+     * @since 0.1.0
+     */
+    public static void sendEmail(@NotNull final Email email, @NotNull final MailService mailService)
+        throws MessagingException
+    {
+        if (email.getHtmlBody() == null) {
+            sendTextEmail(email, mailService);
+        } else {
+            sendHtmlEmail(email, mailService);
+        }
+    }
+
+    /**
      * Sends a plain text email.
      *
      * @param email the email to send
@@ -104,7 +140,7 @@ public final class EmailUtils
         addSender(message, email);
         addRecipient(message, email);
         addExtraHeaders(message, email);
-        mailService.sendMessage(message.build());
+        handOver(mailService, message);
     }
 
     /**
@@ -138,7 +174,26 @@ public final class EmailUtils
             message.inline(attachment.getContent(), attachment.getMimeType(), attachment.getName(),
                 Set.of(new Header("Content-Disposition", "inline; filename=\"" + attachment.getName() + "\"")));
         }
-        mailService.sendMessage(message.build());
+        handOver(mailService, message);
+    }
+
+    /**
+     * Hands a built message to the mail service and watches how it goes, without waiting for it.
+     *
+     * @param mailService the service that sends it
+     * @param message the message to hand over
+     * @throws MessagingException if the message cannot be assembled
+     */
+    private static void handOver(final MailService mailService, final MessageBuilder message)
+        throws MessagingException
+    {
+        mailService.sendMessage(message.build()).whenComplete((ignored, failure) -> {
+            if (failure != null) {
+                // Nothing here says who it was for: an address names a person, and this line goes to a log file
+                LOGGER.error("An email could not be sent: {}", failure.getMessage(), failure);
+                ErrorLogger.logError(failure, ErrorContext.of(EmailUtils.class, "sendEmail"));
+            }
+        });
     }
 
     /**

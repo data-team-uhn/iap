@@ -2,7 +2,7 @@
   "jcr:primaryType": "ext:Extension",
   "ext:pointId": "iap/appBar/entry",
   "ext:name": "Notifications",
-  "ext:renderURL": "asset:iap-homepage.Notifications.js",
+  "ext:renderURL": "asset:iap-stored-notifications.Notifications.js",
   "ext:appBarSection": "end",
   "defaultOrder": 20
 }
