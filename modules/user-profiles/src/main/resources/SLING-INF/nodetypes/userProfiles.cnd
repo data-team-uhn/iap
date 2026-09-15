@@ -1,0 +1,164 @@
+// Copyright 2026 DATA @ UHN. See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+<sling = 'http://sling.apache.org/jcr/sling/1.0'>
+<rep = 'internal'>
+<doc = 'https://iap.uhndata.io/doc/'>
+<profile = 'https://iap.uhndata.io/profile/'>
+<data = 'https://iap.uhndata.io/data/'>
+
+//-----------------------------------------------------------------------------
+//
+// Profile fields: the catalogue of what this instance records about a person --
+// of what type, who may read it, and who may change it.
+//
+// Values are deliberately NOT stored here. A profile is one-to-one with an
+// account and is never linked across institutions, so the values belong to the
+// account itself and live as properties under the user's home node: `profile/*`
+// for facts about the person, `preferences/*` for how they want the application
+// to behave. Those need no node type of their own -- rep:Authorizable already
+// allows unprotected residual properties and nt:unstructured children, which is
+// exactly what the identity provider synchronisation writes into -- and could
+// not use one anyway, because Sling reports a hardcoded `sling/user` resource
+// type for authorizable resources and would never dispatch on ours.
+//
+// Definitions are platform vocabulary rather than user data, so, like
+// tag:Definition and link:Definition, they extend data:Content directly
+// and are deliberately neither referenceable nor versionable.
+//
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// Homepage node for the /ProfileFields root path, holding the field definitions.
+[profile:FieldsHomepage] > data:Content, rep:AccessControllable, doc:Documented
+  // Attributes:
+
+  // We can query field definitions
+  query
+
+  // Properties:
+
+  - sling:resourceType (STRING) = "profile/FieldsHomepage" mandatory autocreated protected
+
+  // The type of the children listed by the pagination servlet
+  - childNodeType (STRING) = "profile:FieldDefinition" mandatory autocreated protected
+
+  // The heading of the served documentation, overriding the empty defaults of
+  // the doc:Documented mixin. Autocreated rather than hardcoded in the model
+  // serving the catalogue, but still editable, so that a deployment can reword
+  // the heading without touching code.
+  - title (STRING) = "Profile fields" autocreated
+  - description (STRING) = "Everything this instance records about a person, and who may read and change it." autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Contains field definitions
+  + * (profile:FieldDefinition) = profile:FieldDefinition
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured
+
+//-----------------------------------------------------------------------------
+// The definition of one profile field: what it means, where its value lives on
+// the account, and who may read and change it.
+[profile:FieldDefinition] > data:Content
+  - sling:resourceType (STRING) = "profile/FieldDefinition" mandatory autocreated protected
+
+  // The field's identifier, as used by the profile API. When absent, the name
+  // of this definition node itself is used; setting an explicit name allows
+  // identifiers that would be awkward as node names.
+  - name (STRING)
+
+  // Human-readable name displayed in the UI; falls back to the field name
+  - label (STRING)
+
+  // Longer explanation displayed alongside the field
+  - description (STRING)
+
+  // Whether this field describes the person (`profile`) or says how they want
+  // the application to behave (`preference`). Also decides where the value is
+  // stored when `storage` is not set.
+  - kind (STRING) = "profile" mandatory autocreated
+
+  // Where the value lives, as a path relative to the account's home node, e.g.
+  // `profile/email` or `rep:fullname`. Defaults to `profile/<name>` or
+  // `preferences/<name>` according to `kind`. Has to name something inside the
+  // account: a path that steps out of the home node is a broken definition, and
+  // reported as one -- checked against the path that is actually read and
+  // written, so a name deriving such a path is caught the same way.
+  // For a field declaring an `idpClaim` this must be the target
+  // the identity provider synchronisation writes to, and nothing in the
+  // repository can check that the two agree -- a health check comparing them
+  // against the live configuration is not built yet.
+  - storage (STRING)
+
+  // The expected type of the value: text, long, double, boolean or date.
+  // Deliberately the same vocabulary as sch:Question minus `file`, so the two
+  // can be consolidated later. A value outside it is a broken definition, not a
+  // synonym for text: the field is then reported as read-only, with the reason.
+  - dataType (STRING) = "text" mandatory autocreated
+
+  // Optional regular expression that a value must match in full
+  - pattern (STRING)
+
+  // Optional closed set of accepted values, offered as a choice in the UI
+  - allowedValues (STRING) multiple
+
+  // Whether a value must be provided
+  - required (BOOLEAN) = false autocreated
+
+  // Whether more than one value may be provided
+  - multiple (BOOLEAN) = false autocreated
+
+  // Who may change this field: `owner` (the person themselves, and user
+  // administrators), `admin` (only user administrators), or `nobody` (nobody
+  // through the API, e.g. something the platform computes). This is a statement
+  // about the field, not about a person: a field its owner may change is still
+  // read-only for them when their account comes from an identity provider that
+  // supplies it. Should richer rules ever be needed (per role, per state), the
+  // growth path is a condition rather than more values here.
+  - writableBy (STRING) = "owner" mandatory autocreated
+
+  // Who may read this field: `authenticated` (anyone signed in, which is what a
+  // staff directory entry is), `self` (the person themselves and user
+  // administrators), or `admin` (only user administrators).
+  - readableBy (STRING) = "self" mandatory autocreated
+
+  // The identity provider claim this field is imported from, e.g. `email`.
+  // Documentation on its own: whether a *given* person's value is imported
+  // depends on whether their account is external, which is why nothing stores
+  // an "imported" flag anywhere.
+  - idpClaim (STRING)
+
+  // The sections this field is displayed under, e.g. "identity" or "contact"
+  - category (STRING) multiple
+
+  // Optional explicit position of this field in a form; fields with a lower
+  // order are displayed first, fields without an order are displayed last
+  - order (LONG)
+
+  // Whether this field is managed by the platform itself, which prevents
+  // changing it through the regular user-facing APIs
+  - system (BOOLEAN) = false autocreated
+
+  // Allow any other properties for extensibility
+  - * (UNDEFINED)
+  - * (UNDEFINED) multiple
+
+  // Allow any other children for extensibility
+  + * (nt:base) = nt:unstructured

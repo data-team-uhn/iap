@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
   Avatar,
@@ -31,6 +32,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { Link } from "react-router";
 
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 
@@ -38,6 +40,8 @@ import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 const userInfoUrl = (userId: string) => `/system/userManager/user/${encodeURIComponent(userId)}.json`;
 // Sling's logout endpoint; navigating to it ends the session
 const LOGOUT_URL = "/system/sling/logout";
+// Where the identity at the top of the menu leads: the person's own profile and settings
+const PROFILE_URL = "/profile";
 
 // The user's displayable full name, from whichever conventional properties their profile carries.
 const fullNameOf = (user: Record<string, unknown>): string =>
@@ -100,12 +104,25 @@ function UserMenu() {
         </IconButton>
       </Tooltip>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-        <Box sx={{ px: 2, py: 1 }}>
-          <Typography variant="subtitle2">{userName}</Typography>
-          {fullName && fullName !== userName && (
-            <Typography variant="body2" color="text.secondary">{fullName}</Typography>
-          )}
-        </Box>
+        { /* The identity is the way into the profile rather than a caption above it: the name is
+             what a person looks for when they want their own settings, so it is the thing that has
+             to be clickable. A router link, not an href, so the shell is not torn down and rebuilt
+             for a page the app already has. */ }
+        <MenuItem
+          component={Link}
+          to={PROFILE_URL}
+          onClick={() => setAnchor(null)}
+          sx={{ py: 1 }}
+        >
+          <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+            <Typography variant="subtitle2">{userName}</Typography>
+            {fullName && fullName !== userName && (
+              <Typography variant="body2" color="text.secondary">{fullName}</Typography>
+            )}
+            <Typography variant="caption" color="text.secondary">Profile and settings</Typography>
+          </Box>
+          <ChevronRightIcon fontSize="small" sx={{ ml: 2, color: "text.secondary" }} />
+        </MenuItem>
         <Divider sx={{ mb: 1 }} />
         <MenuItem component="a" href={LOGOUT_URL}>
           <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
