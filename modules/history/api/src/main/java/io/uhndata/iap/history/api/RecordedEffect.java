@@ -29,14 +29,14 @@ import org.jetbrains.annotations.NotNull;
  * What an action did to one resource: which resource, and the part it played.
  *
  * <p>
- * The role is the point. An action affecting several resources has usually done something different to each of them —
- * retiring one workflow version while activating another — and a record that only listed what it touched could not say
- * so. Use the vocabulary of the operation, not of the storage: {@code retired}, {@code activated}, {@code submitted}.
+ * An action affecting several resources has usually done something different to each of them, retiring one workflow
+ * version while activating another. The role is what says so. Use the vocabulary of the operation, not of the
+ * storage: {@code retired}, {@code activated}, {@code submitted}.
  * </p>
  *
  * <p>
- * The changes are property <em>names</em>. Never put a value in here: the record is meant to stay small, to stay
- * readable at a glance, and to say nothing that would have to be redacted if the content it describes were ever purged.
+ * The changes are property names. Never put a value in here: a record that carried one would have to be redacted
+ * when the content it describes was purged.
  * </p>
  *
  * @param subject the identifier of the affected resource
@@ -63,8 +63,8 @@ public record RecordedEffect(@NotNull String subject, @NotNull String subjectPat
     }
 
     /**
-     * The effect on a resource that is still there to be asked about itself, which is the usual case: the identifier,
-     * the path and the type are read off the node rather than passed in, so they cannot disagree with it.
+     * The effect on a resource that is still there to be asked about itself, which is the usual case. The identifier,
+     * the path and the type are read off the node, so they cannot disagree with it.
      *
      * @param subject the affected node, which must be referenceable
      * @param role the part it played in the action

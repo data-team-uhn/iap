@@ -28,14 +28,12 @@ import org.jetbrains.annotations.Nullable;
  * One thing that was asked for, described so that it can be recorded.
  *
  * <p>
- * An action is one event delivery, not one step of whatever carried it out. A workflow run is committed all at once, so
- * its steps are not separately committed and are not separately recordable; describing each of them as an action would
- * also mean the record changed shape whenever somebody split a definition's service task in two.
+ * An action is one event delivery, not one step of whatever carried it out.
+ * {@link io.uhndata.iap.history.models.Action} has the detail.
  * </p>
  *
  * <p>
- * Built through {@link #by(String, String)}, because the two things every action must say — who and what — are worth
- * being unable to forget, while the rest depends on what caused it.
+ * Built through {@link #by(String, String)}. Every action says who and what. The rest depends on what caused it.
  * </p>
  *
  * @version $Id$
@@ -92,9 +90,8 @@ public final class RecordedAction
     /**
      * Starts describing an action.
      *
-     * @param actor who is answerable for it, as a <em>canonical</em> user id — what the repository calls them, not the
-     *            spelling they typed at login, since those differ and two spellings of one person is a record that
-     *            cannot be totalled
+     * @param actor who is answerable for it, as a canonical user id: what the repository calls them, not the
+     *            spelling they typed at login
      * @param operation what was asked for, in the platform's own vocabulary: {@code submit},
      *            {@code activateVersion}
      * @return a builder for the rest of it
@@ -379,7 +376,7 @@ public final class RecordedAction
         /**
          * Records the component responsible, for an action no workflow caused.
          *
-         * @param name the component responsible, for an action no workflow caused — a sweep, a migration, an import
+         * @param name the component responsible: a sweep, a migration, an import
          * @return this builder
          */
         @NotNull

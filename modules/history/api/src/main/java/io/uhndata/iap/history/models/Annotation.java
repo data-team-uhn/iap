@@ -30,15 +30,13 @@ import io.uhndata.iap.content.models.Content;
  * Something somebody said about a past change, after it happened.
  *
  * <p>
- * This exists because a version cannot be annotated. An {@code nt:version} and its {@code jcr:frozenNode} are both
- * entirely protected — no property, no mixin, ever — so a later thought about an earlier state has nowhere to live in
- * version storage. "This is the revision the approval was granted on", "this figure was wrong, and here is why": those
- * live here.
+ * A version cannot be annotated. An {@code nt:version} and its {@code jcr:frozenNode} are both entirely protected:
+ * no property, no mixin. A later thought about an earlier state has nowhere to live in version storage, so it lives
+ * here. "This is the revision the approval was granted on", "this figure was wrong, and here is why".
  * </p>
  *
  * <p>
- * Appended, never replaced. Saying something else about the same change adds another one of these, which is what makes
- * the record worth keeping.
+ * Appended, never replaced. Saying something else about the same change adds another one of these.
  * </p>
  *
  * @version $Id$
