@@ -26,8 +26,8 @@ import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
 
 /**
- * Hands out the test's own resolver as if it were a service resolver, wrapped so that closing it does nothing: the
- * code under test closes what it is given, and the test needs the same repository afterwards.
+ * Hands out the test's own resolver as if it were a service resolver. Closing it does nothing: the code under test
+ * closes what it is given, and the test needs the same repository afterwards.
  *
  * @version $Id$
  * @since 0.1.0

@@ -31,11 +31,10 @@ import io.uhndata.iap.content.models.Content;
  * The markers on one piece of content: who has looked at it, and how recently.
  *
  * <p>
- * Filed under the content rather than under the person, on the cardinalities. A busy reviewer accumulates a marker for
- * every item they ever open, while an item is only ever looked at by a handful of people, and the lookup that actually
- * happens — what has this person seen of this item — is a direct path either way. So what is left to decide by is which
- * parent grows without bound. Nothing enumerates one person's markers: a dashboard starts from what is assigned to them
- * and asks about each item.
+ * Filed under the content rather than under the person, on the cardinalities. A busy reviewer accumulates a marker
+ * for every item they ever open, while an item is looked at by a handful of people. The lookup that actually happens,
+ * what this person has seen of this item, is a direct path either way. Nothing enumerates one person's markers: a
+ * dashboard starts from what is assigned to them and asks about each item.
  * </p>
  *
  * <p>
@@ -69,8 +68,8 @@ public class LastSeen extends Content
     /**
      * How much of this content's history one person has seen.
      *
-     * @param userId the viewer's canonical user id, as the repository spells it — not the spelling they typed at login,
-     *            since those differ and two spellings of one person would be two markers
+     * @param userId the viewer's canonical user id, as the repository spells it, not the spelling they typed at
+     *            login
      * @return their marker, or {@code null} if they have never looked
      */
     @Nullable
