@@ -22,7 +22,7 @@
 # Build, from the repo root:
 #   mvn install -Pdocker -pl modules/documents/processing
 # or, without Maven:
-#   docker build -t iap/docling:0.1 modules/documents/processing
+#   docker build -t iap/docling modules/documents/processing
 #
 # Run (shared docs mounted; publish only to loopback). On Linux, --user has to name whoever
 # owns the host directory behind /shared-docs ("id -u:id -g"): the image's own user is 10001,
@@ -38,7 +38,7 @@
 #   docker run --rm -p 127.0.0.1:18765:18765 \
 #     --init --user "$(id -u):$(id -g)" -e HOME=/tmp --stop-timeout 900 \
 #     -v /path/to/shared-docs:/shared-docs \
-#     --cpus=4 --memory=8g iap/docling:0.1
+#     --cpus=4 --memory=8g iap/docling
 
 # Pinned by digest, for the reason requirements.txt gives for pinning the Python packages:
 # the layer below bakes model weights, CI never builds this image, and a floating tag lets the

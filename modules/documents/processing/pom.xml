@@ -114,7 +114,7 @@
             <configuration>
               <images>
                 <image>
-                  <name>iap/docling:0.1</name>
+                  <name>iap/docling</name>
                   <build>
                     <contextDir>${project.basedir}</contextDir>
                     <dockerFile>Dockerfile</dockerFile>
