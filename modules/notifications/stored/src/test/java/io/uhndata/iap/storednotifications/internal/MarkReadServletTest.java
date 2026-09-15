@@ -120,9 +120,9 @@ class MarkReadServletTest
     @Test
     void refusesANotificationThatNamesNobody() throws IOException
     {
-        final Resource nobodys = this.context.create().resource("/Notifications/aa/bb/cc/two",
+        final Resource nobodys = this.context.create().resource("/Notifications/the-requester/aa/bb/cc/two",
             "sling:resourceType", StoredNotifications.NOTIFICATION_RESOURCE_TYPE,
-            StoredNotifications.LINE_PROPERTY, "It happened",
+            StoredNotifications.MESSAGE_PROPERTY, "It happened",
             StoredNotifications.READ_PROPERTY, Boolean.FALSE);
 
         final MockSlingJakartaHttpServletResponse response = this.post(this.readBy(nobodys, RECIPIENT));
@@ -159,10 +159,10 @@ class MarkReadServletTest
 
     private Resource notification()
     {
-        return this.context.create().resource("/Notifications/aa/bb/cc/one",
+        return this.context.create().resource("/Notifications/the-requester/aa/bb/cc/one",
             "sling:resourceType", StoredNotifications.NOTIFICATION_RESOURCE_TYPE,
             StoredNotifications.RECIPIENT_PROPERTY, RECIPIENT,
-            StoredNotifications.LINE_PROPERTY, "It happened",
+            StoredNotifications.MESSAGE_PROPERTY, "It happened",
             StoredNotifications.READ_PROPERTY, Boolean.FALSE);
     }
 

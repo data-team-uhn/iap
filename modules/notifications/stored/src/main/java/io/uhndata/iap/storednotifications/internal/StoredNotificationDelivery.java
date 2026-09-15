@@ -34,6 +34,7 @@ import javax.jcr.security.Privilege;
 import org.apache.commons.text.StringSubstitutor;
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.user.Authorizable;
+import org.apache.jackrabbit.util.Text;
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
@@ -90,8 +91,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
         }
         try (ResourceResolver resolver = this.resolverFactory
             .getServiceResourceResolver(Map.of(ResourceResolverFactory.SUBSERVICE, SUBSERVICE))) {
-            final Resource stored = store(resolver, notification, recipient, message);
-            grantRead(resolver, stored.getPath(), recipient.userId());
+            store(resolver, notification, recipient, message);
             resolver.commit();
             LOGGER.debug("Stored the {} notification about {}", notification.getEvent(),
                 notification.getSubject().getPath());
@@ -108,7 +108,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Writes one notification into its prefix-tree bucket.
+     * Writes one notification into its recipient's prefix-tree bucket.
      *
      * @param resolver this delivery's own session
      * @param notification what happened
@@ -121,18 +121,15 @@ public class StoredNotificationDelivery implements NotificationDelivery
     private static Resource store(final ResourceResolver resolver, final NotificationContext notification,
         final Recipient recipient, final String message) throws RepositoryException, PersistenceException
     {
-        final Resource root = Objects.requireNonNull(resolver.getResource(StoredNotifications.HOMEPAGE_PATH),
-            "The stored notifications homepage is created by repoinit before this bundle can run");
+        final Node home = recipientHome(resolver, recipient.userId());
         final String name = UUID.randomUUID().toString().replace("-", "");
-        final Node bucket = PrefixTree.bucketFor(
-            Objects.requireNonNull(root.adaptTo(Node.class), "A repoinit-created resource is backed by a node"),
-            name, "sling:Folder");
+        final Node bucket = PrefixTree.bucketFor(home, name, "sling:Folder");
         final Resource parent = Objects.requireNonNull(resolver.getResource(bucket.getPath()),
             "A bucket this session just created is visible to it");
         final Map<String, Object> properties = new HashMap<>();
         properties.put("jcr:primaryType", "notif:Notification");
         properties.put(StoredNotifications.RECIPIENT_PROPERTY, recipient.userId());
-        properties.put(StoredNotifications.LINE_PROPERTY, message);
+        properties.put(StoredNotifications.MESSAGE_PROPERTY, message);
         properties.put("event", notification.getEvent());
         properties.put("subject", notification.getSubject().getPath());
         properties.put("urgency", notification.getUrgency());
@@ -143,10 +140,34 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Lets the one recipient read, and mark as read, what was stored for them.
+     * The folder holding one recipient's notifications, created and granted to them on first use.
      *
      * @param resolver this delivery's own session
-     * @param path the stored notification
+     * @param userId whose folder to find
+     * @return the folder node
+     * @throws RepositoryException when the folder cannot be created or granted
+     */
+    private static Node recipientHome(final ResourceResolver resolver, final String userId)
+        throws RepositoryException
+    {
+        final Resource root = Objects.requireNonNull(resolver.getResource(StoredNotifications.HOMEPAGE_PATH),
+            "The stored notifications homepage is created by repoinit before this bundle can run");
+        final Node homepage = Objects.requireNonNull(root.adaptTo(Node.class),
+            "A repoinit-created resource is backed by a node");
+        final String name = Text.escapeIllegalJcrChars(userId);
+        if (homepage.hasNode(name)) {
+            return homepage.getNode(name);
+        }
+        final Node home = homepage.addNode(name, "sling:Folder");
+        grantRead(resolver, home.getPath(), userId);
+        return home;
+    }
+
+    /**
+     * Lets the one recipient read, and mark as read, everything under their folder.
+     *
+     * @param resolver this delivery's own session
+     * @param path the recipient's folder
      * @param userId who may read it, the notification recipient
      * @throws RepositoryException when the entry cannot be written, which fails the whole delivery
      */
@@ -163,7 +184,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
         }
         final AccessControlManager manager = session.getAccessControlManager();
         final AccessControlList acl = listFor(manager, path);
-        // Read to see it, modifyProperties to flip its read marker
+        // Read to see them, modifyProperties to flip a read marker; inherited by everything below
         acl.addAccessControlEntry(account.getPrincipal(), new Privilege[] {
             manager.privilegeFromName(Privilege.JCR_READ),
             manager.privilegeFromName(Privilege.JCR_MODIFY_PROPERTIES) });
@@ -197,7 +218,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * Render the message of this notification. Either the template's {@code line} with its placeholders filled in,
+     * Render the message of this notification. Either the template's {@code uiMessage} with its placeholders filled in,
      * or a plain statement composed of the title and event name when the template has no message template.
      *
      * @param notification what happened
@@ -221,7 +242,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
     }
 
     /**
-     * The {@code line} the notification's template carries, when it names a template and that template
+     * The {@code uiMessage} the notification's template carries, when it names a template and that template
      * has a message template.
      *
      * @param notification what happened
@@ -234,7 +255,7 @@ public class StoredNotificationDelivery implements NotificationDelivery
             return null;
         }
         final Resource folder = notification.getSubject().getResourceResolver().getResource(template);
-        return folder == null ? null : folder.getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class);
+        return folder == null ? null : folder.getValueMap().get(StoredNotifications.UI_MESSAGE_PROPERTY, String.class);
     }
 
     /**

@@ -37,9 +37,9 @@ vi.mock("@iap/frontend-commons/reLogin", async importOriginal => ({
 // One row as the pagination servlet serializes it
 function row(name: string, read: boolean | string, extras: Record<string, unknown> = {}) {
   return {
-    "@path": `/Notifications/aa/bb/cc/${name}`,
+    "@path": `/Notifications/me/aa/bb/cc/${name}`,
     "@name": name,
-    line: `Something happened to ${name}`,
+    message: `Something happened to ${name}`,
     read,
     subject: `/Submissions/${name}`,
     "jcr:created": "2026-08-30T12:00:00.000Z",
@@ -95,10 +95,10 @@ describe("Notifications", () => {
     // Shown is read: only the unread one is posted about
     await waitFor(() => {
       expect(doFetch).toHaveBeenCalledWith(
-        "/Notifications/aa/bb/cc/one.markRead.json", { method: "POST" });
+        "/Notifications/me/aa/bb/cc/one.markRead.json", { method: "POST" });
     });
     expect(doFetch).not.toHaveBeenCalledWith(
-      "/Notifications/aa/bb/cc/two.markRead.json", { method: "POST" });
+      "/Notifications/me/aa/bb/cc/two.markRead.json", { method: "POST" });
   });
 
   // Asking for one's own is not left to access control, which an administrative session bypasses

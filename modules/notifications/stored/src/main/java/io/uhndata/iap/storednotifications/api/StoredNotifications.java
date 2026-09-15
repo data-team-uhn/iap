@@ -38,7 +38,10 @@ public final class StoredNotifications
     public static final String RECIPIENT_PROPERTY = "recipient";
 
     /** The property carrying the rendered one-sentence form a list shows. */
-    public static final String LINE_PROPERTY = "line";
+    public static final String MESSAGE_PROPERTY = "message";
+
+    /** The template property this channel renders, holding the one-sentence form before substitution. */
+    public static final String UI_MESSAGE_PROPERTY = "uiMessage";
 
     /** The property saying whether the recipient has seen it. */
     public static final String READ_PROPERTY = "read";

@@ -42,13 +42,13 @@
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
 
-  // The notifications themselves, filed into prefix-tree buckets to keep every parent small
-  + * (notif:Notification)
+  // One folder per recipient, holding their notifications in prefix-tree buckets
+  + * (sling:Folder)
   + * (nt:base) = nt:unstructured
 
 // One thing one person was told. Everything a listing shows is on the node itself - most importantly the
-// pre-rendered line - because the subject it reports on may change or be deleted later, and a notification is a
-// record of what was said, not a live view of what it was said about.
+// pre-rendered message - because the subject it reports on may change or be deleted later, and a notification is
+// a record of what was said, not a live view of what it was said about.
 [notif:Notification] > data:Content
   // Attributes:
 
@@ -64,7 +64,7 @@
   - recipient (STRING) mandatory
 
   // The one-sentence form shown in a list, already rendered
-  - line (STRING) mandatory
+  - message (STRING) mandatory
 
   // What happened, as the event name the notification was raised with
   - event (STRING)

@@ -89,7 +89,7 @@ normal answer: the workflow has already moved on either way.
 ### Where the templates live
 
 Each notification's template is a folder under `/libs/iap/notificationTemplates/`, holding one
-rendering per channel. A `line` property on the folder is the one-sentence form a compact list can
+rendering per channel. A `uiMessage` property on the folder is the one-sentence form a compact list can
 show; an `email` child carries the email rendering described below. A folder with no rendering for
 some channel simply says nothing through that channel — which is a choice its author made, not an
 error.
@@ -327,20 +327,20 @@ rather than following. The plain text and the HTML source sit beside the renderi
 
 ## Stored notifications
 
-`iap-stored-notifications` (`modules/stored-notifications`) is the channel that keeps what the others
-only say once: every notification it accepts becomes a small record under `/Notifications`, and the
-interface shows each person theirs. It accepts every urgency, because storing is not interrupting —
+`iap-stored-notifications` (`modules/notifications/stored`) is the channel that keeps what the others
+only say once: every notification it accepts becomes a small record under
+`/Notifications/<recipient>`, and the interface shows each person theirs. It accepts every urgency, because storing is not interrupting —
 an urgent decision and a quiet aside both belong in the list of what happened while nobody was
 looking.
 
-Each record carries the rendered sentence (the template's `line`, or the subject's title and
+Each record carries the rendered sentence (the template's `uiMessage`, or the subject's title and
 the event when there is none), a link to what it is about, who caused it, and whether it has been
 read. The sentence is rendered at the moment of delivery, deliberately: templates can be reworded and
 subjects can be deleted, but what somebody was told should read tomorrow the way it read today.
 
-Who may see a notification is the repository's answer, not filtering code: the record is created
-readable by exactly one account, its recipient. A listing therefore runs on the reader's own session
-and simply cannot contain anybody else's notifications. The recipient may also mark theirs read —
+Who may see a notification is the repository's answer, not filtering code: each recipient's folder
+is readable by that one account, and everything filed under it inherits the grant. A listing
+therefore runs on the reader's own session and simply cannot contain anybody else's notifications. The recipient may also mark theirs read —
 `POST <notification>.markRead.json` — and nobody else gets a writable view to do even that.
 
 The bell in the application bar is where they land: it counts the unread ones, lists the latest when

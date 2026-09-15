@@ -21,14 +21,14 @@ import { markReadUrl, parseNotification } from "@iap/stored-notifications/notifi
 describe("parseNotification", () => {
   it("reads what a row says", () => {
     expect(parseNotification({
-      "@path": "/Notifications/aa/bb/cc/one",
-      line: "Your request was approved",
+      "@path": "/Notifications/me/aa/bb/cc/one",
+      message: "Your request was approved",
       read: false,
       subject: "/Submissions/by-id/x",
       "jcr:created": "2026-09-08T10:00:00.000-04:00",
     })).toStrictEqual({
-      path: "/Notifications/aa/bb/cc/one",
-      line: "Your request was approved",
+      path: "/Notifications/me/aa/bb/cc/one",
+      message: "Your request was approved",
       read: false,
       subject: "/Submissions/by-id/x",
       created: "2026-09-08T10:00:00.000-04:00",
@@ -43,17 +43,17 @@ describe("parseNotification", () => {
   });
 
   it("leaves out what it cannot read, rather than inventing it", () => {
-    // A notification whose subject was deleted, and one the serializer sent without a line
+    // A notification whose subject was deleted, and one the serializer sent without a message
     const sparse = parseNotification({ "@path": "/n" });
-    expect(sparse.line).toBe("");
+    expect(sparse.message).toBe("");
     expect(sparse.read).toBe(false);
     expect(sparse.subject).toBeUndefined();
     expect(sparse.created).toBeUndefined();
   });
 
   it("ignores values of the wrong type", () => {
-    const odd = parseNotification({ "@path": "/n", line: 7, subject: [ "/a" ], "jcr:created": 0 });
-    expect(odd.line).toBe("");
+    const odd = parseNotification({ "@path": "/n", message: 7, subject: [ "/a" ], "jcr:created": 0 });
+    expect(odd.message).toBe("");
     expect(odd.subject).toBeUndefined();
     expect(odd.created).toBeUndefined();
   });
@@ -61,7 +61,7 @@ describe("parseNotification", () => {
 
 describe("markReadUrl", () => {
   it("keeps the json extension, without which Sling matches no servlet", () => {
-    expect(markReadUrl({ path: "/Notifications/aa/bb/cc/one", line: "", read: false }))
-      .toBe("/Notifications/aa/bb/cc/one.markRead.json");
+    expect(markReadUrl({ path: "/Notifications/me/aa/bb/cc/one", message: "", read: false }))
+      .toBe("/Notifications/me/aa/bb/cc/one.markRead.json");
   });
 });

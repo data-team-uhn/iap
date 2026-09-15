@@ -100,7 +100,7 @@ class StoredNotificationDeliveryTest
     void storesTheRenderedLineWhereItsRecipientWillFindIt()
     {
         this.context.create().resource(TEMPLATE,
-            "line", "Your request “${subjectTitle}” was ${event} for ${days} days");
+            "uiMessage", "Your request “${subjectTitle}” was ${event} for ${days} days");
 
         assertTrue(this.delivery.deliver(NotificationContext.about(this.submission)
             .becauseOf("approved")
@@ -112,7 +112,7 @@ class StoredNotificationDeliveryTest
         final Resource stored = this.storedNotification();
         assertNotNull(stored);
         assertEquals("Your request “A long weekend” was approved for 3 days",
-            stored.getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
+            stored.getValueMap().get(StoredNotifications.MESSAGE_PROPERTY, String.class));
         assertEquals("the-requester", stored.getValueMap().get(StoredNotifications.RECIPIENT_PROPERTY, String.class));
         assertEquals("approved", stored.getValueMap().get("event", String.class));
         assertEquals("/Submissions/one", stored.getValueMap().get("subject", String.class));
@@ -121,14 +121,28 @@ class StoredNotificationDeliveryTest
     }
 
     @Test
-    void grantsTheRecipientTheirNotification()
+    void grantsTheRecipientTheirOwnFolder()
     {
-        this.context.create().resource(TEMPLATE, "line", "It happened");
+        this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertTrue(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
 
         assertEquals(List.of("the-requester: " + javax.jcr.security.Privilege.JCR_READ + ","
             + javax.jcr.security.Privilege.JCR_MODIFY_PROPERTIES), this.granted);
+        assertNotNull(this.context.resourceResolver()
+            .getResource(StoredNotifications.HOMEPAGE_PATH + "/the-requester"));
+    }
+
+    // The folder is granted the first time they are told anything, so a second notification adds no entry
+    @Test
+    void grantsTheFolderOnlyOnce()
+    {
+        this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
+
+        assertTrue(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
+        assertTrue(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
+
+        assertEquals(1, this.granted.size());
     }
 
     // No template at all: the subject can still say what it is about
@@ -141,11 +155,11 @@ class StoredNotificationDeliveryTest
 
         final Resource stored = this.storedNotification();
         assertEquals("A long weekend: approved",
-            stored.getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
+            stored.getValueMap().get(StoredNotifications.MESSAGE_PROPERTY, String.class));
         assertNull(stored.getValueMap().get("actor", String.class));
     }
 
-    // A named folder that is missing, or one carrying no line, reads the same as none
+    // A named template that is missing, or one carrying no uiMessage, reads the same as none
     @Test
     void fallsBackWhenTheWordingFolderSaysNothing()
     {
@@ -156,25 +170,25 @@ class StoredNotificationDeliveryTest
             this.notification("/libs/iap/notificationTemplates/gone"), this.requester));
 
         assertEquals("A long weekend: approved",
-            this.storedNotification().getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
+            this.storedNotification().getValueMap().get(StoredNotifications.MESSAGE_PROPERTY, String.class));
     }
 
     @Test
     void leavesAnUnknownPlaceholderAsWritten()
     {
-        this.context.create().resource(TEMPLATE, "line", "${nonsense} was ${event}");
+        this.context.create().resource(TEMPLATE, "uiMessage", "${nonsense} was ${event}");
 
         assertTrue(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
 
         assertEquals("${nonsense} was approved",
-            this.storedNotification().getValueMap().get(StoredNotifications.LINE_PROPERTY, String.class));
+            this.storedNotification().getValueMap().get(StoredNotifications.MESSAGE_PROPERTY, String.class));
     }
 
     // A template may say the empty thing, which is still nothing to list
     @Test
     void declinesABlankLine()
     {
-        this.context.create().resource(TEMPLATE, "line", "  ");
+        this.context.create().resource(TEMPLATE, "uiMessage", "  ");
 
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
     }
@@ -196,7 +210,7 @@ class StoredNotificationDeliveryTest
         Mockito.when(broken.getServiceResourceResolver(Mockito.anyMap()))
             .thenThrow(new LoginException("no such service user"));
         this.inject(broken);
-        this.context.create().resource(TEMPLATE, "line", "It happened");
+        this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
     }
@@ -207,7 +221,7 @@ class StoredNotificationDeliveryTest
     void declinesWhenTheGrantFails()
     {
         this.factory(this.recordingAccessControl());
-        this.context.create().resource(TEMPLATE, "line", "It happened");
+        this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE),
             new Recipient("ghost", this.submission)));
@@ -238,7 +252,7 @@ class StoredNotificationDeliveryTest
         final ResourceResolverFactory factory = Mockito.mock(ResourceResolverFactory.class);
         Mockito.when(factory.getServiceResourceResolver(Mockito.anyMap())).thenReturn(bare);
         this.inject(factory);
-        this.context.create().resource(TEMPLATE, "line", "It happened");
+        this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
     }
@@ -257,7 +271,7 @@ class StoredNotificationDeliveryTest
         Mockito.when(manager.privilegeFromName(Mockito.anyString()))
             .thenAnswer(call -> privilege(call.getArgument(0)));
         this.factory(manager);
-        this.context.create().resource(TEMPLATE, "line", "It happened");
+        this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertTrue(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
         assertEquals(1, this.granted.size());
@@ -275,7 +289,7 @@ class StoredNotificationDeliveryTest
             .thenReturn(Mockito.mock(AccessControlPolicy.class));
         Mockito.when(manager.getApplicablePolicies(Mockito.anyString())).thenReturn(applicable);
         this.factory(manager);
-        this.context.create().resource(TEMPLATE, "line", "It happened");
+        this.context.create().resource(TEMPLATE, "uiMessage", "It happened");
 
         assertFalse(this.delivery.deliver(this.notification(TEMPLATE), this.requester));
     }
@@ -294,7 +308,9 @@ class StoredNotificationDeliveryTest
     /** The one stored notification, found through the prefix tree, or {@code null} when nothing was stored. */
     private Resource storedNotification()
     {
-        return this.find(this.context.resourceResolver().getResource(StoredNotifications.HOMEPAGE_PATH), 0);
+        final Resource home = this.context.resourceResolver()
+            .getResource(StoredNotifications.HOMEPAGE_PATH + "/the-requester");
+        return home == null ? null : this.find(home, 0);
     }
 
     private Resource find(final Resource under, final int depth)

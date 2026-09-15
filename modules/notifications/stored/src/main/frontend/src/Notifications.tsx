@@ -70,7 +70,7 @@ function Notifications() {
             disabled={!notification.subject}
           >
             <ListItemText
-              primary={notification.line}
+              primary={notification.message}
               secondary={notification.created && new Date(notification.created).toLocaleString()}
               slotProps={{ primary: { sx: { fontWeight: notification.read ? undefined : "bold" } } }}
             />

@@ -265,7 +265,7 @@ class EmailDeliveryTest
     {
         this.context.create().resource(TEMPLATE, Map.of(
             "jcr:primaryType", "sling:Folder",
-            "line", "Only the in-app list shows this one"));
+            "uiMessage", "Only the in-app list shows this one"));
 
         assertFalse(this.delivery.deliver(
             this.notification(NotificationContext.IMMEDIATE_URGENCY, TEMPLATE), this.requester));

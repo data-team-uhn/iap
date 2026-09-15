@@ -49,7 +49,7 @@ export interface Notification {
   /** The notification node itself, where the read marker is posted. */
   path: string;
   /** The rendered message to show. */
-  line: string;
+  message: string;
   /** Whether it has been seen before. */
   read: boolean;
   /** What it is about, to link to; possibly gone by now, which the deletion machinery explains. */
@@ -67,7 +67,7 @@ export interface Notification {
 export function parseNotification(row: EntityRow): Notification {
   return {
     path: String(row["@path"]),
-    line: typeof row.line === "string" ? row.line : "",
+    message: typeof row.message === "string" ? row.message : "",
     // A single-valued boolean may round-trip as a bare boolean or as a string, so both are accepted
     read: row.read === true || row.read === "true",
     subject: typeof row.subject === "string" ? row.subject : undefined,
