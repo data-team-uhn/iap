@@ -107,6 +107,9 @@ def parse_args(argv):
     parser.add_argument('--mail', action='store_true',
                         help="Add an SMTPS server that writes every message it receives to a file "
                              "under ./mail instead of delivering it")
+    parser.add_argument('--docling', action='store_true',
+                        help="Add an SMTPS server that writes every message it receives to a file "
+                             "under ./mail instead of delivering it")
 
     parser.add_argument('--image', default='iap/iap',
                         help="The IAP Docker image to run [default: iap/iap]")
@@ -427,6 +430,8 @@ def iap_service(args, compose_directory):
         depends_on['keycloak'] = {'condition': 'service_started'}
     if args.mail:
         depends_on[MAIL_SERVICE] = {'condition': 'service_started'}
+    if args.docling:
+        depends_on['docling'] = {'condition': 'service_started'}
     if depends_on:
         service['depends_on'] = depends_on
 
@@ -602,6 +607,49 @@ def keycloak_service():
     return service
 
 
+def docling_service():
+    service = {}
+    comment(service, "The docling document parser service.")
+    service['build'] = {
+        'context': '../modules/documents/processing',
+        'dockerfile': 'Dockerfile'
+    }
+    service['image'] = image_for('docling')
+    service['init'] = True
+    service['user'] = '${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}'
+    service['environment'] = {
+        'IAP_SHARED_DOCS': '/shared-docs',
+        'IAP_DOCLING_TOKEN': '${IAP_DOCLING_TOKEN:-}',
+        'IAP_DOCLING_TRUSTED_NETWORK': '${IAP_DOCLING_TRUSTED_NETWORK:-1}',
+        'IAP_MAX_INPUT_PAGES': '${IAP_MAX_INPUT_PAGES:-1500}',
+        'IAP_MAX_INPUT_BYTES': '${IAP_MAX_INPUT_BYTES:-67108864}',
+        'IAP_LIBREOFFICE_TIMEOUT_SECONDS': '${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}',
+        'IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS': '${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}',
+        'HOME': '/tmp'
+    }
+    service['volumes'] = ['${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs']
+    service['deploy'] = {
+        'resources': {
+            'limits': {
+                'cpus': '4',
+                'memory': '8G'
+            }
+        }
+    }
+    service['healthcheck'] = {
+        'test': ['CMD', 'curl', '-fsS', "http://127.0.0.1:18765/health"],
+        'interval': '30s',
+        'timeout': '5s',
+        'retries': 3,
+        'start_period': '180s'
+    }
+    # Set to 15 minutes to allow it to clean up after SIGKILL
+    service['stop_grace_period'] = '15m'
+    service['restart'] = 'unless-stopped'
+    service['ports'] = ['127.0.0.1:18765:18765']
+    return service
+
+
 def mail_service(compose_directory):
     service = {}
     comment(service, "Accepts SMTPS on 465 and writes each message to ./mail as an .eml file")
@@ -647,6 +695,8 @@ def build_document(args, compose_directory):
         services['mongo'] = mongo_service()
     if args.keycloak:
         services['keycloak'] = keycloak_service()
+    if args.docling:
+        services['docling'] = docling_service()
     if args.mail:
         services[MAIL_SERVICE] = mail_service(compose_directory)
 

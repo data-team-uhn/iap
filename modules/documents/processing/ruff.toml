@@ -1,0 +1,22 @@
+# Lint config for the Python pipeline. Run by the Maven build (see pom.xml) alongside pytest,
+# so CI catches what a reviewer otherwise has to: a duplicate import, an unused name, a
+# no-op `global`. Nothing here changes behaviour — it only keeps the tree as clean as it is.
+line-length = 100
+target-version = "py310"
+
+[lint]
+# E301/E302/E303 (blank lines) are preview-only rules; without this they are skipped and
+# spacing drifts silently, which it had.
+preview = true
+# Pyflakes (F) is the substance: undefined and unused names, duplicate imports, f-strings
+# without placeholders. E/W are pycodestyle, B is bugbear's real-bug subset, UP is pyupgrade.
+select = ["E", "W", "F", "B", "UP"]
+
+# E203 fights with slicing style; E501 is covered by line-length above.
+ignore = ["E203"]
+
+[lint.per-file-ignores]
+# The docling_config imports are side-effecting on purpose: importing them sets
+# OMP_NUM_THREADS before torch loads. They already carry `# noqa: F401`, but say it here too
+# so the intent survives a config change.
+"src/main/python/docling_config.py" = ["E402"]
