@@ -59,6 +59,9 @@ public class Submission extends Entity
     /** The {@code sling:resourceType} of a {@code sub:Submission} node. */
     public static final String RESOURCE_TYPE = "sub/Submission";
 
+    /** The {@code lifecycle} tag a submission carries until it is submitted. */
+    public static final String DRAFT_TAG = "draft";
+
     /** The {@code lifecycle} tag a submission carries once the reviewers have accepted it. */
     public static final String APPROVED_TAG = "approved";
 
@@ -129,16 +132,16 @@ public class Submission extends Entity
 
     /**
      * The workflows running over this submission, held in the container the {@code wf:WorkflowAttachable} mixin
-     * autocreates. Several may run at once — a review process and a periodic reminder, say — which is why this is
-     * a list rather than a single lifecycle.
+     * autocreates. Several may run at once, a review process and a periodic reminder say, which is why this
+     * is a list rather than a single lifecycle.
      *
      * @return a list of workflow instances, empty if none has ever been started
      */
     @NotNull
     public List<WorkflowInstance> getWorkflowInstances()
     {
-        // Type-checked: the node type accepts arbitrary children too, so the name alone does not say that what it
-        // finds is the container, and an unrelated node by that name would still adapt to the model
+        // Type-checked, because the node type accepts arbitrary children too. The name alone does not say
+        // that what it finds is the container, and an unrelated node by that name would still adapt to the model
         final WorkflowInstances container = this.getChild(WorkflowInstances.NODE_NAME,
             WorkflowInstances.RESOURCE_TYPE, WorkflowInstances.class);
         return container == null ? List.of() : container.getInstances();
@@ -157,6 +160,19 @@ public class Submission extends Entity
     }
 
     /**
+     * Whether this submission is still being written, i.e. it carries the {@code draft} lifecycle tag. A
+     * submission that has moved on is read-only to its submitter, so this is what an editor asks before
+     * offering to edit.
+     *
+     * @return {@code true} while it is a draft, {@code false} also when the tags service is unavailable
+     */
+    public boolean isDraft()
+    {
+        final Taggable tags = this.as(Taggable.class);
+        return tags != null && tags.hasOwnTag(DRAFT_TAG);
+    }
+
+    /**
      * Every unresolved comment raised across all of this submission's reviews.
      *
      * @return a list of unresolved review comments, empty if none
@@ -170,7 +186,7 @@ public class Submission extends Entity
     }
 
     /**
-     * The requirements of this submission's schema version that haven't been fulfilled yet: a
+     * The requirements of this submission's schema version that haven't been fulfilled yet. A
      * {@code DocumentRequirement} with no attached {@link Document}, an {@code ApprovalRequirement} with no
      * approved {@link Review}, or a {@code FormRequirement} with unanswered questions. Requirements, sections and
      * questions whose condition doesn't currently hold for this submission don't apply, so they are never
@@ -195,8 +211,8 @@ public class Submission extends Entity
     private boolean isFulfilled(final Requirement requirement)
     {
         if (requirement instanceof DocumentRequirement) {
-            // The reference is resolved into a local, both because resolving it twice would repeat the whole
-            // reference lookup, and because the null check wouldn't apply to a second, separate call
+            // Resolved into a local: resolving it twice would repeat the whole reference lookup, and the
+            // null check would not apply to a second, separate call
             return this.getDocuments().stream().anyMatch(document -> {
                 final Requirement fulfilled = document.getFulfills();
                 return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());

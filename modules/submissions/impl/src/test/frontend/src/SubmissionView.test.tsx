@@ -17,6 +17,7 @@
  */
 
 import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 
 import SubmissionView from "@iap/submissions/SubmissionView";
@@ -228,6 +229,24 @@ const BARE_SUBMISSION = {
   },
 };
 
+// The form projection as the SubmissionFormServlet would serve it, asking nothing. Enough to tell
+// the editor apart from the read-only page, without restating what the editor's own tests cover.
+const EMPTY_FORM = {
+  path: "/Submissions/demo-1",
+  title: "Test my drug",
+  editable: true,
+  requirements: [],
+};
+
+// Answers the tag definitions, the deep serialization and the form projection alike, so that a test
+// can move between the page's two modes the way a reader does.
+function bothModes(submission: unknown = DEEP_SUBMISSION) {
+  const otherwise = tagAwareFetch(submission);
+  return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
+    ? Promise.resolve({ ok: true, json: () => Promise.resolve(EMPTY_FORM) } as unknown as Response)
+    : otherwise(url));
+}
+
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -272,9 +291,9 @@ describe("SubmissionView", () => {
     expect(screen.getByText("36")).toBeInTheDocument();
     expect(screen.getAllByText("Not answered yet").length).toBe(2);
 
-    // A question with no text falls back to its node name; non-question schema children are
-    // skipped; a nested section shows its own description at a deeper level; untitled sections
-    // and forms fall back to their node names
+    // Four fallbacks at once. A question with no text takes its node name, non-question schema
+    // children are skipped, a nested section shows its description a level deeper, and untitled
+    // sections and forms take their node names
     expect(screen.getByText("Duration")).toBeInTheDocument();
     expect(screen.queryByText("Fill this form carefully")).toBeNull();
     expect(screen.getByText("Mailing address")).toBeInTheDocument();
@@ -393,5 +412,66 @@ describe("SubmissionView", () => {
 
     // The shared vocabulary for a status, rather than wording this view invented for itself
     expect(await screen.findByText(/It could not be found on the server/)).toBeInTheDocument();
+  });
+
+  describe("switching between reading and filling in", () => {
+    it("opens the editor, which asks the server what the form is", async () => {
+      const fetchMock = bothModes();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1");
+      await screen.findByText("Test my drug");
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+
+      expect(await screen.findByText("This request asks nothing yet.")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.form.json");
+    });
+
+    // The editor used to be a dead end: reachable only from a listing, with nothing on it leading
+    // anywhere. Going back also re-reads, since the editor saves as it goes.
+    it("comes back out of the editor, reading the submission afresh", async () => {
+      const fetchMock = bothModes();
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1.edit");
+      await screen.findByText("This request asks nothing yet.");
+
+      await user.click(screen.getByRole("button", { name: "View" }));
+
+      expect(await screen.findByText("Test my drug")).toBeInTheDocument();
+      expect(fetchMock.mock.calls.map(call => call[0])).toContain("/Submissions/demo-1.deep.json");
+    });
+
+    it("says which of the two is showing", async () => {
+      vi.stubGlobal("fetch", bothModes());
+      renderAt("/Submissions/demo-1.edit");
+
+      expect(await screen.findByRole("button", { name: "Edit", pressed: true })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "View", pressed: false })).toBeInTheDocument();
+    });
+
+    it("stays where it is when the mode already showing is chosen again", async () => {
+      vi.stubGlobal("fetch", bothModes());
+      const user = userEvent.setup();
+      renderAt("/Submissions/demo-1");
+      await screen.findByText("Test my drug");
+
+      await user.click(screen.getByRole("button", { name: "View" }));
+
+      expect(screen.getByText("Test my drug")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "View", pressed: true })).toBeInTheDocument();
+    });
+
+    it("keeps the way out of a submission that cannot be loaded", async () => {
+      vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
+        () => Promise.resolve({ ok: false, status: 403 } as unknown as Response)));
+
+      renderAt("/Submissions/secret");
+
+      expect(await screen.findByText(/You do not have permission to do this/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Back to the dashboard/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    });
   });
 });
