@@ -237,9 +237,8 @@ A marker records **when** somebody looked, and not which version they saw. Snaps
 exist only at declared milestones, so the newest thing to have happened to an item
 usually has no version of its own; a marker naming a version could not see it. Compare
 `seenAt` against the most recent action naming the item. A "what changed since I looked"
-*diff* does need a snapshot to start from, which is why the marker keeps that too — and
-why such a diff is necessarily coarser than the has-anything-changed indicator beside
-it.
+*diff* does need a snapshot to start from, which is why the marker keeps that too. Such
+a diff is coarser than the has-anything-changed indicator beside it.
 
 ## What a version costs
 
