@@ -31,8 +31,9 @@ import { ensureUser } from '../../../support/users';
  * has to deal with what became of them: one she deleted by mistake and wants back, a branch that has
  * to go back in the order it came out, one that can never go back at all, and three she has to tell
  * apart. Then a link she had already sent out stops working, and what it says about that depends on
- * who follows it. The last episode is not hers at all — a colleague with an account and nothing else
- * goes looking for a deletion she has been given no right to see.
+ * who follows it: the whole answer for her, and no answer at all for somebody else. The last
+ * episode is not hers at all. A colleague with an account and nothing else goes looking for a
+ * deletion she has been given no right to see.
  *
  * Categories are what gets deleted here because they are the only real thing this platform has that
  * can be: a category is a versionable node whose parent constrains what it will hold, so putting one
@@ -424,19 +425,20 @@ test.describe('stories: what becomes of something after it is deleted', () => {
       await shell.signOut();
     });
 
-    await test.step('Nadia follows the same link, and is told only that it is gone', async () => {
+    await test.step('Nadia follows the same link, and is told only that there is nothing there', async () => {
       await ensureUser(request, NADIA);
       await signInAs(page, NADIA);
       await page.goto(stale);
 
-      await expect(page.getByRole('heading', { name: 'Deleted', exact: true })).toBeVisible();
-      await expect(page.getByText(/^This page was deleted on /)).toBeVisible();
-      // Who did it and where it now sits belong to the archive, which is not hers to read
+      // She neither deleted it nor may read the archive, so the page says nothing of a deletion.
+      // That a path once existed is not hers to learn either
+      await expect(page.getByRole('heading', { name: 'Not found' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Deleted', exact: true })).toHaveCount(0);
+      await expect(page.getByText(/^This page was deleted on /)).toHaveCount(0);
       await expect(page.getByText(/^Deleted by /)).toHaveCount(0);
       await expect(page.getByRole('link', { name: 'View the archive entry' })).toHaveCount(0);
 
-      // A 404 is not the application — it carries none of the shell, and so nothing to sign out
-      // from. The way back is the only control it offers her, and it is the way back to one.
+      // The way back is the only control a 404 offers her, so she takes it and signs out from there
       await page.getByRole('button', { name: 'Go to the homepage' }).click();
       await shell.signOut();
     });
