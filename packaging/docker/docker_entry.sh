@@ -153,6 +153,12 @@ then
   featureFlagString="$featureFlagString -f mvn:io.uhndata.iap/iap-email-notifications/${PLATFORM_VERSION}/slingosgifeature"
 fi
 
+#Should Keycloak / OIDC sign-in be enabled?
+if [[ "$KEYCLOAK_ENABLED" == "true" ]]
+then
+  featureFlagString="$featureFlagString -f mvn:io.uhndata.iap/iap-oidc-support/${PLATFORM_VERSION}/slingosgifeature -f mvn:io.uhndata.iap/iap-keycloak/${PLATFORM_VERSION}/slingosgifeature"
+fi
+
 featureFlagString=${featureFlagString//PLATFORM_VERSION/${PLATFORM_VERSION}}
 featureFlagString=${featureFlagString//PROJECT_VERSION/${PROJECT_VERSION}}
 
