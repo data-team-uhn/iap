@@ -32,15 +32,12 @@ import io.uhndata.iap.content.models.Content;
  * One thing that was asked for, and everything that followed from it.
  *
  * <p>
- * An action is one event delivery, not one step of the workflow that carried it out: the engine runs a workflow to
- * quiescence and commits the lot at once, so a step is not separately committed and cannot be a fact on its own. That
- * also keeps the record steady when a definition is reworked — retiring one workflow version and activating another is
- * one action whether the definition spends one service task on it or two.
+ * An action is one event delivery, not one step of the workflow that carried it out. The engine runs a workflow to
+ * quiescence and commits the lot at once, so a step is not a fact on its own.
  * </p>
  *
  * <p>
- * The cause is recorded here, once. What the action did to each resource it touched is a {@link Entry} child, because
- * one action usually does different things to different resources.
+ * The cause is recorded here, once. What the action did to each resource it touched is a {@link Entry} child.
  * </p>
  *
  * @version $Id$
@@ -113,8 +110,8 @@ public class Action extends Content
      * Who is answerable for this action, as a canonical user id.
      *
      * <p>
-     * Deliberately not {@link #getCreatedBy()}, which is the service user that wrote the record: the engine writes as
-     * itself, and the person acting often holds no more than read access on what they changed.
+     * Not {@link #getCreatedBy()}, which is the service user that wrote the record. The engine writes as itself, and
+     * the person acting may hold no more than read access on what they changed.
      * </p>
      *
      * @return a user id, empty only in a malformed record
@@ -126,7 +123,7 @@ public class Action extends Content
     }
 
     /**
-     * Whom the actor was acting for — a delegate arrangement, or the system on somebody's behalf.
+     * Whom the actor was acting for: a delegate arrangement, or the system acting on somebody's behalf.
      *
      * @return a user id, or {@code null} when the actor acted for themselves
      */
@@ -182,9 +179,8 @@ public class Action extends Content
     }
 
     /**
-     * That node's label as the definition read at the time. Copied rather than looked up, for the same reason a task
-     * copies its own: the reader may not be able to read the definition, and the definition may since have been
-     * reworded.
+     * That node's label as the definition read at the time. Copied rather than looked up: the reader may not be able
+     * to read the definition, and it may since have been reworded.
      *
      * @return a label, or {@code null} when none was recorded
      */
@@ -240,7 +236,7 @@ public class Action extends Content
     }
 
     /**
-     * The component responsible when no workflow was — a scheduled sweep, a migration, an import.
+     * The component responsible when no workflow was: a scheduled sweep, a migration, an import.
      *
      * @return a component name, or {@code null} for a workflow-driven action
      */
@@ -265,10 +261,9 @@ public class Action extends Content
      * Whether every snapshot this action set out to take was taken.
      *
      * <p>
-     * It has to be asked because the snapshots cannot be part of the action's own commit: a check-in refuses to run
-     * while the session has pending changes, and commits by itself. So while this is {@code false}, an {@link Entry}
-     * without a {@link Entry#getSnapshot() snapshot} may simply not have got one yet; once it is {@code true}, an entry
-     * without one never wanted one.
+     * Snapshots are taken after the action's own commit, so this has to be asked. While it is {@code false}, an
+     * {@link Entry} without a {@link Entry#getSnapshot() snapshot} may not have got one yet. Once it is {@code true},
+     * an entry without one never wanted one.
      * </p>
      *
      * @return {@code true} once the snapshots are done with, {@code false} while they may still be outstanding
