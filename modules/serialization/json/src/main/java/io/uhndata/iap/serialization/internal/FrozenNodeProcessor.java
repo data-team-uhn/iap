@@ -38,18 +38,17 @@ import io.uhndata.iap.serialization.spi.ResourceJsonProcessor;
  *
  * <p>
  * When a resource is checked in, the repository keeps its content in a {@code nt:frozenNode} under version storage.
- * That copy carries the original's real type and identity under different names — {@code jcr:frozenPrimaryType} and
- * {@code jcr:frozenUuid} — while its own {@code jcr:primaryType} says {@code nt:frozenNode}. Serialized as it stands,
- * a past state therefore reports a type nothing in the application has ever heard of, says nothing about which
- * resource it is a copy of, and does so for every node in the subtree rather than only at the top; the two properties
- * that would have answered both questions are dropped as repository bookkeeping.
+ * That copy carries the original's real type and identity under different names, {@code jcr:frozenPrimaryType} and
+ * {@code jcr:frozenUuid}, while its own {@code jcr:primaryType} says {@code nt:frozenNode}. Serialized as it stands,
+ * a past state reports a type nothing in the application has heard of, and says nothing about which resource it
+ * copies. It does so for every node in the subtree, not only at the top. The two properties that would have answered
+ * both questions are dropped as repository bookkeeping.
  * </p>
  *
  * <p>
- * This puts them back where a reader expects them: the frozen type is served as the type, the frozen identity as the
- * identity, and the copy's own two are left out. Enabled by default whenever what is being serialized is frozen, since
- * an unannounced past state is worse than no past state — nothing downstream can tell that what it is looking at is
- * old, which is exactly the mistake a history view must not make.
+ * This puts them back where a reader expects them. The frozen type is served as the type, the frozen identity as
+ * the identity, and the copy's own two are left out. Enabled by default whenever what is serialized is frozen.
+ * Nothing downstream can tell that an unannounced past state is old.
  * </p>
  *
  * @version $Id$
@@ -69,9 +68,8 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
         "jcr:frozenUuid", "jcr:uuid");
 
     /**
-     * What describes the copy rather than the content. Only {@code jcr:primaryType} is measurably there — a frozen node
-     * carries no {@code jcr:uuid} of its own in Oak 2.4.0 — but a copy's identity has no business being served as the
-     * content's whatever the repository decides to write, so it is named here rather than relied on to be absent.
+     * What describes the copy rather than the content. A copy's identity has no business being served as the
+     * content's, so it is named here rather than left to the repository not to write it.
      */
     private static final Map<String, String> SUPPRESSED = Map.of(
         "jcr:primaryType", "the copy's own type, which is always nt:frozenNode",
@@ -120,9 +118,8 @@ public class FrozenNodeProcessor implements ResourceJsonProcessor
     }
 
     /**
-     * Whether this node is one of the repository's copies. A serialization must never fail over a question about the
-     * content it is serializing, so a node that cannot be asked is treated as not frozen: that leaves the output as it
-     * would have been without this processor rather than half-corrected.
+     * Whether this node is one of the repository's copies. A node that cannot be asked is treated as not frozen, so a
+     * serialization never fails over a question about the content it is serializing.
      */
     private static boolean isFrozen(final Node node)
     {
