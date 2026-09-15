@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * <p>
  * The three disclosure levels turn on two questions: whether the requester's own resolver can read the archive
  * entry, and whether they are the one who deleted it. The privileged case is the plain test resolver, which
- * bypasses access control; the other two use a wrapper that hides the archive, as the repository does to everyone
+ * bypasses access control. The other two use a wrapper that hides the archive, as the repository does to everyone
  * it has not been granted to.
  * </p>
  *
@@ -194,8 +194,8 @@ class DeletedPathDisclosureImplTest
     @Test
     void aDeletionWithNoUsableDateIsNotReportedAsOne()
     {
-        // Reached directly, because the date it stands in for is mandatory on the node type: a query can never
-        // return a match without one, and this is what keeps a broken repository from being read as a live path
+        // Reached directly: the date it stands in for is mandatory on the node type, so a query can never return
+        // a match without one. This is what keeps a broken repository from being read as a live path
         final DeletedPathLookup.Archived undated =
             new DeletedPathLookup.Archived("/Submissions/one", "/Archive/ab/one", "one", "alice", null);
 
@@ -236,11 +236,9 @@ class DeletedPathDisclosureImplTest
     @Test
     void aServiceSessionThatCannotSeeTheArchiveIsReportedRatherThanReadAsNothingDeleted() throws Exception
     {
-        // The failure this sentinel exists for: a session that logs in but is not the one this component asked
-        // for, and so sees no archive. An absent archive stands in for it here, because access control is what
-        // hides it in the real case and this repository has none — what is being exercised is the branch that
-        // reports it. repoinit creates the archive, so not seeing it can only ever mean the wrong session, and
-        // left unreported it would make every dead link claim it had never been a link at all.
+        // The failure this sentinel exists for: a session that logs in and then sees no archive. Removing the
+        // archive stands in for that: access control is what hides it in the real case, and this repository
+        // has none
         this.session.getNode("/Archive").remove();
         this.session.save();
 

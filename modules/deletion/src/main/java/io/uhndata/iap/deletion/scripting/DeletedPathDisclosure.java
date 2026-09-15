@@ -34,14 +34,14 @@ public interface DeletedPathDisclosure
      *
      * @param request the request that 404ed, whose own session decides how much may be disclosed
      * @param requestedPath the absolute repository path that was asked for
-     * @return what to say, or {@code null} if no deletion accounts for the path — including when the archive
-     *         cannot be consulted at all, since a reader cannot be told anything either way
+     * @return what to say, or {@code null} when this reader is to be told nothing: no deletion accounts for the
+     *         path, the archive cannot be consulted, or the reader is entitled to neither answer
      */
     @Nullable
     Disclosure describe(@NotNull SlingJakartaHttpServletRequest request, @NotNull String requestedPath);
 
     /**
-     * What a reader is allowed to learn about one deletion. Words are left to the page — this says what happened,
+     * What a reader is allowed to learn about one deletion. Words are left to the page. This says what happened,
      * not how to phrase it, and carries {@code null} for each fact this reader is not entitled to.
      *
      * @param deletedAt when the path was deleted, ISO-8601; always present

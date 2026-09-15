@@ -33,8 +33,7 @@ describe("404 entry point", () => {
     document.body.innerHTML = "";
   });
 
-  // What the server found out about the requested path is on the container, not fetched, so the page is
-  // right the first time it paints rather than after a round trip.
+  // The container carries what the server found out, so the page is right the first time it paints
   it("hands the page what the server left on its container", async () => {
     document.body.innerHTML = '<div id="main-404-container" data-deleted-at="2026-08-20T14:00:00Z" '
       + 'data-deleted-by="alice" data-entry-url="/admin/archive/abc"></div>';
