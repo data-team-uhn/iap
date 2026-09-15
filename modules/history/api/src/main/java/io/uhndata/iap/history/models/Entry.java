@@ -32,10 +32,8 @@ import io.uhndata.iap.content.models.Content;
  * What one {@link Action} did to one resource.
  *
  * <p>
- * The action says why something happened; this says what it did, and to what. They are separate because one action
- * commonly affects several resources in different ways, and neither shape can state that alone: a list of touched
- * identifiers cannot say which workflow version was retired and which activated, while a record per resource cannot say
- * that both happened together for one reason. {@link #getRole()} is the property carrying that meaning.
+ * The action says why something happened. This says what it did, and to what. They are separate because one action
+ * commonly affects several resources in different ways. {@link #getRole()} is the property carrying that meaning.
  * </p>
  *
  * <p>
@@ -81,8 +79,8 @@ public class Entry extends Content
      * The identifier of the resource this entry is about.
      *
      * <p>
-     * An identifier rather than a reference, deliberately: an enforced reference would make the record pin what it
-     * describes and refuse to let anybody delete it, and the record has to be able to outlive its subject.
+     * An identifier rather than a reference. An enforced reference would stop anybody deleting what the record
+     * describes, and a record has to outlive its subject.
      * </p>
      *
      * @return an identifier, empty only in a malformed record
@@ -117,11 +115,11 @@ public class Entry extends Content
     }
 
     /**
-     * The part this resource played in the action — {@code submitted}, {@code retired}, {@code activated}.
+     * The part this resource played in the action: {@code submitted}, {@code retired}, {@code activated}.
      *
      * <p>
-     * Free-form on purpose: the vocabulary belongs to the workflow definitions, which grow operations of their own, and
-     * constraining it in the node type would fail the commit that records a change rather than the change itself.
+     * Free-form. The vocabulary belongs to the workflow definitions, which grow operations of their own.
+     * Constraining it in the node type would fail the commit that records a change, not the change itself.
      * </p>
      *
      * @return a role, empty only in a malformed record
@@ -133,8 +131,7 @@ public class Entry extends Content
     }
 
     /**
-     * The names of the properties this action changed on this resource — never what they changed to. That keeps the
-     * record small and readable, and says something the snapshot beside it cannot.
+     * The names of the properties this action changed on this resource, never what they changed to.
      *
      * @return the property names, possibly empty, never {@code null}
      */
@@ -145,8 +142,7 @@ public class Entry extends Content
     }
 
     /**
-     * The identifier of the JCR version holding this resource's content as it was after the action — the join to the
-     * other half of the record.
+     * The identifier of the JCR version holding this resource's content as it was after the action.
      *
      * <p>
      * Usually absent, and that is normal rather than a gap: every action is logged, while snapshots are taken only
@@ -174,12 +170,7 @@ public class Entry extends Content
     }
 
     /**
-     * Anything said about this change afterwards.
-     *
-     * <p>
-     * This is where a later thought about an earlier change has to live: a version and its frozen node are both
-     * entirely protected, so version storage can never be annotated.
-     * </p>
+     * Anything said about this change afterwards. {@link Annotation} says why it cannot live in version storage.
      *
      * @return the annotations, possibly empty, never {@code null}
      */

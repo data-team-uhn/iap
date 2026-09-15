@@ -58,9 +58,8 @@ public class Marker extends Content
      *
      * <p>
      * This, and not a version, is what answers "has anything happened since?". Snapshots are taken only at the
-     * milestones a process declares, so the newest thing to have happened to an item usually has no version of its own
-     * — a marker naming a version could not see it. Compare this against the most recent {@link Action} naming the
-     * item.
+     * milestones a process declares, so the newest thing to have happened to an item usually has no version of its
+     * own. Compare this against the most recent {@link Action} naming the item.
      * </p>
      *
      * @return a copy of when they looked, or {@code null} in a malformed record
@@ -84,12 +83,11 @@ public class Marker extends Content
     }
 
     /**
-     * The newest snapshot this person had seen, which is where a "what changed since I looked" comparison has to start
-     * from.
+     * The newest snapshot this person had seen, which is where a "what changed since I looked" comparison starts.
      *
      * <p>
-     * Necessarily coarser than {@link #getSeenAt()}: there may well be no snapshot as recent as the moment they looked,
-     * so a diff from here can show more than they had not seen.
+     * Coarser than {@link #getSeenAt()}. There may be no snapshot as recent as the moment they looked, so a diff from
+     * here can show more than they had not seen.
      * </p>
      *
      * @return a version identifier, or {@code null} when they had seen no snapshot
@@ -104,8 +102,8 @@ public class Marker extends Content
      * Whether something has happened to the item since this person looked.
      *
      * @param actionTime when the most recent action on the item happened
-     * @return {@code true} if that action is newer than this marker, and {@code true} when the marker does not say when
-     *         they looked — an unreadable marker must not claim they are up to date
+     * @return {@code true} if that action is newer than this marker, and {@code true} when the marker does not say
+     *         when they looked
      */
     public boolean isBehind(@NotNull final Calendar actionTime)
     {

@@ -91,8 +91,8 @@ public class HistoryRecorderImpl implements HistoryRecorder
         setIfPresent(node, "parentAction", action.getParentAction());
 
         for (final RecordedEffect effect : action.getEffects()) {
-            // Named after the affected resource, so that "what did this action do to that resource" is a path rather
-            // than a search, and so that the repository itself refuses a second entry for the same one
+            // Named after the affected resource. "What did this action do to that resource" is then a path rather
+            // than a search, and the repository refuses a second entry for the same one
             final Node entry = node.addNode(effect.subject(), ENTRY_TYPE);
             entry.setProperty("subject", effect.subject());
             entry.setProperty("subjectPath", effect.subjectPath());
@@ -122,12 +122,12 @@ public class HistoryRecorderImpl implements HistoryRecorder
     }
 
     /**
-     * The name a new action is filed under: random, because the prefix tree spreads nodes by the leading characters of
-     * their own names, and only a uniformly distributed name spreads.
+     * The name a new action is filed under. Random: the prefix tree spreads nodes by the leading characters of their
+     * own names, and only a uniformly distributed name spreads.
      *
      * <p>
-     * Overridable so that a test can pin it. Which of this class's two paths runs depends on whether the bucket for a
-     * given name already exists, and with the name random there is no other way to ask for either of them.
+     * Overridable so that a test can pin it. Which of the two paths below runs depends on whether that name's bucket
+     * already exists.
      * </p>
      *
      * @return a fresh name, uniformly distributed
@@ -141,11 +141,11 @@ public class HistoryRecorderImpl implements HistoryRecorder
      * The bucket an action goes in, created if this is the first action to land in it.
      *
      * <p>
-     * Creating one cannot happen in the caller's session: {@link PrefixTree#bucketFor} saves each bucket as it makes
-     * it, and calls {@code refresh(false)} to recover from a race — which would commit half of the caller's work, or
-     * discard it. So a bucket that does not exist yet is made in a session of the store's own, and the caller's
-     * session is then refreshed to see it, keeping its pending changes. Buckets are inert and shared, so making one
-     * outside the caller's transaction costs nothing even if that transaction then fails.
+     * Creating one cannot happen in the caller's session. {@link PrefixTree#bucketFor} saves each bucket as it makes
+     * it, and calls {@code refresh(false)} to recover from a race. Either would take the caller's pending work with
+     * it. A bucket that does not exist yet is made in a session of the store's own, and the caller's session is then
+     * refreshed to see it. Buckets are inert and shared, so making one
+     * outside the caller's transaction costs nothing when that transaction fails.
      * </p>
      */
     private Node bucketFor(final Session session, final String actionPath, final String name)

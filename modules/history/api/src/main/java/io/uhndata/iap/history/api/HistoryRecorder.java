@@ -28,20 +28,16 @@ import org.jetbrains.annotations.NotNull;
  * Writes the record of what happened: what was asked for, and what it did to each resource.
  *
  * <p>
- * <b>The record shares the caller's transaction, on purpose.</b> {@link #record} leaves the new nodes pending in the
- * session it is given and the caller commits them along with the change itself, so there can be no committed change
- * without its record and no record of a change that was rolled back. This is the opposite of how error recording
- * works, and deliberately: a failure has to be recorded <em>because</em> the caller's transaction is being abandoned,
- * so that writes in a session of its own, while history must be abandoned with it.
+ * The record shares the caller's transaction. {@link #record} leaves the new nodes pending in the session it is
+ * given, and the caller commits them with the change itself. There is no committed change without its record, and no
+ * record of a change that was rolled back.
  * </p>
  *
  * <p>
- * <b>Snapshots come afterwards, and cannot come with it.</b> A JCR check-in refuses to run while its session has
- * pending changes, and commits by itself — so taking a snapshot inside the caller's transaction is both impossible and,
- * where it would work, wrong, since it would flush half of the caller's work early. The sequence is therefore: call
- * {@link #record}, commit, take the snapshots, then call {@link #completeSnapshots}. Until that last call the action
- * reads as incomplete, which is what distinguishes "no snapshot was wanted here" from "one was wanted and has not
- * arrived".
+ * Snapshots come afterwards. A JCR check-in refuses to run while its session has pending changes, and commits by
+ * itself, so a snapshot cannot be taken inside the caller's transaction. The sequence is {@link #record}, commit,
+ * take the snapshots, then {@link #completeSnapshots}. Until that last call the action reads as incomplete, which
+ * separates "no snapshot was wanted" from "one was wanted and has not arrived".
  * </p>
  *
  * <p>
@@ -57,16 +53,12 @@ public interface HistoryRecorder
     /**
      * Records an action and its effects, leaving them pending in the caller's session.
      *
-     * <p>
-     * The caller must commit. Nothing here saves the session — that is the whole point of this method: the record and
-     * the change it describes reach the repository together or not at all.
-     * </p>
+     * <p>The caller must commit. Nothing here saves the session.</p>
      *
      * @param session the session the change being recorded is being made in
      * @param action what was asked for, and what it did
      * @return the path of the recorded action, for use with {@link #completeSnapshots}
-     * @throws RepositoryException if the record cannot be written, including when the action names the same resource
-     *             twice — the store refuses that rather than silently keeping one of them
+     * @throws RepositoryException if the record cannot be written, or if the action names the same resource twice
      */
     @NotNull
     String record(@NotNull Session session, @NotNull RecordedAction action) throws RepositoryException;
@@ -75,9 +67,8 @@ public interface HistoryRecorder
      * Attaches the snapshots an action took and marks it finished, in a commit of its own.
      *
      * <p>
-     * Call this only once every snapshot that was wanted has been taken. Leaving an action incomplete is the honest
-     * record of a snapshot that was wanted and failed, and is worth more than a record claiming the action finished
-     * what it did not.
+     * Call this only once every snapshot that was wanted has been taken. An action left incomplete records that a
+     * snapshot was wanted and did not arrive.
      * </p>
      *
      * @param session a session with write access to the record; its pending changes, if any, are saved along with this

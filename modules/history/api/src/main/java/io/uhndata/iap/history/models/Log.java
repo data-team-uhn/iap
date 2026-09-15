@@ -30,16 +30,14 @@ import io.uhndata.iap.content.models.Content;
  * The record's root at {@code /History}, and every bucket beneath it.
  *
  * <p>
- * One type for both, because the layout is a prefix tree: an action is filed under
- * {@code /History/<xx>/<yy>/<zz>/<action>}, each bucket named after the leading characters of the action's own name,
- * the way Oak files version histories and the way the archive files its entries. It is not a browsable hierarchy and
- * nothing reads it top-down — the point of the buckets is that no single parent ends up with hundreds of thousands of
- * children.
+ * One type for both. The layout is a prefix tree: an action is filed under
+ * {@code /History/<xx>/<yy>/<zz>/<action>}, each bucket named after the leading characters of the action's own name.
+ * The buckets keep any one parent from holding hundreds of thousands of children. Nothing reads the tree top-down.
  * </p>
  *
  * <p>
- * Nobody reads this store directly. A service user reads it and adapts what it finds into what the person asking may
- * see, so what a given reader is shown is decided when the history is served rather than by permissions here.
+ * Nobody reads this store directly. A service user reads it and adapts what it finds for the person asking. What a
+ * reader sees is decided when the history is served, not by permissions here.
  * </p>
  *
  * @version $Id$
