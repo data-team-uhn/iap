@@ -183,6 +183,13 @@ public final class DeletedPathLookup
          * Whether this match should be preferred over another. Length stands in for specificity: every candidate
          * is strictly shorter than the one before it, so the longer recorded path is always the more specific one.
          *
+         * <p>
+         * The name settles a tie. {@code jcr:created} has millisecond resolution, so two deletions of one path can
+         * carry the same instant, and there is then nothing to say which came second. Answering by name is
+         * arbitrary, and arbitrary is what this needs: without it the winner is whichever the query happened to
+         * return first, and the same question gets different answers.
+         * </p>
+         *
          * @param other the match to compare against, {@code null} when there is none yet
          * @return {@code true} if this match is the better answer
          */
@@ -194,7 +201,10 @@ public final class DeletedPathLookup
             if (this.originalPath.length() != other.originalPath.length()) {
                 return this.originalPath.length() > other.originalPath.length();
             }
-            return this.deletedAt.isAfter(other.deletedAt);
+            if (!this.deletedAt.isEqual(other.deletedAt)) {
+                return this.deletedAt.isAfter(other.deletedAt);
+            }
+            return this.entryName.compareTo(other.entryName) > 0;
         }
     }
 }
