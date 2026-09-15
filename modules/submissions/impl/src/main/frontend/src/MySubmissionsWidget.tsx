@@ -16,25 +16,109 @@
  * limitations under the License.
  */
 
+import { useMemo, useState } from "react";
+
+import AddIcon from "@mui/icons-material/Add";
+import { Box, Button, Stack, Typography } from "@mui/material";
+import { useNavigate } from "react-router";
+
 import EntityDataGrid from "@iap/frontend-commons/entityGrid/EntityDataGrid";
 import type { PropertyFilter } from "@iap/frontend-commons/entityGrid/pagination";
+import type { EntityGridColumn } from "@iap/frontend-commons/entityGrid/registry";
 
+import NewSubmissionDialog from "./NewSubmissionDialog";
+import SubmissionActions from "./SubmissionActions";
 import { SUBMISSION_TYPE } from "./submissionGrid";
 
 // Only the submissions created by the current user; `@me` is resolved server-side.
 const MY_SUBMISSIONS: PropertyFilter[] = [{ name: "jcr:createdBy", value: "@me" }];
 
+// One dashboard widget extension, as the dashboard hands it to the widget it renders.
+type WidgetExtension = Record<string, unknown>;
+
+function text(extension: WidgetExtension | undefined, key: string): string | undefined {
+  const value = extension?.[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+interface MySubmissionsWidgetProps {
+  extension?: WidgetExtension;
+}
+
 // The dashboard widget listing the current user's own submissions, newest activity first,
-// registered on the `iap/dashboard/widget` extension point. The surrounding titled frame is
-// provided by the dashboard, so this only renders the grid.
-function MySubmissionsWidget() {
+// registered on the `iap/dashboard/widget` extension point.
+//
+// It draws its own header, asked for by the extension's `ext:widgetHideHeader`. That puts the
+// action for raising a submission on the title's line. There it reads as something the widget
+// offers, not as a band floating above the table. Title and subtitle still come
+// from the extension, so they are declared in exactly one place.
+function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
+  const [ dialogOpen, setDialogOpen ] = useState(false);
+  // Bumped when a row is deleted, which is a change to what the listing should say that the grid
+  // has no way of noticing on its own
+  const [ refreshToken, setRefreshToken ] = useState(0);
+  const navigate = useNavigate();
+
+  const extraColumns: EntityGridColumn[] = useMemo(() => [ {
+    field: "__actions__",
+    headerName: "Actions",
+    width: 130,
+    // Not a property of the entity, so there is nothing for the server to sort or filter on
+    sortable: false,
+    filterable: false,
+    // The narrow-screen card is a tap target that opens the submission; a row of controls inside
+    // one would compete with it
+    cardSlot: "omit",
+    renderCell: params => (
+      <SubmissionActions
+        path={params.row["@path"] as string | undefined}
+        title={params.row.title as string | undefined}
+        onDeleted={() => setRefreshToken(current => current + 1)}
+      />
+    ),
+  } ], []);
+
+  // The listing has changed whether or not there is somewhere to send the submitter, and the grid
+  // never unmounted, so it is told either way. Without that, a submission raised with no redirect
+  // to follow is indistinguishable from nothing having happened.
+  const created = (path: string) => {
+    setDialogOpen(false);
+    setRefreshToken(current => current + 1);
+    if (path) {
+      void navigate(path);
+    }
+  };
+
   return (
-    <EntityDataGrid
-      entityType={SUBMISSION_TYPE}
-      filters={MY_SUBMISSIONS}
-      emptyMessage="No submissions"
-      noResultsMessage="No matching submissions"
-    />
+    <Stack spacing={1}>
+      {/* The title and the action share a line, with the subtitle under the title where the
+          dashboard's own header would have put it */}
+      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          {/* Only when there is one: an empty heading is markup a screen reader still announces */}
+          { text(extension, "ext:name") && (
+            <Typography variant="h6">{text(extension, "ext:name")}</Typography>
+          ) }
+          { text(extension, "ext:subtitle") && (
+            <Typography variant="body2" color="text.secondary">{text(extension, "ext:subtitle")}</Typography>
+          ) }
+        </Box>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
+          New submission
+        </Button>
+      </Box>
+      <EntityDataGrid
+        entityType={SUBMISSION_TYPE}
+        filters={MY_SUBMISSIONS}
+        extraColumns={extraColumns}
+        refreshToken={refreshToken}
+        emptyMessage="No submissions"
+        noResultsMessage="No matching submissions"
+      />
+      { /* Mounted only while open, so each opening reads what is on offer afresh and never
+           reopens onto a half-filled attempt */ }
+      { dialogOpen && <NewSubmissionDialog onClose={() => setDialogOpen(false)} onCreated={created} /> }
+    </Stack>
   );
 }
 
