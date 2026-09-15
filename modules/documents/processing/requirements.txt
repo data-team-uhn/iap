@@ -24,8 +24,8 @@
 #
 # Bump these deliberately, in a commit of their own, and rebuild the image to confirm:
 #
-#   docker build -t iap/docling:latest modules/documents/processing
-#   docker run --rm --entrypoint python iap/docling:latest \
+#   docker build -t iap/docling:0.1 modules/documents/processing
+#   docker run --rm --entrypoint python iap/docling:0.1 \
 #     -c "import importlib.metadata as m; print(m.version('docling'))"
 #
 # These pin the direct dependencies only. Their transitive graph (torch, transformers and
