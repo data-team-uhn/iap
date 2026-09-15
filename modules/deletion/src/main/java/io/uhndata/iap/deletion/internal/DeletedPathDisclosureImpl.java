@@ -39,24 +39,21 @@ import io.uhndata.iap.deletion.scripting.DeletedPathDisclosure;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.utils.DateUtils;
+import io.uhndata.iap.utils.UserIds;
 
 /**
  * Looks a dead link up in the archive on behalf of the 404 page, and decides what its reader may be told.
  *
  * <p>
- * What it discloses is deliberately narrow. <b>Any authenticated reader</b> is told that the path was deleted and
- * when. Anonymous readers never arrive at a 404 — the platform requires authentication for everything outside a
- * small allowlist, so a logged-out request for content is redirected to the login page — which is what keeps this
- * from announcing to the world that a path once existed. What is disclosed to a reader who could not have read the
- * resource is a date, and the fact that a path they had to know in advance was once in use.
+ * Three answers, by who is asking. A reader who can read the archive entry, which today means an administrator,
+ * learns when it went, who deleted it, and where to look at it. The person who deleted it learns when it went, and
+ * is offered no link to an archive they cannot open. Anybody else is told nothing and sees an ordinary 404.
  * </p>
  *
  * <p>
- * <b>A reader who can read the archive entry</b> — administrators — additionally learns who deleted it and
- * where to look at it. The test is a plain read through the requester's own session, so it is the repository's
- * answer rather than a second, parallel notion of who may see the archive. Nothing here offers to restore
- * anything: the entry's own page already states what a restore or a purge would do before either is attempted,
- * and that is where the decision belongs.
+ * The archive test is a plain read through the requester's own session, so it is the repository's answer rather
+ * than a second notion of who may see the archive. The deleter test compares canonical user ids, since a login
+ * resolves case-insensitively and the resolver reports the spelling that was typed.
  * </p>
  *
  * @version $Id$
@@ -114,7 +111,7 @@ public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
      *
      * @param archived the deletion that took the requested path away
      * @param request the request that 404ed, whose own session decides what may be disclosed
-     * @return the facts to hand to the page, or {@code null} if there is no date to state them against
+     * @return the facts to hand to the page, or {@code null} when this reader is to be told nothing
      */
     @Nullable
     Disclosure disclose(final DeletedPathLookup.Archived archived, final SlingJakartaHttpServletRequest request)
@@ -128,9 +125,13 @@ public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
                 archived.entryPath());
             return null;
         }
-        if (request.getResourceResolver().getResource(archived.entryPath()) == null) {
+        if (request.getResourceResolver().getResource(archived.entryPath()) != null) {
+            return new Disclosure(deletedAt, archived.deletedBy(), ENTRY_ROUTE + archived.entryName());
+        }
+        if (archived.deletedBy() != null
+            && archived.deletedBy().equals(UserIds.canonical(request.getResourceResolver()))) {
             return new Disclosure(deletedAt, null, null);
         }
-        return new Disclosure(deletedAt, archived.deletedBy(), ENTRY_ROUTE + archived.entryName());
+        return null;
     }
 }

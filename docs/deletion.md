@@ -304,10 +304,15 @@ archive and decides what this reader may be told, an OSGi service implemented in
 
 The lookup runs through the deletion service session, because the readers it exists for are exactly
 the ones who cannot resolve `/Archive` at all, and the service decides for itself what to disclose.
-**Any authenticated reader** is told that the path was deleted and when. **A reader who can read the
-archive entry** additionally gets `deletedBy` and a link through to the entry's own page. The test
-for the second is a plain read of the entry through the requester's own session, so there is no
-second notion of who may see the archive to keep in step with the repository's.
+There are three answers, by who is asking. **A reader who can read the archive entry** gets
+`deletedAt`, `deletedBy` and a link through to the entry's own page. **The person who deleted it**
+gets `deletedAt` and no link: an archive they cannot open is nothing to send them to. **Anybody
+else** is told nothing at all, and the page stays an ordinary "not found".
+
+The archive test is a plain read of the entry through the requester's own session, so there is no
+second notion of who may see the archive to keep in step with the repository's. The deleter test
+compares canonical user ids: a login resolves case-insensitively, and the resolver reports the
+spelling that was typed rather than the one the repository stores.
 
 Nothing here offers to restore anything. The entry's own page already states what a restore or a
 purge would do before either is attempted, and that is where the decision belongs; the 404 page
