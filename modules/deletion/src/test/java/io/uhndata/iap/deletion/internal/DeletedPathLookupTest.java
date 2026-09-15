@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link DeletedPathLookup}.
  *
  * <p>
- * The ranking cases need two entries whose creation timestamps differ, and {@code jcr:created} is autocreated and
+ * The ranking cases need two entries whose creation timestamps differ. {@code jcr:created} is autocreated and
  * protected, so the fixture waits for the clock to move between them rather than setting the property.
  * </p>
  *
@@ -237,8 +237,8 @@ class DeletedPathLookupTest
     @Test
     void theMostSpecificDeletionWins() throws Exception
     {
-        // The parent was deleted first, then recreated and its child deleted on its own: both cover the request,
-        // and only the closer one describes what actually happened to it
+        // The parent was deleted first, then recreated and its child deleted on its own. Both cover the request,
+        // and only the closer one describes what happened to it
         this.entry("parent", "alice", "/Submissions");
         this.entry("child", "bob", ONE);
 
@@ -301,8 +301,8 @@ class DeletedPathLookupTest
     @Test
     void aWrapperArchivedInsideAnotherDeletionIsNotADeletionRecord() throws Exception
     {
-        // The archive can be archived: a wrapper that came along inside someone else's deleted subtree records
-        // where it used to be, but nothing lives at that path any more on its account
+        // The archive can be archived. Such a wrapper records where it used to be, and nothing lives at that
+        // path on its account
         final Node entry = this.entry("one", "alice", "/Archive/old");
         final Node nested = entry.getNode("item").addNode("inner", "del:DeletedItem");
         nested.setProperty("originalPath", "/Submissions/ghost");

@@ -36,18 +36,18 @@ import io.uhndata.iap.deletion.api.DeletionService;
  * Answers "was something that used to live here deleted?" for one requested path.
  *
  * <p>
- * The question comes from the 404 page, which has a request URI rather than a resource path — the resource never
+ * The question comes from the 404 page, which has a request URI rather than a resource path. The resource never
  * resolved, so nothing split the selectors and extension off it. {@link #candidates} reproduces that split the way
  * resource resolution does, peeling one dot-suffix at a time off the last segment before dropping the segment
- * itself, and the lookup asks about every result at once. Climbing matters as much as peeling: a deletion archives
- * a whole subtree under one recorded path, so a request for something that was <em>inside</em> it matches an
- * ancestor and nothing else.
+ * itself. The lookup asks about every result at once. Climbing matters as much as peeling. A deletion archives a
+ * whole subtree under one recorded path, so a request for something inside it matches an ancestor and nothing
+ * else.
  * </p>
  *
  * <p>
- * A path can have been archived more than once — deleted, restored, deleted again, or simply reused — so matches
- * are ranked rather than assumed unique: the most specific recorded path wins, and between two deletions of the
- * same path the most recent one does, since that is the one that made the link dead.
+ * A path can have been archived more than once: deleted, restored, deleted again, or simply reused. Matches are
+ * ranked rather than assumed unique. The most specific recorded path wins, and between two deletions of the same
+ * path the most recent one does. That is the one that made the link dead.
  * </p>
  *
  * @version $Id$
@@ -56,8 +56,8 @@ import io.uhndata.iap.deletion.api.DeletionService;
 public final class DeletedPathLookup
 {
     /**
-     * How many paths one request may ask about. Deeper than any real content path with selectors on it, and a bound
-     * on both the statement's size and on what a caller can make the repository do with a crafted URI. A path
+     * How many paths one request may ask about. Deeper than any real content path with selectors on it, and a
+     * bound on what a crafted URI can make the repository do. A path
      * deeper than this keeps its most specific candidates and loses its topmost ancestors, which are the least
      * likely to be the deleted subtree.
      */
@@ -66,23 +66,6 @@ public final class DeletedPathLookup
     private DeletedPathLookup()
     {
         // Utility class
-    }
-
-    /**
-     * The paths a request URI could have been addressing, most specific first.
-     *
-     * @param requestedPath the path from the request, possibly carrying selectors and an extension
-     * @return the paths to look for, in the order they should be preferred; empty if the argument is not an
-     *         absolute path, or is the root
-     */
-    static List<String> candidates(final String requestedPath)
-    {
-        if (requestedPath == null || !requestedPath.startsWith("/")) {
-            return List.of();
-        }
-        // Every step strictly shortens the path, so the sequence terminates and cannot repeat itself
-        return Stream.iterate(requestedPath.replaceAll("/+$", ""), path -> path.length() > 1,
-            DeletedPathLookup::shorten).limit(MAX_CANDIDATES).toList();
     }
 
     /**
@@ -113,9 +96,26 @@ public final class DeletedPathLookup
     }
 
     /**
+     * The paths a request URI could have been addressing, most specific first.
+     *
+     * @param requestedPath the path from the request, possibly carrying selectors and an extension
+     * @return the paths to look for, in the order they should be preferred; empty if the argument is not an
+     *         absolute path, or is the root
+     */
+    static List<String> candidates(final String requestedPath)
+    {
+        if (requestedPath == null || !requestedPath.startsWith("/")) {
+            return List.of();
+        }
+        // Every step strictly shortens the path, so the sequence terminates and cannot repeat itself
+        return Stream.iterate(requestedPath.replaceAll("/+$", ""), path -> path.length() > 1,
+            DeletedPathLookup::shorten).limit(MAX_CANDIDATES).toList();
+    }
+
+    /**
      * The statement asking for every archived item recorded at any of the candidate paths. A chain of equalities
-     * rather than a {@code LIKE} over the subtree, so that it stays on the {@code originalPath} property index and
-     * so that a path carrying a wildcard character cannot widen the match.
+     * rather than a {@code LIKE} over the subtree. It stays on the {@code originalPath} property index, and a
+     * wildcard character in a path cannot widen the match.
      *
      * @param candidates the paths to ask about
      * @return a JCR-SQL2 statement
@@ -132,9 +132,9 @@ public final class DeletedPathLookup
     }
 
     /**
-     * One path shortened by one step, the way resource resolution would have: a trailing dot-suffix comes off
+     * One path shortened by one step, the way resource resolution would have. A trailing dot-suffix comes off
      * before the segment carrying it does, so {@code /a/b.sel.html} yields {@code /a/b.sel} rather than
-     * {@code /a}. A dot opening a segment is part of the name, so it is never peeled.
+     * {@code /a}. A dot opening a segment is part of the name, and is never peeled.
      *
      * @param path the path to shorten, without a trailing slash
      * @return the next shorter path, empty once there is nothing left
@@ -147,11 +147,10 @@ public final class DeletedPathLookup
     }
 
     /**
-     * Describe one matching archived item, or {@code null} if it is not the record of a deletion at all: the
-     * archive can itself hold an archived wrapper — a deletion that dragged one along — and that inner wrapper's
-     * recorded path is history, not a resource anybody can be looking for. Everything read here is guaranteed by
-     * the node types and by the equality the query matched on, so a missing one is a broken repository and belongs
-     * in the exception rather than in a half-answer.
+     * Describe one matching archived item, or {@code null} if it is not the record of a deletion at all. The
+     * archive can hold an archived wrapper, dragged along by somebody else's deletion, and that wrapper's recorded
+     * path is history rather than a resource anybody is looking for. Everything else read here is guaranteed by
+     * the node types and by the equality the query matched on, so a missing one is a broken repository.
      */
     private static Archived describe(final Node item) throws RepositoryException
     {
@@ -184,10 +183,9 @@ public final class DeletedPathLookup
          * is strictly shorter than the one before it, so the longer recorded path is always the more specific one.
          *
          * <p>
-         * The name settles a tie. {@code jcr:created} has millisecond resolution, so two deletions of one path can
-         * carry the same instant, and there is then nothing to say which came second. Answering by name is
-         * arbitrary, and arbitrary is what this needs: without it the winner is whichever the query happened to
-         * return first, and the same question gets different answers.
+         * The name settles a tie. {@code jcr:created} has millisecond resolution, so two deletions of one path
+         * can carry the same instant, and nothing then says which came second. Answering by name is arbitrary and
+         * stable. Without it the winner is whichever the query returned first, and one question gets two answers.
          * </p>
          *
          * @param other the match to compare against, {@code null} when there is none yet

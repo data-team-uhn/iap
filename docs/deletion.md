@@ -310,9 +310,7 @@ gets `deletedAt` and no link: an archive they cannot open is nothing to send the
 else** is told nothing at all, and the page stays an ordinary "not found".
 
 The archive test is a plain read of the entry through the requester's own session, so there is no
-second notion of who may see the archive to keep in step with the repository's. The deleter test
-compares canonical user ids: a login resolves case-insensitively, and the resolver reports the
-spelling that was typed rather than the one the repository stores.
+second notion of who may see the archive to keep in step with the repository's.
 
 Nothing here offers to restore anything. The entry's own page already states what a restore or a
 purge would do before either is attempted, and that is where the decision belongs; the 404 page
