@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>
  * The ranking cases need two entries whose creation timestamps differ, and {@code jcr:created} is autocreated and
- * protected, so they are separated by saving them apart rather than by setting the property.
+ * protected, so the fixture waits for the clock to move between them rather than setting the property.
  * </p>
  *
  * @version $Id$
@@ -82,8 +82,11 @@ class DeletedPathLookupTest
         entry.setProperty("requestedPath", originalPath);
         final Node item = entry.addNode("item", "del:DeletedItem");
         item.setProperty("originalPath", originalPath);
-        // Saved here rather than by the caller so that two entries never share a jcr:created
         this.session.save();
+        // These entries must not share a jcr:created: the tests below are about which deletion is newer, and a
+        // tie is settled by name instead. Saving them apart is not enough, two saves fitting inside one
+        // millisecond on a warm JVM
+        tick();
         return entry;
     }
 
@@ -251,6 +254,28 @@ class DeletedPathLookupTest
         this.entry("parent", "alice", "/Submissions");
 
         assertEquals("bob", DeletedPathLookup.find(this.session, ONE).get().deletedBy());
+    }
+
+    /** Waits for the clock to leave the millisecond it is in, so the next entry cannot share this one's. */
+    private static void tick()
+    {
+        final long now = System.currentTimeMillis();
+        while (System.currentTimeMillis() == now) {
+            Thread.onSpinWait();
+        }
+    }
+
+    @Test
+    void twoDeletionsInsideOneMillisecondAreSeparatedByNameRatherThanByQueryOrder()
+    {
+        final ZonedDateTime sameInstant = ZonedDateTime.now();
+        final DeletedPathLookup.Archived aaa =
+            new DeletedPathLookup.Archived(ONE, "/Archive/ab/aaa", "aaa", "alice", sameInstant);
+        final DeletedPathLookup.Archived bbb =
+            new DeletedPathLookup.Archived(ONE, "/Archive/ab/bbb", "bbb", "bob", sameInstant);
+
+        assertTrue(bbb.isBetterThan(aaa));
+        assertFalse(aaa.isBetterThan(bbb));
     }
 
     @Test
