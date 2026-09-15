@@ -38,6 +38,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.uhndata.iap.deletion.scripting.DeletedPathDisclosure.Disclosure;
 import io.uhndata.iap.utils.DateUtils;
+import io.uhndata.iap.utils.UserIds;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -47,9 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * Tests for {@link DeletedPathDisclosureImpl}.
  *
  * <p>
- * The two disclosure levels differ only in whether the requester's own resolver can read the archive entry, so the
- * privileged case is the plain test resolver and the ordinary case is a wrapper that hides the archive from it —
- * which is exactly what the repository does to everyone who has not been granted it.
+ * The three disclosure levels turn on two questions: whether the requester's own resolver can read the archive
+ * entry, and whether they are the one who deleted it. The privileged case is the plain test resolver, which
+ * bypasses access control; the other two use a wrapper that hides the archive, as the repository does to everyone
+ * it has not been granted to.
  * </p>
  *
  * @version $Id$
@@ -137,16 +139,24 @@ class DeletedPathDisclosureImplTest
     }
 
     @Test
-    void anOrdinaryReaderLearnsThatItWasDeletedAndWhen() throws Exception
+    void somebodyWhoNeitherDeletedItNorReadsTheArchiveIsToldNothing() throws Exception
     {
-        final Node entry = this.entry("one", "alice", "/Submissions/one");
+        this.entry("one", "alice", "/Submissions/one");
+
+        assertNull(this.aboutAsOrdinaryUser("/Submissions/one"));
+    }
+
+    @Test
+    void theDeleterLearnsWhenItWentAndIsOfferedNoArchiveLink() throws Exception
+    {
+        final Node entry =
+            this.entry("one", UserIds.canonical(this.context.resourceResolver()), "/Submissions/one");
 
         final Disclosure told = this.aboutAsOrdinaryUser("/Submissions/one");
 
         assertNotNull(told);
         assertEquals(DateUtils.toString(entry.getProperty("jcr:created").getDate()), told.deletedAt());
-        // Who deleted it, and where it now is, are not theirs to know
-        assertNull(told.deletedBy());
+        // They cannot open the archive, so there is nothing to send them to
         assertNull(told.entryUrl());
     }
 
