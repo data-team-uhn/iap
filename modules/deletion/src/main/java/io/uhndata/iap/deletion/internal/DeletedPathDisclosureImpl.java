@@ -51,9 +51,8 @@ import io.uhndata.iap.utils.UserIds;
  * </p>
  *
  * <p>
- * The archive test is a plain read through the requester's own session, so it is the repository's answer rather
- * than a second notion of who may see the archive. The deleter test compares canonical user ids, since a login
- * resolves case-insensitively and the resolver reports the spelling that was typed.
+ * The archive test is a plain read through the requester's own session. That is the repository's answer rather
+ * than a second notion of who may see the archive.
  * </p>
  *
  * @version $Id$
@@ -63,9 +62,9 @@ import io.uhndata.iap.utils.UserIds;
 public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
 {
     /**
-     * Where the archive browser shows one entry. The console route and the repository path parted company on
-     * purpose, so this is not derivable from {@link DeletionService#ARCHIVE_PATH}; it is the {@code ext:targetURL}
-     * of {@code Extensions/Admin/Views/ArchiveEntry.json}, and has to move with it.
+     * Where the archive browser shows one entry. The console route and the repository path parted company, so
+     * this is not derivable from {@link DeletionService#ARCHIVE_PATH}. It is the {@code ext:targetURL} of
+     * {@code Extensions/Admin/Views/ArchiveEntry.json}, and has to move with it.
      */
     static final String ENTRY_ROUTE = "/admin/archive/";
 
@@ -86,9 +85,8 @@ public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
                 throw new RepositoryException("The deletion service resolver is not backed by a repository session");
             }
             if (!serviceSession.nodeExists(DeletionService.ARCHIVE_PATH)) {
-                // repoinit creates the archive, so it is always there: not seeing it means this session is not the
-                // one this component asked for. Saying so is the whole point — the query would otherwise come back
-                // empty and every dead link would report that it had never been a link at all
+                // repoinit creates the archive, so not seeing it means this session is not the one this component
+                // asked for. Unreported, the query comes back empty and every dead link claims it was never one
                 LOGGER.warn("Cannot tell whether {} was deleted: {} is not readable by the deletion service session",
                     requestedPath, DeletionService.ARCHIVE_PATH);
                 return null;
@@ -97,8 +95,8 @@ public class DeletedPathDisclosureImpl implements DeletedPathDisclosure
                 DeletedPathLookup.find(serviceSession, requestedPath);
             return found.map(archived -> this.disclose(archived, request)).orElse(null);
         } catch (final LoginException | RepositoryException e) {
-            // The page falls back to a plain "does not exist", so this failure is invisible to the reader — an
-            // administrator only finds out if it is recorded here
+            // The page falls back to a plain "does not exist", so the reader never sees this. Recording it is
+            // how an administrator finds out
             LOGGER.warn("Failed to look up whether {} was deleted: {}", requestedPath, e.getMessage(), e);
             ErrorLogger.logError(e,
                 ErrorContext.of(DeletedPathDisclosureImpl.class, "deletedPathLookup").about(requestedPath));

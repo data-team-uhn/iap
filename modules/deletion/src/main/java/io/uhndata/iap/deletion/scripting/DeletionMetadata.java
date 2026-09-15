@@ -34,28 +34,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A HTL helper for the 404 page: it answers "was something that used to live here deleted?" about the path the
- * request was for, so that a dead link can say the resource was deleted rather than that it never existed. To use
- * it, place the following in the error handler HTL file:
+ * A HTL helper for the 404 page. It asks {@link DeletedPathDisclosure} about the path the request was for, so
+ * that a dead link can say the resource was deleted rather than that it never existed. To use it, place the
+ * following in the error handler HTL file:
  *
  * {@snippet lang="html" :
  * <sly data-sly-use.deletion="io.uhndata.iap.deletion.scripting.DeletionMetadata"></sly>
  * }
  *
  * <p>
- * The page renders the answer into the markup it was already sending, so a reader who followed a dead link is told
- * what became of it in the first response rather than after a second round trip. Every getter here is {@code null}
- * when there is nothing to say, which is what HTL needs to leave the attribute carrying it out of the markup
- * altogether.
+ * The page renders the answer into the markup it was already sending. A reader who followed a dead link is told
+ * what became of it in the first response, not after a second round trip. Every getter here is {@code null} when
+ * there is nothing to say, which is what HTL needs to leave the attribute carrying it out of the markup.
  * </p>
  *
  * <p>
- * A <b>Sling Model</b> rather than a {@code Use} POJO, and that is not a stylistic choice: a model's
- * {@code @OSGiService} field is injected on behalf of the bundle declaring the model, whereas a POJO reaching for
- * the same service through its script's {@code sling} binding asks on behalf of
- * {@code org.apache.sling.scripting.core} — which is wired to neither this package nor the service user this
- * lookup needs. HTL is happy either way: its {@code JavaUseProvider} adapts a model from the request before it
- * ever considers the {@code Use} interface.
+ * A Sling Model rather than a {@code Use} POJO. A model's {@code @OSGiService} field is injected on behalf of
+ * the bundle declaring the model. A POJO reaching for the same service through its script's {@code sling} binding
+ * asks on behalf of {@code org.apache.sling.scripting.core}. That bundle is wired to neither this package nor
+ * the service user this lookup needs. HTL is happy either way: its {@code JavaUseProvider} adapts a model from the
+ * request before it considers the {@code Use} interface.
  * </p>
  *
  * <p>
@@ -93,7 +91,7 @@ public class DeletionMetadata
             return;
         }
         if (this.disclosure == null) {
-            // An error page is the worst place to raise an error of its own, so a platform whose deletion module
+            // An error page is the worst place to raise an error of its own. A platform whose deletion module
             // is not running still gets a plain, working 404
             LOGGER.warn("Cannot look up whether {} was deleted: the deletion module is not available", path);
             return;
@@ -143,17 +141,17 @@ public class DeletionMetadata
      * The repository path this request was for.
      *
      * <p>
-     * An error handler runs on the request that failed, so the path is the one the error dispatch recorded rather
-     * than anything the page has to be told: no query parameter carries it, and so nothing has to encode it to get
-     * here. What arrives is a request URI — percent-encoded, and still carrying whatever selectors and extension
-     * the reader's link had on it, which is what {@code DeletedPathLookup} peels apart.
+     * An error handler runs on the request that failed, so the path is the one the error dispatch recorded. No
+     * query parameter carries it, so nothing has to encode it to get here. What arrives is a request URI:
+     * percent-encoded, and still carrying whatever selectors and extension the reader's link had on it, which is
+     * what {@code DeletedPathLookup} peels apart.
      * </p>
      *
      * <p>
-     * Undoing the encoding is {@link URI#getPath()}'s job, not {@code URLDecoder}'s: that one is the form decoder,
-     * and it reads a literal {@code +} in a path as a space — measured, {@code /a+b} comes back as {@code /a b}. A
-     * path a browser produced never escapes {@code +}, so the two disagree on exactly the character a reader
-     * cannot escape for us.
+     * Undoing the encoding is {@link URI#getPath()}'s job, not {@code URLDecoder}'s. That one is the form
+     * decoder, and reads a literal {@code +} in a path as a space, so {@code /a+b} becomes {@code /a b}. A path a
+     * browser produced never escapes {@code +}, so the two disagree on exactly the character a reader cannot
+     * escape for us.
      * </p>
      *
      * @param request the request the error handler is running on
@@ -163,7 +161,7 @@ public class DeletionMetadata
     private static String requestedPath(final SlingJakartaHttpServletRequest request)
     {
         final Object recorded = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
-        // Without an error dispatch — the script rendered directly — the request's own URI is the one that failed
+        // With no error dispatch the script rendered directly, so the failing URI is the request's own
         final String uri = recorded instanceof String ? (String) recorded : request.getRequestURI();
         if (uri == null || !uri.startsWith("/")) {
             return null;

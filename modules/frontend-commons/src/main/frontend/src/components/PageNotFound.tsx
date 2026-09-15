@@ -22,9 +22,9 @@ import ErrorPage from './ErrorPage';
 
 /**
  * What the server found out about the requested path while it was rendering this page. A path can be missing
- * because it never existed or because it was deleted, and the two deserve different answers — the archive holding
- * that answer is readable by almost nobody, so the server looks for us and decides what to say. It says it in the
- * markup it was already sending, which is why none of this is fetched: see `DeletionMetadata`, and the
+ * because it never existed or because it was deleted, and the two deserve different answers. The archive holding
+ * that answer is readable by almost nobody, so the server looks on our behalf and decides what to say. It says it
+ * in the markup it was already sending, which is why none of this is fetched. See `DeletionMetadata` and the
  * `data-deleted-*` attributes the 404 error handler carries.
  */
 interface PageNotFoundProps {
@@ -36,7 +36,7 @@ interface PageNotFoundProps {
   entryUrl?: string;
 }
 
-// The date a reader is shown, or null when the attribute holds something unreadable — "deleted", with no date,
+// The date a reader is shown, or null when the attribute holds something unreadable. "Deleted", with no date,
 // is still worth saying.
 function deletionDate(deletedAt: string): string | null {
   const date = new Date(deletedAt);
@@ -45,8 +45,8 @@ function deletionDate(deletedAt: string): string | null {
 
 export default function PageNotFound({ deletedAt, deletedBy, entryUrl }: PageNotFoundProps) {
   // Where a lost reader is sent, and what the button offers them, are per-deployment configuration rather than
-  // anything about this request, so they arrive the way the rest of the configuration does: as `<meta>` tags
-  // emitted from /libs/iap/conf. An empty value falls back with the rest, which is why `||` and not `??`.
+  // anything about this request. They arrive the way the rest of the configuration does, as `<meta>` tags emitted
+  // from /libs/iap/conf. An empty value falls back with the rest, which is why `||` and not `??`.
   const meta = (name: string) => document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content;
   /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
   const redirectURL = meta("redirectURL") || "/";

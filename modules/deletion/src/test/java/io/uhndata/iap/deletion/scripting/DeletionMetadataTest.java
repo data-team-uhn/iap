@@ -39,9 +39,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link DeletionMetadata}.
  *
  * <p>
- * What is left in this class once the archive is somebody else's problem is the request: which path the error
- * dispatch was about, and how the answer reaches the page. The disclosure service is therefore a stand-in that
- * records what it was asked about, which is what the encoding tests assert against.
+ * What is left in this class, once the archive is somebody else's problem, is the request. Which path the error
+ * dispatch was about, and how the answer reaches the page. The disclosure service is a stand-in that records what
+ * it was asked about, which is what the encoding tests assert against.
  * </p>
  *
  * @version $Id$
@@ -128,8 +128,8 @@ class DeletionMetadataTest
     @Test
     void theEncodingTheRequestUriCarriesIsUndoneBeforeAsking()
     {
-        // An error handler is handed the request URI, which is still percent-encoded; no second layer is involved,
-        // because nothing had to carry the path through a query string to get here
+        // An error handler is handed the request URI, still percent-encoded. No second layer is involved:
+        // nothing had to carry the path through a query string to get here
         this.about("/Submissions/one%20two", null);
 
         assertEquals(List.of("/Submissions/one two"), this.asked);
