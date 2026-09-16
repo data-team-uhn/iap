@@ -245,7 +245,8 @@ class Credentials(unittest.TestCase):
         # misconfigured rather than failing to start.
         import re
         with tempfile.TemporaryDirectory() as directory:
-            text = generate_into(directory, '--storage', 'postgres', '--keycloak', '--mail')
+            text = generate_into(directory, '--storage', 'postgres', '--keycloak', '--mail',
+                                 '--docling')
             env = (Path(directory) / '.env').read_text(encoding='utf-8')
         referenced = set(re.findall(r'\$\{([A-Z_]+)\}', text))
         defined = {line.split('=', 1)[0] for line in env.splitlines()
@@ -274,6 +275,64 @@ class Companions(unittest.TestCase):
         doc = document('--mail')
         self.assertIn(gc.MAIL_SERVICE, doc['services'])
         self.assertIn('/load_certs', ' '.join(service(doc, 'iap')['volumes']))
+
+
+class Docling(unittest.TestCase):
+    """The document parser, which has authority over the shared volume and no login.
+
+    It binds 0.0.0.0 because Docker forwards a published port no other way, so on the Compose
+    network the bearer token is the only thing between another container and every staged
+    upload: re-parse one, overwrite its Markdown, replace its whole Chunks tree.
+    """
+
+    def test_the_parser_token_is_generated_into_the_env_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            generate_into(directory, '--docling')
+            env = (Path(directory) / '.env').read_text(encoding='utf-8')
+        value = [line for line in env.splitlines() if line.startswith('IAP_DOCLING_TOKEN=')]
+        self.assertEqual(1, len(value))
+        self.assertGreater(len(value[0].split('=', 1)[1]), 20)
+
+    def test_two_deployments_do_not_share_a_token(self):
+        def token():
+            with tempfile.TemporaryDirectory() as directory:
+                generate_into(directory, '--docling')
+                env = (Path(directory) / '.env').read_text(encoding='utf-8')
+            return [line for line in env.splitlines()
+                    if line.startswith('IAP_DOCLING_TOKEN=')][0]
+
+        self.assertNotEqual(token(), token())
+
+    def test_the_token_is_left_to_the_env_file(self):
+        # A ${VAR} with no inline fallback: an empty default would start the parser open, and
+        # the invariant test above would not notice because Compose substitutes it silently.
+        self.assertEqual('${IAP_DOCLING_TOKEN}',
+                         environment(document('--docling'), 'docling')['IAP_DOCLING_TOKEN'])
+
+    def test_the_network_is_not_trusted_unless_an_operator_says_so(self):
+        # This flag suppresses the daemon's own warning about binding 0.0.0.0 unauthenticated,
+        # so defaulting it on pre-answers the question it exists to ask.
+        self.assertEqual('${IAP_DOCLING_TRUSTED_NETWORK:-0}',
+                         environment(document('--docling'),
+                                     'docling')['IAP_DOCLING_TRUSTED_NETWORK'])
+
+    def test_the_port_is_bound_to_localhost_only(self):
+        self.assertEqual(['127.0.0.1:{0}:{0}'.format(gc.DOCLING_PORT)],
+                         service(document('--docling'), 'docling')['ports'])
+
+    def test_image_comes_from_the_pins_dependabot_watches(self):
+        self.assertEqual(gc.image_for('docling'),
+                         service(document('--docling'), 'docling')['image'])
+
+    def test_the_shared_volume_is_mounted_where_the_daemon_looks_for_it(self):
+        # The daemon refuses every path outside IAP_SHARED_DOCS, so a mount point that does not
+        # match it turns every parse into a 400 about containment.
+        docling = service(document('--docling'), 'docling')
+        mounted = [entry.split(':')[-1] for entry in docling['volumes']]
+        self.assertIn(settings(docling['environment'])['IAP_SHARED_DOCS'], mounted)
+
+    def test_iap_waits_for_the_parser(self):
+        self.assertIn('docling', service(document('--docling'), 'iap')['depends_on'])
 
 
 class Debugging(unittest.TestCase):

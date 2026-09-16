@@ -31,6 +31,7 @@ file is plain YAML, commented, meant to be read and edited afterwards.
 import argparse
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -52,6 +53,9 @@ RDB_PASSWORD = "iap"
 
 # The database name `oak_persistence_mongods` defaults to.
 MONGO_DATABASE = "sling"
+
+# The host port the Docling parser is published on, matching its ENTRYPOINT default.
+DOCLING_PORT = 18765
 
 # The host port Keycloak is published on, matching tools/dev/keycloak/ and docs/keycloak-oidc.md.
 KEYCLOAK_PORT = 8084
@@ -108,8 +112,9 @@ def parse_args(argv):
                         help="Add an SMTPS server that writes every message it receives to a file "
                              "under ./mail instead of delivering it")
     parser.add_argument('--docling', action='store_true',
-                        help="Add an SMTPS server that writes every message it receives to a file "
-                             "under ./mail instead of delivering it")
+                        help="Add the Docling document parser, published on 127.0.0.1:{}, "
+                             "which is used to extract the text out of uploaded documents"
+                             .format(DOCLING_PORT))
 
     parser.add_argument('--image', default='iap/iap',
                         help="The IAP Docker image to run [default: iap/iap]")
@@ -366,6 +371,10 @@ def env_entries(args, env_file):
         entries.append(('IAP_OAUTH_ENCRYPTION_PASSWORD', 'devpassword', [
             "Any value will do for development; it encrypts the stored OAuth tokens.",
         ]))
+    if args.docling:
+        entries.append(('IAP_DOCLING_TOKEN', secrets.token_urlsafe(32), [
+            "Protects the connection between IAP and Docling.",
+        ]))
     return entries
 
 
@@ -621,12 +630,15 @@ def docling_service():
     service['user'] = '${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}'
     service['environment'] = {
         'IAP_SHARED_DOCS': '/shared-docs',
-        'IAP_DOCLING_TOKEN': '${IAP_DOCLING_TOKEN:-}',
-        'IAP_DOCLING_TRUSTED_NETWORK': '${IAP_DOCLING_TRUSTED_NETWORK:-1}',
+        'IAP_DOCLING_TOKEN': '${IAP_DOCLING_TOKEN}',
+        # 0, so that an operator who empties the token hears the daemon's own warning about it.
+        # Set this to 1 only after confining the port some other way.
+        'IAP_DOCLING_TRUSTED_NETWORK': '${IAP_DOCLING_TRUSTED_NETWORK:-0}',
         'IAP_MAX_INPUT_PAGES': '${IAP_MAX_INPUT_PAGES:-1500}',
         'IAP_MAX_INPUT_BYTES': '${IAP_MAX_INPUT_BYTES:-67108864}',
         'IAP_LIBREOFFICE_TIMEOUT_SECONDS': '${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}',
         'IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS': '${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}',
+        'IAP_DOCLING_PARSE_TIMEOUT_SECONDS': '${IAP_DOCLING_PARSE_TIMEOUT_SECONDS:-900}',
         'HOME': '/tmp'
     }
     service['volumes'] = ['${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs']
@@ -639,7 +651,7 @@ def docling_service():
         }
     }
     service['healthcheck'] = {
-        'test': ['CMD', 'curl', '-fsS', "http://127.0.0.1:18765/health"],
+        'test': ['CMD', 'curl', '-fsS', "http://127.0.0.1:{}/health".format(DOCLING_PORT)],
         'interval': '30s',
         'timeout': '5s',
         'retries': 3,
@@ -648,7 +660,7 @@ def docling_service():
     # Set to 15 minutes to allow it to clean up after SIGKILL
     service['stop_grace_period'] = '15m'
     service['restart'] = 'unless-stopped'
-    service['ports'] = ['127.0.0.1:18765:18765']
+    service['ports'] = ['127.0.0.1:{0}:{0}'.format(DOCLING_PORT)]
     return service
 
 
