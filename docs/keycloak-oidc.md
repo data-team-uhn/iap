@@ -69,8 +69,9 @@ no password prompt. Two pieces in the OIDC support bundle close that gap:
 - **`OidcLogoutAuthenticationHandler`** (registered at `/`, so Sling calls its `dropCredentials` on
   every logout). When the `sling.oidcauth` cookie is present — the sole signal that this was an OIDC
   session — it expires that cookie and ends Keycloak's SSO session **back-channel**: it reads the
-  user's stored refresh token and POSTs it to Keycloak itself, server to server. A local (non-OIDC)
-  logout is left untouched and never involves Keycloak.
+  user's stored refresh token and POSTs it to Keycloak itself, server to server. This can take up to
+  ~10s before falling back if the configured provider is unreacahable. A local (non-OIDC) logout is
+  left untouched and never involves Keycloak.
 - **`OidcEndSessionServlet`** (`/system/sling/oauth/logout`, auth-exempt). The **fallback**, used
   only when the back-channel call could not be made. It redirects the browser to Keycloak's
   `end_session_endpoint` with `client_id` and a registered `post_logout_redirect_uri`.
@@ -209,8 +210,7 @@ the **host-published** port). Getting the back-channel port wrong (using `8084`)
 
 The Keycloak comes with a test user by default (username/password test/test). This can be disabled by
 generating a `docker-compose.yml` file via running `python tools/deploy/generate_compose.py --keycloak`
-and modifying the generated `tools/deploy/docker-compose.yml` CREATE_TEST_USER, or by setting the
-environment variable KEYCLOAK_GENERATE_TEST_USER.
+and setting the environment variable KEYCLOAK_GENERATE_TEST_USER to 0 before running `keycloak_setup.sh`.
 
 ## How the names line up
 
@@ -277,10 +277,10 @@ remove the form's sign-in method (`Extensions/SignInMethod/CredentialsForm.json`
 9. Confirm logout: open `/system/sling/logout`, and confirm that no prompt from Keycloak appears.
    Then re-check `/system/sling/info.sessionInfo.json`: The user should be back to anonymous.
 10. Confirm back-channel logout: open Keycloak's web console, go to the iap realm and users view ' (default
-   `http://localhost:8084/admin/master/console/#/iap`). Then go to the generated user and confirm that
-   no sessions exist under the sessions tab.
+    `http://localhost:8084/admin/master/console/#/iap`). Then go to the generated user and confirm that
+    no sessions exist under the sessions tab.
 11. Double-check back-channel logout: From the `/login` page, click "Continue with institutional
-   credentials" and confirm that it re-prompts you to log out with Keycloak
+    credentials" and confirm that it re-prompts you to log out with Keycloak
 
 ## Troubleshooting: `No IDP found with name keycloak`
 
