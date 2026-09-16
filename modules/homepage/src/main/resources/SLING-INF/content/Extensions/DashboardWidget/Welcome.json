@@ -1,8 +1,0 @@
-{
-  "jcr:primaryType": "ext:Extension",
-  "ext:pointId": "iap/dashboard/widget",
-  "ext:name": "Welcome",
-  "ext:renderURL": "asset:iap-homepage.WelcomeWidget.js",
-  "defaultOrder": 0,
-  "ext:personas": ["submitter", "reviewer"]
-}
