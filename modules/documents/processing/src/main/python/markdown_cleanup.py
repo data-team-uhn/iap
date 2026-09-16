@@ -74,7 +74,7 @@ def _get_leading_line_number_run(lines: list[str]) -> tuple[list[int], int]:
 
 def cleanup_page_leading_line_numbers(page_md: str) -> str:
     """
-    Remove a leading leading line-number block from one page body.
+    Remove a leading line-number block from one page body.
 
     @param page_md: markdown for a single page body (no page header)
     @return: page markdown with leading line numbers removed when detected

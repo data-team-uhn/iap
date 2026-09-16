@@ -320,9 +320,20 @@ class Docling(unittest.TestCase):
         self.assertEqual(['127.0.0.1:{0}:{0}'.format(gc.DOCLING_PORT)],
                          service(document('--docling'), 'docling')['ports'])
 
-    def test_image_comes_from_the_pins_dependabot_watches(self):
-        self.assertEqual(gc.image_for('docling'),
-                         service(document('--docling'), 'docling')['image'])
+    def test_the_image_is_built_here_rather_than_pinned(self):
+        # images/docker-compose.yml exists for Dependabot, which can only offer an upgrade for an
+        # image pulled from a registry. This one is built from this repository, so there is no
+        # version in it to watch and nothing for that file to hold.
+        docling = service(document('--docling'), 'docling')
+        self.assertEqual('iap/docling', docling['image'])
+        self.assertIn('build', docling)
+        gc.image_for('postgres')          # any pinned service, to populate the cache
+        self.assertNotIn('docling', gc.image_for.pins)
+
+    def test_iap_can_reach_the_parser_by_service_name(self):
+        # Compose resolves a service name only within a shared network, and IAP is on `iap`.
+        # Left off it, the parser lands on the default network where that lookup fails.
+        self.assertEqual(['iap'], service(document('--docling'), 'docling')['networks'])
 
     def test_the_shared_volume_is_mounted_where_the_daemon_looks_for_it(self):
         # The daemon refuses every path outside IAP_SHARED_DOCS, so a mount point that does not
@@ -402,6 +413,17 @@ class Presentation(unittest.TestCase):
         actions, _ = gc.next_steps(gc.parse_args(['--keycloak']), Path('/tmp/x'))
         self.assertIn('Keycloak', actions[0][0])
         self.assertEqual(2, len(actions))
+
+    def test_anything_built_here_is_brought_up_with_a_rebuild(self):
+        # Compose builds a missing image on its own and then never looks at the sources again,
+        # so without --build an edited parser or mail server is silently the old one.
+        def commands(*argv):
+            actions, _ = gc.next_steps(gc.parse_args(list(argv)), Path('/tmp/x'))
+            return [command for _, group in actions for command in group]
+
+        self.assertIn('docker compose up -d --build', commands('--docling'))
+        self.assertIn('docker compose up -d --build', commands('--mail'))
+        self.assertIn('docker compose up -d', commands())
 
 
 if __name__ == '__main__':

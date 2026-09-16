@@ -625,7 +625,9 @@ def docling_service():
         'context': '../modules/documents/processing',
         'dockerfile': 'Dockerfile'
     }
-    service['image'] = image_for('docling')
+    # Built from this repository rather than pulled, so it is not in images/docker-compose.yml.
+    service['image'] = 'iap/docling'
+    service['networks'] = ['iap']
     service['init'] = True
     service['user'] = '${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}'
     service['environment'] = {
@@ -738,8 +740,11 @@ def next_steps(args, compose_directory):
                 brief_path(compose_directory / '.env'),
                 brief_path(HERE.parent / 'dev' / 'keycloak' / 'keycloak_setup.sh')),
         ]))
+    # --build only matters for the services built from this repository, and only after their
+    # sources change: Compose builds a missing image either way, then never looks again.
+    builds_locally = args.mail or args.docling
     actions.append(("Bring everything up", [
-        "docker compose up -d --build" if args.mail else "docker compose up -d",
+        "docker compose up -d --build" if builds_locally else "docker compose up -d",
     ]))
 
     notes = ["IAP will be at {}".format(

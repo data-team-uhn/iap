@@ -350,7 +350,8 @@ def _stage_chunks(chunks_dir: Path, tree: dict[str, Any]) -> Path:
 
 
 def _swap_into_place(staging: Path, target: Path) -> None:
-    """Replace ``target`` with ``staging`` using renames, keeping the old tree until it is.
+    """Replace ``target`` with ``staging`` using renames, keeping the old tree until the new
+    one is in place.
 
     @param staging: the fully written new tree
     @param target: the directory it replaces

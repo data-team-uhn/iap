@@ -229,9 +229,8 @@ Key behaviours:
 - **Heading-level ceiling** — `bookmarks` keeps entries at level 1–`MAX_HEADING_LEVEL` (6). Deeper nesting is still walked (up to `MAX_OUTLINE_DEPTH`) so a crafted outline cannot exhaust the stack.
 - **Bookmark levels drive chunking** — when bookmarks exist, each Markdown heading line is matched to a PDF bookmark by normalized title only (dest page is ignored). The line is rewritten to that bookmark's level and title before any split, so a `###` that the bookmarks call level 1 is cut as `#`.
 - **Catalog heading** — each chunk's `heading` is the text of its first non-neutral line when that line is ATX; otherwise empty. Bookmarks rewrite heading lines in the Markdown before splitting.
-- **No page rewrite** — a bookmark's page used to be looked up in the `<!-- page: N -->`
-  markers and corrected when it pointed one page early. Matching is by title only; the titles
-  are taken as the PDF gives them.
+- **No page rewrite** — matching is by normalized title only. The `<!-- page: N -->` markers
+  are not consulted, and the titles are taken as the PDF gives them.
 - **Sub-chunk boundaries** — chunkweaver cuts on any ATX sub-heading (after the bookmark rewrite, when an outline exists), then paragraphs, then sentences. Bold/ALL-CAPS lines are not cuts on their own.
 
 The source PDF reaches the chunker as a sibling of the `.md`: either the native upload staged

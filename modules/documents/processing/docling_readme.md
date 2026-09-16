@@ -1,8 +1,6 @@
 # Docling parsing
 
-Docling converts PDF or DOCX documents Markdown format.
-
-Main processor from `.pdf` and `.docx` to Markdown.
+Docling converts PDF or DOCX documents to Markdown format.
 
 - Source : https://github.com/docling-project/docling
 - Required version v2.115+
@@ -111,15 +109,16 @@ site the operator visits could otherwise spend the worker pool or stop the daemo
 
 Setting **`IAP_DOCLING_TOKEN`** additionally requires `Authorization: Bearer <token>` on those two
 endpoints, so that reaching the port is not by itself authority to use it. `GET /health` stays
-open, so container probes need no credential.
+open, so container probes need no credential. The generated deployment always sets it, to a random
+value it writes into `.env`; a hand-run daemon has no token unless you set one.
 
 With no token set the port is the only boundary, and parsing is slow, which makes a reachable
 endpoint a cheap denial-of-service target. Two more ways to hold that line:
 
-- **The deployment** (`docker-compose.yml`) publishes the port as `127.0.0.1:18765:18765`, so only
-  this host can reach it. A bare `18765:18765` would bind every host interface, and Docker's
+- **The deployment** (`tools/deploy/generate_compose.py --docling`) publishes the port as
+  `127.0.0.1:18765:18765`, so only this host can reach it. A bare `18765:18765` would bind every host interface, and Docker's
   forwarding rules sit ahead of the host firewall, so it would be open to anyone who can route to
-  the host. A sibling service on the same Compose network reaches the daemon by service name
+  the host. IAP is on the same Compose network and reaches the daemon by service name
   (`http://docling:18765`) without the published port, so drop the `ports:` block entirely if
   nothing on the host needs to call it.
 - **A hand-run daemon** stays on loopback: keep the `--host 127.0.0.1` default when starting it

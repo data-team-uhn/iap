@@ -55,7 +55,7 @@ from typing import Any
 
 import docling_config  # noqa: F401 — apply shared Docling settings on import
 
-from daemon_http import (
+from daemon_utils import (
     TOKEN_ENVIRONMENT_VARIABLE,
     get_daemon_token,
     is_token_ascii,
@@ -260,7 +260,7 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
         )
 
     def _refuse_unauthorized(self, endpoint: str) -> bool:
-        """Refuse a browser-originated or unauthenticated request (see :mod:`daemon_http`).
+        """Refuse a browser-originated or unauthenticated request (see :mod:`daemon_utils`).
 
         Called before the body is drained, so a caller that is about to be refused gets no work
         done on its behalf. Nothing has been read at that point, and an unread body would

@@ -24,8 +24,8 @@ health reporting, the parse-slot semaphore, and the batch-abandon path that runs
 batch fails.
 
 Because this file skips in CI, nothing that can be tested without Docling belongs here. The
-request guards were moved to :mod:`daemon_http` for exactly that reason; see
-``test_daemon_http.py``. What remains are the tests that genuinely need the daemon.
+request guards were moved to :mod:`daemon_utils` for exactly that reason; see
+``test_daemon_utils.py``. What remains are the tests that genuinely need the daemon.
 """
 
 import json
@@ -147,7 +147,7 @@ class TestAbandonBatches:
 
 
 # The body drain, the bearer-token comparison and the JSON reply helper moved to
-# daemon_http.py, and their tests to test_daemon_http.py, so they run in CI too -- this
+# daemon_utils.py, and their tests to test_daemon_utils.py, so they run in CI too -- this
 # module skips itself wherever Docling is absent. The end-to-end guard tests below stay
 # here, because they go through do_POST and need the handler.
 
