@@ -32,11 +32,11 @@
 # the rest of the Docling stack) still floats, which is the remaining reproducibility gap;
 # closing it means a fully resolved, hashed lock file generated with pip-compile against the
 # image's own platform, since several of these ship platform-specific wheels.
-docling==2.121.0
-pypdf==6.16.1
+docling==2.128.0
+pypdf==6.18.1
 # pypdf's AES crypt provider. Signed / permission-restricted PDFs are often AES-encrypted
 # with an empty user password; without this, reading the page tree raises
 # DependencyError: cryptography>=3.1 is required for AES algorithm.
-cryptography==46.0.7
+cryptography==50.0.1
 psutil==7.2.2
 chunkweaver==0.4.0
