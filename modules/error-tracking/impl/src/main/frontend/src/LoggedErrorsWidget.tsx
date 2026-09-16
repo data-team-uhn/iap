@@ -18,35 +18,12 @@
 
 import { useEffect, useState } from "react";
 
-import { Box, Skeleton, Stack, Typography } from "@mui/material";
+import { Box, Skeleton, Typography } from "@mui/material";
 
+import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { type TriageCounts, fetchTriageCounts } from "./errorTrackingApi";
-
-// One counted figure. The count that matters is spelled out rather than shown as a bare number,
-// because a widget is read at a glance and "3" beside "Needing attention" is a different thing
-// from "3" beside "Recorded in total".
-function Count({ label, value, approximate, emphasis }: {
-  label: string;
-  value: number;
-  approximate: boolean;
-  emphasis?: boolean;
-}) {
-  return (
-    <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "baseline" }}>
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography
-        variant="h6"
-        component="span"
-        // Red only when something is actually outstanding: a permanently red widget stops being read
-        color={emphasis === true && value > 0 ? "error.main" : "text.primary"}
-      >
-        {approximate ? `${String(value)}+` : String(value)}
-      </Typography>
-    </Stack>
-  );
-}
 
 /**
  * An administration console widget summarizing the recorded errors: how many still need attention,
@@ -87,13 +64,17 @@ function LoggedErrorsWidget() {
 
   return (
     <Box>
-      <Count
-        label="Needing attention"
-        value={counts.needingAttention}
-        approximate={counts.approximate}
-        emphasis
+      <WidgetStatList
+        stats={[
+          {
+            label: "Needing attention",
+            value: counts.needingAttention,
+            approximate: counts.approximate,
+            emphasis: true,
+          },
+          { label: "Recorded in total", value: counts.total, approximate: counts.approximate },
+        ]}
       />
-      <Count label="Recorded in total" value={counts.total} approximate={counts.approximate} />
       {counts.total === 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           Nothing has been recorded yet.

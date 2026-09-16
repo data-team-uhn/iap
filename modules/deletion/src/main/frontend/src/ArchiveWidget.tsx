@@ -18,24 +18,12 @@
 
 import { useEffect, useState } from "react";
 
-import { Box, Skeleton, Stack, Typography } from "@mui/material";
+import { Skeleton, Typography } from "@mui/material";
 
+import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import { fetchArchiveSummary, type ArchiveSummary } from "./archiveApi";
-
-/** The archive view's URL, as registered on the `iap/coreUI/view` extension point. */
-// One counted period.
-function Count({ label, value, approximate }: { label: string; value: number; approximate: boolean }) {
-  return (
-    <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "baseline" }}>
-      <Typography variant="body2" color="text.secondary">{label}</Typography>
-      <Typography variant="h6" component="span">
-        {approximate ? `${String(value)}+` : String(value)}
-      </Typography>
-    </Stack>
-  );
-}
 
 // An administration console widget summarizing the archive: how many deletions were recorded
 // recently and in total. The way through to the full view is the frame's own header action, from
@@ -72,11 +60,13 @@ function ArchiveWidget() {
   }
 
   return (
-    <Box>
-      <Count label="Archived in the last 24 hours" value={summary.last24Hours} approximate={summary.approximate} />
-      <Count label="Archived in the last 7 days" value={summary.lastWeek} approximate={summary.approximate} />
-      <Count label="Archived in total" value={summary.total} approximate={summary.approximate} />
-    </Box>
+    <WidgetStatList
+      stats={[
+        { label: "Archived in the last 24 hours", value: summary.last24Hours, approximate: summary.approximate },
+        { label: "Archived in the last 7 days", value: summary.lastWeek, approximate: summary.approximate },
+        { label: "Archived in total", value: summary.total, approximate: summary.approximate },
+      ]}
+    />
   );
 }
 
