@@ -78,7 +78,7 @@ public class RetireActiveVersionsHandler implements ServiceTaskHandler
                 continue;
             }
             Objects.requireNonNull(sibling.adaptTo(ModifiableValueMap.class),
-                "The engine can always write what it can read")
+                "An active version the engine is retiring should always be modifiable")
                 .put(VersionEdits.STATE, WorkflowVersion.State.RETIRED.name());
             retired.add(sibling.getPath());
         }

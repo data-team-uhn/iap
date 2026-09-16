@@ -47,10 +47,17 @@ const STATE_PHRASES: Record<WorkflowState, string> = {
   RETIRED: "retired",
 };
 
+// How the notice names a version whose state could not be read. It is a content problem rather than a
+// stage a version passes through, which is why it is phrased apart from the states and, below, reported
+// as a warning rather than as the ordinary explanation of why a version opened read-only.
+function statePhrase(state: WorkflowState | null): string {
+  return state === null ? "in an unrecognized state" : STATE_PHRASES[state];
+}
+
 interface WorkflowEditorProps {
   // The version's repository path, read out of the URL by the console (see WorkflowConsole)
   path: string;
-  // Whether the URL asked for edit mode (?page=edit). Granting it is still this page's decision:
+  // Whether the URL asked for edit mode (the .edit suffix). Granting it is still this page's decision:
   // only a draft is editable.
   editing: boolean;
 }
@@ -58,7 +65,7 @@ interface WorkflowEditorProps {
 // The diagram of one workflow version, viewed or edited.
 //
 // The version is addressed by its repository path, carried in the URL after the console's own prefix
-// (/admin/workflows/Workflows/review/1-0), with ?page=edit asking for the editing mode — which is a
+// (/admin/workflows/Workflows/review/1-0), with a .edit suffix asking for the editing mode — which is a
 // request rather than a grant: only a draft is editable, whatever the URL asks for. The page holds
 // the identity — which version this is, what state it is in — and the buttons that save it and move
 // on; the canvas below it holds the diagram.
@@ -209,8 +216,8 @@ function WorkflowEditor({ path, editing }: WorkflowEditorProps) {
           </Alert>
         )}
         { requestedEdit && version && !editable && (
-          <Alert severity="info">
-            Only a draft can be edited. Version {label} is {STATE_PHRASES[version.state]}, so it is shown
+          <Alert severity={version.state === null ? "warning" : "info"}>
+            Only a draft can be edited. Version {label} is {statePhrase(version.state)}, so it is shown
             read-only — { version.state === "TRIAL"
               ? "to change what it does, return it to being a draft."
               : "to change what it does, create a new draft from it." }

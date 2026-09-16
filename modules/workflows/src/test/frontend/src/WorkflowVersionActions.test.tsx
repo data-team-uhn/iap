@@ -43,7 +43,7 @@ const mockedLoadExtensions = vi.mocked(loadExtensions);
 // A stubbed fetch: the URL, and the request options a write carries.
 type FetchStub = (url: string, options?: RequestInit) => Promise<Response>;
 
-const version = (label: string, state: WorkflowState): WorkflowVersionSummary => ({
+const version = (label: string, state: WorkflowState | null): WorkflowVersionSummary => ({
   name: label.replace(".", "-"),
   path: `/Workflows/review/${label.replace(".", "-")}`,
   version: label,
@@ -193,14 +193,15 @@ describe("the edit action", () => {
     renderAction(WorkflowVersionEditAction, propsFor(draft, workflow(draft)));
 
     expect(screen.getByRole("link", { name: "Edit" }))
-      .toHaveAttribute("href", "/admin/workflows/Workflows/review/1-0?page=edit");
+      .toHaveAttribute("href", "/admin/workflows/Workflows/review/1-0.edit");
   });
 
-  it("is not offered for a version that is no longer a draft", () => {
+  it("is not offered for a version that is no longer a draft, or is in no state it knows", () => {
     // Editing an active or retired version would change a process out from under the things
     // executing it, and a trial is being tried as it stands; carrying any of them forward means
-    // drafting — a copy of the first two, the trial itself
-    for (const state of [ "TRIAL", "ACTIVE", "RETIRED" ] as WorkflowState[]) {
+    // drafting — a copy of the first two, the trial itself. A version whose state cannot be read
+    // cannot be shown to be a draft, so it is not editable either
+    for (const state of [ "TRIAL", "ACTIVE", "RETIRED", null ] as (WorkflowState | null)[]) {
       const target = version("1.0", state);
       const { unmount } = renderAction(WorkflowVersionEditAction, propsFor(target, workflow(target)));
 
@@ -292,8 +293,8 @@ describe("the activate action", () => {
     expect(moveAskedFor(fetchMock)).toBe("activate");
   });
 
-  it("is not offered for a version that is already active, or retired", () => {
-    for (const state of [ "ACTIVE", "RETIRED" ] as WorkflowState[]) {
+  it("is not offered for a version that is already active, is retired, or is in no state it knows", () => {
+    for (const state of [ "ACTIVE", "RETIRED", null ] as (WorkflowState | null)[]) {
       const target = version("1.0", state);
       const { unmount } = renderAction(WorkflowVersionActivateAction, propsFor(target, workflow(target)));
 
@@ -325,7 +326,7 @@ describe("the trial action", () => {
   });
 
   it("is offered for a draft only", () => {
-    for (const state of [ "TRIAL", "ACTIVE", "RETIRED" ] as WorkflowState[]) {
+    for (const state of [ "TRIAL", "ACTIVE", "RETIRED", null ] as (WorkflowState | null)[]) {
       const target = version("1.0", state);
       const { unmount } = renderAction(WorkflowVersionTrialAction, propsFor(target, workflow(target)));
 
@@ -413,7 +414,7 @@ describe("the draft-from action", () => {
     expect(fetchMock).toHaveBeenCalledWith("/Workflows/review/1-0.draft.json",
       expect.objectContaining({ method: "POST" }));
     // Straight into the editor: a draft that was just copied exists to be changed
-    expect(await screen.findByText("went to /admin/workflows/Workflows/review/2-0?page=edit")).toBeInTheDocument();
+    expect(await screen.findByText("went to /admin/workflows/Workflows/review/2-0.edit")).toBeInTheDocument();
   });
 
   it("refuses a label the workflow already uses", async () => {
@@ -451,6 +452,16 @@ describe("the draft-from action", () => {
     renderAction(WorkflowVersionDraftAction, propsFor(draft, workflow(draft)));
 
     expect(screen.queryByRole("button", { name: "New draft from this" })).not.toBeInTheDocument();
+  });
+
+  it("is offered for a version in no state it knows, the only way left to carry its diagram forward", () => {
+    // Every other action refuses such a version. Copying it does not: the copy is authored as a draft
+    // whatever the original claimed to be, which is what makes this the way out
+    const unknown = version("1.0", null);
+
+    renderAction(WorkflowVersionDraftAction, propsFor(unknown, workflow(unknown)));
+
+    expect(screen.getByRole("button", { name: "New draft from this" })).toBeInTheDocument();
   });
 
   it("is offered for a trial, which cannot be edited where it stands", () => {

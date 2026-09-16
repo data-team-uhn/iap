@@ -31,13 +31,21 @@ const STATE_STYLES: Record<WorkflowState, Pick<ChipProps, "color" | "variant">> 
 };
 
 interface WorkflowStateChipProps {
-  state: WorkflowState;
+  // Null when the stored state names no state this platform knows; see stateOf
+  state: WorkflowState | null;
   size?: ChipProps["size"];
 }
 
 // Renders a version's lifecycle state so it reads the same everywhere it appears: the version table,
 // the editor's header, an action's confirmation.
+//
+// A version with no readable state is drawn as an error rather than as one of the states: it can be
+// neither edited nor promoted until it is re-authored, so naming it after any state would suggest
+// actions that aren't there.
 function WorkflowStateChip({ state, size = "small" }: WorkflowStateChipProps) {
+  if (state === null) {
+    return <Chip size={size} label="Unknown" color="error" variant="outlined" />;
+  }
   return <Chip size={size} label={STATE_LABELS[state]} {...STATE_STYLES[state]} />;
 }
 

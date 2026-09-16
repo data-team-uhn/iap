@@ -50,6 +50,14 @@ to follow, so changing its diagram would change a process out from under whateve
 is why a trial that needs another look goes back to being a draft rather than being edited where it stands,
 while an active or retired version is carried forward by drafting a copy of it.
 
+A version whose stored `state` is missing or names none of the four is in none of them: `WorkflowVersion.getState()`
+answers `null`, and the frontend's `stateOf` does the same. The node type autocreates `DRAFT`, so this takes
+hand-editing or content from a platform that knows a state this one does not — but reading it *as* a draft
+would make the version whose lifecycle is least certain the one freely editable, so it is reported as unknown
+instead. Every state comparison then fails it: it cannot be edited, promoted or instantiated, and the console
+draws it as an error chip. Of the actions that turn on a state, only **New draft from this** is still offered,
+which copies its diagram onto a genuine draft; **View** is offered whatever the state, as it always is.
+
 At most one version of a definition is active at a time, and that is an invariant of the transition rather
 than of the node type: promoting a version retires the one it supersedes in the same save, so there is no
 moment at which two versions claim to be current.
@@ -268,23 +276,32 @@ later one's:
 
 | URL | Page |
 |---|---|
+| `/admin/workflows` | Redirects to `/admin/workflows/Workflows`, the default homepage's listing |
 | `/admin/workflows/SystemWorkflows` | The workflows stored in one homepage, a tab per homepage beside it |
 | `/admin/workflows/Workflows/review` | One workflow: its properties, and its versions with their actions |
 | `/admin/workflows/Workflows/review/2-0` | That version's diagram, read-only |
-| `/admin/workflows/Workflows/review/2-0?page=edit` | The same diagram, editable — drafts only |
+| `/admin/workflows/Workflows/review/2-0.edit` | The same diagram, editable — drafts only |
 
-**The page is asked for in the query rather than in the path**, because the viewer and the editor are not
-one inside the other. They are the same version seen two ways, reached from the same listing, and neither
-reports anything the other does not — so the editor is a mode of one page rather than a page below it: the
-same URL, the same crumb, asked a second way. Each screen offers the way to the others: a draft being
-looked at offers **Edit**, and the editor offers **Save**, **Save and view**, and **Save and close** — the
-same save, differing only in where it leaves the user afterwards. A save the engine refuses navigates
-nowhere, since leaving would take the only copy of what was drawn with it.
+**The page is asked for by a suffix rather than by a path segment**, because the viewer and the editor are
+not one inside the other. They are the same version seen two ways, reached from the same listing, and
+neither reports anything the other does not — so the editor is a mode of one page rather than a page below
+it: the same URL, the same crumb, asked a second way. `.edit` is how every other view in the application
+asks for that mode (`/Submissions/name.edit`), and a segment would have been read as a version named
+`edit`, since no segment below a homepage is reserved. The server serves the shell for it — `edit.GET.html`
+beside the shell script of the resource type every application page carries — so the URL survives being
+opened, bookmarked or reloaded directly, and the client router takes the suffix off to find the version.
 
-**A listing belongs to a homepage, and `/admin/workflows` is not a page.** Nothing is registered there, so
-it is neither routed nor named: the shallowest thing the console shows is a homepage. The dashboard
-widget's "Manage workflows" action leads to `/Workflows`, the homepage every deployment has, and each
-homepage the widget counts links to its own listing beside it.
+Each screen offers the way to the others: a draft being looked at offers **Edit**, and the editor offers
+**Save**, **Save and view**, and **Save and close** — the same save, differing only in where it leaves the
+user afterwards. A save the engine refuses navigates nowhere, since leaving would take the only copy of
+what was drawn with it.
+
+**A listing belongs to a homepage, and `/admin/workflows` is not a page.** The shallowest thing the console
+shows is a homepage: the root addresses nothing, so it redirects to the listing of `/Workflows`, the
+homepage every deployment has. It is routed only to be redirected — a URL easy to type, and easy to trim a
+longer console URL down to, that otherwise renders a blank page — and it is not named, so it is a way in
+rather than a step in the trail. The dashboard widget's "Manage workflows" action leads to that same
+listing directly, and each homepage the widget counts links to its own listing beside it.
 
 **Every prefix down to the homepage is a page in its own right**, which is the whole point of the shape:
 dropping a segment moves up to the thing that contained what was being looked at, so a breadcrumb built by
@@ -311,11 +328,12 @@ tree would name every step alike. So the console registers `:homepage`, `:homepa
 `:homepage/:workflow/:version` as views of their own, all rendering the same page, and a trail reads
 `Administration / Workflows / Workflow`.
 
-Two things fall out of registering by depth rather than behind one splat. A view is what makes a URL a
-crumb, so leaving the console's root unregistered is what removes it from the trail — there is no way
-to be a route without also being a step. And the depths only line up for a homepage of one segment:
-`/Content/Workflows` is a homepage the trail would call a workflow. Its pages still work, since a
-`:homepage/*` view catches every depth the named three do not, ordered last so the named ones are
+Two things fall out of registering by depth rather than behind one splat. A view whose target carries a
+splat never names a crumb, since a splat claims every path beneath it and would label each one alike — so
+the console's root, registered behind the splat that catches everything the named depths miss, is routed
+without becoming a step in the trail. And the depths only line up for a homepage of one segment:
+`/Content/Workflows` is a homepage the trail would call a workflow. Its pages still work, since that same
+`/admin/workflows/*` view catches every depth the named three do not, ordered last so the named ones are
 found first; only the labels are off, and only for a homepage stored deeper than everyone's.
 
 **Every one of those views renders the same page.** `ext:targetURL` is handed to the router as-is, and a

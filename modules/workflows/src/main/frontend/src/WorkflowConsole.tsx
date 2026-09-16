@@ -19,14 +19,20 @@
 import { useEffect, useState } from "react";
 
 import { Alert, CircularProgress } from "@mui/material";
-import { useLocation } from "react-router";
+import { Navigate, useLocation } from "react-router";
 
 import AdminScreen from "@iap/admin-console/AdminScreen";
 import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import WorkflowEditor from "./WorkflowEditor";
 import WorkflowManager from "./WorkflowManager";
-import { consolePage, consoleTarget, loadWorkflowHomepages, type ConsoleTarget } from "./workflowModel";
+import {
+  adminUrl,
+  consoleTarget,
+  loadWorkflowHomepages,
+  WORKFLOWS_ROOT,
+  type ConsoleTarget,
+} from "./workflowModel";
 import WorkflowsView from "./WorkflowsView";
 
 // Everything the console shows below /admin/workflows, chosen by what the URL is about.
@@ -38,13 +44,16 @@ import WorkflowsView from "./WorkflowsView";
 // /admin/workflows/Workflows/review is the workflow, and dropping another segment is the homepage it
 // is stored in.
 //
-// The path is therefore the thing being looked at and nothing else; which page is opened on it is
-// asked for in the query (?page=edit), so a version and its editor are siblings rather than one
-// being read as a page below the other.
+// The path is therefore the thing being looked at and nothing else; the one page that opens on top of
+// it is asked for by a suffix (/admin/workflows/Workflows/review/2-0.edit), so a version and its
+// editor are the same page asked two ways rather than one being read as a page below the other.
 //
 // Which of the three a path is takes the list of homepages, since a homepage sits at no predictable
 // depth (see consoleTarget). That list is discovered once and kept for the session, so this costs a
 // request when the console is first opened and nothing on any navigation after it.
+//
+// The console's root is the exception: it addresses nothing, and redirects to the default homepage's
+// listing so that a URL a user is likely to type or trim to lands on a page.
 function WorkflowConsole() {
   const location = useLocation();
   const fetchUtil = useAuthenticatedFetch();
@@ -62,6 +71,14 @@ function WorkflowConsole() {
     };
   }, [fetchUtil]);
 
+  // The root is the one URL the homepages have no say in, so it is answered straight away rather
+  // than behind a spinner the redirect would throw away. It shows the homepage every admin user has
+  // access to, since a listing belongs to a homepage and the root is not a page of its own.
+  const target: ConsoleTarget = consoleTarget(location.pathname, homepages ?? []);
+  if (target.kind === "root") {
+    return <Navigate to={adminUrl(WORKFLOWS_ROOT)} replace />;
+  }
+
   if (homepages === undefined) {
     return (
       <AdminScreen title="Workflows">
@@ -74,7 +91,6 @@ function WorkflowConsole() {
     );
   }
 
-  const target: ConsoleTarget = consoleTarget(location.pathname, homepages);
   switch (target.kind) {
     case "homepage":
       // The list, opened on the tab this URL names: a homepage is a page of its own, being what the
@@ -83,7 +99,7 @@ function WorkflowConsole() {
     case "workflow":
       return <WorkflowManager path={target.path} />;
     case "version":
-      return <WorkflowEditor path={target.path} editing={consolePage(location.search) === "edit"} />;
+      return <WorkflowEditor path={target.path} editing={target.editing} />;
     case "unknown":
       // A URL that names nothing showable says so plainly, rather than rendering the empty workflow that
       // querying the repository for it would produce.

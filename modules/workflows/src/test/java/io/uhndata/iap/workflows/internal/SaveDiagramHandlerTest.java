@@ -132,6 +132,18 @@ class SaveDiagramHandlerTest
     }
 
     @Test
+    void refusesADiagramForAVersionWhoseStateCannotBeRead()
+    {
+        // A version whose state names no state it could be in is not editable either: the one state that may be
+        // edited is the draft, and this version cannot be shown to be one
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", "PUBLISHED", Map.of());
+
+        final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
+            () -> this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, null))));
+        assertTrue(refusal.getMessage().contains("this version is in an unrecognized state"));
+    }
+
+    @Test
     void requiresADiagramToStore()
     {
         AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());

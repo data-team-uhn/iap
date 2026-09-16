@@ -83,8 +83,8 @@ describe("WorkflowConsole", () => {
     expect(await screen.findByText("version /Workflows/review/2-0 read-only")).toBeInTheDocument();
   });
 
-  it("opens the editor when the query asks for it", async () => {
-    renderAt("/admin/workflows/Workflows/review/2-0?page=edit");
+  it("opens the editor when the suffix asks for it", async () => {
+    renderAt("/admin/workflows/Workflows/review/2-0.edit");
 
     expect(await screen.findByText("version /Workflows/review/2-0 editing")).toBeInTheDocument();
   });
@@ -108,6 +108,13 @@ describe("WorkflowConsole", () => {
     renderAt("/admin/workflows/Elsewhere/review");
 
     expect(await screen.findByText(/does not name a workflow/)).toBeInTheDocument();
+  });
+
+  it("opens the default homepage's listing when the URL is the console's own root", async () => {
+    // The root names no page of its own; landing there used to render nothing at all
+    renderAt("/admin/workflows");
+
+    expect(await screen.findByText("list of /Workflows")).toBeInTheDocument();
   });
 
   it("waits for the discovery before deciding what a URL is about", () => {

@@ -93,7 +93,7 @@ function CurrentUrl() {
 // are worked out from the URL there and handed over, so this page is a function of the two.
 const renderEditor = (options: { edit?: boolean; path?: string } = {}) => {
   const { edit = false, path = VERSION_PATH } = options;
-  const url = `/admin/workflows${path}${edit ? "?page=edit" : ""}`;
+  const url = `/admin/workflows${path}${edit ? ".edit" : ""}`;
   return render(
     <ThemeProvider theme={appTheme} defaultMode="light">
       <MemoryRouter initialEntries={[url]}>
@@ -137,7 +137,7 @@ describe("WorkflowEditor", () => {
     renderEditor();
 
     expect(await screen.findByRole("link", { name: "Edit" }))
-      .toHaveAttribute("href", "/admin/workflows/Workflows/review/2-0?page=edit");
+      .toHaveAttribute("href", "/admin/workflows/Workflows/review/2-0.edit");
   });
 
   it("offers no editing of a version no longer a draft", async () => {
@@ -236,7 +236,7 @@ describe("WorkflowEditor", () => {
     await user.click(screen.getByRole("button", { name: "Save and close" }));
 
     expect(await screen.findByText("The diagram could not be saved")).toBeInTheDocument();
-    expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0?page=edit");
+    expect(currentUrl()).toBe("/admin/workflows/Workflows/review/2-0.edit");
   });
 
   it("has the browser warn before a page with unsaved changes is left", async () => {
@@ -304,6 +304,36 @@ describe("WorkflowEditor", () => {
     renderEditor({ edit: true, path: "/Workflows/review/1-0" });
 
     expect(await screen.findByText(/Version 1.0 is retired/)).toBeInTheDocument();
+  });
+
+  it("refuses to edit a version whose state it cannot read, and offers a draft instead", async () => {
+    // The state nothing recognizes used to read as a draft, which made the one version whose lifecycle
+    // is least certain the one freely editable. It opens read-only, and the way forward is a copy
+    stubFetch({
+      "jcr:primaryType": "wf:WorkflowDefinition",
+      "title": "Standard review",
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "PUBLISHED" },
+    });
+
+    renderEditor({ edit: true, path: "/Workflows/review/1-0" });
+
+    expect(await screen.findByText(/Version 1.0 is in an unrecognized state/)).toBeInTheDocument();
+    expect(screen.getByText(/create a new draft from it/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(latestCanvas().editable).toBe(false);
+  });
+
+  it("offers no way into the editor for a version whose state it cannot read", async () => {
+    stubFetch({
+      "jcr:primaryType": "wf:WorkflowDefinition",
+      "title": "Standard review",
+      "1-0": { "jcr:primaryType": "wf:WorkflowVersion", "version": "1.0", "state": "PUBLISHED" },
+    });
+
+    renderEditor({ edit: false, path: "/Workflows/review/1-0" });
+
+    expect(await screen.findByText("Unknown")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Edit" })).not.toBeInTheDocument();
   });
 
   it("shows a version on trial read-only, and says how to change it", async () => {

@@ -36,6 +36,7 @@ import io.uhndata.iap.workflows.models.WorkflowVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -126,10 +127,23 @@ class SetVersionStateHandlerTest
 
         final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
             () -> this.handler.execute(this.move(FIRST, "ACTIVE", new String[] { "DRAFT", "TRIAL" })));
-        assertTrue(refusal.getMessage().contains("A retired version cannot be made active"));
+        assertTrue(refusal.getMessage().contains("A version that is retired cannot be made active"));
         // The message says which versions the move is for, since a stale page is the usual reason to see it
         assertTrue(refusal.getMessage().contains("draft or trial"));
         assertEquals(WorkflowVersion.State.RETIRED, this.stateOf(FIRST));
+    }
+
+    @Test
+    void refusesToMoveAVersionWhoseStateCannotBeRead()
+    {
+        // No move is available from a state that names nothing: where the version stands has to be established
+        // before it can be said that this is a step it may take
+        AuthoringFixture.createVersion(this.context, FIRST, "1.0", "PUBLISHED", Map.of());
+
+        final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
+            () -> this.handler.execute(this.move(FIRST, "ACTIVE", new String[] { "DRAFT", "TRIAL" })));
+        assertTrue(refusal.getMessage().contains("A version that is in an unrecognized state cannot be made"));
+        assertNull(this.stateOf(FIRST));
     }
 
     @Test

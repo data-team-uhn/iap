@@ -40,8 +40,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link SavePropertiesHandler}: writing the properties the activity says are editable, ignoring
- * everything else a request names, and refusing an activity that says nothing is.
+ * Unit tests for {@link SavePropertiesHandler}: writing the properties the activity says are editable, leaving
+ * alone the ones a payload says nothing about, ignoring everything else a request names, and refusing an activity
+ * that says nothing is.
  *
  * @version $Id$
  * @since 0.1.0
@@ -100,6 +101,21 @@ class SavePropertiesHandlerTest
             new String[] { TITLE, "description" }, new String[] { TITLE }));
 
         assertNull(this.definition().getValueMap().get("description"));
+    }
+
+    @Test
+    void leavesAnEditablePropertyThePayloadDoesNotMentionAlone() throws WorkflowException, PersistenceException
+    {
+        this.handler.execute(this.save(Map.of(TITLE, "Annual leave", "description", "For a while"),
+            new String[] { TITLE, "description" }, new String[] { TITLE }));
+
+        // A payload naming only the title says nothing about the description, so the stored one stands
+        this.handler.execute(this.save(Map.of(TITLE, "Sick leave"),
+            new String[] { TITLE, "description" }, new String[] { TITLE }));
+
+        final Resource definition = this.definition();
+        assertEquals("Sick leave", definition.getValueMap().get(TITLE));
+        assertEquals("For a while", definition.getValueMap().get("description"));
     }
 
     @Test

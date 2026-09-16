@@ -119,19 +119,19 @@ public class WorkflowVersion extends Entity
      * Where this version stands in its lifecycle: whether it is still being drafted, is the one new instances are
      * created from, or has been superseded.
      *
-     * @return a lifecycle state, {@link State#DRAFT} if not set or unrecognized — an unfinished version is the
-     *         safest thing an unreadable state can be taken for, since nothing is ever instantiated from a draft
+     * <p>A state that cannot be read is reported as unknown rather than guessed at. Answering {@code null} instead
+     * leaves it neither editable nor runnable: every state comparison here fails it, so the handlers refuse to edit or
+     * promote it and nothing is instantiated from it, until it is re-authored or a copy is drafted from it.</p>
+     *
+     * @return a lifecycle state, or {@code null} if the stored value is missing or is not one of the states
      */
-    @NotNull
+    @Nullable
     public State getState()
     {
-        if (this.state == null) {
-            return State.DRAFT;
-        }
         try {
-            return State.valueOf(this.state);
+            return this.state == null ? null : State.valueOf(this.state);
         } catch (final IllegalArgumentException ex) {
-            return State.DRAFT;
+            return null;
         }
     }
 

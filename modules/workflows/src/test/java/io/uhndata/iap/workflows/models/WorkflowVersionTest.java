@@ -119,9 +119,9 @@ class WorkflowVersionTest
         // nothing for it, which is the safe reading for a graph that may have been authored by hand
         assertFalse(version.isBpmnAuthoritative());
         assertNull(version.getTargetResourceType());
-        // A version whose state never made it into the repository is read as an unfinished one, never as something
-        // instances may be created from
-        assertEquals(WorkflowVersion.State.DRAFT, version.getState());
+        // A version whose state never made it into the repository has no state to report, and so is neither
+        // something instances may be created from nor something that may be edited
+        assertNull(version.getState());
         assertFalse(version.isActive());
         assertTrue(version.getFlowNodes().isEmpty());
         assertTrue(version.getStartEvents().isEmpty());
@@ -164,20 +164,32 @@ class WorkflowVersionTest
     }
 
     @Test
-    void readsAnUnrecognizedStateAsADraft()
+    void reportsAnUnrecognizedStateAsUnknown()
     {
-        // An unrecognized state -- hand-edited, or written by a newer platform version -- is read as the one that
-        // runs nothing. Assuming anything else could make an unfinished version instantiable.
-        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("PUBLISHED"));
-        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf("active"));
-        assertEquals(WorkflowVersion.State.DRAFT, this.stateOf(""));
+        // An unrecognized state -- hand-edited, or written by a newer platform version -- is reported as no state
+        // at all. Reading it as a draft would make the version whose lifecycle is least certain the one that may
+        // be edited, which is the opposite of what an unreadable state should allow.
+        assertNull(this.stateOf("PUBLISHED"));
+        assertNull(this.stateOf("active"));
+        assertNull(this.stateOf(""));
+    }
+
+    @Test
+    void acceptsNoInstancesOfAVersionWhoseStateCannotBeRead()
+    {
+        final Resource resource = this.context.create().resource(VERSION_PATH, Map.of(
+            TYPE, WorkflowVersion.RESOURCE_TYPE, "version", "1.0", "state", "PUBLISHED"));
+        final WorkflowVersion version = resource.adaptTo(WorkflowVersion.class);
+
+        assertNotNull(version);
+        assertFalse(version.isActive());
     }
 
     /**
      * The lifecycle state a version carrying the given raw {@code state} property is read as.
      *
      * @param state the property value to store, as it would arrive from the repository
-     * @return the state the model reports
+     * @return the state the model reports, or {@code null} if it reports none
      */
     private WorkflowVersion.State stateOf(final String state)
     {
