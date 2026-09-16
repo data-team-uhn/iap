@@ -4,7 +4,6 @@
   "ext:name": "Institutional account",
   "ext:renderURL": "asset:iap-login.RedirectSignIn.js",
   "defaultOrder": 50,
-  "ext:defaultDisabled": true,
   "ext:targetURL": "/oidc-login",
   "ext:actionLabel": "Continue with institutional credentials",
   "ext:hint": "You'll be redirected to your institution's sign-in page."

@@ -29,10 +29,11 @@
   <packaging>bundle</packaging>
   <name>IAP - Keycloak sign-in method</name>
   <description>Registers the "Institutional account" sign-in method on the login page's extension
-    point. The OIDC plumbing (bundles, connection/handler config, /oidc-login) lives in the OIDC
-    feature (packaging core/oidc.json); this module only contributes the sign-in button, and is
-    disabled by default. The rendering component (RedirectSignIn) is provided generically by the
-    login module, which this node references via asset:iap-login.RedirectSignIn.js.</description>
+    point. The OIDC plumbing (bundles, connection/handler config, /oidc-login) lives in the
+    iap-oidc-support feature; this module only contributes the sign-in button. Both are opt-in
+    features loaded together (KEYCLOAK_ENABLED / start.sh --keycloak), so the button ships enabled.
+    The rendering component (RedirectSignIn) is provided generically by the login module, which this
+    node references via asset:iap-login.RedirectSignIn.js.</description>
 
   <build>
     <plugins>
