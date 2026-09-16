@@ -138,6 +138,20 @@ export default defineConfig([
       // Same as above, for string + number concatenation (e.g. `"widget-" + index`).
       "@typescript-eslint/restrict-plus-operands": ["error", { allowNumberAndString: true }],
 
+      // MUI 9 removed the deprecated system props, so a component's own `color` prop is all that is
+      // left, and it takes palette keys ("error", "textSecondary") rather than palette paths. A path
+      // matches no variant and emits no rule at all, and the prop's type ends in `string & {}`, so
+      // neither the compiler nor the browser says anything: the text silently renders in whatever
+      // colour it inherits.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'JSXAttribute[name.name="color"] Literal[value=/^[a-z][A-Za-z]*\\.[A-Za-z]+$/]',
+          message: "A `color` prop takes a palette key (\"textSecondary\", \"error\"), not a palette path. "
+            + "A path is ignored: write the key, or put the path in `sx={{ color: ... }}`.",
+        },
+      ],
+
       // Avoid duplicate reports and automatically remove unused imports.
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": "off",

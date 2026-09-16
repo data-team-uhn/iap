@@ -29,7 +29,7 @@ function QuoteWidget() {
         Newton&rsquo;s laws. The reason it hasn&rsquo;t happened yet is that the people who could
         do it are not the people who want to do it, and vice versa.&rdquo;
       </Typography>
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" color="textSecondary">
         — Alan Kay, computer scientist, on the founding ideas of personal computing
       </Typography>
     </Stack>

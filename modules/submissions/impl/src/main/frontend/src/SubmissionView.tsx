@@ -74,7 +74,7 @@ function QuestionRow({ question, answers }: { question: JsonNode; answers: JsonN
       <Typography variant="subtitle2">{String(question.text ?? question["@name"])}</Typography>
       {value
         ? <Typography>{value}</Typography>
-        : <Typography color="text.secondary">Not answered yet</Typography>}
+        : <Typography color="textSecondary">Not answered yet</Typography>}
     </Box>
   );
 }
@@ -95,7 +95,7 @@ function FormItems({ container, answers, level }: { container: JsonNode; answers
                 {String(item.title ?? item["@name"])}
               </Typography>
               {item.description
-                ? <Typography color="text.secondary">{formatValue(item.description)}</Typography>
+                ? <Typography color="textSecondary">{formatValue(item.description)}</Typography>
                 : null}
               <FormItems container={item} answers={answers} level={level + 1} />
             </Box>
@@ -112,7 +112,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Typography variant="h6" gutterBottom>{title}</Typography>
-      {subtitle ? <Typography color="text.secondary" gutterBottom>{subtitle}</Typography> : null}
+      {subtitle ? <Typography color="textSecondary" gutterBottom>{subtitle}</Typography> : null}
       {children}
     </Paper>
   );
@@ -133,7 +133,7 @@ function Documents({ documents }: { documents: JsonNode[] }) {
               {requirement ? ` — fulfills "${String(requirement.label)}"` : ""}
             </Typography>
             {document.description
-              ? <Typography color="text.secondary">{formatValue(document.description)}</Typography>
+              ? <Typography color="textSecondary">{formatValue(document.description)}</Typography>
               : null}
             <Stack>
               {files.map(([name]) =>
@@ -157,7 +157,7 @@ function Reviews({ reviews }: { reviews: JsonNode[] }) {
           <Box key={"review-" + index}>
             <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
               <Typography variant="subtitle2">{String(review.reviewer)}</Typography>
-              {requirement ? <Typography color="text.secondary">on {String(requirement.label)}</Typography> : null}
+              {requirement ? <Typography color="textSecondary">on {String(requirement.label)}</Typography> : null}
               <TagChip tags={review.tags} category="review" />
             </Stack>
             <Stack spacing={1} sx={{ mt: 1 }}>
@@ -255,7 +255,7 @@ function SubmissionView() {
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>
           <TagChip tags={submission.tags} category="lifecycle" />
         </Stack>
-        <Typography color="text.secondary">
+        <Typography color="textSecondary">
           {schemaLabel(schemaVersion)}
           {submission["jcr:created"]
             ? ` • Created ${formatDate(submission["jcr:created"])} by ${formatValue(submission["jcr:createdBy"])}`
@@ -275,12 +275,12 @@ function SubmissionView() {
       <Section title="Documents">
         {documents.length > 0
           ? <Documents documents={documents} />
-          : <Typography color="text.secondary">{missingDocuments}</Typography>}
+          : <Typography color="textSecondary">{missingDocuments}</Typography>}
       </Section>
       <Section title="Reviews">
         {reviews.length > 0
           ? <Reviews reviews={reviews} />
-          : <Typography color="text.secondary">No reviews yet</Typography>}
+          : <Typography color="textSecondary">No reviews yet</Typography>}
       </Section>
     </Stack>
   );

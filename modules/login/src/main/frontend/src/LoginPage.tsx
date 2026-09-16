@@ -152,7 +152,7 @@ export default function LoginPage() {
               <Typography
                 variant="overline"
                 component="p"
-                color="text.secondary"
+                color="textSecondary"
                 sx={{ marginBlockStart: 1, lineHeight: 1.6 }}
               >
                 {tagline}
@@ -164,7 +164,7 @@ export default function LoginPage() {
             {introText && (
               <FormattedText
                 variant="body1"
-                color="text.secondary"
+                color="textSecondary"
                 sx={{
                   marginBlockStart: 8,
                   fontSize: "1.125rem",
@@ -199,7 +199,7 @@ export default function LoginPage() {
               <Typography
                 variant="overline"
                 component="p"
-                color="text.secondary"
+                color="textSecondary"
                 sx={{ position: { md: "absolute" }, insetBlockEnd: { md: "100%" } }}
               >
                 {signInLabel}
