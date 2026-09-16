@@ -28,6 +28,7 @@ import jakarta.json.JsonArrayBuilder;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonObjectBuilder;
 import jakarta.servlet.Servlet;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
@@ -43,9 +44,11 @@ import io.uhndata.iap.schemas.models.FormItem;
 import io.uhndata.iap.schemas.models.FormRequirement;
 import io.uhndata.iap.schemas.models.Question;
 import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.schemas.models.Section;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.utils.UserIds;
 
 /**
  * The form a submitter fills in: what this submission's schema version asks of it, with the answers it
@@ -65,8 +68,7 @@ import io.uhndata.iap.submissions.models.Submission;
  * <em>what to show</em> rather than what to work out. The same evaluator that decides whether a
  * submission is complete decides what its form looks like, so the two can never disagree.</p>
  *
- * <p>Each question carries the path the save endpoint expects, relative to the schema version, so an editor never
- * has to construct one.</p>
+ * <p>Each question carries the path to answer it by.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -103,29 +105,40 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         // here would mean the models are not registered at all, not that this request was odd
         final Submission submission = Objects.requireNonNull(request.getResource().adaptTo(Submission.class),
             "A submission resource always reads as a submission");
+        final SchemaVersion version = submission.findSchemaVersion();
+        if (version == null) {
+            // Mandatory in the CND, so not resolving it means the version has gone or this caller may not
+            // read it. Answered rather than recorded: a serialization path that cannot reach a node is
+            // usually access control doing its job
+            response.sendError(HttpServletResponse.SC_CONFLICT,
+                "The schema version this submission answers cannot be read");
+            return;
+        }
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(form(submission, request.getResourceResolver().getUserID()).toString());
+        response.getWriter()
+            .write(form(submission, version, UserIds.canonical(request.getResourceResolver())).toString());
     }
 
     /**
      * The whole document: what the submission is, whether it may still be answered, and what it asks.
      *
      * @param submission the submission being read
+     * @param version the schema version it answers
      * @param reader the user asking
      * @return the form's JSON
      */
-    private JsonObject form(final Submission submission, final String reader)
+    private JsonObject form(final Submission submission, final SchemaVersion version, final String reader)
     {
         final Map<String, List<String>> answers = answersByQuestion(submission);
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
-        submission.getSchemaVersion().getRequirements().stream()
+        version.getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
             .forEach(requirement -> requirements.add(requirement(requirement, submission, answers)));
         return Json.createObjectBuilder()
             .add("path", submission.getPath())
             .add("title", Objects.toString(submission.getTitle(), ""))
-            // The same two rules the save handler enforces. An editor can then offer editing only where a
+            // The same two rules the save workflow enforces. An editor can then offer editing only where a
             // save would be accepted, rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
             .add("requirements", requirements)
@@ -192,7 +205,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
     /**
      * One question, with the answer it already has.
      *
-     * <p>It carries its own {@code path}, relative to the schema version, which is what the save endpoint
+     * <p>It carries its own {@code path}, relative to the schema version, which is what the save workflow
      * asks for. An editor posts back what it was given instead of working out how to address a question.</p>
      *
      * @param question the question to describe
@@ -233,9 +246,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final Map<String, List<String>> byQuestion = new HashMap<>();
         for (final Answer answer : submission.getAnswers()) {
             final Question question = answer.getQuestion();
-            // An answer whose question no longer resolves is the answer to nothing being asked now
-            if (question != null) {
-                byQuestion.putIfAbsent(question.getPath(), List.of(answer.getValue()));
+            final String[] value = answer.getValue();
+            // An answer whose question no longer resolves is the answer to nothing being asked now, and one
+            // holding no value has not been answered yet
+            if (question != null && value != null) {
+                byQuestion.putIfAbsent(question.getPath(), List.of(value));
             }
         }
         return byQuestion;

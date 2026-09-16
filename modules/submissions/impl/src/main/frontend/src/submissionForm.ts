@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+import { type AuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+
 // The form a submitter fills in, as the server projects it, and the one way to change it.
 //
 // Neither half of this decides anything. What to show is decided server-side, where the
@@ -76,8 +78,7 @@ export interface FormRequirement {
 export interface SubmissionForm {
   path: string;
   title: string;
-  // Whether this reader may still answer: the same two rules the save workflow enforces. The editor
-  // then offers editing only where a save would be accepted, rather than learning from a refusal
+  // Whether this reader may still answer, as the server decided it
   editable: boolean;
   requirements: FormRequirement[];
 }
@@ -88,23 +89,24 @@ export function isQuestion(item: FormItem): item is FormQuestion {
 
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
 // does not currently apply.
-export async function fetchForm(path: string): Promise<SubmissionForm> {
-  const response = await fetch(`${path}.form.json`);
+export async function fetchForm(doFetch: AuthenticatedFetch, path: string): Promise<SubmissionForm> {
+  const response = await doFetch(`${path}.form.json`);
   if (!response.ok) {
     throw new Error(`This request could not be loaded (${response.status})`);
   }
   return (await response.json()) as SubmissionForm;
 }
 
-// Records one answer, by posting it to the submission itself. That POST is a `save` event matched
-// by a system workflow, because filling a request in is a workflow event and not a write. A refusal
-// therefore arrives as the engine's own reason rather than as a repository error.
-export async function saveAnswer(path: string, question: string, values: string[]): Promise<void> {
+// Records one answer, by posting it to the submission itself. The POST is a `save` event, because
+// filling a request in is a workflow event and not a write, so a refusal arrives as the engine's own
+// reason rather than as a repository error.
+export async function saveAnswer(
+  doFetch: AuthenticatedFetch, path: string, question: string, values: string[]): Promise<void> {
   const body = new URLSearchParams();
   // A question that may hold several values is answered by repeating it, which is what the handler
   // reads back as a multi-valued answer
   values.forEach(value => body.append(question, value));
-  const response = await fetch(path, { method: "POST", body });
+  const response = await doFetch(path, { method: "POST", body });
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This answer could not be saved (${response.status})`);

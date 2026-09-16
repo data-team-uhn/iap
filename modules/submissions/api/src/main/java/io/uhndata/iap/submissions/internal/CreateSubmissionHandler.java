@@ -40,7 +40,8 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * The service task that raises a new submission: what the bootstrap workflow on {@code /Submissions} performs.
  * The event's {@code title} names the submission, and its {@code schemaVersion}, the <em>path</em> of a
  * {@code sch:SchemaVersion}, says what is being submitted against. The created submission holds a real
- * reference to it, and starts in the {@code draft} status the node type declares.
+ * reference to it. Its lifecycle state is not set here: it comes from the workflow the submission is then
+ * put under, through that workflow's {@code hostTag}.
  *
  * <p>This lives in the submissions module, not the workflows one, on purpose. What it takes to create a
  * submission is an <em>active</em> schema version, which is submissions business. It plugs into the engine

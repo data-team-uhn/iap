@@ -28,6 +28,7 @@ import org.apache.sling.models.annotations.Model;
 import org.apache.sling.models.annotations.injectorspecific.OSGiService;
 import org.apache.sling.models.annotations.injectorspecific.ValueMapValue;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import io.uhndata.iap.conditions.api.ConditionEvaluator;
 import io.uhndata.iap.conditions.models.Conditionable;
@@ -93,8 +94,24 @@ public class Submission extends Entity
     @NotNull
     public SchemaVersion getSchemaVersion()
     {
-        return Objects.requireNonNull(this.getReference(this.schemaVersion, SchemaVersion.class),
-            "Missing mandatory schemaVersion reference");
+        return Objects.requireNonNull(this.findSchemaVersion(), "Missing mandatory schemaVersion reference");
+    }
+
+    /**
+     * The schema version this submission answers, where this session can reach it.
+     *
+     * <p>{@link #getSchemaVersion()} states the node type's rule, that the reference is mandatory, and that
+     * rule is about the content rather than about every reader. A session denied the version, or following a
+     * reference whose target has gone, resolves nothing. Ask this where the caller has to be answered rather
+     * than failed.</p>
+     *
+     * @return the schema version, or {@code null} where this session cannot resolve the reference
+     * @since 0.1.0
+     */
+    @Nullable
+    public SchemaVersion findSchemaVersion()
+    {
+        return this.getReference(this.schemaVersion, SchemaVersion.class);
     }
 
     /**

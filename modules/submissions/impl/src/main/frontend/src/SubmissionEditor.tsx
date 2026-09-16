@@ -20,6 +20,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, Box, CircularProgress, Divider, Paper, Stack, Typography } from "@mui/material";
 
+import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
+
 import AnswerField, { type SaveState } from "./AnswerField";
 import {
   FORM_REQUIREMENT,
@@ -118,13 +120,14 @@ function SubmissionEditor({ path }: { path: string }) {
   // were given, but their reads can land out of order. An older form would put back what was just
   // replaced.
   const latest = useRef(0);
+  const doFetch = useAuthenticatedFetch();
 
-  const reload = useCallback((token: number) => fetchForm(path).then(next => {
+  const reload = useCallback((token: number) => fetchForm(doFetch, path).then(next => {
     if (token === latest.current) {
       setForm(next);
       setError(undefined);
     }
-  }), [ path ]);
+  }), [ doFetch, path ]);
 
   useEffect(() => {
     const token = latest.current;
@@ -135,16 +138,22 @@ function SubmissionEditor({ path }: { path: string }) {
     const token = latest.current + 1;
     latest.current = token;
     setStates(current => ({ ...current, [question.path]: { state: "saving" } }));
-    saveAnswer(path, question.path, values)
-      .then(() => {
-        // The field's own outcome, whether or not a later answer has overtaken this one. A save that
-        // succeeded is not reported as still saving because something else happened after it
-        setStates(current => ({ ...current, [question.path]: { state: "saved" } }));
-        return reload(token);
-      })
-      .catch((e: unknown) => setStates(current => (
-        { ...current, [question.path]: { state: "failed", error: message(e) } })));
-  }, [ path, reload ]);
+    saveAnswer(doFetch, path, question.path, values)
+      // The field's own outcome, whether or not a later answer has overtaken this one. A save that
+      // succeeded is not reported as still saving because something else happened after it. Settled
+      // in this handler rather than in a trailing catch, so that only the read below reaches one
+      .then(
+        () => setStates(current => ({ ...current, [question.path]: { state: "saved" } })),
+        (e: unknown) => setStates(current => (
+          { ...current, [question.path]: { state: "failed", error: message(e) } })),
+      )
+      // Read again whichever way the save went. This answer already holds the newest token, so
+      // skipping the read after a refusal would leave the form waiting for one that never comes
+      .then(() => reload(token))
+      // A read that fails says nothing about the answer, which is why it is reported against the
+      // form rather than against the field
+      .catch((e: unknown) => setError(message(e)));
+  }, [ doFetch, path, reload ]);
 
   if (error) {
     return <Alert severity="error">{error}</Alert>;

@@ -136,14 +136,14 @@ describe("AnswerField", () => {
     // Where a save can be refused, so where it has to be reported: a field that looked saved and was
     // not would be a lie
     rerender(<AnswerField question={question()} state="failed" error="No longer a draft" onAnswered={vi.fn()} />);
-    expect(screen.getByLabelText("Not saved")).toBeInTheDocument();
+    expect(screen.getByText("Not saved")).toBeInTheDocument();
   });
 
   it("says a save failed even when nothing said why", async () => {
     // A refusal that carried no message must still read as a refusal rather than as a blank tooltip
     render(<AnswerField question={question()} state="failed" onAnswered={vi.fn()} />);
 
-    fireEvent.mouseOver(screen.getByLabelText("Not saved"));
+    fireEvent.mouseOver(screen.getByText("Not saved"));
 
     expect(await screen.findByRole("tooltip")).toHaveTextContent("This answer was not saved");
   });

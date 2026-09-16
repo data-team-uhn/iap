@@ -55,6 +55,8 @@ function json(body: unknown, init: { ok?: boolean; status?: number } = {}) {
   return Promise.resolve({
     ok: init.ok ?? true,
     status: init.status ?? 200,
+    // The authenticated fetch reads this to tell a form from a login page served with a 200
+    url: "",
     json: () => Promise.resolve(body),
   } as unknown as Response);
 }
@@ -118,7 +120,7 @@ describe("SubmissionEditor", () => {
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
 
-    expect(await screen.findByLabelText("Not saved")).toBeInTheDocument();
+    expect(await screen.findByText("Not saved")).toBeInTheDocument();
   });
 
   it("cannot be answered once the request is no longer the submitter's to change", async () => {
@@ -187,7 +189,7 @@ describe("SubmissionEditor", () => {
     await userEvent.type(await screen.findByLabelText(/several days/), "half day");
     await userEvent.tab();
 
-    const failure = await screen.findByLabelText("Not saved");
+    const failure = await screen.findByText("Not saved");
     fireEvent.mouseOver(failure);
     expect(await screen.findByRole("tooltip")).toHaveTextContent("the request went nowhere");
   });

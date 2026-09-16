@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.internal;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
@@ -250,6 +252,27 @@ class SubmissionFormServletTest
         assertTrue(item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonArray("value").isEmpty());
     }
 
+    // Mandatory in the CND is a rule about the content, not a promise to every reader: a session denied
+    // the version, or one whose version has gone, resolves nothing. Answered rather than thrown, because a
+    // bare 500 blaming a missing mandatory reference sends the next reader after the wrong thing
+    @Test
+    void refusesWhenTheSchemaVersionCannotBeRead() throws IOException, PersistenceException
+    {
+        // A reference that resolves to nothing, which is what both a removed version and a version this
+        // session may not read come to by the time the model asks for it
+        Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH))
+            .adaptTo(ModifiableValueMap.class)
+            .put("schemaVersion", "00000000-dead-0000-0000-000000000000");
+        this.context.resourceResolver().commit();
+        this.context.resourceResolver().refresh();
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doGet(request(Objects.requireNonNull(
+            this.context.resourceResolver().getResource(SUBMISSION_PATH)), REQUESTER), response);
+
+        assertEquals(MockSlingJakartaHttpServletResponse.SC_CONFLICT, response.getStatus());
+    }
+
     private JsonObject form(final String reader) throws IOException
     {
         this.context.resourceResolver().refresh();
@@ -266,17 +289,26 @@ class SubmissionFormServletTest
     }
 
     /**
-     * A request from a named person. The servlet asks the resolver who is reading, so that is what the identity
-     * has to come from.
+     * A request from a named person. The repository holds the canonical id, which is the only thing worth
+     * comparing a creator against; a resolver reports whatever spelling was typed at the login. The two are
+     * deliberately different here, so a servlet reading the wrong one fails instead of passing quietly.
      */
     private MockSlingJakartaHttpServletRequest request(final Resource resource, final String reader)
     {
+        final Session session = Mockito.mock(Session.class);
+        Mockito.when(session.getUserID()).thenReturn(reader);
         final ResourceResolver resolver = new ResourceResolverWrapper(this.context.resourceResolver())
         {
             @Override
             public String getUserID()
             {
-                return reader;
+                return reader.toUpperCase(Locale.ROOT);
+            }
+
+            @Override
+            public <T> T adaptTo(final Class<T> type)
+            {
+                return Session.class.equals(type) ? type.cast(session) : super.adaptTo(type);
             }
         };
         final MockSlingJakartaHttpServletRequest request =

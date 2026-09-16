@@ -20,7 +20,8 @@ import {
   clearAnswerComponents,
   getAnswerComponent,
   registerAnswerComponent,
-  type AnswerComponent
+  type AnswerComponent,
+  type AnswerComponentCandidate
 } from "@iap/submissions/answerComponents";
 import { registerBuiltinAnswerComponents } from "@iap/submissions/answers";
 import ChoiceAnswer from "@iap/submissions/answers/ChoiceAnswer";
@@ -103,10 +104,19 @@ describe("the answer component registry", () => {
       registerBuiltinAnswerComponents();
 
       expect(getAnswerComponent(question())).toBe(TextAnswer);
-      // The duplicate would be invisible through the resolver, so the candidates are counted by
-      // making one lose. A second copy of the text candidate would still answer after this
-      registerAnswerComponent(() => [ Stub, 90 ]);
+    });
+
+    // Counted rather than resolved. A duplicate answers with the same component at the same
+    // confidence, so what it changes is not which component wins but how often one is asked, and
+    // asserting on the winner would hold whether or not anything deduplicated
+    it("asks a candidate offered twice only once", () => {
+      clearAnswerComponents();
+      const candidate = vi.fn<AnswerComponentCandidate>(() => [ Stub, 90 ]);
+      registerAnswerComponent(candidate);
+      registerAnswerComponent(candidate);
+
       expect(getAnswerComponent(question())).toBe(Stub);
+      expect(candidate).toHaveBeenCalledTimes(1);
     });
   });
 });
