@@ -39,6 +39,9 @@ import org.apache.sling.commons.crypto.CryptoService;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
+import org.osgi.service.component.annotations.ReferencePolicyOption;
 import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,9 +94,17 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     /**
      * Targeted deliberately: iap-email-notifications registers a second CryptoService, and binding that one would
      * decrypt with the wrong key. The token was encrypted by the OAuth client's own processor, which uses this one.
+     *
+     * <p>
+     * Optional so that an absent iap-oauth crypto stack cannot leave this component unsatisfied, and greedy so that
+     * configuring the password rebinds it without restarting.
+     * </p>
      */
-    @Reference(target = "(names=iap-oauth)")
-    private CryptoService cryptoService;
+    @Reference(cardinality = ReferenceCardinality.OPTIONAL,
+        policy = ReferencePolicy.DYNAMIC,
+        policyOption = ReferencePolicyOption.GREEDY,
+        target = "(names=iap-oauth)")
+    private volatile CryptoService cryptoService;
 
     private String cookieName;
 
@@ -122,7 +133,8 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
      *
      * <p>
      * Never throws. Every reason the token might be unavailable (local login, unsynced property, unreadable
-     * ciphertext) only means the provider session cannot be ended this way, but logout must still proceed.
+     * ciphertext, no crypto service) only means the provider session cannot be ended this way, but logout must
+     * still proceed.
      * </p>
      *
      * @param request the logout request, still carrying the authenticated resolver
@@ -130,6 +142,13 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
      */
     private String readRefreshToken(final HttpServletRequest request)
     {
+        final CryptoService crypto = this.cryptoService;
+        if (crypto == null)
+        {
+            LOGGER.warn("No iap-oauth CryptoService is available, so the stored refresh token cannot be decrypted;"
+                + " ending the provider session by redirect instead");
+            return null;
+        }
         final User user = currentUser(request);
         if (user == null)
         {
@@ -143,7 +162,7 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
             {
                 return null;
             }
-            return this.cryptoService.decrypt(values[0].getString());
+            return crypto.decrypt(values[0].getString());
         } catch (final RepositoryException e) {
             LOGGER.warn("Could not read the stored refresh token", e);
         } catch (final RuntimeException e) {

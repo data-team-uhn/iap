@@ -278,6 +278,22 @@ public class OidcLogoutAuthenticationHandlerTest
     }
 
     @Test
+    void missingCryptoServiceStillExpiresTheCookieAndFallsBack() throws Exception
+    {
+        // The reference is optional, so the component stays satisfied without iap-oauth's CryptoService --
+        // most often because IAP_OAUTH_ENCRYPTION_PASSWORD is unset. Expiring the cookie is the fix this
+        // class exists for, and must not be lost with the back-channel.
+        final Fixture f = new Fixture().withStoredToken(CIPHERTEXT, TOKEN).withoutCryptoService();
+
+        f.logout();
+
+        Mockito.verify(f.response).addCookie(ArgumentMatchers.argThat(c -> COOKIE_NAME.equals(c.getName())
+            && c.getMaxAge() == 0));
+        Mockito.verifyNoInteractions(f.httpRequests);
+        Mockito.verify(f.request).setAttribute(RESOURCE_ATTR, LOGOUT_PATH);
+    }
+
+    @Test
     void requestWithoutAResolverFallsBack()
     {
         // A local (non-OIDC) account reaches here whenever it carries the cookie name by coincidence
@@ -359,6 +375,8 @@ public class OidcLogoutAuthenticationHandlerTest
 
         private boolean built;
 
+        private boolean crypto = true;
+
         Fixture()
         {
             Mockito.when(this.request.getCookies()).thenReturn(oidcCookies());
@@ -377,6 +395,13 @@ public class OidcLogoutAuthenticationHandlerTest
         Fixture withSecret(final String value)
         {
             this.secret = value;
+            return this;
+        }
+
+        /** Leaves the optional reference unbound, as it is when no iap-oauth CryptoService is registered. */
+        Fixture withoutCryptoService()
+        {
+            this.crypto = false;
             return this;
         }
 
@@ -436,7 +461,7 @@ public class OidcLogoutAuthenticationHandlerTest
             Mockito.when(this.config.clientSecret()).thenReturn(this.secret);
             this.handler.activate(this.config);
             inject(this.handler, "httpRequests", this.httpRequests);
-            inject(this.handler, "cryptoService", this.cryptoService);
+            inject(this.handler, "cryptoService", this.crypto ? this.cryptoService : null);
             this.built = true;
         }
 
