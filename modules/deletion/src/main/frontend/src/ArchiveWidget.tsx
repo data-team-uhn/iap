@@ -53,7 +53,7 @@ function ArchiveWidget() {
 
   if (unavailable || !summary) {
     return (
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" color="textSecondary">
         The archive is not available to you.
       </Typography>
     );

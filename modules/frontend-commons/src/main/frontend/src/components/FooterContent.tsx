@@ -75,7 +75,7 @@ function FooterCredits({ endAnchored = false, sx }: FooterCreditsProps) {
       ]}
     >
       {platformVersion && (
-        <Typography variant="caption" color="text.secondary">{platformVersion}</Typography>
+        <Typography variant="caption" color="textSecondary">{platformVersion}</Typography>
       )}
       <Link
         href={DATA_TEAM_URL}
@@ -166,7 +166,7 @@ function FooterContent(
                 <Link
                   key={"link-" + index}
                   variant="caption"
-                  color="text.secondary"
+                  color="textSecondary"
                   underline="hover"
                   {...(external
                     ? { href: url, target: "_blank", rel: "noopener" }

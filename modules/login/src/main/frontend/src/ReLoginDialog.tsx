@@ -42,7 +42,7 @@ export function ReLoginDialog(
     <Dialog open={open} maxWidth="xs" fullWidth>
       <DialogTitle>Your session has expired</DialogTitle>
       <DialogContent>
-        <Typography variant="body2" color="text.secondary" sx={{ pb: 2 }}>
+        <Typography variant="body2" color="textSecondary" sx={{ pb: 2 }}>
           Sign in again to continue. Nothing you have entered will be lost.
         </Typography>
         <LoginForm onSuccess={onSignedIn} />

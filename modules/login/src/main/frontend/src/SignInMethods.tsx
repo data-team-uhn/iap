@@ -39,7 +39,7 @@ function CollapsedMethod({ extension }: { extension: Extension }) {
   if (!open) {
     return (
       <Box sx={{ marginBlockStart: 3 }}>
-        <Link component="button" type="button" variant="body2" color="text.secondary" onClick={() => setOpen(true)}>
+        <Link component="button" type="button" variant="body2" color="textSecondary" onClick={() => setOpen(true)}>
           {label}
         </Link>
       </Box>
@@ -49,7 +49,7 @@ function CollapsedMethod({ extension }: { extension: Extension }) {
     <Box sx={{ marginBlockStart: 4 }}>
       <Divider sx={{ marginBlockEnd: 2 }} />
       {title && (
-        <Typography variant="overline" component="h3" color="text.secondary">
+        <Typography variant="overline" component="h3" color="textSecondary">
           {title}
         </Typography>
       )}
