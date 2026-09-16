@@ -33,14 +33,14 @@ export class ArchivePage {
   /**
    * One of the three counts the console widget shows.
    *
-   * The widget draws a period and its number as two siblings rather than as a labelled value, so the
-   * number is read as the label's own following element. An approximate count is rendered as `12+`;
-   * that only happens past ten thousand entries, and reading it as a number here would silently turn
-   * a bounded scan into an exact answer, so it is refused instead.
+   * The widget describes each figure by the period it counts, so the number is read as the
+   * description belonging to that term rather than by where it sits. An approximate count is
+   * rendered as `12+`; that only happens past ten thousand entries, and reading it as a number here
+   * would silently turn a bounded scan into an exact answer, so it is refused instead.
    */
   async count(period: ArchivePeriod): Promise<number> {
     const value = (await this.page.getByText(period, { exact: true })
-      .locator('xpath=following-sibling::span').innerText()).trim();
+      .locator('xpath=ancestor-or-self::dt/following-sibling::dd[1]').innerText()).trim();
     expect(value, `${period} was reported as an approximate count`).toMatch(/^\d+$/);
     return Number(value);
   }

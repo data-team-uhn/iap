@@ -122,7 +122,7 @@ describe("WidgetStatList", () => {
       { label: "Catching mail", mode: "boolean", value: true },
     ]);
 
-    const grid = container.querySelector("div");
+    const grid = container.querySelector("dl");
     expect(grid).not.toBeNull();
     // Each stat contributes its value and its label to the same grid, rather than each row being
     // laid out on its own
@@ -130,9 +130,38 @@ describe("WidgetStatList", () => {
     expect(getComputedStyle(grid as Element).display).toBe("grid");
   });
 
+  it("describes each value by the label it belongs to", () => {
+    // A term and its description, written in that order, so the value can be found from its label
+    // rather than from where it sits - and so the page is read as "archived in total, 218"
+    list([
+      { label: "Archived in total", value: 218 },
+      { label: "Catching mail", mode: "boolean", value: true },
+    ]);
+
+    const term = screen.getByText("Archived in total");
+    expect(term.tagName).toBe("DT");
+    expect(term.nextElementSibling?.tagName).toBe("DD");
+    expect(term.nextElementSibling).toHaveTextContent("218");
+
+    const state = screen.getByText("Catching mail");
+    expect(state.tagName).toBe("DT");
+    expect(state.nextElementSibling?.tagName).toBe("DD");
+    expect(state.nextElementSibling).toHaveTextContent("On");
+  });
+
+  it("keeps the label a term of its own when it links somewhere", () => {
+    // The link goes inside the term rather than replacing it, so a linked stat is still found the
+    // same way as a plain one
+    list([{ label: "Needing attention", value: 3, href: "/admin/errors" }]);
+
+    const link = screen.getByRole("link", { name: "Needing attention" });
+    expect(link.closest("dt")).not.toBeNull();
+    expect(link.closest("dt")?.nextElementSibling?.tagName).toBe("DD");
+  });
+
   it("renders nothing for an empty list", () => {
     const { container } = list([]);
 
-    expect(container.querySelector("div")?.children).toHaveLength(0);
+    expect(container.querySelector("dl")?.children).toHaveLength(0);
   });
 });
