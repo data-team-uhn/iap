@@ -43,7 +43,7 @@ function moment(value: string | undefined): string {
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary" component="div">{label}</Typography>
+      <Typography variant="caption" color="textSecondary" component="div">{label}</Typography>
       <Typography variant="body2" component="div" sx={{ wordBreak: "break-word" }}>{children}</Typography>
     </Box>
   );
@@ -161,7 +161,7 @@ function CaughtMessageView() {
     // names no single message
     return (
       <AdminScreen title="Caught message">
-        <Typography color="text.secondary">
+        <Typography color="textSecondary">
           This address does not name a caught message.
         </Typography>
       </AdminScreen>
@@ -206,7 +206,7 @@ function CaughtMessageView() {
 
           {shownView === undefined
             ? (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 This message has no body.
               </Typography>
             )
@@ -230,7 +230,7 @@ function CaughtMessageView() {
           {message.headers.length > 0 && (
             <Box>
               <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Headers</Typography>
-              <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 0.5 }}>
+              <Typography variant="caption" color="textSecondary" component="div" sx={{ mb: 0.5 }}>
                 Everything the message carried beyond the addresses and the subject above.
               </Typography>
               <Preformatted text={message.headers.join("\n")} />
