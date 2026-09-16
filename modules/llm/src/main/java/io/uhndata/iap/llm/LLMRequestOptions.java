@@ -186,10 +186,17 @@ public final class LLMRequestOptions
          *
          * @param tokens the maximum number of tokens to generate; must be positive
          * @return this builder
+         * @throws IllegalArgumentException when {@code tokens} is not positive
          */
         @NotNull
         public Builder maxOutputTokens(final long tokens)
         {
+            if (tokens <= 0) {
+                // A ceiling computed as "context limit minus prompt tokens" going negative is the realistic
+                // way here. Left unchecked it produced a non-null override, which beats the model's own
+                // ceiling and reaches the provider as max_tokens 0 -- an empty completion.
+                throw new IllegalArgumentException("maxOutputTokens must be positive; got " + tokens);
+            }
             this.maxOutputTokens = tokens;
             return this;
         }

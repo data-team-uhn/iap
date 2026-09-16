@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -102,5 +103,13 @@ class LLMRequestOptionsTest
             .build()));
         assertFalse(options.equals(LLMRequestOptions.builder().maxOutputTokens(64)
             .jsonSchema("document_summary", "{}").build()));
+    }
+
+    @Test
+    void refusesACeilingThatIsNotPositive()
+    {
+        assertThrows(IllegalArgumentException.class, () -> LLMRequestOptions.builder().maxOutputTokens(0));
+        assertThrows(IllegalArgumentException.class, () -> LLMRequestOptions.builder().maxOutputTokens(-1));
+        assertThrows(IllegalArgumentException.class, () -> LLMRequestOptions.withMaxOutputTokens(0));
     }
 }

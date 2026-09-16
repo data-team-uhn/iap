@@ -24,11 +24,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,14 +34,18 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.http.client.HttpClient;
+import dev.langchain4j.http.client.HttpClientBuilder;
 import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.llm.DefaultLLMClient;
 import io.uhndata.iap.llm.LLMClient;
-import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMMessage;
 import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
@@ -52,18 +54,22 @@ import io.uhndata.iap.llm.LLMSettings;
  * {@link LLMClient} for OpenAI-compatible chat completions endpoints (Prompter, Ollama, LM Studio, etc.),
  * registered for the {@code "openai"} API. Providers select it through their {@code api} property rather than by
  * name, so a single client serves every OpenAI-compatible provider. The request is dispatched with the
- * LangChain4j {@link OpenAiChatModel} (on its JDK-HTTP-client transport, wired explicitly to avoid an OSGi
- * {@code ServiceLoader} lookup): the configured endpoint becomes the model's base URL, the API key is sent as a
- * Bearer token, temperature / max-output-tokens / timeout come from the active model, and the OpenAI-specific
- * extras that LangChain4j does not model directly — a {@code response_format} JSON Schema for structured
- * outputs, {@code chat_template_kwargs.enable_thinking=false}, and an optional {@code project_id} — are passed
- * verbatim through the model's {@code customParameters} (serialized as top-level request fields). All settings
- * come from the active provider and model in the JCR LLM configuration.
+ * LangChain4j {@link OpenAiChatModel}, on its JDK-HTTP-client transport, wired explicitly to avoid an OSGi
+ * {@code ServiceLoader} lookup.
  *
  * <p>
- * Building an {@link OpenAiChatModel} sets up its own HTTP client, so the last one built is kept and reused as
- * long as the settings and per-call options that shaped it have not changed, rather than rebuilding it for
- * every chat call.
+ * The provider supplies the endpoint, which becomes the model's base URL, the API key, sent as a Bearer
+ * token, and the request timeout. The model supplies the identifier to send, the temperature and the
+ * max-output-tokens ceiling. Three OpenAI-compatible extras LangChain4j does not model directly ride on
+ * the request's {@code customParameters}, which are serialized as top-level request fields: a
+ * {@code response_format} JSON Schema for structured outputs, an optional
+ * {@code chat_template_kwargs.enable_thinking=false}, and an optional {@code project_id}.
+ * </p>
+ *
+ * <p>
+ * Building an {@link OpenAiChatModel} sets up its own HTTP client, so the last one built is kept and reused
+ * while the settings that shaped it are unchanged. Everything that varies per call travels on the request
+ * rather than the model, so a caller passing options does not evict the model the next caller needs.
  * </p>
  *
  * @version $Id$
@@ -88,16 +94,13 @@ public class OpenAIClient extends DefaultLLMClient
      */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
 
+    /** The provider property asking for {@code chat_template_kwargs.enable_thinking=false}. */
+    private static final String DISABLE_THINKING = "disableThinking";
+
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    /** The model built for the most recent settings/options combination, reused while neither has changed. */
+    /** The model built for the most recent settings, reused while they are unchanged. */
     private volatile CachedModel cachedModel;
-
-    @Reference
-    void bindConfigurationService(final LLMConfigurationService service)
-    {
-        setConfigurationService(service);
-    }
 
     /**
      * Read an environment variable. Overridden in tests, which cannot set one.
@@ -116,9 +119,20 @@ public class OpenAIClient extends DefaultLLMClient
     {
         try {
             final LLMSettings settings = getConfigurationService().getActiveSettings();
-            final OpenAiChatModel model = modelFor(settings, options);
-            final ChatResponse response = model.chat(toChatMessages(systemPrompt, messages));
-            return response.aiMessage().text();
+            final ChatRequest request = ChatRequest.builder()
+                .messages(toChatMessages(systemPrompt, messages))
+                .parameters(requestParameters(settings, options))
+                .build();
+            final ChatResponse response = modelFor(settings).chat(request);
+            final String reply = response.aiMessage().text();
+            if (reply == null) {
+                // LangChain4j leaves the text null when the provider answered with empty content, which a
+                // reasoning model that spends its whole budget before saying anything visible does. This
+                // method is declared @NotNull, so the caller is entitled to assume it never sees one.
+                throw new IOException("The LLM returned an empty answer; the model may have reached its "
+                    + "output-token limit before producing any visible content");
+            }
+            return reply;
         } catch (final IOException e) {
             ErrorLogger.logError(e, ErrorContext.of(OpenAIClient.class, "doChat"));
             throw e;
@@ -131,40 +145,79 @@ public class OpenAIClient extends DefaultLLMClient
     }
 
     /**
-     * The model built for this settings/options combination, reusing the previous one when neither has
-     * changed since. Not synchronized: two concurrent calls that both miss the cache each build their own
-     * model, which is wasted work but not a correctness problem, and cheaper than serializing every call
-     * through a lock for the common case where nothing has changed.
+     * The model built for these settings, reusing the previous one while they are unchanged. Not
+     * synchronized: two concurrent calls that both miss the cache each build their own model, which is
+     * wasted work but not a correctness problem, and cheaper than serializing every call through a lock for
+     * the common case where nothing has changed.
      *
      * @param settings the active settings
-     * @param options the per-call options, or {@code null}
-     * @return a model matching this settings/options combination
+     * @return a model matching these settings
      */
-    private OpenAiChatModel modelFor(final LLMSettings settings, final LLMRequestOptions options)
+    private OpenAiChatModel modelFor(final LLMSettings settings)
     {
         final CachedModel current = this.cachedModel;
-        if (current != null && current.settings.equals(settings) && Objects.equals(current.options, options)) {
+        if (current != null && current.settings.equals(settings)) {
             return current.model;
         }
-        final OpenAiChatModel model = buildModel(settings, options);
-        this.cachedModel = new CachedModel(settings, options, model);
+        final OpenAiChatModel model = buildModel(settings);
+        this.cachedModel = new CachedModel(settings, model);
         return model;
     }
 
-    private OpenAiChatModel buildModel(final LLMSettings settings, final LLMRequestOptions options)
+    /**
+     * The parameters that vary per call, carried on the request rather than baked into the model.
+     *
+     * @param settings the active settings
+     * @param options the per-call options, or {@code null}
+     * @return the request parameters
+     */
+    private static ChatRequestParameters requestParameters(final LLMSettings settings,
+        final LLMRequestOptions options)
     {
         final long maxTokens = options == null
             ? settings.getMaxOutputTokens() : options.resolveMaxOutputTokens(settings.getMaxOutputTokens());
-        final JdkHttpClientBuilder httpClientBuilder = new JdkHttpClientBuilder()
-            .connectTimeout(CONNECT_TIMEOUT)
-            .readTimeout(Duration.ofSeconds(settings.getTimeoutSeconds()));
+        return OpenAiChatRequestParameters.builder()
+            .maxOutputTokens(clampToInt(maxTokens))
+            .customParameters(customParameters(settings, options))
+            .build();
+    }
+
+    /**
+     * The token ceiling as an {@code int}, which is what the OpenAI request field is.
+     *
+     * <p>
+     * The configured value is a JCR {@code LONG}, so it can exceed the range: casting straight turned
+     * 4294967296 into 0 and 3000000000 into a negative, which the provider refuses with a 400 that reaches
+     * the caller as a 502, with nothing to suggest the configured number was truncated.
+     * </p>
+     *
+     * @param maxTokens the configured ceiling
+     * @return the ceiling clamped to the int range
+     * @throws IllegalArgumentException when the ceiling is not positive
+     */
+    private static int clampToInt(final long maxTokens)
+    {
+        if (maxTokens <= 0) {
+            throw new IllegalArgumentException("maxOutputTokens must be positive; got " + maxTokens);
+        }
+        return (int) Math.min(maxTokens, Integer.MAX_VALUE);
+    }
+
+    private OpenAiChatModel buildModel(final LLMSettings settings)
+    {
+        final Duration readTimeout = Duration.ofSeconds(settings.getTimeoutSeconds());
+        final HttpClientBuilder httpClientBuilder = new PinnedConnectTimeout(
+            new JdkHttpClientBuilder().connectTimeout(CONNECT_TIMEOUT).readTimeout(readTimeout));
         final OpenAiChatModel.OpenAiChatModelBuilder builder = OpenAiChatModel.builder()
             .httpClientBuilder(httpClientBuilder)
+            // LangChain4j reads this field, not the HTTP client builder's: OpenAiChatModel's constructor
+            // passes getOrDefault(timeout, 60s) down to its client, which prefers it over whatever the
+            // builder carries -- so leaving it unset capped every call at 60 seconds however long the
+            // provider was configured for.
+            .timeout(readTimeout)
             .baseUrl(resolveBaseUrl(settings.getEndpoint()))
-            .modelName(settings.getModelName())
-            .temperature(settings.getTemperature())
-            .maxTokens((int) maxTokens)
-            .customParameters(customParameters(settings, options));
+            .modelName(settings.getModelId())
+            .temperature(settings.getTemperature());
         final String apiKey = resolveApiKey(settings);
         if (StringUtils.isNotBlank(apiKey)) {
             builder.apiKey(apiKey);
@@ -188,25 +241,54 @@ public class OpenAIClient extends DefaultLLMClient
         return trimmed;
     }
 
+    /**
+     * The API key for this provider, or {@code null} when it names no environment variable.
+     *
+     * <p>
+     * Naming a variable that is not exported is a different thing from naming none, and only one of them is
+     * a mistake. Sending the request anyway got a 401 back from the provider and told the user the request
+     * could not be completed, which reads exactly like the provider being down.
+     * </p>
+     *
+     * @param settings the active settings
+     * @return the key, or {@code null} when this provider needs none
+     * @throws IllegalStateException when the named variable is not set
+     */
     private String resolveApiKey(final LLMSettings settings)
     {
         final String apiKeyEnvVar = settings.getApiKeyEnvVar();
-        return StringUtils.isNotBlank(apiKeyEnvVar) ? environment(apiKeyEnvVar) : null;
+        if (StringUtils.isBlank(apiKeyEnvVar)) {
+            return null;
+        }
+        final String key = environment(apiKeyEnvVar);
+        if (StringUtils.isBlank(key)) {
+            throw new IllegalStateException("The LLM provider is configured to read its API key from "
+                + apiKeyEnvVar + ", and that environment variable is not set");
+        }
+        return key;
     }
 
     /**
-     * The OpenAI-compatible request extras carried verbatim as top-level body fields: always
+     * The OpenAI-compatible request extras carried verbatim as top-level body fields: an optional
      * {@code chat_template_kwargs.enable_thinking=false}, an optional {@code project_id}, and a
      * {@code response_format} JSON Schema when the call requests structured output.
      *
+     * <p>
+     * The thinking kwarg is sent only for a provider whose {@code disableThinking} says it understands one:
+     * it is a vLLM extension, and OpenAI itself refuses an unknown top-level argument with a 400, so sending
+     * it unconditionally from the client named for OpenAI-compatible endpoints locked OpenAI out.
+     * </p>
+     *
      * @param settings the active settings
      * @param options the per-call options, or {@code null}
-     * @return the custom-parameters map for the LangChain4j model
+     * @return the custom-parameters map for the request
      */
     private static Map<String, Object> customParameters(final LLMSettings settings, final LLMRequestOptions options)
     {
         final Map<String, Object> params = new LinkedHashMap<>();
-        params.put("chat_template_kwargs", Collections.singletonMap("enable_thinking", Boolean.FALSE));
+        if (Boolean.parseBoolean(settings.getProviderProperty(DISABLE_THINKING))) {
+            params.put("chat_template_kwargs", Collections.singletonMap("enable_thinking", Boolean.FALSE));
+        }
         final String projectId = settings.getProviderProperty(PROJECT_ID);
         if (StringUtils.isNotBlank(projectId)) {
             params.put("project_id", projectId);
@@ -278,7 +360,7 @@ public class OpenAIClient extends DefaultLLMClient
     }
 
     /**
-     * The model built for one settings/options combination, kept so an unchanged combination is not rebuilt.
+     * The model built for one set of settings, kept so unchanged settings do not rebuild it.
      *
      * @version $Id$
      * @since 0.1.0
@@ -287,15 +369,67 @@ public class OpenAIClient extends DefaultLLMClient
     {
         private final LLMSettings settings;
 
-        private final LLMRequestOptions options;
-
         private final OpenAiChatModel model;
 
-        CachedModel(final LLMSettings settings, final LLMRequestOptions options, final OpenAiChatModel model)
+        CachedModel(final LLMSettings settings, final OpenAiChatModel model)
         {
             this.settings = settings;
-            this.options = options;
             this.model = model;
+        }
+    }
+
+    /**
+     * An HTTP client builder whose connect timeout cannot be overwritten.
+     *
+     * <p>
+     * {@link OpenAiChatModel} has one {@code timeout} and sets both the connect and the read timeout from it,
+     * overwriting whatever this builder already carried -- so asking for a long read timeout asked for an
+     * equally long connect timeout, and there is no second field to say otherwise. Ignoring the connect
+     * override keeps {@link #CONNECT_TIMEOUT} short, which is the point of having it: a provider that accepts
+     * a connection and never completes it would otherwise hold the calling thread for the read timeout.
+     * </p>
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class PinnedConnectTimeout implements HttpClientBuilder
+    {
+        private final HttpClientBuilder delegate;
+
+        PinnedConnectTimeout(final HttpClientBuilder delegate)
+        {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Duration connectTimeout()
+        {
+            return this.delegate.connectTimeout();
+        }
+
+        @Override
+        public HttpClientBuilder connectTimeout(final Duration ignored)
+        {
+            return this;
+        }
+
+        @Override
+        public Duration readTimeout()
+        {
+            return this.delegate.readTimeout();
+        }
+
+        @Override
+        public HttpClientBuilder readTimeout(final Duration timeout)
+        {
+            this.delegate.readTimeout(timeout);
+            return this;
+        }
+
+        @Override
+        public HttpClient build()
+        {
+            return this.delegate.build();
         }
     }
 }

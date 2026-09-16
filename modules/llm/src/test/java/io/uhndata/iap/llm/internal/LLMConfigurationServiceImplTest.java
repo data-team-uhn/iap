@@ -20,13 +20,19 @@ package io.uhndata.iap.llm.internal;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.jcr.Session;
+
+import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.wrappers.ResourceResolverWrapper;
+import org.apache.sling.testing.mock.sling.NodeTypeDefinitionScanner;
+import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,7 +71,7 @@ class LLMConfigurationServiceImplTest
 
     private static final String MODEL = "llama3.2-3b";
 
-    private final SlingContext context = new SlingContext();
+    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     private LLMConfigurationServiceImpl service;
 
@@ -73,6 +79,8 @@ class LLMConfigurationServiceImplTest
     void setUp() throws Exception
     {
         this.context.addModelsForClasses(LLMProviderNode.class, LLMModelNode.class);
+        NodeTypeDefinitionScanner.get().register(this.context.resourceResolver().adaptTo(Session.class),
+            List.of("SLING-INF/nodetypes/llms.cnd"), ResourceResolverType.JCR_OAK.getNodeTypeMode());
         this.service = new LLMConfigurationServiceImpl();
         inject(this.service, new TestResolverFactory(this.context.resourceResolver()));
     }
@@ -87,7 +95,7 @@ class LLMConfigurationServiceImplTest
     private void createConfiguration(final String activeProvider, final String activeModel)
     {
         final Map<String, Object> configProperties = new HashMap<>();
-        configProperties.put("jcr:primaryType", "nt:unstructured");
+        configProperties.put("jcr:primaryType", "llm:Configuration");
         configProperties.put("title", "LLM Configuration");
         // a null value stands for the property being absent altogether
         if (activeProvider != null) {
@@ -97,15 +105,15 @@ class LLMConfigurationServiceImplTest
             configProperties.put(ACTIVE_MODEL, activeModel);
         }
         this.context.create().resource(SELECTION_PATH, configProperties);
-        this.context.create().resource(CATALOG_PATH, Map.of("jcr:primaryType", "nt:unstructured"));
+        this.context.create().resource(CATALOG_PATH, Map.of("jcr:primaryType", "llm:Configuration"));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER, Map.of(
-            "sling:resourceType", "llm/Provider",
+            "jcr:primaryType", "llm:Provider",
             "label", "Local (Ollama)",
             "api", "openai",
             "endpoint", "http://localhost:11434/v1",
             "timeoutSeconds", 600L));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
-            "sling:resourceType", "llm/Model",
+            "jcr:primaryType", "llm:Model",
             "maxOutputTokens", 1024L,
             "temperature", 0.0d,
             "developer", "meta"));
@@ -268,10 +276,12 @@ class LLMConfigurationServiceImplTest
         {
             @Override
             public ResourceResolver getServiceResourceResolver(
-                final Map<String, Object> authenticationInfo)
+                final Map<String, Object> authenticationInfo) throws LoginException
             {
                 requested.set(authenticationInfo);
-                return LLMConfigurationServiceImplTest.this.context.resourceResolver();
+                // Through the superclass, so this is the wrapper that survives the service closing it.
+                // A real Oak resolver refuses everything after a close, and the context needs this one.
+                return super.getServiceResourceResolver(authenticationInfo);
             }
         });
 

@@ -100,6 +100,7 @@
                  that, since it holds the choice an administrator made at runtime, which a redeploy must not
                  silently reset. See LLMConfigurationServiceImpl. -->
             <Sling-Initial-Content>
+              SLING-INF/content/libs/llm/;path:=/libs/llm/;overwriteProperties:=true;uninstall:=true,
               SLING-INF/content/libs/iap/config/;path:=/libs/iap/config/;overwrite:=true,
               SLING-INF/content/apps/iap/config/;path:=/apps/iap/config/;overwrite:=false,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
@@ -237,6 +238,18 @@
     <dependency>
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.testing.sling-mock.junit5</artifactId>
+    </dependency>
+    <!-- A real Oak behind the mock context, so the tests exercise llms.cnd rather than fixtures that
+         hand-write what the node types are supposed to autocreate. The JCR API comes with it: registering
+         a node type needs a Session, which nothing in this module's own code touches. -->
+    <dependency>
+      <groupId>org.apache.sling</groupId>
+      <artifactId>org.apache.sling.testing.sling-mock-oak</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>javax.jcr</groupId>
+      <artifactId>jcr</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mockito</groupId>

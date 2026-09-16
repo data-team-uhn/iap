@@ -82,6 +82,11 @@
   // The project the requests are billed to, for providers that scope calls to a project.
   - projectId (String)
 
+  // Whether to send chat_template_kwargs.enable_thinking=false with every request. vLLM-style
+  // providers serving reasoning models understand it; OpenAI itself rejects an unknown top-level
+  // argument with a 400, so this is off unless a provider asks for it.
+  - disableThinking (BOOLEAN) = 'false' autocreated
+
   // Maximum time to wait for a request to this provider, in seconds.
   - timeoutSeconds (LONG) = '120' autocreated
 
@@ -98,6 +103,11 @@
   query
 
   - sling:resourceType (STRING) = "llm/Model" mandatory autocreated protected
+
+  // What the provider calls this model, when its node cannot be named that. A JCR name has no
+  // colon or slash in it, so an Ollama tag (llama3.2:3b) or a HuggingFace id (org/model) is
+  // unrepresentable as a node name. Defaults to the node name when unset.
+  - modelId (String)
 
   // The model's maximum context window, in tokens.
   - contextLimitTokens (LONG)

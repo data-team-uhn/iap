@@ -33,12 +33,17 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
 import org.apache.sling.servlets.annotations.SlingServletResourceTypes;
 import org.osgi.service.component.annotations.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.utils.PaginatedJsonResponse;
 
 /**
@@ -68,6 +73,8 @@ import io.uhndata.iap.utils.PaginatedJsonResponse;
     methods = { "GET", "POST" })
 public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
 {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LLMConfigServlet.class);
+
     private static final long serialVersionUID = -7913246809238126820L;
 
     private static final String ACTIVE_PROVIDER = "activeProvider";
@@ -96,22 +103,21 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
         response.setContentType("application/json;charset=UTF-8");
 
         final Resource selection = request.getResource();
+        // The catalog root carries the same node type, so it binds this servlet too. A POST there would
+        // validate, write, commit and answer 200 with a catalog echoing the new values -- while the service
+        // reads only the selection, and /libs is re-seeded with overwrite:=true on the next deploy.
+        if (!LLMConfigurationServiceImpl.SELECTION_PATH.equals(selection.getPath())) {
+            PaginatedJsonResponse.writeError(response, 400,
+                "The active selection can only be changed at " + LLMConfigurationServiceImpl.SELECTION_PATH);
+            return;
+        }
         final Resource catalog = catalog(selection);
         final String provider = request.getParameter(ACTIVE_PROVIDER);
         final String model = request.getParameter(ACTIVE_MODEL);
 
-        if (StringUtils.isBlank(provider) || StringUtils.isBlank(model)) {
-            PaginatedJsonResponse.writeError(response, 400, "Both 'activeProvider' and 'activeModel' are required");
-            return;
-        }
-
-        final Resource providerResource = validChild(catalog, provider, PROVIDER_RESOURCE_TYPE);
-        if (providerResource == null) {
-            PaginatedJsonResponse.writeError(response, 400, "The requested provider is not in the catalog");
-            return;
-        }
-        if (validChild(providerResource, model, MODEL_RESOURCE_TYPE) == null) {
-            PaginatedJsonResponse.writeError(response, 400, "The requested model is not offered by that provider");
+        final String refusal = selectionRefusal(catalog, provider, model);
+        if (refusal != null) {
+            PaginatedJsonResponse.writeError(response, 400, refusal);
             return;
         }
 
@@ -122,11 +128,44 @@ public class LLMConfigServlet extends SlingJakartaAllMethodsServlet
         }
         properties.put(ACTIVE_PROVIDER, provider);
         properties.put(ACTIVE_MODEL, model);
-        selection.getResourceResolver().commit();
+        try {
+            selection.getResourceResolver().commit();
+        } catch (final PersistenceException e) {
+            // Two administrators saving at once, or a denied write: adaptTo(ModifiableValueMap) hands back a
+            // map whatever the ACL says, so the 403 above never fires and the refusal surfaces here. Left to
+            // propagate it replaced the documented JSON contract with Sling's error page and a stack trace.
+            LOGGER.warn("The LLM selection could not be saved", e);
+            ErrorLogger.logError(e, ErrorContext.of(LLMConfigServlet.class, "doPost"));
+            PaginatedJsonResponse.writeError(response, 409, "The LLM configuration could not be saved");
+            return;
+        }
 
         try (Writer out = response.getWriter()) {
             out.write(buildCatalog(selection, catalog).toString());
         }
+    }
+
+    /**
+     * Why the requested selection cannot be made, or {@code null} when it can.
+     *
+     * @param catalog the catalog to look the selection up in
+     * @param provider the requested provider name
+     * @param model the requested model name
+     * @return the refusal to send back, or {@code null} when the selection is valid
+     */
+    private static String selectionRefusal(final Resource catalog, final String provider, final String model)
+    {
+        if (StringUtils.isBlank(provider) || StringUtils.isBlank(model)) {
+            return "Both 'activeProvider' and 'activeModel' are required";
+        }
+        final Resource providerResource = validChild(catalog, provider, PROVIDER_RESOURCE_TYPE);
+        if (providerResource == null) {
+            return "The requested provider is not in the catalog";
+        }
+        if (validChild(providerResource, model, MODEL_RESOURCE_TYPE) == null) {
+            return "The requested model is not offered by that provider";
+        }
+        return null;
     }
 
     /**

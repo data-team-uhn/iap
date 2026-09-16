@@ -180,4 +180,18 @@ class LLMClientFactoryImplTest
 
         assertThrows(IOException.class, () -> this.factory.getActiveClient());
     }
+
+    @Test
+    void acceptsAClientThatDeclaresSeveralDialects()
+    {
+        final LLMClient multi = new StubClient("from the multilingual client");
+        this.factory.bindClient(multi, Map.of(PROVIDER_PROPERTY, new String[] { "openai", "anthropic" }));
+
+        assertSame(multi, this.factory.getClient("anthropic"));
+        assertSame(multi, this.factory.getClient(OPENAI));
+
+        this.factory.unbindClient(multi, Map.of(PROVIDER_PROPERTY, new String[] { "openai", "anthropic" }));
+
+        assertNull(this.factory.getClient("anthropic"));
+    }
 }
