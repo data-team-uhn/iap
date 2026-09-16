@@ -54,7 +54,7 @@ public class OidcLogoutAuthenticationHandlerTest
 {
     private static final String COOKIE_NAME = "iap.oidc.session";
 
-    private static final String LOGOUT_PATH = "/oidc/logout";
+    private static final String LOGOUT_PATH = OidcEndSessionConfiguration.POST_LOGOUT_URI;
 
     private static final String RESOURCE_ATTR = "resource";
 
@@ -71,7 +71,7 @@ public class OidcLogoutAuthenticationHandlerTest
     @BeforeEach
     void setUp()
     {
-        this.handler = handlerWith(LOGOUT_PATH);
+        this.handler = handlerWith();
     }
 
     @Test
@@ -137,20 +137,6 @@ public class OidcLogoutAuthenticationHandlerTest
         this.handler.dropCredentials(request, response);
 
         Mockito.verifyNoInteractions(response);
-        Mockito.verify(request, Mockito.never()).setAttribute(ArgumentMatchers.anyString(), ArgumentMatchers.any());
-    }
-
-    @Test
-    void dropCredentialsWithBlankPathExpiresCookieButDoesNotSteer()
-    {
-        final OidcLogoutAuthenticationHandler blankPath = handlerWith("");
-        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-        final HttpServletResponse response = Mockito.mock(HttpServletResponse.class);
-        Mockito.when(request.getCookies()).thenReturn(oidcCookies());
-
-        blankPath.dropCredentials(request, response);
-
-        Mockito.verify(response).addCookie(ArgumentMatchers.any());
         Mockito.verify(request, Mockito.never()).setAttribute(ArgumentMatchers.anyString(), ArgumentMatchers.any());
     }
 
@@ -328,11 +314,10 @@ public class OidcLogoutAuthenticationHandlerTest
         Mockito.verify(f.request, Mockito.never()).setAttribute(RESOURCE_ATTR, LOGOUT_PATH);
     }
 
-    private static OidcLogoutAuthenticationHandler handlerWith(final String postLogoutPath)
+    private static OidcLogoutAuthenticationHandler handlerWith()
     {
         final OidcLogoutConfiguration config = Mockito.mock(OidcLogoutConfiguration.class);
         Mockito.when(config.cookieName()).thenReturn(COOKIE_NAME);
-        Mockito.when(config.postLogoutPath()).thenReturn(postLogoutPath);
         final OidcLogoutAuthenticationHandler built = new OidcLogoutAuthenticationHandler();
         built.activate(config);
         return built;
@@ -445,7 +430,6 @@ public class OidcLogoutAuthenticationHandlerTest
                 return;
             }
             Mockito.when(this.config.cookieName()).thenReturn(COOKIE_NAME);
-            Mockito.when(this.config.postLogoutPath()).thenReturn(LOGOUT_PATH);
             Mockito.when(this.config.refreshTokenPath()).thenReturn(TOKEN_PATH);
             Mockito.when(this.config.backchannelLogoutEndpoint()).thenReturn(this.endpoint);
             Mockito.when(this.config.clientId()).thenReturn("iap-sling");

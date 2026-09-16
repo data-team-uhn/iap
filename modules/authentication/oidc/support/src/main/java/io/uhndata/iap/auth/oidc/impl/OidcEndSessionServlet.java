@@ -57,8 +57,8 @@ import org.slf4j.LoggerFactory;
  * @since 0.1.0
  */
 @Component(service = Servlet.class,
-    property = { "sling.auth.requirements=-/system/sling/oauth/logout" })
-@SlingServletPaths("/system/sling/oauth/logout")
+    property = { "sling.auth.requirements=-" + OidcEndSessionConfiguration.POST_LOGOUT_URI })
+@SlingServletPaths(OidcEndSessionConfiguration.POST_LOGOUT_URI)
 @Designate(ocd = OidcEndSessionConfiguration.class)
 public class OidcEndSessionServlet extends SlingJakartaSafeMethodsServlet
 {

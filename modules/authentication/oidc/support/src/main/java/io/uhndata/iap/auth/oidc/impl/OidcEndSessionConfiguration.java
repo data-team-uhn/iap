@@ -32,6 +32,11 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 public @interface OidcEndSessionConfiguration
 {
     /**
+     * Logout path for the End Session Servlet, corresponding to the path the servlet lives.
+     */
+    String POST_LOGOUT_URI = "/system/sling/oauth/logout";
+
+    /**
      * The provider's end-session (logout) endpoint.
      *
      * @return the absolute URL of the OIDC {@code end_session_endpoint}

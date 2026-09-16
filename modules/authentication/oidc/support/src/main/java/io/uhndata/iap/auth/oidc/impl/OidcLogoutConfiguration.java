@@ -43,17 +43,6 @@ public @interface OidcLogoutConfiguration
     String cookieName() default "sling.oidcauth";
 
     /**
-     * The local path to steer Sling's post-logout redirect to for an OIDC session, so the provider-side
-     * logout can be completed. Blank disables the redirect (the cookie is still expired).
-     *
-     * @return the local path served by {@link OidcEndSessionServlet}
-     */
-    @AttributeDefinition(name = "Post-logout path",
-        description = "Local path Sling's post-logout redirect is steered to for an OIDC session, so the external "
-            + "logout can be completed. Must match the path served by OidcEndSessionServlet; blank disables it.")
-    String postLogoutPath() default "/system/sling/oauth/logout";
-
-    /**
      * Where the user's refresh token is stored, relative to their home node.
      *
      * @return a relative property path, which must match the sync handler's user.propertyMapping

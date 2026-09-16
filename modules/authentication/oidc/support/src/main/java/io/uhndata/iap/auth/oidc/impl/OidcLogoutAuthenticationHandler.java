@@ -97,8 +97,6 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
 
     private String cookieName;
 
-    private String postLogoutPath;
-
     private String refreshTokenPath;
 
     private String backchannelLogoutEndpoint;
@@ -111,7 +109,6 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
     void activate(final OidcLogoutConfiguration config)
     {
         this.cookieName = config.cookieName();
-        this.postLogoutPath = config.postLogoutPath();
         this.refreshTokenPath = config.refreshTokenPath();
         this.backchannelLogoutEndpoint = config.backchannelLogoutEndpoint();
         this.clientId = config.clientId();
@@ -327,8 +324,8 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
         {
             // The provider has revoked it, clear our cached token
             clearRefreshToken(request);
-        } else if (!this.postLogoutPath.isBlank()) {
-            request.setAttribute("resource", this.postLogoutPath);
+        } else {
+            request.setAttribute("resource", OidcEndSessionConfiguration.POST_LOGOUT_URI);
         }
     }
 }
