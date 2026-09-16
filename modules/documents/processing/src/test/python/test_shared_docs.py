@@ -32,6 +32,7 @@ not a check. :mod:`shared_docs` has no Docling dependency so this runs everywher
 
 import os
 import tempfile
+import zipfile
 
 import pytest
 
@@ -327,12 +328,19 @@ class TestPageCeiling:
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "not-a-number")
         assert shared_docs.get_max_input_pages() == shared_docs.DEFAULT_MAX_INPUT_PAGES
 
-    def test_an_unreadable_pdf_is_left_to_the_converter(self, monkeypatch, tmp_path):
-        # Fails open: the conversion reports a real error for a corrupt document.
+    def test_an_unreadable_pdf_is_refused(self, monkeypatch, tmp_path):
+        # Exempting it left the ceiling binding only on documents well-formed enough that
+        # nobody had a reason to evade it: a corrupt xref walked straight past the page count.
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "1")
         broken = tmp_path / "broken.pdf"
         broken.write_bytes(b"%PDF-1.4 not really a pdf")
-        shared_docs.refuse_oversized_pdf(broken)
+        with pytest.raises(shared_docs.ParseRequestError, match="could not be read"):
+            shared_docs.refuse_oversized_pdf(broken)
+
+    def test_a_pdf_that_vanished_is_left_to_the_converter(self, monkeypatch, tmp_path):
+        # An I/O failure is not a statement about the document.
+        monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "1")
+        shared_docs.refuse_oversized_pdf(tmp_path / "absent.pdf")
 
     def test_a_docx_is_not_page_counted(self, monkeypatch, tmp_path):
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "1")
@@ -408,6 +416,13 @@ class TestByteCeiling:
         path.write_bytes(b"x" * size)
         return path
 
+    def _docx(self, tmp_path, name="ok.docx", body=b"<w:document/>"):
+        """A real, minimal zip: the expansion ceiling reads the central directory."""
+        path = tmp_path / name
+        with zipfile.ZipFile(path, "w") as archive:
+            archive.writestr("word/document.xml", body)
+        return path
+
     def test_a_document_over_the_ceiling_is_refused(self, monkeypatch, tmp_path):
         monkeypatch.setenv(shared_docs.BYTE_LIMIT_VARIABLE, "100")
         with pytest.raises(shared_docs.ParseRequestError, match="byte limit"):
@@ -421,15 +436,16 @@ class TestByteCeiling:
                 shared_docs.refuse_oversized_input(self._file(tmp_path, name, 500))
 
     def test_at_the_ceiling_is_accepted(self, monkeypatch, tmp_path):
-        monkeypatch.setenv(shared_docs.BYTE_LIMIT_VARIABLE, "100")
+        document = self._docx(tmp_path)
+        monkeypatch.setenv(shared_docs.BYTE_LIMIT_VARIABLE, str(document.stat().st_size))
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "0")
-        shared_docs.refuse_oversized_input(self._file(tmp_path, "ok.docx", 100))
+        shared_docs.refuse_oversized_input(document)
 
     def test_the_limit_can_be_turned_off(self, monkeypatch, tmp_path):
         monkeypatch.setenv(shared_docs.BYTE_LIMIT_VARIABLE, "0")
         monkeypatch.setenv(shared_docs.PAGE_LIMIT_VARIABLE, "0")
         assert shared_docs.get_max_input_bytes() is None
-        shared_docs.refuse_oversized_input(self._file(tmp_path, "huge.docx", 5000))
+        shared_docs.refuse_oversized_input(self._docx(tmp_path, "huge.docx", b"x" * 5000))
 
     def test_a_bad_limit_falls_back_and_says_so(self, monkeypatch, capsys):
         monkeypatch.setenv(shared_docs.BYTE_LIMIT_VARIABLE, "25MB")
@@ -439,6 +455,84 @@ class TestByteCeiling:
     def test_a_missing_file_is_left_to_the_converter(self, monkeypatch, tmp_path):
         monkeypatch.setenv(shared_docs.BYTE_LIMIT_VARIABLE, "1")
         shared_docs.refuse_oversized_input(tmp_path / "absent.pdf")
+
+
+class TestExpansionCeiling:
+    """A .docx is a zip, so the byte ceiling measures it compressed.
+
+    Docling parses DOCX in the daemon's own process rather than a pool worker, so an archive
+    that expands to gigabytes kills the daemon rather than a worker: no ``BrokenProcessPool``
+    flags it, the container restarts, the caller retries, and the outage repeats.
+    """
+
+    def _docx(self, tmp_path, payload, name="bomb.docx"):
+        path = tmp_path / name
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("word/document.xml", payload)
+        return path
+
+    def test_a_document_that_expands_past_the_ceiling_is_refused(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.EXPANDED_LIMIT_VARIABLE, "1000")
+        bomb = self._docx(tmp_path, b"\0" * 100_000)
+        assert bomb.stat().st_size < 1000, "the compressed file is under the byte ceiling"
+        with pytest.raises(shared_docs.ParseRequestError, match="expands to"):
+            shared_docs.refuse_oversized_docx(bomb)
+
+    def test_an_ordinary_document_is_accepted(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.EXPANDED_LIMIT_VARIABLE, "1000")
+        shared_docs.refuse_oversized_docx(self._docx(tmp_path, b"<w:document/>"))
+
+    def test_the_ceiling_can_be_turned_off(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.EXPANDED_LIMIT_VARIABLE, "0")
+        shared_docs.refuse_oversized_docx(self._docx(tmp_path, b"\0" * 100_000))
+
+    def test_refuse_oversized_input_applies_it(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.EXPANDED_LIMIT_VARIABLE, "1000")
+        with pytest.raises(shared_docs.ParseRequestError, match="expands to"):
+            shared_docs.refuse_oversized_input(self._docx(tmp_path, b"\0" * 100_000))
+
+    def test_a_pdf_is_not_expansion_checked(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(shared_docs.EXPANDED_LIMIT_VARIABLE, "1")
+        pdf = tmp_path / "report.pdf"
+        pdf.write_bytes(b"%PDF")
+        shared_docs.refuse_oversized_docx(pdf)
+
+    def test_something_that_is_not_a_zip_is_refused(self, tmp_path):
+        broken = tmp_path / "broken.docx"
+        broken.write_bytes(b"PK not really")
+        with pytest.raises(shared_docs.ParseRequestError, match="could not be read"):
+            shared_docs.refuse_oversized_docx(broken)
+
+    def test_a_document_that_vanished_is_left_to_the_converter(self, tmp_path):
+        shared_docs.refuse_oversized_docx(tmp_path / "absent.docx")
+
+
+# Any name will do: read_positive_number_from_env is shared by every numeric knob.
+NUMERIC_SETTING = "IAP_TEST_NUMERIC_SETTING"
+
+
+class TestNumbersFloatAcceptsButNobodyMeant:
+    """``float()`` is not a total parser, and both of its surprises fail silently.
+
+    Measured on 3.13: ``float("nan") > 0`` is False, so a nan switched the setting off without
+    printing the warning this function exists to print; ``float("inf") > 0`` is True, so an inf
+    was accepted as a ceiling nothing can reach.
+    """
+
+    @pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf", "Infinity"])
+    def test_a_non_finite_value_falls_back_and_says_so(self, monkeypatch, capsys, value):
+        monkeypatch.setenv(NUMERIC_SETTING, value)
+        parsed = shared_docs.read_positive_number_from_env(
+            NUMERIC_SETTING, 600.0, float, "a number"
+        )
+        assert parsed == 600.0
+        assert NUMERIC_SETTING in capsys.readouterr().err
+
+    def test_a_finite_value_is_used(self, monkeypatch):
+        monkeypatch.setenv(NUMERIC_SETTING, "12.5")
+        assert 12.5 == shared_docs.read_positive_number_from_env(
+            NUMERIC_SETTING, 600.0, float, "a number"
+        )
 
 
 class TestPageLimitDiagnostics:

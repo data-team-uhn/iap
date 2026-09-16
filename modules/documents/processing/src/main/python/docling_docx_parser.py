@@ -31,7 +31,15 @@ _docx_converter: DocumentConverter | None = None
 
 
 def get_docx_converter() -> DocumentConverter:
-    """Return a process-wide DOCX converter, creating it on first use."""
+    """Return a process-wide DOCX converter, creating it on first use.
+
+    No ``document_timeout`` here, unlike the PDF pipeline: Docling enforces it between page
+    batches in the paginated pipeline, and DOCX goes through ``SimplePipeline``, which hands
+    the whole file to the backend in one call and never looks at the setting (read off docling
+    2.121.0). What bounds a DOCX is therefore its size, checked before it gets here --
+    ``shared_docs.refuse_oversized_docx`` measures it expanded, because the byte ceiling
+    measures a zip compressed and this conversion runs in the daemon's own process.
+    """
     global _docx_converter
     if _docx_converter is None:
         _docx_converter = DocumentConverter(

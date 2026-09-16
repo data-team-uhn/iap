@@ -25,10 +25,12 @@ for the one check standing between ``POST /parse?path=`` and the rest of the fil
 
 from __future__ import annotations
 
+import math
 import os
 import shutil
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 from markdown_markers import INPUT_SUFFIXES
@@ -50,6 +52,16 @@ BYTE_LIMIT_VARIABLE = "IAP_MAX_INPUT_BYTES"
 # that kill is a hard failure, so a file bigger than LibreOffice can render in that time gets
 # marked unparseable without a fair chance. Raise both limits together, or neither.
 DEFAULT_MAX_INPUT_BYTES = 64 * 1024 * 1024
+
+# The same ceiling again, measured after decompression. A .docx is a zip, so the byte limit
+# above bounds it compressed, and 64 MiB of repeated bytes expands to gigabytes. Docling parses
+# DOCX in the daemon's own process rather than a pool worker, so that memory is the daemon's:
+# it is killed, restarts, the caller retries the same document, and the outage repeats.
+# The declared sizes are enough to decide on, because ``zipfile`` stops a read at them.
+EXPANDED_LIMIT_VARIABLE = "IAP_MAX_EXPANDED_BYTES"
+# 512 MiB: eight times what a 64 MiB document of real text expands to, and far below what a
+# deliberately compressible one reaches.
+DEFAULT_MAX_EXPANDED_BYTES = 512 * 1024 * 1024
 
 
 class ParseRequestError(ValueError):
@@ -94,19 +106,24 @@ def read_positive_number_from_env(variable, default, cast=int, expected="an inte
     @return: the value, or ``None`` when it is 0 or negative
     """
     configured = (os.environ.get(variable) or "").strip()
-    if configured:
-        try:
-            value = cast(configured)
-        except ValueError:
-            print(
-                f"WARNING: {variable}={configured!r} is not {expected}; using {default}",
-                file=sys.stderr,
-                flush=True,
-            )
-            value = default
-    else:
-        value = default
-    return value if value > 0 else None
+    if not configured:
+        return default if default > 0 else None
+    try:
+        parsed = cast(configured)
+    except ValueError:
+        parsed = None
+    # "nan" and "inf" are both things float() accepts. A nan compares false against everything,
+    # so it would switch the setting off without printing the warning this function exists to
+    # print; an inf is greater than zero, so it would be accepted as a ceiling that can never
+    # be reached.
+    if parsed is None or not math.isfinite(parsed):
+        print(
+            f"WARNING: {variable}={configured!r} is not {expected}; using {default}",
+            file=sys.stderr,
+            flush=True,
+        )
+        parsed = default
+    return parsed if parsed > 0 else None
 
 
 def _get_env_limit(variable: str, default: int) -> int | None:
@@ -127,11 +144,12 @@ def get_max_input_bytes() -> int | None:
 def refuse_oversized_input(path: Path) -> None:
     """Reject a document bigger than the pipeline is sized for, by size and by page count.
 
-    Both ceilings are needed: bytes cover every type but say little about conversion time,
-    pages say a lot but only a PDF has them.
+    Three ceilings are needed: bytes cover every type but say little about conversion time,
+    pages say a lot but only a PDF has them, and a DOCX is a zip whose compressed size says
+    nothing about what reading it costs.
 
     @param path: the resolved input path
-    @raise ParseRequestError: when the document is over either ceiling
+    @raise ParseRequestError: when the document is over any of the ceilings
     """
     byte_limit = get_max_input_bytes()
     if byte_limit is not None:
@@ -144,7 +162,9 @@ def refuse_oversized_input(path: Path) -> None:
                 f"document is {size:,} bytes, over the {byte_limit:,}-byte limit "
                 f"({BYTE_LIMIT_VARIABLE} raises or disables it)"
             )
+    # Each of these returns at once for a type it does not cover.
     refuse_oversized_pdf(path)
+    refuse_oversized_docx(path)
 
 
 def open_pdf_reader(source):
@@ -195,9 +215,13 @@ def refuse_empty_pdf(pages: int) -> None:
 def refuse_oversized_pdf(path: Path) -> None:
     """Reject a PDF with no pages, or with more pages than :func:`get_max_input_pages` allows.
 
+    A PDF this cannot read is refused rather than waved through. Exempting it made the page
+    ceiling bind only on documents well-formed enough that nobody had reason to evade it, and
+    Docling will make nothing of such a file either.
+
     @param path: the resolved input path
-    @raise ParseRequestError: when the document has no pages, is over the ceiling, or
-        password-locked
+    @raise ParseRequestError: when the document has no pages, cannot be read, is over the
+        ceiling, or is password-locked
     """
     if path.suffix.lower() != ".pdf":
         return
@@ -208,14 +232,53 @@ def refuse_oversized_pdf(path: Path) -> None:
             pages = len(open_pdf_reader(handle).pages)
     except ParseRequestError:
         raise
-    except Exception:  # noqa: BLE001 -- unreadable here means "let the converter say why"
+    except OSError:
+        # Gone, or unopenable. That says nothing about the document, and the converter says it
+        # a few lines later in the right words.
         return
+    except Exception as exc:  # noqa: BLE001 -- pypdf raises a dozen types for a broken file
+        # The reason goes to the log, not to the caller: it is assembled from pypdf internals
+        # and names the file on the shared volume.
+        print(f"WARNING: refusing '{path.name}': {exc}", file=sys.stderr, flush=True)
+        raise ParseRequestError("document could not be read as a PDF") from exc
     refuse_empty_pdf(pages)
     limit = get_max_input_pages()
     if limit is not None and pages > limit:
         raise ParseRequestError(
             f"document has {pages} pages, over the {limit}-page limit "
             f"({PAGE_LIMIT_VARIABLE} raises or disables it)"
+        )
+
+
+def refuse_oversized_docx(path: Path) -> None:
+    """Reject a DOCX that expands past :data:`EXPANDED_LIMIT_VARIABLE`.
+
+    The zip's own central directory supplies the sizes, and a crafted archive cannot exceed
+    what it declared there: ``zipfile`` stops a member read at the declared length and checks
+    the CRC, so a lie truncates rather than overruns.
+
+    @param path: the resolved input path
+    @raise ParseRequestError: when the document expands past the ceiling, or is not a readable
+        zip
+    """
+    if path.suffix.lower() != ".docx":
+        return
+    limit = _get_env_limit(EXPANDED_LIMIT_VARIABLE, DEFAULT_MAX_EXPANDED_BYTES)
+    if limit is None:
+        return
+    try:
+        with zipfile.ZipFile(path) as archive:
+            expanded = sum(entry.file_size for entry in archive.infolist())
+    except OSError:
+        # See :func:`refuse_oversized_pdf`: a file that is gone is not a bad document.
+        return
+    except Exception as exc:  # noqa: BLE001 -- a malformed zip raises several types
+        print(f"WARNING: refusing '{path.name}': {exc}", file=sys.stderr, flush=True)
+        raise ParseRequestError("document could not be read as a .docx") from exc
+    if expanded > limit:
+        raise ParseRequestError(
+            f"document expands to {expanded:,} bytes, over the {limit:,}-byte limit "
+            f"({EXPANDED_LIMIT_VARIABLE} raises or disables it)"
         )
 
 
