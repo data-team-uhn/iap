@@ -293,7 +293,9 @@ function SubmissionView() {
     return (
       <Stack spacing={2}>
         {header}
-        <SubmissionEditor path={path} />
+        {/* Keyed, so navigating to another submission builds a new editor rather than showing
+            the previous one's answers until the new form lands */}
+        <SubmissionEditor key={path} path={path} />
       </Stack>
     );
   }

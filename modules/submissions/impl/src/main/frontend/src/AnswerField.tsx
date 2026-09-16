@@ -53,9 +53,15 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
     return <Typography variant="caption" color="text.secondary">Saved</Typography>;
   }
   if (state === "failed") {
+    // With no Save button this is the only report that an answer was refused, so it cannot live on
+    // the icon: SvgIcon marks itself aria-hidden, which hides anything said through it. The text
+    // carries the outcome, and the wrapper takes focus so the reason is reachable from a keyboard
     return (
       <Tooltip title={error ?? "This answer was not saved"}>
-        <ErrorOutlinedIcon color="error" fontSize="small" aria-label="Not saved" />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} tabIndex={0}>
+          <ErrorOutlinedIcon color="error" fontSize="small" />
+          <Typography variant="caption" color="error">Not saved</Typography>
+        </Box>
       </Tooltip>
     );
   }
@@ -111,9 +117,9 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
 
   return (
     <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-      {/* Built through createElement rather than as <Answer/>: which component this is depends on the
-          question, and JSX on a value looks to the compiler like a component being defined here on
-          every render. The registry hands back the same function each time, so nothing remounts. */}
+      {/* Built through createElement rather than as <Answer/>, because which component this is comes
+          from the registry and so is only known during the render that uses it. In JSX that is what
+          react-hooks/static-components refuses: "Cannot create components during render" */}
       <Box sx={{ flexGrow: 1 }}>
         {createElement(Answer, {
           question,

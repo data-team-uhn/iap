@@ -16,7 +16,16 @@
  * limitations under the License.
  */
 
-import { Checkbox, FormControlLabel, FormHelperText, Stack } from "@mui/material";
+import {
+  Checkbox,
+  FormControl,
+  FormControlLabel,
+  FormHelperText,
+  FormLabel,
+  Radio,
+  RadioGroup,
+  Stack,
+} from "@mui/material";
 
 import { questionLabel } from "./label";
 
@@ -24,7 +33,24 @@ import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerCo
 
 // A yes/no answer. A tick is a finished answer the moment it happens: there is nothing to leave.
 // So it saves on change rather than on blur, as every other input here does.
+//
+// A question that must be answered is asked as two options instead. `required` on a checkbox means
+// the box has to be ticked, which leaves No unanswerable, and an untouched box reads the same as a
+// deliberate No. Two radios make No an answer and leave neither chosen until one is given.
 function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
+  if (question.required) {
+    return (
+      <FormControl required disabled={disabled} component="fieldset">
+        <FormLabel component="legend">{questionLabel(question)}</FormLabel>
+        {/* required on each input, not on the FormControl, which never forwards it to a radio */}
+        <RadioGroup row value={values[0] ?? ""} onChange={event => onAnswered([ event.target.value ])}>
+          <FormControlLabel value="true" control={<Radio required />} label="Yes" />
+          <FormControlLabel value="false" control={<Radio required />} label="No" />
+        </RadioGroup>
+        {question.description && <FormHelperText>{question.description}</FormHelperText>}
+      </FormControl>
+    );
+  }
   return (
     <Stack>
       <FormControlLabel
@@ -32,7 +58,6 @@ function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerCompone
           <Checkbox
             checked={values[0] === "true"}
             disabled={disabled}
-            required={question.required}
             onChange={event => onAnswered([ String(event.target.checked) ])}
           />
         }
