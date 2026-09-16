@@ -4,7 +4,7 @@
   "ext:name": "Archive",
   "ext:subtitle": "Deleted items waiting to be restored or purged",
   "ext:targetURL": "/admin/archive",
-  "ext:actionLabel": "Manage",
+  "ext:actionLabel": "Browse",
   "ext:renderURL": "asset:iap-deletion.ArchiveWidget.js",
   "defaultOrder": 30
 }

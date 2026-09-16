@@ -140,7 +140,7 @@ function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
                   // Action labels are short verbs, so several widgets legitimately share one; the
                   // title is folded into the accessible name to tell them apart where the button is
                   // read away from its header, as in a screen reader's list of links.
-                  aria-label={title ? `${actionLabel}: ${title}` : undefined}
+                  aria-label={title ? `${actionLabel}: ${title}` : actionLabel}
                 >
                   {actionLabel}
                 </Button>
