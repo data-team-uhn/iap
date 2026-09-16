@@ -30,7 +30,7 @@ test.describe('the workflow editor as an administrative tool', () => {
     await page.goto('/admin');
 
     await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Manage workflows' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Manage: Workflows' })).toBeVisible();
   });
 
   test('is listed after the category manager, as its declared order asks', async ({ page }) => {
@@ -55,7 +55,7 @@ test.describe('the workflow editor as an administrative tool', () => {
   test('opens the BPMN editor at its own address', async ({ page }) => {
     await signInAs(page, ADMIN);
     await page.goto('/admin');
-    await page.getByRole('link', { name: 'Manage workflows' }).click();
+    await page.getByRole('link', { name: 'Manage: Workflows' }).click();
 
     await expect(page).toHaveURL(/\/admin\/workflows$/);
     await expect(page.getByRole('heading', { level: 1, name: 'Workflows' })).toBeVisible();

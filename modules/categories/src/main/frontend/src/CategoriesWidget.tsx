@@ -71,8 +71,7 @@ function CategoryBranch({ nodes, depth }: { nodes: CategoryNode[]; depth: number
 
 // The administration console widget summarizing the categories: the whole tree, condensed to
 // labels only, read-only but collapsible. It reuses the same fetch-and-parse plumbing as the full
-// management UI, which itself is behind the widget frame's "Manage categories" action (see the
-// extension node).
+// management UI, which itself is behind the widget frame's "Manage" action (see the extension node).
 function CategoriesWidget() {
   const { tree, loading, loadError, reload } = useCategoryTree();
 

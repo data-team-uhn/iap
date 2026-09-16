@@ -48,7 +48,7 @@ export class ArchivePage {
   /** Opens the archive the way an administrator reaches it: from the console, by its own link. */
   async openFromConsole(): Promise<void> {
     await this.page.goto('/admin');
-    await this.page.getByRole('link', { name: 'Manage the archive' }).click();
+    await this.page.getByRole('link', { name: 'Manage: Archive' }).click();
     await expect(this.page).toHaveURL(/\/admin\/archive$/);
     await expect(this.page.getByRole('heading', { name: 'Archive' })).toBeVisible();
   }

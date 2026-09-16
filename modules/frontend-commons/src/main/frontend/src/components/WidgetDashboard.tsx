@@ -71,9 +71,10 @@ interface WidgetDashboardProps {
 //   - `ext:widgetHideHeader` — skip the title/subtitle header (the widget provides its own);
 //   - `ext:actionLabel` — render a header action in line with the title: a quiet text button
 //     with this label and a forward arrow (navigation, not an inline operation), leading to the
-//     widget's `ext:targetURL` (an in-app path); both must be set. Prefer labels naming the
-//     destination ("Manage categories") over a generic "Configure" — the widgets show live
-//     content, and the label is what tells users there is a whole tool behind the summary.
+//     widget's `ext:targetURL` (an in-app path); both must be set. Prefer a single verb naming
+//     what the tool behind the summary is for ("Manage", "Triage") — the title beside it already
+//     says which area it leads into, and it is repeated into the action's accessible name so that
+//     the same verb on several widgets still reads unambiguously out of context.
 //   - `ext:personas` — the personas the widget belongs to (absent means all of them), see personas.ts.
 function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
   const [ allWidgets, setAllWidgets ] = useState<WidgetExtension[]>([]);
@@ -125,6 +126,7 @@ function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
           widgets.map((widget, index) => {
             const WidgetContent = widget["ext:render"] as ComponentType<WidgetContentProps>;
             const span = WIDTH_SPAN[(widget["ext:widgetWidth"] as string | undefined) ?? "normal"] ?? 1;
+            const title = (widget["ext:name"] as string | undefined) ?? "";
             const actionLabel = widget["ext:actionLabel"] as string | undefined;
             const targetURL = widget["ext:targetURL"] as string | undefined;
             const action = actionLabel && targetURL
@@ -135,6 +137,10 @@ function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
                   endIcon={<ArrowForwardIcon />}
                   component={RouterLink}
                   to={targetURL}
+                  // Action labels are short verbs, so several widgets legitimately share one; the
+                  // title is folded into the accessible name to tell them apart where the button is
+                  // read away from its header, as in a screen reader's list of links.
+                  aria-label={title ? `${actionLabel}: ${title}` : undefined}
                 >
                   {actionLabel}
                 </Button>
@@ -152,7 +158,7 @@ function WidgetDashboard({ point, empty }: WidgetDashboardProps) {
                 }}
               >
                 <Widget
-                  title={(widget["ext:name"] as string | undefined) ?? ""}
+                  title={title}
                   subtitle={widget["ext:subtitle"] ? (widget["ext:subtitle"] as string) : undefined}
                   action={action}
                   emphasis={Boolean(widget["ext:widgetEmphasis"])}

@@ -86,9 +86,22 @@ describe("WidgetDashboard", () => {
 
     render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
 
-    const action = await screen.findByRole("link", { name: "Configure" });
+    // The label is what is shown, while the accessible name also carries the widget's title, so
+    // that a verb shared by several widgets still says where it leads.
+    const action = await screen.findByRole("link", { name: "Configure: Categories" });
+    expect(action).toHaveTextContent("Configure");
     expect(action).toHaveAttribute("href", "/admin/categories");
     expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+
+  it("names a header action by its label alone when the widget has no title", async () => {
+    mockedLoadExtensions.mockResolvedValue([
+      { ...widget("", 0), "ext:actionLabel": "Configure", "ext:targetURL": "/admin/categories" },
+    ]);
+
+    render(<MemoryRouter><WidgetDashboard point="TestWidgets" /></MemoryRouter>);
+
+    expect(await screen.findByRole("link", { name: "Configure" })).toBeInTheDocument();
   });
 
   it("renders nothing when there are no widgets and no empty state was given", async () => {
