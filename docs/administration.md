@@ -44,6 +44,16 @@ A widget should show a live summary of the tool's area — the archive tool coun
 was archived in the last 24 hours, the last 7 days, and in total — rather than only a
 link into it.
 
+Figures go through
+[`WidgetStatList`](../modules/frontend-commons/src/main/frontend/src/components/WidgetStatList.tsx),
+so every tool's summary reads the same way: the value first, then what it is a figure
+for, with the values sharing one column so the labels line up however many digits their
+neighbours ran to. A figure is a count by default — with `approximate` for a lower
+bound, `emphasis` to colour a non-zero count as a problem, and no `value` at all for
+something that could not be counted — or `mode: "boolean"` for a state that is on or
+off. A label with an `href` leads into the view at that figure; without one it is plain
+text.
+
 ## Contributing a tool
 
 The view is ordinary application code — it is only the `/admin` path and the

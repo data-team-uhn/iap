@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 
-import { Box, Chip, Skeleton, Stack, Typography } from "@mui/material";
+import { Box, Skeleton, Typography } from "@mui/material";
+
+import WidgetStatList from "@iap/frontend-commons/components/WidgetStatList";
 
 import { useCatcherStatus } from "./useCaughtMail";
 
@@ -46,18 +48,12 @@ function CaughtMailWidget() {
 
   return (
     <Box>
-      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="body2" color="text.secondary">Catching mail</Typography>
-        <Chip
-          size="small"
-          label={status.enabled ? "On" : "Off"}
-          color={status.enabled ? "success" : "default"}
-        />
-      </Stack>
-      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "baseline", mt: 1 }}>
-        <Typography variant="body2" color="text.secondary">Caught so far</Typography>
-        <Typography variant="h6" component="span">{String(status.total)}</Typography>
-      </Stack>
+      <WidgetStatList
+        stats={[
+          { label: "Catching mail", mode: "boolean", value: status.enabled },
+          { label: "Caught so far", value: status.total },
+        ]}
+      />
       {!status.enabled && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           {status.total > 0
