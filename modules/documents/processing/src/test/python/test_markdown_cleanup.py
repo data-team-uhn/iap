@@ -94,7 +94,7 @@ class TestLeadingLineNumbers:
 
     def test_empty_input(self):
         assert mc.cleanup_page_leading_line_numbers("") == ""
-        assert mc.cleanup_leading_line_numbers("") == ""
+        assert mc.clean_markdown("") == ""
 
     def test_paged_document_cleans_each_page(self):
         numbers = "\n".join(str(n) for n in range(1, 31))
@@ -104,9 +104,51 @@ class TestLeadingLineNumbers:
             + numbers
             + "\nPage one body.\n"
         )
-        cleaned = mc.cleanup_leading_line_numbers(md)
+        cleaned = mc.clean_markdown(md)
         assert "Page one body." in cleaned
+        assert "<!-- page: 1 -->" in cleaned
         assert "\n1\n2\n3\n" not in cleaned
+
+    def test_a_run_too_long_to_be_a_line_number_is_not_one(self):
+        # CPython refuses int() on a literal over 4300 digits, so this 500-line run of 4,400
+        # digit lines used to raise from inside the cleanup and fail a converted document.
+        digits = "9" * 4400
+        page = "\n".join([digits] * 30) + "\nReal content."
+        assert mc.cleanup_page_leading_line_numbers(page) == page
+
+
+class TestTheDocumentCannotWriteItsOwnPageMarkers:
+    """A page marker decides the pages ``catalog.json` records for a chunk.
+
+    That is the citation a reviewer follows back into the proposal, so a submitter choosing it
+    is a submitter choosing where a reviewer is sent. Docling escapes ``<`` in body text, and
+    unescaping used to run before anything read the markers.
+    """
+
+    def test_an_escaped_marker_does_not_become_a_real_one(self):
+        cleaned = mc.clean_markdown("Body &lt;!-- page: 999 --&gt; more body")
+        assert "<!-- page: 999 -->" not in cleaned
+        assert "999" in cleaned, "the text is kept, only defanged"
+
+    def test_a_literal_marker_in_body_text_is_defanged_too(self):
+        cleaned = mc.clean_markdown("Intro <!-- page: 42 --> outro")
+        assert "<!-- page: 42 -->" not in cleaned
+
+    def test_the_parsers_own_markers_survive_verbatim(self):
+        md = "\n<!-- page: 1 -->\nFirst page.\n<!-- page: 2 -->\nSecond page."
+        cleaned = mc.clean_markdown(md)
+        assert "<!-- page: 1 -->" in cleaned
+        assert "<!-- page: 2 -->" in cleaned
+
+    def test_a_submitted_marker_beside_a_real_one_is_the_only_one_defanged(self):
+        md = "\n<!-- page: 1 -->\nBody &lt;!-- page: 900 --&gt; text."
+        cleaned = mc.clean_markdown(md)
+        assert cleaned.count("<!-- page: 1 -->") == 1
+        assert "<!-- page: 900 -->" not in cleaned
+
+    def test_cleaning_twice_changes_nothing(self):
+        once = mc.clean_markdown("Body &lt;!-- page: 7 --&gt; text")
+        assert mc.clean_markdown(once) == once
 
 
 class TestHelpers:

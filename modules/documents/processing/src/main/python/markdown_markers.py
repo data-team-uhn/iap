@@ -66,6 +66,22 @@ PAGE_MARKER_SPLIT = re.compile(
     rf"(\n{get_page_marker_pattern(_PAGE_NUMBER_PLAIN)}\n)", re.IGNORECASE
 )
 
+
+def defang_page_markers(text: str) -> str:
+    """Escape anything in ``text`` that reads as a page marker.
+
+    Only the parser writes real markers. Anything else spelling one came from the document --
+    directly, or as ``&lt;!-- page: 9 --&gt;``, which ``html.unescape`` turns into the real
+    thing. A marker decides the ``pageStart`` and ``pageEnd`` recorded for a chunk, so leaving
+    one in would let a submitter choose the citation a reviewer follows back into the proposal.
+    Escaping the opening bracket keeps the text visible and stops it reading as a marker.
+
+    @param text: page body text, with the parser's own markers already taken out
+    @return: the text with any remaining marker escaped
+    """
+    return PAGE_MARKER.sub(lambda match: "&lt;" + match.group(0)[1:], text)
+
+
 # A horizontal-rule line ("---", "-----", ...).
 RULE_LINE = re.compile(r"^-{3,}$")
 
