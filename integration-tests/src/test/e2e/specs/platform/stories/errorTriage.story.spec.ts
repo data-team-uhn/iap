@@ -162,13 +162,13 @@ test.describe('an administrator triages an error the instance could not deal wit
     // The count is the label's sibling rather than a labelled value
     await expect(page.getByText('Recorded in total')).toBeVisible();
     await expect(page.getByText('Everything recorded has been dealt with.')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Triage errors' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Triage: Recorded errors' })).toBeVisible();
   });
 
   test('she follows it through to the listing and finds the fault', async ({ page }) => {
     await signInAs(page, ADMIN);
     await page.goto('/admin');
-    await page.getByRole('link', { name: 'Triage errors' }).click();
+    await page.getByRole('link', { name: 'Triage: Recorded errors' }).click();
 
     await expect(page.getByRole('heading', { level: 1, name: 'Recorded errors' })).toBeVisible();
     // The fault is shown by the throwable's simple name; the package would repeat down the column

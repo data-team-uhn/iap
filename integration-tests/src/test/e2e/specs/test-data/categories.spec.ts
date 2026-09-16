@@ -120,7 +120,7 @@ test.describe('the sample category taxonomy', () => {
   test('opens the category manager on the sample tree', async ({ page }) => {
     await signIn(page);
     await page.goto('/admin');
-    await page.getByRole('link', { name: 'Manage categories' }).click();
+    await page.getByRole('link', { name: 'Manage: Submission categories' }).click();
 
     await expect(page).toHaveURL(/\/admin\/categories$/);
     await expect(page.getByRole('button', { name: 'New category' })).toBeVisible();

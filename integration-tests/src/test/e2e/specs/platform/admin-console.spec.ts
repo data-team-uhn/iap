@@ -41,7 +41,7 @@ test.describe('the administration console', () => {
     await page.goto('/admin');
 
     await expect(page.getByRole('heading', { name: 'Submission categories' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Manage categories' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Manage: Submission categories' })).toBeVisible();
   });
 
   test('summarises the current categories on the console itself', async ({ page }) => {
@@ -58,7 +58,7 @@ test.describe('the administration console', () => {
   test('opens the category manager, ready to create the first category', async ({ page }) => {
     await signInAs(page, ADMIN);
     await page.goto('/admin');
-    await page.getByRole('link', { name: 'Manage categories' }).click();
+    await page.getByRole('link', { name: 'Manage: Submission categories' }).click();
 
     await expect(page).toHaveURL(/\/admin\/categories$/);
     await expect(page.getByRole('button', { name: 'New category' })).toBeVisible();

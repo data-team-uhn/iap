@@ -28,7 +28,7 @@ import { loadWorkflowList, type WorkflowVersionSummary } from "./workflowModel";
 
 // The administration console widget summarizing the workflows: one line per workflow version,
 // read-only. It reuses the same listing plumbing as the BPMN editor, which itself is behind the
-// widget frame's "Manage workflows" action (see the extension node).
+// widget frame's "Manage" action (see the extension node).
 function WorkflowsWidget() {
   const [ versions, setVersions ] = useState<WorkflowVersionSummary[]>();
   const [ loadError, setLoadError ] = useState<string>();

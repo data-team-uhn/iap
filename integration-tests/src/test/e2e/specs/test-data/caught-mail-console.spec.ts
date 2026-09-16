@@ -74,7 +74,7 @@ test.describe('the caught mail console', () => {
     await page.goto('/admin');
 
     await expect(page.getByRole('heading', { name: 'Caught mail' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Read caught mail' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Read: Caught mail' })).toBeVisible();
     // The summary really loaded, rather than the frame rendering around nothing
     await expect(page.getByText('Caught so far')).toBeVisible();
     // And it is not claiming the opposite of what this instance is doing
@@ -87,7 +87,7 @@ test.describe('the caught mail console', () => {
 
     await signInAs(page, ADMIN);
     await page.goto('/admin');
-    await page.getByRole('link', { name: 'Read caught mail' }).click();
+    await page.getByRole('link', { name: 'Read: Caught mail' }).click();
     await expect(page).toHaveURL(/\/admin\/mail$/);
 
     // The listing is the shared entity grid over `.paginate.json`, which only lists anything at all

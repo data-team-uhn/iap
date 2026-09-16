@@ -37,7 +37,7 @@ the properties every point understands, it reads:
 | `ext:name`, `ext:subtitle` | Title the widget frame |
 | `ext:renderURL` | The summary component |
 | `ext:targetURL` | The tool's page, conventionally `/admin/<tool>` |
-| `ext:actionLabel` | Header action next to the title. Prefer a label naming the destination (`"Manage categories"`) over a generic "Configure" — it is what tells users a whole tool sits behind the summary |
+| `ext:actionLabel` | Header action next to the title. A single verb for what the tool is for (`"Manage"`, `"Triage"`, `"Read"`); the title beside it already names the area, and the frame folds that title into the action's accessible name |
 | `defaultOrder` | Position on the landing page |
 
 A widget should show a live summary of the tool's area — the archive tool counts what
@@ -58,7 +58,7 @@ extensions is the whole of the wiring; both nodes live under `/Extensions/Admin/
   "ext:name": "Submission categories",
   "ext:subtitle": "Organize the categories submitters choose from, and bind them to schemas",
   "ext:targetURL": "/admin/categories",
-  "ext:actionLabel": "Manage categories",
+  "ext:actionLabel": "Manage",
   "ext:renderURL": "asset:iap-categories.CategoriesWidget.js",
   "defaultOrder": 10
 }

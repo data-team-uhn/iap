@@ -32,7 +32,7 @@ export class CategoryManagerPage {
   /** Opens the manager the way an administrator reaches it: from the console, by its own link. */
   async openFromConsole(): Promise<void> {
     await this.page.goto('/admin');
-    await this.page.getByRole('link', { name: 'Manage categories' }).click();
+    await this.page.getByRole('link', { name: 'Manage: Submission categories' }).click();
     await expect(this.page).toHaveURL(/\/admin\/categories$/);
     await expect(this.page.getByRole('button', { name: 'New category' })).toBeVisible();
   }
