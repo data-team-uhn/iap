@@ -148,14 +148,18 @@ def _move_into_place(produced: Path, expected: Path) -> None:
     directory and the destination is on the shared docs volume, which are different
     filesystems, and ``os.replace`` cannot cross devices.
 
+    The two ends are checked inline against :func:`shared_docs.writable_roots`, for the reason
+    :func:`shared_docs.write_text` gives.
+
     @param produced: the file soffice wrote, inside the work directory
     @param expected: where it belongs, named after the caller's document
     """
     source = os.path.realpath(produced)
     destination = os.path.realpath(expected)
-    if not source.startswith(os.path.splitdrive(source)[0] or os.sep):
+    docs_root, scratch_root = shared_docs.writable_roots()
+    if not source.startswith(docs_root) and not source.startswith(scratch_root):
         raise ValueError(f"invalid path: {produced}")
-    if not destination.startswith(os.path.splitdrive(destination)[0] or os.sep):
+    if not destination.startswith(docs_root) and not destination.startswith(scratch_root):
         raise ValueError(f"invalid path: {expected}")
     shutil.move(source, destination)
 

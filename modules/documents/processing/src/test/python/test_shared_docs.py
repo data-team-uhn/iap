@@ -31,6 +31,7 @@ not a check. :mod:`shared_docs` has no Docling dependency so this runs everywher
 """
 
 import os
+import tempfile
 
 import pytest
 
@@ -190,6 +191,55 @@ class TestIoHelpersWorkOutsideTheJail:
 
     def test_remove_file_missing_is_ok(self, tmp_path):
         shared_docs.remove_file(tmp_path / "absent.txt")
+
+
+# Under neither the shared docs root nor the system temp directory, and never created: the
+# guard refuses before anything is opened.
+OUTSIDE_BOTH_ROOTS = "/etc/iap-docling-must-never-touch-this"
+
+
+class TestIoHelpersRefuseAnythingOutsideBothRoots:
+    """Each sink carries its own guard, and each one has to refuse something.
+
+    Comparing a resolved path against ``os.path.splitdrive(resolved)[0] or os.sep`` is a
+    comparison against ``/`` on POSIX, so every absolute path passed -- including
+    ``/shared-docs/../../etc/passwd``, which ``realpath`` has already turned into
+    ``/etc/passwd``. CodeQL reads the guard and stops reporting the sink, so the one tool that
+    would have found a real gap goes quiet for as long as the guard stays untrue.
+    """
+
+    @pytest.mark.parametrize("attempt", [
+        pytest.param(lambda path: shared_docs.write_text(path, "x"), id="write_text"),
+        pytest.param(lambda path: shared_docs.replace_file(path, path), id="replace_file-source"),
+        pytest.param(shared_docs.remove_file, id="remove_file"),
+        pytest.param(shared_docs.remove_tree, id="remove_tree"),
+        pytest.param(shared_docs.make_dirs, id="make_dirs"),
+        pytest.param(shared_docs.path_exists, id="path_exists"),
+        pytest.param(shared_docs.path_is_file, id="path_is_file"),
+    ])
+    def test_a_path_under_neither_root(self, root, attempt):
+        with pytest.raises(shared_docs.ParseRequestError, match="invalid path"):
+            attempt(OUTSIDE_BOTH_ROOTS)
+
+    def test_the_destination_of_a_replace_is_checked_too(self, root, tmp_path):
+        scratch = tmp_path / "staged.md"
+        scratch.write_text("body", encoding="utf-8")
+        with pytest.raises(shared_docs.ParseRequestError, match="invalid path"):
+            shared_docs.replace_file(scratch, OUTSIDE_BOTH_ROOTS)
+        assert scratch.is_file(), "the source was moved before the destination was checked"
+
+    def test_traversal_out_of_the_root_is_refused_after_realpath(self, root):
+        # The shape the guard is meant to catch. Enough levels to reach "/", which realpath
+        # clamps at, so this resolves to /etc/passwd whatever the temp directory is called.
+        escape = os.path.join(str(root), *([".."] * (len(root.parts) + 1)), "etc", "passwd")
+        assert os.path.realpath(escape) == "/etc/passwd"
+        with pytest.raises(shared_docs.ParseRequestError, match="invalid path"):
+            shared_docs.path_exists(escape)
+
+    def test_the_roots_follow_the_configured_shared_docs(self, root):
+        docs_root, scratch_root = shared_docs.writable_roots()
+        assert docs_root == os.path.realpath(root)
+        assert os.path.realpath(tempfile.gettempdir()) == scratch_root
 
 
 class TestDerivedOutputsStayContained:

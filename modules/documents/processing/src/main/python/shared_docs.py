@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 from markdown_markers import INPUT_SUFFIXES
@@ -66,6 +67,18 @@ def get_shared_docs_root() -> Path:
     """Root of the shared volume; paths outside it are refused."""
     configured = (os.environ.get("IAP_SHARED_DOCS") or DEFAULT_SHARED_DOCS).strip()
     return Path(configured).resolve()
+
+
+def writable_roots() -> tuple[str, str]:
+    """The two trees this module is allowed to touch: the shared volume, and scratch space.
+
+    LibreOffice stages every document it converts under the system temp directory, and the
+    converted file is moved from there onto the shared volume, so both ends are legitimate.
+    Anything else is not.
+
+    @return: the shared docs root and the temp root, resolved
+    """
+    return os.path.realpath(get_shared_docs_root()), os.path.realpath(tempfile.gettempdir())
 
 
 def read_positive_number_from_env(variable, default, cast=int, expected="an integer"):
@@ -268,16 +281,20 @@ def resolve_parse_path(raw_path: str) -> Path:
 
 
 def write_text(path: Path | str, text: str) -> None:
-    """Write UTF-8 ``text`` to ``path`` after the CodeQL-visible path check.
+    """Write UTF-8 ``text`` to ``path`` after the :func:`writable_roots` check.
 
-    The real containment check is :func:`resolve_parse_path`; this one is here so CodeQL's
-    ``py/path-injection`` sees a barrier guard. Do not pull it out into a shared helper: CodeQL
-    only honours a guard in the same function as the sink, so a helper turns every writer in
-    this module back into an alert.
+    Repeated at each sink rather than factored out: CodeQL only honours a guard in the same
+    function as the sink, so a shared helper turns every writer in this module back into a
+    ``py/path-injection`` alert. Compare against the roots, never against ``/`` -- a guard that
+    accepts everything is worse than none, because it silences the alert while proving nothing.
+
+    The jail for a caller-supplied path is :func:`resolve_parse_path`, which also rejects a
+    sibling whose name merely starts with the root ("/shared-docs-evil"). What these guards add
+    is that a path built later, from a name or a suffix, still cannot leave the two trees.
     """
     resolved = os.path.realpath(path)
-    root_marker = os.path.splitdrive(resolved)[0] or os.sep
-    if not resolved.startswith(root_marker):
+    docs_root, scratch_root = writable_roots()
+    if not resolved.startswith(docs_root) and not resolved.startswith(scratch_root):
         raise ParseRequestError(f"invalid path: {path}")
     with open(resolved, "w", encoding="utf-8") as handle:
         handle.write(text)
@@ -290,11 +307,10 @@ def replace_file(source: Path | str, dest: Path | str) -> None:
     """
     src = os.path.realpath(source)
     dst = os.path.realpath(dest)
-    src_root = os.path.splitdrive(src)[0] or os.sep
-    dst_root = os.path.splitdrive(dst)[0] or os.sep
-    if not src.startswith(src_root):
+    docs_root, scratch_root = writable_roots()
+    if not src.startswith(docs_root) and not src.startswith(scratch_root):
         raise ParseRequestError(f"invalid path: {source}")
-    if not dst.startswith(dst_root):
+    if not dst.startswith(docs_root) and not dst.startswith(scratch_root):
         raise ParseRequestError(f"invalid path: {dest}")
     os.replace(src, dst)
 
@@ -302,8 +318,8 @@ def replace_file(source: Path | str, dest: Path | str) -> None:
 def remove_file(path: Path | str, *, missing_ok: bool = True) -> None:
     """Unlink ``path`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
-    root_marker = os.path.splitdrive(resolved)[0] or os.sep
-    if not resolved.startswith(root_marker):
+    docs_root, scratch_root = writable_roots()
+    if not resolved.startswith(docs_root) and not resolved.startswith(scratch_root):
         raise ParseRequestError(f"invalid path: {path}")
     try:
         os.unlink(resolved)
@@ -315,8 +331,8 @@ def remove_file(path: Path | str, *, missing_ok: bool = True) -> None:
 def remove_tree(path: Path | str, *, ignore_errors: bool = False) -> None:
     """``shutil.rmtree`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
-    root_marker = os.path.splitdrive(resolved)[0] or os.sep
-    if not resolved.startswith(root_marker):
+    docs_root, scratch_root = writable_roots()
+    if not resolved.startswith(docs_root) and not resolved.startswith(scratch_root):
         raise ParseRequestError(f"invalid path: {path}")
     shutil.rmtree(resolved, ignore_errors=ignore_errors)
 
@@ -324,8 +340,8 @@ def remove_tree(path: Path | str, *, ignore_errors: bool = False) -> None:
 def make_dirs(path: Path | str, *, exist_ok: bool = True) -> None:
     """``os.makedirs`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
-    root_marker = os.path.splitdrive(resolved)[0] or os.sep
-    if not resolved.startswith(root_marker):
+    docs_root, scratch_root = writable_roots()
+    if not resolved.startswith(docs_root) and not resolved.startswith(scratch_root):
         raise ParseRequestError(f"invalid path: {path}")
     os.makedirs(resolved, exist_ok=exist_ok)
 
@@ -333,8 +349,8 @@ def make_dirs(path: Path | str, *, exist_ok: bool = True) -> None:
 def path_exists(path: Path | str) -> bool:
     """``os.path.exists`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
-    root_marker = os.path.splitdrive(resolved)[0] or os.sep
-    if not resolved.startswith(root_marker):
+    docs_root, scratch_root = writable_roots()
+    if not resolved.startswith(docs_root) and not resolved.startswith(scratch_root):
         raise ParseRequestError(f"invalid path: {path}")
     return os.path.exists(resolved)
 
@@ -342,7 +358,7 @@ def path_exists(path: Path | str) -> bool:
 def path_is_file(path: Path | str) -> bool:
     """``os.path.isfile`` after the CodeQL-visible path check (see :func:`write_text`)."""
     resolved = os.path.realpath(path)
-    root_marker = os.path.splitdrive(resolved)[0] or os.sep
-    if not resolved.startswith(root_marker):
+    docs_root, scratch_root = writable_roots()
+    if not resolved.startswith(docs_root) and not resolved.startswith(scratch_root):
         raise ParseRequestError(f"invalid path: {path}")
     return os.path.isfile(resolved)

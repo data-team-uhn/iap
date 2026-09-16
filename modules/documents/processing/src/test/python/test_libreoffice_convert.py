@@ -186,6 +186,27 @@ class TestConvertRequiresOutput:
         assert [p.name for p in tmp_path.iterdir() if p.name.startswith("iap-lo-")] == []
 
 
+class TestConvertedFilesStayInsideTheTwoTrees:
+    """``_move_into_place`` carries the same inline guard as the :mod:`shared_docs` sinks.
+
+    It is the one move that legitimately crosses from scratch space onto the shared volume, so
+    both ends are checked rather than either one being assumed.
+    """
+
+    def test_a_destination_under_neither_root_is_refused(self, tmp_path):
+        produced = tmp_path / "document.pdf"
+        produced.write_bytes(b"%PDF")
+        with pytest.raises(ValueError, match="invalid path"):
+            lo._move_into_place(produced, Path("/etc/iap-docling-must-never-touch-this.pdf"))
+        assert produced.is_file(), "the file moved before the destination was checked"
+
+    def test_a_move_within_the_trees_still_works(self, tmp_path):
+        produced = tmp_path / "document.pdf"
+        produced.write_bytes(b"%PDF")
+        lo._move_into_place(produced, tmp_path / "report.pdf")
+        assert (tmp_path / "report.pdf").read_bytes() == b"%PDF"
+
+
 class TestSofficeTimeout:
     """A conversion that outstays its welcome takes its children with it.
 
