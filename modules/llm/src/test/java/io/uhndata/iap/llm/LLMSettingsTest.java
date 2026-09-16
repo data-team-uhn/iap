@@ -28,6 +28,7 @@ import io.uhndata.iap.llm.LLMSettings.ProviderSettings;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
  * Unit tests for {@link LLMSettings}: that it names its provider and model correctly and delegates every
@@ -181,5 +182,54 @@ class LLMSettingsTest
         assertFalse(settings.equals(new ModelSettings(131072, 2000, 0.7, 30000, 15000, "anthropic",
             Map.of("k", "v"))));
         assertFalse(settings.equals(new ModelSettings(131072, 2000, 0.7, 30000, 15000, "openai", Map.of("k", "w"))));
+    }
+
+    @Test
+    void sendsTheModelIdWhenTheModelDeclaresOneAndTheNodeNameOtherwise()
+    {
+        // A JCR name has no colon in it, so an Ollama tag cannot be a node name.
+        assertEquals("llama3.2-3b", settingsWithModelExtra(Map.of()).getModelId());
+        assertEquals("llama3.2:3b",
+            settingsWithModelExtra(Map.of("modelId", "llama3.2:3b")).getModelId());
+        assertEquals("llama3.2-3b", settingsWithModelExtra(Map.of("modelId", "  ")).getModelId(),
+            "a blank identifier is not an identifier");
+    }
+
+    @Test
+    void comparesAMultiValuedExtraByValue()
+    {
+        final ProviderSettings first =
+            new ProviderSettings("http://localhost", null, 10, Map.of("stops", new String[] { "a", "b" }));
+        final ProviderSettings second =
+            new ProviderSettings("http://localhost", null, 10, Map.of("stops", new String[] { "a", "b" }));
+
+        assertEquals(first, second, "two reads of the same unchanged node");
+        assertEquals(first.hashCode(), second.hashCode());
+        assertFalse(first.equals(
+            new ProviderSettings("http://localhost", null, 10, Map.of("stops", new String[] { "a", "c" }))));
+    }
+
+    @Test
+    void settingsThatDifferHashDifferently()
+    {
+        // The equals/hashCode contract is satisfied by returning a constant, so the existing contract tests
+        // stayed green with every hashCode replaced by 0. This is the half that does not.
+        final LLMSettings settings = settingsWithModelExtra(Map.of());
+        final LLMSettings other = new LLMSettings("prompter", new ProviderSettings("http://elsewhere", null, 10,
+            Map.of()), "GPT-OSS-120B", new ModelSettings(1, 2, 0.5, 3, 4, null, Map.of()));
+
+        assertNotEquals(settings.hashCode(), other.hashCode());
+        assertNotEquals(
+            new ProviderSettings("http://a", null, 10, Map.of()).hashCode(),
+            new ProviderSettings("http://b", null, 10, Map.of()).hashCode());
+        assertNotEquals(
+            new ModelSettings(1, 2, 0.5, 3, 4, null, Map.of()).hashCode(),
+            new ModelSettings(9, 2, 0.5, 3, 4, null, Map.of()).hashCode());
+    }
+
+    private LLMSettings settingsWithModelExtra(final Map<String, Object> extra)
+    {
+        return new LLMSettings("local", new ProviderSettings("http://localhost", null, 10, Map.of()),
+            "llama3.2-3b", new ModelSettings(131072, 1024, 0.0, 8000, 20000, "meta", extra));
     }
 }

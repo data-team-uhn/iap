@@ -18,6 +18,8 @@
 package io.uhndata.iap.llm.internal;
 
 import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +43,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.uhndata.iap.errortracking.api.ErrorContext;
+import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMClientFactory;
 import io.uhndata.iap.llm.LLMMessage;
@@ -80,6 +84,13 @@ public class LLMChatServlet extends SlingJakartaAllMethodsServlet
 
     private static final long serialVersionUID = 4938271560024819437L;
 
+    /**
+     * Largest request body accepted, in characters. Nothing else bounds one: Sling's request limits cover
+     * form parameters and uploads, not a raw JSON body, and the reader below materialises whatever arrives.
+     * Comfortably above any prompt a person writes and far below what costs the server its heap.
+     */
+    private static final int MAX_BODY_CHARACTERS = 512 * 1024;
+
     @Reference
     private transient LLMClientFactory llmClientFactory;
 
@@ -93,17 +104,15 @@ public class LLMChatServlet extends SlingJakartaAllMethodsServlet
     {
         response.setContentType("application/json;charset=UTF-8");
 
-        final JsonObject body;
-        try (JsonReader reader = Json.createReader(request.getReader())) {
-            body = reader.readObject();
-        } catch (Exception e) {
-            PaginatedJsonResponse.writeError(response, 400, "Invalid JSON request body");
+        final JsonObject body = readBody(request, response);
+        if (body == null) {
+            // readBody has already written the refusal.
             return;
         }
 
         final String system = body.getString("system", null);
         final String message = body.getString("message", null);
-        final List<LLMMessage> conversation;
+        List<LLMMessage> conversation = null;
         if (body.containsKey("messages")) {
             conversation = toMessageList(body.get("messages"));
             if (conversation == null) {
@@ -111,8 +120,10 @@ public class LLMChatServlet extends SlingJakartaAllMethodsServlet
                     "'messages' must be an array of objects, each with a 'role' and a 'content' string");
                 return;
             }
-        } else {
-            conversation = null;
+            // An empty array is a conversation with nothing in it, which is not a conversation. Taking the
+            // branch anyway made the 400 below unreachable, discarded a 'message' sent alongside, and left
+            // LangChain4j to refuse the empty list as a transport failure answered 502.
+            conversation = conversation.isEmpty() ? null : conversation;
         }
 
         try {
@@ -129,8 +140,7 @@ public class LLMChatServlet extends SlingJakartaAllMethodsServlet
                 return;
             }
             if (reply == null) {
-                LOGGER.warn("An LLM chat request returned no reply");
-                PaginatedJsonResponse.writeError(response, 502, "The LLM request could not be completed");
+                refuseEmptyReply(response);
                 return;
             }
             try (Writer out = response.getWriter()) {
@@ -140,8 +150,85 @@ public class LLMChatServlet extends SlingJakartaAllMethodsServlet
             // What went wrong can name the endpoint that was unreachable, or quote the provider's own
             // answer, so it is logged rather than sent to whoever asked.
             LOGGER.warn("An LLM chat request failed", e);
+            ErrorLogger.logError(e, ErrorContext.of(LLMChatServlet.class, "doPost"));
             PaginatedJsonResponse.writeError(response, 502, "The LLM request could not be completed");
         }
+    }
+
+    /**
+     * Refuse a reply the client answered with but left empty.
+     *
+     * @param response the response to write the refusal to
+     * @throws IOException when the refusal cannot be written
+     */
+    private static void refuseEmptyReply(final SlingJakartaHttpServletResponse response) throws IOException
+    {
+        final IllegalStateException empty = new IllegalStateException("An LLM chat request returned no reply");
+        LOGGER.warn(empty.getMessage());
+        ErrorLogger.logError(empty, ErrorContext.of(LLMChatServlet.class, "doPost"));
+        PaginatedJsonResponse.writeError(response, 502, "The LLM request could not be completed");
+    }
+
+    /**
+     * The request's JSON body, or {@code null} when it could not be read and the refusal has been sent.
+     *
+     * @param request the request to read
+     * @param response the response to write a refusal to
+     * @return the parsed body, or {@code null} when one was refused
+     * @throws IOException when the refusal cannot be written
+     */
+    private static JsonObject readBody(final SlingJakartaHttpServletRequest request,
+        final SlingJakartaHttpServletResponse response) throws IOException
+    {
+        final String raw;
+        try {
+            raw = readBounded(request.getReader());
+        } catch (final BodyTooLargeException e) {
+            PaginatedJsonResponse.writeError(response, 400,
+                "The request body is larger than " + MAX_BODY_CHARACTERS + " characters");
+            return null;
+        }
+        try (JsonReader reader = Json.createReader(new StringReader(raw))) {
+            return reader.readObject();
+        } catch (Exception e) {
+            PaginatedJsonResponse.writeError(response, 400, "Invalid JSON request body");
+            return null;
+        }
+    }
+
+    /**
+     * Read the whole request body, refusing one past {@link #MAX_BODY_CHARACTERS}.
+     *
+     * @param reader the request's reader
+     * @return the body
+     * @throws IOException when the body cannot be read
+     * @throws BodyTooLargeException when the body is longer than the limit
+     */
+    private static String readBounded(final Reader reader) throws IOException
+    {
+        final char[] buffer = new char[8192];
+        final StringBuilder body = new StringBuilder();
+        int read = reader.read(buffer);
+        while (read >= 0) {
+            if (body.length() + read > MAX_BODY_CHARACTERS) {
+                throw new BodyTooLargeException();
+            }
+            body.append(buffer, 0, read);
+            read = reader.read(buffer);
+        }
+        return body.toString();
+    }
+
+    /**
+     * Raised by {@link #readBounded} rather than returning a sentinel, so a body at the limit and a body
+     * over it cannot be confused.
+     *
+     * @version $Id$
+     * @since 0.1.0
+     */
+    private static final class BodyTooLargeException extends IOException
+    {
+        private static final long serialVersionUID = 1L;
     }
 
     /**

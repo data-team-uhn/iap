@@ -17,6 +17,7 @@
  */
 package io.uhndata.iap.llm;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,6 +51,9 @@ public final class LLMSettings
      * chunker {@code min_structure_tokens} default so CLI-only runs stay aligned with configured models.
      */
     public static final long DEFAULT_WHOLE_DOCUMENT_TOKEN_LIMIT = 20000L;
+
+    /** The model property naming what the provider calls the model; see {@link #getModelId()}. */
+    private static final String MODEL_ID = "modelId";
 
     private final String providerName;
 
@@ -171,10 +175,8 @@ public final class LLMSettings
     }
 
     /**
-     * The document-size threshold, in estimated tokens ({@code chars / 4}), below which an uploaded document is
-     * treated as small: it is never chunked and is sent to the model whole. This is the single source of the
-     * small-document routing decision: the document parser receives it as its {@code min_structure_tokens}
-     * parameter, which decides whether the document is chunked at all.
+     * The document-size threshold, in estimated tokens ({@code chars / 4}), below which a document is small
+     * enough to send to the model whole rather than in chunks.
      *
      * @return the whole-document token limit
      */
@@ -192,6 +194,24 @@ public final class LLMSettings
     public String getDeveloper()
     {
         return this.model.getDeveloper();
+    }
+
+    /**
+     * What the provider calls the active model, which is what goes on the wire: the model's {@code modelId}
+     * property when it has one, otherwise its node name.
+     *
+     * <p>
+     * The two differ because a JCR name cannot contain a colon or a slash, so an Ollama tag
+     * ({@code llama3.2:3b}) or a HuggingFace-style identifier ({@code org/model}) cannot be a node name.
+     * </p>
+     *
+     * @return the model identifier to send to the provider
+     */
+    @NotNull
+    public String getModelId()
+    {
+        final String configured = this.model.getProperty(MODEL_ID);
+        return configured == null || configured.isBlank() ? this.modelName : configured;
     }
 
     /**
@@ -240,6 +260,33 @@ public final class LLMSettings
     }
 
     /**
+     * Copy the extras, with any multi-valued property turned into a list.
+     *
+     * <p>
+     * A {@code ValueMap} answers a multi-valued property with an array, and an array compares by identity, so
+     * two reads of a node that has not changed produce maps that are never equal -- which the client reads as
+     * a settings change and rebuilds its model and its HTTP client for. Silent: the only symptom is latency.
+     * Sling's {@code sling:Folder}, the supertype of both node types here, carries a multi-valued residual, so
+     * a multi-valued extra is storable whatever this module's own CND declares.
+     * </p>
+     *
+     * @param extra the raw extras, or {@code null} for none
+     * @return the extras with array values replaced by lists, never {@code null}
+     */
+    private static Map<String, Object> copyExtra(@Nullable final Map<String, Object> extra)
+    {
+        if (extra == null) {
+            return Collections.emptyMap();
+        }
+        final Map<String, Object> copy = new HashMap<>(extra.size());
+        for (final Map.Entry<String, Object> entry : extra.entrySet()) {
+            final Object value = entry.getValue();
+            copy.put(entry.getKey(), value instanceof Object[] ? Arrays.asList((Object[]) value) : value);
+        }
+        return copy;
+    }
+
+    /**
      * The connection-level settings of one LLM provider: endpoint, credentials, timeout, plus whatever
      * format-specific extras it carries. Instances are immutable.
      *
@@ -271,7 +318,7 @@ public final class LLMSettings
             this.endpoint = endpoint;
             this.apiKeyEnvVar = apiKeyEnvVar;
             this.timeoutSeconds = timeoutSeconds;
-            this.extra = extra == null ? Collections.emptyMap() : new HashMap<>(extra);
+            this.extra = copyExtra(extra);
         }
 
         /**
@@ -386,7 +433,7 @@ public final class LLMSettings
             this.chunkTokenSize = chunkTokenSize;
             this.wholeDocumentTokenLimit = wholeDocumentTokenLimit;
             this.developer = developer;
-            this.extra = extra == null ? Collections.emptyMap() : new HashMap<>(extra);
+            this.extra = copyExtra(extra);
         }
 
         /**

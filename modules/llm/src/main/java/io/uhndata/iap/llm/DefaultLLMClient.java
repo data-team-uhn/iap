@@ -23,12 +23,13 @@ import java.util.List;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.osgi.service.component.annotations.Reference;
 
 /**
  * Base class for {@link LLMClient} implementations. It wires the four {@link LLMClient} chat overloads to a
  * single {@link #doChat(String, List, LLMRequestOptions)} hook that the concrete client implements, and holds
- * the {@link LLMConfigurationService} each client binds (via its own {@code @Reference}) to resolve the active
- * {@link LLMSettings}. The transport, request shaping and response parsing are entirely the subclass's concern
+ * the {@link LLMConfigurationService} used to resolve the active {@link LLMSettings}. The transport, request
+ * shaping and response parsing are entirely the subclass's concern
  * — {@link io.uhndata.iap.llm.internal.OpenAIClient} builds an OpenAI-compatible request through the
  * LangChain4j SDK.
  *
@@ -38,11 +39,18 @@ import org.jetbrains.annotations.Nullable;
 public abstract class DefaultLLMClient implements LLMClient
 {
     /**
-     * The configuration service used to resolve the active settings. It is bound by each concrete component
-     * (via its own {@code @Reference} calling {@link #setConfigurationService(LLMConfigurationService)}),
-     * because OSGi Declarative Services does not inherit references declared in a superclass that lives in a
-     * different bundle.
+     * The configuration service used to resolve the active settings.
+     *
+     * <p>
+     * Declared here rather than in each concrete client. Declarative Services does not inherit a reference
+     * from a superclass in another bundle, which is why it used to be bound through a setter each subclass
+     * called from its own {@code @Reference} -- but a subclass that forgot the setter activated cleanly,
+     * since DS then had nothing to wait on, and answered the first request with a null field against a
+     * {@code @NotNull} accessor. Every client this base class has ships in this bundle, so the reference is
+     * inherited and a client cannot be satisfied without it.
+     * </p>
      */
+    @Reference
     private LLMConfigurationService configurationService;
 
     @Override
@@ -88,7 +96,7 @@ public abstract class DefaultLLMClient implements LLMClient
     }
 
     /**
-     * Bind the configuration service. Each concrete client calls this from its own {@code @Reference} method.
+     * Set the configuration service, for a test that builds a client outside OSGi.
      *
      * @param service the configuration service to use
      */

@@ -22,10 +22,11 @@ import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Service that resolves the active LLM provider and model from the JCR configuration stored under
- * {@code /apps/iap/config/LLM}. The catalog of available providers and models is seeded from initial
- * content; the active selection is set through the administration UI. Providers and the router use this
- * service to obtain the settings for the currently selected provider and model.
+ * Service that resolves the active LLM provider and model from the JCR configuration, which lives under two
+ * roots. The catalog of available providers and models is seeded from initial content at
+ * {@code /libs/iap/config/LLM} and re-seeded on every deploy; the active selection is a separate node at
+ * {@code /apps/iap/config/LLM}, written through the administration UI and never overwritten. A client uses
+ * this service to obtain the settings for the currently selected provider and model.
  *
  * @version $Id$
  * @since 0.1.0

@@ -17,9 +17,15 @@
  */
 package io.uhndata.iap.llm.internal.models;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.testing.mock.sling.NodeTypeDefinitionScanner;
+import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,17 +48,21 @@ class LLMProviderNodeTest
 {
     private static final String PATH = "/libs/iap/config/LLM/prompter";
 
-    private final SlingContext context = new SlingContext();
+    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     @BeforeEach
-    void setUp()
+    void setUp() throws Exception
     {
         this.context.addModelsForClasses(LLMProviderNode.class);
+        NodeTypeDefinitionScanner.get().register(this.context.resourceResolver().adaptTo(Session.class),
+            List.of("SLING-INF/nodetypes/llms.cnd"), ResourceResolverType.JCR_OAK.getNodeTypeMode());
     }
 
     private LLMProviderNode adapt(final Map<String, Object> properties)
     {
-        final Resource resource = this.context.create().resource(PATH, properties);
+        final Map<String, Object> all = new HashMap<>(properties);
+        all.put("jcr:primaryType", "llm:Provider");
+        final Resource resource = this.context.create().resource(PATH, all);
         return resource.adaptTo(LLMProviderNode.class);
     }
 

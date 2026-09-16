@@ -18,8 +18,12 @@
 package io.uhndata.iap.llm.internal;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.osgi.service.component.annotations.Component;
@@ -60,8 +64,7 @@ public class LLMClientFactoryImpl implements LLMClientFactory
         target = "(" + PROVIDER_PROPERTY + "=*)")
     void bindClient(final LLMClient client, final Map<String, Object> props)
     {
-        final String name = (String) props.get(PROVIDER_PROPERTY);
-        if (name != null) {
+        for (final String name : providerNames(props)) {
             this.clients.put(name, client);
             LOGGER.debug("Registered LLM client for provider: {}", name);
         }
@@ -69,11 +72,35 @@ public class LLMClientFactoryImpl implements LLMClientFactory
 
     void unbindClient(final LLMClient client, final Map<String, Object> props)
     {
-        final String name = (String) props.get(PROVIDER_PROPERTY);
-        if (name != null) {
+        for (final String name : providerNames(props)) {
             this.clients.remove(name, client);
             LOGGER.debug("Unregistered LLM client for provider: {}", name);
         }
+    }
+
+    /**
+     * The API dialects a client declares it speaks.
+     *
+     * <p>
+     * OSGi hands a service property over as an array once it is declared more than once, so a client serving
+     * two dialects arrived here as a {@code String[]}. It still matched the target filter, so casting to
+     * {@code String} threw inside the bind method, the component never became satisfied, and every chat
+     * answered 502 for every provider with nothing but a DS log line to say why.
+     * </p>
+     *
+     * @param props the service properties of the bound client
+     * @return the declared provider names, empty when none is declared
+     */
+    private static List<String> providerNames(final Map<String, Object> props)
+    {
+        final Object declared = props.get(PROVIDER_PROPERTY);
+        if (declared instanceof Object[]) {
+            return Arrays.stream((Object[]) declared)
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .collect(Collectors.toList());
+        }
+        return declared == null ? List.of() : List.of(declared.toString());
     }
 
     @Override

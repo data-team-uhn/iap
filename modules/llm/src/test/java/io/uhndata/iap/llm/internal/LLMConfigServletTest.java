@@ -21,14 +21,21 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import javax.jcr.Session;
 
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.api.resource.ResourceResolver;
+import org.apache.sling.testing.mock.sling.NodeTypeDefinitionScanner;
+import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.apache.sling.testing.mock.sling.servlet.MockSlingJakartaHttpServletRequest;
@@ -40,6 +47,7 @@ import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -64,37 +72,39 @@ class LLMConfigServletTest
 
     private static final String MODEL = "llama3.2-3b";
 
-    private final SlingContext context = new SlingContext();
+    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     private LLMConfigServlet servlet;
 
     @BeforeEach
-    void setUp()
+    void setUp() throws Exception
     {
+        NodeTypeDefinitionScanner.get().register(this.context.resourceResolver().adaptTo(Session.class),
+            List.of("SLING-INF/nodetypes/llms.cnd"), ResourceResolverType.JCR_OAK.getNodeTypeMode());
         this.servlet = new LLMConfigServlet();
 
         final Map<String, Object> config = new HashMap<>();
-        config.put("jcr:primaryType", "nt:unstructured");
+        config.put("jcr:primaryType", "llm:Configuration");
         config.put("title", "LLM Configuration");
         config.put(ACTIVE_PROVIDER, PROVIDER);
         config.put(ACTIVE_MODEL, MODEL);
         this.context.create().resource(SELECTION_PATH, config);
 
-        this.context.create().resource(CATALOG_PATH, Map.of("jcr:primaryType", "nt:unstructured"));
+        this.context.create().resource(CATALOG_PATH, Map.of("jcr:primaryType", "llm:Configuration"));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER, Map.of(
-            "sling:resourceType", "llm/Provider",
+            "jcr:primaryType", "llm:Provider",
             "label", "Local (Ollama)",
             "api", "openai",
             "endpoint", "http://localhost:11434/v1",
             "timeoutSeconds", 600L));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
-            "sling:resourceType", "llm/Model",
+            "jcr:primaryType", "llm:Model",
             "maxOutputTokens", 1024L,
             "temperature", 0.25d,
             "chunked", Boolean.TRUE,
             "developer", "meta"));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/other-model", Map.of(
-            "sling:resourceType", "llm/Model",
+            "jcr:primaryType", "llm:Model",
             "maxOutputTokens", 2048L,
             "chunked", Boolean.FALSE));
     }
@@ -152,7 +162,7 @@ class LLMConfigServletTest
     void rendersMultivaluedAndDecimalPropertiesCorrectly() throws IOException
     {
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/decimal-model", Map.of(
-            "sling:resourceType", "llm/Model",
+            "jcr:primaryType", "llm:Model",
             "temperature", new BigDecimal("0.15"),
             "tags", new String[] { "fast", "cheap" }));
         final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
@@ -357,5 +367,51 @@ class LLMConfigServletTest
 
         assertEquals(403, response.getStatus());
         assertTrue(responseBody(response).getString("error").contains("Not allowed"));
+    }
+
+    @Test
+    void refusesToWriteTheSelectionOntoTheCatalogRoot() throws IOException
+    {
+        // Both nodes are llm:Configuration, so both bind this servlet.
+        final MockSlingJakartaHttpServletRequest request =
+            request(this.context.resourceResolver().getResource(CATALOG_PATH));
+        request.setParameterMap(Map.of(ACTIVE_PROVIDER, PROVIDER, ACTIVE_MODEL, "other-model"));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request, response);
+
+        assertEquals(400, response.getStatus());
+        assertTrue(responseBody(response).getString("error").contains(SELECTION_PATH));
+        assertEquals(MODEL, this.context.resourceResolver().getResource(SELECTION_PATH)
+            .getValueMap().get(ACTIVE_MODEL, String.class), "and the selection is untouched");
+    }
+
+    @Test
+    void answersTheJsonContractWhenTheSaveIsRefused() throws Exception
+    {
+        final Resource real = this.context.resourceResolver().getResource(SELECTION_PATH);
+        final Resource failing = Mockito.spy(real);
+        final ResourceResolver resolver = Mockito.spy(this.context.resourceResolver());
+        Mockito.doReturn(resolver).when(failing).getResourceResolver();
+        Mockito.doThrow(new PersistenceException("conflict")).when(resolver).commit();
+        final MockSlingJakartaHttpServletRequest request = request(failing);
+        request.setParameterMap(Map.of(ACTIVE_PROVIDER, PROVIDER, ACTIVE_MODEL, "other-model"));
+        final MockSlingJakartaHttpServletResponse response = new MockSlingJakartaHttpServletResponse();
+
+        this.servlet.doPost(request, response);
+
+        assertEquals(409, response.getStatus());
+        assertTrue(responseBody(response).getString("error").contains("could not be saved"));
+    }
+
+    @Test
+    void refusesAProviderWithNoEndpoint()
+    {
+        // endpoint is declared mandatory, which nothing exercised while the fixtures were nt:unstructured.
+        // Oak checks a mandatory property at save, not at create, so the commit is the assertion.
+        this.context.create().resource(CATALOG_PATH + "/incomplete",
+            Map.of("jcr:primaryType", "llm:Provider", "label", "No endpoint"));
+
+        assertThrows(PersistenceException.class, () -> this.context.resourceResolver().commit());
     }
 }

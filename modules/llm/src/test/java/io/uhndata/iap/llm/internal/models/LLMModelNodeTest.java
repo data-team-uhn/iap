@@ -17,9 +17,15 @@
  */
 package io.uhndata.iap.llm.internal.models;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import javax.jcr.Session;
+
 import org.apache.sling.api.resource.Resource;
+import org.apache.sling.testing.mock.sling.NodeTypeDefinitionScanner;
+import org.apache.sling.testing.mock.sling.ResourceResolverType;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,18 +48,42 @@ class LLMModelNodeTest
 {
     private static final String PATH = "/libs/iap/config/LLM/prompter/GPT-OSS-120B";
 
-    private final SlingContext context = new SlingContext();
+    private final SlingContext context = new SlingContext(ResourceResolverType.JCR_OAK);
 
     @BeforeEach
-    void setUp()
+    void setUp() throws Exception
     {
         this.context.addModelsForClasses(LLMModelNode.class);
+        NodeTypeDefinitionScanner.get().register(this.context.resourceResolver().adaptTo(Session.class),
+            List.of("SLING-INF/nodetypes/llms.cnd"), ResourceResolverType.JCR_OAK.getNodeTypeMode());
     }
 
+    /**
+     * Create the node as an {@code llm:Model} and adapt it.
+     *
+     * <p>
+     * The primary type is the point. The resource type this model binds to is autocreated by the node
+     * type, so a fixture that writes it by hand tests the fixture.
+     * </p>
+     *
+     * @param properties the properties to set beyond the primary type
+     * @return the adapted model
+     */
     private LLMModelNode adapt(final Map<String, Object> properties)
     {
-        final Resource resource = this.context.create().resource(PATH, properties);
+        final Map<String, Object> all = new HashMap<>(properties);
+        all.put("jcr:primaryType", "llm:Model");
+        final Resource resource = this.context.create().resource(PATH, all);
         return resource.adaptTo(LLMModelNode.class);
+    }
+
+    @Test
+    void takesItsResourceTypeFromTheNodeType()
+    {
+        final Resource resource = this.context.create().resource(PATH, Map.of("jcr:primaryType", "llm:Model"));
+
+        assertEquals(LLMModelNode.RESOURCE_TYPE, resource.getValueMap().get("sling:resourceType", String.class),
+            "the servlet binding and this model both rest on the autocreated resource type");
     }
 
     @Test

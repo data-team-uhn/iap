@@ -300,4 +300,42 @@ class LLMChatServletTest
         assertEquals(502, this.lastResponse.getStatus());
         assertEquals("The LLM request could not be completed", responseBody().getString("error"));
     }
+
+    @Test
+    void refusesABodyLargerThanTheCap() throws IOException
+    {
+        final MockSlingJakartaHttpServletResponse response =
+            post("{\"message\":\"" + "x".repeat(600 * 1024) + "\"}");
+
+        assertEquals(400, response.getStatus());
+        assertTrue(responseBody().getString("error").contains("larger than"));
+    }
+
+    @Test
+    void acceptsABodyUnderTheCap() throws IOException
+    {
+        final MockSlingJakartaHttpServletResponse response =
+            post("{\"message\":\"" + "x".repeat(1024) + "\"}");
+
+        assertEquals(200, response.getStatus());
+    }
+
+    @Test
+    void treatsAnEmptyConversationAsNoConversation() throws IOException
+    {
+        final MockSlingJakartaHttpServletResponse response = post("{\"messages\":[]}");
+
+        assertEquals(400, response.getStatus());
+        assertTrue(responseBody().getString("error").contains("'message' or 'messages'"));
+    }
+
+    @Test
+    void prefersTheMessageWhenTheConversationIsEmpty() throws IOException
+    {
+        final MockSlingJakartaHttpServletResponse response =
+            post("{\"messages\":[],\"message\":\"Hello\"}");
+
+        assertEquals(200, response.getStatus());
+        assertEquals(REPLY, responseBody().getString("response"), "the usable prompt is not discarded");
+    }
 }
