@@ -67,22 +67,31 @@ function countLabel(stat: CountStat): string {
   return stat.approximate === true ? `${String(stat.value)}+` : String(stat.value);
 }
 
-function StatValue({ stat }: { stat: WidgetStat }) {
+// Where one stat's two cells sit: the value in the left column, its label to the right of it, both
+// on the stat's own row. Placed explicitly because the label is written first and displayed second,
+// and grid's own placement will not put a later item back in a column it has already moved past.
+const valueCell = (row: number) => ({ gridColumn: 1, gridRow: row, justifySelf: "end", m: 0 });
+const labelCell = (row: number) => ({ gridColumn: 2, gridRow: row });
+
+function StatValue({ stat, row }: { stat: WidgetStat; row: number }) {
   if (stat.mode === "boolean") {
     return (
-      <Chip
-        size="small"
-        label={stat.value ? stat.trueLabel ?? "On" : stat.falseLabel ?? "Off"}
-        color={stat.value ? "success" : "default"}
-      />
+      <Box component="dd" sx={valueCell(row)}>
+        <Chip
+          size="small"
+          label={stat.value ? stat.trueLabel ?? "On" : stat.falseLabel ?? "Off"}
+          color={stat.value ? "success" : "default"}
+        />
+      </Box>
     );
   }
   return (
     <Typography
       variant="h6"
-      component="span"
+      component="dd"
       title={stat.value == undefined ? stat.unknownTitle ?? "This could not be counted" : undefined}
       sx={{
+        ...valueCell(row),
         color: stat.emphasis === true && stat.value !== undefined && stat.value > 0
           ? "error.main"
           : "text.primary",
@@ -96,20 +105,29 @@ function StatValue({ stat }: { stat: WidgetStat }) {
   );
 }
 
-function StatLabel({ stat }: { stat: WidgetStat }) {
+function StatLabel({ stat, row }: { stat: WidgetStat; row: number }) {
   if (stat.href != undefined) {
     return (
-      <MuiLink component={RouterLink} to={stat.href} variant="body2" underline="hover">
-        {stat.label}
-      </MuiLink>
+      <Box component="dt" sx={labelCell(row)}>
+        <MuiLink component={RouterLink} to={stat.href} variant="body2" underline="hover">
+          {stat.label}
+        </MuiLink>
+      </Box>
     );
   }
-  return <Typography variant="body2" sx={{ color: "text.secondary" }}>{stat.label}</Typography>;
+  return (
+    <Typography variant="body2" component="dt" sx={{ ...labelCell(row), color: "text.secondary" }}>
+      {stat.label}
+    </Typography>
+  );
 }
 
 // The one way a dashboard widget lists what it found: a value, then what the value is a figure for.
 //
-// A single grid rather than a row of independent stacks to ensure values are lined up based on the longest entry.
+// A description list, because that is what these are: each label is a term and its value the
+// description of it. Written label first and displayed value first, so that whoever is read the page
+// hears what a figure counts before the figure itself, and so that the value can be found from the
+// label it belongs to rather than from where it happens to sit.
 //
 // Sample usage:
 // <WidgetStatList stats={[
@@ -120,19 +138,21 @@ function StatLabel({ stat }: { stat: WidgetStat }) {
 function WidgetStatList({ stats }: WidgetStatListProps) {
   return (
     <Box
+      component="dl"
       sx={{
         display: "grid",
         gridTemplateColumns: "auto 1fr",
         columnGap: 1,
         rowGap: 0.5,
         alignItems: "baseline",
+        m: 0,
       }}
     >
       {
-        stats.map(stat => (
+        stats.map((stat, index) => (
           <Fragment key={stat.label}>
-            <Box sx={{ justifySelf: "end" }}><StatValue stat={stat} /></Box>
-            <StatLabel stat={stat} />
+            <StatLabel stat={stat} row={index + 1} />
+            <StatValue stat={stat} row={index + 1} />
           </Fragment>
         ))
       }
