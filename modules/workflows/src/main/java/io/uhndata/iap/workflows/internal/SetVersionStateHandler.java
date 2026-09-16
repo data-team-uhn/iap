@@ -84,11 +84,12 @@ public class SetVersionStateHandler implements ServiceTaskHandler
         // The message says which versions this move is for, since a client that asked for it is usually looking at
         // a version whose state has moved on since the buttons were drawn
         if (!allowed.contains(current)) {
-            throw new WorkflowConflictException("A " + VersionEdits.name(current) + " version cannot be made "
-                + VersionEdits.name(target) + "; that is only available for a " + names(allowed) + " version");
+            throw new WorkflowConflictException("A version that is " + VersionEdits.describe(current)
+                + " cannot be made " + VersionEdits.name(target)
+                + "; that is only available for a " + names(allowed) + " version");
         }
         Objects.requireNonNull(context.getTarget().adaptTo(ModifiableValueMap.class),
-            "The engine can always write what it can read").put(VersionEdits.STATE, target.name());
+            "A version the engine is writing should always be modifiable").put(VersionEdits.STATE, target.name());
     }
 
     /**

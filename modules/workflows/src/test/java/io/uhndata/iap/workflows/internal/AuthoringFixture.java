@@ -102,10 +102,28 @@ final class AuthoringFixture
     static Resource createVersion(final SlingContext context, final String name, final String label,
         final WorkflowVersion.State state, final Map<String, Object> extra)
     {
+        return createVersion(context, name, label, state.name(), extra);
+    }
+
+    /**
+     * Creates a version whose stored state is whatever string is given, including one that names no state at all:
+     * how a version hand-edited in the repository, or written by a platform version that knows states this one
+     * does not, arrives at the handlers.
+     *
+     * @param context the Sling context to build in
+     * @param name the node name
+     * @param label the version label
+     * @param state the raw value to store as the lifecycle state
+     * @param extra any further properties to set
+     * @return the created version
+     */
+    static Resource createVersion(final SlingContext context, final String name, final String label,
+        final String state, final Map<String, Object> extra)
+    {
         final Map<String, Object> properties = new HashMap<>(extra);
         properties.put(WorkflowFixture.TYPE, WorkflowVersion.RESOURCE_TYPE);
         properties.put("version", label);
-        properties.put(WorkflowFixture.STATE, state.name());
+        properties.put(WorkflowFixture.STATE, state);
         return context.create().resource(path(name), properties);
     }
 

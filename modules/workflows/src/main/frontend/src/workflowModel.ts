@@ -47,10 +47,10 @@ export const STATE_LABELS: Record<WorkflowState, string> = {
   RETIRED: "Retired",
 };
 
-// Anything unrecognized — an absent property on older content, a value from a newer platform — reads
-// as a draft, the state nothing is ever instantiated from, matching how the server's own model reads it.
-export function stateOf(raw: unknown): WorkflowState {
-  return WORKFLOW_STATES.includes(raw as WorkflowState) ? raw as WorkflowState : "DRAFT";
+// Anything unrecognized — an absent property on older content, a value from a newer platform — reads as
+// no state at all to ensure it doesn't inherit actions from another state.
+export function stateOf(raw: unknown): WorkflowState | null {
+  return WORKFLOW_STATES.includes(raw as WorkflowState) ? raw as WorkflowState : null;
 }
 
 // A node parsed from the repository's JSON serialization: a known primary type, everything else
@@ -83,7 +83,8 @@ export interface WorkflowVersionSummary {
   path: string;
   version: string;
   description: string;
-  state: WorkflowState;
+  // Null when the stored state is missing or names no state this platform knows; see stateOf
+  state: WorkflowState | null;
   lastModified: string;
 }
 
@@ -125,16 +126,16 @@ function parseVersions(definitionPath: string, definition: JcrNode): WorkflowVer
     });
 }
 
-// Two levels is exactly what the page renders — the definition's own properties and the versions
-// under it — so the depth selector both turns on child serialization and stops it there, leaving a
-// version's own children (the diagram file, the parsed flow nodes) as bare paths instead of dragging
-// them into the response.
+// One level of children is exactly what the page renders — the definition's own properties and the
+// versions under it — so the depth selector both turns on child serialization and stops it there,
+// leaving a version's own children (the diagram file, the parsed flow nodes) out of the response
+// rather than dragging a whole graph in behind every row.
 //
 // The status is read off the response before the body is parsed, because a refusal answers with an
 // error page rather than with JSON: parsing it first reports how the body disappointed the parser,
 // which says nothing about what was refused.
 export function loadWorkflow(fetchUtil: AuthenticatedFetch, path: string): Promise<WorkflowSummary> {
-  return fetchUtil(`${path}.2.json`)
+  return fetchUtil(`${path}.1.json`)
     .then(response => {
       if (!response.ok) {
         throw new RequestError(response.status);
@@ -280,55 +281,65 @@ export const STARTING_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
 export const ADMIN_ROOT = "/admin/workflows";
 
 // The page a console URL opens on top of a repository path — only the editor names itself, since
-// viewing a workflow or version is just what its own path means. It's a query parameter rather than a
-// path segment because viewing and editing a version are the same thing seen two ways, not one nested
-// in the other; a path segment would have made the breadcrumb trail show the editor as a page below
-// the viewer, which it isn't.
+// viewing a workflow or version is just what its own path means. It is a suffix rather than a path
+// segment because viewing and editing a version are the same thing seen two ways, not one nested in
+// the other: a segment would have made the breadcrumb trail show the editor as a page below the
+// viewer, which it isn't, and would have been read as a version named `edit`.
 export type WorkflowPage = "edit";
 
-// The query parameter each page is asked for by, so that what the console links to and what it reads
-// back cannot drift. Its presence is the whole of the request; it carries no value.
-export const PAGE_PARAM = "page";
+// The suffix the editor is asked for by. Kept beside the URL builder that writes it and the reader that
+// takes it off again, so the two cannot drift.
+export const EDIT_SUFFIX = ".edit";
 
 // The console URL opening a repository path, e.g. /Workflows/review -> /admin/workflows/Workflows/review,
-// and its editor -> /admin/workflows/Workflows/review/2-0?page=edit.
+// and its editor -> /admin/workflows/Workflows/review/2-0.edit.
 export function adminUrl(repositoryPath: string, page?: WorkflowPage): string {
   const url = `${ADMIN_ROOT}${repositoryPath}`;
-  return page === undefined ? url : `${url}?${PAGE_PARAM}=${page}`;
-}
-
-// An unrecognized (or absent) page parameter asks for nothing, same as a URL that named none — what a
-// version's own path means is the version, so there is always something to show.
-export function consolePage(search: string): WorkflowPage | undefined {
-  const asked = new URLSearchParams(search).get(PAGE_PARAM);
-  return asked === "edit" ? asked : undefined;
+  return page === undefined ? url : `${url}${EDIT_SUFFIX}`;
 }
 
 // What a console URL below ADMIN_ROOT is about — not decidable from the repository path alone, since
 // a homepage can sit at any depth (/Content/Workflows/review could be a version of /Content/Workflows
 // or a workflow of /Content/Workflows) — so resolving one needs the homepages this instance actually has.
 export type ConsoleTarget =
+  | { kind: "root" }
   | { kind: "homepage"; path: string }
   | { kind: "workflow"; path: string }
-  | { kind: "version"; path: string }
+  // Editing is a mode of the version's own page rather than a page below it.
+  | { kind: "version"; path: string; editing: boolean }
   | { kind: "unknown" };
 
 const UNKNOWN: ConsoleTarget = { kind: "unknown" };
+
+const ROOT: ConsoleTarget = { kind: "root" };
 
 // What a console URL addresses, resolved against the homepages workflows are stored in. Depth is
 // counted from the homepage rather than the root — the only fixed part of the shape, since below a
 // homepage it's always homepage/workflow/version — found as the longest homepage the URL starts with
 // (in case one is nested inside another), with what remains saying which of the three it is about.
-// Nothing below a version is a page, since which page opens on a version is asked for in the query
-// (see consolePage) — so no path segment is reserved and every one is repository content.
+// Nothing below a version is a page, since the one page that opens on a version is asked for by the
+// .edit suffix — so no path segment is reserved and every one is repository content.
 export function consoleTarget(url: string, homepages: readonly string[]): ConsoleTarget {
-  const withoutSuffix = url.replace(/\.html$/, "").replace(/\/+$/, "");
-  if (withoutSuffix !== ADMIN_ROOT && !withoutSuffix.startsWith(`${ADMIN_ROOT}/`)) {
+  const address = url.replace(/\.html$/, "").replace(/\/+$/, "");
+  // The editor is asked for on top of the URL of what it edits, so the rest is read by taking the
+  // suffix off and asking what is left. It asks for a mode of a page, so it means something only
+  // where there is a mode to ask for: anywhere but on a version it names nothing, rather than being
+  // quietly ignored on a URL the console would otherwise never produce.
+  if (address.endsWith(EDIT_SUFFIX)) {
+    const edited = consoleTarget(address.slice(0, -EDIT_SUFFIX.length), homepages);
+    return edited.kind === "version" ? { ...edited, editing: true } : UNKNOWN;
+  }
+  if (address !== ADMIN_ROOT && !address.startsWith(`${ADMIN_ROOT}/`)) {
     return UNKNOWN;
   }
-  // The console's own root is not one of these: a listing belongs to a homepage, and nothing is
-  // routed here, so there is nothing for it to be about
-  const tail = withoutSuffix.slice(ADMIN_ROOT.length);
+  const tail = address.slice(ADMIN_ROOT.length);
+  // The console's own root addresses no repository path: a listing belongs to a homepage, so the
+  // root is a way in rather than a page, and stands for the homepage every deployment has. It is
+  // the one URL here that is decided without the homepages, so a caller may resolve it before
+  // discovery has landed.
+  if (tail === "") {
+    return ROOT;
+  }
   // The longest match, so a homepage stored under another homepage's path wins over its container
   const homepage = homepages
     .filter(candidate => tail === candidate || tail.startsWith(`${candidate}/`))
@@ -344,7 +355,7 @@ export function consoleTarget(url: string, homepages: readonly string[]): Consol
     case 1:
       return { kind: "workflow", path: `${homepage}/${below[0]}` };
     case 2:
-      return { kind: "version", path: `${homepage}/${below[0]}/${below[1]}` };
+      return { kind: "version", path: `${homepage}/${below[0]}/${below[1]}`, editing: false };
     default:
       return UNKNOWN;
   }

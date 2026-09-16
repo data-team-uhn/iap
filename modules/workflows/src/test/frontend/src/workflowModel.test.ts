@@ -18,7 +18,6 @@
 
 import {
   adminUrl,
-  consolePage,
   consoleTarget,
   forgetWorkflowHomepages,
   loadWorkflow,
@@ -70,23 +69,26 @@ describe("stateOf", () => {
     expect(stateOf("RETIRED")).toBe("RETIRED");
   });
 
-  it("reads anything else as a draft", () => {
-    // A version with no state stored, or one from a platform that knows a state this one does not:
-    // both read as the state nothing is ever instantiated from, never as the one that runs
-    expect(stateOf(undefined)).toBe("DRAFT");
-    expect(stateOf("active")).toBe("DRAFT");
-    expect(stateOf("PUBLISHED")).toBe("DRAFT");
-    expect(stateOf(3)).toBe("DRAFT");
+  it("reads anything else as no state at all", () => {
+    // A version with no state stored, or one from a platform that knows a state this one does not.
+    // Neither reads as a draft: that is the state the editing and promotion actions are offered for,
+    // and the server refuses both on a version whose state it cannot read either
+    expect(stateOf(undefined)).toBeNull();
+    expect(stateOf("active")).toBeNull();
+    expect(stateOf("PUBLISHED")).toBeNull();
+    expect(stateOf(3)).toBeNull();
   });
 });
 
 describe("loadWorkflow", () => {
-  it("asks for the two levels the page renders, and summarizes what comes back", async () => {
+  it("asks for the definition and its versions, and summarizes what comes back", async () => {
     const fetchUtil = answering(definition);
 
     const workflow = await loadWorkflow(fetchUtil, "/Workflows/review");
 
-    expect(fetchUtil).toHaveBeenCalledWith("/Workflows/review.2.json");
+    // One level deep: the page reads only a version's own properties, so serializing each version's
+    // diagram and parsed graph as well would be fetching a whole workflow to draw a table row
+    expect(fetchUtil).toHaveBeenCalledWith("/Workflows/review.1.json");
     expect(workflow).toMatchObject({
       path: "/Workflows/review",
       name: "review",
@@ -127,12 +129,12 @@ describe("loadWorkflow", () => {
     expect(workflow.versions).toHaveLength(3);
   });
 
-  it("reads a version with no state as a draft, and fills in what is missing", async () => {
+  it("reads a version with no state as having none, and fills in what is missing", async () => {
     const fetchUtil = answering(definition);
 
     const workflow = await loadWorkflow(fetchUtil, "/Workflows/review");
 
-    expect(workflow.versions[2]).toMatchObject({ version: "3.0", state: "DRAFT", description: "", lastModified: "" });
+    expect(workflow.versions[2]).toMatchObject({ version: "3.0", state: null, description: "", lastModified: "" });
   });
 
   it("falls back to the node name for an untitled workflow", async () => {
@@ -306,17 +308,27 @@ describe("the console's URLs", () => {
   it("carries the repository path, and names only the page that needs naming", () => {
     expect(adminUrl("/Workflows/review")).toBe("/admin/workflows/Workflows/review");
     expect(adminUrl("/SystemWorkflows/newEntity/1-0")).toBe("/admin/workflows/SystemWorkflows/newEntity/1-0");
-    // The page is asked for in the query, so the path stays the thing being looked at: the editor is
+    // The page is asked for by a suffix, so the path stays the thing being looked at: the editor is
     // the version's own URL asked a second way, not a URL below it
-    expect(adminUrl("/Workflows/review/2-0", "edit")).toBe("/admin/workflows/Workflows/review/2-0?page=edit");
+    expect(adminUrl("/Workflows/review/2-0", "edit")).toBe("/admin/workflows/Workflows/review/2-0.edit");
   });
 
-  it("reads the page a URL's query asks for, and nothing else as one", () => {
-    expect(consolePage("?page=edit")).toBe("edit");
-    expect(consolePage("")).toBeUndefined();
-    expect(consolePage("?page=rename")).toBeUndefined();
-    // Whatever else a URL carries is none of this question's business
-    expect(consolePage("?tab=2&page=edit")).toBe("edit");
+  it("reads the editor's suffix as a mode of the version it is put on", () => {
+    expect(consoleTarget("/admin/workflows/Workflows/review/2-0", HOMEPAGES))
+      .toEqual({ kind: "version", path: "/Workflows/review/2-0", editing: false });
+    expect(consoleTarget("/admin/workflows/Workflows/review/2-0.edit", HOMEPAGES))
+      .toEqual({ kind: "version", path: "/Workflows/review/2-0", editing: true });
+    expect(consoleTarget("/admin/workflows/Content/Workflows/review/1-0.edit", HOMEPAGES))
+      .toEqual({ kind: "version", path: "/Content/Workflows/review/1-0", editing: true });
+  });
+
+  it("names nothing when the editor is asked for on something that has none", () => {
+    // Only a version is edited here. A suffix elsewhere is a URL the console never produces, so it
+    // is said to name nothing rather than being dropped to show the page it was put on
+    expect(consoleTarget("/admin/workflows/Workflows/review.edit", HOMEPAGES)).toEqual({ kind: "unknown" });
+    expect(consoleTarget("/admin/workflows/Workflows.edit", HOMEPAGES)).toEqual({ kind: "unknown" });
+    expect(consoleTarget("/admin/workflows.edit", HOMEPAGES)).toEqual({ kind: "unknown" });
+    expect(consoleTarget("/admin/workflows/Elsewhere/review/1-0.edit", HOMEPAGES)).toEqual({ kind: "unknown" });
   });
 
   it("reads each depth below a homepage as what it is", () => {
@@ -327,7 +339,7 @@ describe("the console's URLs", () => {
     expect(consoleTarget("/admin/workflows/Workflows/review", HOMEPAGES))
       .toEqual({ kind: "workflow", path: "/Workflows/review" });
     expect(consoleTarget("/admin/workflows/Workflows/review/2-0", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Workflows/review/2-0" });
+      .toEqual({ kind: "version", path: "/Workflows/review/2-0", editing: false });
   });
 
   it("treats the trailing slash and the .html a bookmark may carry as the same page", () => {
@@ -343,7 +355,7 @@ describe("the console's URLs", () => {
     expect(consoleTarget("/admin/workflows/Content/Workflows/review", HOMEPAGES))
       .toEqual({ kind: "workflow", path: "/Content/Workflows/review" });
     expect(consoleTarget("/admin/workflows/Content/Workflows/review/1-0", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Content/Workflows/review/1-0" });
+      .toEqual({ kind: "version", path: "/Content/Workflows/review/1-0", editing: false });
     expect(adminUrl("/Content/Workflows/review")).toBe("/admin/workflows/Content/Workflows/review");
   });
 
@@ -360,9 +372,9 @@ describe("the console's URLs", () => {
     // Nothing in a path is taken for a page — a page is asked for in the query — so no name below a
     // homepage is reserved
     expect(consoleTarget("/admin/workflows/Workflows/review/edit", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Workflows/review/edit" });
+      .toEqual({ kind: "version", path: "/Workflows/review/edit", editing: false });
     expect(consoleTarget("/admin/workflows/Workflows/edit/edit", HOMEPAGES))
-      .toEqual({ kind: "version", path: "/Workflows/edit/edit" });
+      .toEqual({ kind: "version", path: "/Workflows/edit/edit", editing: false });
   });
 
   it("knows nothing about a URL it cannot place", () => {
@@ -375,8 +387,14 @@ describe("the console's URLs", () => {
       .toEqual({ kind: "unknown" });
     expect(consoleTarget("/admin/categories", HOMEPAGES)).toEqual({ kind: "unknown" });
     expect(consoleTarget("/", HOMEPAGES)).toEqual({ kind: "unknown" });
-    // The console's own root, which is not routed here at all: a listing belongs to a homepage, and
-    // a root that showed whichever came first was a second URL, and a second crumb, for that page
-    expect(consoleTarget("/admin/workflows", HOMEPAGES)).toEqual({ kind: "unknown" });
+  });
+
+  it("reads the console's own root as the way in rather than as a page", () => {
+    // A listing belongs to a homepage, so the root addresses nothing — which is decided without
+    // knowing any homepage, the one URL here a caller may resolve before discovery lands
+    expect(consoleTarget("/admin/workflows", HOMEPAGES)).toEqual({ kind: "root" });
+    expect(consoleTarget("/admin/workflows", [])).toEqual({ kind: "root" });
+    expect(consoleTarget("/admin/workflows/", HOMEPAGES)).toEqual({ kind: "root" });
+    expect(consoleTarget("/admin/workflows.html", HOMEPAGES)).toEqual({ kind: "root" });
   });
 });
