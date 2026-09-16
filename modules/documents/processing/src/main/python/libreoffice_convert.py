@@ -122,6 +122,13 @@ def _run_soffice(command: list[str], timeout: float) -> subprocess.CompletedProc
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        # Named, and lenient. text=True alone decodes in the ambient encoding and strictly, so
+        # one byte soffice emits that the container's locale cannot decode raises a
+        # UnicodeDecodeError -- a ValueError no handler on this path catches, which turns the
+        # documented "continue without the sibling PDF" into a failed parse. The locale decides
+        # it, so it does not reproduce where it is debugged.
+        encoding="utf-8",
+        errors="replace",
         # POSIX only; on Windows there is no group to detach and kill() suffices.
         start_new_session=(os.name == "posix"),
     )

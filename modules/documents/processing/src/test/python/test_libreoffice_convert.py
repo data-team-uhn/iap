@@ -176,14 +176,21 @@ class TestConvertRequiresOutput:
         assert produced.read_bytes() == b"FRESH"
 
     def test_the_profile_directory_is_always_cleaned_up(self, monkeypatch, tmp_path):
+        # Against the real staging root. Production stages into tempfile.mkdtemp(prefix=
+        # "iap-lo-") and never into tmp_path, so looking there was a check nothing could fail
+        # -- and what leaks is up to 64 MiB of clinical document in the container's writable
+        # layer.
+        import tempfile
+
         source = tmp_path / "legacy.doc"
         source.write_bytes(b"doc")
         self._soffice(monkeypatch, writes=False)
+        before = set(Path(tempfile.gettempdir()).glob("iap-lo-*"))
 
         with pytest.raises(RuntimeError):
             lo.convert(source, "docx", tmp_path)
 
-        assert [p.name for p in tmp_path.iterdir() if p.name.startswith("iap-lo-")] == []
+        assert set(Path(tempfile.gettempdir()).glob("iap-lo-*")) == before
 
 
 class TestConvertedFilesStayInsideTheTwoTrees:
@@ -205,6 +212,43 @@ class TestConvertedFilesStayInsideTheTwoTrees:
         produced.write_bytes(b"%PDF")
         lo._move_into_place(produced, tmp_path / "report.pdf")
         assert (tmp_path / "report.pdf").read_bytes() == b"%PDF"
+
+
+class TestSofficeOutputIsDecodedLeniently:
+    """`text=True` alone decodes in the ambient encoding, and strictly.
+
+    One byte soffice emits that the container's locale cannot decode then raises a
+    `UnicodeDecodeError`, which is a `ValueError`, which nothing on this path catches --
+    `convert` takes `FileNotFoundError` and `TimeoutExpired`, `_convert_sibling_pdf` takes
+    `RuntimeError`, `FileNotFoundError` and `OSError`. So a stray byte failed the whole parse
+    instead of taking the documented "continue without the sibling PDF" route, and since the
+    locale decides it, not where it is debugged.
+    """
+
+    def test_undecodable_output_does_not_fail_the_run(self, tmp_path):
+        # 0x80 is not valid UTF-8 and not valid ASCII.
+        script = "import sys; sys.stdout.buffer.write(b'ok\\x80'); raise SystemExit(0)"
+        done = lo._run_soffice(_fake_soffice_argv(tmp_path, script), 30)
+        assert done.returncode == 0
+        assert "ok" in done.stdout
+
+    def test_the_sibling_pdf_still_soft_fails_on_undecodable_output(self, monkeypatch,
+                                                                     tmp_path):
+        # Through the whole path a real failure takes, with a stand-in soffice that writes a
+        # byte the ambient encoding cannot decode: the decode happens in _run_soffice, so a
+        # stubbed one would prove nothing.
+        launcher = tmp_path / "fake_soffice"
+        launcher.write_text("#!/bin/sh\nprintf 'cannot export\\200' >&2\nexit 1\n",
+                            encoding="utf-8")
+        launcher.chmod(0o755)
+        monkeypatch.setenv("IAP_LIBREOFFICE_SOFFICE", str(launcher))
+
+        source = tmp_path / "report.docx"
+        source.write_bytes(b"pk")
+        logs = []
+        lo._convert_sibling_pdf(source, logs.append)
+        assert any("continuing without sibling PDF" in line for line in logs)
+        assert any("cannot export" in line for line in logs)
 
 
 class TestSofficeTimeout:
@@ -442,7 +486,7 @@ class TestNothingCallerDerivedReachesTheArgv:
             lo.convert(source, "pdf", tmp_path)
 
         assert not seen["work_dir"].exists()
-        assert list(tmp_path.glob(".~lock*")) == []
+        assert list(seen["work_dir"].parent.glob(".~lock*")) == []
 
     def test_the_work_directory_is_cleaned_up(self, tmp_path, monkeypatch):
         command, _ = self._run(tmp_path, monkeypatch, "report.docx")

@@ -31,7 +31,9 @@
   <description>Document-processing pipeline (parsing, markdown cleanup, chunking).</description>
 
   <properties>
-    <python.executable>python</python.executable>
+    <!-- python3, not python: `python` is absent on a machine without python-is-python3, and
+         the build then dies with "Cannot run program python". -->
+    <python.executable>python3</python.executable>
   </properties>
 
   <build>
@@ -71,6 +73,7 @@
               <executable>${python.executable}</executable>
               <workingDirectory>${project.basedir}</workingDirectory>
               <arguments>
+                <argument>-B</argument>
                 <argument>-m</argument>
                 <argument>ruff</argument>
                 <argument>check</argument>
@@ -89,6 +92,7 @@
               <executable>${python.executable}</executable>
               <workingDirectory>${project.basedir}</workingDirectory>
               <arguments>
+                <argument>-B</argument>
                 <argument>-m</argument>
                 <argument>pytest</argument>
                 <argument>src/test/python</argument>

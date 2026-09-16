@@ -194,6 +194,39 @@ class TestTheStoredDocumentDoesNotDependOnItsLength:
             "a chunk opened on the caption, so the splitter cut there"
 
 
+class TestTheMergeFloorIsLoadBearing:
+    """`MIN_TAIL_TOKENS` could be changed from 500 to 1 with the whole suite still green.
+
+    The controls hold -- `CHARS_PER_TOKEN` 4 to 3 fails a test, and a constant
+    `calc_chunk_count` fails two -- so the harness does notice mutations, just not this one.
+    A 62-token chunk holding one sub-heading is what the floor exists to prevent.
+    """
+
+    def _tree(self, tail_tokens):
+        """One long section and a tail of ``tail_tokens``, cut to a 1000-token budget."""
+        body = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 70
+        tail = "x" * (tail_tokens * 4)
+        document = f"# Section One Heading\n\n{body}\n\n## The Second Section\n\n{tail}\n"
+        return chunker.build_chunk_tree(document, None, 1000, 1)
+
+    # Literals, not MIN_TAIL_TOKENS arithmetic: a bound written in terms of the constant moves
+    # with it, and a test that moves with what it pins cannot fail.
+    def test_a_tail_just_under_the_floor_is_folded_into_its_neighbour(self):
+        assert len(self._tree(450)["chunks"]) == 1
+
+    def test_a_tail_just_over_the_floor_keeps_its_own_file(self):
+        assert len(self._tree(600)["chunks"]) == 2
+
+    def test_the_two_floors_in_this_file_agree_at_the_default_budget(self):
+        # _split_into_chunks hands chunkweaver a floor in characters, capped at half the
+        # target because chunkweaver will not take more; _merge_small_chunks applies the real
+        # one in tokens afterwards. At the default budget they are the same number, and the
+        # merge pass is authoritative either way.
+        budget = chunker.DEFAULT_MAX_TOKENS * chunker.CHARS_PER_TOKEN
+        assert min(chunker.MIN_TAIL_TOKENS * chunker.CHARS_PER_TOKEN, budget // 2) \
+            == chunker.MIN_TAIL_TOKENS * chunker.CHARS_PER_TOKEN
+
+
 class TestScratchDirectories:
     """Everything a parse writes goes into a directory of its own, and is cleared up.
 
