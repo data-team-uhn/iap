@@ -77,8 +77,7 @@ export function getAnswerComponent(question: FormQuestion): AnswerComponent | nu
   let bestConfidence = -1;
   for (const candidate of candidates) {
     const offer = candidate(question);
-    // Ties go to the first registered, which makes the outcome depend on load order and not on the
-    // order the candidates happen to be visited in
+    // Strictly greater, so a tie goes to the first registered
     if (offer && offer[1] > bestConfidence) {
       [ best, bestConfidence ] = offer;
     }

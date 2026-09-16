@@ -43,34 +43,28 @@ describe("isQuestion", () => {
 });
 
 describe("fetchForm", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
   it("reads the form projection of a submission", async () => {
     const form = { path: PATH, title: "A long weekend", editable: true, requirements: [] };
     const fetchMock = vi.fn(() => response(form));
-    vi.stubGlobal("fetch", fetchMock);
 
-    expect(await fetchForm(PATH)).toEqual(form);
+    expect(await fetchForm(fetchMock, PATH)).toEqual(form);
     // The projection, not the node: it merges the schema's questions with this submission's answers
     // and leaves out whatever does not currently apply
     expect(fetchMock).toHaveBeenCalledWith(`${PATH}.form.json`);
   });
 
   it("reports a form that would not load", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => response({}, { ok: false, status: 404 })));
+    const fetchMock = vi.fn(() => response({}, { ok: false, status: 404 }));
 
-    await expect(fetchForm(PATH)).rejects.toThrow(/could not be loaded \(404\)/);
+    await expect(fetchForm(fetchMock, PATH)).rejects.toThrow(/could not be loaded \(404\)/);
   });
 });
 
 describe("saveAnswer", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
   it("posts the answer to the submission itself", async () => {
     const fetchMock = vi.fn(() => response({}));
-    vi.stubGlobal("fetch", fetchMock);
 
-    await saveAnswer(PATH, "details/startDate", [ "2026-10-06" ]);
+    await saveAnswer(fetchMock, PATH, "details/startDate", [ "2026-10-06" ]);
 
     const [ url, options ] = fetchMock.mock.calls[0] as unknown as
       [ string, { method: string; body: URLSearchParams } ];
@@ -82,9 +76,8 @@ describe("saveAnswer", () => {
   it("repeats a question that holds several values", async () => {
     // Which is what the handler reads back as a multi-valued answer
     const fetchMock = vi.fn(() => response({}));
-    vi.stubGlobal("fetch", fetchMock);
 
-    await saveAnswer(PATH, "details/days", [ "Monday", "Tuesday" ]);
+    await saveAnswer(fetchMock, PATH, "details/days", [ "Monday", "Tuesday" ]);
 
     const [ , options ] = fetchMock.mock.calls[0] as unknown as [ string, { body: URLSearchParams } ];
     expect(options.body.getAll("details/days")).toEqual([ "Monday", "Tuesday" ]);
@@ -93,22 +86,22 @@ describe("saveAnswer", () => {
   it("reports the engine's own reason for refusing", async () => {
     // A refusal carries why: not the submitter's request, or no longer a draft. Repeating that
     // verbatim beats inventing a message over the top of it
-    vi.stubGlobal("fetch", vi.fn(() => response(
+    const fetchMock = vi.fn(() => response(
       { error: "This request has been submitted and can no longer be changed" },
-      { ok: false, status: 403 })));
+      { ok: false, status: 403 }));
 
-    await expect(saveAnswer(PATH, "details/startDate", [ "x" ]))
+    await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
       .rejects.toThrow("This request has been submitted and can no longer be changed");
   });
 
   it("falls back to the status when a refusal carries no reason", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+    const fetchMock = vi.fn(() => Promise.resolve({
       ok: false,
       status: 409,
       json: () => Promise.reject(new Error("no body")),
-    } as unknown as Response)));
+    } as unknown as Response));
 
-    await expect(saveAnswer(PATH, "details/startDate", [ "x" ]))
+    await expect(saveAnswer(fetchMock, PATH, "details/startDate", [ "x" ]))
       .rejects.toThrow(/could not be saved \(409\)/);
   });
 });
