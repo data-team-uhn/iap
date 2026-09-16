@@ -100,7 +100,7 @@ function MySubmissionsWidget({ extension }: MySubmissionsWidgetProps) {
             <Typography variant="h6">{text(extension, "ext:name")}</Typography>
           ) }
           { text(extension, "ext:subtitle") && (
-            <Typography variant="body2" color="text.secondary">{text(extension, "ext:subtitle")}</Typography>
+            <Typography variant="body2" color="textSecondary">{text(extension, "ext:subtitle")}</Typography>
           ) }
         </Box>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>
