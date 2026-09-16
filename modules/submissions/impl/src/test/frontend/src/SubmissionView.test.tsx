@@ -243,7 +243,7 @@ const EMPTY_FORM = {
 function bothModes(submission: unknown = DEEP_SUBMISSION) {
   const otherwise = tagAwareFetch(submission);
   return vi.fn<(url: string) => Promise<Response>>(url => url.endsWith(".form.json")
-    ? Promise.resolve({ ok: true, json: () => Promise.resolve(EMPTY_FORM) } as unknown as Response)
+    ? Promise.resolve({ ok: true, url: "", json: () => Promise.resolve(EMPTY_FORM) } as unknown as Response)
     : otherwise(url));
 }
 
@@ -465,7 +465,7 @@ describe("SubmissionView", () => {
 
     it("keeps the way out of a submission that cannot be loaded", async () => {
       vi.stubGlobal("fetch", vi.fn<(url: string) => Promise<Response>>(
-        () => Promise.resolve({ ok: false, status: 403 } as unknown as Response)));
+        () => Promise.resolve({ ok: false, url: "", status: 403 } as unknown as Response)));
 
       renderAt("/Submissions/secret");
 

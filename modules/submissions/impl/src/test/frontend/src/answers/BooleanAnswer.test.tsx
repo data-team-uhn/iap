@@ -56,6 +56,42 @@ describe("BooleanAnswer", () => {
     expect(screen.getByRole("checkbox", { name: /Does this repeat/ })).toBeChecked();
   });
 
+  // A required boolean is two radios, so that No is an answer rather than the absence of one
+  it("offers a required question as two options, neither chosen until one is given", () => {
+    renderBoolean({ required: true });
+
+    expect(screen.getByRole("radio", { name: "Yes" })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "No" })).not.toBeChecked();
+  });
+
+  it("records a required No as an answer", async () => {
+    const onAnswered = renderBoolean({ required: true });
+
+    await userEvent.click(screen.getByRole("radio", { name: "No" }));
+
+    expect(onAnswered).toHaveBeenCalledWith([ "false" ]);
+  });
+
+  it("shows which of the two a required question already holds", () => {
+    renderBoolean({ required: true }, [ "false" ]);
+
+    expect(screen.getByRole("radio", { name: "No" })).toBeChecked();
+  });
+
+  // Each input carries it: a FormControl never forwards required to a radio
+  it("marks a required question's options required", () => {
+    renderBoolean({ required: true });
+
+    expect(screen.getByRole("radio", { name: "Yes" })).toBeRequired();
+    expect(screen.getByRole("radio", { name: "No" })).toBeRequired();
+  });
+
+  it("explains a required question when the schema does", () => {
+    renderBoolean({ required: true, description: "Weekly, monthly, or not at all." });
+
+    expect(screen.getByText("Weekly, monthly, or not at all.")).toBeInTheDocument();
+  });
+
   it("explains the question when the schema does", () => {
     renderBoolean({ description: "Weekly, monthly, or not at all." });
 
