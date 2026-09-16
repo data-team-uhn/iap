@@ -57,6 +57,7 @@ from chunkweaver.presets import MARKDOWN_LEVELED
 from docling_batch_sizing import parse_positive_int
 from heading_helpers import (
     _apply_bookmark_heading_levels,
+    _demote_invalid_atx_headings,
     _get_chunk_heading,
     _get_min_atx_level,
 )
@@ -428,15 +429,20 @@ def build_chunk_tree(
         }
 
     # Correct the markdown header levels according to the PDF bookmarks levels
-    md_lines = md_file.split("\n")
-    md_lines = _apply_bookmark_heading_levels(md_lines, pdf_bookmarks)
+    md_lines = _apply_bookmark_heading_levels(md_file.split("\n"), pdf_bookmarks)
     md_file = "\n".join(md_lines)
 
     catalog_chunks: list[dict] = []
     chunks: list[dict] = []
 
+    # A caption such as "## Table 3" is a boundary as far as chunkweaver is concerned, so it is
+    # demoted before the cut is decided -- on a copy, because the document that gets written
+    # out must read the same whether or not it was long enough to be chunked.
+    cut_lines = list(md_lines)
+    _demote_invalid_atx_headings(cut_lines)
+
     # Returns array [{"number": chunk_number, "text": text}]
-    top_chunks = _split_into_chunks(md_lines, max_tokens)
+    top_chunks = _split_into_chunks(cut_lines, max_tokens)
     top_texts = [chunk for chunk in top_chunks if chunk["text"]]
     if not top_texts:
         # Past the size gate, so there was a document to cut. Nothing back means the splitter

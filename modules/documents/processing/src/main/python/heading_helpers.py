@@ -142,7 +142,13 @@ def _get_page_distance(bookmark_page: object, candidate_page: int | None) -> int
 
 
 def _demote_invalid_atx_headings(lines: list[str]) -> None:
-    """Turn invalid ATX heading lines into body text in place."""
+    """Turn invalid ATX heading lines into body text in place.
+
+    For deciding where the splitter may cut, and not for the document that is written out. A
+    caption is a heading as far as chunkweaver's boundaries go. Demoting it in the stored
+    Markdown makes the same heading read differently depending on the document's length, since
+    only a document past the size gate is chunked at all.
+    """
     for index, line in enumerate(lines):
         stripped = line.strip()
         if is_neutral(stripped) or stripped.startswith("|"):
@@ -161,41 +167,37 @@ def _apply_bookmark_heading_levels(
     title (letters and digits only; section numbers are kept). The hit closest in page
     wins, and when two hits share that distance the later line in the document wins.
     That line keeps its text and only its ``#`` count is set to the bookmark level;
-    ``line`` / ``page`` / ``checked`` are written on the bookmark dict. Invalid ATX
-    captions are demoted to body before matching.
+    ``line`` / ``page`` / ``checked`` are written on the bookmark dict.
 
     @return: rewritten lines
     """
     out = list(lines)
-    _demote_invalid_atx_headings(out)
     if not pdf_bookmarks:
         return out
 
-    # Collect the page number for each line in the document
+    # One pass over the document, indexed by normalized title, rather than a pass per bookmark.
+    # Both factors are the submitter's: 200 bookmarks over a 61,500-line document took 17.6s
+    # here, strictly linear in their product, and it is spent holding the daemon's only parse
+    # slot after the conversion itself has finished.
+    candidates: dict[str, list[tuple[int, int | None]]] = {}
     current_page: int | None = None
-    line_pages: list[int | None] = [None] * len(out)
     for index, line in enumerate(out):
         stripped = line.strip()
         page_match = PAGE_MARKER_LINE.match(stripped)
         if page_match is not None:
             current_page = int(page_match.group(1))
             continue
-        line_pages[index] = current_page
+        if is_neutral(stripped) or stripped.startswith("|"):
+            continue
+        text = _get_bookmark_match_text(stripped)
+        if text is None:
+            continue
+        candidates.setdefault(normalize_title(text), []).append((index, current_page))
 
     # Match the PDF bookmarks to the lines in the document
     for bookmark in pdf_bookmarks:
         key = normalize_title(bookmark.get("title") or "")
-        if not key:
-            continue
-        matches: list[tuple[int, int | None]] = []
-        for index, line in enumerate(out):
-            stripped = line.strip()
-            if is_neutral(stripped) or stripped.startswith("|"):
-                continue
-            text = _get_bookmark_match_text(stripped)
-            if text is None or normalize_title(text) != key:
-                continue
-            matches.append((index, line_pages[index]))
+        matches = candidates.get(key) if key else None
         if not matches:
             continue
         chosen_index, chosen_page = min(

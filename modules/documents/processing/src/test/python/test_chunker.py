@@ -154,6 +154,45 @@ class TestChunkFile:
         assert not (path.parent / chunker.CHUNKS_DIRNAME / chunker.CATALOG_NAME).exists()
 
 
+class TestTheStoredDocumentDoesNotDependOnItsLength:
+    """A caption is demoted so the splitter does not cut on it, and only for that.
+
+    Demoting in the document that gets persisted made the same content read differently
+    depending on its size, because only a document past the size gate is ever chunked: a
+    "## Table 3" caption kept its hashes in a short protocol and arrived as body text in a
+    long one.
+    """
+
+    # Eleven words, so is_valid_heading rejects it: a caption, not a section.
+    CAPTION = "## Table 3 the baseline characteristics of every enrolled participant by arm"
+
+    def _document(self, sections):
+        paragraph = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " * 60
+        body = [f"# Section {number} Heading\n\n{self.CAPTION}\n\n{paragraph}\n"
+                for number in range(1, sections + 1)]
+        return "\n".join(body)
+
+    def _stored(self, tmp_path, markdown, **options):
+        path = tmp_path / "protocol.md"
+        chunker.chunk_file(str(path), markdown=markdown, **options)
+        return path.read_text(encoding="utf-8")
+
+    def test_a_caption_keeps_its_hashes_when_the_document_is_chunked(self, tmp_path):
+        stored = self._stored(tmp_path, self._document(50))
+        assert self.CAPTION in stored
+
+    def test_and_when_it_is_too_short_to_be_chunked(self, tmp_path):
+        stored = self._stored(tmp_path, self._document(1))
+        assert self.CAPTION in stored
+
+    def test_the_caption_is_still_not_a_chunk_boundary(self, tmp_path):
+        # The demotion has to keep happening somewhere, or the splitter cuts on the caption.
+        tree = chunker.build_chunk_tree(self._document(50), None, 2000, 1)
+        assert tree["chunked"] is True
+        assert not any(chunk["text"].lstrip().startswith("##") for chunk in tree["chunks"]), \
+            "a chunk opened on the caption, so the splitter cut there"
+
+
 class TestOutlineBookmarks:
     """``Chunks/outline.json`` ``bookmarks`` come from a sibling PDF and from nothing else.
 

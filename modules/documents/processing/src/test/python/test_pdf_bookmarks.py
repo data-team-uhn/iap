@@ -66,3 +66,12 @@ class TestExtractBookmarks:
         out = pdf_bookmarks.extract_bookmarks(FakeReader(nested))
         assert [record["title"] for record in out] == [f"L{n}" for n in range(1, ceiling + 1)]
         assert all(record["level"] <= ceiling for record in out)
+
+    def test_the_bookmark_count_is_capped(self, monkeypatch):
+        # Nesting is bounded by MAX_OUTLINE_DEPTH; siblings at one level were not, and every
+        # bookmark is matched against the document and listed in outline.json.
+        monkeypatch.setattr(pdf_bookmarks, "MAX_BOOKMARKS", 5)
+        many = [FakeDest(f"Section {n}", 0) for n in range(50)]
+        out = pdf_bookmarks.extract_bookmarks(FakeReader(many))
+        assert len(out) == 5
+        assert out[0]["title"] == "Section 0"

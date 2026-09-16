@@ -36,6 +36,11 @@ from markdown_markers import MAX_HEADING_LEVEL
 # recursion deep per level, so an absurdly nested one would otherwise exhaust the stack.
 MAX_OUTLINE_DEPTH = 32
 
+# How many bookmarks are worth taking from one document. Nesting is capped above; siblings
+# per level are not, and every one of them is matched against the document and listed in
+# outline.json. Far past any real protocol's table of contents.
+MAX_BOOKMARKS = 2000
+
 
 def _get_pdf_bookmarks(reader) -> list[dict]:
     """Flatten one reader's outline into ``pdf_bookmarks``."""
@@ -73,6 +78,8 @@ def _flatten(reader, items, level: int, out: list[dict]) -> None:
         # Deeper than any real document's outline, so the rest is not worth a stack frame.
         return
     for item in items:
+        if len(out) >= MAX_BOOKMARKS:
+            return
         if isinstance(item, list):
             _flatten(reader, item, level + 1, out)
             continue
