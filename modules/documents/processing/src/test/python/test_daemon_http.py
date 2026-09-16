@@ -192,6 +192,23 @@ class TestDrainRequestBody:
         # An empty value is falsy and means "no body"; the others close the connection.
         assert handler.close_connection is (declared != "")
 
+    # Every one of these is a number to int() and not to HTTP. "1_0" is the sharp one: the
+    # drain would read ten bytes for a three-byte body and take the head of the next request
+    # on the connection with it, which is the desync draining exists to prevent.
+    @pytest.mark.parametrize("declared", ["1_0", " 10 ", "+10", "\u0663", "10, 10", "0x10"])
+    def test_a_length_only_int_would_accept_is_refused(self, declared):
+        handler = FakeHandler(b"abc")
+        handler.set_header("Content-Length", declared)
+        assert daemon_http.drain_request_body(handler) is False
+        assert handler.close_connection is True
+        assert handler.rfile.read() == b"abc", "the body was read against a bogus length"
+
+    def test_a_plain_length_is_still_drained(self):
+        handler = FakeHandler(b"abc")
+        assert daemon_http.drain_request_body(handler) is True
+        assert handler.close_connection is False
+        assert handler.rfile.read() == b""
+
     def test_an_oversized_declared_length_is_refused_rather_than_read(self):
         # Nobody gets to hold a worker thread open feeding the daemon bytes.
         handler = FakeHandler(b"abc")

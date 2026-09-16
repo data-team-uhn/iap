@@ -27,6 +27,7 @@ import multiprocessing
 import os
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from time import perf_counter
@@ -44,7 +45,7 @@ from docling_batch_sizing import (
     calc_workers,
     print_parallelism_summary,
 )
-from shared_docs import open_pdf_reader, refuse_empty_pdf
+from shared_docs import open_pdf_reader, read_positive_number_from_env, refuse_empty_pdf
 from docling_error_detection import (
     DOCLING_PIPELINE_LOGGER,
     DoclingLogCollector,
@@ -111,17 +112,50 @@ def _warm_worker() -> int:
 
 LogFn = Callable[[str], None]
 
+# Wall-clock ceiling for one whole conversion. Docling's own document_timeout bounds a single
+# page batch, and a 1500-page document is up to 375 of them, so it bounds nothing a caller
+# waits on. Somebody is waiting on this one: a document that cannot be converted inside the
+# quarter hour is better refused than delivered to a person who has given up. 0 disables it.
+PARSE_TIMEOUT_VARIABLE = "IAP_DOCLING_PARSE_TIMEOUT_SECONDS"
+DEFAULT_PARSE_TIMEOUT_SECONDS = 900.0
+
+# How long an abandoned batch is given to stop before its worker is called wedged. Docling
+# checks its own timeout between page batches, so a batch stuck inside one page never returns.
+ABANDON_TIMEOUT_SECONDS = 120.0
+
+
+class StuckWorkerError(RuntimeError):
+    """A page batch outlived its deadline and its worker could not be reclaimed.
+
+    The pool cannot be reused afterwards: the worker is still spending CPU and RAM on a result
+    nobody wants, and nothing here can stop it. :mod:`docling_daemon` answers this the way it
+    answers a broken pool, so ``/health`` starts failing and the container is restarted.
+    """
+
+
+def get_parse_timeout_seconds() -> float | None:
+    """The whole-conversion ceiling, or ``None`` when it is switched off."""
+    return read_positive_number_from_env(
+        PARSE_TIMEOUT_VARIABLE, DEFAULT_PARSE_TIMEOUT_SECONDS, float, "a number"
+    )
+
 
 def _run_pdf_chunks(
     chunks: list[tuple[str, int, int]],
     executor: ProcessPoolExecutor,
     *,
     log: LogFn,
+    timeout: float | None = None,
 ) -> list[tuple[int, int, str, str, int, float, str | None]]:
-    """Submit page batches to executor and collect results in page order."""
+    """Submit page batches to executor and collect results in page order.
+
+    @param timeout: seconds allowed for the whole conversion, or ``None`` for no ceiling
+    @raise RuntimeError: when a batch failed, or the conversion outlasted ``timeout``
+    @raise StuckWorkerError: when an abandoned batch could not be reclaimed
+    """
     completed_results: list[tuple[int, int, str, str, int, float, str | None]] = []
-    # The first batch failure, kept as its message: the daemon's HTTP reply carries only
-    # str(exc), so a bare "a batch failed" left the caller nothing to act on.
+    # The first batch failure, kept as its message: this is what the container log records
+    # against the reply's reference, and a bare "a batch failed" leaves nothing to act on.
     had_failure: str | None = None
 
     future_to_chunk = {
@@ -129,40 +163,51 @@ def _run_pdf_chunks(
         for chunk in chunks
     }
 
-    for future in as_completed(future_to_chunk):
-        _, start_page, end_page = future_to_chunk[future]
-        try:
-            result = future.result()
-        except BrokenProcessPool:
-            # The whole pool is dead, not just this batch, and it cannot recover in-process.
-            # Let the real exception type through so the daemon's handler flags the pool and
-            # asks for a restart; a "failed batch" tuple would leave it reporting healthy.
-            for pending in future_to_chunk:
-                pending.cancel()
-            raise
-        except Exception as e:
-            result = (
-                start_page,
-                end_page,
-                "failed",
-                "",
-                0,
-                0.0,
-                f"Executor failure: {e}",
+    try:
+        # One deadline for the lot, and it is the only one: a batch wedged inside a single page
+        # never comes back, so waiting on it held the daemon's one parse slot for good while
+        # /health kept answering 200.
+        for future in as_completed(future_to_chunk, timeout=timeout):
+            _, start_page, end_page = future_to_chunk[future]
+            try:
+                result = future.result()
+            except BrokenProcessPool:
+                # The whole pool is dead, not just this batch, and it cannot recover
+                # in-process. Let the real exception type through so the daemon's handler flags
+                # the pool and asks for a restart; a "failed batch" tuple would leave it
+                # reporting healthy.
+                for pending in future_to_chunk:
+                    pending.cancel()
+                raise
+            except Exception as e:
+                result = (
+                    start_page,
+                    end_page,
+                    "failed",
+                    "",
+                    0,
+                    0.0,
+                    f"Executor failure: {e}",
+                )
+
+            completed_results.append(result)
+
+            r_start, r_end, status, _md, md_len, elapsed, error = result
+            if error:
+                had_failure = f"pages {r_start}-{r_end}: {error}"
+                log(f"FAILED pages {r_start}-{r_end}: {error}")
+                _abandon_batches(future_to_chunk, log=log)
+                break
+            log(
+                f"Completed pages {r_start}-{r_end}: status={status}, "
+                f"markdown={md_len:,} chars, time={elapsed:.2f}s"
             )
-
-        completed_results.append(result)
-
-        r_start, r_end, status, _md, md_len, elapsed, error = result
-        if error:
-            had_failure = f"pages {r_start}-{r_end}: {error}"
-            log(f"FAILED pages {r_start}-{r_end}: {error}")
-            _abandon_batches(future_to_chunk, log=log)
-            break
-        log(
-            f"Completed pages {r_start}-{r_end}: status={status}, "
-            f"markdown={md_len:,} chars, time={elapsed:.2f}s"
-        )
+    except FutureTimeoutError:
+        log(f"Conversion exceeded {timeout:.0f}s; abandoning the remaining page batches")
+        _abandon_batches(future_to_chunk, log=log)
+        raise RuntimeError(
+            f"conversion exceeded the {timeout:.0f}s {PARSE_TIMEOUT_VARIABLE} ceiling"
+        ) from None
 
     if had_failure:
         raise RuntimeError(f"Page batch conversion failed ({had_failure})")
@@ -178,14 +223,23 @@ def _abandon_batches(futures, *, log: LogFn) -> None:
     ``cancel()`` cannot stop a batch already running, and in daemon mode the executor outlives
     the request. Returning early would leave those batches spending workers and RAM on a result
     nobody wants, starving the next caller.
+
+    @raise StuckWorkerError: when a batch is still running after
+        :data:`ABANDON_TIMEOUT_SECONDS`, which means nothing here can reclaim its worker
     """
     still_running = [future for future in futures if not future.cancel() and not future.done()]
     if not still_running:
         return
     log(f"Waiting for {len(still_running)} in-flight page batch(es) to stop")
+    deadline = perf_counter() + ABANDON_TIMEOUT_SECONDS
     for future in still_running:
         try:
-            future.result()
+            future.result(timeout=max(0.0, deadline - perf_counter()))
+        except FutureTimeoutError:
+            raise StuckWorkerError(
+                f"a page batch did not stop within {ABANDON_TIMEOUT_SECONDS:.0f}s; "
+                "the worker pool cannot be reused"
+            ) from None
         except Exception:  # noqa: BLE001 -- already failing; a batch's outcome is moot now
             pass
 
@@ -248,15 +302,16 @@ def convert_pdf_to_markdown(
 
     t0 = perf_counter()
 
+    timeout = get_parse_timeout_seconds()
     if executor is None:
         with ProcessPoolExecutor(
             max_workers=active_workers,
             initializer=_init_worker,
             mp_context=get_worker_context(),
         ) as pool:
-            completed_results = _run_pdf_chunks(chunks, pool, log=log_fn)
+            completed_results = _run_pdf_chunks(chunks, pool, log=log_fn, timeout=timeout)
     else:
-        completed_results = _run_pdf_chunks(chunks, executor, log=log_fn)
+        completed_results = _run_pdf_chunks(chunks, executor, log=log_fn, timeout=timeout)
 
     all_markdown: list[str] = []
     for _start_page, _end_page, _status, md, _md_len, _elapsed, _error in completed_results:

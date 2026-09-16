@@ -28,6 +28,7 @@ request guards were moved to :mod:`daemon_http` for exactly that reason; see
 ``test_daemon_http.py``. What remains are the tests that genuinely need the daemon.
 """
 
+import json
 import sys
 import threading
 import time
@@ -44,6 +45,23 @@ pytest.importorskip("docling", reason="docling not installed; conversion plumbin
 import docling_daemon as daemon  # noqa: E402 -- must follow the importorskip guard
 import docling_pdf_parser as pdf_parser  # noqa: E402
 from docling_pdf_parser import _abandon_batches  # noqa: E402
+
+
+def write_pdf(path, pages: int = 1):
+    """Write a real PDF at ``path``.
+
+    A four-byte ``b"%PDF"`` stand-in is enough for the path allowlist and for nothing past it:
+    ``refuse_oversized_input`` reads the page tree, and a document pypdf cannot open is refused
+    as a 400 rather than converted.
+    """
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    for _ in range(pages):
+        writer.add_blank_page(width=72, height=72)
+    with open(path, "wb") as handle:
+        writer.write(handle)
+    return path
 
 
 class _FakeHandler:
@@ -250,9 +268,7 @@ class TestParseErrorStatus:
 
     def _staged_pdf(self, monkeypatch, tmp_path):
         monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
-        pdf = tmp_path / "doc.pdf"
-        pdf.write_bytes(b"%PDF")
-        return pdf
+        return write_pdf(tmp_path / "doc.pdf")
 
     def test_missing_path_is_400(self, monkeypatch, tmp_path):
         self._ready(monkeypatch)
@@ -301,9 +317,7 @@ class TestConcurrentParsesAreBounded:
 
     def _staged_pdf(self, monkeypatch, tmp_path):
         monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
-        pdf = tmp_path / "doc.pdf"
-        pdf.write_bytes(b"%PDF")
-        return pdf
+        return write_pdf(tmp_path / "doc.pdf")
 
     def _ready(self, monkeypatch):
         state = SimpleNamespace(
@@ -540,8 +554,8 @@ class TestRunPdfChunksBrokenPool:
                 pdf_parser._run_pdf_chunks([("doc.pdf", 1, 2)], pool, log=lambda _m: None)
 
     def test_the_failure_carries_the_reason_and_the_pages(self, monkeypatch):
-        # The daemon's reply is only str(exc), so a bare "a batch failed" left whoever polls
-        # the job nothing to act on and no choice but to read the container log.
+        # This message is what the container log records against the reply's reference, so a
+        # bare "a batch failed" leaves nothing for whoever goes looking to act on.
         def explode(_chunk):
             raise RuntimeError("page 3 is broken")
 
@@ -551,6 +565,72 @@ class TestRunPdfChunksBrokenPool:
                 pdf_parser._run_pdf_chunks([("doc.pdf", 1, 2)], pool, log=lambda _m: None)
         assert "page 3 is broken" in str(raised.value)
         assert "pages 1-2" in str(raised.value)
+
+
+class TestAConversionHasADeadline:
+    """``document_timeout`` bounds one page batch, and a document is up to 375 of them.
+
+    So nothing bounded a request. A batch wedged inside a single page never returns at all,
+    and waiting on it held the daemon's only parse slot for good: every later caller got a 503
+    while ``/health`` went on answering 200, which is a hang no healthcheck restarts.
+    """
+
+    def test_a_conversion_past_the_ceiling_is_abandoned(self, monkeypatch):
+        # Slower than the ceiling, but it does stop when asked: the batch is reclaimed and the
+        # conversion is reported as over its deadline, not as a wedged worker.
+        def slow(_chunk):
+            time.sleep(0.6)
+            return (1, 2, "ok", "", 0, 0.0, None)
+
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", slow)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with pytest.raises(RuntimeError, match="ceiling"):
+                pdf_parser._run_pdf_chunks(
+                    [("doc.pdf", 1, 2)], pool, log=lambda _m: None, timeout=0.2
+                )
+
+    def test_a_conversion_inside_the_ceiling_is_untouched(self, monkeypatch):
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk",
+                            lambda chunk: (chunk[1], chunk[2], "ok", "md", 2, 0.0, None))
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            done = pdf_parser._run_pdf_chunks(
+                [("doc.pdf", 1, 2)], pool, log=lambda _m: None, timeout=30
+            )
+        assert [result[0] for result in done] == [1]
+
+    def test_a_batch_that_will_not_stop_is_a_stuck_worker(self, monkeypatch):
+        release = threading.Event()
+
+        def wedged(_chunk):
+            release.wait(10)
+            return (1, 2, "ok", "", 0, 0.0, None)
+
+        monkeypatch.setattr(pdf_parser, "parse_pdf_chunk", wedged)
+        monkeypatch.setattr(pdf_parser, "ABANDON_TIMEOUT_SECONDS", 0.2)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(pdf_parser.parse_pdf_chunk, ("doc.pdf", 1, 2))
+            try:
+                with pytest.raises(pdf_parser.StuckWorkerError):
+                    _abandon_batches([future], log=lambda _m: None)
+            finally:
+                release.set()
+
+    def test_the_whole_conversion_gets_at_least_one_batch(self):
+        # The two ceilings live in different modules. A parse ceiling under the per-batch one
+        # would mean no batch can finish inside it, so every document past a few pages fails
+        # on the clock rather than on anything about the document.
+        import docling_config
+
+        assert (pdf_parser.DEFAULT_PARSE_TIMEOUT_SECONDS
+                >= docling_config.DEFAULT_DOCUMENT_TIMEOUT_SECONDS)
+
+    def test_the_ceiling_can_be_turned_off(self, monkeypatch):
+        monkeypatch.setenv(pdf_parser.PARSE_TIMEOUT_VARIABLE, "0")
+        assert pdf_parser.get_parse_timeout_seconds() is None
+
+    def test_the_ceiling_is_read_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv(pdf_parser.PARSE_TIMEOUT_VARIABLE, "90")
+        assert pdf_parser.get_parse_timeout_seconds() == 90.0
 
 
 class TestBrokenPoolShutsDown:
@@ -595,6 +675,47 @@ class TestPathBasedParseContract:
     def test_no_parse_output_dir_argument(self):
         parser_source = daemon.parse_args.__code__.co_consts
         assert not any(isinstance(c, str) and "parse-output-dir" in c for c in parser_source)
+
+
+class TestTheSignalHandlerOnlySetsFlags:
+    """``_handle_signal`` runs between bytecodes on whichever thread is executing.
+
+    It used to start a thread from there. ``threading`` is not reentrant: the server starts a
+    thread per request, so a signal arriving inside ``Thread.start()`` would have re-entered it
+    holding its own lock, and a deadlock at that point ends with the container killed once its
+    grace period runs out.
+    """
+
+    def _quiet(self, monkeypatch):
+        monkeypatch.setattr(daemon, "_STATE", None)
+        monkeypatch.setattr(daemon, "_SHUTDOWN_REQUESTED", False)
+
+    def test_it_starts_no_thread(self, monkeypatch):
+        self._quiet(monkeypatch)
+
+        def refuse(*args, **kwargs):
+            raise AssertionError("a signal handler must not start a thread")
+
+        monkeypatch.setattr(threading, "Thread", refuse)
+        daemon._handle_signal(15, None)
+        assert daemon._SHUTDOWN_REQUESTED is True
+
+    def test_it_does_not_touch_the_server(self, monkeypatch):
+        # shutdown() waits for the serve_forever loop to acknowledge, which the handler cannot
+        # do: it may well be running on that very thread.
+        self._quiet(monkeypatch)
+        touched = []
+        monkeypatch.setattr(daemon, "_SERVER",
+                            SimpleNamespace(shutdown=lambda: touched.append("shutdown")))
+        daemon._handle_signal(15, None)
+        assert touched == []
+
+    def test_it_also_marks_the_state(self, monkeypatch):
+        state = SimpleNamespace(shutdown_requested=False, pdf_executor_broken=False)
+        monkeypatch.setattr(daemon, "_STATE", state)
+        monkeypatch.setattr(daemon, "_SHUTDOWN_REQUESTED", False)
+        daemon._handle_signal(15, None)
+        assert state.shutdown_requested is True
 
 
 class TestShutdownDrain:
@@ -681,6 +802,10 @@ class TestParseFailureStatuses:
     mid-parse" — the wrong cause, and indistinguishable from a plain SIGTERM, while
     ``_get_health_status()`` still said ``pdf_pool_broken``. Nothing covered ``_handle_parse`` for
     any of these; ``TestBrokenPoolShutsDown`` calls ``_run_parse`` directly.
+
+    All three now answer in the daemon's own words. The exception's own message is logged
+    against a reference and not sent, because it is assembled from internals: soffice's raw
+    output, a Docling error quoting the shared-docs path.
     """
 
     def _handler(self, path):
@@ -704,9 +829,7 @@ class TestParseFailureStatuses:
     def _staged(self, monkeypatch, tmp_path):
         monkeypatch.setenv("IAP_SHARED_DOCS", str(tmp_path))
         monkeypatch.delenv(daemon.TOKEN_ENVIRONMENT_VARIABLE, raising=False)
-        pdf = tmp_path / "doc.pdf"
-        pdf.write_bytes(b"%PDF")
-        return pdf
+        return write_pdf(tmp_path / "doc.pdf")
 
     def _run(self, monkeypatch, tmp_path, failure):
         state = self._state(monkeypatch)
@@ -739,11 +862,50 @@ class TestParseFailureStatuses:
         handler = self._run(monkeypatch, tmp_path, self._shutdown)
         assert handler.header_value("status") == HTTPStatus.SERVICE_UNAVAILABLE
         assert b"retry this document" in handler.written
+        assert b"batch cancelled" not in handler.written
 
-    def test_a_bad_document_is_a_500_naming_the_document_error(self, monkeypatch, tmp_path):
+    def test_a_bad_document_is_a_500_carrying_a_reference(self, monkeypatch, tmp_path):
         handler = self._run(monkeypatch, tmp_path, self._bad_document)
         assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
-        assert b"invalid xref table" in handler.written
+        assert b"invalid xref table" not in handler.written, "the internals reached the caller"
+        assert b"reference" in handler.written
+
+    def test_the_reference_in_the_reply_is_the_one_in_the_log(self, monkeypatch, tmp_path,
+                                                              capsys):
+        handler = self._run(monkeypatch, tmp_path, self._bad_document)
+        reference = json.loads(handler.written.decode("utf-8"))["reference"]
+        logged = capsys.readouterr().err
+        assert f"Parse failure {reference}" in logged
+        assert "invalid xref table" in logged, "the reason has to survive somewhere"
+
+    def test_two_failures_do_not_share_a_reference(self, monkeypatch, tmp_path):
+        first = self._run(monkeypatch, tmp_path, self._bad_document)
+        second = self._run(monkeypatch, tmp_path, self._bad_document)
+        assert (json.loads(first.written.decode("utf-8"))["reference"]
+                != json.loads(second.written.decode("utf-8"))["reference"])
+
+    def test_a_wedged_worker_is_reported_as_a_broken_pool(self, monkeypatch, tmp_path):
+        # Nothing here can reclaim the worker, so the pool cannot be reused and /health has to
+        # start failing -- otherwise the container is never restarted, and every later parse
+        # answers 503 against a probe still saying 200.
+        state = self._state(monkeypatch)
+        state.pdf_executor = None
+        state.docx_lock = None
+        state.docx_converter = None
+        monkeypatch.setattr(daemon, "_SHUTDOWN_REQUESTED", False)
+        pdf = self._staged(monkeypatch, tmp_path)
+
+        def wedged(*args, **kwargs):
+            raise pdf_parser.StuckWorkerError("a page batch did not stop")
+
+        # Through the real _run_parse, because its except clause is what is under test.
+        monkeypatch.setattr(daemon, "parse_document", wedged)
+        handler = self._handler(f"/parse?path={pdf}")
+        daemon.DoclingDaemonHandler._handle_parse(handler)
+        assert state.pdf_executor_broken is True
+        assert daemon._get_health_status() == "pdf_pool_broken"
+        assert handler.header_value("status") == HTTPStatus.INTERNAL_SERVER_ERROR
+        assert b"worker pool is broken" in handler.written
 
     def test_the_three_outcomes_are_not_conflated(self, monkeypatch, tmp_path):
         # The property that regressed: a dead pool and a SIGTERM must not look the same.

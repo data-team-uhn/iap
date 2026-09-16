@@ -32,6 +32,7 @@ from __future__ import annotations
 import hmac
 import json
 import os
+import re
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
@@ -47,6 +48,12 @@ TOKEN_ENVIRONMENT_VARIABLE = "IAP_DOCLING_TOKEN"
 # anything here is a caller's mistake; a declared length past this is refused rather than
 # streamed, so nobody can hold a worker thread open feeding it bytes.
 MAX_DRAINED_BODY_BYTES = 1024 * 1024
+
+# A Content-Length as HTTP defines it, and not as ``int()`` reads one. ``int`` accepts
+# underscores, surrounding whitespace, a leading plus and non-ASCII digits: "1_0" is ten, so a
+# three-byte body declared that way had the drain read ten and eat the head of the next
+# pipelined request -- exactly the desync the drain exists to prevent.
+CONTENT_LENGTH = re.compile(r"[0-9]+")
 
 
 def get_daemon_token() -> str | None:
@@ -93,12 +100,11 @@ def drain_request_body(handler) -> bool:
     declared = handler.headers.get("Content-Length")
     if not declared:
         return True
-    try:
-        remaining = int(declared)
-    except ValueError:
+    if not CONTENT_LENGTH.fullmatch(declared):
         handler.close_connection = True
         return False
-    if remaining < 0 or remaining > MAX_DRAINED_BODY_BYTES:
+    remaining = int(declared)
+    if remaining > MAX_DRAINED_BODY_BYTES:
         handler.close_connection = True
         return False
     while remaining > 0:

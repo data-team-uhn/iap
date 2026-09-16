@@ -43,7 +43,9 @@ import os
 import signal
 import sys
 import threading
+import time
 import traceback
+import uuid
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from http import HTTPStatus
@@ -70,7 +72,12 @@ from docling_batch_sizing import add_workers_argument, calc_workers
 from docling.datamodel.base_models import InputFormat
 
 from docling_docx_parser import get_docx_converter
-from docling_pdf_parser import warm_pdf_workers, get_worker_context, _init_worker
+from docling_pdf_parser import (
+    StuckWorkerError,
+    warm_pdf_workers,
+    get_worker_context,
+    _init_worker,
+)
 from shared_docs import (
     ParseRequestError,
     refuse_oversized_input,
@@ -142,6 +149,11 @@ class DaemonState:
 _STATE: DaemonState | None = None
 _SERVER: DrainingHTTPServer | None = None
 _SHUTDOWN_ENABLED = False
+_SHUTDOWN_REQUESTED = False
+
+# How often :func:`main` looks at _SHUTDOWN_REQUESTED. Polled rather than waited on, because
+# every wait primitive takes a lock that a signal handler must not.
+SHUTDOWN_POLL_SECONDS = 0.5
 
 
 def _get_health_status() -> str:
@@ -179,7 +191,10 @@ def _run_parse(
             # diagnostics (e.g. "FAILED pages 4-6: ...") survive.
             log=lambda message: print(message, file=sys.stderr, flush=True),
         )
-    except BrokenProcessPool as exc:
+    except (BrokenProcessPool, StuckWorkerError) as exc:
+        # A wedged batch is answered as a dead pool for the same reason: its worker is still
+        # spending CPU and RAM on a result nobody wants, and nothing here can reclaim it. The
+        # flag is what makes /health fail, which is what gets the container restarted.
         _STATE.pdf_executor_broken = True
         _request_shutdown()
         raise RuntimeError("PDF worker pool is broken; restart the daemon") from exc
@@ -342,33 +357,53 @@ class DoclingDaemonHandler(BaseHTTPRequestHandler):
                         _STATE.parse_slots.release()
         except ParseRequestError as exc:
             reply = (HTTPStatus.BAD_REQUEST, {"error": str(exc)})
-        except Exception as exc:
+        except Exception:
             # Everything else is a server-side failure, including the ValueErrors Docling,
-            # pypdf and the chunker raise on a malformed document. The reply carries only the
-            # message, so log the traceback.
+            # pypdf and the chunker raise on a malformed document. Their messages are built
+            # from internals -- soffice's raw output, a Docling error quoting the shared-docs
+            # path -- so the traceback goes to the log under a reference and the caller gets
+            # the reference. Same rule as JdkHttpRequests (#104) and EmailTestEndpoint (#107).
+            reference = uuid.uuid4().hex[:12]
+            print(f"Parse failure {reference}:", file=sys.stderr, flush=True)
             traceback.print_exc(file=sys.stderr)
-            broken_pool = _STATE is not None and _STATE.pdf_executor_broken
-            if _STATE is not None and _STATE.shutdown_requested and not broken_pool:
+            # The three causes stay distinguishable, in the daemon's own words rather than the
+            # exception's: _run_parse sets shutdown_requested for a dead pool too, so a
+            # shutdown-only check reported an OOM-killed worker as a plain SIGTERM.
+            if _STATE is not None and _STATE.pdf_executor_broken:
+                reply = (
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "PDF worker pool is broken; the daemon is restarting",
+                     "reference": reference},
+                )
+            elif _STATE is not None and _STATE.shutdown_requested:
                 # A shutdown mid-conversion says nothing about the document, so answer 503
                 # (retryable) rather than a 500 the caller could read as "unparseable".
-                #
-                # The broken-pool guard is needed because _run_parse also calls
-                # _request_shutdown() for a BrokenProcessPool, so shutdown_requested is set
-                # there too -- without it an OOM-killed worker reports the wrong cause.
                 reply = (
                     HTTPStatus.SERVICE_UNAVAILABLE,
-                    {"error": f"daemon shutting down mid-parse; retry this document ({exc})"},
+                    {"error": "daemon shutting down mid-parse; retry this document",
+                     "reference": reference},
                 )
             else:
-                reply = (HTTPStatus.INTERNAL_SERVER_ERROR, {"error": str(exc)})
+                reply = (
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "the document could not be converted; the daemon log records "
+                              "why, against this reference",
+                     "reference": reference},
+                )
         send_json_response(self, *reply)
 
 
 def _request_shutdown() -> None:
+    """Ask :func:`main` to stop serving. Called from a signal handler, so it only sets flags.
+
+    Starting a thread here instead was not safe against ``threading``'s own locks: the server
+    starts one per request, so a signal arriving inside ``Thread.start()`` re-entered it on the
+    same thread, and a deadlock there ends with the container killed after its grace period.
+    """
+    global _SHUTDOWN_REQUESTED
+    _SHUTDOWN_REQUESTED = True
     if _STATE is not None:
         _STATE.shutdown_requested = True
-    if _SERVER is not None:
-        threading.Thread(target=_SERVER.shutdown, daemon=True).start()
 
 
 def _handle_signal(_signum: int, _frame: Any) -> None:
@@ -466,12 +501,21 @@ def main() -> None:
         flush=True,
     )
 
+    # serve_forever() on a thread of its own, so the main thread is free to watch for the
+    # shutdown flag and call shutdown() -- calling that from the thread running the loop
+    # deadlocks, which is why it used to be started from inside the signal handler.
+    server_thread = threading.Thread(target=_SERVER.serve_forever, name="docling-http")
     try:
         # A signal delivered between installing the handlers and here already set the flag, so
         # check it rather than entering a loop nothing will leave.
         if _STATE.is_ready():
-            _SERVER.serve_forever()
+            server_thread.start()
+            while not _SHUTDOWN_REQUESTED and server_thread.is_alive():
+                time.sleep(SHUTDOWN_POLL_SECONDS)
     finally:
+        if server_thread.is_alive():
+            _SERVER.shutdown()
+            server_thread.join()
         pool_broke = _STATE.pdf_executor_broken
         # server_close() first, pool second. It joins the request threads (which needs
         # DrainingHTTPServer), so a running conversion finishes and answers its caller. The
