@@ -117,7 +117,8 @@ public class OidcLogoutAuthenticationHandler implements JakartaAuthenticationHan
 
     /**
      * Reads the user's refresh token from their home node and decrypts it. Must be called while the request still
-     * carries the user's identity.
+     * carries the user's identity, and it is read from a login-time copy (and so is correct only while nothing
+     * refreshes it)
      *
      * <p>
      * Never throws. Every reason the token might be unavailable (local login, unsynced property, unreadable
