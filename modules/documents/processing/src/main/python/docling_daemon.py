@@ -67,7 +67,11 @@ from daemon_http import (
     refuse_unauthorized,
 )
 
-from chunker import DEFAULT_MAX_TOKENS, DEFAULT_MIN_STRUCTURE_TOKENS
+from chunker import (
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_MIN_STRUCTURE_TOKENS,
+    sweep_scratch_directories,
+)
 from docling_batch_sizing import add_workers_argument, calc_workers
 from docling.datamodel.base_models import InputFormat
 
@@ -486,6 +490,13 @@ def main() -> None:
     except Exception as e:
         print(f"Docling daemon initialization failed: {e}", file=sys.stderr, flush=True)
         sys.exit(1)
+
+    try:
+        # Whatever an earlier run was killed in the middle of writing. Nothing else removes it:
+        # the rollback in chunker._swap_into_place only covers failures the process survives.
+        sweep_scratch_directories(get_shared_docs_root(), log=_log_stderr)
+    except Exception as e:  # noqa: BLE001 -- tidying up is not worth refusing to start over
+        _log_stderr(f"WARNING: could not sweep leftover chunk staging directories: {e}")
 
     # Build the server before installing the handlers. The other order leaves a window where a
     # signal finds _SERVER still None, so nothing stops the accept loop and serve_forever runs

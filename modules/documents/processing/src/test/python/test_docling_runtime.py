@@ -504,6 +504,42 @@ class TestMutatingEndpointsAreGuarded:
         assert handler.header_value("status") == HTTPStatus.OK
 
 
+class TestTheChunkFlagReachesTheChunker:
+    """``?chunk=false`` goes through the same stage-and-swap as everything else.
+
+    It used to create the directory and overwrite ``outline.json``, leaving the rest: a
+    re-parse left the previous run's ``catalog.json`` and Chunk files beside an outline saying
+    the document was never chunked, and ``catalog.json`` is documented as the marker that the
+    set beside it is complete.
+    """
+
+    def _parse(self, monkeypatch, tmp_path, *, chunk):
+        import parse_document as module
+
+        seen = {}
+
+        def capture(path, **options):
+            seen.update(options)
+            return {"chunks": 0, "chunked": False, "chunks_dir": None, "logs": ""}
+
+        monkeypatch.setattr(module, "chunk_file", capture)
+        monkeypatch.setattr(module, "convert_pdf_to_markdown", lambda *a, **k: "# Doc\n")
+        monkeypatch.setattr(module, "prepare_office_document", lambda source, **k: source)
+        module.parse_document(write_pdf(tmp_path / "doc.pdf"), chunk=chunk)
+        return seen
+
+    def test_not_chunking_is_passed_on_rather_than_handled_here(self, monkeypatch, tmp_path):
+        assert self._parse(monkeypatch, tmp_path, chunk=False)["chunk"] is False
+
+    def test_chunking_is_passed_on_too(self, monkeypatch, tmp_path):
+        assert self._parse(monkeypatch, tmp_path, chunk=True)["chunk"] is True
+
+    def test_nothing_writes_an_outline_behind_the_chunker(self, monkeypatch, tmp_path):
+        import parse_document as module
+
+        assert not hasattr(module, "write_unchunked_outline")
+
+
 class TestCliBatchPagesFlag:
     """--batch-pages was parsed and validated, then dropped before the converter saw it."""
 

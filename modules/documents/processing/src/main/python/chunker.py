@@ -46,8 +46,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
+import time
+import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +70,8 @@ from markdown_markers import (
     count_tokens,
 )
 from pdf_bookmarks import extract_bookmarks
+
+LogFn = Callable[[str], None]
 
 # Default maximum tokens per chunk file. A chunk larger than this is split into parts.
 DEFAULT_MAX_TOKENS = 2000
@@ -100,6 +104,19 @@ OUTLINE_NAME = "outline.json"
 
 # Name of the folder, beside a document's .md, holding its chunk files, catalog and outline.
 CHUNKS_DIRNAME = "Chunks"
+
+# Suffixes marking a chunk tree being written, and the one it replaces. Each carries a key
+# unique to the parse: the key used to be os.getpid(), which is 1 in this container, so the
+# same two names came back after every restart. A staging directory a killed process left
+# behind was then written into rather than replaced -- ten chunk files under a catalog naming
+# five, and no reader able to tell.
+SCRATCH_NEW = ".new-"
+SCRATCH_OLD = ".old-"
+
+# How old a scratch directory has to be before the startup sweep removes it. Nothing here can
+# tell one daemon's staging directory from another's, and two sharing a volume is possible;
+# at startup this one has no parse running, so anything recent is somebody else's.
+SCRATCH_GRACE_SECONDS = 3600
 
 # The ``unchunkedReason`` values. Whichever it is, ``outline.json`` is written with
 # ``chunked: false``, so a reader gets one shape plus the reason.
@@ -283,29 +300,6 @@ def _write_json(path: Path, data: object) -> None:
     )
 
 
-def write_unchunked_outline(output_file: Path, markdown: str) -> Path:
-    """Write ``Chunks/outline.json`` for a document that was never offered to the chunker.
-
-    ``?chunk=false`` skips detection on purpose, so there are no bookmarks to record. The
-    outline is still written so both unchunked paths leave the same shape on disk -- same
-    keys as :func:`build_chunk_tree` writes when the size gate skips chunking, only the
-    reason differs.
-
-    @param output_file: path of the ``.md`` the outline sits beside
-    @param markdown: the document, for its token count
-    @return: the ``Chunks/`` directory
-    """
-    chunks_dir = output_file.parent / CHUNKS_DIRNAME
-    shared_docs.make_dirs(chunks_dir)
-    _write_json(chunks_dir / OUTLINE_NAME, {
-        "bookmarks": [],
-        "tokens": count_tokens(markdown),
-        "chunked": False,
-        "unchunkedReason": UNCHUNKED_NOT_REQUESTED,
-    })
-    return chunks_dir
-
-
 def write_atomically(path: Path, text: str) -> None:
     """Write ``text`` to ``path`` via a temporary file and a rename.
 
@@ -315,7 +309,7 @@ def write_atomically(path: Path, text: str) -> None:
     @param path: the file to write
     @param text: its complete new content
     """
-    scratch = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    scratch = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
         shared_docs.write_text(scratch, text)
         shared_docs.replace_file(scratch, path)
@@ -333,8 +327,10 @@ def _stage_chunks(chunks_dir: Path, tree: dict[str, Any]) -> Path:
     @param tree: the built chunk tree
     @return: the staging directory, ready to be swapped in
     """
-    staging = chunks_dir.with_name(f"{chunks_dir.name}.new-{os.getpid()}")
-    shared_docs.make_dirs(staging)
+    staging = chunks_dir.with_name(f"{chunks_dir.name}{SCRATCH_NEW}{uuid.uuid4().hex}")
+    # exist_ok=False: this directory holds exactly this parse's output, and a name that somehow
+    # came back should be a loud failure rather than a quiet merge with whatever is in it.
+    shared_docs.make_dirs(staging, exist_ok=False)
     try:
         _write_json(staging / OUTLINE_NAME, tree["outline"])
         if tree["chunked"]:
@@ -359,8 +355,7 @@ def _swap_into_place(staging: Path, target: Path) -> None:
     @param staging: the fully written new tree
     @param target: the directory it replaces
     """
-    previous = target.with_name(f"{target.name}.old-{os.getpid()}")
-    shared_docs.remove_tree(previous, ignore_errors=True)
+    previous = target.with_name(f"{target.name}{SCRATCH_OLD}{uuid.uuid4().hex}")
     try:
         if shared_docs.path_exists(target):
             shared_docs.replace_file(target, previous)
@@ -374,11 +369,82 @@ def _swap_into_place(staging: Path, target: Path) -> None:
     shared_docs.remove_tree(previous, ignore_errors=True)
 
 
+def sweep_scratch_directories(root: Path | str, *, log: LogFn | None = None) -> int:
+    """Remove chunk staging directories an earlier run was killed in the middle of.
+
+    :func:`_swap_into_place` rolls back what it can see, and process death between its two
+    renames is not that: both scratch directories survive and the document is left with no
+    ``Chunks`` at all, which no reader's "outline.json is always there" contract covers.
+
+    @param root: the shared docs root to walk
+    @param log: optional line logger
+    @return: how many directories were removed
+    """
+    removed = 0
+    cutoff = time.time() - SCRATCH_GRACE_SECONDS
+    for suffix in (SCRATCH_NEW, SCRATCH_OLD):
+        for scratch in sorted(Path(root).rglob(f"{CHUNKS_DIRNAME}{suffix}*")):
+            try:
+                if not scratch.is_dir() or scratch.stat().st_mtime > cutoff:
+                    continue
+                shared_docs.remove_tree(scratch, ignore_errors=True)
+            except OSError:
+                continue
+            # Counted only once it is gone: remove_tree is asked to ignore errors, so the
+            # call succeeding says nothing.
+            if not scratch.exists():
+                removed += 1
+    if removed and log is not None:
+        log(f"Removed {removed} chunk staging directories left behind by an earlier run")
+    return removed
+
+
+def _find_sibling_pdf(markdown_path: Path) -> Path | None:
+    """The document's own PDF beside its ``.md``, matched without regard to the suffix's case.
+
+    An upload named ``PROTOCOL.PDF`` is routine from Windows, and only the suffix's case can
+    differ: the ``.md`` is named from the source's stem, and LibreOffice writes the sibling
+    under that same stem.
+
+    @param markdown_path: path of the ``.md``
+    @return: the sibling PDF, or ``None`` when there is none
+    """
+    exact = markdown_path.with_suffix(".pdf")
+    if exact.is_file():
+        return exact
+    try:
+        entries = sorted(markdown_path.parent.iterdir())
+    except OSError:
+        return None
+    return next(
+        (entry for entry in entries
+         if entry.stem == markdown_path.stem and entry.suffix.lower() == ".pdf"
+         and entry.is_file()),
+        None,
+    )
+
+
+def _unchunked_tree(markdown: str, outline: dict, reason: str, notes: list[str]) -> dict:
+    """The tree for a document that is written out whole, whichever reason sent it here."""
+    outline["chunked"] = False
+    outline["unchunkedReason"] = reason
+    return {
+        "markdown": markdown,
+        "chunked": False,
+        "outline": outline,
+        "catalog": None,
+        "chunks": [],
+        "notes": notes,
+    }
+
+
 def build_chunk_tree(
     markdown_content: str,
     markdown_path: Path | None,
     max_tokens: int,
     min_structure_tokens: int,
+    *,
+    chunk: bool = True,
 ) -> dict[str, Any]:
     """Analyse and split an already-cleaned document into its chunk tree.
 
@@ -389,19 +455,41 @@ def build_chunk_tree(
         ``None`` means there is no sibling to look for, so the document has no bookmarks
     @param max_tokens: target maximum tokens per chunk
     @param min_structure_tokens: leave the document unchunked below this size
-    @return: ``{"markdown", "chunked", "outline", "catalog", "chunks"}``, where ``chunks``
-        is a list of ``{"file", "text"}`` in document order, ``catalog`` is ``None`` when
-        the document was left unchunked, and ``outline["bookmarks"]`` is the sibling PDF's
-        bookmark titles as strings (empty when there is no sibling PDF, or it carries none)
+    @param chunk: when False the document is written out whole and nothing is detected
+    @return: ``{"markdown", "chunked", "outline", "catalog", "chunks", "notes"}``, where
+        ``chunks`` is a list of ``{"file", "text"}`` in document order, ``catalog`` is ``None``
+        when the document was left unchunked, ``outline["bookmarks"]`` is the sibling PDF's
+        bookmark titles as strings (empty when there is no sibling PDF, or it carries none),
+        and ``notes`` is what the caller should log
     """
     md_file = markdown_content
+    notes: list[str] = []
+
+    if not chunk:
+        # ?chunk=false skips detection on purpose, so there is no sibling PDF to read and no
+        # bookmarks to record.
+        return _unchunked_tree(
+            md_file,
+            {"tokens": count_tokens(md_file), "bookmarks": []},
+            UNCHUNKED_NOT_REQUESTED,
+            notes,
+        )
 
     # Get bookmarks from PDF if available, levels not deeper than MAX_HEADING_LEVEL
     pdf_bookmarks: list[dict] = []
     if markdown_path is not None:
-        pdf_file = Path(markdown_path).with_suffix(".pdf")
-        if pdf_file.is_file():
+        pdf_file = _find_sibling_pdf(Path(markdown_path))
+        if pdf_file is None:
+            notes.append(
+                f"No PDF beside '{Path(markdown_path).name}': heading levels stay as Docling "
+                "produced them"
+            )
+        else:
             pdf_bookmarks = extract_bookmarks(pdf_file)
+            if not pdf_bookmarks:
+                # extract_bookmarks answers an unreadable PDF and an unbookmarked one the same
+                # way, so without this the two are indistinguishable from outside.
+                notes.append(f"'{pdf_file.name}' yielded no usable bookmarks")
     pdf_bookmarks = [
         bookmark
         for bookmark in pdf_bookmarks
@@ -419,14 +507,7 @@ def build_chunk_tree(
 
     if not to_be_chunked:
         # Below the size gate
-        outline["unchunkedReason"] = UNCHUNKED_BELOW_THRESHOLD
-        return {
-            "markdown": md_file,
-            "chunked": False,
-            "outline": outline,
-            "catalog": None,
-            "chunks": [],
-        }
+        return _unchunked_tree(md_file, outline, UNCHUNKED_BELOW_THRESHOLD, notes)
 
     # Correct the markdown header levels according to the PDF bookmarks levels
     md_lines = _apply_bookmark_heading_levels(md_file.split("\n"), pdf_bookmarks)
@@ -447,17 +528,9 @@ def build_chunk_tree(
     if not top_texts:
         # Past the size gate, so there was a document to cut. Nothing back means the splitter
         # failed on it -- stop here and say so, rather than write an empty catalog.
-        # ``chunked`` was set True by the gate above and has to be corrected, or outline.json
-        # goes out claiming both that the document was chunked and why it was not.
-        outline["chunked"] = False
-        outline["unchunkedReason"] = UNCHUNKED_NO_PARTS
-        return {
-            "markdown": md_file,
-            "chunked": False,
-            "outline": outline,
-            "catalog": None,
-            "chunks": [],
-        }
+        # ``chunked`` was set True by the gate above, and _unchunked_tree corrects it, or
+        # outline.json goes out claiming both that the document was chunked and why it was not.
+        return _unchunked_tree(md_file, outline, UNCHUNKED_NO_PARTS, notes)
 
     packed = _merge_small_chunks(top_texts, MIN_TAIL_TOKENS)
 
@@ -476,21 +549,7 @@ def build_chunk_tree(
     for offset, part in enumerate(packed):
         add(f"Chunk-{first_number + offset}.md", part)
 
-    # Fill missing page bounds from surrounding chunks: chunks without explicit page markers
-    # inherit the page number from the previous chunk's end, or the next chunk's start.
-    for i in range(len(catalog_chunks)):
-        chunk = catalog_chunks[i]
-        if chunk["pageStart"] is None and chunk["pageEnd"] is None:
-            # Try to infer from previous chunk
-            if i > 0 and catalog_chunks[i - 1]["pageEnd"] is not None:
-                inferred_page = catalog_chunks[i - 1]["pageEnd"]
-                chunk["pageStart"] = inferred_page
-                chunk["pageEnd"] = inferred_page
-            # Fall back to next chunk's start if previous had nothing
-            elif i < len(catalog_chunks) - 1 and catalog_chunks[i + 1]["pageStart"] is not None:
-                inferred_page = catalog_chunks[i + 1]["pageStart"]
-                chunk["pageStart"] = inferred_page
-                chunk["pageEnd"] = inferred_page
+    _fill_missing_page_bounds(catalog_chunks)
 
     return {
         "markdown": md_file,
@@ -498,7 +557,27 @@ def build_chunk_tree(
         "outline": outline,
         "catalog": catalog_chunks,
         "chunks": chunks,
+        "notes": notes,
     }
+
+
+def _fill_missing_page_bounds(catalog_chunks: list[dict]) -> None:
+    """Give an unmarked chunk the page its marked neighbour is on, in place.
+
+    Two passes, and the backward one is the only one that can resolve a run of unmarked chunks
+    at the head of the document: walking forward alone reads the next entry's ``pageStart``
+    before that entry has been filled, so a leading run kept its nulls while everything after
+    it had pages, and a citation could reach the whole document except its opening.
+    """
+    for index, chunk in enumerate(catalog_chunks):
+        previous_end = catalog_chunks[index - 1]["pageEnd"] if index else None
+        if chunk["pageStart"] is None and previous_end is not None:
+            chunk["pageStart"] = chunk["pageEnd"] = previous_end
+    for index in range(len(catalog_chunks) - 2, -1, -1):
+        chunk = catalog_chunks[index]
+        next_start = catalog_chunks[index + 1]["pageStart"]
+        if chunk["pageStart"] is None and next_start is not None:
+            chunk["pageStart"] = chunk["pageEnd"] = next_start
 
 
 def chunk_file(
@@ -507,19 +586,23 @@ def chunk_file(
     *,
     min_structure_tokens: int = DEFAULT_MIN_STRUCTURE_TOKENS,
     markdown: str | None = None,
+    chunk: bool = True,
 ) -> dict[str, Any]:
     """Write ``file_path`` (``.md``) and a sibling ``Chunks/`` tree.
 
     When ``markdown`` is omitted, the file is read from disk. Pass ``markdown`` when the
     text is already in hand and the ``.md`` may not exist yet.
 
-    Always writes ``Chunks/outline.json``. A document below ``min_structure_tokens`` gets the
-    outline only. Otherwise the body is split by headings up to ``max_tokens``.
+    Always writes ``Chunks/outline.json``, and always through stage-and-swap, so whatever was
+    there before is gone. A document below ``min_structure_tokens``, or one the caller asked
+    not to chunk, gets the outline only. Otherwise the body is split by headings up to
+    ``max_tokens``.
 
     @param file_path: path of the ``.md`` to write (and to read, when ``markdown`` is omitted)
     @param max_tokens: max tokens per chunk before further splitting
     @param min_structure_tokens: below this, leave the document unchunked
     @param markdown: cleaned Markdown; ``None`` reads ``file_path``
+    @param chunk: when False, write the document whole and record why
     @return: summary dict ``{"chunks", "logs", "chunked", "chunks_dir"}``
     @raise FileNotFoundError: when ``markdown`` is omitted and the file does not exist
     """
@@ -534,6 +617,7 @@ def chunk_file(
         path,
         max_tokens,
         min_structure_tokens,
+        chunk=chunk,
     )
     shared_docs.make_dirs(path.parent)
     chunks_dir = path.parent / CHUNKS_DIRNAME
@@ -546,41 +630,38 @@ def chunk_file(
     _swap_into_place(staging, chunks_dir)
     write_atomically(path, tree["markdown"])
 
+    def summarise(line: str, **summary: Any) -> dict[str, Any]:
+        """The caller's summary, with whatever the tree wanted logged ahead of it."""
+        return {**summary, "logs": "\n".join([*tree["notes"], line])}
+
     if not tree["chunked"]:
         tokens = count_tokens(tree["markdown"])
         reason = tree["outline"].get("unchunkedReason")
         if reason == UNCHUNKED_NO_PARTS:
             # A failure, not a routing decision: the document cleared the size gate and the
             # splitter still produced nothing.
-            return {
-                "chunks": 0,
-                "chunked": False,
-                "chunks_dir": None,
-                "logs": (
-                    f"FAILED to chunk '{path.name}': {tokens} tokens went in and the splitter "
-                    f"returned no parts; recorded {reason} in "
-                    f"{CHUNKS_DIRNAME}/{OUTLINE_NAME}"
-                ),
-            }
-        return {
-            "chunks": 0,
-            "chunked": False,
-            "chunks_dir": None,
-            "logs": (
+            line = (
+                f"FAILED to chunk '{path.name}': {tokens} tokens went in and the splitter "
+                f"returned no parts; recorded {reason} in {CHUNKS_DIRNAME}/{OUTLINE_NAME}"
+            )
+        elif reason == UNCHUNKED_NOT_REQUESTED:
+            line = (
+                f"Left '{path.name}' whole at the caller's request; recorded {reason} in "
+                f"{CHUNKS_DIRNAME}/{OUTLINE_NAME}"
+            )
+        else:
+            line = (
                 f"Skipped chunking '{path.name}' "
                 f"({tokens} tokens < {min_structure_tokens} min_structure_tokens); "
                 f"recorded chunked=false in {CHUNKS_DIRNAME}/{OUTLINE_NAME}"
-            ),
-        }
-    return {
-        "chunks": chunk_count,
-        "chunked": True,
-        "chunks_dir": chunks_dir,
-        "logs": (
-            f"Split '{path.name}' into {chunk_count} chunk file(s) in "
-            f"'{CHUNKS_DIRNAME}/'"
-        ),
-    }
+            )
+        return summarise(chunks=0, chunked=False, chunks_dir=None, line=line)
+    return summarise(
+        chunks=chunk_count,
+        chunked=True,
+        chunks_dir=chunks_dir,
+        line=f"Split '{path.name}' into {chunk_count} chunk file(s) in '{CHUNKS_DIRNAME}/'",
+    )
 
 
 def main() -> None:

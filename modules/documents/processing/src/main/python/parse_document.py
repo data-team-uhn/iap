@@ -37,14 +37,11 @@ import docling_config  # noqa: F401 — apply shared Docling settings on import
 
 from docling.document_converter import DocumentConverter
 
-import shared_docs
 from chunker import (
     DEFAULT_MIN_STRUCTURE_TOKENS,
     CHUNKS_DIRNAME,
     DEFAULT_MAX_TOKENS,
     chunk_file,
-    write_atomically,
-    write_unchunked_outline,
 )
 from docling_docx_parser import convert_docx_to_markdown
 from docling_pdf_parser import convert_pdf_to_markdown
@@ -129,27 +126,14 @@ def parse_document(
     # Markdown + Chunks live beside the staged source (same stem), not a LibreOffice temp.
     output_md = source.with_suffix(".md")
 
-    if not chunk:
-        # Outline first, .md last, the same order as every other path. The .md is the commit
-        # marker (see chunker.chunk_file), so the other order can leave Markdown with no
-        # outline beside it.
-        shared_docs.make_dirs(output_md.parent)
-        chunks_dir_path = write_unchunked_outline(output_md, markdown)
-        write_atomically(output_md, markdown)
-        return {
-            "ok": True,
-            "markdown_path": str(output_md.resolve()),
-            "chunked": False,
-            "chunks_dir": str(chunks_dir_path.resolve()),
-            "logs": "\n".join(logs),
-            "filename": filename,
-        }
-
+    # chunk=False comes through here too, so every path stages and swaps the whole tree and a
+    # re-parse cannot leave one revision's catalog.json beside another's Markdown.
     summary = chunk_file(
         output_md,
         max_tokens=max_tokens,
         min_structure_tokens=min_structure_tokens,
         markdown=markdown,
+        chunk=chunk,
     )
     if summary["logs"]:
         _log(summary["logs"])

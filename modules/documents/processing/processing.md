@@ -84,6 +84,18 @@ no defence when the browser runs on the same host. Setting `IAP_DOCLING_TOKEN` a
 requires it as a bearer token on those two endpoints. `GET /health` stays open so container
 probes need no credential.
 
+**Set the token for anything but a bare `python docling_daemon.py` on your own machine.** In a
+container the entrypoint has to bind `0.0.0.0`, because Docker forwards a published port no
+other way, so every other container on the Compose network can reach the port — and reaching
+it is authority to re-parse any staged upload and overwrite its Markdown and its whole `Chunks`
+tree. `generate_compose.py --docling` generates one into `.env`. The daemon says so at startup
+when it is unset, unless `IAP_DOCLING_TRUSTED_NETWORK` is set to say the port has been confined
+some other way, which the daemon itself cannot see.
+
+A failed conversion answers `500 {"error": …, "reference": …}`. The reason is not in the
+reply: it is assembled from internals — `soffice`'s raw output, a Docling error quoting the
+shared-docs path — so it goes to the container log against that reference.
+
 One conversion runs at a time (`MAX_CONCURRENT_PARSES`), because the whole RAM budget is
 calculated for a single conversion spread across the worker pool. A request arriving while
 one is running is refused with `503 {"error": "daemon busy: …"}` rather than queued — a
@@ -246,24 +258,26 @@ beside it, or the `{stem}.pdf` rendition LibreOffice wrote during `prepare_offic
 
 ### Staleness
 
-There is none to handle. A parse starts from a directory holding one staged upload and nothing
-else: the caller reads every output into its own storage as soon as the parse finishes, then
-wipes the directory. So this code neither defends against a previous parse's leftovers nor
-cleans them up — it only ever writes its own outputs, and `chunk_file` replaces
-`Chunks/` wholesale when the `chunk_file` CLI re-chunks a document in place.
+A parse starts from a directory holding one staged upload and nothing else: the caller reads
+every output into its own storage as soon as the parse finishes, then wipes the directory. So
+this code only ever writes its own outputs, and `chunk_file` replaces `Chunks/` wholesale
+every time — including the `chunk=false` path, which writes an outline recording
+`unchunkedReason: chunking_not_requested` and no chunk files. A re-parse therefore cannot
+leave one revision's `catalog.json` beside another's Markdown.
 
-`parse_document` with `chunk=false` writes `Chunks/outline.json` with
-`unchunkedReason: chunking_not_requested` **and then** the `.md`, in that order — the `.md` is
-the commit marker, so writing it first would leave Markdown with no outline beside it. Both
-unchunked paths leave the same shape on disk.
-
-**Publication is all-or-nothing.** The chunk tree is written into `Chunks.new-<pid>/` and
+**Publication is all-or-nothing.** The chunk tree is written into `Chunks.new-<key>/` and
 moved into place with a rename, and the `.md` goes through a temporary file of its own — so a
 crash, a full disk or a kill can never leave a half-written chunk set that looks finished.
 The chunks are swapped in *before* the Markdown, which makes the `.md` the commit marker: a
 new `.md` guarantees the chunks beside it are the matching new set. Nothing locks the
 directory, because nothing else is writing to it: one parse owns one `/shared-docs/{uuid}/`,
 and the daemon runs one conversion at a time.
+
+The key in `Chunks.new-<key>` and `Chunks.old-<key>` is a uuid, and it has to be: it was the
+process id, which is 1 in this container, so the same two names came back after every restart
+rather than merely sometimes. What a killed process leaves behind is removed by
+`sweep_scratch_directories`, which the daemon runs over the shared root at startup, because
+the rollback in `_swap_into_place` only covers failures the process survives.
 
 ### LibreOffice renditions
 
@@ -300,7 +314,12 @@ Both modes share `chunker.py`, so the outline + chunk logic is identical.
 | `MAX_HEADING_WORDS` / `MAX_WORD_CHARS` / `MIN_HEADING_CHARS` | 10 / 100 / 5 | Heading-validity filters (reject run-ons, garbage, `Table …` captions) |
 | `DEFAULT_MAX_INPUT_PAGES` | 1500 | Largest PDF accepted; over it is a 400, raised *after* the parse slot is taken (counting pages means reading the document). Override with `IAP_MAX_INPUT_PAGES`, 0 to disable |
 | `DEFAULT_MAX_INPUT_BYTES` | 64 MiB | The same ceiling by size, for every accepted type — a `.docx` has no pages to count. Override with `IAP_MAX_INPUT_BYTES` |
+| `DEFAULT_MAX_EXPANDED_BYTES` | 512 MiB | And again after decompression, for a `.docx`, which is a zip: 64 MiB of repeated bytes expands to gigabytes, and Docling parses DOCX in the daemon's own process rather than a pool worker, so that memory is the daemon's. Override with `IAP_MAX_EXPANDED_BYTES`, 0 to disable |
 | `DEFAULT_CONVERSION_TIMEOUT_SECONDS` | 300 | Seconds one `soffice` run may take before its process group is killed. Override with `IAP_LIBREOFFICE_TIMEOUT_SECONDS`. Per soffice *run*: a `.doc` does two (to `.docx`, then the sibling `.pdf`), so prep can take twice this. Sized for the byte ceiling above, and both runs together still sit well inside the container's `stop_grace_period` |
 | `DEFAULT_DOCUMENT_TIMEOUT_SECONDS` | 600 | Seconds one Docling conversion may take, which is one page batch (at most `MAX_BATCH_PAGES`), not the whole document. Docling checks it between batches and stops with `PARTIAL_SUCCESS` plus a `TIMEOUT` error item, which `ensure_conversion_ok` already fails on, so a runaway document fails its batch rather than holding the daemon's only parse slot while `/health` still reports ready. Bounds a slow conversion, not one wedged inside a single page. Override with `IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS`, 0 to disable |
+| `DEFAULT_PARSE_TIMEOUT_SECONDS` | 900 | Seconds the *whole* conversion may take, which is what a caller waits on: `DEFAULT_DOCUMENT_TIMEOUT_SECONDS` covers one batch of at most `MAX_BATCH_PAGES`, and a 1500-page document is up to 375 of them. A quarter of an hour, because somebody uploaded the document and is still there. Past it the remaining batches are abandoned; one that will not stop within `ABANDON_TIMEOUT_SECONDS` is reported as a broken pool, so `/health` starts failing and the container is restarted. Override with `IAP_DOCLING_PARSE_TIMEOUT_SECONDS`, 0 to disable |
+| `ABANDON_TIMEOUT_SECONDS` | 120 | Seconds an abandoned page batch is given to stop before its worker is called wedged |
 | `MAX_OUTLINE_DEPTH` | 32 | Deepest PDF outline nesting walked, so a crafted one cannot exhaust the stack |
+| `MAX_BOOKMARKS` | 2000 | Most bookmarks taken from one PDF. Nesting is capped above; siblings at one level were not, and each one is matched against the document and listed in `outline.json` |
+| `SCRATCH_GRACE_SECONDS` | 3600 | How old a leftover `Chunks.new-…` has to be before the startup sweep removes it — nothing can tell this daemon's staging directory from another's |
 | `DEFAULT_PORT` | 18765 | Daemon HTTP port |
