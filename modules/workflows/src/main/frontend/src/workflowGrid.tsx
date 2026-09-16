@@ -46,7 +46,7 @@ const WORKFLOW_COLUMNS: EntityGridColumn[] = [
     width: 160,
     type: "dateTime",
     valueGetter: value => dateValue(value),
-    // The modification day already dates the card; a second timestamp would just crowd it
+    // On narrow screens, omit jcr:created from the card display as jcr:lastModified already dates this entry
     cardSlot: "omit",
   },
   {

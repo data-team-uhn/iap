@@ -43,8 +43,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * direct-CRUD door the workflows are replacing.</p>
  *
  * <p>An editable property that arrives blank is removed rather than stored empty: a title cleared in a form is a
- * property the entity no longer carries, not one it carries the empty string in. A property named as required is
- * the exception, refused instead.</p>
+ * property the entity no longer carries, not one it carries the empty string in. One the payload does not mention
+ * at all is left as it stands, so a caller may send only the fields it is changing. A property named as required is
+ * the exception to both, refused unless it arrives with something in it.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -78,14 +79,16 @@ public class SavePropertiesHandler implements ServiceTaskHandler
         final List<String> required = names(context, REQUIRED);
         final ModifiableValueMap properties = Objects.requireNonNull(
             context.getTarget().adaptTo(ModifiableValueMap.class),
-            "The engine can always write what it can read");
+            "A target the engine is writing should always be modifiable");
         for (final String name : editable) {
             final String value = Payloads.text(context.getEvent(), name);
             if (value != null) {
                 properties.put(name, value);
             } else if (required.contains(name)) {
                 throw new InvalidPayloadException("A " + name + " is required");
-            } else {
+            } else if (context.getEvent().getPayload().containsKey(name)) {
+                // Only a property the caller named and left empty is cleared: one the payload never mentions is
+                // not the caller's to clear, so a client may send just the fields it is changing
                 properties.remove(name);
             }
         }

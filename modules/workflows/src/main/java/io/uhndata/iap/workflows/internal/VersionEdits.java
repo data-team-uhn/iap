@@ -179,8 +179,8 @@ final class VersionEdits
             }
             final Resource content = Objects.requireNonNull(existing.getChild(JCR_CONTENT),
                 "A stored diagram always has a jcr:content");
-            final ModifiableValueMap properties = Objects.requireNonNull(
-                content.adaptTo(ModifiableValueMap.class), "The engine can always write what it can read");
+            final ModifiableValueMap properties = Objects.requireNonNull(content.adaptTo(ModifiableValueMap.class),
+                "A stored diagram the engine is replacing should always be modifiable");
             properties.put(JCR_DATA, data);
             properties.put(JCR_MIME_TYPE, mimeType);
         } catch (final IOException e) {
@@ -304,5 +304,18 @@ final class VersionEdits
     static String name(final WorkflowVersion.State state)
     {
         return state.name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Where a version stands, as it completes a sentence saying so. Unlike {@link #name}, this takes the answer
+     * {@link WorkflowVersion#getState()} gives for a version whose state could not be read, so that a refusal can
+     * say why without having to name a state the version does not have.
+     *
+     * @param state the version's state, or {@code null} if it could not be read
+     * @return a phrase completing "this version is ...", e.g. {@code retired}
+     */
+    static String describe(final WorkflowVersion.State state)
+    {
+        return state == null ? "in an unrecognized state" : name(state);
     }
 }

@@ -39,6 +39,8 @@ interface ElementPropertiesProps {
   readOnly?: boolean;
 }
 
+// Display the properties associated with a provided BPMN node.
+// Either a series of fields in edit mode, or a plain text output in view mode
 export default function ElementProperties(props: ElementPropertiesProps) {
   const {
     element,

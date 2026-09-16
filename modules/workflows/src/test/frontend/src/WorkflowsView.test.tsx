@@ -221,6 +221,6 @@ describe("WorkflowsView", () => {
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Standard review");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
-    expect(await screen.findByText("went to /admin/workflows/Workflows/created/created?page=edit")).toBeInTheDocument();
+    expect(await screen.findByText("went to /admin/workflows/Workflows/created/created.edit")).toBeInTheDocument();
   });
 });

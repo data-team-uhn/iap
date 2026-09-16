@@ -57,7 +57,7 @@ public class SaveDiagramHandler implements ServiceTaskHandler
         final WorkflowVersion version = VersionEdits.targetVersion(context);
         if (version.getState() != WorkflowVersion.State.DRAFT) {
             throw new WorkflowConflictException("Only a draft may be edited, and this version is "
-                + VersionEdits.name(version.getState())
+                + VersionEdits.describe(version.getState())
                 + "; return it to a draft, or draft a copy of it, and edit that");
         }
         final EventAttachment diagram = Payloads.attachment(context.getEvent(), VersionEdits.BPMN_FILE);
