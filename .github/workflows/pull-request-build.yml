@@ -45,7 +45,7 @@ jobs:
       # of the `tests` profile below. Without this the build fails on "No module named
       # pytest" long before any Java test runs.
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
           cache: pip
