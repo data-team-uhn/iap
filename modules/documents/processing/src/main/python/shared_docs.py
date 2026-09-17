@@ -25,9 +25,9 @@ for the one check standing between ``POST /parse?path=`` and the rest of the fil
 
 from __future__ import annotations
 
+import contextlib
 import math
 import os
-import shutil
 import sys
 import tempfile
 import uuid
@@ -368,18 +368,31 @@ def write_atomically(path: Path | str, text: str) -> None:
     """Write ``text`` to ``path`` via a temporary file and a rename.
 
     A direct :func:`write_text` truncates first, so an interrupted write leaves a half-written
-    document that still looks like a finished one.
+    document that still looks like a finished one. A killed process, an exception or a full
+    disk leaves the previous file untouched instead.
+
+    A host crash is not covered: nothing is fsynced, so the rename can reach the disk before
+    the data does. Only the process dying is.
 
     @param path: the file to write
     @param text: its complete new content
     """
     target = Path(path)
-    scratch = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+    # Not built from the target name. That name is the submitter's and can run to NAME_MAX on
+    # its own, so anything added to it pushes the scratch past the limit and the write fails
+    # with ENAMETOOLONG however often it is retried. One parse owns one directory, so the
+    # scratch does not need to say which document it belongs to.
+    scratch = target.with_name(f".{uuid.uuid4().hex}.tmp")
     try:
         write_text(scratch, text)
         replace_file(scratch, target)
-    finally:
-        remove_file(scratch)
+    except BaseException:
+        # Removing the scratch must not replace the failure that brought us here: without the
+        # suppress, an EACCES from the unlink is what the operator sees instead of the ENOSPC
+        # that actually failed the parse.
+        with contextlib.suppress(OSError, ParseRequestError):
+            remove_file(scratch)
+        raise
 
 
 def replace_file(source: Path | str, dest: Path | str) -> None:
@@ -408,15 +421,6 @@ def remove_file(path: Path | str, *, missing_ok: bool = True) -> None:
     except FileNotFoundError:
         if not missing_ok:
             raise
-
-
-def remove_tree(path: Path | str, *, ignore_errors: bool = False) -> None:
-    """``shutil.rmtree`` after the CodeQL-visible path check (see :func:`write_text`)."""
-    resolved = os.path.realpath(path)
-    docs_root, scratch_root = writable_roots()
-    if not resolved.startswith(docs_root) and not resolved.startswith(scratch_root):
-        raise ParseRequestError(f"invalid path: {path}")
-    shutil.rmtree(resolved, ignore_errors=ignore_errors)
 
 
 def make_dirs(path: Path | str, *, exist_ok: bool = True) -> None:

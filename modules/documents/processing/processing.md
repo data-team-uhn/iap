@@ -191,8 +191,11 @@ this code only ever writes its own outputs, and nothing here checks for files an
 left behind.
 
 **The Markdown is written all-or-nothing.** `write_atomically` writes a temporary file in the
-same directory and renames it into place, so a crash, a full disk or a kill can never leave a
-half-written `.md` that looks finished. Nothing locks the directory, because nothing else is
+same directory and renames it into place, so an exception, a full disk or a kill can never
+leave a half-written `.md` that looks finished — the previous file stays until the whole new
+one is ready. A host crash is not covered: nothing is fsynced, so the rename can reach the
+disk before the data. That is the process dying, not the machine. Nothing locks the directory,
+because nothing else is
 writing to it: one parse owns one `/shared-docs/{uuid}/`, and the daemon runs one conversion
 at a time.
 

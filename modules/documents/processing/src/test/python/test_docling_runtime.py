@@ -520,7 +520,7 @@ class TestParseDocumentWritesTheMarkdown:
     def test_the_write_leaves_no_scratch_file(self, monkeypatch, tmp_path):
         # write_atomically renames a temp file into place; a leftover means it did not finish.
         self._parse(monkeypatch, tmp_path)
-        assert [p.name for p in tmp_path.glob(".doc.md.*")] == []
+        assert [p.name for p in tmp_path.glob(".*.tmp")] == []
 
 
 class TestParseDocumentCorrectsHeadingLevels:
