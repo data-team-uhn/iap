@@ -70,6 +70,12 @@
       <artifactId>iap-java-utils</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- A raised submission starts as a draft, and the lifecycle is a tag -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.service.component.annotations</artifactId>
@@ -122,14 +128,6 @@
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.framework</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <!-- Only the Tagging fixture needs it: Submission reads its lifecycle tag through Taggable, but never
-         names it in a signature this module compiles against. -->
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>iap-tags-api</artifactId>
-      <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

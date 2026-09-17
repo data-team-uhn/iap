@@ -102,8 +102,9 @@ class UserWorkflowTest
     void setUp()
     {
         WorkflowFixture.setUp(this.context);
+        WorkflowFixture.enableTagging(this.context);
         this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
-        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "status", "draft"));
+        this.context.create().resource(HOST, Map.of(TYPE, "sub/Submission", "tags", new String[] {"draft"}));
         this.context.create().resource(HOST + "/wf:instances", TYPE, "wf/WorkflowInstances");
     }
 
@@ -317,7 +318,8 @@ class UserWorkflowTest
         assertNotNull(instance.get("endTime"));
         // The token is spent, and the end event said what finishing that way means to the host
         assertTrue(read(HOST + "/wf:instances/timeOffRequest/token").isEmpty());
-        assertEquals("approved", read(HOST).get("status"));
+        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
+        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
@@ -329,7 +331,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), new WorkflowEvent(
             TaskCompletion.COMPLETE_EVENT, Map.of(TaskCompletion.OUTCOME_PARAMETER, "rejected")));
 
-        assertEquals("rejected", read(HOST).get("status"));
+        assertEquals(List.of("draft", "rejected"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
@@ -342,7 +344,7 @@ class UserWorkflowTest
             () -> engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED));
         // Refused before anything moved
         assertEquals("created", read(TASK).get("status"));
-        assertEquals("draft", read(HOST).get("status"));
+        assertEquals(List.of("draft"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
@@ -377,7 +379,7 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER),
             new WorkflowEvent(TaskCompletion.COMPLETE_EVENT, Map.of()));
 
-        assertEquals("rejected", read(HOST).get("status"));
+        assertEquals(List.of("draft", "rejected"), List.of((String[]) read(HOST).get("tags")));
         assertNull(read(TASK).get("outcome"));
     }
 
@@ -440,7 +442,8 @@ class UserWorkflowTest
 
         assertEquals("approved",
             read(HOST + "/wf:instances/timeOffRequest/outcome").get("stringValue"));
-        assertEquals("approved", read(HOST).get("status"));
+        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
+        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test
@@ -561,7 +564,8 @@ class UserWorkflowTest
         engine.receiveEvent(as(TASK, EngineFixture.REQUESTER), APPROVED);
 
         assertEquals(HOST, handler.target);
-        assertEquals("approved", read(HOST).get("status"));
+        // A lifecycle is a tag: the models read `tags`, so that is what reaching an end event places
+        assertEquals(List.of("draft", "approved"), List.of((String[]) read(HOST).get("tags")));
     }
 
     @Test

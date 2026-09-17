@@ -259,10 +259,12 @@ Three consequences of co-locating worth knowing:
   the record of what happened has to live somewhere else if it must outlive the
   submission.
 
-Two things deliberately do *not* live inside the resource. **System workflows** cannot:
-the bootstrap case is "create a submission", whose target is the `SubmissionsHomepage`,
-and there is no submission to live inside yet. And an **audit trail**, if one is needed,
-wants to survive deletion and restore, so it would be its own tree rather than a child.
+Two things deliberately do *not* live inside the resource. **A system workflow whose
+target is a homepage** cannot: the bootstrap case is "create a submission", whose target
+is the `SubmissionsHomepage`, and there is no submission to live inside yet. A system
+workflow targeting an entity, as `saveAnswers` does, has no such problem. And an **audit
+trail**, if one is needed, wants to survive deletion and restore, so it would be its own
+tree rather than a child.
 
 ### Events over HTTP
 
@@ -336,9 +338,9 @@ workflow definition.
 ```
 HTTP POST /Workflows ──▶ WorkflowEventServlet ──▶ WorkflowEngine.receiveEvent(target, event)
                           (a deliberately dumb        │  find the one system workflow whose message
-                           translator: builds a       │  start event catches this event on this target
-                           `create` event from        │  walk it: start ─ service tasks ─ end
-                           the POST parameters)       ▼  one commit at the end
+                           translator: builds the     │  start event catches this event on this target
+                           event a selector names,    │  walk it: start ─ service tasks ─ end
+                           or the target's default)   ▼  one commit at the end
                                               302 Location: /Workflows/<created>
 ```
 
@@ -473,6 +475,13 @@ SPI exactly as a project would. That handler is also where "no new submissions m
 created from an inactive version" stops being a comment in the CND and becomes an
 enforced refusal, and it sets the submission's `schemaVersion` as a real JCR REFERENCE —
 the strict node type rejects a stringly-typed identifier at commit.
+
+A third ships beside them, and it is the one that shows the pattern is not only for
+bootstrapping: `/SystemWorkflows/saveAnswers` targets `sub/Submission` itself rather
+than a homepage, so filling a request in, a `POST` to `<submission>.save.json`, is a
+workflow event like any other. What a save is allowed to do — whose request it is, and
+whether it is still a draft — is decided by its handler rather than by the servlet that
+received the POST.
 
 ## Content workflows: the part that persists
 

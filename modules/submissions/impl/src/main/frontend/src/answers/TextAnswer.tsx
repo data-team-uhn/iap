@@ -43,10 +43,12 @@ function TextAnswer({ question, values, disabled, onChange, onAnswered }: Answer
       helperText={helperText}
       onChange={event => onChange(many ? event.target.value.split("\n") : [ event.target.value ])}
       // Blank lines and a blank field are not answers; dropping them here is what makes clearing a
-      // field store nothing rather than store an empty string
+      // field store nothing rather than store an empty string. Trimmed first, because the server
+      // judges blankness the same way -- without it a field holding only spaces saves nothing,
+      // reports Saved, and goes on sending the same non-answer every time it is left.
       onBlur={event => onAnswered(many
         ? event.target.value.split("\n").map(value => value.trim()).filter(Boolean)
-        : [ event.target.value ].filter(Boolean))}
+        : [ event.target.value.trim() ].filter(Boolean))}
     />
   );
 }

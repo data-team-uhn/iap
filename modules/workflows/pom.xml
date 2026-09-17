@@ -93,7 +93,8 @@
       <artifactId>iap-conditions</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The built-in addTag and removeTag service tasks -->
+    <!-- The built-in addTag and removeTag service tasks, and the lifecycle tag a finishing workflow places
+         on its host -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-tags-api</artifactId>

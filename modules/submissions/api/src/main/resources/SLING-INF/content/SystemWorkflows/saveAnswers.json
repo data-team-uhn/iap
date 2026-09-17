@@ -7,7 +7,7 @@
     "version": "1.0",
     "active": true,
     "targetResourceType": "sub/Submission",
-    "description": "What happens when a submitter saves their answers: each answered question is written onto the submission, and nothing else changes. This is how filling in a submission stays a workflow rather than a write - the editor posts to the submission itself, and what a save is allowed to do is decided here. The start event admits everyone because the rule that actually matters cannot be written as a performer: it is the *person who raised this particular submission*, which the handler checks against what the engine recorded when it created it. A deployment that lets a coordinator fill requests in on someone's behalf changes that check, not this definition.",
+    "description": "What happens when a submitter saves their answers: each answered question is written onto the submission, and nothing else changes. This is how filling in a submission stays a workflow rather than a write - the editor posts to the submission itself, and what a save is allowed to do is decided here. The start event admits everyone because the rule that actually matters is checked in the handler: it is the *person who raised this particular submission*, compared against what the engine recorded when it created it. It is not declared as a performer because the performer check matches an id and its groups and does not resolve the `@creator` vocabulary yet. A deployment that lets a coordinator fill requests in on someone's behalf changes that check, not this definition.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",

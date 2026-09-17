@@ -24,10 +24,11 @@
                   id="createSubmissionDefinitions"
                   targetNamespace="https://iap.uhndata.io/systemWorkflows/createSubmission">
   <bpmn:message id="createMessage" name="create" />
-  <bpmn:process id="createSubmission" name="Raise a submission" isExecutable="true">
+  <bpmn:process id="createSubmission" name="Create a submission" isExecutable="true">
     <bpmn:startEvent id="requested" name="Submission requested">
-      <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
       <bpmn:outgoing>toCreate</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="createRequested" messageRef="createMessage" />
+
     </bpmn:startEvent>
     <bpmn:sequenceFlow id="toCreate" sourceRef="requested" targetRef="create" />
     <bpmn:serviceTask id="create" name="Create the submission">
