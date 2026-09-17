@@ -31,6 +31,7 @@ import java.util.Map;
 
 import org.apache.sling.api.resource.LoginException;
 import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
@@ -308,6 +309,43 @@ class ParseJobConsumerTest
         final ValueMap properties = jobProperties();
         assertEquals(ParseJob.STATUS_FAILED, properties.get(ParseJob.PN_STATUS, String.class));
         assertTrue(properties.get(ParseJob.PN_ERROR, String.class).contains("Connection refused"));
+    }
+
+    @Test
+    void aLateDispatchFailureDoesNotOverwriteACompletedCallback() throws Exception
+    {
+        final ParseJobConsumer racing = new ParseJobConsumer()
+        {
+            @Override
+            protected HttpResponse<String> send(final HttpRequest request) throws IOException
+            {
+                ParseJobConsumerTest.this.sentRequest = request;
+                // The daemon accepted the parse and the callback already recorded success;
+                // the 202 never arrived, so send() fails after the job is already done.
+                final Resource jobNode = ParseJobConsumerTest.this.context.resourceResolver()
+                    .getResource(ParseJob.nodePath(JOB_ID));
+                final ModifiableValueMap properties = jobNode.adaptTo(ModifiableValueMap.class);
+                properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_COMPLETED);
+                properties.put(ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/proposal.md" });
+                properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
+                try {
+                    ParseJobConsumerTest.this.context.resourceResolver().commit();
+                } catch (final PersistenceException e) {
+                    throw new IOException(e);
+                }
+                throw new IOException("timed out waiting for the daemon");
+            }
+        };
+        inject(racing, new TestResolverFactory(this.context.resourceResolver()));
+        activate(racing);
+        jobNode();
+
+        assertEquals(JobResult.CANCEL, racing.process(this.job));
+
+        final ValueMap properties = jobProperties();
+        assertEquals(ParseJob.STATUS_COMPLETED, properties.get(ParseJob.PN_STATUS, String.class));
+        assertEquals(1, properties.get(ParseJob.PN_OUTPUTS, String[].class).length);
+        assertNull(properties.get(ParseJob.PN_ERROR, String.class));
     }
 
     @Test

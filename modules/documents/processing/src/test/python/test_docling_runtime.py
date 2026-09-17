@@ -1163,6 +1163,36 @@ class TestBackgroundParseScheduling:
             release.set()
             state.parse_executor.shutdown(wait=True)
 
+    def test_a_failed_shutdown_callback_does_not_skip_the_rest(self, monkeypatch):
+        state = _parse_only_state()
+        started = threading.Event()
+        release = threading.Event()
+        delivered = []
+
+        def slow(job_id, callback_url, token, input_path, **options):
+            started.set()
+            release.wait(5)
+
+        def deliver(url, payload, **kwargs):
+            if payload["job_id"] == "queued-a":
+                raise ValueError("callback boom")
+            delivered.append(payload["job_id"])
+
+        monkeypatch.setattr(daemon, "_parse_and_call_back", slow)
+        monkeypatch.setattr(parse_callbacks, "deliver", deliver)
+        try:
+            state.submit_parse("running", "http://iap/cb", "the-jwt", Path("a.pdf"))
+            state.submit_parse("queued-a", "http://iap/cb", "the-jwt", Path("b.pdf"))
+            state.submit_parse("queued-b", "http://iap/cb", "the-jwt", Path("c.pdf"))
+            assert started.wait(5)
+
+            state.drain_parses(timeout=0.2)
+
+            assert delivered == ["queued-b"]
+        finally:
+            release.set()
+            state.parse_executor.shutdown(wait=True)
+
     def test_no_new_parse_is_accepted_once_shutting_down(self):
         state = _parse_only_state()
         state.shutdown_requested = True
