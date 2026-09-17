@@ -20,7 +20,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css";
-import { Alert, CircularProgress, Grid, Stack } from "@mui/material";
+import { Alert, Box, CircularProgress, Grid, Stack } from "@mui/material";
 import Modeler from "bpmn-js/lib/Modeler";
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 
@@ -28,7 +28,7 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 import { describeRequestFailure, messageOf, RequestError } from "@iap/frontend-commons/requestFailure";
 
 import PropertiesPanel from "./PropertiesPanel";
-import { BPMN_FILE } from "./workflowModel";
+import { BPMN_FILE, EMPTY_BPMN } from "./workflowModel";
 
 import type BaseViewer from "bpmn-js/lib/BaseViewer";
 
@@ -49,7 +49,8 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
 
   const bpmnContainerRef = useRef<HTMLDivElement>(null);
   const [ viewer, setViewer ] = useState<BaseViewer | null>(null);
-  const [ error, setError ] = useState<string>();
+  // Store a failure with the diagram that had the failure so it is not displayed if a new diagram is loaded.
+  const [ failure, setFailure ] = useState<{ path: string; message: string }>();
   // loading until the diagram for the current versionPath has been fetched — no separate flag to keep in sync.
   const [ loadedPath, setLoadedPath ] = useState<string>();
   const loading = loadedPath !== versionPath;
@@ -80,9 +81,8 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     fetchUtil(`${versionPath}/${BPMN_FILE}`)
       .then(response => {
         if (response.status === 404) {
-          // A version with no saved XML yet isn't an error.
-          // TODO: improve this state — an empty viewer/editor just looks broken.
-          return undefined;
+          // A version with no saved XML yet isn't an error, load an empty canvas to start from.
+          return viewer.importXML(EMPTY_BPMN);
         }
         if (!response.ok) {
           throw new RequestError(response.status);
@@ -91,13 +91,16 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
       })
       .then(() => {
         if (!cancelled) {
-          setError(undefined);
+          setFailure(undefined);
         }
       })
-      .catch((failure: unknown) => {
+      .catch((refusal: unknown) => {
         if (!cancelled) {
           // Failed request and failed parse both already have a usable message, so they're handled the same way.
-          setError(failure instanceof RequestError ? describeRequestFailure(failure) : messageOf(failure));
+          setFailure({
+            path: versionPath,
+            message: refusal instanceof RequestError ? describeRequestFailure(refusal) : messageOf(refusal),
+          });
         }
       })
       .finally(() => {
@@ -138,13 +141,37 @@ export default function BpmnEditor({ versionPath, editable = false, onDirtyChang
     return () => viewer.off("commandStack.changed", changed);
   }, [viewer, editable, onDirtyChange]);
 
+  // A failure recorded against another version says nothing about this one, and is already on its way out.
+  const error = failure?.path === versionPath ? failure.message : undefined;
+  const showDiagram = !loading && error === undefined;
+
   return (
     <Stack>
-      { error && <Alert severity="error" sx={{ mb: 1 }}>{error}</Alert> }
-      { loading && <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} /> }
       <Grid container spacing={4}>
-        {/* The Bpmn modeler/viewer does not currently support dark mode: force a white background */}
-        <Grid size={{ xs: 12, xl: 10 }} sx={{ bgcolor: "white" }} ref={bpmnContainerRef} />
+        {/* The canvas keeps its place even while covered: bpmn-js sizes itself against the element it is
+            given, so taking that element out of the layout would leave it measured against nothing */}
+        <Grid size={{ xs: 12, xl: 10 }} sx={{ position: "relative" }}>
+          {/* The Bpmn modeler/viewer does not currently support dark mode: force a white background */}
+          <Box
+            ref={bpmnContainerRef}
+            aria-hidden={!showDiagram}
+            sx={{ bgcolor: "white", visibility: showDiagram ? "visible" : "hidden" }}
+          />
+          { !showDiagram && (
+            <Box sx={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              p: 2,
+            }}>
+              { error === undefined
+                ? <CircularProgress size={24} />
+                : <Alert severity="error">{error}</Alert> }
+            </Box>
+          )}
+        </Grid>
         <Grid size={{ xs: 12, xl: 2 }}>
           <PropertiesPanel viewer={viewer} readOnly={!editable} />
         </Grid>

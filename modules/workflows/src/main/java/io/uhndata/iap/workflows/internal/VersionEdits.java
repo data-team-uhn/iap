@@ -68,6 +68,12 @@ final class VersionEdits
 
     static final String TARGET_RESOURCE_TYPE = "targetResourceType";
 
+    /** The node type a homepage holding workflows names as the type of its children. */
+    private static final String WORKFLOW_DEFINITION_TYPE = "wf:WorkflowDefinition";
+
+    /** The property a homepage uses to name the node type it stores. */
+    private static final String CHILD_NODE_TYPE = "childNodeType";
+
     private static final String JCR_CONTENT = "jcr:content";
 
     private static final String JCR_DATA = "jcr:data";
@@ -96,6 +102,8 @@ final class VersionEdits
             throw new WorkflowDefinitionException("The activity " + context.getActivity().getPath()
                 + " acts on workflow versions, but " + context.getTarget().getPath() + " is not one");
         }
+        // Verify the target is getting saved in the correct node structure: errors out if the location is invalid.
+        homepageOf(definitionOf(context.getTarget()));
         return version;
     }
 
@@ -113,6 +121,26 @@ final class VersionEdits
         if (parent == null || !parent.isResourceType(WorkflowDefinition.RESOURCE_TYPE)) {
             throw new WorkflowDefinitionException(
                 version.getPath() + " is not stored under a workflow definition");
+        }
+        return parent;
+    }
+
+    /**
+     * Retrieve the homepage a workflow definition is stored in.
+     * Verifies the parent is a properly defined homepage before returning.
+     *
+     * @param definition a workflow definition resource
+     * @return the homepage holding it
+     * @throws WorkflowDefinitionException when it is stored outside any homepage that holds workflows, leaving it
+     *             somewhere nothing listing workflows would look
+     */
+    static Resource homepageOf(final Resource definition) throws WorkflowException
+    {
+        final Resource parent = definition.getParent();
+        if (parent == null
+            || !WORKFLOW_DEFINITION_TYPE.equals(parent.getValueMap().get(CHILD_NODE_TYPE, String.class))) {
+            throw new WorkflowDefinitionException(
+                definition.getPath() + " is not stored in a homepage that holds workflows");
         }
         return parent;
     }

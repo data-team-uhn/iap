@@ -207,6 +207,28 @@ describe("WorkflowsView", () => {
     expect(await screen.findByRole("dialog", { name: "New workflow" })).toBeInTheDocument();
   });
 
+  it("creates a workflow in the tab being listed, not the first homepage discovered", async () => {
+    // The open tab is the tree its author is working in; filing a new workflow under the first
+    // homepage instead would put it somewhere they are not looking
+    const user = userEvent.setup();
+    stubFetch([
+      { path: "/Workflows", title: "Workflows" },
+      { path: "/SystemWorkflows", title: "System workflows" },
+    ]);
+    renderView();
+    await user.click(await screen.findByRole("tab", { name: "System workflows" }));
+
+    const create = await screen.findByRole("button", { name: "New workflow" });
+    await waitFor(() => expect(create).toBeEnabled());
+    await user.click(create);
+    const dialog = await screen.findByRole("dialog", { name: "New workflow" });
+    await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Platform behaviour");
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    expect(await screen.findByText("went to /admin/workflows/SystemWorkflows/created/created.edit"))
+      .toBeInTheDocument();
+  });
+
   it("opens the editor on the workflow it just created", async () => {
     // A new workflow has one draft version with nothing drawn in it, so drawing is where its author
     // is going next

@@ -73,7 +73,10 @@ final class AuthoringFixture
     static void setUp(final SlingContext context)
     {
         WorkflowFixture.setUp(context);
-        context.create().resource("/Workflows", WorkflowFixture.TYPE, "wf/WorkflowsHomepage");
+        // childNodeType as well as the resource type, because that is what the platform reads to tell a homepage
+        // holding workflows from any other, and the node type autocreates it on a real repository
+        context.create().resource("/Workflows", Map.of(
+            WorkflowFixture.TYPE, "wf/WorkflowsHomepage", "childNodeType", "wf:WorkflowDefinition"));
         context.create().resource(DEFINITION, Map.of(
             WorkflowFixture.TYPE, WorkflowDefinition.RESOURCE_TYPE, "title", "Time off request"));
     }
