@@ -66,7 +66,7 @@
       "start-order":"24"
     },
     {
-      "id":"org.apache.sling:org.apache.sling.commons.crypto:1.1.0",
+      "id":"org.apache.sling:org.apache.sling.commons.crypto:1.2.0",
       "start-order":"24"
     },
     {
