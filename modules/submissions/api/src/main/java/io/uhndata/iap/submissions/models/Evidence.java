@@ -27,8 +27,8 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code sub:Evidence} node: one passage backing the extracted answer of an
- * {@link Answer}, kept as a node rather than a plain string so the quote stays linked to the {@link Chunk} it was
- * taken from.
+ * {@link Answer}, kept as a node rather than a plain string so the quote stays linked to the page and section it
+ * was taken from.
  *
  * @version $Id$
  * @since 0.1.0
@@ -41,9 +41,6 @@ public class Evidence extends EntityPart
     public static final String RESOURCE_TYPE = "sub/Evidence";
 
     @ValueMapValue
-    private String chunk;
-
-    @ValueMapValue
     private String quote;
 
     @ValueMapValue
@@ -51,17 +48,6 @@ public class Evidence extends EntityPart
 
     @ValueMapValue
     private Long page;
-
-    /**
-     * The chunk this passage was taken from.
-     *
-     * @return a chunk, or {@code null} if not set or unresolvable
-     */
-    @Nullable
-    public Chunk getChunk()
-    {
-        return this.getReference(this.chunk, Chunk.class);
-    }
 
     /**
      * The quoted text.
