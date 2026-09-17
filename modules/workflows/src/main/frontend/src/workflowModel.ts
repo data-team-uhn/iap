@@ -232,6 +232,16 @@ export function bpmnUpload(xml: string, body: FormData = new FormData()): FormDa
   return body;
 }
 
+// What the canvas is handed for a version with no diagram saved. bpmn-js offers no public way to empty
+// a canvas, so a new blank canvas has to be imported like anything else.
+export const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" id="Definitions_empty" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_empty" isExecutable="false" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_empty">
+    <bpmndi:BPMNPlane id="BPMNPlane_empty" bpmnElement="Process_empty" />
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+
 // The diagram a brand-new workflow version starts from — a start event, one user task, an end event —
 // so the editor opens on something rather than an empty canvas.
 export const STARTING_BPMN = `<?xml version="1.0" encoding="UTF-8"?>

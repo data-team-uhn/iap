@@ -137,6 +137,8 @@ function WorkflowsView({ homepage: opened }: WorkflowsViewProps) {
       { creating && homepages && (
         <NewWorkflowDialog
           homepages={homepages}
+          // Default to creating a new workflow based on the selected homepage tab
+          preselected={listed}
           onClose={() => setCreating(false)}
           onCreated={openNewWorkflow}
         />

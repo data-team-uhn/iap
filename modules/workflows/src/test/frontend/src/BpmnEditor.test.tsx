@@ -22,6 +22,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import { SESSION_INFO_URL } from "@iap/frontend-commons/reLogin";
 import BpmnEditor from "@iap/workflows/BpmnEditor";
+import { EMPTY_BPMN } from "@iap/workflows/workflowModel";
 
 // bpmn-js drives an SVG canvas that jsdom can't lay out, so both classes are stood in for. That keeps
 // these tests about the component's own behaviour -- which class it picks, what it loads, what it
@@ -224,9 +225,44 @@ describe("BpmnEditor", () => {
 
     renderEditor({ editable: true });
 
-    await waitFor(() => expect(screen.getByText("Please select an element.")).toBeInTheDocument());
-    expect(instances[0].importXML).not.toHaveBeenCalled();
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(EMPTY_BPMN));
+    expect(screen.getByText("Please select an element.")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows the version it was moved to rather than the one before it", async () => {
+    // The canvas is reused when only the path changes, so a version with nothing saved would otherwise go
+    // on showing the previous version's diagram — and in edit mode a save would then write it there
+    stubFetch();
+    const { rerender } = renderEditor();
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(DIAGRAM));
+
+    stubFetch(404);
+    rerender(
+      <ThemeProvider theme={appTheme} defaultMode="light">
+        <BpmnEditor versionPath="/Workflows/timeOff/2-0" />
+      </ThemeProvider>
+    );
+
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenLastCalledWith(EMPTY_BPMN));
+    // The same canvas throughout: what changed is the diagram in it, not the instance
+    expect(instances).toHaveLength(1);
+  });
+
+  it("keeps the canvas out of sight until it holds the version asked for", async () => {
+    // Until the load settles the canvas holds nothing, or the version looked at before this one, so it is
+    // covered rather than presented empty with a spinner floating above it
+    const { settle } = deferredFetch();
+    const { container } = renderEditor();
+
+    expect(await screen.findByRole("progressbar")).toBeInTheDocument();
+    expect(container.querySelector("[aria-hidden=\"true\"]")).toBeInTheDocument();
+
+    settle(true);
+
+    await waitFor(() => expect(instances[0].importXML).toHaveBeenCalledWith(DIAGRAM));
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(container.querySelector("[aria-hidden=\"true\"]")).not.toBeInTheDocument();
   });
 
   it("reports a diagram the server refused to hand over", async () => {
@@ -247,6 +283,9 @@ describe("BpmnEditor", () => {
     renderEditor();
 
     expect(await screen.findByText("unparsable XML")).toBeInTheDocument();
+    // Reported instead of waited on: the load settled, it just produced nothing that can be shown. That the
+    // canvas is covered while this alert stands is the same showDiagram check the loading test pins down.
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
   it("destroys the canvas it created when it goes away", async () => {
