@@ -386,7 +386,6 @@ public class ParseJobConsumer implements JobConsumer
      */
     private void fail(final String jobId, final String message)
     {
-        LOGGER.warn("Parse job {} failed: {}", jobId, message);
         try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
             if (jobNode == null) {
@@ -394,6 +393,13 @@ public class ParseJobConsumer implements JobConsumer
                 return;
             }
             update(jobNode, resolver, properties -> {
+                // A lost 202 can land here after the callback already finished the job.
+                if (properties.get(ParseJob.PN_FINISHED, Calendar.class) != null) {
+                    LOGGER.warn("Parse job {} already finished; not recording dispatch failure: {}",
+                        jobId, message);
+                    return;
+                }
+                LOGGER.warn("Parse job {} failed: {}", jobId, message);
                 properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_FAILED);
                 properties.put(ParseJob.PN_ERROR, message);
                 properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());

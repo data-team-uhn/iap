@@ -230,19 +230,25 @@ class DaemonState:
         for future, (job_id, callback_url, token) in pending.items():
             if future.cancelled():
                 _log_stderr(f"Parse job {job_id} never started; failing it to the caller")
-                parse_callbacks.deliver(
-                    callback_url,
-                    parse_callbacks.failure_payload(
-                        job_id, "The daemon shut down before this parse started"
-                    ),
-                    token=token,
-                    # One short attempt each: the process is going down, and the usual
-                    # retry schedule would spend minutes per job waiting for a caller that
-                    # is evidently not answering
-                    attempts=1,
-                    timeout=SHUTDOWN_DELIVERY_TIMEOUT_SECONDS,
-                    log=_log_stderr,
-                )
+                try:
+                    parse_callbacks.deliver(
+                        callback_url,
+                        parse_callbacks.failure_payload(
+                            job_id, "The daemon shut down before this parse started"
+                        ),
+                        token=token,
+                        # One short attempt each: the process is going down, and the usual
+                        # retry schedule would spend minutes per job waiting for a caller
+                        # that is evidently not answering
+                        attempts=1,
+                        timeout=SHUTDOWN_DELIVERY_TIMEOUT_SECONDS,
+                        log=_log_stderr,
+                    )
+                except Exception as failure:
+                    # Keep going: every cancelled parse still owes its caller an answer.
+                    _log_stderr(
+                        f"Parse job {job_id} failure callback could not be sent: {failure}"
+                    )
             else:
                 running.append(future)
         if running:
