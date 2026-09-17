@@ -55,7 +55,7 @@ test.describe('the caught mail console on a bare distribution', () => {
   test('opens the list, which explains itself rather than looking broken', async ({ page }) => {
     await signInAs(page, ADMIN);
     await page.goto('/admin');
-    await page.getByRole('link', { name: 'Read: Caught mail' }).click();
+    await page.getByRole('link', { name: 'Manage: Caught mail' }).click();
 
     await expect(page).toHaveURL(/\/admin\/mail$/);
     await expect(page.getByText('Nothing has been caught yet.')).toBeVisible();
