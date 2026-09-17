@@ -287,8 +287,13 @@ summary below, it reads the service registry rather than the configuration.
 
 **It ships everywhere and is off everywhere until somebody turns it on.** The setting is
 a plain `enabled` boolean that defaults to false, so the bundle publishes no mail service
-until it is switched on. Two ways to do that, and they are the same setting:
+until it is switched on. Three ways to do that, and they are the same setting:
 
+- **On the administration dashboard**, with the switch on the *Caught mail* widget. It
+  asks first in both directions, since switching off on a test instance mails whatever
+  addresses its data holds, then writes the setting through `ConfigurationAdmin`:
+  `POST /CaughtMail.catching.json` with `enabled=true` or `enabled=false`, allowed to
+  `iap-administrators` and the repository superuser.
 - **In the Felix console**, under Configuration → *IAP Email Catcher*. Tick the box and
   mail starts being filed; untick it and real sending comes back. Neither needs a
   restart, because the consumers bind dynamically and the registration follows the
@@ -297,17 +302,27 @@ until it is switched on. Two ways to do that, and they are the same setting:
   anybody clicking anything: `dev/email-catcher-enabled.json` sets `enabled` to true. The
   production aggregates do not include it.
 
+A restart reapplies what the deployment ships. The test and demo aggregates come back
+catching however they were left, while a production aggregate carries no configuration
+for the catcher, so a change made there survives.
+
 That is deliberately not the same as leaving the bundle out of production. One set of
 artifacts is built rather than two, the difference between environments is a
 configuration a deployment can read back, and catching mail on some new instance is a
 configuration rather than a rebuild — which is exactly what somebody debugging a staging
 environment would want.
 
+**While mail is being caught, every page says so**, the sign-in page included, in a red
+banner across the top. `CatchingBanner` is an `iap/coreUI/frameTop` extension with
+`ext:visibleBeforeLogin`, and reads `catching.json` above when the page loads. The
+dashboard switch tells it at once through an `iap:mail-catching-changed` window event;
+another tab catches up on its next page load.
+
 ### Reading it in the administration console
 
 `.messages.json` above is for a test to assert on. A person gets **Caught mail** in the
-administration console: a dashboard summary, a table of what has been filed at
-`/admin/mail`, and a page per message.
+administration console: a dashboard summary with the switch, a table of what has been
+filed at `/admin/mail`, and a page per message.
 
 The table is the [shared entity grid](frontend-development.md#shared-components), which
 pages, sorts, searches and filters through
