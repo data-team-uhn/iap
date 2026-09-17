@@ -237,7 +237,7 @@ function EntityGridToolbar(props: EntityGridToolbarProps) {
               >
                 <ListItemText>{column.headerName ?? column.field}</ListItemText>
                 {currentSort?.field === column.field && (
-                  <Typography variant="body2" color="textSecondary" aria-hidden>
+                  <Typography variant="body2" aria-hidden sx={{ color: "text.secondary" }}>
                     {currentSort.sort === "asc" ? "↑" : "↓"}
                   </Typography>
                 )}
@@ -354,7 +354,7 @@ function GenericListItem({ row, columns }: { row: EntityRow; columns: EntityGrid
         )}
       </Stack>
       {captions.length > 0 && (
-        <Typography variant="caption" color="textSecondary" component="div">
+        <Typography variant="caption" component="div">
           {captions.map((part, index) => <Fragment key={part.field}>{index > 0 && " • "}{part.node}</Fragment>)}
         </Typography>
       )}
@@ -362,7 +362,7 @@ function GenericListItem({ row, columns }: { row: EntityRow; columns: EntityGrid
         const value = content(column);
         return value == null || value === "" ? null : (
           <Stack key={column.field} direction="row" sx={{ gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-            <Typography variant="caption" color="textSecondary" component="div" sx={{ minWidth: 96 }}>
+            <Typography variant="caption" component="div" sx={{ minWidth: 96 }}>
               {column.headerName ?? column.field}
             </Typography>
             <Box sx={{ typography: "body2" }}>{value}</Box>
@@ -503,7 +503,7 @@ function EntityGridStatusOverlay(props: { message?: string; error?: string; onRe
   }
   return (
     <Stack sx={{ height: "100%", alignItems: "center", justifyContent: "center", p: 2 }}>
-      <Typography variant="body2" color="textSecondary">{message}</Typography>
+      <Typography variant="placeholder">{message}</Typography>
     </Stack>
   );
 }

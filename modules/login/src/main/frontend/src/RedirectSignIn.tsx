@@ -62,7 +62,7 @@ export default function RedirectSignIn({ extension }: { extension: Extension }) 
         {label}
       </Button>
       {hint && (
-        <Typography variant="caption" color="textSecondary">
+        <Typography variant="caption">
           {hint}
         </Typography>
       )}

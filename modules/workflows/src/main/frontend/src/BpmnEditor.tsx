@@ -338,7 +338,7 @@ export default function BpmnEditor() {
         </Button>
         <Button variant="outlined" size="small" onClick={() => setNewOpen(true)}>New</Button>
         {currentTitle && (
-          <Typography variant="body2" color="textSecondary" sx={{ ml: 1 }}>
+          <Typography variant="description" sx={{ ml: 1 }}>
             Editing: <strong>{currentTitle}</strong>
           </Typography>
         )}

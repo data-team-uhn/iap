@@ -83,7 +83,7 @@ function CategoriesWidget() {
     return <CategoryLoadError message={loadError} onRetry={reload} />;
   }
   if (tree.length === 0) {
-    return <Typography color="textSecondary" variant="body2">No categories are defined yet.</Typography>;
+    return <Typography variant="placeholder">No categories are defined yet.</Typography>;
   }
 
   return <CategoryBranch nodes={tree} depth={0} />;
