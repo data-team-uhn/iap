@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["category", "confidence", "reasoning"],
+  "properties": {
+    "category": { "type": ["string", "null"] },
+    "confidence": { "type": "number" },
+    "reasoning": { "type": "string" }
+  }
+}

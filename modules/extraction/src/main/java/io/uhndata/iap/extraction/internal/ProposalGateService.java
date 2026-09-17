@@ -18,15 +18,13 @@
 package io.uhndata.iap.extraction.internal;
 
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-import jakarta.json.Json;
 import jakarta.json.JsonArray;
-import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
 import jakarta.json.JsonValue;
 
 import org.apache.sling.api.resource.ModifiableValueMap;
@@ -46,11 +44,13 @@ import io.uhndata.iap.submissions.models.Chunks;
 import io.uhndata.iap.submissions.models.File;
 
 /**
- * Decides whether an uploaded document is a research proposal at all, and tags its chunks while it is looking.
+ * Decides whether an uploaded document is a research proposal at all, tags its chunks while it is looking, and
+ * when it is one, picks which category of study it describes - the category decides which schema the answers
+ * are read into, so it has to be known before anything else is asked.
  *
  * <p>When it cannot tell - the model is unreachable, or its answer unreadable - the verdict is
  * {@link Verdict#UNDETERMINED}. It does not guess. Extraction is skipped and the submitter fills the schema
- * in themselves.
+ * in themselves. The category is held to the same rule: an answer naming no category that exists is no pick.
  *
  * @version $Id$
  * @since 0.1.0
@@ -58,7 +58,7 @@ import io.uhndata.iap.submissions.models.File;
 @Component(service = ProposalGateService.class)
 public class ProposalGateService
 {
-    /** How much of the opening of a document to show when it carries no bookmarks of its own. */
+    /** How much of the opening of a chunked document to show. */
     static final int INPUT_TOKEN_BUDGET = 10_000;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProposalGateService.class);
@@ -66,8 +66,8 @@ public class ProposalGateService
     /** The name the provider associates with the gate's response schema. */
     private static final String SCHEMA_NAME = "iap_is_proposal_gate";
 
-    /** Room for the verdict itself, before anything the chunk tags need. */
-    private static final long BASE_TOKENS = 400L;
+    /** Room for the verdict and the category, before anything the chunk tags need. */
+    private static final long BASE_TOKENS = 500L;
 
     /** Room for one chunk's tag in the answer. */
     private static final long TOKENS_PER_CHUNK = 30L;
@@ -76,8 +76,8 @@ public class ProposalGateService
     private static final String STRUCTURE_HEADER = "## PROTOCOL_STRUCTURE";
 
     /**
-     * The document block, which the prompt calls INPUT. Its header says which of the three forms it is, because
-     * the prompt tells the model to weigh an outline differently from the text itself.
+     * The document block, which the prompt calls INPUT. It comes in up to two parts, each under its own header,
+     * because the prompt tells the model to weigh an outline differently from the text itself.
      */
     private static final String INPUT_TABLE_OF_CONTENTS = "## INPUT (table of contents) (untrusted data)";
 
@@ -139,10 +139,13 @@ public class ProposalGateService
      * @param confidence how sure the model was, from 0 to 1
      * @param reasoning why, in the model's words
      * @param chunkTags the rubric tag assigned to each chunk
+     * @param category the category the model filed a proposal under, or {@code null} when it named none that
+     *            exists - which is not a verdict against any category, just no pick
      * @version $Id$
      * @since 0.1.0
      */
-    public record GateDecision(Verdict verdict, double confidence, String reasoning, List<ChunkTag> chunkTags)
+    public record GateDecision(Verdict verdict, double confidence, String reasoning, List<ChunkTag> chunkTags,
+        CategoryPick category)
     {
         /**
          * Takes a copy of the tags, so a decision cannot be changed after it was made.
@@ -151,10 +154,25 @@ public class ProposalGateService
          * @param confidence how sure the model was, from 0 to 1
          * @param reasoning why, in the model's words
          * @param chunkTags the rubric tag assigned to each chunk
+         * @param category the category picked, or {@code null} for none
          */
         public GateDecision
         {
             chunkTags = List.copyOf(chunkTags);
+        }
+
+        /**
+         * A decision with no category picked.
+         *
+         * @param verdict what the document is, as far as the gate could tell
+         * @param confidence how sure the model was, from 0 to 1
+         * @param reasoning why, in the model's words
+         * @param chunkTags the rubric tag assigned to each chunk
+         */
+        public GateDecision(final Verdict verdict, final double confidence, final String reasoning,
+            final List<ChunkTag> chunkTags)
+        {
+            this(verdict, confidence, reasoning, chunkTags, null);
         }
 
         /**
@@ -171,13 +189,29 @@ public class ProposalGateService
     }
 
     /**
-     * Decide whether a parsed document is a research proposal, and tag its chunks.
+     * Decide whether a parsed document is a research proposal, and tag its chunks, with no categories to file
+     * it under.
      *
      * @param file the parsed file to weigh up
      * @return what the gate decided, undetermined when it could not tell
      * @throws IOException if the document cannot be read
      */
     public GateDecision evaluate(final File file) throws IOException
+    {
+        return evaluate(file, List.of());
+    }
+
+    /**
+     * Decide whether a parsed document is a research proposal, tag its chunks, and when it is one, pick which
+     * of the given categories it belongs under.
+     *
+     * @param file the parsed file to weigh up
+     * @param categories the categories a proposal may be filed under, see {@link CategoryCatalog#read}
+     * @return what the gate decided, undetermined when it could not tell
+     * @throws IOException if the document cannot be read
+     */
+    public GateDecision evaluate(final File file, final List<CategoryCatalog.Entry> categories)
+        throws IOException
     {
         final List<Chunk> chunks = listChunks(file);
         final String input = describeInput(file, chunks);
@@ -187,7 +221,7 @@ public class ProposalGateService
             return GateDecision.undetermined();
         }
         try {
-            return ask(buildUserMessage(input, chunks), chunks.size());
+            return ask(buildUserMessage(input, chunks), chunks.size(), categories);
         } catch (IOException e) {
             LOGGER.warn("The gate could not be asked about {}: {}", file.getPath(), e.getMessage());
             return GateDecision.undetermined();
@@ -216,18 +250,24 @@ public class ProposalGateService
     }
 
     /**
-     * The reference first (protocol full structure), then what to do with it (instructions).
+     * The reference first (protocol full structure), then the categories, then what to do with them
+     * (instructions).
      *
-     * <p>That order is deliberate. PROTOCOL_STRUCTURE is identical on every call, that allows sharing a
-     * byte-identical opening, which is what a provider's prefix cache matches on and what a local model reuses
-     * its KV cache for.
+     * <p>That order is deliberate. PROTOCOL_STRUCTURE is identical on every call, and the categories change
+     * only when an administrator edits them, so every call shares a byte-identical opening, which is what a
+     * provider's prefix cache matches on and what a local model reuses its KV cache for.
      *
+     * @param categories the categories a proposal may be filed under; the block is left out when there are none
      * @return the system prompt
      */
-    private static String buildSystemPrompt()
+    private static String buildSystemPrompt(final List<CategoryCatalog.Entry> categories)
     {
-        return STRUCTURE_HEADER + BREAK + Prompts.read(Prompts.PROTOCOL_STRUCTURE).strip() + BREAK
-            + Prompts.read(Prompts.IS_PROPOSAL_SYSTEM);
+        final StringBuilder system = new StringBuilder(STRUCTURE_HEADER).append(BREAK)
+            .append(Prompts.read(Prompts.PROTOCOL_STRUCTURE).strip()).append(BREAK);
+        if (!categories.isEmpty()) {
+            system.append(CategoryCatalog.describe(categories)).append(BREAK);
+        }
+        return system.append(Prompts.read(Prompts.IS_PROPOSAL_SYSTEM)).toString();
     }
 
     /**
@@ -236,8 +276,8 @@ public class ProposalGateService
      * <p>A separate step from {@link #evaluate}, so that a document turned away at the gate leaves nothing
      * behind. The caller decides when the decision is worth keeping.
      *
-     * <p>The tags are recorded as guesses: the gate assigns them from headings alone, without reading the
-     * chunks, so they are marked {@code heading} and uncertain for a later stage to firm up or replace.
+     * <p>The gate assigns these from headings alone, without reading the chunks, so the confidence it gave
+     * is recorded beside them for a later stage to firm up or replace.
      *
      * @param file the {@code sub:File} node the gate looked at
      * @param decision what the gate decided
@@ -249,8 +289,13 @@ public class ProposalGateService
         if (chunksResource == null || decision.chunkTags().isEmpty()) {
             return;
         }
-        boolean written = false;
+        final Set<String> tagged = new HashSet<>();
         for (final ChunkTag tag : decision.chunkTags()) {
+            if (!tagged.add(tag.chunkId())) {
+                // The model named this chunk twice. The first answer stands, so a later contradiction
+                // cannot quietly overwrite what it led with.
+                continue;
+            }
             final Resource chunk = chunksResource.getChild(tag.chunkId());
             if (chunk == null) {
                 LOGGER.warn("The gate tagged a chunk this document does not have");
@@ -261,12 +306,7 @@ public class ProposalGateService
                 throw new PersistenceException("Not allowed to tag " + chunk.getPath());
             }
             properties.put(ParsePropertyNames.RUBRIC_TAGS, new String[]{ tag.tag() });
-            properties.put(ParsePropertyNames.TAG_BASIS, ParsePropertyNames.BASIS_HEADING);
-            properties.put(ParsePropertyNames.UNCERTAIN, Boolean.TRUE);
-            written = true;
-        }
-        if (written) {
-            chunksResource.getResourceResolver().commit();
+            properties.put(ParsePropertyNames.TAG_CONFIDENCE, tag.confidence());
         }
     }
 
@@ -283,9 +323,10 @@ public class ProposalGateService
     }
 
     /**
-     * The INPUT block comes in one of three forms: the document's own bookmarks, if it has them; a document the
-     * parser left whole, shown whole; or, otherwise, as much of a chunked document's opening as
-     * {@link #INPUT_TOKEN_BUDGET} allows.
+     * The INPUT block, in up to two parts: the document's own bookmarks when it has them, then its text - a
+     * document the parser left whole, shown whole, or otherwise as much of a chunked document's opening as
+     * {@link #INPUT_TOKEN_BUDGET} allows. Bookmarks alone say what shape a document has, not what kind of study
+     * it describes, so the text goes along whenever there is any.
      *
      * <p>{@link File#isUnchunkedOverLimit()} is checked first, ahead of even bookmarks: it means the document
      * went unchunked for a reason that says nothing about its size, and is still past the whole-document token
@@ -301,10 +342,31 @@ public class ProposalGateService
         if (file.isUnchunkedOverLimit()) {
             return "";
         }
+        final StringBuilder input = new StringBuilder();
         final List<String> bookmarks = file.getBookmarks();
         if (bookmarks != null && !bookmarks.isEmpty()) {
-            return INPUT_TABLE_OF_CONTENTS + BREAK + String.join("\n", bookmarks);
+            input.append(INPUT_TABLE_OF_CONTENTS).append(BREAK).append(String.join("\n", bookmarks));
         }
+        final String text = describeText(file, chunks);
+        if (!text.isEmpty()) {
+            if (!input.isEmpty()) {
+                input.append(BREAK);
+            }
+            input.append(text);
+        }
+        return input.toString();
+    }
+
+    /**
+     * The text part of INPUT: the whole of a document the parser left whole, or the opening of a chunked one.
+     *
+     * @param file the parsed file
+     * @param chunks its chunks
+     * @return the text under its header, blank when there is none
+     * @throws IOException if the text cannot be read
+     */
+    private static String describeText(final File file, final List<Chunk> chunks) throws IOException
+    {
         if (!file.isChunked()) {
             final String whole = truncate(readWholeDocument(file));
             return whole.isBlank() ? "" : INPUT_FULL_DOCUMENT + BREAK + whole;
@@ -371,23 +433,8 @@ public class ProposalGateService
     private static String describeCatalog(final List<Chunk> chunks) throws IOException
     {
         final StringBuilder catalog = new StringBuilder(CATALOG_HEADER).append(BREAK);
-        String lastHeading = null;
-        for (final Chunk chunk : chunks) {
-            final String text = ChunkContent.readText(chunk);
-            final List<String> ownHeadings = ChunkContent.getHeadings(text);
-            final List<String> headings;
-            if (ChunkContent.opensWithHeading(text) || lastHeading == null) {
-                headings = ownHeadings;
-            } else {
-                final List<String> carried = new ArrayList<>();
-                carried.add(lastHeading);
-                carried.addAll(ownHeadings);
-                headings = carried;
-            }
-            if (!ownHeadings.isEmpty()) {
-                lastHeading = ownHeadings.get(ownHeadings.size() - 1);
-            }
-            catalog.append(chunk.getName()).append(": ").append(String.join("; ", headings)).append('\n');
+        for (final ChunkCatalog.Entry entry : ChunkCatalog.read(chunks)) {
+            catalog.append(entry.getName()).append(": ").append(entry.describeHeadings()).append('\n');
         }
         return catalog.toString();
     }
@@ -397,26 +444,28 @@ public class ProposalGateService
      *
      * @param userMessage what to show the model
      * @param chunkCount how many chunks are waiting to be tagged
-     * @return the decision, failing open when neither answer could be read
+     * @param categories the categories a proposal may be filed under
+     * @return the decision, undetermined when neither answer could be read
      * @throws IOException if the model cannot be reached
      */
-    private GateDecision ask(final String userMessage, final int chunkCount) throws IOException
+    private GateDecision ask(final String userMessage, final int chunkCount,
+        final List<CategoryCatalog.Entry> categories) throws IOException
     {
         final LLMClient client = this.llmClientFactory.getActiveClient();
-        final String system = buildSystemPrompt();
+        final String system = buildSystemPrompt(categories);
         final LLMRequestOptions options = LLMRequestOptions.builder()
             .maxOutputTokens(BASE_TOKENS + TOKENS_PER_CHUNK * chunkCount)
-            .jsonSchema(SCHEMA_NAME, Prompts.read(Prompts.IS_PROPOSAL_SCHEMA))
+            .jsonSchema(SCHEMA_NAME, ResponseSchemas.gate(categories))
             .build();
 
         final GateDecision first = readDecision(client.chat(system,
-            List.of(new LLMMessage("user", userMessage)), options));
+            List.of(new LLMMessage("user", userMessage)), options), categories);
         if (first != null) {
             return first;
         }
         LOGGER.warn("The gate did not answer in the required shape; asking once more");
         final GateDecision second = readDecision(client.chat(system,
-            List.of(new LLMMessage("user", userMessage + CORRECTION)), options));
+            List.of(new LLMMessage("user", userMessage + CORRECTION)), options), categories);
         if (second != null) {
             return second;
         }
@@ -428,44 +477,41 @@ public class ProposalGateService
      * Read the model's answer.
      *
      * @param reply what it said
+     * @param categories the categories it could have picked from
      * @return the decision, or {@code null} when the answer was not the shape it had to be, which leaves the
      *         verdict undetermined rather than settling it either way
      */
-    private static GateDecision readDecision(final String reply)
+    private static GateDecision readDecision(final String reply, final List<CategoryCatalog.Entry> categories)
     {
         if (reply == null || reply.isBlank()) {
             return null;
         }
-        final JsonObject answer = readJsonObject(reply);
+        final JsonObject answer = ModelReplies.readJsonObject(reply);
         if (answer == null || !answer.containsKey("is_proposal")) {
             return null;
         }
-        return new GateDecision(
-            answer.getBoolean("is_proposal", false) ? Verdict.PROPOSAL : Verdict.NOT_PROPOSAL,
-            readConfidence(answer, "confidence"),
+        final Verdict verdict = answer.getBoolean("is_proposal", false) ? Verdict.PROPOSAL : Verdict.NOT_PROPOSAL;
+        return new GateDecision(verdict,
+            ModelReplies.readConfidence(answer, "confidence"),
             answer.getString("reasoning", ""),
-            readChunkTags(answer.getJsonArray("chunk_tags")));
+            readChunkTags(answer.getJsonArray("chunk_tags")),
+            verdict == Verdict.PROPOSAL ? readCategory(answer, categories) : null);
     }
 
     /**
-     * Read a JSON object out of a reply, which a model will sometimes wrap in prose however firmly it was told
-     * not to.
+     * The category the model filed the proposal under, when it named one that exists. Anything else - no
+     * category, or one that is not in the tree - is no pick, and the choice is left open for a person.
      *
-     * @param reply what the model said
-     * @return the object, or {@code null} when the reply holds none
+     * @param answer the model's answer
+     * @param categories the categories it could have picked from
+     * @return the pick, or {@code null} for none
      */
-    private static JsonObject readJsonObject(final String reply)
+    private static CategoryPick readCategory(final JsonObject answer, final List<CategoryCatalog.Entry> categories)
     {
-        final int start = reply.indexOf('{');
-        final int end = reply.lastIndexOf('}');
-        if (start < 0 || end <= start) {
-            return null;
-        }
-        try (JsonReader reader = Json.createReader(new StringReader(reply.substring(start, end + 1)))) {
-            return reader.readObject();
-        } catch (RuntimeException e) {
-            return null;
-        }
+        final CategoryCatalog.Entry entry =
+            CategoryCatalog.find(categories, ModelReplies.readString(answer, "category"));
+        return entry == null ? null
+            : new CategoryPick(entry.path(), ModelReplies.readConfidence(answer, "category_confidence"));
     }
 
     private static List<ChunkTag> readChunkTags(final JsonArray tags)
@@ -480,18 +526,15 @@ public class ProposalGateService
             }
             final JsonObject tag = value.asJsonObject();
             final String chunkId = tag.getString("chunk_id", null);
+            // Checked against the vocabulary, not merely for being a string: an off-list tag written onto a
+            // chunk would read later as a placement nothing can act on, and the intake filters the same way
             final String rubricTag = tag.getString("tag", null);
-            if (chunkId != null && rubricTag != null) {
-                read.add(new ChunkTag(chunkId, rubricTag, readConfidence(tag, "confidence")));
+            if (chunkId != null && RubricTags.isValid(rubricTag)) {
+                read.add(new ChunkTag(chunkId, rubricTag.strip(),
+                    ModelReplies.readConfidence(tag, "confidence")));
             }
         }
         return read;
     }
 
-    private static double readConfidence(final JsonObject holder, final String name)
-    {
-        return holder.containsKey(name) && !holder.isNull(name) && holder.get(name) instanceof JsonNumber
-            ? holder.getJsonNumber(name).doubleValue()
-            : 0.0;
-    }
 }

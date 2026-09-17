@@ -73,6 +73,18 @@
   // /Tags and managed by the attached user workflow. Whoever creates a submission is expected
   // to tag it `draft`.
 
+  // Where reading answers out of the attached documents got to: running, done,
+  // undetermined (the gate could not tell whether the document is a proposal),
+  // not-proposal, or failed - with a short message for the person looking at it.
+  // Set by the extraction system workflows, read by the submission view.
+  - extractionStatus (STRING)
+  - extractionMessage (STRING)
+  // What the gate said the document is, PROPOSAL, NOT_PROPOSAL or UNDETERMINED
+  - extractionVerdict (STRING)
+  // The category the model filed the proposal under, as the path of a leaf of
+  // /Categories. Recorded, not enforced: the submission already answers a schema.
+  - proposalCategory (STRING)
+
   // Allow any other properties for extensibility
   - * (UNDEFINED)
   - * (UNDEFINED) multiple
@@ -143,6 +155,18 @@
   // The model's explanation of how it got there
   - reasoning (STRING)
 
+  // Whether a later pass should ask this field again: nothing was found, the
+  // answer is not sure enough, or a quote behind it could not be found in the
+  // text the model was shown.
+  - needsSecondLook (BOOLEAN) = false
+
+  // Whether the submitter has settled this answer, by accepting it or by
+  // changing it, and whether they said the quoted passage does not support it.
+  // Separate on purpose: the second is a verdict on the evidence, not on the
+  // answer, and settles nothing.
+  - reviewed (BOOLEAN) = false
+  - evidenceRejected (BOOLEAN) = false
+
   // How far the submitter's own value ended up from extractedAnswer: the raw
   // edit distance, and that distance as a percentage of the extracted answer's
   // own length. Written when the submitter accepts or edits the extracted
@@ -171,7 +195,9 @@
   // The sub:Chunk this passage was taken from
   - chunk (REFERENCE)
 
-  // The quoted text
+  // The quoted text. Every one stored was found in the chunk it names: a quote
+  // that could not be found is not evidence, so it is dropped rather than kept.
+  // The answer still pays for it, through a lower confidence.
   - quote (STRING)
 
   // The nearest detected header of the quoted text
@@ -249,6 +275,11 @@
   // like one that was never parsed.
   - parseStatus (STRING)
   - parseError (STRING)
+  // The parse job the file was queued under, and where the upload was staged for
+  // the daemon on the shared volume. The job record is deleted once its outcome
+  // has been read in, so these are what is left to trace a parse by.
+  - parseJobId (STRING)
+  - sharedPath (STRING)
 
   // Token count of the Markdown. A cheap character heuristic, len(md) // 4;
   // no ML tokenizer is involved.
@@ -330,16 +361,14 @@
 
   // What this chunk is about, tagged from the same vocabulary the questions are
   // tagged with. Written by an LLM stage; the pipeline always writes it empty.
+  // Empty is a wildcard, not a verdict: a chunk nothing has placed yet matches
+  // every question and stays eligible for every later pass.
   - rubricTags (STRING) multiple
 
-  // How rubricTags was arrived at: "heading" when it was guessed from the
-  // list of headings alone, "fulltext" when a model read the whole chunk, or "deep" from
-  // a later and more thorough pass. Only the last two count as content-based.
-  - tagBasis (STRING)
-
-  // Set when rubricTags is a weak guess, or was filled in after a model reply
-  // came back truncated.
-  - uncertain (BOOLEAN) = false
+  // How sure the stage that tagged this chunk was, 0..1. Advisory only:
+  // selection turns on the tags themselves, because a confidently wrong tag
+  // rules a chunk out exactly as firmly as a confidently right one.
+  - tagConfidence (DOUBLE)
 
   // The range of page markers this chunk covers, read from the
   // <!-- page: N --> comments the PDF parser emits, so an extracted answer can

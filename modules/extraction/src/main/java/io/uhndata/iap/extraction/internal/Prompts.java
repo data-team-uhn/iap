@@ -52,6 +52,15 @@ final class Prompts
      */
     static final String PROTOCOL_STRUCTURE_GLOSSARY = "protocol_structure_glossary.md";
 
+    /** What the intake pass is told about reading every field out of a proposal at once. */
+    static final String INTAKE_SYSTEM = "intake_system.md";
+
+    /** What the second look at a proposal's category is told, when the gate could not tell from the opening. */
+    static final String CLASSIFY_SYSTEM = "classify_system.md";
+
+    /** The shape that second look's answer must take. */
+    static final String CLASSIFY_SCHEMA = "classify_schema.json";
+
     private static final String DIRECTORY = "/prompts/";
 
     private static final Map<String, String> CACHE = new ConcurrentHashMap<>();

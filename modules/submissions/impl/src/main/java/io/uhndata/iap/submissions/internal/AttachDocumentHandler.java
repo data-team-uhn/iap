@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import javax.jcr.Node;
+import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 
 import org.apache.sling.api.resource.PersistenceException;
@@ -33,6 +34,8 @@ import org.apache.sling.api.resource.ResourceResolver;
 import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.DocumentRequirement;
+import io.uhndata.iap.schemas.models.Requirement;
+import io.uhndata.iap.submissions.models.Document;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
@@ -71,8 +74,21 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     /** The payload entry carrying the file itself. */
     static final String FILE = "file";
 
+    /** Where the file keeps the name it arrived under, since its node cannot. */
+    static final String FILE_NAME = "fileName";
+
     /** Where the document records what it fulfills. */
     private static final String FULFILLS = "fulfills";
+
+    private static final String TITLE = "title";
+
+    private static final String VERSION_TYPE = "sub:DocumentVersion";
+
+    /** The one file a version consists of, named by the node type. */
+    private static final String FILE_CHILD = "file";
+
+    /** The upload as it arrived, named by the node type. */
+    private static final String UPLOADED_FILE = "uploadedFile";
 
     @Override
     public String getName()
@@ -92,15 +108,48 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         final DocumentRequirement requirement = requirement(submission, context);
         checkAcceptedType(requirement, file);
 
+        write(documentFor(submission, target, requirement, file), file);
+    }
+
+    /**
+     * The document the upload becomes a version of: the one already fulfilling this requirement, or a new one. A
+     * replacement is a new version of the same document rather than a document of its own, so what a reviewer has
+     * already read stays where it was and the history is one list.
+     *
+     * @param submission the submission being attached to
+     * @param target its resource, through the engine's resolver
+     * @param requirement what the upload answers
+     * @param file the upload, whose name becomes the document's title
+     * @return the document's node
+     * @throws PersistenceException when the document cannot be created or named
+     */
+    private Node documentFor(final Submission submission, final Resource target,
+        final DocumentRequirement requirement, final EventAttachment file) throws PersistenceException
+    {
+        final String title = Objects.requireNonNullElse(file.getFileName(), "Attachment");
+        for (final Document existing : submission.getDocuments()) {
+            final Requirement fulfilled = existing.getFulfills();
+            if (fulfilled != null && requirement.getPath().equals(fulfilled.getPath())) {
+                final Node node = Objects.requireNonNull(Objects.requireNonNull(
+                    target.getResourceResolver().getResource(existing.getPath()),
+                    "A document the submission just reported is still where it said").adaptTo(Node.class),
+                    "A document read from the repository is always backed by a JCR node");
+                try {
+                    node.setProperty(TITLE, title);
+                } catch (final RepositoryException e) {
+                    throw new PersistenceException("Could not rename the document", e);
+                }
+                return node;
+            }
+        }
         // A UUID rather than the file's name: two documents may legitimately be called the same thing, and a name
         // taken from what somebody uploaded is a name chosen by them for a node in our tree
-        final Resource document = context.getResourceResolver().create(target, UUID.randomUUID().toString(),
-            Map.of("jcr:primaryType", "sub:Document", "title",
-                Objects.requireNonNullElse(file.getFileName(), "Attachment")));
+        final Resource document = target.getResourceResolver().create(target, UUID.randomUUID().toString(),
+            Map.of("jcr:primaryType", "sub:Document", TITLE, title));
         final Node node = Objects.requireNonNull(document.adaptTo(Node.class),
             "A freshly created document is always backed by a JCR node");
         reference(node, document.getResourceResolver(), requirement);
-        write(node, file);
+        return node;
     }
 
     /**
@@ -217,24 +266,14 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     }
 
     /**
-     * A file name turned into something a repository will accept as a node name.
+     * Stores the upload as the next version of the document: a {@code sub:DocumentVersion} holding a
+     * {@code sub:File}, whose {@code uploadedFile} is the bytes exactly as they arrived. That is the shape the node
+     * types describe and the parsing pipeline reads, and it leaves room beside the upload for what the pipeline
+     * makes of it.
      *
-     * <p>A file name is somebody else's string, and a JCR name cannot hold {@code : / [ ] | *}, cannot be blank,
-     * and cannot be {@code .} or {@code ..}. A legitimate upload must not fail because of what its file happens to
-     * be called, so what cannot be part of a name becomes an underscore. Nothing is lost by it: the name the
-     * person gave is kept verbatim as the document's title, which is what anybody is shown.</p>
-     *
-     * @param fileName the name the file arrived under, possibly {@code null}
-     * @return a usable node name
-     */
-    private static String nodeName(final String fileName)
-    {
-        final String usable = Objects.requireNonNullElse(fileName, "").trim().replaceAll("[:/\\[\\]|*]", "_");
-        return usable.isEmpty() || usable.chars().allMatch(character -> character == '.') ? "attachment" : usable;
-    }
-
-    /**
-     * Stores the uploaded bytes as an {@code nt:file} child of the document.
+     * <p>The node names are fixed by the node types, so the name the file arrived under is kept as a property: a
+     * file name is somebody else's string and need not be a usable node name, but a parser still needs its
+     * extension.</p>
      *
      * <p>Written through the JCR API rather than the resolver, because a binary is a {@code jcr:data} property on an
      * {@code nt:resource} child and streaming into it is what keeps the file out of the heap.</p>
@@ -246,7 +285,10 @@ public class AttachDocumentHandler implements ServiceTaskHandler
     private void write(final Node document, final EventAttachment file) throws PersistenceException
     {
         try (InputStream content = file.openStream()) {
-            final Node fileNode = document.addNode(nodeName(file.getFileName()), "nt:file");
+            final Node version = document.addNode("v" + (countVersions(document) + 1), VERSION_TYPE);
+            final Node stored = version.addNode(FILE_CHILD, "sub:File");
+            stored.setProperty(FILE_NAME, Objects.requireNonNullElse(file.getFileName(), "attachment"));
+            final Node fileNode = stored.addNode(UPLOADED_FILE, "nt:file");
             final Node resource = fileNode.addNode("jcr:content", "nt:resource");
             resource.setProperty("jcr:data",
                 fileNode.getSession().getValueFactory().createBinary(content));
@@ -257,5 +299,17 @@ public class AttachDocumentHandler implements ServiceTaskHandler
         } catch (final RepositoryException | IOException e) {
             throw new PersistenceException("Could not store the uploaded file", e);
         }
+    }
+
+    private static int countVersions(final Node document) throws RepositoryException
+    {
+        int count = 0;
+        final NodeIterator children = document.getNodes();
+        while (children.hasNext()) {
+            if (VERSION_TYPE.equals(children.nextNode().getPrimaryNodeType().getName())) {
+                count++;
+            }
+        }
+        return count;
     }
 }

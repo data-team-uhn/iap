@@ -426,5 +426,22 @@ class Presentation(unittest.TestCase):
         self.assertIn('docker compose up -d', commands())
 
 
+
+class Docling(unittest.TestCase):
+    """The daemon only sees files on the shared volume, so IAP has to be on it too."""
+
+    SHARED = '${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs'
+
+    def test_iap_shares_the_document_volume_with_the_daemon(self):
+        doc = document('--docling')
+        self.assertIn(self.SHARED, service(doc, 'iap')['volumes'])
+        self.assertIn(self.SHARED, service(doc, 'docling')['volumes'])
+        self.assertEqual('/shared-docs', service(doc, 'iap')['environment']['IAP_SHARED_DOCS'])
+
+    def test_no_document_volume_without_the_daemon(self):
+        iap = service(document(), 'iap')
+        self.assertFalse(any('/shared-docs' in volume for volume in iap['volumes']))
+        self.assertNotIn('IAP_SHARED_DOCS', iap['environment'])
+
 if __name__ == '__main__':
     unittest.main()

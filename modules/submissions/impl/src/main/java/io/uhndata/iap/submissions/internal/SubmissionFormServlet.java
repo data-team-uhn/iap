@@ -99,6 +99,13 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 
     private static final String TYPE = "type";
 
+    /** Where the extraction workflows record how far reading the documents got, and what they made of them. */
+    private static final String EXTRACTION_STATUS = "extractionStatus";
+
+    private static final String EXTRACTION_MESSAGE = "extractionMessage";
+
+    private static final String PROPOSAL_CATEGORY = "proposalCategory";
+
     @Reference
     private transient ConditionEvaluator conditions;
 
@@ -129,18 +136,51 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         // two indexes that disagreed about what counts as an answer would have the form and the decision to
         // accept it disagree too
         final Map<String, List<String>> answers = submission.getAnswersByQuestion();
+        // Where a pre-filled answer came from, for the questions a model answered. Read once here rather than
+        // per question, because it means walking every answer's extractions.
+        final Map<String, JsonObject> provenance = ProvenanceProjection.of(submission);
         final JsonArrayBuilder requirements = Json.createArrayBuilder();
         submission.getSchemaVersion().getRequirements().stream()
             .filter(requirement -> this.applies(requirement, submission))
-            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers)));
-        return Json.createObjectBuilder()
+            .forEach(requirement -> requirements.add(requirement(requirement, submission, answers, provenance)));
+        final JsonObjectBuilder json = Json.createObjectBuilder()
             .add("path", submission.getPath())
             .add("title", Objects.toString(submission.getTitle(), ""))
             // The same two rules the save handler enforces, so an editor can offer editing only where a save
             // would actually be accepted rather than discovering it from a refusal
             .add("editable", submission.isDraft() && reader.equals(submission.getCreatedBy()))
-            .add("requirements", requirements)
-            .build();
+            .add("requirements", requirements);
+        final JsonObjectBuilder extraction = extraction(submission);
+        if (extraction != null) {
+            json.add("extraction", extraction);
+        }
+        return json.build();
+    }
+
+    /**
+     * Where reading the answers out of the attached documents got to, once it has started: the state the view
+     * shows a spinner or a banner for, the message that goes with it, and the category the model filed the
+     * proposal under. Written by the extraction system workflows, read back here by name.
+     *
+     * @param submission the submission being read
+     * @return the extraction block, or {@code null} when no reading was ever asked for
+     */
+    private static JsonObjectBuilder extraction(final Submission submission)
+    {
+        final String status = submission.get(EXTRACTION_STATUS, String.class);
+        if (status == null) {
+            return null;
+        }
+        final JsonObjectBuilder json = Json.createObjectBuilder().add("status", status);
+        final String message = submission.get(EXTRACTION_MESSAGE, String.class);
+        if (message != null) {
+            json.add("message", message);
+        }
+        final String category = submission.get(PROPOSAL_CATEGORY, String.class);
+        if (category != null) {
+            json.add("category", category);
+        }
+        return json;
     }
 
     /**
@@ -152,7 +192,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the requirement's JSON
      */
     private JsonObjectBuilder requirement(final Requirement requirement, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
             .add(NAME, requirement.getName())
@@ -163,7 +203,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             .add(DESCRIPTION, Objects.toString(requirement.getDescription(), ""));
         if (requirement instanceof FormRequirement) {
             json.add(ITEMS, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
-                submission, answers));
+                submission, answers, provenance));
         } else if (requirement instanceof DocumentRequirement) {
             describe((DocumentRequirement) requirement, submission, json);
         } else if (requirement instanceof ApprovalRequirement) {
@@ -270,7 +310,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the items' JSON
      */
     private JsonArrayBuilder items(final List<FormItem> children, final String prefix, final Submission submission,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance)
     {
         final JsonArrayBuilder items = Json.createArrayBuilder();
         children.stream()
@@ -284,9 +324,9 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
                         .add(TYPE, section.getType())
                         .add(LABEL, Objects.toString(section.getTitle(), ""))
                         .add(DESCRIPTION, Objects.toString(section.getDescription(), ""))
-                        .add(ITEMS, items(section.getChildren(), path, submission, answers)));
+                        .add(ITEMS, items(section.getChildren(), path, submission, answers, provenance)));
                 } else if (child instanceof Question) {
-                    items.add(question((Question) child, path, answers));
+                    items.add(question((Question) child, path, answers, provenance));
                 }
             });
         return items;
@@ -304,7 +344,7 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
      * @return the question's JSON
      */
     private JsonObjectBuilder question(final Question question, final String path,
-        final Map<String, List<String>> answers)
+        final Map<String, List<String>> answers, final Map<String, JsonObject> provenance)
     {
         final JsonArrayBuilder value = Json.createArrayBuilder();
         answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
@@ -343,6 +383,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         }
         if (patternMessage != null) {
             json.add("patternMessage", patternMessage);
+        }
+        final JsonObject where = provenance.get(question.getPath());
+        if (where != null) {
+            json.add("provenance", where);
         }
         return json
             .add("options", options)

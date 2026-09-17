@@ -83,6 +83,9 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     @Reference
     private transient ResourceResolverFactory resolverFactory;
 
+    @Reference
+    private transient ParseOutcomeDispatcher outcomes;
+
     /** The expected {@code Authorization} header, or {@code null} when no token is configured. */
     private transient byte[] expectedAuthorization;
 
@@ -184,6 +187,9 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             properties.put(ParseJob.PN_STATUS, status);
             properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
             resolver.commit();
+            // Recorded first, then handed over: whoever queued the parse for a node takes it from here, and the
+            // record goes with it
+            this.outcomes.settle(resolver, jobNode);
             JsonResponse.write(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
                 .add(ParseJob.JSON_JOB_ID, jobId)
                 .add(ParseJob.PN_STATUS, status)

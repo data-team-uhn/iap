@@ -77,7 +77,20 @@ record ExtractionField(String name, String text, String purpose, String prompt, 
      */
     static ExtractionField of(final Question question)
     {
-        return new ExtractionField(question.getName(), question.getText(), question.getPurpose(),
+        return of(question, question.getName());
+    }
+
+    /**
+     * Read a question as an extraction field, under a name of the caller's choosing - its path within the schema
+     * version, when questions in different sections may share a node name.
+     *
+     * @param question the question, which must be {@link #isExtractable}
+     * @param name what to call the field, and so its answer
+     * @return the field to put to a model
+     */
+    static ExtractionField of(final Question question, final String name)
+    {
+        return new ExtractionField(name, question.getText(), question.getPurpose(),
             question.getExtractionPrompt(), question.getResponseShape(), question.getRubricTags(),
             question.isMultiple());
     }

@@ -49,6 +49,7 @@ import io.uhndata.iap.submissions.models.File;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -66,9 +67,27 @@ class ProposalGateServiceTest
 
     private static final String CHUNK_1 = "Chunk-1";
 
+    private static final String BOOKMARKS = "bookmarks";
+
+    private static final String BACKGROUND = "1 Background";
+
     private static final String YES = "{\"is_proposal\": true, \"confidence\": 0.9,"
         + " \"reasoning\": \"It states aims and endpoints.\","
         + " \"chunk_tags\": [{\"chunk_id\": \"Chunk-1\", \"tag\": \"B.1\", \"confidence\": 0.8}]}";
+
+    private static final String DATA = "/Categories/Retrospective/Data";
+
+    private static final String TRIALS = "/Categories/Prospective/Trials";
+
+    private static final List<CategoryCatalog.Entry> CATEGORIES = List.of(
+        new CategoryCatalog.Entry(DATA, "Retrospective Data Studies", "Chart reviews."),
+        new CategoryCatalog.Entry(TRIALS, "Clinical trials", "Experimental products."));
+
+    private static final String YES_FILED = "{\"is_proposal\": true, \"confidence\": 0.9, \"reasoning\": \"Aims.\","
+        + " \"category\": \"" + DATA + "\", \"category_confidence\": 0.8, \"chunk_tags\": []}";
+
+    private static final String FILED_AS = "{\"is_proposal\": true, \"confidence\": 0.9, \"reasoning\": \"Aims.\","
+        + " \"category\": %s, \"category_confidence\": 0.8, \"chunk_tags\": []}";
 
     private final SlingContext context = new SlingContext(ResourceResolverType.JCR_MOCK);
 
@@ -159,6 +178,12 @@ class ProposalGateServiceTest
         return model;
     }
 
+    /** A file with one bookmark, enough for the gate to have something to show. */
+    private File bookmarked()
+    {
+        return fileWith(Map.of(BOOKMARKS, new String[]{ BACKGROUND }));
+    }
+
     private void addChunk(final String name, final String text)
     {
         final String chunksPath = FILE_PATH + "/chunks";
@@ -209,7 +234,7 @@ class ProposalGateServiceTest
     @Test
     void showsTheDocumentsOwnBookmarksWhenItHasThem() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background", "2 Methods" },
+        final File file = fileWith(Map.of(BOOKMARKS, new String[]{ BACKGROUND, "2 Methods" },
             "chunked", true));
         addChunk(CHUNK_1, "# Background\n\nWhy.\n");
         this.client.replies.add(YES);
@@ -218,9 +243,37 @@ class ProposalGateServiceTest
 
         assertEquals(Verdict.PROPOSAL, decision.verdict());
         assertEquals(0.9, decision.confidence());
-        assertTrue(lastAsked().contains("1 Background"), "the bookmarks are the outline it is shown");
-        assertTrue(lastAsked().contains("## INPUT (table of contents)"), "the header says which form it is");
-        assertFalse(lastAsked().contains("opening of the document"), "there is no need for the text as well");
+        assertTrue(lastAsked().contains("## INPUT (table of contents) (untrusted data)\n\n1 Background\n2 Methods"),
+            "the bookmarks are the outline it is shown");
+        assertTrue(lastAsked().contains("## INPUT (opening of the document) (untrusted data)\n\n# Background\n\nWhy."),
+            "and the text goes along: an outline alone does not say what kind of study it is");
+        assertTrue(lastAsked().indexOf("table of contents") < lastAsked().indexOf("opening of the document"),
+            "outline first");
+    }
+
+    @Test
+    void showsTheBookmarksAndTheWholeTextOfADocumentLeftWhole() throws IOException
+    {
+        final File file = bookmarked();
+        addMarkdown("# A small proposal\n\nAll of it.\n");
+        this.client.replies.add(YES);
+
+        this.gate.evaluate(file);
+
+        assertTrue(lastAsked().contains("## INPUT (table of contents) (untrusted data)\n\n1 Background\n\n"
+            + "## INPUT (full document) (untrusted data)\n\n# A small proposal"));
+    }
+
+    @Test
+    void showsTheBookmarksAloneWhenThereIsNoTextToGoWithThem() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(YES);
+
+        this.gate.evaluate(file);
+
+        assertTrue(lastAsked().startsWith("## INPUT (table of contents) (untrusted data)\n\n1 Background"));
+        assertFalse(lastAsked().contains("full document"));
     }
 
     @Test
@@ -282,7 +335,7 @@ class ProposalGateServiceTest
     @Test
     void cannotTellWhenTheModelSaysNothingAtAll() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add("");
         this.client.replies.add("   ");
 
@@ -292,7 +345,7 @@ class ProposalGateServiceTest
     @Test
     void cannotTellWhenTheAnswerLooksLikeJsonButIsNot() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add("{ this is not, really, json }");
         this.client.replies.add("{ still: not }");
 
@@ -333,7 +386,7 @@ class ProposalGateServiceTest
         // outright is not something a bare table of contents can be trusted to stand in for.
         final File file = fileWith(Map.of(
             "unchunkedOverLimit", true,
-            "bookmarks", new String[]{ "1 Background" }));
+            BOOKMARKS, new String[]{ BACKGROUND }));
 
         final GateDecision decision = this.gate.evaluate(file);
 
@@ -344,7 +397,7 @@ class ProposalGateServiceTest
     @Test
     void showsTheRubricsItJudgesAndTagsAgainst() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add(YES);
 
         this.gate.evaluate(file);
@@ -388,7 +441,7 @@ class ProposalGateServiceTest
     @Test
     void namesEveryChunkByTheHeadingItOpensWith() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }, "chunked", true));
+        final File file = fileWith(Map.of(BOOKMARKS, new String[]{ BACKGROUND }, "chunked", true));
         addChunk(CHUNK_1, "# Background\n\nWhy.\n");
         addChunk("Chunk-2", "continued, with no heading of its own\n");
         this.client.replies.add(YES);
@@ -402,7 +455,7 @@ class ProposalGateServiceTest
     @Test
     void namesAChunkByAllItsHeadingsAtTheTwoTopmostLevels() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }, "chunked", true));
+        final File file = fileWith(Map.of(BOOKMARKS, new String[]{ BACKGROUND }, "chunked", true));
         addChunk(CHUNK_1, "## Background\n\nWhy.\n\n### Rationale\n\nBecause.\n\n#### Prior work\n\nSee.\n");
         this.client.replies.add(YES);
 
@@ -415,7 +468,7 @@ class ProposalGateServiceTest
     @Test
     void carriesAHeadingOverToTheChunkThatContinuesIt() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }, "chunked", true));
+        final File file = fileWith(Map.of(BOOKMARKS, new String[]{ BACKGROUND }, "chunked", true));
         addChunk(CHUNK_1, "## Background\n\nWhy the study is being done, which runs onto");
         addChunk("Chunk-2", "the next chunk with no heading of its own.\n");
         this.client.replies.add(YES);
@@ -428,7 +481,7 @@ class ProposalGateServiceTest
     @Test
     void carriesOverOnlyTheLastHeadingWhenThePreviousChunkHeldSeveral() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }, "chunked", true));
+        final File file = fileWith(Map.of(BOOKMARKS, new String[]{ BACKGROUND }, "chunked", true));
         addChunk(CHUNK_1,
             "## Background\n\nWhy.\n\n### Rationale\n\nBecause it runs onto");
         addChunk("Chunk-2", "the next chunk with no heading of its own.\n");
@@ -444,7 +497,7 @@ class ProposalGateServiceTest
     @Test
     void addsAContinuationChunksOwnHeadingsAfterTheCarriedOverOne() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }, "chunked", true));
+        final File file = fileWith(Map.of(BOOKMARKS, new String[]{ BACKGROUND }, "chunked", true));
         addChunk(CHUNK_1, "## Background\n\nWhy the study is being done, which runs onto");
         addChunk("Chunk-2", "the next chunk, before it reaches\n\n### Details\n\nmore of its own.\n");
         this.client.replies.add(YES);
@@ -458,7 +511,7 @@ class ProposalGateServiceTest
     @Test
     void readsTheTagsTheGateAssigned() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add(YES);
 
         final GateDecision decision = this.gate.evaluate(file);
@@ -472,7 +525,7 @@ class ProposalGateServiceTest
     @Test
     void leavesOutTagsItCannotUse() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add("{\"is_proposal\": true, \"chunk_tags\": ["
             + "\"not an object\","
             + "{\"tag\": \"B.2\"},"
@@ -486,10 +539,28 @@ class ProposalGateServiceTest
         assertEquals(0.0, decision.chunkTags().get(0).confidence(), "an unstated confidence is none");
     }
 
+    // A tag off the rubric vocabulary is not a placement anything can act on later, so it is dropped here
+    // rather than written onto a chunk for a selection pass to trip over
+    @Test
+    void leavesOutATagThatIsNotARubric() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add("{\"is_proposal\": true, \"chunk_tags\": ["
+            + "{\"chunk_id\": \"Chunk-1\", \"tag\": \"Background\", \"confidence\": 0.9},"
+            + "{\"chunk_id\": \"Chunk-2\", \"tag\": \"B.99\", \"confidence\": 0.9},"
+            + "{\"chunk_id\": \"Chunk-3\", \"tag\": \" B.3 \", \"confidence\": 0.7}]}");
+
+        final GateDecision decision = this.gate.evaluate(file);
+
+        assertEquals(1, decision.chunkTags().size());
+        assertEquals("Chunk-3", decision.chunkTags().get(0).chunkId());
+        assertEquals("B.3", decision.chunkTags().get(0).tag(), "the padding the model added is not the tag");
+    }
+
     @Test
     void copesWithAnAnswerThatStatesNoConfidence() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add("{\"is_proposal\": false, \"confidence\": null, \"reasoning\": \"A consent form.\"}");
 
         final GateDecision decision = this.gate.evaluate(file);
@@ -503,7 +574,7 @@ class ProposalGateServiceTest
     @Test
     void takesTheJsonOutOfAnAnswerWrappedInProse() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add("Certainly! Here is the result:\n" + YES + "\nHope that helps.");
 
         assertEquals(Verdict.PROPOSAL, this.gate.evaluate(file).verdict());
@@ -512,7 +583,7 @@ class ProposalGateServiceTest
     @Test
     void asksAgainWhenTheAnswerIsNotTheShapeItHadToBe() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add("I cannot answer that.");
         this.client.replies.add(YES);
 
@@ -526,7 +597,7 @@ class ProposalGateServiceTest
     @Test
     void cannotTellWhenTwoAnswersAreBothUnusable() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.replies.add("no");
         this.client.replies.add("{\"something\": \"else\"}");
 
@@ -539,7 +610,7 @@ class ProposalGateServiceTest
     @Test
     void cannotTellWhenTheModelCannotBeReached() throws IOException
     {
-        final File file = fileWith(Map.of("bookmarks", new String[]{ "1 Background" }));
+        final File file = bookmarked();
         this.client.failure = new IOException("the model is unreachable");
 
         final GateDecision decision = this.gate.evaluate(file);
@@ -572,8 +643,7 @@ class ProposalGateServiceTest
 
         final Chunk tagged = chunk("Chunk-2");
         assertEquals(List.of("B.4"), tagged.getRubricTags());
-        assertEquals("heading", tagged.getTagBasis(), "the gate never read the chunk itself");
-        assertTrue(tagged.isUncertain(), "a heading-only guess is not to be trusted as it stands");
+        assertEquals(0.7, tagged.getTagConfidence(), "how sure the gate was, recorded beside the tag");
         assertTrue(chunk(CHUNK_1).getRubricTags().isEmpty(), "an untagged chunk is left alone");
     }
 
@@ -682,5 +752,101 @@ class ProposalGateServiceTest
         assertTrue(Prompts.read(Prompts.IS_PROPOSAL_SCHEMA).contains("is_proposal"));
         assertTrue(Prompts.read(Prompts.IS_PROPOSAL_SYSTEM).contains("research proposal"),
             "and again, from the cache");
+    }
+
+    @Test
+    void showsTheCategoriesAfterTheRubricsAndBeforeTheInstructions() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(YES_FILED);
+
+        this.gate.evaluate(file, CATEGORIES);
+
+        assertTrue(lastTold().contains(CategoryCatalog.HEADER));
+        assertTrue(lastTold().contains(DATA + ": Retrospective Data Studies -- Chart reviews."));
+        assertTrue(lastTold().indexOf("B.17") < lastTold().indexOf(CategoryCatalog.HEADER),
+            "after the rubrics, which never change");
+        assertTrue(lastTold().indexOf(CategoryCatalog.HEADER) < lastTold().indexOf("# Role"),
+            "before the instructions, so every constant block is a cacheable prefix");
+    }
+
+    @Test
+    void leavesTheCategoriesOutWhenThereAreNone() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(YES);
+
+        this.gate.evaluate(file);
+
+        assertFalse(lastTold().contains(CategoryCatalog.HEADER));
+    }
+
+    @Test
+    void readsTheCategoryTheModelFiledTheProposalUnder() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(YES_FILED);
+
+        final GateDecision decision = this.gate.evaluate(file, CATEGORIES);
+
+        assertEquals(Verdict.PROPOSAL, decision.verdict());
+        assertNotNull(decision.category());
+        assertEquals(DATA, decision.category().path());
+        assertEquals(0.8, decision.category().confidence());
+    }
+
+    @Test
+    void acceptsACategoryByItsLabel() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(String.format(FILED_AS, "\"clinical trials\""));
+
+        final GateDecision decision = this.gate.evaluate(file, CATEGORIES);
+
+        assertNotNull(decision.category());
+        assertEquals(TRIALS, decision.category().path());
+    }
+
+    @Test
+    void picksNoCategoryTheTreeDoesNotHave() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(String.format(FILED_AS, "\"/Categories/Other\""));
+
+        final GateDecision decision = this.gate.evaluate(file, CATEGORIES);
+
+        assertEquals(Verdict.PROPOSAL, decision.verdict(), "the verdict stands");
+        assertNull(decision.category(), "but the category is left open, not guessed at");
+    }
+
+    @Test
+    void picksNoCategoryWhenTheModelNamesNone() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(String.format(FILED_AS, "null"));
+
+        assertNull(this.gate.evaluate(file, CATEGORIES).category());
+    }
+
+    @Test
+    void picksNoCategoryForADocumentThatIsNotAProposal() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(String.format(FILED_AS, "\"" + DATA + "\"").replace("\"is_proposal\": true",
+            "\"is_proposal\": false"));
+
+        final GateDecision decision = this.gate.evaluate(file, CATEGORIES);
+
+        assertEquals(Verdict.NOT_PROPOSAL, decision.verdict());
+        assertNull(decision.category(), "a consent form has no study category");
+    }
+
+    @Test
+    void picksNoCategoryWhenItWasGivenNoneToChooseFrom() throws IOException
+    {
+        final File file = bookmarked();
+        this.client.replies.add(YES_FILED);
+
+        assertNull(this.gate.evaluate(file).category());
     }
 }

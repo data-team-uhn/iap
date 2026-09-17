@@ -1,0 +1,235 @@
+{
+  "jcr:primaryType": "sch:Schema",
+  "title": "Research proposal",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "sch:SchemaVersion",
+    "version": "1.0",
+    "active": true,
+    "jcr:reference:workflow": "/Workflows/researchProposal/v1",
+    "description": "Submit a research proposal for review. Upload the proposal document first: what it says about the study is read out of it and filled in below for you to check and complete, then a reviewer decides.",
+    "proposal": {
+      "jcr:primaryType": "sch:DocumentRequirement",
+      "label": "Research proposal",
+      "description": "The proposal or protocol, as a PDF or Word document. Everything below is read out of it.",
+      "acceptedFileTypes": [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ],
+      "required": true
+    },
+    "study": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "The study",
+      "description": "What the proposal says the study is. Filled in from the document where it could be; check and complete it.",
+      "title": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the title of the study?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Identifying the study in every listing and letter about it",
+        "extractionPrompt": "Find the study's full title, as given on the cover page or at the head of the synopsis. Quote it exactly, without the word 'Title' or a protocol number.",
+        "rubricTags": [ "B.1" ]
+      },
+      "objectives": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the primary objective of the study?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Whether the study has a clear scientific question, and whether the design below can answer it",
+        "extractionPrompt": "Find the primary objective or aim, as the proposal states it. When several are listed, give the one it calls primary; when none is, give the first.",
+        "rubricTags": [ "B.3" ]
+      },
+      "design": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the study design?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Which review path the study takes, and what oversight it needs",
+        "extractionPrompt": "Describe the design in the proposal's own terms, in one sentence: for example a randomized controlled trial, a prospective cohort, a retrospective chart review, a cross-sectional survey. Include whether participants are assigned to an intervention.",
+        "rubricTags": [ "B.4" ]
+      },
+      "population": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who takes part, and how many?",
+        "dataType": "text",
+        "purpose": "Whether the study reaches a vulnerable population, and whether its size matches its aims",
+        "extractionPrompt": "Find who the participants or data subjects are and the planned sample size. Give the population in one phrase and the number as the proposal states it.",
+        "rubricTags": [ "B.5", "B.10" ]
+      },
+      "primaryOutcome": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the primary outcome measure?",
+        "dataType": "text",
+        "purpose": "Whether the study measures what its objective asks",
+        "extractionPrompt": "Find the primary outcome or endpoint, and when it is measured.",
+        "rubricTags": [ "B.4", "B.8" ]
+      },
+      "duration": {
+        "jcr:primaryType": "sch:Question",
+        "text": "How long will the study run?",
+        "dataType": "text",
+        "purpose": "Planning the review and the follow-up",
+        "extractionPrompt": "Find the planned duration of the study, or its start and end dates, including any follow-up period.",
+        "rubricTags": [ "B.4" ]
+      },
+      "funding": {
+        "jcr:primaryType": "sch:Question",
+        "text": "How is the study funded?",
+        "dataType": "text",
+        "purpose": "Declaring the sponsor and any conflict of interest",
+        "extractionPrompt": "Find the funding source or sponsor of the study, as named in the proposal.",
+        "rubricTags": [ "B.15", "B.1" ]
+      },
+      "sponsor": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who is the regulatory sponsor?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Who answers for the study to regulators and to the institution",
+        "extractionPrompt": "Find the organisation named as the regulatory sponsor or study sponsor, usually on the cover page, the sponsor information page or in the synopsis. Give its name as written. When an investigator is the sponsor, give their name and institution.",
+        "rubricTags": [ "B.1", "B.15" ]
+      },
+      "leadInvestigator": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Who is the lead investigator?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Who is accountable for the study, and who the review corresponds with",
+        "extractionPrompt": "Find the principal or lead investigator, usually on the cover page, the study team page or the signature page. Give the name and, when stated, the institution.",
+        "rubricTags": [ "B.1" ]
+      },
+      "participatingSites": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which other institutions take part?",
+        "dataType": "text",
+        "maxAnswers": 0,
+        "purpose": "Which institutions the agreement has to cover",
+        "extractionPrompt": "List every institution or site named as participating or collaborating, other than the lead institution. One name per value, as written. When the study runs at one site only, answer that none is found.",
+        "rubricTags": [ "B.1", "B.4" ]
+      },
+      "drugOrDevice": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Does the study use a drug or a device?",
+        "dataType": "text",
+        "minAnswers": 1,
+        "purpose": "Whether the product itself needs regulatory oversight",
+        "extractionPrompt": "Decide whether the study administers or evaluates a drug (including biologics and vaccines), a medical device, both, or neither. Answer with exactly one of these values: drug, device, both, none.",
+        "responseShape": "{\"type\":\"string\",\"enum\":[\"drug\",\"device\",\"both\",\"none\"]}",
+        "rubricTags": [ "B.7", "B.4" ],
+        "drug": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "drug",
+          "label": "A drug, biologic or vaccine"
+        },
+        "device": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "device",
+          "label": "A medical device"
+        },
+        "both": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "both",
+          "label": "Both"
+        },
+        "none": {
+          "jcr:primaryType": "sch:AnswerOption",
+          "value": "none",
+          "label": "Neither"
+        }
+      }
+    },
+    "studyType": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Depends on the study type",
+      "description": "Asked according to the category the proposal was filed under. Prospective studies meet participants and need their consent; retrospective studies work from records that already exist.",
+      "cond:condition": {
+        "jcr:primaryType": "cond:SingleCondition",
+        "comparator": "is not empty",
+        "operandA": {
+          "jcr:primaryType": "cond:ConditionOperand",
+          "source": "property",
+          "value": [ "proposalCategory" ]
+        }
+      },
+      "consent": {
+        "jcr:primaryType": "sch:Question",
+        "text": "How is informed consent obtained from participants?",
+        "dataType": "text",
+        "purpose": "Whether every participant agrees to take part knowing what it involves, and whether the consent forms need review",
+        "extractionPrompt": "Find how participants give informed consent: who obtains it, when, and in what form (written, verbal, electronic). Include any assent for minors, consent by a substitute decision maker, or waiver of consent the proposal asks for.",
+        "rubricTags": [ "B.5", "B.13" ],
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes any",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": [ "proposalCategory" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "/Categories/Prospective",
+              "/Categories/Prospective/Observational",
+              "/Categories/Prospective/Observational/SurveysEducation",
+              "/Categories/Prospective/Observational/SensitiveDataClinical",
+              "/Categories/Prospective/Interventional",
+              "/Categories/Prospective/Interventional/Behavioral",
+              "/Categories/Prospective/Interventional/SocTrials",
+              "/Categories/Prospective/Interventional/ClinicalTrials"
+            ]
+          }
+        }
+      },
+      "dataSources": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Which existing records or specimens are used, and what period do they cover?",
+        "dataType": "text",
+        "purpose": "Whether the study stays within data that already exists, and which custodians have to release it",
+        "extractionPrompt": "Name the existing data sources or specimen collections the study uses: patient charts, registries, databases, banked specimens, earlier research datasets. Give the date range of the records or specimens as the proposal states it.",
+        "rubricTags": [ "B.14", "B.11", "B.5" ],
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "includes any",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "property",
+            "value": [ "proposalCategory" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [
+              "/Categories/Retrospective",
+              "/Categories/Retrospective/RetrospectiveData",
+              "/Categories/Retrospective/RetrospectiveBiospecimen"
+            ]
+          }
+        }
+      }
+    },
+    "administrative": {
+      "jcr:primaryType": "sch:FormRequirement",
+      "label": "Administrative information",
+      "description": "Filled in by hand. Nothing here is read from the document.",
+      "projectId": {
+        "jcr:primaryType": "sch:Question",
+        "text": "What is the UHN project ID (CAPCR ID)?",
+        "dataType": "text",
+        "purpose": "Linking the proposal to its institutional record"
+      },
+      "fundingTransfer": {
+        "jcr:primaryType": "sch:Question",
+        "text": "Is funding transferred between the parties for this study?",
+        "dataType": "boolean",
+        "purpose": "Whether a funding agreement has to be drawn up"
+      }
+    },
+    "review": {
+      "jcr:primaryType": "sch:ApprovalRequirement",
+      "label": "Scientific review",
+      "description": "A reviewer decides whether the proposal goes forward.",
+      "approverGroup": "proposal-reviewers"
+    }
+  }
+}

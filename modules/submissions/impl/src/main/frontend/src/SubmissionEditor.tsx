@@ -33,6 +33,7 @@ import {
   type SubmissionForm,
   fetchForm,
   isQuestion,
+  reviewExtraction,
   saveAnswer,
 } from "./submissionForm";
 
@@ -41,16 +42,24 @@ interface FieldState {
   error?: string;
 }
 
+// What the submitter said about a pre-filled answer. Both keys are optional because the two verdicts
+// are given separately: one settles the answer, the other reports a bad quote.
+interface ReviewVerdict {
+  confirmed?: boolean;
+  evidenceRejected?: boolean;
+}
+
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
 // The questions of a form or a section, with sections drawn as their own headed block.
-function Items({ items, disabled, states, onAnswered }: {
+function Items({ items, disabled, states, onAnswered, onReviewed }: {
   items: FormItem[];
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
 }) {
   return (
     <Stack spacing={2}>
@@ -63,6 +72,8 @@ function Items({ items, disabled, states, onAnswered }: {
             state={states[item.path]?.state ?? "idle"}
             error={states[item.path]?.error}
             onAnswered={values => onAnswered(item, values)}
+            onAcceptSuggestion={() => onReviewed(item, { confirmed: true })}
+            onRejectEvidence={rejected => onReviewed(item, { evidenceRejected: rejected })}
           />
         )
         : (
@@ -72,7 +83,8 @@ function Items({ items, disabled, states, onAnswered }: {
               <Typography variant="body2" color="text.secondary">{item.description}</Typography>
             ) }
             <Box sx={{ pl: 2, pt: 1 }}>
-              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered} />
+              <Items items={item.items} disabled={disabled} states={states} onAnswered={onAnswered}
+                onReviewed={onReviewed} />
             </Box>
           </Box>
         )) }
@@ -83,12 +95,13 @@ function Items({ items, disabled, states, onAnswered }: {
 // One requirement. A requirement that holds no questions is still shown, and where it can be
 // answered it is answered here: a document is uploaded, and an approval says where it stands
 // because it is somebody else who grants it.
-function Requirement({ path, requirement, disabled, states, onAnswered, onAttached }: {
+function Requirement({ path, requirement, disabled, states, onAnswered, onReviewed, onAttached }: {
   path: string;
   requirement: FormRequirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
+  onReviewed: (question: FormQuestion, verdict: ReviewVerdict) => void;
   onAttached: () => void;
 }) {
   return (
@@ -99,7 +112,10 @@ function Requirement({ path, requirement, disabled, states, onAnswered, onAttach
       ) }
       <Divider sx={{ my: 2 }} />
       { requirement.type === FORM_REQUIREMENT && requirement.items
-        ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
+        ? (
+          <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered}
+            onReviewed={onReviewed} />
+        )
         : requirement.type === DOCUMENT_REQUIREMENT
           ? <DocumentUpload
             path={path}
@@ -167,6 +183,17 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
         { ...current, [question.path]: { state: "failed", error: message(e) } })));
   }, [ path, reload, onChanged ]);
 
+  // Recording a verdict changes nothing the submitter typed, so it does not touch the per-field save
+  // state. It does reload, because the server decides how the answer then reads back.
+  const reviewed = useCallback((question: FormQuestion, verdict: ReviewVerdict) => {
+    const token = latest.current + 1;
+    latest.current = token;
+    reviewExtraction(path, question.path, verdict)
+      .then(() => reload(token))
+      .catch((e: unknown) => setStates(current => (
+        { ...current, [question.path]: { state: "failed", error: message(e) } })));
+  }, [ path, reload ]);
+
   if (error) {
     return <Alert severity="error">{error}</Alert>;
   }
@@ -190,6 +217,7 @@ function SubmissionEditor({ path, onChanged }: { path: string; onChanged?: () =>
           disabled={!form.editable}
           states={states}
           onAnswered={answered}
+          onReviewed={reviewed}
           // The form again, because what it asks can change with what was just attached: a
           // requirement that is now answered, and a request that is no longer incomplete
           onAttached={() => {

@@ -183,6 +183,89 @@ class SubmissionFormServletTest
         reference(SUBMISSION_PATH, VERSION_PATH, "schemaVersion");
     }
 
+    // A question the submitter answered themselves has no block, which is what "nobody suggested this"
+    // looks like on the wire
+    @Test
+    void saysNothingAboutWhereAnAnswerCameFromWhenNobodySuggestedIt() throws IOException
+    {
+        answer(START_DATE, "2026-10-06");
+
+        assertFalse(item(requirement(form(REQUESTER), DETAILS), "startDate").containsKey("provenance"));
+    }
+
+    @Test
+    void saysWhereAPreFilledAnswerCameFrom() throws IOException
+    {
+        extracted(START_DATE, "2026-10-06", 0.85);
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(List.of("2026-10-06"), where.getJsonArray("suggested").stream()
+            .map(value -> ((JsonString) value).getString()).toList());
+        assertEquals(0.85, where.getJsonNumber("confidence").doubleValue());
+        assertEquals("Stated under Dates.", where.getString("reasoning"));
+        assertFalse(where.getBoolean("reviewed"), "nobody has settled it yet");
+        assertFalse(where.getBoolean("evidenceRejected"));
+    }
+
+    @Test
+    void sendsTheQuoteAndWhereItLives() throws IOException
+    {
+        extracted(START_DATE, "2026-10-06", 0.85);
+
+        final JsonObject passage =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance")
+                .getJsonArray("passages").getJsonObject(0);
+
+        assertEquals("leave begins on the sixth", passage.getString("quote"));
+        assertEquals("p. 4 · 3.1 Dates", passage.getString("cite"));
+    }
+
+    // Step 2 keeps an extraction per attempt, so the form has to pick one
+    @Test
+    void showsTheSurestOfSeveralAttempts() throws IOException
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/a9", Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-06"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        // The surest one first, so that keeping it is a decision rather than the last one winning
+        this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "the better one", "confidence", 0.9));
+        this.context.create().resource(answer.getPath() + "/e2", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", "the first guess", "confidence", 0.3));
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(0.9, where.getJsonNumber("confidence").doubleValue());
+        assertEquals("the better one", ((JsonString) where.getJsonArray("suggested").get(0)).getString());
+    }
+
+    // A bare extraction: nothing found, nothing said, and no page markers in the source
+    @Test
+    void copesWithAnExtractionThatSaysAlmostNothing() throws IOException
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/a8", Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {"2026-10-06"}));
+        reference(answer.getPath(), VERSION_PATH + "/" + START_DATE, "question");
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction"));
+        this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence", "quote", "somewhere in here"));
+
+        final JsonObject where =
+            item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonObject("provenance");
+
+        assertEquals(0.0, where.getJsonNumber("confidence").doubleValue());
+        assertTrue(where.getJsonArray("suggested").isEmpty());
+        assertFalse(where.containsKey("reasoning"));
+        assertFalse(where.getJsonArray("passages").getJsonObject(0).containsKey("cite"),
+            "a DOCX carries no pages, and this chunk has no heading either");
+    }
+
     @Test
     void servesWhatTheSchemaAsksAndWhatIsAlreadyAnswered() throws IOException
     {
@@ -405,6 +488,38 @@ class SubmissionFormServletTest
     }
 
     @Test
+    void saysNothingAboutExtractionBeforeItWasAskedFor() throws IOException
+    {
+        assertFalse(form(REQUESTER).containsKey("extraction"));
+    }
+
+    @Test
+    void saysWhereReadingTheDocumentsGotTo() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "undetermined");
+        modify(SUBMISSION_PATH, "extractionMessage", "Not able to safely identify whether the document is a proposal");
+        modify(SUBMISSION_PATH, "proposalCategory", "/Categories/Retrospective/Data");
+
+        final JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+
+        assertEquals("undetermined", extraction.getString("status"));
+        assertEquals("Not able to safely identify whether the document is a proposal", extraction.getString("message"));
+        assertEquals("/Categories/Retrospective/Data", extraction.getString("category"));
+    }
+
+    @Test
+    void leavesOutWhatTheReadingHasNotSaidYet() throws IOException
+    {
+        modify(SUBMISSION_PATH, "extractionStatus", "running");
+
+        final JsonObject extraction = form(REQUESTER).getJsonObject("extraction");
+
+        assertEquals("running", extraction.getString("status"));
+        assertFalse(extraction.containsKey("message"));
+        assertFalse(extraction.containsKey("category"));
+    }
+
+    @Test
     void passesOverAnAnswerWhoseQuestionIsGone() throws IOException
     {
         // A question removed from the schema leaves its answer behind; it is the answer to nothing being asked
@@ -592,6 +707,21 @@ class SubmissionFormServletTest
         final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + value.hashCode(), Map.of(
             TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
         reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+    }
+
+    /** An answer a model read, with the extraction and the quote behind it. */
+    private void extracted(final String questionPath, final String value, final double confidence)
+    {
+        final Resource answer = this.context.create().resource(SUBMISSION_PATH + "/" + value.hashCode(), Map.of(
+            TYPE, Answer.RESOURCE_TYPE, "value", new String[] {value}));
+        reference(answer.getPath(), VERSION_PATH + "/" + questionPath, "question");
+        final Resource extraction = this.context.create().resource(answer.getPath() + "/e1", Map.of(
+            TYPE, "sub/Extraction", "jcr:primaryType", "sub:Extraction",
+            "extractedAnswer", value, "confidence", confidence,
+            "reasoning", "Stated under Dates."));
+        this.context.create().resource(extraction.getPath() + "/q1", Map.of(
+            TYPE, "sub/Evidence", "jcr:primaryType", "sub:Evidence",
+            "quote", "leave begins on the sixth", "header", "3.1 Dates", "page", 4L));
     }
 
     private void reference(final String fromPath, final String toPath, final String property)

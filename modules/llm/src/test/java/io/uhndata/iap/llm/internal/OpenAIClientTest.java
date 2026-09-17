@@ -22,9 +22,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.json.Json;
@@ -73,6 +75,8 @@ class OpenAIClientTest
 
     private final AtomicReference<String> lastAuthorization = new AtomicReference<>();
 
+    private final AtomicInteger requests = new AtomicInteger();
+
     private HttpServer server;
 
     private int status = 200;
@@ -86,8 +90,14 @@ class OpenAIClientTest
 
         TestClient(final LLMSettings settings, final Map<String, String> variables)
         {
+            this(settings, variables, CallGateImplTest.gate(4));
+        }
+
+        TestClient(final LLMSettings settings, final Map<String, String> variables, final CallGateImpl gate)
+        {
             this.variables = variables;
             setConfigurationService(() -> settings);
+            bindCallGate(gate);
         }
 
         @Override
@@ -113,6 +123,7 @@ class OpenAIClientTest
 
     private void handle(final HttpExchange exchange) throws IOException
     {
+        this.requests.incrementAndGet();
         try (InputStream in = exchange.getRequestBody(); JsonReader reader = Json.createReader(in)) {
             this.lastRequest.set(reader.readObject());
         }
@@ -282,6 +293,7 @@ class OpenAIClientTest
         final LLMSettings settings = settings(Map.of());
         final OpenAIClient client = new OpenAIClient();
         client.bindConfigurationService(() -> settings);
+        client.bindCallGate(CallGateImplTest.gate(1));
 
         assertEquals(REPLY, client.chat(HELLO), "the bound configuration is what the call uses");
     }
@@ -330,5 +342,80 @@ class OpenAIClientTest
 
         assertEquals(REPLY, reused.chat(HELLO));
         assertEquals(REPLY, reused.chat(HELLO));
+    }
+
+    @Test
+    void sendsAFailedRequestAgainOnceOnly()
+    {
+        this.status = 500;
+
+        assertThrows(IOException.class, () -> client().chat(HELLO));
+
+        assertEquals(2, this.requests.get(), "the first try and one retry");
+    }
+
+    // The old cache held one model. Two option sets taking turns rebuilt it on every call.
+    @Test
+    void keepsAModelPerOptionSetRatherThanOneSlot() throws IOException
+    {
+        final TestClient reused = client();
+        final LLMRequestOptions bigger = LLMRequestOptions.withMaxOutputTokens(4096);
+
+        reused.chat(HELLO);
+        reused.chat(BE_BRIEF, List.of(new LLMMessage("user", HELLO)), bigger);
+        reused.chat(HELLO);
+        reused.chat(BE_BRIEF, List.of(new LLMMessage("user", HELLO)), bigger);
+
+        assertEquals(2, reused.countModels(), "one per option set, neither rebuilt");
+    }
+
+    @Test
+    void sharesOneHttpClientAcrossTheModelsOfOneProvider() throws IOException
+    {
+        final TestClient reused = client();
+
+        reused.chat(HELLO);
+        reused.chat(BE_BRIEF, List.of(new LLMMessage("user", HELLO)), LLMRequestOptions.withMaxOutputTokens(4096));
+
+        assertEquals(2, reused.countModels());
+        assertEquals(1, reused.countHttpClients());
+    }
+
+    @Test
+    void givesItsCallSlotBackAfterEveryCall() throws IOException
+    {
+        final TestClient client = new TestClient(settings(Map.of()), Map.of(), CallGateImplTest.gate(1));
+
+        assertEquals(REPLY, client.chat(HELLO));
+        assertEquals(REPLY, client.chat(HELLO), "the single slot is free again");
+    }
+
+    @Test
+    void givesItsCallSlotBackWhenTheCallFails() throws IOException
+    {
+        final TestClient client = new TestClient(settings(Map.of()), Map.of(), CallGateImplTest.gate(1));
+        this.status = 500;
+        assertThrows(IOException.class, () -> client.chat(HELLO));
+
+        this.status = 200;
+
+        assertEquals(REPLY, client.chat(HELLO));
+    }
+
+    // Waiting longer than the read timeout means the provider is already behind, so the call fails instead
+    @Test
+    void failsWithoutCallingWhenNoSlotComesFreeInTime() throws IOException
+    {
+        final CallGateImpl gate = CallGateImplTest.gate(1);
+        gate.acquire(Duration.ZERO);
+        final ProviderSettings provider = new ProviderSettings(endpoint(), null, 1, Map.of());
+        final LLMSettings settings = new LLMSettings("local", provider, MODEL,
+            new ModelSettings(0, 100, 0.25, 0, 0, null, Map.of()));
+        final TestClient client = new TestClient(settings, Map.of(), gate);
+
+        final IOException failure = assertThrows(IOException.class, () -> client.chat(HELLO));
+
+        assertTrue(failure.getMessage().contains("call slot"), failure.getMessage());
+        assertEquals(0, this.requests.get(), "nothing was sent");
     }
 }

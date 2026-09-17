@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  id="extractAnswersDefinitions"
+                  targetNamespace="https://iap.uhndata.io/system/extractAnswers">
+  <bpmn:message id="extractAnswersMessage" name="extractAnswers" />
+  <bpmn:process id="extractAnswers" name="Read the answers out of a submission's documents" isExecutable="true">
+    <bpmn:startEvent id="requested" iap:performers="everyone" name="Answers requested">
+      <bpmn:messageEventDefinition id="answersRequested" messageRef="extractAnswersMessage" />
+      <bpmn:outgoing>toGate</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toGate" sourceRef="requested" targetRef="gate" />
+    <bpmn:serviceTask id="gate" iap:handler="gateProposal" name="Is this a proposal, and of what kind?">
+      <bpmn:incoming>toGate</bpmn:incoming>
+      <bpmn:outgoing>toClassify</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toClassify" sourceRef="gate" targetRef="classify" />
+    <!-- Straight through, no gateway: a system workflow cannot branch on what a step recorded, so the steps
+         after the gate read its verdict from the execution and skip themselves for a document it turned away -->
+    <bpmn:serviceTask id="classify" iap:handler="classifyProposal" name="A second look at the category, if the gate was unsure">
+      <bpmn:incoming>toClassify</bpmn:incoming>
+      <bpmn:outgoing>toIntake</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toIntake" sourceRef="classify" targetRef="intake" />
+    <bpmn:serviceTask id="intake" iap:handler="intakeAnswers" name="Read the answers out">
+      <bpmn:incoming>toIntake</bpmn:incoming>
+      <bpmn:outgoing>toSecond</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toSecond" sourceRef="intake" targetRef="second" />
+    <bpmn:serviceTask id="second" iap:handler="secondPass" name="Ask again for what the first pass could not settle">
+      <bpmn:incoming>toSecond</bpmn:incoming>
+      <bpmn:outgoing>toMark</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toMark" sourceRef="second" targetRef="mark" />
+    <bpmn:serviceTask id="mark" iap:handler="markCompleteness" name="Record whether anything is still missing">
+      <bpmn:incoming>toMark</bpmn:incoming>
+      <bpmn:outgoing>toDone</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDone" sourceRef="mark" targetRef="done" />
+    <bpmn:endEvent id="done" name="Answers read">
+      <bpmn:incoming>toDone</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="extractAnswersDiagram">
+    <bpmndi:BPMNPlane id="extractAnswersPlane" bpmnElement="extractAnswers">
+      <bpmndi:BPMNShape id="requestedShape" bpmnElement="requested">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="133" y="223" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gateShape" bpmnElement="gate">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="classifyShape" bpmnElement="classify">
+        <dc:Bounds x="400" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="intakeShape" bpmnElement="intake">
+        <dc:Bounds x="550" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="secondShape" bpmnElement="second">
+        <dc:Bounds x="700" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="markShape" bpmnElement="mark">
+        <dc:Bounds x="850" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="doneShape" bpmnElement="done">
+        <dc:Bounds x="1000" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="983" y="223" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toGateEdge" bpmnElement="toGate">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toClassifyEdge" bpmnElement="toClassify">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="400" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toIntakeEdge" bpmnElement="toIntake">
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toSecondEdge" bpmnElement="toSecond">
+        <di:waypoint x="650" y="198" />
+        <di:waypoint x="700" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toMarkEdge" bpmnElement="toMark">
+        <di:waypoint x="800" y="198" />
+        <di:waypoint x="850" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDoneEdge" bpmnElement="toDone">
+        <di:waypoint x="950" y="198" />
+        <di:waypoint x="1000" y="198" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

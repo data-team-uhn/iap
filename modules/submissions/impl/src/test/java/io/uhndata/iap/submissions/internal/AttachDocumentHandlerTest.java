@@ -146,15 +146,54 @@ class AttachDocumentHandlerTest
     }
 
     @Test
-    void storesTheContentUnderTheNameItArrivedWith() throws Exception
+    void storesTheContentAsTheFirstVersionsUploadedFile() throws Exception
     {
         this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
 
-        final Resource file = child(onlyDocument(), "note.pdf");
+        // The shape the node types describe: a version, its one file, and the upload under its fixed name
+        final Resource version = child(onlyDocument(), "v1");
+        assertEquals("sub:DocumentVersion", version.getValueMap().get("jcr:primaryType", String.class));
+        final Resource stored = child(version, "file");
+        assertEquals("sub:File", stored.getValueMap().get("jcr:primaryType", String.class));
+        assertEquals("note.pdf", stored.getValueMap().get(AttachDocumentHandler.FILE_NAME, String.class),
+            "the node cannot carry the name, so the file does");
+        final Resource file = child(stored, "uploadedFile");
         assertEquals("nt:file", file.getValueMap().get("jcr:primaryType", String.class));
         final Resource content = child(file, "jcr:content");
         assertEquals(PDF, content.getValueMap().get("jcr:mimeType", String.class));
         assertArrayEquals(CONTENT, content.getValueMap().get("jcr:data", InputStream.class).readAllBytes());
+    }
+
+    @Test
+    void addsAReplacementAsANewVersionOfTheSameDocument() throws Exception
+    {
+        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
+        final Resource first = onlyDocument();
+        // Something else under the document is not a version, and must not be counted as one
+        this.context.create().resource(first.getPath() + "/notes",
+            Map.of("jcr:primaryType", "nt:unstructured", "note", "a reviewer's aside"));
+
+        this.handler.execute(context(payload("doctorsNote", upload("note-signed.pdf", PDF))));
+
+        final Resource document = onlyDocument();
+        assertEquals(first.getPath(), document.getPath(), "still the one document for this requirement");
+        assertEquals("note-signed.pdf", document.getValueMap().get("title", String.class),
+            "called by its latest upload");
+        assertEquals("note.pdf", child(child(document, "v1"), "file").getValueMap()
+            .get(AttachDocumentHandler.FILE_NAME, String.class), "what a reviewer has read stays put");
+        assertEquals("note-signed.pdf", child(child(document, "v2"), "file").getValueMap()
+            .get(AttachDocumentHandler.FILE_NAME, String.class));
+    }
+
+    @Test
+    void keepsDocumentsForDifferentRequirementsApart() throws Exception
+    {
+        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
+        onlyDocument();
+
+        this.handler.execute(context(payload("anything", upload("other.pdf", PDF))));
+
+        assertEquals(2, documents().size());
     }
 
     @Test
@@ -175,7 +214,8 @@ class AttachDocumentHandlerTest
 
         final Resource document = onlyDocument();
         assertEquals("Attachment", document.getValueMap().get("title", String.class));
-        assertNotNull(child(document, "attachment"));
+        assertEquals("attachment", child(child(document, "v1"), "file").getValueMap()
+            .get(AttachDocumentHandler.FILE_NAME, String.class));
     }
 
     @Test
@@ -185,30 +225,22 @@ class AttachDocumentHandlerTest
         // "bytes"
         this.handler.execute(context(payload("anything", upload("note.pdf", null))));
 
-        assertEquals("application/octet-stream",
-            child(child(onlyDocument(), "note.pdf"), "jcr:content").getValueMap().get("jcr:mimeType", String.class));
+        assertEquals("application/octet-stream", uploadedContent(onlyDocument(), "v1").getValueMap()
+            .get("jcr:mimeType", String.class));
     }
 
     @Test
-    void keepsTheNameGivenButStoresItUnderOneARepositoryAccepts() throws Exception
+    void keepsWhateverNameTheFileArrivedUnder() throws Exception
     {
-        // A file name is somebody else's string: a colon or a slash in it is not a JCR name, and a legitimate
-        // upload must not fail because of what its file happens to be called. Nothing is lost by rewriting it —
-        // the name the person gave is the title, which is what anybody is shown
+        // A file name is somebody else's string: a colon or a slash in it is not a JCR name, but nothing here is
+        // named after it any more, so a legitimate upload cannot fail because of what its file happens to be called
         this.handler.execute(context(payload("anything", upload("scan: page [1]/2.pdf", PDF))));
 
         final Resource document = onlyDocument();
         assertEquals("scan: page [1]/2.pdf", document.getValueMap().get("title", String.class));
-        assertNotNull(child(document, "scan_ page _1__2.pdf"));
-    }
-
-    @Test
-    void namesAFileCalledNothingButDots() throws Exception
-    {
-        // "." and ".." are not names either, and neither is a name made only of them
-        this.handler.execute(context(payload("anything", upload("..", PDF))));
-
-        assertNotNull(child(onlyDocument(), "attachment"));
+        assertEquals("scan: page [1]/2.pdf", child(child(document, "v1"), "file").getValueMap()
+            .get(AttachDocumentHandler.FILE_NAME, String.class));
+        assertNotNull(uploadedContent(document, "v1"));
     }
 
     @Test
@@ -218,7 +250,8 @@ class AttachDocumentHandlerTest
         // A requirement that has not said what it wants is not one that wants nothing
         this.handler.execute(context(payload("anything", upload("scan.png", "image/png"))));
 
-        assertNotNull(child(onlyDocument(), "scan.png"));
+        assertEquals("scan.png", child(child(onlyDocument(), "v1"), "file").getValueMap()
+            .get(AttachDocumentHandler.FILE_NAME, String.class));
     }
 
     @Test
@@ -320,6 +353,37 @@ class AttachDocumentHandlerTest
     }
 
     @Test
+    void translatesAFailedRenameIntoAPersistenceFailure() throws Exception
+    {
+        // A replacement renames the document it becomes a version of, through a node the repository refuses
+        this.handler.execute(context(payload("doctorsNote", upload("note.pdf", PDF))));
+        final String documentPath = onlyDocument().getPath();
+        final Node explosive = Mockito.mock(Node.class, invocation -> {
+            throw new RepositoryException("boom");
+        });
+        final ResourceResolver sabotaged = new ResourceResolverWrapper(this.context.resourceResolver())
+        {
+            @Override
+            public Resource getResource(final String path)
+            {
+                final Resource found = super.getResource(path);
+                return found == null || !documentPath.equals(path) ? found : new ResourceWrapper(found)
+                {
+                    @Override
+                    public <T> T adaptTo(final Class<T> type)
+                    {
+                        return type == Node.class ? type.cast(explosive) : super.adaptTo(type);
+                    }
+                };
+            }
+        };
+
+        final PersistenceException failure = assertThrows(PersistenceException.class, () -> this.handler.execute(
+            context(payload("doctorsNote", upload("note-signed.pdf", PDF)), REQUESTER, sabotaged)));
+        assertTrue(failure.getMessage().contains("Could not rename"));
+    }
+
+    @Test
     void translatesAnUnreadableUploadIntoAPersistenceFailure()
     {
         // A stream that dies halfway is the ordinary way an upload fails, and the document node is already there
@@ -407,6 +471,17 @@ class AttachDocumentHandlerTest
      */
     private Resource onlyDocument()
     {
+        final List<Document> documents = documents();
+        assertEquals(1, documents.size());
+        return present(this.context.resourceResolver().getResource(documents.get(0).getPath()));
+    }
+
+    /**
+     * The submission's documents. The node type would autocreate their resource type on a real repository; the
+     * mock does not, so it is patched on here before the model is asked.
+     */
+    private List<Document> documents()
+    {
         this.context.resourceResolver().refresh();
         final Resource submission = present(this.context.resourceResolver().getResource(SUBMISSION_PATH));
         submission.getChildren().forEach(child -> {
@@ -415,9 +490,7 @@ class AttachDocumentHandlerTest
                 modify(child, TYPE, Document.RESOURCE_TYPE);
             }
         });
-        final List<Document> documents = submission().getDocuments();
-        assertEquals(1, documents.size());
-        return present(this.context.resourceResolver().getResource(documents.get(0).getPath()));
+        return submission().getDocuments();
     }
 
     private Submission submission()
@@ -429,6 +502,12 @@ class AttachDocumentHandlerTest
     private Resource child(final Resource parent, final String name)
     {
         return present(parent.getChild(name));
+    }
+
+    /** The {@code jcr:content} of the upload stored under one version of a document. */
+    private Resource uploadedContent(final Resource document, final String version)
+    {
+        return child(child(child(child(document, version), "file"), "uploadedFile"), "jcr:content");
     }
 
     private Resource present(final Resource resource)

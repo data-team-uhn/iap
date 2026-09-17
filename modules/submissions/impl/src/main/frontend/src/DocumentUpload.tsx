@@ -21,6 +21,7 @@ import { type ChangeEvent, useState } from "react";
 import UploadIcon from "@mui/icons-material/UploadFile";
 import { Alert, Box, Button, Link, Stack, Typography } from "@mui/material";
 
+import { validateUpload } from "./fileValidation";
 import { type FormRequirement, attachDocument } from "./submissionForm";
 
 // Taken out of the page without being taken out of the document: the file input is the real control,
@@ -61,6 +62,22 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
   const upload = (file: File) => {
     setBusy(true);
     setFailure(undefined);
+    // Checked here before it is sent, so a file that cannot be read is refused in a moment rather
+    // than after a slow upload. The server checks again; this is not the rule, only the quick half.
+    validateUpload(file, accepted).then(problem => {
+      if (problem !== undefined) {
+        setBusy(false);
+        setFailure(problem);
+        return undefined;
+      }
+      return send(file);
+    }, (error: unknown) => {
+      setBusy(false);
+      setFailure(refusal(error));
+    });
+  };
+
+  const send = (file: File) =>
     attachDocument(path, requirement.name, file).then(
       () => {
         setBusy(false);
@@ -73,7 +90,6 @@ function DocumentUpload({ path, requirement, disabled, onAttached }: {
         setFailure(refusal(error));
       }
     );
-  };
 
   return (
     <Stack spacing={1} sx={{ alignItems: "flex-start" }}>

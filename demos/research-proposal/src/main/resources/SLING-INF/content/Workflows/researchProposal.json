@@ -1,0 +1,141 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Research proposal",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "bpmnAuthoritative": true,
+    "active": true,
+    "description": "A researcher uploads a proposal; the platform reads it and fills the form in as far as it can; the researcher checks and completes the form and sends it; a reviewer accepts or refuses it. The first step is the upload, performed by @creator: while the token rests there the researcher attaches the document. Completing that step runs the parseDocuments service task, which stages every upload for the document daemon and queues its parse - the reading itself happens later, through the documentParsed and extractAnswers system workflows, and lands on the submission while the researcher is on the next step. The flow nodes below are the executable form of the diagram in the bpmn.xml file beside this descriptor, element for element.",
+    "created": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "created",
+      "label": "Proposal started",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/StartEvent",
+      "toUpload": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toUpload",
+        "targetRef": "upload"
+      }
+    },
+    "upload": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "upload",
+      "label": "Upload the proposal document",
+      "performers": [
+        "@creator"
+      ],
+      "hostTag": "draft",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toParse": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toParse",
+        "targetRef": "parse"
+      }
+    },
+    "parse": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "parse",
+      "label": "Send the document to be read",
+      "handler": "parseDocuments",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toComplete": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toComplete",
+        "targetRef": "complete"
+      }
+    },
+    "complete": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "complete",
+      "label": "Check what was read from the document, and complete the form",
+      "performers": [
+        "@creator"
+      ],
+      "hostTag": "draft",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toReview": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toReview",
+        "targetRef": "review"
+      }
+    },
+    "review": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "review",
+      "label": "Review the proposal",
+      "performers": [
+        "proposal-reviewers"
+      ],
+      "hostTag": "submitted",
+      "outcomeOptions": [
+        "approved",
+        "rejected"
+      ],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/UserTask",
+      "toRecord": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRecord",
+        "targetRef": "record"
+      }
+    },
+    "record": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "record",
+      "label": "Write the decision down",
+      "handler": "recordReview",
+      "requirement": "review",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDecision": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDecision",
+        "targetRef": "decision"
+      }
+    },
+    "decision": {
+      "jcr:primaryType": "wf:ExclusiveGateway",
+      "elementId": "decision",
+      "label": "Approved?",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ExclusiveGateway",
+      "toApproved": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toApproved",
+        "targetRef": "approved",
+        "cond:condition": {
+          "jcr:primaryType": "cond:SingleCondition",
+          "comparator": "equals",
+          "operandA": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "source": "variable",
+            "value": [ "outcome" ]
+          },
+          "operandB": {
+            "jcr:primaryType": "cond:ConditionOperand",
+            "value": [ "approved" ]
+          }
+        }
+      },
+      "toRejected": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toRejected",
+        "targetRef": "rejected",
+        "isDefault": true
+      }
+    },
+    "approved": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "approved",
+      "label": "Proposal approved",
+      "hostTag": "approved",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    },
+    "rejected": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "rejected",
+      "label": "Proposal refused",
+      "hostTag": "rejected",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

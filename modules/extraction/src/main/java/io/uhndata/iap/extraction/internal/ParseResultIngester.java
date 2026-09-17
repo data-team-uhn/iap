@@ -158,7 +158,6 @@ public class ParseResultIngester
             storePdf(resolver, file, pdf);
             storeChunks(resolver, file, chunks);
         }
-        resolver.commit();
 
         discard(markdown);
         discard(pdf);

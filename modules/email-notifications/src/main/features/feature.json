@@ -36,7 +36,7 @@
     // sending fails outright when the API-only bundle wins. It stays a compile dependency only.
     {
       "id":"org.eclipse.angus:jakarta.mail:2.0.5",
-      "start-order":"24"
+      "start-order":"27"
     },
     // Jakarta Activation 2.1 split the same way, and the split leaves the API unable to find the
     // classes that write each part of a message. Rather than mediate that lookup -- which takes a
@@ -49,21 +49,21 @@
     // with an explicit type.
     {
       "id":"jakarta.activation:jakarta.activation-api:2.1.4",
-      "start-order":"24"
+      "start-order":"27"
     },
     // The template engine the email bodies are written in. Its only library dependency is
     // commons-lang3, which boot.json already installs.
     {
       "id":"org.apache.velocity:velocity-engine-core:2.4.1",
-      "start-order":"24"
+      "start-order":"27"
     },
     {
       "id":"org.apache.commons:commons-text:1.15.0",
-      "start-order":"24"
+      "start-order":"27"
     },
     {
       "id":"org.apache.servicemix.bundles:org.apache.servicemix.bundles.jasypt:1.9.3_1",
-      "start-order":"24"
+      "start-order":"27"
     },
     {
       "id":"org.apache.sling:org.apache.sling.commons.crypto:1.2.0",
@@ -71,11 +71,11 @@
     },
     {
       "id":"org.apache.sling:org.apache.sling.commons.messaging:1.0.2",
-      "start-order":"24"
+      "start-order":"27"
     },
     {
       "id":"org.apache.sling:org.apache.sling.commons.messaging.mail:2.0.0",
-      "start-order":"24"
+      "start-order":"27"
     },
     {
       // After the notifications bundles whose delivery extension point this implements. Those sit at the

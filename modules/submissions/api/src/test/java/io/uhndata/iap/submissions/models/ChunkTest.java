@@ -31,7 +31,6 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -81,33 +80,31 @@ class ChunkTest
             "sling:resourceType", Chunk.RESOURCE_TYPE,
             "summary", "How participants are found and consented",
             "rubricTags", new String[]{ "recruitment", "consent" },
-            "tagBasis", "fulltext",
-            "uncertain", false,
+            "tagConfidence", 0.82,
             "pageStart", 7L,
             "pageEnd", 9L));
         final Chunk chunk = resource.adaptTo(Chunk.class);
 
         assertEquals("How participants are found and consented", chunk.getSummary());
         assertEquals(List.of("recruitment", "consent"), chunk.getRubricTags());
-        assertEquals("fulltext", chunk.getTagBasis());
-        assertFalse(chunk.isUncertain());
+        assertEquals(0.82, chunk.getTagConfidence());
         assertEquals(7L, chunk.getPageStart());
         assertEquals(9L, chunk.getPageEnd());
     }
 
+    // A weak placement is a low number beside the tags, not a separate flag: selection turns on the tags
+    // themselves, so the confidence is there to be read rather than to rule anything out
     @Test
-    void marksTagsGuessedFromTheHeadingsAsUncertain()
+    void keepsHowSureTheTaggerWas()
     {
         final Resource resource = this.context.create().resource(CHUNK_PATH, Map.of(
             "sling:resourceType", Chunk.RESOURCE_TYPE,
             "rubricTags", new String[]{ "recruitment" },
-            "tagBasis", "heading",
-            "uncertain", true));
+            "tagConfidence", 0.3));
         final Chunk chunk = resource.adaptTo(Chunk.class);
 
-        // Only "fulltext" and "deep" count as content-based
-        assertEquals("heading", chunk.getTagBasis());
-        assertTrue(chunk.isUncertain());
+        assertEquals(List.of("recruitment"), chunk.getRubricTags());
+        assertEquals(0.3, chunk.getTagConfidence());
     }
 
     @Test
@@ -130,9 +127,10 @@ class ChunkTest
 
         assertNotNull(chunk);
         assertNull(chunk.getSummary());
+        // Empty tags are a wildcard rather than a verdict: nothing has placed this chunk, so everything
+        // still has to consider it
         assertTrue(chunk.getRubricTags().isEmpty());
-        assertNull(chunk.getTagBasis());
-        assertFalse(chunk.isUncertain());
+        assertNull(chunk.getTagConfidence());
         // Absent for documents that came in as DOCX, which carry no page markers
         assertNull(chunk.getPageStart());
         assertNull(chunk.getPageEnd());

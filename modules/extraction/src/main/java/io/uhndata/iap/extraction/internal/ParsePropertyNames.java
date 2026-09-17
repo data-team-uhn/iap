@@ -35,6 +35,15 @@ final class ParsePropertyNames
     /** The {@link #PARSE_STATUS} of a file whose parse finished and has been read in. */
     static final String STATUS_COMPLETED = "completed";
 
+    /** The parse state of a file whose parse has been asked for and not answered yet. */
+    static final String STATUS_QUEUED = "queued";
+
+    /** The parse state of a file whose parse ended without producing anything. */
+    static final String STATUS_FAILED = "failed";
+
+    /** What went wrong, on a file whose parse failed. */
+    static final String PARSE_ERROR = "parseError";
+
     /** The size of the whole document, in tokens. */
     static final String TOKENS = "tokens";
 
@@ -72,14 +81,8 @@ final class ParsePropertyNames
     /** The child of a {@code sub:File} holding its chunk tree. */
     static final String CHUNKS_CHILD = "chunks";
 
-    /** How a chunk's tags were arrived at: from headings alone, or from a model reading the text. */
-    static final String TAG_BASIS = "tagBasis";
-
-    /** The {@link #TAG_BASIS} of tags guessed from the list of headings rather than from the text. */
-    static final String BASIS_HEADING = "heading";
-
-    /** Set when a chunk's tags are a weak guess rather than something a model read for. */
-    static final String UNCERTAIN = "uncertain";
+    /** How sure the stage that tagged a chunk was. Advisory: selection turns on the tags themselves. */
+    static final String TAG_CONFIDENCE = "tagConfidence";
 
     /** The first page a chunk covers, absent for a document that carries no page markers. */
     static final String PAGE_START = "pageStart";

@@ -40,9 +40,6 @@ import io.uhndata.iap.submissions.models.Chunk;
  */
 final class ChunkSelection
 {
-    /** The tag bases that mean a model actually read the chunk before placing it. */
-    private static final Set<String> READ_FOR = Set.of("fulltext", "deep");
-
     private ChunkSelection()
     {
         // Utility
@@ -57,10 +54,33 @@ final class ChunkSelection
      */
     static List<Chunk> select(final List<ExtractionField> fields, final List<Chunk> chunks)
     {
-        if (asksAboutEverything(fields)) {
+        return select(wantedTags(fields), chunks);
+    }
+
+    /**
+     * Every part of a proposal any of the fields could be answered from.
+     *
+     * @param fields what is being looked for
+     * @return the union of their tags; empty when a field asks about the document as a whole, which makes the
+     *         tag join pointless
+     */
+    static Set<String> wantedTags(final List<ExtractionField> fields)
+    {
+        return asksAboutEverything(fields) ? Set.of() : union(fields);
+    }
+
+    /**
+     * The chunks that could hold any of the given parts of a proposal, in document order.
+     *
+     * @param wanted the rubric tags being looked for; empty to look everywhere
+     * @param chunks the document's chunks
+     * @return the chunks worth showing, which is all of them when nothing can be ruled out
+     */
+    static List<Chunk> select(final Set<String> wanted, final List<Chunk> chunks)
+    {
+        if (wanted.isEmpty()) {
             return List.copyOf(chunks);
         }
-        final Set<String> wanted = union(fields);
         final List<Chunk> selected = new ArrayList<>(chunks.size());
         for (final Chunk chunk : chunks) {
             if (couldHoldAnAnswer(chunk, wanted)) {
@@ -107,10 +127,9 @@ final class ChunkSelection
     private static boolean couldHoldAnAnswer(final Chunk chunk, final Set<String> wanted)
     {
         final List<String> tags = chunk.getRubricTags();
-        final String basis = chunk.getTagBasis();
-        if (tags.isEmpty() || chunk.isUncertain() || basis == null || !READ_FOR.contains(basis)) {
-            return true;
-        }
-        return tags.stream().anyMatch(wanted::contains);
+        // A chunk nothing has placed is a wildcard: it could hold anything, so it matches every field and
+        // stays eligible for every later pass. Ruling one out on a tag nobody assigned is how this silently
+        // goes fail-closed, with a field reported absent from a chunk that was never read.
+        return tags.isEmpty() || tags.stream().anyMatch(wanted::contains);
     }
 }

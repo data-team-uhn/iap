@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.osgi.service.component.annotations.Component;
@@ -36,12 +35,14 @@ import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.http.client.HttpClient;
 import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.llm.DefaultLLMClient;
+import io.uhndata.iap.llm.LLMCallGate;
 import io.uhndata.iap.llm.LLMClient;
 import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMMessage;
@@ -60,11 +61,11 @@ import io.uhndata.iap.llm.LLMSettings;
  * verbatim through the model's {@code customParameters} (serialized as top-level request fields). All settings
  * come from the active provider and model in the JCR LLM configuration.
  *
- * <p>
- * Building an {@link OpenAiChatModel} sets up its own HTTP client, so the last one built is kept and reused as
- * long as the settings and per-call options that shaped it have not changed, rather than rebuilding it for
- * every chat call.
- * </p>
+ * <p>Safe to call from many threads at once. Every call takes a slot from the {@link LLMCallGate} first, so
+ * the provider never sees more requests from this instance than the gate allows.
+ *
+ * <p>The per-call options shape the request body, so one model is kept per settings/options pair. Every
+ * model built for one provider shares one HTTP client, so they share one connection pool.
  *
  * @version $Id$
  * @since 0.1.0
@@ -88,15 +89,38 @@ public class OpenAIClient extends DefaultLLMClient
      */
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(30);
 
+    /**
+     * How many times a failed request is sent again. Once: a second retry after a read timeout is another two
+     * minutes spent on an answer that was probably never coming, holding a call slot the whole time.
+     */
+    private static final int MAX_RETRIES = 1;
+
+    /** How many models are kept. Step 2 builds one per batch of fields, and several batches run at once. */
+    private static final int MAX_CACHED_MODELS = 16;
+
+    /** How many HTTP clients are kept. One per provider; a second exists only while the provider changes. */
+    private static final int MAX_CACHED_CLIENTS = 4;
+
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    /** The model built for the most recent settings/options combination, reused while neither has changed. */
-    private volatile CachedModel cachedModel;
+    /** One HTTP client per read timeout, shared by every model built with it. */
+    private final BoundedCache<Duration, HttpClient> httpClients = new BoundedCache<>(MAX_CACHED_CLIENTS);
+
+    /** One model per settings and options, since the options shape the request body. */
+    private final BoundedCache<ModelKey, OpenAiChatModel> models = new BoundedCache<>(MAX_CACHED_MODELS);
+
+    private LLMCallGate callGate;
 
     @Reference
     void bindConfigurationService(final LLMConfigurationService service)
     {
         setConfigurationService(service);
+    }
+
+    @Reference
+    void bindCallGate(final LLMCallGate gate)
+    {
+        this.callGate = gate;
     }
 
     /**
@@ -117,8 +141,15 @@ public class OpenAIClient extends DefaultLLMClient
         try {
             final LLMSettings settings = getConfigurationService().getActiveSettings();
             final OpenAiChatModel model = modelFor(settings, options);
-            final ChatResponse response = model.chat(toChatMessages(systemPrompt, messages));
-            return response.aiMessage().text();
+            // Waiting longer than the read timeout for a slot means the provider is already behind; failing
+            // fast is better than queueing behind it.
+            final LLMCallGate.Permit permit = this.callGate.acquire(Duration.ofSeconds(settings.getTimeoutSeconds()));
+            try {
+                final ChatResponse response = model.chat(toChatMessages(systemPrompt, messages));
+                return response.aiMessage().text();
+            } finally {
+                permit.close();
+            }
         } catch (final IOException e) {
             ErrorLogger.logError(e, ErrorContext.of(OpenAIClient.class, "doChat"));
             throw e;
@@ -131,35 +162,38 @@ public class OpenAIClient extends DefaultLLMClient
     }
 
     /**
-     * The model built for this settings/options combination, reusing the previous one when neither has
-     * changed since. Not synchronized: two concurrent calls that both miss the cache each build their own
-     * model, which is wasted work but not a correctness problem, and cheaper than serializing every call
-     * through a lock for the common case where nothing has changed.
+     * How many models are kept right now. For tests.
      *
-     * @param settings the active settings
-     * @param options the per-call options, or {@code null}
-     * @return a model matching this settings/options combination
+     * @return the count
      */
+    int countModels()
+    {
+        return this.models.size();
+    }
+
+    /**
+     * How many HTTP clients are kept right now. For tests.
+     *
+     * @return the count
+     */
+    int countHttpClients()
+    {
+        return this.httpClients.size();
+    }
+
     private OpenAiChatModel modelFor(final LLMSettings settings, final LLMRequestOptions options)
     {
-        final CachedModel current = this.cachedModel;
-        if (current != null && current.settings.equals(settings) && Objects.equals(current.options, options)) {
-            return current.model;
-        }
-        final OpenAiChatModel model = buildModel(settings, options);
-        this.cachedModel = new CachedModel(settings, options, model);
-        return model;
+        return this.models.get(new ModelKey(settings, options), key -> buildModel(key.settings(), key.options()));
     }
 
     private OpenAiChatModel buildModel(final LLMSettings settings, final LLMRequestOptions options)
     {
         final long maxTokens = options == null
             ? settings.getMaxOutputTokens() : options.resolveMaxOutputTokens(settings.getMaxOutputTokens());
-        final JdkHttpClientBuilder httpClientBuilder = new JdkHttpClientBuilder()
-            .connectTimeout(CONNECT_TIMEOUT)
-            .readTimeout(Duration.ofSeconds(settings.getTimeoutSeconds()));
+        final Duration readTimeout = Duration.ofSeconds(settings.getTimeoutSeconds());
         final OpenAiChatModel.OpenAiChatModelBuilder builder = OpenAiChatModel.builder()
-            .httpClientBuilder(httpClientBuilder)
+            .httpClientBuilder(new SharedHttpClientBuilder(httpClientFor(readTimeout), CONNECT_TIMEOUT, readTimeout))
+            .maxRetries(MAX_RETRIES)
             .baseUrl(resolveBaseUrl(settings.getEndpoint()))
             .modelName(settings.getModelName())
             .temperature(settings.getTemperature())
@@ -170,6 +204,15 @@ public class OpenAIClient extends DefaultLLMClient
             builder.apiKey(apiKey);
         }
         return builder.build();
+    }
+
+    /** The one HTTP client for this read timeout. The JDK client pools connections per host on its own. */
+    private HttpClient httpClientFor(final Duration readTimeout)
+    {
+        return this.httpClients.get(readTimeout, timeout -> new JdkHttpClientBuilder()
+            .connectTimeout(CONNECT_TIMEOUT)
+            .readTimeout(timeout)
+            .build());
     }
 
     /**
@@ -278,24 +321,14 @@ public class OpenAIClient extends DefaultLLMClient
     }
 
     /**
-     * The model built for one settings/options combination, kept so an unchanged combination is not rebuilt.
+     * What shapes a model: the settings and the per-call options. Two calls with equal keys get one model.
      *
+     * @param settings the active settings
+     * @param options the per-call options, or {@code null}
      * @version $Id$
      * @since 0.1.0
      */
-    private static final class CachedModel
+    private record ModelKey(LLMSettings settings, LLMRequestOptions options)
     {
-        private final LLMSettings settings;
-
-        private final LLMRequestOptions options;
-
-        private final OpenAiChatModel model;
-
-        CachedModel(final LLMSettings settings, final LLMRequestOptions options, final OpenAiChatModel model)
-        {
-            this.settings = settings;
-            this.options = options;
-            this.model = model;
-        }
     }
 }

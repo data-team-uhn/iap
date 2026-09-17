@@ -53,10 +53,7 @@ public class Chunk extends EntityPart
     private String[] rubricTags;
 
     @ValueMapValue
-    private String tagBasis;
-
-    @ValueMapValue
-    private boolean uncertain;
+    private Double tagConfidence;
 
     @ValueMapValue
     private Long pageStart;
@@ -79,6 +76,10 @@ public class Chunk extends EntityPart
      * What this chunk is about, tagged from the same vocabulary the questions are tagged with. Chunk selection for
      * extraction is tag-driven: a chunk is read when its tags intersect those of the questions being extracted.
      *
+     * <p>An empty list is a wildcard rather than a verdict. A chunk nothing has placed yet could hold anything,
+     * so it matches every question and stays eligible for every later pass. Ruling one out on the strength of a
+     * tag nobody assigned is how a pipeline silently goes fail-closed.
+     *
      * @return a list of tags, empty if the chunk has not been tagged yet
      */
     @NotNull
@@ -88,25 +89,15 @@ public class Chunk extends EntityPart
     }
 
     /**
-     * How the tags were arrived at: from the list of headings alone, from a model reading the whole chunk, or from
-     * a later and more thorough pass. Only the last two count as content-based.
+     * How sure the stage that tagged this chunk was, from 0 to 1. Advisory: selection turns on the tags
+     * themselves, since a confidently wrong tag rules a chunk out exactly as firmly as a confidently right one.
      *
-     * @return a basis, or {@code null} if the chunk has not been tagged yet
+     * @return a confidence, or {@code null} if the chunk has not been tagged yet
      */
     @Nullable
-    public String getTagBasis()
+    public Double getTagConfidence()
     {
-        return this.tagBasis;
-    }
-
-    /**
-     * Whether the tags are a weak guess, or were filled in after a model reply came back truncated.
-     *
-     * @return {@code true} if the tags are not to be trusted
-     */
-    public boolean isUncertain()
-    {
-        return this.uncertain;
+        return this.tagConfidence;
     }
 
     /**

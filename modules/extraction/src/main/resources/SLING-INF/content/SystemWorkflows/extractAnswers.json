@@ -1,0 +1,91 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Read the answers out of a submission's documents",
+  "active": true,
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "active": true,
+    "targetResourceType": "sub/Submission",
+    "description": "What happens once a submission's uploads have been parsed, and whenever somebody asks for the answers to be read again: the gate decides whether the document is a research proposal and of what kind; a proposal the gate was not sure how to file gets a second look at its category; then every question the schema says how to ask of a document is put to the model, and what it found is recorded as answers with the quotes they rest on; anything the first pass could not settle is asked again over the parts of the document it has not read yet. Each step reads the gate's verdict from the execution and does nothing for a document the gate did not let through - a system workflow runs straight through, so the steps skip themselves rather than the process branching. Where it all got to is recorded on the submission, which is what the submission view shows a spinner or a banner for. Fired by the platform once the last parse lands, and by anybody through POST <submission>.extractAnswers.json.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Answers requested",
+      "messageName": "extractAnswers",
+      "performers": ["everyone"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toGate": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toGate",
+        "targetRef": "gate"
+      }
+    },
+    "gate": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "gate",
+      "label": "Is this a proposal, and of what kind?",
+      "handler": "gateProposal",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toClassify": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toClassify",
+        "targetRef": "classify"
+      }
+    },
+    "classify": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "classify",
+      "label": "A second look at the category, if the gate was unsure",
+      "handler": "classifyProposal",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toIntake": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toIntake",
+        "targetRef": "intake"
+      }
+    },
+    "intake": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "intake",
+      "label": "Read the answers out",
+      "handler": "intakeAnswers",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toSecond": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toSecond",
+        "targetRef": "second"
+      }
+    },
+    "second": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "second",
+      "label": "Ask again for what the first pass could not settle",
+      "handler": "secondPass",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toMark": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMark",
+        "targetRef": "mark"
+      }
+    },
+    "mark": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "mark",
+      "label": "Record whether anything is still missing",
+      "handler": "markCompleteness",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Answers read",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

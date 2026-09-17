@@ -23,6 +23,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import {
   Alert,
   Box,
+  CircularProgress,
   Divider,
   Link,
   Paper,
@@ -42,8 +43,8 @@ import ApprovalState from "./ApprovalState";
 import { type JsonNode, childrenOfType, isNode } from "./jsonNode";
 import SubmissionEditor from "./SubmissionEditor";
 import {
-  APPROVAL_REQUIREMENT, DOCUMENT_REQUIREMENT, type FormRequirement, type SubmissionForm, fetchForm,
-  formatDate,
+  APPROVAL_REQUIREMENT, DOCUMENT_REQUIREMENT, type ExtractionState, type FormRequirement, type SubmissionForm,
+  fetchForm, formatDate,
 } from "./submissionForm";
 import { schemaLabel } from "./submissionGrid";
 import SubmissionTasks from "./SubmissionTasks";
@@ -53,6 +54,9 @@ const EDIT = ".edit";
 
 // The tag the save workflow places when something the schema asks for has not been answered
 const INCOMPLETE = "incomplete";
+
+// How often to ask again while the uploaded documents are still being read
+const EXTRACTION_POLL_MS = 4000;
 
 
 // A single-valued property is serialized as a bare string, not as a one-element array.
@@ -67,6 +71,39 @@ function asList(value: unknown): string[] {
 // rather than by asking for its form: the save workflow worked it out and recorded it.
 function isIncomplete(submission: JsonNode | undefined): boolean {
   return asList(submission?.tags).includes(INCOMPLETE);
+}
+
+// The documents attached against one requirement
+function documentsFulfilling(requirement: FormRequirement, documents: JsonNode[]): JsonNode[] {
+  return documents.filter(document =>
+    isNode(document.fulfills) && document.fulfills["@name"] === requirement.name);
+}
+
+// Why the waiting step may not be completed yet, or nothing when it may.
+//
+// Two things are checked. A document the request insists on that nobody has attached: completing a
+// step without it moves the process on with nothing to read, and nothing shows that it happened. And
+// the incomplete tag the save placed, but not while an attached document is still to be read: the
+// answers the tag counts as missing are the ones the reading fills in, so the step that sends the
+// document to be read must not wait for them. While the reading runs, the step waits for it instead.
+function whyBlocked(submission: JsonNode | undefined, form: SubmissionForm | undefined): string | undefined {
+  const documents = submission ? childrenOfType(submission, "sub/Document") : [];
+  const asked = (form?.requirements ?? []).filter(requirement => requirement.type === DOCUMENT_REQUIREMENT);
+  const missing = asked.find(requirement =>
+    requirement.required === true && documentsFulfilling(requirement, documents).length === 0);
+  if (missing) {
+    return `Attach the ${missing.label || missing.name} before going on.`;
+  }
+  const extraction = form?.extraction?.status;
+  if (extraction === "running") {
+    return "Wait until the uploaded document has been read.";
+  }
+  const stillToBeRead = extraction === undefined
+    && asked.some(requirement => documentsFulfilling(requirement, documents).length > 0);
+  if (stillToBeRead || !isIncomplete(submission)) {
+    return undefined;
+  }
+  return "Answer everything this request asks for before sending it.";
 }
 
 
@@ -97,7 +134,8 @@ function createdBy(submission: JsonNode): unknown {
   return submission.createdBy ?? submission["jcr:createdBy"];
 }
 
-// One question with its answer (or a placeholder when unanswered).
+// One question with its answer. An unanswered one shows the question alone: a placeholder under every
+// open question reads as pre-filled text, and there is nothing to say about an answer that is not there.
 function QuestionRow({ question, answers }: { question: JsonNode; answers: JsonNode[] }) {
   const answer = answers.find(candidate =>
     isNode(candidate.question) && candidate.question["@path"] === question["@path"]);
@@ -105,9 +143,7 @@ function QuestionRow({ question, answers }: { question: JsonNode; answers: JsonN
   return (
     <Box>
       <Typography variant="subtitle2">{String(question.text ?? question["@name"])}</Typography>
-      {value
-        ? <Typography>{value}</Typography>
-        : <Typography color="text.secondary">Not answered yet</Typography>}
+      {value ? <Typography>{value}</Typography> : null}
     </Box>
   );
 }
@@ -151,11 +187,51 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   );
 }
 
-// One attached document: what it is called and links to download whatever files it holds.
+// One version of a document: the node and the file it holds, when the upload has landed.
+interface Upload {
+  version: JsonNode;
+  file: JsonNode;
+}
+
+// The versions of a document that hold an upload, in the order they were added. A version is a
+// `sub:DocumentVersion` child, its one file a `sub:File` named `file`, and the upload sits under
+// that as `uploadedFile` — fixed names, so the name the file arrived under is a property.
+function uploadsOf(document: JsonNode): Upload[] {
+  return Object.values(document).flatMap(value => {
+    if (!isNode(value) || (value["sling:resourceType"] !== "sub/DocumentVersion"
+      && value["jcr:primaryType"] !== "sub:DocumentVersion")) {
+      return [];
+    }
+    const file = value.file;
+    return isNode(file) && isNode(file.uploadedFile) ? [{ version: value, file }] : [];
+  });
+}
+
+// Where reading the answers out of the uploaded documents got to. While it runs the page asks again
+// every few seconds; when it stops without answers the person is told why, in the words the server
+// chose — for a document the gate could not place, the agreed "not able to safely identify" wording.
+function ExtractionProgress({ extraction }: { extraction: ExtractionState }) {
+  if (extraction.status === "running") {
+    return (
+      <Alert severity="info" icon={<CircularProgress size={20} />} role="status">
+        Reading the uploaded document. Answers found in it will appear here when it is done.
+      </Alert>
+    );
+  }
+  if (extraction.status === "done") {
+    return null;
+  }
+  return (
+    <Alert severity="warning">
+      {extraction.message ?? "The uploaded document could not be read, so nothing was filled in from it."}
+    </Alert>
+  );
+}
+
+// One attached document: what it is called and a download link for each version's upload.
 function Attachment({ document, named }: { document: JsonNode; named: boolean }) {
   const requirement = isNode(document.fulfills) ? document.fulfills : undefined;
-  const files = Object.entries(document)
-    .filter(([, value]) => isNode(value) && value["jcr:primaryType"] === "nt:file");
+  const uploads = uploadsOf(document);
   // A reference is serialized with whatever the referenced node holds, and a requirement need not
   // carry a label. Worth saying only where the grouping does not already say it, and only where
   // there is something to say: `fulfills "undefined"` is worse than nothing at all.
@@ -170,8 +246,17 @@ function Attachment({ document, named }: { document: JsonNode; named: boolean })
         ? <Typography color="text.secondary">{formatValue(document.description)}</Typography>
         : null}
       <Stack>
-        {files.map(([name]) =>
-          <Link key={name} href={fileHref(document["@path"], name)} download>{name}</Link>)}
+        {uploads.map(({ version, file }) => {
+          const name = typeof file.fileName === "string" ? file.fileName : "uploadedFile";
+          const number = String(version["@name"]).replace(/^v/, "");
+          // The node is called uploadedFile whatever the file was called, so the download says the real name
+          return (
+            <Link key={String(version["@name"])} href={fileHref(`${String(version["@path"])}/file`, "uploadedFile")}
+              download={name}>
+              {uploads.length > 1 ? `${name} (version ${number})` : name}
+            </Link>
+          );
+        })}
       </Stack>
     </Box>
   );
@@ -191,8 +276,7 @@ function Documents({ form, documents }: {
 }) {
   const requirements = (form?.requirements ?? [])
     .filter(requirement => requirement.type === DOCUMENT_REQUIREMENT);
-  const fulfilling = (requirement: FormRequirement) => documents.filter(document =>
-    isNode(document.fulfills) && document.fulfills["@name"] === requirement.name);
+  const fulfilling = (requirement: FormRequirement) => documentsFulfilling(requirement, documents);
   // Anything whose requirement does not currently apply, is gone from the schema, or that never named
   // one: still somebody's evidence, so shown rather than silently dropped
   const claimed = new Set(requirements.flatMap(requirement =>
@@ -371,6 +455,17 @@ function SubmissionView() {
     };
   }, [path, fetchUtil, reloads]);
 
+  // While the documents are still being read, ask again in a little while: the answers land on the
+  // submission from a background job, and nothing else on this page would notice them arriving
+  const extracting = form?.extraction?.status === "running";
+  useEffect(() => {
+    if (!extracting) {
+      return undefined;
+    }
+    const timer = setTimeout(() => setReloads(current => current + 1), EXTRACTION_POLL_MS);
+    return () => clearTimeout(timer);
+  }, [extracting, reloads]);
+
   // Reading and filling in are two modes of the same page, so the way between them belongs to the
   // page rather than to either mode — and it is rendered whatever the page is doing, because the
   // states with nothing to show are exactly the ones somebody needs a way out of. Before this, the
@@ -384,9 +479,7 @@ function SubmissionView() {
             looking at it rather than at the bottom of one of the two views. */}
         <SubmissionTasks
           path={path}
-          blockedReason={isIncomplete(submission)
-            ? "Answer everything this request asks for before sending it."
-            : undefined}
+          blockedReason={whyBlocked(submission, form)}
           onCompleted={() => {
             // Back to reading it: what was just done has usually made it read-only, and it is what
             // has changed that the person now wants to see
@@ -422,10 +515,14 @@ function SubmissionView() {
     </Stack>
   );
 
+  // Shown in both modes: whoever is filling the form in is the one waiting for the answers to arrive
+  const progress = form?.extraction ? <ExtractionProgress extraction={form.extraction} /> : null;
+
   if (editing) {
     return (
       <Stack spacing={2}>
         {header}
+        {progress}
         {/* Answering or attaching can be the thing that completes the request, and whether it is
             complete decides whether the step above offers to send it. Re-read here rather than
             worked out again: the save workflow already recorded it on the submission. */}
@@ -459,6 +556,7 @@ function SubmissionView() {
   return (
     <Stack spacing={2}>
       {header}
+      {progress}
       <Box>
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
           <Typography variant="h4">{String(submission.title ?? submission["@name"])}</Typography>

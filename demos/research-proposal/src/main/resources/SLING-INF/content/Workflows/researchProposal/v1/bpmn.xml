@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2026 DATA @ UHN. See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:iap="https://iap.uhndata.io/bpmn"
+                  xmlns:sv="http://www.jcp.org/jcr/sv/1.0"
+                  id="researchProposalDefinitions"
+                  targetNamespace="https://iap.uhndata.io/demos/researchProposal">
+  <bpmn:process id="researchProposal" name="Research proposal" isExecutable="true">
+    <bpmn:startEvent id="created" name="Proposal started">
+      <bpmn:outgoing>toUpload</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="toUpload" sourceRef="created" targetRef="upload" />
+    <!-- The first thing a researcher does is attach the document; the form is filled in from it afterwards -->
+    <bpmn:userTask id="upload" iap:performers="@creator" iap:hostTag="draft" name="Upload the proposal document">
+      <bpmn:incoming>toUpload</bpmn:incoming>
+      <bpmn:outgoing>toParse</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toParse" sourceRef="upload" targetRef="parse" />
+    <!-- Stages the uploads for the document daemon and queues their parse. The reading happens later, through
+         the platform's documentParsed and extractAnswers system workflows, and lands while the next step is open -->
+    <bpmn:serviceTask id="parse" iap:handler="parseDocuments" name="Send the document to be read">
+      <bpmn:incoming>toParse</bpmn:incoming>
+      <bpmn:outgoing>toComplete</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toComplete" sourceRef="parse" targetRef="complete" />
+    <bpmn:userTask id="complete" iap:performers="@creator" iap:hostTag="draft"
+        name="Check what was read from the document, and complete the form">
+      <bpmn:incoming>toComplete</bpmn:incoming>
+      <bpmn:outgoing>toReview</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toReview" sourceRef="complete" targetRef="review" />
+    <bpmn:userTask id="review" iap:performers="proposal-reviewers" iap:outcomeOptions="approved, rejected"
+        iap:hostTag="submitted" name="Review the proposal">
+      <bpmn:incoming>toReview</bpmn:incoming>
+      <bpmn:outgoing>toRecord</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="toRecord" sourceRef="review" targetRef="record" />
+    <bpmn:serviceTask id="record" name="Write the decision down" iap:handler="recordReview" iap:requirement="review">
+      <bpmn:incoming>toRecord</bpmn:incoming>
+      <bpmn:outgoing>toDecision</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="toDecision" sourceRef="record" targetRef="decision" />
+    <bpmn:exclusiveGateway id="decision" name="Approved?" default="toRejected">
+      <bpmn:incoming>toDecision</bpmn:incoming>
+      <bpmn:outgoing>toApproved</bpmn:outgoing>
+      <bpmn:outgoing>toRejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="toApproved" sourceRef="decision" targetRef="approved">
+      <bpmn:extensionElements>
+        <sv:node sv:name="cond:condition">
+          <sv:property sv:name="jcr:primaryType" sv:type="Name">
+            <sv:value>cond:SingleCondition</sv:value>
+          </sv:property>
+          <sv:property sv:name="comparator" sv:type="String">
+            <sv:value>equals</sv:value>
+          </sv:property>
+          <sv:node sv:name="operandA">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="source" sv:type="String">
+              <sv:value>variable</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>outcome</sv:value>
+            </sv:property>
+          </sv:node>
+          <sv:node sv:name="operandB">
+            <sv:property sv:name="jcr:primaryType" sv:type="Name">
+              <sv:value>cond:ConditionOperand</sv:value>
+            </sv:property>
+            <sv:property sv:name="value" sv:type="String" sv:multiple="true">
+              <sv:value>approved</sv:value>
+            </sv:property>
+          </sv:node>
+        </sv:node>
+      </bpmn:extensionElements>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">outcome == 'approved'</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="toRejected" sourceRef="decision" targetRef="rejected" />
+    <bpmn:endEvent id="approved" iap:hostTag="approved" name="Proposal approved">
+      <bpmn:incoming>toApproved</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="rejected" iap:hostTag="rejected" name="Proposal refused">
+      <bpmn:incoming>toRejected</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="researchProposalDiagram">
+    <bpmndi:BPMNPlane id="researchProposalPlane" bpmnElement="researchProposal">
+      <bpmndi:BPMNShape id="createdShape" bpmnElement="created">
+        <dc:Bounds x="160" y="180" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="139" y="223" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="uploadShape" bpmnElement="upload">
+        <dc:Bounds x="250" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="parseShape" bpmnElement="parse">
+        <dc:Bounds x="400" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="completeShape" bpmnElement="complete">
+        <dc:Bounds x="550" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reviewShape" bpmnElement="review">
+        <dc:Bounds x="700" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="recordShape" bpmnElement="record">
+        <dc:Bounds x="850" y="158" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="decisionShape" bpmnElement="decision" isMarkerVisible="true">
+        <dc:Bounds x="1010" y="173" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1009" y="143" width="53" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="approvedShape" bpmnElement="approved">
+        <dc:Bounds x="1120" y="100" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1094" y="143" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="rejectedShape" bpmnElement="rejected">
+        <dc:Bounds x="1120" y="260" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1098" y="303" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="toUploadEdge" bpmnElement="toUpload">
+        <di:waypoint x="196" y="198" />
+        <di:waypoint x="250" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toParseEdge" bpmnElement="toParse">
+        <di:waypoint x="350" y="198" />
+        <di:waypoint x="400" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toCompleteEdge" bpmnElement="toComplete">
+        <di:waypoint x="500" y="198" />
+        <di:waypoint x="550" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toReviewEdge" bpmnElement="toReview">
+        <di:waypoint x="650" y="198" />
+        <di:waypoint x="700" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRecordEdge" bpmnElement="toRecord">
+        <di:waypoint x="800" y="198" />
+        <di:waypoint x="850" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toDecisionEdge" bpmnElement="toDecision">
+        <di:waypoint x="950" y="198" />
+        <di:waypoint x="1010" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toApprovedEdge" bpmnElement="toApproved">
+        <di:waypoint x="1035" y="173" />
+        <di:waypoint x="1035" y="118" />
+        <di:waypoint x="1120" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="toRejectedEdge" bpmnElement="toRejected">
+        <di:waypoint x="1035" y="223" />
+        <di:waypoint x="1035" y="278" />
+        <di:waypoint x="1120" y="278" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

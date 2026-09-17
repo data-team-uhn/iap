@@ -25,6 +25,7 @@ import {
   isMultiple,
   isQuestion,
   isRequired,
+  reviewExtraction,
   saveAnswer,
 } from "@iap/submissions/submissionForm";
 
@@ -83,6 +84,62 @@ describe("fetchForm", () => {
     vi.stubGlobal("fetch", vi.fn(() => response({}, { ok: false, status: 404 })));
 
     await expect(fetchForm(PATH)).rejects.toThrow(/could not be loaded \(404\)/);
+  });
+});
+
+describe("reviewExtraction", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("posts a confirmation as an event on the submission", async () => {
+    const fetchMock = vi.fn(() => response({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await reviewExtraction(PATH, "details/startDate", { confirmed: true });
+
+    const [ url, options ] = fetchMock.mock.calls[0] as unknown as
+      [ string, { method: string; body: URLSearchParams } ];
+    expect(url).toBe(`${PATH}.reviewExtraction.json`);
+    expect(options.method).toBe("POST");
+    expect(options.body.get("question")).toBe("details/startDate");
+    expect(options.body.get("confirmed")).toBe("true");
+    expect(options.body.has("evidenceRejected")).toBe(false);
+  });
+
+  // The two verdicts mean different things, so a report about the quote must not settle the answer
+  it("posts a rejected passage without saying anything about the answer", async () => {
+    const fetchMock = vi.fn(() => response({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await reviewExtraction(PATH, "details/startDate", { evidenceRejected: true });
+
+    const [ , options ] = fetchMock.mock.calls[0] as unknown as [ string, { body: URLSearchParams } ];
+    expect(options.body.get("evidenceRejected")).toBe("true");
+    expect(options.body.has("confirmed")).toBe(false);
+  });
+
+  it("posts taking that back", async () => {
+    const fetchMock = vi.fn(() => response({}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await reviewExtraction(PATH, "details/startDate", { evidenceRejected: false });
+
+    const [ , options ] = fetchMock.mock.calls[0] as unknown as [ string, { body: URLSearchParams } ];
+    expect(options.body.get("evidenceRejected")).toBe("false");
+  });
+
+  it("reports what the server refused with", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => response({ error: "Nothing was extracted for that" },
+      { ok: false, status: 400 })));
+
+    await expect(reviewExtraction(PATH, "details/startDate", { confirmed: true }))
+      .rejects.toThrow("Nothing was extracted for that");
+  });
+
+  it("falls back to the status when the refusal says nothing", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => response({}, { ok: false, status: 500 })));
+
+    await expect(reviewExtraction(PATH, "details/startDate", { confirmed: true }))
+      .rejects.toThrow("(500)");
   });
 });
 

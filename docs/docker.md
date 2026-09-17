@@ -162,7 +162,9 @@ same network, to `IAP_DOCLING_CALLBACK_URL`, authenticated with the shared `IAP_
 both containers read from `.env`. Neither side does asynchronous parsing without it.
 
 `POST /parse` is **path-based**, not an upload. The caller stages the document on the volume shared
-with the daemon (`IAP_SHARED_DOCS`, `/shared-docs` in the image) and passes its path:
+with the daemon (`IAP_SHARED_DOCS`, `/shared-docs` in the image) and passes its path. The generated
+compose file mounts that volume into the IAP container at the same path, and IAP's own parse
+service stages every uploaded document there before queueing it:
 
 ```
 POST /parse?path=/shared-docs/<dir>/<file>.pdf&chunk=true

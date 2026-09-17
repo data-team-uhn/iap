@@ -86,7 +86,7 @@ class ExtractionFieldTest
             "extractionPrompt", "Find the primary aims.",
             "responseShape", "{\"type\": \"string\"}",
             "rubricTags", new String[]{ "B.3", "B.4" },
-            "multiple", Boolean.TRUE));
+            "maxAnswers", 5L));
 
         final ExtractionField field = ExtractionField.of(question);
 

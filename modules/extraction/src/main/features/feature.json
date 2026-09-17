@@ -17,9 +17,37 @@
 {
   "bundles":[
     {
-      // Starts after the LLM client and the submissions model it reads and writes
+      // Starts after the LLM client (25), the workflow engine (26), and the submissions and categories models it
+      // reads and writes (28)
       "id":"${project.groupId}:${project.artifactId}:${project.version}",
-      "start-order":"27"
+      "start-order":"29"
     }
-  ]
+  ],
+  "configurations":{
+    "org.apache.sling.jcr.repoinit.RepositoryInitializer~extraction":{
+      "service.ranking:Integer": 400,
+      "scripts":[
+        // The user that hands a finished parse to the workflow engine and later asks it to read the answers out.
+        // It only reads: the engine does every write as its own user, and decides from the definitions whether this
+        // user may fire the events it fires - which is why the documentParsed start event names it and nobody else.
+        "create service user iap-extraction \n set ACL for iap-extraction \n allow jcr:read on /Submissions \n end"
+      ]
+    },
+    "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapextraction":{
+      "user.mapping":[
+        "io.uhndata.iap.extraction:extraction=[iap-extraction]"
+      ]
+    },
+    // At most this many submissions are in extraction at once. The LLM module's call gate already caps the
+    // requests in flight; this stops fifteen submissions (the default queue width) from all waiting on it, which
+    // would make every recorded call duration mostly queue time.
+    "org.apache.sling.event.jobs.QueueConfiguration~iapextraction":{
+      "queue.name":"iap-extraction",
+      "queue.topics":[
+        "iap/extraction/extract"
+      ],
+      "queue.type":"UNORDERED",
+      "queue.maxparallel:Double":4.0
+    }
+  }
 }

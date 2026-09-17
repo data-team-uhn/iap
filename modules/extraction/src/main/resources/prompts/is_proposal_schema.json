@@ -1,11 +1,13 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["is_proposal", "confidence", "reasoning", "chunk_tags"],
+  "required": ["is_proposal", "confidence", "reasoning", "category", "category_confidence", "chunk_tags"],
   "properties": {
     "is_proposal": { "type": "boolean" },
     "confidence": { "type": "number" },
     "reasoning": { "type": "string" },
+    "category": { "type": ["string", "null"] },
+    "category_confidence": { "type": "number" },
     "chunk_tags": {
       "type": "array",
       "items": {

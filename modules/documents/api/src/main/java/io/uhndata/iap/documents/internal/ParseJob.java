@@ -78,6 +78,12 @@ final class ParseJob
     /** The name of the property holding whether the document should also be chunked. */
     static final String PN_CHUNK = "chunk";
 
+    /**
+     * The name of the property holding the repository path the parse is for, when somebody is waiting on it there.
+     * Absent for a parse that is only polled for.
+     */
+    static final String PN_TARGET = "target";
+
     /** The name of the property holding the moment the job was created. */
     static final String PN_CREATED = "created";
 

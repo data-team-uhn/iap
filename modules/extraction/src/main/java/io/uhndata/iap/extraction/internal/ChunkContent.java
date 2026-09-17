@@ -103,6 +103,59 @@ final class ChunkContent
     }
 
     /**
+     * The nearest ATX heading above a quote, which is where a reader would say the quote lives.
+     *
+     * <p>The quote is matched after the same normalising the verifier does, because the model rarely copies
+     * whitespace exactly. Once the line it starts on is known, this walks back up for the first heading.
+     *
+     * @param markdown the chunk's text
+     * @param quote what the model quoted
+     * @return the heading's title, or an empty string when the quote is not there or nothing titles it
+     */
+    static String findHeadingAbove(final String markdown, final String quote)
+    {
+        if (markdown == null || quote == null || quote.isBlank()) {
+            return "";
+        }
+        final String[] lines = markdown.split("\n");
+        for (int above = findLineOf(lines, quote); above >= 0; above--) {
+            final Matcher match = ATX_HEADING.matcher(lines[above].strip());
+            if (match.matches()) {
+                return match.group(2).strip();
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Which line a quote starts on. One normalized copy of the text is built, plus how far into it each line
+     * ends, so the quote is found once and turned back into a line number without re-normalizing per line.
+     *
+     * @param lines the chunk's lines
+     * @param quote what the model quoted
+     * @return the line index, or -1 when the quote is not in the text
+     */
+    private static int findLineOf(final String[] lines, final String quote)
+    {
+        final StringBuilder normalized = new StringBuilder();
+        final int[] endsAt = new int[lines.length];
+        for (int i = 0; i < lines.length; i++) {
+            normalized.append(QuoteVerifier.normalizeForSearch(lines[i])).append(' ');
+            endsAt[i] = normalized.length();
+        }
+        final String wanted = QuoteVerifier.normalizeForSearch(quote).strip();
+        final int at = wanted.isEmpty() ? -1 : normalized.toString().indexOf(wanted);
+        if (at < 0) {
+            return -1;
+        }
+        int line = 0;
+        while (line < lines.length - 1 && endsAt[line] <= at) {
+            line++;
+        }
+        return line;
+    }
+
+    /**
      * The headings a chunk holds anywhere in its body, restricted to the two topmost levels present. A
      * section chunk often covers subsections too, and both belong in its name; for a chunk holding
      * {@code ##}, {@code ###} and {@code ####} headings, that keeps the {@code ##} and {@code ###} ones and

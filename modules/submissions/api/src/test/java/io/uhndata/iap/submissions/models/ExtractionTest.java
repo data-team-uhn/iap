@@ -77,6 +77,35 @@ class ExtractionTest
         assertNotNull(resource.adaptTo(Extraction.class));
     }
 
+    // Set when nothing was found, the answer is under the floor, or a quote could not be found in the text
+    @Test
+    void saysWhenAFieldShouldBeAskedAgain()
+    {
+        final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE,
+            "extractedAnswer", "42",
+            "confidence", 0.4,
+            "needsSecondLook", true));
+        final Extraction extraction = resource.adaptTo(Extraction.class);
+
+        assertTrue(extraction.isNeedsSecondLook());
+    }
+
+    // Two verdicts, kept apart: one is about the answer, the other about the quote behind it
+    @Test
+    void keepsTheSubmittersTwoVerdictsApart()
+    {
+        final Resource resource = this.context.create().resource(EXTRACTION_PATH, Map.of(
+            "sling:resourceType", Extraction.RESOURCE_TYPE,
+            "extractedAnswer", "42",
+            "reviewed", true,
+            "evidenceRejected", true));
+        final Extraction extraction = resource.adaptTo(Extraction.class);
+
+        assertTrue(extraction.isReviewed());
+        assertTrue(extraction.isEvidenceRejected());
+    }
+
     @Test
     void exposesWhatTheModelRead()
     {
@@ -90,6 +119,9 @@ class ExtractionTest
         assertEquals("42", extraction.getExtractedAnswer());
         assertEquals(0.87, extraction.getConfidence());
         assertEquals("The recruitment table gives 42 in the final column", extraction.getReasoning());
+        assertFalse(extraction.isNeedsSecondLook(), "the model was sure and its quote checked out");
+        assertFalse(extraction.isReviewed(), "nobody has looked at it yet");
+        assertFalse(extraction.isEvidenceRejected());
         // Nobody has accepted or edited it yet, so there is nothing to compare against
         assertFalse(extraction.isActedOn());
         assertNull(extraction.getEditDistance());
@@ -172,6 +204,9 @@ class ExtractionTest
         assertNull(extraction.getExtractedAnswer());
         assertNull(extraction.getConfidence());
         assertNull(extraction.getReasoning());
+        assertFalse(extraction.isNeedsSecondLook());
+        assertFalse(extraction.isReviewed());
+        assertFalse(extraction.isEvidenceRejected());
         assertNull(extraction.getEditDistance());
         assertNull(extraction.getPercentageDistance());
         assertFalse(extraction.isActedOn());

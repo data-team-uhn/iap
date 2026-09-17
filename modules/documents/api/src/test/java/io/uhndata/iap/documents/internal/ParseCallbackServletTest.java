@@ -20,6 +20,8 @@ package io.uhndata.iap.documents.internal;
 import java.io.StringReader;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -42,8 +44,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
+import io.uhndata.iap.documents.api.ParseOutcome;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -69,6 +74,8 @@ class ParseCallbackServletTest
         + " \"chunks_dir\": \"/shared-docs/Chunks\", \"filename\": \"proposal.pdf\"}";
 
     private final SlingContext context = new SlingContext();
+
+    private final ParseOutcomeDispatcher dispatcher = new ParseOutcomeDispatcher();
 
     private ParseCallbackServlet servlet;
 
@@ -362,6 +369,70 @@ class ParseCallbackServletTest
         final Field reference = ParseCallbackServlet.class.getDeclaredField("resolverFactory");
         reference.setAccessible(true);
         reference.set(target, factory);
+        final Field outcomes = ParseCallbackServlet.class.getDeclaredField("outcomes");
+        outcomes.setAccessible(true);
+        outcomes.set(target, this.dispatcher);
+    }
+
+    @Test
+    void aTargetedOutcomeIsHandedOverAndItsRecordDropped() throws Exception
+    {
+        final List<ParseOutcome> handed = new ArrayList<>();
+        this.dispatcher.bindHandler(outcome -> {
+            handed.add(outcome);
+            return true;
+        });
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
+            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+
+        final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION, SUCCESS_BODY);
+
+        assertEquals(200, response.getStatus());
+        assertEquals(1, handed.size());
+        assertEquals("/Submissions/aRequest/d1/v1/file", handed.get(0).target());
+        assertEquals("/shared-docs/proposal.md", handed.get(0).markdownPath());
+        assertTrue(handed.get(0).succeeded());
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(JOB_ID)),
+            "taken, so the record has done its job");
+    }
+
+    @Test
+    void anOutcomeNobodyTakesKeepsItsRecord() throws Exception
+    {
+        this.dispatcher.bindHandler(outcome -> false);
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
+            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+
+        post(GOOD_AUTHORIZATION, SUCCESS_BODY);
+
+        assertEquals(ParseJob.STATUS_COMPLETED, jobProperties().get(ParseJob.PN_STATUS, String.class));
+    }
+
+    @Test
+    void aFailureReachesTheHandlerToo() throws Exception
+    {
+        final List<ParseOutcome> handed = new ArrayList<>();
+        this.dispatcher.bindHandler(outcome -> {
+            handed.add(outcome);
+            return true;
+        });
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE,
+            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+
+        post(GOOD_AUTHORIZATION, "{\"job_id\": \"" + JOB_ID + "\", \"ok\": false, \"error\": \"No pages\"}");
+
+        assertEquals(1, handed.size());
+        assertFalse(handed.get(0).succeeded());
+        assertEquals("No pages", handed.get(0).error());
     }
 
     private void jobNode()

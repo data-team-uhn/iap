@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.ResourceResolverType;
@@ -33,6 +34,7 @@ import io.uhndata.iap.submissions.models.Chunk;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Unit tests for {@link ChunkSelection}: which chunks are worth showing a model, and the care it takes not to
@@ -54,14 +56,13 @@ class ChunkSelectionTest
             List.of(tags), false);
     }
 
-    private Chunk chunk(final String tagBasis, final boolean uncertain, final String... tags)
+    private Chunk chunk(final Double tagConfidence, final String... tags)
     {
         this.created++;
         final Map<String, Object> properties = new HashMap<>();
         properties.put("sling:resourceType", Chunk.RESOURCE_TYPE);
-        properties.put("uncertain", uncertain);
-        if (tagBasis != null) {
-            properties.put("tagBasis", tagBasis);
+        if (tagConfidence != null) {
+            properties.put("tagConfidence", tagConfidence);
         }
         if (tags.length > 0) {
             properties.put("rubricTags", tags);
@@ -85,8 +86,8 @@ class ChunkSelectionTest
     @Test
     void sendsAChunkTaggedAsSomethingTheFieldsAskAbout()
     {
-        final Chunk wanted = chunk("fulltext", false, "B.3");
-        final Chunk other = chunk("fulltext", false, "B.9");
+        final Chunk wanted = chunk(0.9, "B.3");
+        final Chunk other = chunk(0.9, "B.9");
 
         final List<Chunk> selected = ChunkSelection.select(List.of(field("B.3", "B.4")),
             List.of(wanted, other));
@@ -97,9 +98,9 @@ class ChunkSelectionTest
     @Test
     void keepsTheDocumentOrder()
     {
-        final Chunk first = chunk("fulltext", false, "B.3");
-        final Chunk skipped = chunk("fulltext", false, "B.9");
-        final Chunk last = chunk("fulltext", false, "B.4");
+        final Chunk first = chunk(0.9, "B.3");
+        final Chunk skipped = chunk(0.9, "B.9");
+        final Chunk last = chunk(0.9, "B.4");
 
         final List<Chunk> selected = ChunkSelection.select(List.of(field("B.3", "B.4")),
             List.of(first, skipped, last));
@@ -107,43 +108,49 @@ class ChunkSelectionTest
         assertEquals(List.of("Chunk-1", "Chunk-3"), namesOf(selected));
     }
 
+    // The load-bearing fail-open rule. A chunk nothing has placed could hold anything, so it matches every
+    // field. Ruling one out on a tag nobody assigned is how this silently goes fail-closed, reporting a field
+    // absent from text that was never read.
     @Test
     void sendsAChunkNobodyHasTagged()
     {
-        final Chunk untagged = chunk("fulltext", false);
+        final Chunk untagged = chunk(null);
 
         assertEquals(1, ChunkSelection.select(List.of(field("B.3")), List.of(untagged)).size());
     }
 
     @Test
-    void sendsAChunkWhoseTaggingWasMarkedUncertain()
+    void sendsAChunkTaggedWithNoConfidenceRecorded()
     {
-        final Chunk unsure = chunk("fulltext", true, "B.9");
+        final Chunk untagged = chunk(0.9);
 
-        assertEquals(1, ChunkSelection.select(List.of(field("B.3")), List.of(unsure)).size());
+        assertEquals(1, ChunkSelection.select(List.of(field("B.3")), List.of(untagged)).size());
     }
 
+    // A placement is a placement whoever made it: the gate reading headings and the intake reading the text
+    // both say what the chunk is about, and neither is a reason to send text about something else.
     @Test
-    void sendsAChunkTaggedFromItsHeadingAlone()
+    void leavesOutAChunkPlacedSomewhereTheFieldsDoNotAskAbout()
     {
-        final Chunk guessed = chunk("heading", false, "B.9");
+        final Chunk elsewhere = chunk(0.9, "B.9");
 
-        assertEquals(1, ChunkSelection.select(List.of(field("B.3")), List.of(guessed)).size(),
-            "a heading is not enough to rule a chunk out");
+        assertEquals(0, ChunkSelection.select(List.of(field("B.3")), List.of(elsewhere)).size());
     }
 
+    // Confidence is advisory. A confidently wrong tag rules a chunk out exactly as firmly as a confidently
+    // right one, so selection turns on the tags rather than on how sure anything was.
     @Test
-    void sendsAChunkThatWasNeverPlacedAtAll()
+    void leavesOutAChunkPlacedElsewhereEvenWithoutMuchConfidence()
     {
-        final Chunk unplaced = chunk(null, false, "B.9");
+        final Chunk unsure = chunk(0.1, "B.9");
 
-        assertEquals(1, ChunkSelection.select(List.of(field("B.3")), List.of(unplaced)).size());
+        assertEquals(0, ChunkSelection.select(List.of(field("B.3")), List.of(unsure)).size());
     }
 
     @Test
     void leavesOutOnlyAChunkAModelReadAndPlacedElsewhere()
     {
-        final Chunk placed = chunk("deep", false, "B.9");
+        final Chunk placed = chunk(0.9, "B.9");
 
         assertEquals(0, ChunkSelection.select(List.of(field("B.3")), List.of(placed)).size());
     }
@@ -151,8 +158,8 @@ class ChunkSelectionTest
     @Test
     void sendsEverythingForAFieldThatNamesNoTags()
     {
-        final Chunk one = chunk("deep", false, "B.9");
-        final Chunk two = chunk("deep", false, "B.8");
+        final Chunk one = chunk(0.9, "B.9");
+        final Chunk two = chunk(0.9, "B.8");
 
         assertEquals(2, ChunkSelection.select(List.of(field("B.3"), field()), List.of(one, two)).size(),
             "a field that names no tags asks about the whole document");
@@ -161,8 +168,39 @@ class ChunkSelectionTest
     @Test
     void sendsEverythingWhenThereIsNothingToLookFor()
     {
-        final Chunk one = chunk("deep", false, "B.9");
+        final Chunk one = chunk(0.9, "B.9");
 
         assertEquals(1, ChunkSelection.select(List.of(), List.of(one)).size());
+    }
+
+    @Test
+    void selectsByTagsDirectly()
+    {
+        final Chunk one = chunk(0.9, "B.9");
+        final Chunk two = chunk(0.9, "B.3");
+
+        assertEquals(List.of(two.getName()), namesOf(ChunkSelection.select(Set.of("B.3"), List.of(one, two))));
+    }
+
+    @Test
+    void looksEverywhereWhenNoTagsAreWanted()
+    {
+        final Chunk one = chunk(0.9, "B.9");
+
+        assertEquals(1, ChunkSelection.select(Set.of(), List.of(one)).size());
+    }
+
+    @Test
+    void wantsEveryTagTheFieldsName()
+    {
+        assertEquals(Set.of("B.3", "B.4"), ChunkSelection.wantedTags(List.of(field("B.3"), field("B.3", "B.4"))));
+    }
+
+    @Test
+    void wantsNothingInParticularWhenAFieldNamesNoTags()
+    {
+        assertTrue(ChunkSelection.wantedTags(List.of(field("B.3"), field())).isEmpty(),
+            "that field asks about the whole document");
+        assertTrue(ChunkSelection.wantedTags(List.of()).isEmpty());
     }
 }

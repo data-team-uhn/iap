@@ -58,6 +58,15 @@ public class Extraction extends EntityPart
     private String reasoning;
 
     @ValueMapValue
+    private boolean needsSecondLook;
+
+    @ValueMapValue
+    private boolean reviewed;
+
+    @ValueMapValue
+    private boolean evidenceRejected;
+
+    @ValueMapValue
     private Long editDistance;
 
     @ValueMapValue
@@ -116,6 +125,38 @@ public class Extraction extends EntityPart
     public String getReasoning()
     {
         return this.reasoning;
+    }
+
+    /**
+     * Whether a later pass should ask this field again. Set when nothing was found, when the answer is under
+     * the confidence floor, or when a quote behind it was not found in the text the model was shown.
+     *
+     * @return {@code true} if the answer is worth asking again
+     */
+    public boolean isNeedsSecondLook()
+    {
+        return this.needsSecondLook;
+    }
+
+    /**
+     * Whether the submitter has settled this answer, by accepting it or by changing it.
+     *
+     * @return {@code true} once a person has looked at it
+     */
+    public boolean isReviewed()
+    {
+        return this.reviewed;
+    }
+
+    /**
+     * Whether the submitter said the quoted passage does not support the answer. Separate from
+     * {@link #isReviewed()}: it is a verdict on the evidence, not on the answer, and settles nothing.
+     *
+     * @return {@code true} if the passage was reported as wrong
+     */
+    public boolean isEvidenceRejected()
+    {
+        return this.evidenceRejected;
     }
 
     /**

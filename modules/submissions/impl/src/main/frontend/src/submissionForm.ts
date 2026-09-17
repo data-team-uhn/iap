@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import type { QuestionProvenance } from "./provenance";
 
 // The form a submitter fills in, as the server projects it, and the one way to change it.
 //
@@ -73,6 +74,10 @@ export interface FormQuestion {
   // "answered freely" is something the form states rather than something a reader infers.
   options: FormAnswerOption[];
   value: string[];
+  // Where a pre-filled answer came from, present only for a question the extraction answered. A
+  // question the submitter answered themselves has none, which is what "nobody suggested this"
+  // looks like.
+  provenance?: QuestionProvenance;
 }
 
 export interface FormSection {
@@ -115,6 +120,15 @@ export interface FormRequirement {
   decidedAt?: string;
 }
 
+// Where reading the answers out of the uploaded documents got to. `running` is the only state that
+// is still going; the others stop the spinner, and all but `done` come with a reason for the person.
+export interface ExtractionState {
+  status: "running" | "done" | "undetermined" | "not-proposal" | "failed";
+  message?: string;
+  // The category the model filed the proposal under, as a path under /Categories
+  category?: string;
+}
+
 export interface SubmissionForm {
   path: string;
   title: string;
@@ -122,6 +136,8 @@ export interface SubmissionForm {
   // editor offers editing only where a save would be accepted rather than learning from a refusal
   editable: boolean;
   requirements: FormRequirement[];
+  // Present once the documents were sent to be read; absent for a submission that never was
+  extraction?: ExtractionState;
 }
 
 export function isQuestion(item: FormItem): item is FormQuestion {
@@ -169,6 +185,29 @@ export async function saveAnswer(path: string, question: string, values: string[
   if (!response.ok) {
     const refusal = (await response.json().catch(() => ({}))) as { error?: string };
     throw new Error(refusal.error ?? `This answer could not be saved (${response.status})`);
+  }
+}
+
+// Records what the submitter makes of a pre-filled answer, as a `reviewExtraction` event.
+//
+// Two verdicts, sent separately because they mean different things. Confirming settles the answer.
+// Saying the passage does not support it is a report about the extraction, and settles nothing.
+//
+// The event is named by a selector, so `.json` has to follow it. See attachDocument below for why.
+export async function reviewExtraction(path: string, question: string,
+  verdict: { confirmed?: boolean; evidenceRejected?: boolean }): Promise<void> {
+  const body = new URLSearchParams();
+  body.append("question", question);
+  if (verdict.confirmed !== undefined) {
+    body.append("confirmed", String(verdict.confirmed));
+  }
+  if (verdict.evidenceRejected !== undefined) {
+    body.append("evidenceRejected", String(verdict.evidenceRejected));
+  }
+  const response = await fetch(`${path}.reviewExtraction.json`, { method: "POST", body });
+  if (!response.ok) {
+    const refusal = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(refusal.error ?? `This could not be recorded (${response.status})`);
   }
 }
 

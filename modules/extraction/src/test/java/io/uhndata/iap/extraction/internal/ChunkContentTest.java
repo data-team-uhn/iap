@@ -176,4 +176,57 @@ class ChunkContentTest
         assertEquals(1, ChunkContent.estimateTokens("abcd"));
         assertEquals(250, ChunkContent.estimateTokens("x".repeat(1000)));
     }
+
+    @Test
+    void namesTheHeadingAQuoteSitsUnder()
+    {
+        final String text = "## Background\n\nSomething earlier.\n\n## Aims\n\nThe primary aim is to reduce"
+            + " readmissions.\n";
+
+        assertEquals("Aims", ChunkContent.findHeadingAbove(text, "The primary aim is to reduce readmissions"));
+        assertEquals("Background", ChunkContent.findHeadingAbove(text, "Something earlier"));
+    }
+
+    // The model rarely copies whitespace exactly, so the lookup compares the same way the check does
+    @Test
+    void findsTheHeadingEvenWhenTheQuoteWasReflowed()
+    {
+        final String text = "## Aims\n\nThe primary aim\nis to reduce   readmissions.\n";
+
+        assertEquals("Aims", ChunkContent.findHeadingAbove(text, "the PRIMARY aim is to reduce readmissions"));
+    }
+
+    @Test
+    void namesTheNearestHeadingAboveRatherThanTheFirst()
+    {
+        final String text = "# Protocol\n\n## Methods\n\n### Recruitment\n\nForty-two people take part.\n";
+
+        assertEquals("Recruitment", ChunkContent.findHeadingAbove(text, "Forty-two people take part"));
+    }
+
+    @Test
+    void namesTheHeadingTheQuoteIsOnWhenTheQuoteIsTheHeading()
+    {
+        assertEquals("Aims", ChunkContent.findHeadingAbove("## Aims\n\nSomething.\n", "Aims"));
+    }
+
+    @Test
+    void namesNothingWhenNoHeadingSitsAboveTheQuote()
+    {
+        assertEquals("", ChunkContent.findHeadingAbove("Just prose, no headings at all.\n", "Just prose"));
+    }
+
+    @Test
+    void namesNothingForAQuoteThatIsNotThere()
+    {
+        assertEquals("", ChunkContent.findHeadingAbove("## Aims\n\nSomething.\n", "Participants were randomised"));
+    }
+
+    @Test
+    void namesNothingWhenThereIsNothingToLookIn()
+    {
+        assertEquals("", ChunkContent.findHeadingAbove(null, "anything"));
+        assertEquals("", ChunkContent.findHeadingAbove("## Aims\n", null));
+        assertEquals("", ChunkContent.findHeadingAbove("## Aims\n", "  "));
+    }
 }
