@@ -20,9 +20,7 @@ package io.uhndata.iap.documents.internal;
 import java.io.IOException;
 import java.util.Calendar;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import jakarta.json.Json;
@@ -56,9 +54,8 @@ import org.slf4j.LoggerFactory;
  * performs the actual daemon call in the background, so the response comes back immediately and the caller polls.
  *
  * <p>
- * {@code POST /system/documents/parse?path=/shared-docs/dir/file.pdf&chunk=true} queues a parse of the given file.
- * The {@code path} is the document's location as the daemon sees it, on the volume shared with it; {@code chunk}
- * (optional, {@code true} by default) also splits the resulting Markdown into a chunk tree. The answer is
+ * {@code POST /system/documents/parse?path=/shared-docs/dir/file.pdf} queues a parse of the given file. The
+ * {@code path} is the document's location as the daemon sees it, on the volume shared with it. The answer is
  * {@code {"job_id": "<uuid>", "status": "queued"}}.
  * </p>
  *
@@ -86,9 +83,6 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParseServlet.class);
 
-    /** The {@code chunk} values meaning "do not chunk", mirroring how the daemon reads its own parameter. */
-    private static final Set<String> FALSE_WORDS = Set.of("false", "0", "no");
-
     /** The name of the job identifier, as exchanged with the caller. */
     private static final String JOB_ID_KEY = "job_id";
 
@@ -113,7 +107,6 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
             JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "path parameter is required");
             return;
         }
-        final boolean chunk = isChunkRequested(request.getParameter(ParseJob.PN_CHUNK));
         final String jobId = UUID.randomUUID().toString();
         try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobsRoot = resolver.getResource(ParseJob.JOBS_PATH);
@@ -126,7 +119,6 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
             properties.put(ParseJob.PN_JOB_ID, jobId);
             properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED);
             properties.put(ParseJob.PN_PATH, path);
-            properties.put(ParseJob.PN_CHUNK, chunk);
             properties.put(ParseJob.PN_CREATED, Calendar.getInstance());
             final Resource jobNode = resolver.create(jobsRoot, jobId, properties);
             // The node must be visible to the consumer before the job is queued
@@ -210,17 +202,6 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
             json.add(ParseJob.PN_ERROR, error);
         }
         return json.build();
-    }
-
-    /**
-     * Interpret the {@code chunk} parameter the same way the daemon does: chunking is on unless explicitly refused.
-     *
-     * @param raw the raw parameter value, may be {@code null} when not sent
-     * @return {@code false} only for an explicit "false", "0" or "no"
-     */
-    private static boolean isChunkRequested(final String raw)
-    {
-        return raw == null || !FALSE_WORDS.contains(raw.toLowerCase(Locale.ROOT));
     }
 
     /**

@@ -91,22 +91,8 @@ class ParseServletTest
         final ValueMap job = jobProperties(jobId);
         assertEquals(ParseJob.STATUS_QUEUED, job.get(ParseJob.PN_STATUS, String.class));
         assertEquals("/shared-docs/proposal.pdf", job.get(ParseJob.PN_PATH, String.class));
-        assertEquals(Boolean.TRUE, job.get(ParseJob.PN_CHUNK, Boolean.class));
         assertNotNull(job.get(ParseJob.PN_CREATED));
         Mockito.verify(this.jobManager).addJob(ParseJob.TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
-    }
-
-    @Test
-    void postHonoursChunkFalse() throws Exception
-    {
-        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.TOPIC), Mockito.anyMap()))
-            .thenReturn(Mockito.mock(Job.class));
-
-        final MockSlingJakartaHttpServletResponse response =
-            post(Map.of(ParseJob.PN_PATH, "/shared-docs/proposal.pdf", ParseJob.PN_CHUNK, "false"));
-
-        final String jobId = parse(response).getString("job_id");
-        assertEquals(Boolean.FALSE, jobProperties(jobId).get(ParseJob.PN_CHUNK, Boolean.class));
     }
 
     @Test
@@ -178,14 +164,13 @@ class ParseServletTest
     void getReportsACompletedJobWithItsOutputs() throws Exception
     {
         final String jobId = job(ParseJob.STATUS_COMPLETED,
-            ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/proposal.md", "/shared-docs/Chunks" });
+            ParseJob.PN_OUTPUTS, new String[] { "/shared-docs/proposal.md" });
 
         final JsonObject json = parse(get(Map.of("job_id", jobId)));
 
         assertEquals(ParseJob.STATUS_COMPLETED, json.getString("status"));
-        assertEquals(2, json.getJsonArray("outputs").size());
+        assertEquals(1, json.getJsonArray("outputs").size());
         assertEquals("/shared-docs/proposal.md", json.getJsonArray("outputs").getString(0));
-        assertEquals("/shared-docs/Chunks", json.getJsonArray("outputs").getString(1));
     }
 
     @Test
