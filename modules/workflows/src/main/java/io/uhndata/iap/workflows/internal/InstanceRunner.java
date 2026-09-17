@@ -30,6 +30,7 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 
+import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -257,7 +258,7 @@ final class InstanceRunner
         final Variable recorded = instance.getVariable(OUTCOME_VARIABLE);
         final Object outcome = recorded == null ? null : recorded.getValue();
         return flows.stream()
-            // Asked this way round: an unrecorded outcome must match nothing, not every arc without a condition
+            // An unrecognized outcome must match nothing, not every arc without a condition
             .filter(flow -> outcome != null && outcome.equals(flow.getConditionExpression()))
             .findFirst()
             .or(() -> flows.stream().filter(SequenceFlow::isDefault).findFirst())
@@ -281,8 +282,10 @@ final class InstanceRunner
         final ModifiableValueMap properties = modifiable(instance);
         properties.put(STATUS_PROPERTY, COMPLETED_STATUS);
         properties.put(END_TIME_PROPERTY, Calendar.getInstance());
-        if (end.getHostTag() != null) {
-            modifiable(host(instance)).put(STATUS_PROPERTY, end.getHostTag());
+        final String hostTag = end.getHostTag();
+        if (hostTag != null) {
+            Objects.requireNonNull(host(instance).adaptTo(Taggable.class),
+                "A workflow's host is taggable").tag(hostTag);
         }
     }
 

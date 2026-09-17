@@ -72,6 +72,12 @@
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
     </dependency>
+    <!-- A workflow places its host's lifecycle tag when it finishes -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>iap-tags-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-java-utils</artifactId>

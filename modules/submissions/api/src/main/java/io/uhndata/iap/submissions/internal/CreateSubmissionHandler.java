@@ -29,6 +29,8 @@ import org.osgi.service.component.annotations.Component;
 
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.tags.models.Taggable;
 import io.uhndata.iap.utils.NodeNameUtils;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -80,7 +82,26 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
             freeName(context.getTarget(), (String) title),
             Map.of("jcr:primaryType", "sub:Submission", TITLE, title));
         reference(created, version);
+        draft(created);
         context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
+    }
+
+    /**
+     * Places the {@code draft} lifecycle tag on the submission just raised.
+     *
+     * <p>Here rather than on the workflow's end event, which is where a lifecycle is normally declared: this
+     * definition targets the submissions homepage, so the host an end event would tag is {@code /Submissions}
+     * and not the submission. A submission without the tag cannot be answered at all, since that is the state
+     * saving checks for.</p>
+     *
+     * @param created the submission just created
+     * @throws PersistenceException when the tag cannot be written
+     */
+    private void draft(final Resource created) throws PersistenceException
+    {
+        // Every resource adapts to Taggable where the tags bundle is installed, and it starts first
+        Objects.requireNonNull(created.adaptTo(Taggable.class), "A submission is taggable")
+            .tag(Submission.DRAFT_TAG);
     }
 
     /**

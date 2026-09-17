@@ -18,6 +18,7 @@
 package io.uhndata.iap.submissions.internal;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
@@ -41,6 +42,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
+import io.uhndata.iap.submissions.models.Tagging;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.api.WorkflowException;
@@ -80,6 +82,8 @@ class CreateSubmissionHandlerTest
     {
         this.context.addModelsForClasses(Content.class, Entity.class, Schema.class, SchemaVersion.class,
             Activity.class);
+        // The handler places the submission's draft tag, which needs the view the tags bundle provides
+        Tagging.enable(this.context);
         this.target = this.context.create().resource("/Submissions", TYPE, "sub/SubmissionsHomepage");
         this.context.create().resource("/Schemas/timeOffRequest", Map.of(
             TYPE, Schema.RESOURCE_TYPE, "title", "Time off request", "active", true));
@@ -106,6 +110,9 @@ class CreateSubmissionHandlerTest
         assertNotNull(created);
         assertEquals("sub:Submission", created.getValueMap().get("jcr:primaryType"));
         assertEquals("My day off", created.getValueMap().get("title"));
+        // Raised as a draft, which is the state the save workflow checks for: without it the submitter cannot
+        // answer their own request at all
+        assertEquals(List.of("draft"), List.of(created.getValueMap().get("tags", new String[0])));
         // A real REFERENCE, holding the version node's own identifier
         final Node versionNode =
             this.context.resourceResolver().getResource(VERSION_PATH).adaptTo(Node.class);

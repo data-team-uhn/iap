@@ -17,7 +17,8 @@
  */
 package io.uhndata.iap.submissions.internal;
 
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.spi.ServiceTaskHandler;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
@@ -54,8 +56,9 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * <p><strong>Both rules about who may do this are enforced here, in full.</strong> The engine executes with its own
  * privileged session, so nothing downstream will refuse anyone: whatever is not checked in a handler is allowed.
  * They are that the actor is the person the engine recorded as having raised the submission, and that the submission
- * is still a draft. A deployment that lets a coordinator fill requests in on someone's behalf changes this check;
- * neither rule can be written as a performer, because performers name groups, not "whoever raised this one".</p>
+ * is still a draft. A deployment that lets a coordinator fill requests in on someone's behalf changes this check.
+ * The first rule is checked here rather than declared, because {@code PerformerCheck} matches a performer against
+ * an authorizable's own id and its groups and does not resolve the {@code @creator} vocabulary yet.</p>
  *
  * @version $Id$
  * @since 0.1.0
@@ -66,7 +69,6 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String NAME = "saveAnswers";
 
-    /** The only lifecycle in which a submission may still be written to by its submitter. */
     private static final String QUESTION = "question";
 
     private static final String VALUE = "value";
@@ -81,12 +83,26 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
         final Resource target = context.getTarget();
+        // Asked of the resource, not of the adaptation: a model registered for one type adapts a resource of an
+        // unrelated one, so adaptTo alone would let a misdirected definition through and fail further in
+        if (!target.isResourceType(Submission.RESOURCE_TYPE)) {
+            throw new WorkflowDefinitionException("The save workflow only applies to submissions, not to "
+                + target.getResourceType());
+        }
         final Submission submission = Objects.requireNonNull(target.adaptTo(Submission.class),
-            "The save workflow only applies to submissions");
+            "A submission resource always reads as a submission");
         checkMayEdit(submission, context.getActor());
         final Resource version = versionOf(submission, target);
+        // Resolved in full before anything is written. The payload is a map, so its iteration order is not the
+        // order it was sent in and is salted per run; writing as we go would leave an arbitrary prefix of the
+        // answers behind when a later key turns out to be bad
+        final Map<Resource, String[]> answers = new LinkedHashMap<>();
         for (final Map.Entry<String, Object> entry : context.getEvent().getPayload().entrySet()) {
-            record(submission, target, question(version, entry.getKey()), values(entry.getValue()));
+            answers.put(question(version, entry.getKey()), values(entry.getKey(), entry.getValue()));
+        }
+        final Map<String, String> existing = answersByQuestion(submission);
+        for (final Map.Entry<Resource, String[]> answer : answers.entrySet()) {
+            record(existing, target, answer.getKey(), answer.getValue());
         }
     }
 
@@ -119,9 +135,15 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      */
     private Resource versionOf(final Submission submission, final Resource target) throws InvalidPayloadException
     {
-        // The node type makes the reference mandatory and the model declares it non-null, so what can go wrong is
-        // not that there is no version but that this session cannot read the one there is
-        final SchemaVersion version = submission.getSchemaVersion();
+        // The node type makes the reference mandatory, which is a rule about the content and not a promise to
+        // every reader: a version that has gone, or one this session may not read, resolves to nothing
+        final SchemaVersion version = submission.findSchemaVersion();
+        if (version == null) {
+            throw new InvalidPayloadException("This request does not say what it is answering");
+        }
+        // Resolved again on the session everything else uses. The model reads through the same resolver in
+        // production, but not in every harness, and a version that adapts without resolving here is still a
+        // submission that cannot say what it is answering
         final Resource resource = target.getResourceResolver().getResource(version.getPath());
         if (resource == null) {
             throw new InvalidPayloadException("This request does not say what it is answering");
@@ -140,7 +162,12 @@ public class SaveAnswersHandler implements ServiceTaskHandler
     private Resource question(final Resource version, final String path) throws InvalidPayloadException
     {
         final Resource question = version.getChild(path);
-        if (question == null || !question.isResourceType(Question.RESOURCE_TYPE)) {
+        // Containment is checked on what the path resolved to, not on the path as written. `getChild` hands an
+        // absolute path straight to the resolver and normalises `..` out of a relative one, so a key can name a
+        // question of some other schema -- one the caller may not even be able to read, since the engine's
+        // session can. The answer would then hold a REFERENCE that makes that question undeletable.
+        if (question == null || !question.isResourceType(Question.RESOURCE_TYPE)
+            || !question.getPath().startsWith(version.getPath() + "/")) {
             throw new InvalidPayloadException("There is no question " + path + " to answer in this request");
         }
         return question;
@@ -153,15 +180,37 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * @param submitted the payload value
      * @return the values to store, blanks dropped, empty when the answer is being cleared
      */
-    private String[] values(final Object submitted)
+    private String[] values(final String question, final Object submitted) throws InvalidPayloadException
     {
-        final String[] given =
-            submitted instanceof String[] ? (String[]) submitted : new String[] {String.valueOf(submitted)};
-        // Blank values are dropped rather than stored: a cleared field posts one empty value, because naming the
-        // question is the only way to say "clear this" -- but what it means is that the question now holds
-        // nothing, and storing the empty string instead would make the answer read as different from the blank
-        // field that produced it, so every later visit to that field would save it again.
-        return Arrays.stream(given).filter(value -> !value.isBlank()).toArray(String[]::new);
+        // A payload is a Map<String, Object> and anything may put one together, so what arrives is checked
+        // rather than converted. String.valueOf would turn a List into the single literal answer "[a, b]" and a
+        // null into the four-character answer "null", both of which are non-blank and would read as real
+        if (submitted instanceof String) {
+            return clearing(new String[] {(String) submitted});
+        }
+        if (submitted instanceof String[]) {
+            return clearing((String[]) submitted);
+        }
+        throw new InvalidPayloadException("The answer to " + question + " must be text");
+    }
+
+    /**
+     * Reads the clear sentinel, leaving every other answer exactly as it was given.
+     *
+     * <p>A cleared field posts one empty value, because naming the question is the only way to say "clear this"
+     * -- a question left out of the payload is untouched, not emptied. What it means is that the question now
+     * holds nothing, so it stores nothing: the empty string would read as different from the blank field that
+     * produced it, and every later visit would save it again.</p>
+     *
+     * <p>Only that exact shape. Dropping every blank instead would be a wider rule than the sentinel, and would
+     * quietly make an option whose value is the empty string impossible to record.</p>
+     *
+     * @param given the values as the payload carried them
+     * @return nothing at all if this is the sentinel, otherwise {@code given} unchanged
+     */
+    private String[] clearing(final String[] given)
+    {
+        return given.length == 1 && given[0].isEmpty() ? new String[0] : given;
     }
 
     /**
@@ -177,10 +226,15 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * @param values the submitted values
      * @throws PersistenceException when the answer cannot be written
      */
-    private void record(final Submission submission, final Resource target, final Resource question,
+    private void record(final Map<String, String> answers, final Resource target, final Resource question,
         final String[] values) throws PersistenceException
     {
-        final String existing = answered(submission, question);
+        final String existing = answers.get(question.getPath());
+        if (existing == null && values.length == 0) {
+            // Clearing a question nobody has answered. Creating the node anyway would store nothing, count
+            // towards the answers the submission reports, and hold its question against deletion for ever
+            return;
+        }
         if (existing != null) {
             modifiable(Objects.requireNonNull(target.getResourceResolver().getResource(existing),
                 "An answer the submission just reported is still where it said")).put(VALUE, values);
@@ -202,18 +256,21 @@ public class SaveAnswersHandler implements ServiceTaskHandler
      * @param question the question to look for
      * @return the existing answer's path, or {@code null} if this question has not been answered yet
      */
-    private String answered(final Submission submission, final Resource question)
+    private Map<String, String> answersByQuestion(final Submission submission)
     {
-        return submission.getAnswers().stream()
+        // Built once for the whole payload. Asking per entry re-walked the submission's children and
+        // dereferenced every answer's REFERENCE through an identifier lookup, to recover a path already held --
+        // on the autosave path, inside the engine's open commit.
+        final Map<String, String> byQuestion = new HashMap<>();
+        for (final Answer answer : submission.getAnswers()) {
             // Read once into a local: asking twice is the shape that makes a @Nullable accessor look safe to
             // dereference when it is not, which is exactly what the null detectors are here to catch
-            .filter(answer -> {
-                final Question answered = answer.getQuestion();
-                return answered != null && question.getPath().equals(answered.getPath());
-            })
-            .map(Answer::getPath)
-            .findFirst()
-            .orElse(null);
+            final Question answered = answer.getQuestion();
+            if (answered != null) {
+                byQuestion.putIfAbsent(answered.getPath(), answer.getPath());
+            }
+        }
+        return byQuestion;
     }
 
     /**
