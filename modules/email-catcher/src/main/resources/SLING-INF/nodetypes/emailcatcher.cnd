@@ -34,6 +34,19 @@
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+// The one node anyone may read, whether or not they have signed in: it carries
+// nothing but the servlet that answers whether mail is being caught right now.
+//
+// It lives under /libs/iap rather than beside the messages because /CaughtMail
+// is readable by administrators only -- what was caught is theirs, and a
+// password-reset link is exactly the kind of thing that ends up in it. That the
+// instance is not delivering mail is a different fact, and everybody needs it:
+// somebody waiting for a reset mail is on the sign-in page, with no session and
+// no way to be told otherwise.
+[mail:CatcherStatus] > sling:Folder
+  - sling:resourceType (STRING) = "mail/CatcherStatus" mandatory autocreated protected
+
+//-----------------------------------------------------------------------------
 // Homepage node for the /CaughtMail root path.
 [mail:CaughtMailHomepage] > data:EntityHomepage
   - sling:resourceType (STRING) = "mail/CaughtMailHomepage" mandatory autocreated protected
