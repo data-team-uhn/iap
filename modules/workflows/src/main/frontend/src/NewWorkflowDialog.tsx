@@ -30,9 +30,11 @@ import { createWorkflow } from "./workflowWrites";
 import type { WorkflowHomepage } from "./workflowModel";
 
 interface NewWorkflowDialogProps {
-  // The homepages a workflow may be created in; the first is offered by default, and the picker is
-  // only shown when there is more than one to choose between.
+  // The homepages a workflow may be created in; the picker is only shown when there is more than one
+  // to choose between.
   homepages: WorkflowHomepage[];
+  // Which homepage to default to. If not provided, defaults to the first discovered.
+  preselected?: string;
   onClose: () => void;
   // Called with the new draft version's path once the workflow exists, for the caller to open it.
   onCreated: (versionPath: string) => void;
@@ -44,11 +46,12 @@ interface NewWorkflowDialogProps {
 //
 // There is deliberately no "active" choice here either: a new workflow's first version is a draft,
 // and promoting it is a separate, explicit decision made from the workflow's own page.
-function NewWorkflowDialog({ homepages, onClose, onCreated }: NewWorkflowDialogProps) {
+function NewWorkflowDialog({ homepages, preselected, onClose, onCreated }: NewWorkflowDialogProps) {
   const [ title, setTitle ] = useState("");
   const [ description, setDescription ] = useState("");
   const [ version, setVersion ] = useState("1.0");
-  const [ homepage, setHomepage ] = useState(homepages[0]?.path ?? "");
+  const firstDiscovered = homepages[0]?.path ?? "";
+  const [ homepage, setHomepage ] = useState(preselected ?? firstDiscovered);
   const fetchUtil = useAuthenticatedFetch();
   const { working, failure, run } = useAsyncAction<string>({ onFailure: messageOf, onSuccess: onClose });
 

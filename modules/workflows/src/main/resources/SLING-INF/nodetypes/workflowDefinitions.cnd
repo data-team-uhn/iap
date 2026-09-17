@@ -26,6 +26,10 @@
 //
 // Workflow Homepage Nodes
 //
+// Both of these must be created as a direct child of the repository root.
+// BpmnXmlSyncEditor only operates on workflows located in a root level
+// homepages so a homepage stored deeper would never have it's bpmn.xmls parsed
+//
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------

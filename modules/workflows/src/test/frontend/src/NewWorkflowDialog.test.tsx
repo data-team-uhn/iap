@@ -65,12 +65,17 @@ const stubFailingFetch = () => {
     }) as unknown as Response)));
 };
 
-const renderDialog = (options: { homepages?: typeof homepages } = {}) => {
+const renderDialog = (options: { homepages?: typeof homepages; preselected?: string } = {}) => {
   const onClose = vi.fn();
   const onCreated = vi.fn();
   render(
     <ThemeProvider theme={appTheme} defaultMode="light">
-      <NewWorkflowDialog homepages={options.homepages ?? homepages} onClose={onClose} onCreated={onCreated} />
+      <NewWorkflowDialog
+        homepages={options.homepages ?? homepages}
+        preselected={options.preselected}
+        onClose={onClose}
+        onCreated={onCreated}
+      />
     </ThemeProvider>
   );
   return { onClose, onCreated, dialog: screen.getByRole("dialog", { name: "New workflow" }) };
@@ -134,6 +139,17 @@ describe("NewWorkflowDialog", () => {
     await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Platform behaviour");
     await user.click(within(dialog).getByRole("combobox", { name: "Stored in" }));
     await user.click(await screen.findByRole("option", { name: "System workflows" }));
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls[0][0]).toBe("/SystemWorkflows"));
+  });
+
+  it("offers the homepage it was told is open ahead of the first discovered", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch();
+    const { dialog } = renderDialog({ preselected: "/SystemWorkflows" });
+
+    await user.type(within(dialog).getByRole("textbox", { name: /Title/ }), "Platform behaviour");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(fetchMock.mock.calls[0][0]).toBe("/SystemWorkflows"));

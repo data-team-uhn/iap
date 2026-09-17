@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
 import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.uhndata.iap.workflows.api.EventAttachment;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.WorkflowConflictException;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowException;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.models.WorkflowVersion;
@@ -141,6 +143,21 @@ class SaveDiagramHandlerTest
         final WorkflowConflictException refusal = assertThrows(WorkflowConflictException.class,
             () -> this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, null))));
         assertTrue(refusal.getMessage().contains("this version is in an unrecognized state"));
+    }
+
+    @Test
+    void refusesADiagramForAVersionStoredOutsideAHomepage()
+    {
+        // Everything that lists workflows starts from the homepages that hold them, so a version kept anywhere
+        // else could be given a diagram and then never be found again
+        AuthoringFixture.createVersion(this.context, "1-0", "1.0", WorkflowVersion.State.DRAFT, Map.of());
+        final Resource homepage = this.context.resourceResolver().getResource("/Workflows");
+        assertNotNull(homepage);
+        homepage.adaptTo(ModifiableValueMap.class).remove("childNodeType");
+
+        final WorkflowDefinitionException refusal = assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(this.save("1-0", AuthoringFixture.upload(REPLACEMENT, null))));
+        assertTrue(refusal.getMessage().contains("is not stored in a homepage that holds workflows"));
     }
 
     @Test
