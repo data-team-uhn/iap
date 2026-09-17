@@ -40,4 +40,4 @@ services:
     image: "mongo:8"
 
   keycloak:
-    image: "quay.io/keycloak/keycloak:26.7.3-0"
+    image: "quay.io/keycloak/keycloak:26.7.4-0"
