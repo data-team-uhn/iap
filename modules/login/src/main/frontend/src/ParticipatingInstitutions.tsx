@@ -69,7 +69,7 @@ export default function ParticipatingInstitutions() {
   return (
     <Box sx={{ marginBlockStart: 5 }}>
       <Divider sx={{ marginBlockEnd: 2 }} />
-      <Typography variant="overline" component="h3" color="textSecondary">
+      <Typography variant="overline" component="h3">
         {label}
       </Typography>
       <Box
@@ -90,7 +90,7 @@ export default function ParticipatingInstitutions() {
               : (institution.logoLight ?? institution.logoDark);
             const content = logo
               ? <Box component="img" src={logo} alt={institution.name ?? ""} sx={{ display: "block", maxBlockSize: 32, maxInlineSize: 120 }} />
-              : <Typography variant="caption" color="textSecondary">{institution.name}</Typography>;
+              : <Typography variant="caption">{institution.name}</Typography>;
             return institution.url
               ? <Link key={"institution-" + index} href={institution.url} target="_blank" rel="noopener">{content}</Link>
               : <Box key={"institution-" + index}>{content}</Box>;

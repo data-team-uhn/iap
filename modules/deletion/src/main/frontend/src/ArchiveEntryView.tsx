@@ -164,14 +164,14 @@ export function ArchiveEntryView() {
       {entry && (
         <>
           <Typography variant="h5" component="h1" sx={{ mt: 1 }}>{entry.requestedPath}</Typography>
-          <Typography variant="body2" color="textSecondary" gutterBottom>
+          <Typography variant="description" gutterBottom>
             {`Deleted by ${entry.deletedBy}${entry.created ? ` on ${new Date(entry.created).toLocaleString()}` : ""}`}
           </Typography>
 
           <Typography variant="h6" component="h2" sx={{ mt: 3 }}>
             {`Archived items (${String(entry.itemCount)})`}
           </Typography>
-          <Typography variant="body2" color="textSecondary">
+          <Typography variant="description">
             A restore is all or nothing: every item below has to be placeable before any of them moves.
           </Typography>
           <List dense>

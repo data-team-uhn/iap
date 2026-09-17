@@ -150,6 +150,14 @@ export default defineConfig([
           message: "A `color` prop takes a palette key (\"textSecondary\", \"error\"), not a palette path. "
             + "A path is ignored: write the key, or put the path in `sx={{ color: ... }}`.",
         },
+        // Secondary-coloured text is a named role in the theme, not a colour to restate per call
+        // site (which is how MUI 9's silent colour regression bit the whole app at once).
+        {
+          selector: 'JSXOpeningElement[name.name="Typography"] JSXAttribute[name.name="color"] Literal[value="textSecondary"]',
+          message: "Muted text has named variants: `description` for secondary explanatory prose, "
+            + "`placeholder` where content is missing; `caption` and `overline` are already muted by "
+            + "the theme. For a genuine one-off, use `sx={{ color: \"text.secondary\" }}`.",
+        },
       ],
 
       // Avoid duplicate reports and automatically remove unused imports.

@@ -34,7 +34,7 @@ function AdminDashboard() {
     <AdminScreen>
       <WidgetDashboard
         point="AdminDashboard"
-        empty={<Typography color="textSecondary">No administration tools are available.</Typography>}
+        empty={<Typography variant="placeholder">No administration tools are available.</Typography>}
       />
     </AdminScreen>
   );

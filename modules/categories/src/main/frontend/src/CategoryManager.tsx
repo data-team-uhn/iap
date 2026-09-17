@@ -146,7 +146,7 @@ function CategoryManager() {
       { loadError && <CategoryLoadError message={loadError} onRetry={reload} sx={{ mb: 2 }} /> }
       { !loading && tree.length === 0 && !loadError
         && (
-          <Typography color="textSecondary">
+          <Typography variant="placeholder">
             No categories are defined yet. Use &quot;New category&quot; to create the first one.
           </Typography>
         )}

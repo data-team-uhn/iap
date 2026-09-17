@@ -49,7 +49,7 @@ function CollapsedMethod({ extension }: { extension: Extension }) {
     <Box sx={{ marginBlockStart: 4 }}>
       <Divider sx={{ marginBlockEnd: 2 }} />
       {title && (
-        <Typography variant="overline" component="h3" color="textSecondary">
+        <Typography variant="overline" component="h3">
           {title}
         </Typography>
       )}
