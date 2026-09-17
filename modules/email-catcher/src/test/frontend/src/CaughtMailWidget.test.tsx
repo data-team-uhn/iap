@@ -50,6 +50,13 @@ describe("CaughtMailWidget", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("/CaughtMail.adminSummary.json");
   });
 
+  it("offers the switch, set to what is in force", async () => {
+    vi.stubGlobal("fetch", answering(true, 3));
+    widget();
+
+    expect(await screen.findByRole("switch", { name: "Catch mail instead of sending it" })).toBeChecked();
+  });
+
   it("says mail is being delivered normally, so that an empty list is not read as no mail", async () => {
     // "Off with nothing caught" and "on with nothing caught" look identical in a count and mean
     // opposite things: one is a working instance, the other is a notification that never fired
