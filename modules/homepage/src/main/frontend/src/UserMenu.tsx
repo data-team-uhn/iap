@@ -103,7 +103,7 @@ function UserMenu() {
         <Box sx={{ px: 2, py: 1 }}>
           <Typography variant="subtitle2">{userName}</Typography>
           {fullName && fullName !== userName && (
-            <Typography variant="body2" color="text.secondary">{fullName}</Typography>
+            <Typography variant="description">{fullName}</Typography>
           )}
         </Box>
         <Divider sx={{ mb: 1 }} />

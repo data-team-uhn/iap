@@ -181,7 +181,7 @@ export function ArchiveBrowser() {
   return (
     <AdminScreen title="Archive">
       <LoadingOverlay open={!settled} />
-      <Typography variant="body2" color="text.secondary" gutterBottom>
+      <Typography variant="description" gutterBottom>
         Everything that has been deleted and not yet destroyed. Restoring an entry puts every item it
         holds back where it was deleted from; purging it destroys them.
       </Typography>
@@ -258,7 +258,7 @@ export function ArchiveBrowser() {
             {settled && rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={COLUMNS.length + 1}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="placeholder">
                     {appliedFilter ? "No archived deletions match that filter." : "Nothing has been archived yet."}
                   </Typography>
                 </TableCell>

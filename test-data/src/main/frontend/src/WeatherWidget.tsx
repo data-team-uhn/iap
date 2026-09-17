@@ -30,16 +30,16 @@ function WeatherWidget() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="subtitle1" component="p" color="text.secondary">Toronto</Typography>
+      <Typography variant="subtitle1" component="p" sx={{ color: "text.secondary" }}>Toronto</Typography>
       <Stack direction="row" spacing={2} sx={{ alignItems: "baseline" }}>
         <Typography variant="h3" component="p">21°</Typography>
-        <Typography variant="body1" color="text.secondary">Partly cloudy</Typography>
+        <Typography variant="body1" sx={{ color: "text.secondary" }}>Partly cloudy</Typography>
       </Stack>
       <Divider />
       <Stack direction="row" sx={{ justifyContent: "space-between" }}>
         {stats.map(stat => (
           <Stack key={stat.label} sx={{ alignItems: "center" }}>
-            <Typography variant="caption" color="text.secondary">{stat.label}</Typography>
+            <Typography variant="caption">{stat.label}</Typography>
             <Typography variant="body2">{stat.value}</Typography>
           </Stack>
         ))}

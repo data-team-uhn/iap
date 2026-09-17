@@ -40,7 +40,7 @@ function CaughtMailWidget() {
   // an "Off" with no messages would be a claim rather than an absence of one
   if (status === null) {
     return (
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="placeholder">
         The caught mail is not available to you.
       </Typography>
     );
@@ -55,14 +55,14 @@ function CaughtMailWidget() {
         ]}
       />
       {!status.enabled && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        <Typography variant="description" sx={{ mt: 1 }}>
           {status.total > 0
             ? "Mail is being delivered normally now; these were caught earlier."
             : "Mail is being delivered normally, so nothing new will appear here."}
         </Typography>
       )}
       {status.enabled && status.total === 0 && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        <Typography variant="placeholder" sx={{ mt: 1 }}>
           Nothing has been sent yet.
         </Typography>
       )}
