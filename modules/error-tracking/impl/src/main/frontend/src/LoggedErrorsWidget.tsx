@@ -56,7 +56,7 @@ function LoggedErrorsWidget() {
 
   if (unavailable || counts === null) {
     return (
-      <Typography variant="body2" color="textSecondary">
+      <Typography variant="placeholder">
         The recorded errors are not available to you.
       </Typography>
     );
@@ -76,12 +76,12 @@ function LoggedErrorsWidget() {
         ]}
       />
       {counts.total === 0 && (
-        <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+        <Typography variant="placeholder" sx={{ mt: 1 }}>
           Nothing has been recorded yet.
         </Typography>
       )}
       {counts.total > 0 && counts.needingAttention === 0 && (
-        <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+        <Typography variant="placeholder" sx={{ mt: 1 }}>
           Everything recorded has been dealt with.
         </Typography>
       )}

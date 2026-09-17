@@ -78,18 +78,26 @@ declare module "@mui/material/styles" {
   interface PaletteOptions {
     admin?: PaletteOptions["error"];
   }
-  // The main title of a screen (see `pageTitle` in the typography section below)
+  // The custom text roles of the app (see the typography section below): `pageTitle` is the main
+  // title of a screen, `description` is secondary explanatory prose, and `placeholder` stands in
+  // where content is missing.
   interface TypographyVariants {
     pageTitle: CSSProperties;
+    description: CSSProperties;
+    placeholder: CSSProperties;
   }
   interface TypographyVariantsOptions {
     pageTitle?: CSSProperties;
+    description?: CSSProperties;
+    placeholder?: CSSProperties;
   }
 }
 
 declare module "@mui/material/Typography" {
   interface TypographyPropsVariantOverrides {
     pageTitle: true;
+    description: true;
+    placeholder: true;
   }
 }
 
@@ -105,6 +113,12 @@ declare module "@mui/material/Typography" {
 // (rather than the raw colour) keeps them scheme-aware: the dark scheme's lightened primary
 // applies automatically when the scheme switches.
 const headingColor = "var(--mui-palette-primary-main)";
+
+// The colour of de-emphasized text, referenced through its CSS variable for the same
+// scheme-awareness as the headings above. It is baked into the variants below rather than
+// restated as `color="textSecondary"` at every call site, so "how muted text looks" stays a
+// single theme decision.
+const mutedColor = "var(--mui-palette-text-secondary)";
 
 // A default theme, used only to read MUI's standard typography metrics when deriving the custom
 // variants below, so they don't hardcode (and drift from) the library's values.
@@ -131,6 +145,24 @@ const appTheme = createTheme({
       ...baseTypography.h4,
       fontWeight: baseTypography.fontWeightBold,
       color: headingColor,
+    },
+    // The small-print variants are always de-emphasized in this app — field labels, metadata
+    // lines, eyebrow headings — so the muted colour is part of the variant, not the call sites.
+    caption: { color: mutedColor },
+    overline: { color: mutedColor },
+    // Secondary prose explaining what is on screen: the sentence under a section title, an item's
+    // description, a hint, an attribution line.
+    description: {
+      ...baseTypography.body2,
+      color: mutedColor,
+    },
+    // Muted text standing in where content would be: an empty list ("No reviews yet"), a missing
+    // value ("Not answered yet"), content the user is not allowed to see. Styled like
+    // `description` today, but a separate role on purpose: either can be retuned (say, italic
+    // placeholders) without dragging the other along.
+    placeholder: {
+      ...baseTypography.body2,
+      color: mutedColor,
     },
     // No shouting buttons; set at the typography level (not as a MuiButton override) so
     // anything else using the button type style — e.g. Typography variant="button" labels —
@@ -186,6 +218,8 @@ const appTheme = createTheme({
       defaultProps: {
         variantMapping: {
           pageTitle: "h1",
+          description: "p",
+          placeholder: "p",
         },
       },
     },

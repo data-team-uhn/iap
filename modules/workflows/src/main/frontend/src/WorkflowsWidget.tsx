@@ -56,7 +56,7 @@ function WorkflowsWidget() {
     return <CircularProgress size={24} sx={{ display: "block", mx: "auto", my: 2 }} />;
   }
   if (versions.length === 0) {
-    return <Typography color="textSecondary" variant="body2">No workflows are defined yet.</Typography>;
+    return <Typography variant="placeholder">No workflows are defined yet.</Typography>;
   }
 
   return (

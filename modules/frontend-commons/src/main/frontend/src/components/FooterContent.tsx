@@ -75,7 +75,7 @@ function FooterCredits({ endAnchored = false, sx }: FooterCreditsProps) {
       ]}
     >
       {platformVersion && (
-        <Typography variant="caption" color="textSecondary">{platformVersion}</Typography>
+        <Typography variant="caption">{platformVersion}</Typography>
       )}
       <Link
         href={DATA_TEAM_URL}

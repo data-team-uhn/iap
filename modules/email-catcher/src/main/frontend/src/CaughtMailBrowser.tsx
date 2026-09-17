@@ -51,7 +51,7 @@ function CaughtMailBrowser() {
         />
       )}
     >
-      <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+      <Typography variant="description" sx={{ mb: 2 }}>
         What this instance would have emailed, filed here instead of being delivered. Open a message
         to read it as a recipient would have.
       </Typography>
