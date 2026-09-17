@@ -160,8 +160,8 @@ def deliver(
                 f"Callback for job {job_id} refused with HTTP {refusal.code}"
                 f" (attempt {attempt}/{attempts})"
             )
-        except OSError as failure:
-            # Connection refused, DNS failure, timeout: the caller is not there yet
+        except Exception as failure:
+            # Not only OSError: a ValueError from urlopen must not escape to drain_parses.
             log(f"Callback for job {job_id} failed: {failure} (attempt {attempt}/{attempts})")
         if attempt < attempts:
             time.sleep(retry_delay)

@@ -183,6 +183,26 @@ class TestDeliver:
         assert delivered is False
         assert any("failed:" in line for line in messages)
 
+    def test_an_unexpected_delivery_error_is_a_failed_delivery(self, monkeypatch):
+        messages = []
+
+        def boom(request, timeout=None):
+            raise ValueError("unknown url type")
+
+        monkeypatch.setattr(parse_callbacks._OPENER, "open", boom)
+
+        delivered = parse_callbacks.deliver(
+            "http://127.0.0.1:1/callback",
+            parse_callbacks.failure_payload("86a4c102", "boom"),
+            token="secret-jwt",
+            attempts=1,
+            retry_delay=0,
+            log=messages.append,
+        )
+
+        assert delivered is False
+        assert any("failed:" in line and "unknown url type" in line for line in messages)
+
 
 class TestPayloads:
     """The exact bodies the Java callback endpoint receives."""
