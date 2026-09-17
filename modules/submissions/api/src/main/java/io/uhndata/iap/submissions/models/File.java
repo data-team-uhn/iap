@@ -31,7 +31,7 @@ import io.uhndata.iap.entities.models.EntityPart;
 
 /**
  * A Sling Model wrapping a {@code sub:File} node: a single uploaded file, plus everything the parsing pipeline
- * derived from it — the renditions, the outline and the chunk tree.
+ * derived from it — the Markdown the extraction reads, and the renditions made along the way.
  *
  * @version $Id$
  * @since 0.1.0
@@ -46,9 +46,6 @@ public class File extends EntityPart
     /** The name of the child node holding the upload as it was received. */
     private static final String UPLOADED_FILE_CHILD = "uploadedFile";
 
-    /** The name of the child node holding the chunk tree. */
-    private static final String CHUNKS_CHILD = "chunks";
-
     private static final String FILE_RESOURCE_TYPE = "nt:file";
 
     @ValueMapValue
@@ -59,15 +56,6 @@ public class File extends EntityPart
 
     @ValueMapValue
     private Long tokens;
-
-    @ValueMapValue
-    private boolean chunked;
-
-    @ValueMapValue
-    private String unchunkedReason;
-
-    @ValueMapValue
-    private String[] bookmarks;
 
     /**
      * Where the parse got to: queued, active, completed or failed. Kept here as well as on the parse job so that a
@@ -104,29 +92,6 @@ public class File extends EntityPart
     }
 
     /**
-     * Whether the document was split into chunks. False means it was small enough to work on whole, so there is no
-     * chunk tree.
-     *
-     * @return {@code true} if there is a chunk tree
-     */
-    public boolean isChunked()
-    {
-        return this.chunked;
-    }
-
-    /**
-     * Why no chunks were produced, set only when the document was not chunked, so that a missing chunk tree always
-     * says which it was: a deliberate skip, or a failure.
-     *
-     * @return a reason, or {@code null} if the document was chunked
-     */
-    @Nullable
-    public String getUnchunkedReason()
-    {
-        return this.unchunkedReason;
-    }
-
-    /**
      * The upload, exactly as it was received.
      *
      * @return the uploaded file, or {@code null} if the upload has not landed yet
@@ -153,27 +118,5 @@ public class File extends EntityPart
             }
         }
         return result;
-    }
-
-    /**
-     * The document's outline, as the bookmarks embedded in the source PDF.
-     *
-     * @return a list of bookmark titles, in document order, empty if the source carried no bookmarks
-     */
-    @NotNull
-    public List<String> getBookmarks()
-    {
-        return this.bookmarks == null ? List.of() : List.of(this.bookmarks);
-    }
-
-    /**
-     * The chunk tree.
-     *
-     * @return the chunks, or {@code null} if the document was not chunked
-     */
-    @Nullable
-    public Chunks getChunks()
-    {
-        return this.getChild(CHUNKS_CHILD, Chunks.RESOURCE_TYPE, Chunks.class);
     }
 }

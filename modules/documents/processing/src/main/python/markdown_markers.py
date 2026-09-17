@@ -72,8 +72,8 @@ def defang_page_markers(text: str) -> str:
 
     Only the parser writes real markers. Anything else spelling one came from the document --
     directly, or as ``&lt;!-- page: 9 --&gt;``, which ``html.unescape`` turns into the real
-    thing. A marker decides the ``pageStart`` and ``pageEnd`` recorded for a chunk, so leaving
-    one in would let a submitter choose the citation a reviewer follows back into the proposal.
+    thing. A marker decides the page an extracted answer is cited to, so leaving one in would
+    let a submitter choose the citation a reviewer follows back into the proposal.
     Escaping the opening bracket keeps the text visible and stops it reading as a marker.
 
     @param text: page body text, with the parser's own markers already taken out
@@ -85,8 +85,8 @@ def defang_page_markers(text: str) -> str:
 # A horizontal-rule line ("---", "-----", ...).
 RULE_LINE = re.compile(r"^-{3,}$")
 
-# Deepest heading level kept from Markdown, Docling, and PDF bookmarks. A longer '#' run is
-# not an ATX heading; bookmark nesting past this is walked but not extracted into the TOC.
+# Deepest heading level kept from Markdown and PDF bookmarks. A longer '#' run is not an ATX
+# heading; bookmark nesting past this is walked but not applied to the Markdown.
 MAX_HEADING_LEVEL = 6
 
 # An ATX heading line; group 1 = the '#' run, group 2 = the heading text. ``(?!#)`` rejects a
@@ -94,15 +94,15 @@ MAX_HEADING_LEVEL = 6
 #
 # Keep the tail as ``(\S.*)$``. Writing it ``(.*\S)\s*$`` puts two repetitions next to each
 # other competing for the same spaces, which is quadratic on a line of only '#' and whitespace
-# -- and :func:`chunker._match_atx_heading` feeds this raw document lines.
+# -- and :func:`heading_levels._match_atx_heading` feeds this raw document lines.
 HEADING = re.compile(rf"^(#{{1,{MAX_HEADING_LEVEL}}})(?!#)\s+(\S.*)$")
 
-# Maximum words per accepted heading/TOC entry, and maximum characters per word within it.
+# Maximum words per accepted heading, and maximum characters per word within it.
 # A line breaching either is parsing garbage rather than a real heading.
 MAX_HEADING_WORDS = 10
 MAX_WORD_CHARS = 100
 
-# Minimum characters for a heading extracted from a chunk ('#' markers already stripped).
+# Minimum characters for an accepted heading ('#' markers already stripped).
 MIN_HEADING_CHARS = 5
 
 # Input file types Docling itself can convert (after LibreOffice prep).
@@ -118,17 +118,4 @@ def count_tokens(text: str) -> int:
     @param text: the string to measure
     @return: the estimated token count
     """
-    return count_tokens_for_length(len(text))
-
-
-def count_tokens_for_length(length: int) -> int:
-    """Estimate the token count of a string of ``length`` characters.
-
-    Lets a caller measure a concatenation it has not built yet -- the chunker tests whether the
-    next block still fits before joining it. :func:`count_tokens` is defined in terms of this
-    so the two cannot drift apart.
-
-    @param length: the character count to measure
-    @return: the estimated token count
-    """
-    return length // 4
+    return len(text) // 4
