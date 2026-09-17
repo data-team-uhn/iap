@@ -267,9 +267,23 @@ stay apart — whether an address was visible to the others is usually the point
 looking. Attachments are not stored: what they were is in the headers, and their bytes
 are not what anybody reads a caught message to check.
 
-`/CaughtMail` is readable by `everyone`, so a developer or an integration test can read
-what was sent without being handed a second set of credentials. That is only tolerable
-because of the next paragraph.
+`/CaughtMail` is readable by `iap-administrators` alone. What was caught is whatever the
+platform would have mailed, password-reset links included, so a test reads it with
+administrator credentials.
+
+The one fact anybody may have, signed in or not, is whether mail is being caught at all:
+
+```
+GET /libs/iap/mail-catcher.catching.json
+→ { "catching": true }
+```
+
+It answers on a `mail:CatcherStatus` node that the module's repoinit creates at
+`/libs/iap/mail-catcher`, with an `everyone` read grant of its own rather than the
+blanket one `frontend-commons` gives `/libs/iap`, so narrowing that cannot take this
+away. `/libs` is exempt from `sling.auth.requirements`, so it answers before sign-in,
+where somebody waiting for a password reset is standing. Like the administrators'
+summary below, it reads the service registry rather than the configuration.
 
 **It ships everywhere and is off everywhere until somebody turns it on.** The setting is
 a plain `enabled` boolean that defaults to false, so the bundle publishes no mail service
