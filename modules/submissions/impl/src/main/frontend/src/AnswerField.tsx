@@ -76,6 +76,7 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
 // being answered: following the saved answer, noticing a change, and reporting what the save does.
 function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFieldProps) {
   const [ draft, setDraft ] = useState(question.value);
+  const [ focused, setFocused ] = useState(false);
   // The server is the authority on what the answer is: it re-reads the whole form after every save,
   // and an answer changed elsewhere should appear here. Adjusted while rendering, which is React's
   // own way of following a prop and avoids the extra pass an effect would cost.
@@ -86,7 +87,10 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
   // Joined on a character an answer cannot contain, so that ["a", "b"] and ["a b"] stay distinct.
   const answered = question.value.join("\u0000");
   const [ seen, setSeen ] = useState(answered);
-  if (seen !== answered) {
+  // Held back while this field has focus. Clearing an answer changes the server's value, so without this a
+  // submitter who empties a field and immediately types again has the field blanked mid-word when the re-read
+  // lands. `seen` is left alone too, so the new value is applied on the first render after they leave.
+  if (seen !== answered && !focused) {
     setSeen(answered);
     setDraft(question.value);
   }
@@ -116,7 +120,11 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
   }
 
   return (
-    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+    <Box
+      sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={() => setFocused(false)}
+    >
       {/* Built through createElement rather than as <Answer/>, because which component this is comes
           from the registry and so is only known during the render that uses it. In JSX that is what
           react-hooks/static-components refuses: "Cannot create components during render" */}

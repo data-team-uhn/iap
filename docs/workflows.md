@@ -229,9 +229,10 @@ Three consequences of co-locating worth knowing:
 - **Deleting the submission deletes its workflows.** Usually what you want; it does mean the record of
   what happened has to live somewhere else if it must outlive the submission.
 
-Two things deliberately do *not* live inside the resource. **System workflows** cannot: the bootstrap case
-is "create a submission", whose target is the `SubmissionsHomepage`, and there is no submission to live
-inside yet — which is the main reason to doubt they should persist an instance at all. And an **audit
+Two things deliberately do *not* live inside the resource. **A system workflow whose target is a homepage**
+cannot: the bootstrap case is "create a submission", whose target is the `SubmissionsHomepage`, and there is
+no submission to live inside yet — which is the main reason to doubt those should persist an instance at
+all. A system workflow targeting an entity, as `saveAnswers` does, has no such problem. And an **audit
 trail**, if one is needed, wants to survive deletion and restore, so it would be its own tree rather than
 a child.
 
@@ -272,9 +273,9 @@ one: it describes something the platform does on its own behalf, like turning "s
 ```
 HTTP POST /Workflows ──▶ WorkflowEventServlet ──▶ WorkflowEngine.receiveEvent(target, event)
                           (a deliberately dumb        │  find the one system workflow whose message
-                           translator: builds a       │  start event catches this event on this target
-                           `create` event from        │  walk it: start ─ service tasks ─ end
-                           the POST parameters)       ▼  one commit at the end
+                           translator: builds the     │  start event catches this event on this target
+                           event the target's type    │  walk it: start ─ service tasks ─ end
+                           names, from the POST)      ▼  one commit at the end
                                               302 Location: /Workflows/<created>
 ```
 
@@ -362,6 +363,11 @@ Because it is content, not code, a deployment can change what happens when a wor
 a validation step, a notification — by editing this definition rather than the platform. That is the
 point of doing it this way, and it is why the definition ships `active` and editable rather than being
 hardwired into the servlet.
+
+A third ships beside them, and it is the one that shows the pattern is not only for bootstrapping:
+`/SystemWorkflows/saveAnswers` targets `sub/Submission` itself rather than a homepage, so filling a request
+in is a workflow event like any other. What a save is allowed to do — whose request it is, and whether it is
+still a draft — is decided by its handler rather than by the servlet that received the POST.
 
 `/Submissions` works the same way, and shows the intended division of labor: the bootstrap definition
 `/SystemWorkflows/createSubmission` and its `createSubmission` handler ship with the *submissions* module,

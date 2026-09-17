@@ -40,7 +40,14 @@ function DateAnswer({ question, values, disabled, onChange, onAnswered }: Answer
       slotProps={{ inputLabel: { shrink: true } }}
       helperText={question.description}
       onChange={event => onChange([ event.target.value ])}
-      onBlur={event => onAnswered([ event.target.value ].filter(Boolean))}
+      // An empty value now means "clear this answer", so a value the browser cannot parse must not
+      // reach it: a half-typed entry reports value === "" and would destroy what is stored. badInput
+      // is how the input tells the two apart.
+      onBlur={event => {
+        if (!event.target.validity.badInput) {
+          onAnswered([ event.target.value ].filter(Boolean));
+        }
+      }}
     />
   );
 }

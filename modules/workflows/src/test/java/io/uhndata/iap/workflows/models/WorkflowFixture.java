@@ -17,12 +17,20 @@
  */
 package io.uhndata.iap.workflows.models;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
+import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
@@ -31,6 +39,7 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.Entity;
 import io.uhndata.iap.entities.models.EntityHomepage;
 import io.uhndata.iap.entities.models.EntityPart;
+import io.uhndata.iap.tags.models.Taggable;
 
 /**
  * Shared setup for the workflow model tests: the models under test, and the {@code /libs/wf} resource type
@@ -124,5 +133,51 @@ public final class WorkflowFixture
     private static void registerType(final SlingContext context, final String name, final String superType)
     {
         context.create().resource("/libs/wf/" + name, Map.of(SUPER_TYPE, superType));
+    }
+
+    /**
+     * Registers the {@code Taggable} view, so a host adapts to it the way it does with the tags bundle
+     * installed. The engine places a host's lifecycle tag when a workflow finishes, so without this every run
+     * that reaches an end event carrying a {@code hostTag} fails on the absent tags service.
+     *
+     * <p>Records into the resource's own {@code tags} property, which is where the service writes for real, so
+     * a test can read back what a workflow placed.</p>
+     *
+     * @param context the mock context whose resources become taggable
+     */
+    public static void enableTagging(final SlingContext context)
+    {
+        context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
+            final Taggable taggable = Mockito.mock(Taggable.class);
+            try {
+                stubTagging(taggable, resource);
+            } catch (final PersistenceException e) {
+                // Stubbing never reaches the real method, so this cannot happen; the signature says otherwise
+                throw new IllegalStateException(e);
+            }
+            return taggable;
+        });
+    }
+
+    /**
+     * Teaches a mocked {@code Taggable} to place and report tags on the resource's own property.
+     *
+     * @param taggable the mock to stub
+     * @param resource the resource it stands for
+     * @throws PersistenceException never; {@code tag} declares it and stubbing names the method
+     */
+    private static void stubTagging(final Taggable taggable, final Resource resource) throws PersistenceException
+    {
+        Mockito.when(taggable.tag(Mockito.anyString())).thenAnswer(invocation -> {
+            final ModifiableValueMap properties =
+                Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class));
+            final Set<String> names = new LinkedHashSet<>(
+                List.of(properties.get("tags", new String[0])));
+            final boolean added = names.add(invocation.getArgument(0));
+            properties.put("tags", names.toArray(new String[0]));
+            return added;
+        });
+        Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
+            List.of(resource.getValueMap().get("tags", new String[0])).contains(invocation.getArgument(0)));
     }
 }

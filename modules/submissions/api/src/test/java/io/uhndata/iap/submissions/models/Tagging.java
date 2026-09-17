@@ -17,9 +17,14 @@
  */
 package io.uhndata.iap.submissions.models;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import org.apache.sling.api.resource.ModifiableValueMap;
+import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.mockito.Mockito;
@@ -51,11 +56,39 @@ public final class Tagging
     public static void enable(final SlingContext context)
     {
         context.registerAdapter(Resource.class, Taggable.class, (Function<Resource, Taggable>) resource -> {
-            final Set<String> own = Set.of(resource.getValueMap().get("tags", new String[0]));
             final Taggable taggable = Mockito.mock(Taggable.class);
-            Mockito.when(taggable.hasOwnTag(Mockito.anyString()))
-                .thenAnswer(invocation -> own.contains(invocation.getArgument(0)));
+            try {
+                stub(taggable, resource);
+            } catch (final PersistenceException e) {
+                // Stubbing names the method rather than calling it, so this cannot happen
+                throw new IllegalStateException(e);
+            }
             return taggable;
+        });
+    }
+
+    /**
+     * Teaches the mock to answer from, and write to, the resource's own {@code tags} property.
+     *
+     * <p>Placing is stubbed as well as reading, because the creation handler places a submission's {@code draft}
+     * tag: without it, raising a submission fails on the absent tags service rather than on anything the test
+     * is about.</p>
+     *
+     * @param taggable the mock standing in for the view
+     * @param resource the resource it stands for
+     * @throws PersistenceException never; {@code tag} declares it and this only names the method
+     */
+    private static void stub(final Taggable taggable, final Resource resource) throws PersistenceException
+    {
+        Mockito.when(taggable.hasOwnTag(Mockito.anyString())).thenAnswer(invocation ->
+            Set.of(resource.getValueMap().get("tags", new String[0])).contains(invocation.getArgument(0)));
+        Mockito.when(taggable.tag(Mockito.anyString())).thenAnswer(invocation -> {
+            final ModifiableValueMap properties =
+                Objects.requireNonNull(resource.adaptTo(ModifiableValueMap.class));
+            final Set<String> names = new LinkedHashSet<>(List.of(properties.get("tags", new String[0])));
+            final boolean added = names.add(invocation.getArgument(0));
+            properties.put("tags", names.toArray(new String[0]));
+            return added;
         });
     }
 }

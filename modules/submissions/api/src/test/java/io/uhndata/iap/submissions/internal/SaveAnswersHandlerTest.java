@@ -20,6 +20,7 @@ package io.uhndata.iap.submissions.internal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
@@ -46,12 +47,15 @@ import io.uhndata.iap.schemas.models.Schema;
 import io.uhndata.iap.schemas.models.SchemaVersion;
 import io.uhndata.iap.submissions.models.Answer;
 import io.uhndata.iap.submissions.models.Submission;
+import io.uhndata.iap.submissions.models.Tagging;
 import io.uhndata.iap.workflows.api.InvalidPayloadException;
 import io.uhndata.iap.workflows.api.NotAuthorizedException;
+import io.uhndata.iap.workflows.api.WorkflowDefinitionException;
 import io.uhndata.iap.workflows.api.WorkflowEvent;
 import io.uhndata.iap.workflows.models.Activity;
 import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -331,6 +335,76 @@ class SaveAnswersHandlerTest
         } catch (final PersistenceException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // Adaptation is not a type filter -- a model registered for one type adapts a resource of another -- so a
+    // definition pointed at the wrong target has to be refused on the resource, not on what it adapts to
+    @Test
+    void refusesATargetThatIsNotASubmission() throws Exception
+    {
+        // The fixture's target is a submission, so point this one somewhere else of a different type
+        this.target = this.context.create().resource("/Submissions/notOne", TYPE, "sub/Something");
+
+        assertThrows(WorkflowDefinitionException.class,
+            () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
+    }
+
+    // A payload key is a path, and an absolute one ignores the version it is meant to be relative to. Without a
+    // containment check an answer could name a question of a schema the submitter cannot even read.
+    @Test
+    void refusesAQuestionOutsideThisSchemaVersion()
+    {
+        this.context.create().resource("/Schemas/other/v1", Map.of(
+            TYPE, SchemaVersion.RESOURCE_TYPE, "version", "1.0", "active", true));
+        this.context.create().resource("/Schemas/other/v1/secret", Map.of(
+            TYPE, Question.RESOURCE_TYPE, "text", "Not yours", "dataType", "text"));
+
+        assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(context(Map.of("/Schemas/other/v1/secret", "peek"))));
+    }
+
+    @Test
+    void refusesAPayloadValueThatIsNotText()
+    {
+        // The payload is a Map<String, Object> and public API, so what arrives is checked rather than coerced:
+        // String.valueOf would store a List as the single literal answer "[a, b]"
+        assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(context(Map.of(START_DATE, List.of("a", "b")))));
+    }
+
+    @Test
+    void writesNothingWhenClearingAQuestionNobodyAnswered()
+    {
+        assertDoesNotThrow(() -> this.handler.execute(context(Map.of(START_DATE, ""))));
+
+        // An answer storing nothing would still count towards what the submission reports, and would hold its
+        // question against deletion for ever
+        assertTrue(submission().getAnswers().isEmpty());
+    }
+
+    // The clear sentinel is one empty value, not "any blank anywhere": a question may legitimately offer an
+    // empty-string option, and a multi-valued answer may legitimately carry one
+    @Test
+    void storesABlankThatIsNotTheClearSentinel() throws Exception
+    {
+        this.handler.execute(context(Map.of(START_DATE, new String[] {"a", "", "c"})));
+
+        stampAnswers();
+        assertEquals(List.of("a", "", "c"), List.of(onlyAnswer().getValueMap().get(VALUE, new String[0])));
+    }
+
+    // Mandatory in the CND is a rule about the content, not a promise to every reader: a reference whose
+    // target has gone resolves to nothing, which is a payload the handler has to refuse rather than fail on
+    @Test
+    void refusesWhenTheSchemaVersionReferenceDangles() throws Exception
+    {
+        Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH))
+            .adaptTo(ModifiableValueMap.class)
+            .put("schemaVersion", "00000000-dead-0000-0000-000000000000");
+        this.context.resourceResolver().commit();
+
+        assertThrows(InvalidPayloadException.class,
+            () -> this.handler.execute(context(Map.of(START_DATE, "2026-10-06"))));
     }
 
     private WorkflowTaskContext context(final Map<String, Object> payload)

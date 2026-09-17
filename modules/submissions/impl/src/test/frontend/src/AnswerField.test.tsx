@@ -158,6 +158,14 @@ describe("AnswerField", () => {
     rerender(<AnswerField question={question({ dataType: "text", value: [] })} state="saved" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveValue("half day");
 
+    // Still held while the field has focus. A save that lands mid-word must not take the word away,
+    // which is reachable now that clearing an answer changes the stored value.
+    rerender(
+      <AnswerField question={question({ dataType: "text", value: [ "full day" ] })} state="saved" onAnswered={vi.fn()} />);
+    expect(screen.getByLabelText(/Which day/)).toHaveValue("half day");
+
+    // Adopted as soon as they leave it
+    await userEvent.tab();
     rerender(
       <AnswerField question={question({ dataType: "text", value: [ "full day" ] })} state="saved" onAnswered={vi.fn()} />);
     expect(screen.getByLabelText(/Which day/)).toHaveValue("full day");
