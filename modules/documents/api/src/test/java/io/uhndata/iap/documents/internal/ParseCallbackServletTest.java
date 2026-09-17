@@ -63,10 +63,10 @@ class ParseCallbackServletTest
 
     private static final String GOOD_AUTHORIZATION = "Bearer " + TOKEN;
 
-    /** What the daemon POSTs after a successful chunked parse. */
+    /** What the daemon POSTs after a successful parse. */
     private static final String SUCCESS_BODY = "{\"job_id\": \"" + JOB_ID + "\", \"ok\": true,"
-        + " \"markdown_path\": \"/shared-docs/proposal.md\", \"chunked\": true,"
-        + " \"chunks_dir\": \"/shared-docs/Chunks\", \"filename\": \"proposal.pdf\"}";
+        + " \"markdown_path\": \"/shared-docs/proposal.md\", \"tokens\": 12000,"
+        + " \"filename\": \"proposal.pdf\"}";
 
     private final SlingContext context = new SlingContext();
 
@@ -92,23 +92,9 @@ class ParseCallbackServletTest
         assertEquals(ParseJob.STATUS_COMPLETED, answer.getString("status"));
         final ValueMap properties = jobProperties();
         assertEquals(ParseJob.STATUS_COMPLETED, properties.get(ParseJob.PN_STATUS, String.class));
-        assertArrayEquals(new String[] { "/shared-docs/proposal.md", "/shared-docs/Chunks" },
+        assertArrayEquals(new String[] { "/shared-docs/proposal.md" },
             properties.get(ParseJob.PN_OUTPUTS, String[].class));
         assertNotNull(properties.get(ParseJob.PN_FINISHED));
-    }
-
-    @Test
-    void unchunkedOutcomeRecordsOnlyTheMarkdown() throws Exception
-    {
-        jobNode();
-
-        final MockSlingJakartaHttpServletResponse response = post(GOOD_AUTHORIZATION,
-            "{\"job_id\": \"" + JOB_ID + "\", \"ok\": true,"
-                + " \"markdown_path\": \"/shared-docs/proposal.md\", \"chunked\": false, \"chunks_dir\": null}");
-
-        assertEquals(200, response.getStatus());
-        assertArrayEquals(new String[] { "/shared-docs/proposal.md" },
-            jobProperties().get(ParseJob.PN_OUTPUTS, String[].class));
     }
 
     @Test
@@ -369,8 +355,7 @@ class ParseCallbackServletTest
         this.context.create().resource(ParseJob.nodePath(JOB_ID),
             ParseJob.PN_JOB_ID, JOB_ID,
             ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED,
-            ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
-            ParseJob.PN_CHUNK, Boolean.TRUE);
+            ParseJob.PN_PATH, "/shared-docs/proposal.pdf");
     }
 
     private ValueMap jobProperties()

@@ -73,7 +73,7 @@ class ParseJobConsumerTest
 
     /** What an older daemon answers when it ignores job_id and runs synchronously. */
     private static final String SYNC_SUCCESS_BODY = "{\"ok\": true,"
-        + " \"markdown_path\": \"/shared-docs/proposal.md\", \"chunked\": false, \"chunks_dir\": null}";
+        + " \"markdown_path\": \"/shared-docs/proposal.md\", \"tokens\": 12000}";
 
     private final SlingContext context = new SlingContext();
 
@@ -102,7 +102,7 @@ class ParseJobConsumerTest
     @Test
     void acceptedDispatchLeavesTheJobActive()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -112,7 +112,7 @@ class ParseJobConsumerTest
         assertNotNull(properties.get(ParseJob.PN_STARTED, Calendar.class));
         assertNull(properties.get(ParseJob.PN_FINISHED, Calendar.class));
         // No callback parameter: the daemon knows on its own where to POST the outcome
-        assertEquals("http://localhost:18765/parse?path=%2Fshared-docs%2Fproposal.pdf&chunk=true"
+        assertEquals("http://localhost:18765/parse?path=%2Fshared-docs%2Fproposal.pdf"
             + "&job_id=" + JOB_ID,
             this.sentRequest.uri().toString());
         assertEquals(Duration.ofSeconds(30), this.sentRequest.timeout().orElseThrow());
@@ -154,19 +154,18 @@ class ParseJobConsumerTest
     @Test
     void plainOkDispatchIsAcceptedToo()
     {
-        jobNode(Boolean.FALSE);
+        jobNode();
         daemonAnswers(200, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
 
         assertEquals(ParseJob.STATUS_ACTIVE, jobProperties().get(ParseJob.PN_STATUS, String.class));
-        assertTrue(this.sentRequest.uri().toString().contains("&chunk=false&"));
     }
 
     @Test
     void synchronousSuccessBodyFailsTheJob()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(200, SYNC_SUCCESS_BODY);
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -181,7 +180,7 @@ class ParseJobConsumerTest
     @Test
     void acceptBodyForAnotherJobIsRefused()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, "{\"job_id\": \"00000000-0000-0000-0000-000000000000\", \"status\": \"queued\"}");
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -193,7 +192,7 @@ class ParseJobConsumerTest
     @Test
     void emptyAcceptBodyFailsTheJob()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, "");
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -206,7 +205,7 @@ class ParseJobConsumerTest
     @Test
     void nonJsonAcceptBodyFailsTheJob()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(200, "queued, thanks");
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -221,7 +220,7 @@ class ParseJobConsumerTest
         final ParseJobConsumer unconfigured = consumerWithEnvironment(null, null);
         inject(unconfigured, new TestResolverFactory(this.context.resourceResolver()));
         unconfigured.activate(Map.of());
-        jobNode(Boolean.TRUE);
+        jobNode();
 
         assertEquals(JobResult.CANCEL, unconfigured.process(this.job));
 
@@ -237,7 +236,7 @@ class ParseJobConsumerTest
         final ParseJobConsumer fromEnvironment = consumerWithEnvironment("  " + TOKEN + "  ", null);
         inject(fromEnvironment, new TestResolverFactory(this.context.resourceResolver()));
         fromEnvironment.activate(Map.of());
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, fromEnvironment.process(this.job));
@@ -249,7 +248,7 @@ class ParseJobConsumerTest
     @Test
     void refusedDispatchMarksTheJobFailed()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(400, "{\"error\": \"path must be under /shared-docs\"}");
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -264,7 +263,7 @@ class ParseJobConsumerTest
     @Test
     void nonJsonRefusalIsExcerpted()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(500, "x".repeat(250));
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -278,7 +277,7 @@ class ParseJobConsumerTest
     @Test
     void jsonRefusalWithoutAMessageKeepsTheBody()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(502, "{\"status\": \"broken\"}");
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -289,7 +288,7 @@ class ParseJobConsumerTest
     @Test
     void emptyRefusalIsStillRecorded()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(503, "");
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -301,7 +300,7 @@ class ParseJobConsumerTest
     @Test
     void unreachableDaemonMarksTheJobFailed()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         this.sendFailure = new IOException("Connection refused");
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -314,7 +313,7 @@ class ParseJobConsumerTest
     @Test
     void interruptedDispatchMarksTheJobFailed() throws Exception
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         final ParseJobConsumer interrupted = new ParseJobConsumer()
         {
             @Override
@@ -365,7 +364,7 @@ class ParseJobConsumerTest
     @Test
     void missingServiceUserCancelsTheJob() throws Exception
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         inject(this.consumer, new TestResolverFactory(null));
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -376,7 +375,7 @@ class ParseJobConsumerTest
     @Test
     void serviceUserVanishingAfterTheDispatchLosesOnlyTheRecord() throws Exception
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(400, "{\"error\": \"boom\"}");
         inject(this.consumer, failAfterFirstOpen());
 
@@ -389,7 +388,7 @@ class ParseJobConsumerTest
     @Test
     void vanishedJobNodeCannotRecordTheFailure() throws Exception
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(400, "{\"error\": \"boom\"}");
         inject(this.consumer, secondOpenFindsNothing());
 
@@ -401,7 +400,7 @@ class ParseJobConsumerTest
     @Test
     void unmodifiableJobNodeCancelsTheJob() throws Exception
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         inject(this.consumer, new TestResolverFactory(unmodifiableNodes()));
 
         assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
@@ -413,7 +412,7 @@ class ParseJobConsumerTest
     void honoursTheConfiguredUrlAndTimeout()
     {
         activate(this.consumer, Map.of("daemonUrl", "http://docling:9999/", "responseTimeout", "5"));
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -426,7 +425,7 @@ class ParseJobConsumerTest
     @Test
     void noAuthorizationHeaderWhenTheDaemonNeedsNoToken()
     {
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -438,7 +437,7 @@ class ParseJobConsumerTest
     void configuredDaemonTokenIsSentAsAnAuthorizationHeader()
     {
         activate(this.consumer, Map.of(ParseJob.DAEMON_TOKEN_PROPERTY, "daemon-secret"));
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -452,7 +451,7 @@ class ParseJobConsumerTest
         final ParseJobConsumer envConsumer = consumerWithEnvironment(null, "env-daemon-secret");
         inject(envConsumer, new TestResolverFactory(this.context.resourceResolver()));
         activate(envConsumer);
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, envConsumer.process(this.job));
@@ -464,7 +463,7 @@ class ParseJobConsumerTest
     void theCallbackDestinationIsNeverSentToTheDaemon()
     {
         activate(this.consumer, Map.of("callbackUrl", "http://attacker.example/steal"));
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -477,7 +476,7 @@ class ParseJobConsumerTest
     void nonsenseConfigurationFallsBackToTheDefaults()
     {
         activate(this.consumer, Map.of("daemonUrl", "", "responseTimeout", "soon"));
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -490,7 +489,7 @@ class ParseJobConsumerTest
     void nonPositiveTimeoutFallsBackToTheDefault()
     {
         activate(this.consumer, Map.of("responseTimeout", "-5"));
-        jobNode(Boolean.TRUE);
+        jobNode();
         daemonAnswers(202, ACCEPTED_BODY);
 
         assertEquals(JobResult.OK, this.consumer.process(this.job));
@@ -516,7 +515,7 @@ class ParseJobConsumerTest
             final ParseJobConsumer real = new ParseJobConsumer();
             inject(real, new TestResolverFactory(this.context.resourceResolver()));
             activate(real, Map.of("daemonUrl", "http://127.0.0.1:" + daemon.getAddress().getPort()));
-            jobNode(Boolean.TRUE);
+            jobNode();
 
             assertEquals(JobResult.OK, real.process(this.job));
 
@@ -581,13 +580,12 @@ class ParseJobConsumerTest
         reference.set(target, factory);
     }
 
-    private void jobNode(final Boolean chunk)
+    private void jobNode()
     {
         this.context.create().resource(ParseJob.nodePath(JOB_ID),
             ParseJob.PN_JOB_ID, JOB_ID,
             ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED,
-            ParseJob.PN_PATH, DOCUMENT,
-            ParseJob.PN_CHUNK, chunk);
+            ParseJob.PN_PATH, DOCUMENT);
     }
 
     private ValueMap jobProperties()

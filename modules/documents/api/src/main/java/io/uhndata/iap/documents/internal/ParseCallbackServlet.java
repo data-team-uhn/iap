@@ -20,9 +20,7 @@ package io.uhndata.iap.documents.internal;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.List;
 import java.util.Map;
 
 import jakarta.json.Json;
@@ -51,8 +49,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Receives parse outcomes from the Docling daemon, at {@code /system/documents/parseCallback}. The daemon POSTs the
- * body it promised when {@link ParseJobConsumer} dispatched the job — {@code {"job_id", "ok": true, "markdown_path",
- * "chunked", "chunks_dir", ...}}, or {@code {"job_id", "ok": false, "error"}} — and this endpoint records the outcome
+ * body it promised when {@link ParseJobConsumer} dispatched the job — {@code {"job_id", "ok": true,
+ * "markdown_path", ...}}, or {@code {"job_id", "ok": false, "error"}} — and this endpoint records the outcome
  * on the job node, completing the lifecycle the dispatch left at {@code active}.
  *
  * <p>
@@ -167,13 +165,7 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             final String status;
             if (outcome.getBoolean("ok", false)) {
                 status = ParseJob.STATUS_COMPLETED;
-                final List<String> outputs = new ArrayList<>();
-                outputs.add(markdown);
-                final String chunks = outcome.getString("chunks_dir", null);
-                if (chunks != null) {
-                    outputs.add(chunks);
-                }
-                properties.put(ParseJob.PN_OUTPUTS, outputs.toArray(new String[0]));
+                properties.put(ParseJob.PN_OUTPUTS, new String[] { markdown });
                 properties.remove(ParseJob.PN_ERROR);
             } else {
                 status = ParseJob.STATUS_FAILED;

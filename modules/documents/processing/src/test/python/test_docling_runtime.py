@@ -1006,7 +1006,7 @@ class TestAsyncParseAcceptance:
 
         with pytest.raises(daemon.ParseRequestError, match="byte limit"):
             daemon.DoclingDaemonHandler._accept_async_parse(
-                _FakeHandler(b""), "86a4c102", Path("doc.pdf"), True, {})
+                _FakeHandler(b""), "86a4c102", Path("doc.pdf"))
 
         # Refused before it ever became a background job, unlike a failure the daemon itself
         # discovers only once it starts converting

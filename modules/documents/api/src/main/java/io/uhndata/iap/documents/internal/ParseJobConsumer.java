@@ -53,7 +53,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Dispatches a queued document parse to the Docling daemon, without waiting for the conversion itself. The daemon is
- * asked asynchronously — {@code POST /parse?path=&chunk=&job_id=} — and answers "queued" right away, so no thread
+ * asked asynchronously — {@code POST /parse?path=&job_id=} — and answers "queued" right away, so no thread
  * sits on an open connection for the minutes a conversion takes; when the daemon finishes, it POSTs the outcome to
  * {@link ParseCallbackServlet}, which records it on the job node. This consumer only walks the node from
  * {@code queued} to {@code active}: the callback endpoint takes it from there.
@@ -203,7 +203,6 @@ public class ParseJobConsumer implements JobConsumer
     private JobResult claim(final String jobId)
     {
         final String path;
-        final boolean chunk;
         try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
             final Resource jobNode = resolver.getResource(ParseJob.nodePath(jobId));
             if (jobNode == null) {
@@ -220,7 +219,6 @@ public class ParseJobConsumer implements JobConsumer
                 return JobResult.CANCEL;
             }
             path = properties.get(ParseJob.PN_PATH, String.class);
-            chunk = properties.get(ParseJob.PN_CHUNK, Boolean.TRUE);
             update(jobNode, resolver, editable -> {
                 editable.put(ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE);
                 editable.put(ParseJob.PN_STARTED, Calendar.getInstance());
@@ -229,7 +227,7 @@ public class ParseJobConsumer implements JobConsumer
             LOGGER.error("Cannot mark parse job {} as active: {}", jobId, e.getMessage(), e);
             return JobResult.CANCEL;
         }
-        return dispatchIfUsable(jobId, path, chunk);
+        return dispatchIfUsable(jobId, path);
     }
 
     /**
@@ -238,10 +236,9 @@ public class ParseJobConsumer implements JobConsumer
      *
      * @param jobId the identifier of the job being processed
      * @param path the path the job node records, may be {@code null} when it holds none
-     * @param chunk whether the document should also be chunked
      * @return {@link JobResult#OK} when the daemon accepted the parse, {@link JobResult#CANCEL} otherwise
      */
-    private JobResult dispatchIfUsable(final String jobId, final String path, final boolean chunk)
+    private JobResult dispatchIfUsable(final String jobId, final String path)
     {
         if (path == null || path.isBlank()) {
             fail(jobId, "The job records no document path");
@@ -251,7 +248,7 @@ public class ParseJobConsumer implements JobConsumer
             fail(jobId, "Authorization is not configured");
             return JobResult.CANCEL;
         }
-        return dispatch(jobId, path, chunk);
+        return dispatch(jobId, path);
     }
 
     /**
@@ -259,13 +256,12 @@ public class ParseJobConsumer implements JobConsumer
      *
      * @param jobId the identifier of the job being processed
      * @param path the path of the document to parse, as seen by the daemon
-     * @param chunk whether the document should also be chunked
      * @return {@link JobResult#OK} when the daemon accepted the parse, {@link JobResult#CANCEL} otherwise
      */
-    private JobResult dispatch(final String jobId, final String path, final boolean chunk)
+    private JobResult dispatch(final String jobId, final String path)
     {
         try {
-            final HttpResponse<String> response = send(buildRequest(jobId, path, chunk));
+            final HttpResponse<String> response = send(buildRequest(jobId, path));
             final int status = response.statusCode();
             if ((status == 200 || status == 202) && isAsyncAccept(jobId, response.body())) {
                 LOGGER.debug("Parse job {} accepted by the daemon", jobId);
@@ -290,16 +286,14 @@ public class ParseJobConsumer implements JobConsumer
      *
      * @param jobId the identifier of the job, echoed back by the daemon's callback
      * @param path the path of the document to parse, as seen by the daemon
-     * @param chunk whether the document should also be chunked
      * @return the request to send
      */
-    private HttpRequest buildRequest(final String jobId, final String path, final boolean chunk)
+    private HttpRequest buildRequest(final String jobId, final String path)
     {
         // No callback parameter: the daemon POSTs outcomes to the URL in its own configuration. Sending one would
         // mean anyone able to reach the daemon's unauthenticated port could name the destination and be handed the
         // shared token with it.
         final String url = this.daemonUrl + "/parse?path=" + URLEncoder.encode(path, StandardCharsets.UTF_8)
-            + "&chunk=" + chunk
             + "&job_id=" + URLEncoder.encode(jobId, StandardCharsets.UTF_8);
         if (this.daemonAuthorization == null) {
             return HttpRequest.newBuilder(URI.create(url))

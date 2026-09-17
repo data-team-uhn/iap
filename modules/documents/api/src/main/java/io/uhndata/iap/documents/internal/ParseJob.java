@@ -75,9 +75,6 @@ final class ParseJob
     /** The name of the property holding the path of the document to parse, as seen by the daemon. */
     static final String PN_PATH = "path";
 
-    /** The name of the property holding whether the document should also be chunked. */
-    static final String PN_CHUNK = "chunk";
-
     /** The name of the property holding the moment the job was created. */
     static final String PN_CREATED = "created";
 
