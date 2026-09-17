@@ -1,0 +1,8 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "iap/coreUI/frameTop",
+  "ext:name": "Mail catching warning",
+  "ext:renderURL": "asset:iap-email-catcher.CatchingBanner.js",
+  "ext:visibleBeforeLogin": true,
+  "defaultOrder": 10
+}
