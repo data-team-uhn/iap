@@ -191,8 +191,6 @@ class TestPayloads:
         summary = {
             "ok": True,
             "markdown_path": "/shared-docs/a.md",
-            "chunked": True,
-            "chunks_dir": "/shared-docs/Chunks",
             "logs": "page 1... page 2...",
             "filename": "a.pdf",
         }
@@ -201,7 +199,8 @@ class TestPayloads:
 
         assert payload["job_id"] == "86a4c102"
         assert payload["ok"] is True
-        assert payload["chunks_dir"] == "/shared-docs/Chunks"
+        assert payload["markdown_path"] == "/shared-docs/a.md"
+        assert payload["filename"] == "a.pdf"
         assert "logs" not in payload
         # The original summary is not mutated
         assert "logs" in summary

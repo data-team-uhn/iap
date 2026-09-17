@@ -84,14 +84,15 @@ def callback_url() -> str | None:
 def success_payload(job_id: str, summary: dict[str, Any]) -> dict[str, Any]:
     """The callback body for a finished parse.
 
-    The conversion summary is passed through minus ``logs``: the per-batch diagnostics are
-    already echoed to the container log, and can be arbitrarily large.
+    The conversion summary is passed through minus ``logs``: those diagnostics are already
+    echoed to the container log, and the Java side records only the Markdown path.
 
     @param job_id: the caller's job identifier, echoed back verbatim
     @param summary: what ``parse_document`` returned
     @return: the JSON-serializable callback body
     """
-    payload = {key: value for key, value in summary.items() if key != "logs"}
+    skip = {"logs"}
+    payload = {key: value for key, value in summary.items() if key not in skip}
     payload["job_id"] = job_id
     return payload
 
