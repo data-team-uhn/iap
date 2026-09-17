@@ -44,8 +44,8 @@ describe("WidgetStatList", () => {
   });
 
   it("leaves the number open for a count that could not be read, rather than claiming none", () => {
-    // A count of none and a count nobody could take are opposite answers, and a widget that showed
-    // "0" for the second would be making a claim the server never made
+    // A count of none and a count nobody could take are opposite answers; "0" for the second claims
+    // something the server never said
     list([{ label: "Workflows", unknownTitle: "The workflows here could not be counted" }]);
 
     const value = screen.getByText("?");
@@ -60,10 +60,9 @@ describe("WidgetStatList", () => {
   });
 
   it("colours an emphasised count as a problem only while something is outstanding", () => {
-    // A widget that is permanently red stops being read, so the colour has to mean something. The
-    // theme's colours are not resolved under jsdom, so this compares how the three cases are
-    // styled rather than what they come out as: emphasised-and-outstanding has to differ from both
-    // an emphasised zero and an ordinary count, and those two have to agree with each other.
+    // jsdom does not resolve the theme's colours, so the three cases are compared against each
+    // other rather than against a colour. Emphasised-and-outstanding differs from both an
+    // emphasised zero and an ordinary count; those two agree.
     const outstanding = list([{ label: "Needing attention", value: 3, emphasis: true }]);
     const emphasised = screen.getByText("3").className;
     outstanding.unmount();
@@ -131,8 +130,8 @@ describe("WidgetStatList", () => {
   });
 
   it("describes each value by the label it belongs to", () => {
-    // A term and its description, written in that order, so the value can be found from its label
-    // rather than from where it sits - and so the page is read as "archived in total, 218"
+    // Written label first, displayed value first: the reading order is what a screen reader follows,
+    // and it is the opposite of the visual one
     list([
       { label: "Archived in total", value: 218 },
       { label: "Catching mail", mode: "boolean", value: true },
