@@ -32,7 +32,6 @@ from http import HTTPStatus
 import pytest
 
 import daemon_utils
-import shared_docs
 
 
 class FakeHandler:
@@ -293,9 +292,8 @@ class TestParseQuery:
     """``/parse``'s query parsing, which the daemon module cannot cover in CI."""
 
     def test_the_query_is_decoded(self):
-        query = daemon_utils.parse_query("/parse?path=/shared-docs/a%20b.pdf&chunk=false")
+        query = daemon_utils.parse_query("/parse?path=/shared-docs/a%20b.pdf")
         assert query["path"] == ["/shared-docs/a b.pdf"]
-        assert query["chunk"] == ["false"]
 
     def test_no_query_is_empty(self):
         assert daemon_utils.parse_query("/parse") == {}
@@ -305,53 +303,3 @@ class TestParseQuery:
         # documented on shared_docs.resolve_parse_path.
         assert daemon_utils.parse_query("/parse?path=a+b.pdf")["path"] == ["a b.pdf"]
         assert daemon_utils.parse_query("/parse?path=a%2Bb.pdf")["path"] == ["a+b.pdf"]
-
-
-class TestParseChunkFlag:
-    @pytest.mark.parametrize("value,expected", [
-        ("true", True), ("TRUE", True), ("1", True), ("yes", True), ("anything", True),
-        ("false", False), ("FALSE", False), ("0", False), ("no", False), ("No", False),
-    ])
-    def test_the_recognised_values(self, value, expected):
-        assert daemon_utils.parse_chunk_flag({"chunk": [value]}) is expected
-
-    def test_absent_means_chunk(self):
-        assert daemon_utils.parse_chunk_flag({}) is True
-
-    def test_empty_means_chunk(self):
-        assert daemon_utils.parse_chunk_flag({"chunk": [""]}) is True
-
-
-class TestParseTokenOptions:
-    """A bad budget must be the caller's error, not a silent fallback.
-
-    ``--max-tokens 0`` produced a chunk per paragraph rather than an error when the CLI skipped
-    this validation; the daemon has always rejected it, and now that check is tested in CI too.
-    """
-
-    def test_absent_options_are_left_out(self):
-        # Left out rather than defaulted, so the caller's defaults stay in one place.
-        assert daemon_utils.parse_token_options({}) == {}
-
-    def test_empty_values_are_left_out(self):
-        assert daemon_utils.parse_token_options({"max_tokens": [""]}) == {}
-
-    def test_both_are_read(self):
-        query = {"max_tokens": ["500"], "min_structure_tokens": ["9000"]}
-        assert daemon_utils.parse_token_options(query) == {
-            "max_tokens": 500, "min_structure_tokens": 9000,
-        }
-
-    @pytest.mark.parametrize("name", ["max_tokens", "min_structure_tokens"])
-    def test_a_non_integer_is_refused(self, name):
-        with pytest.raises(shared_docs.ParseRequestError, match="must be an integer"):
-            daemon_utils.parse_token_options({name: ["abc"]})
-
-    @pytest.mark.parametrize("name", ["max_tokens", "min_structure_tokens"])
-    @pytest.mark.parametrize("value", ["0", "-1", "-9999"])
-    def test_less_than_one_is_refused(self, name, value):
-        with pytest.raises(shared_docs.ParseRequestError, match="1 or greater"):
-            daemon_utils.parse_token_options({name: [value]})
-
-    def test_one_is_allowed(self):
-        assert daemon_utils.parse_token_options({"max_tokens": ["1"]}) == {"max_tokens": 1}

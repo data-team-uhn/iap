@@ -31,7 +31,6 @@ import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -54,7 +53,7 @@ class FileTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class, Chunks.class, Chunk.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, File.class);
     }
 
     @Test
@@ -71,30 +70,12 @@ class FileTest
         final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
             "sling:resourceType", File.RESOURCE_TYPE,
             "parseStatus", "completed",
-            "tokens", 12000L,
-            "chunked", true));
+            "tokens", 12000L));
         final File file = resource.adaptTo(File.class);
 
         assertEquals("completed", file.getParseStatus());
         assertEquals(12000L, file.getTokens());
-        assertTrue(file.isChunked());
         assertNull(file.getParseError());
-        assertNull(file.getUnchunkedReason());
-    }
-
-    @Test
-    void saysWhyAFileHasNoChunkTree()
-    {
-        final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
-            "sling:resourceType", File.RESOURCE_TYPE,
-            "chunked", false,
-            "unchunkedReason", "below_min_structure_tokens"));
-        final File file = resource.adaptTo(File.class);
-
-        // A deliberate skip rather than a failure, which is why a missing chunk tree has to say which it was
-        assertFalse(file.isChunked());
-        assertEquals("below_min_structure_tokens", file.getUnchunkedReason());
-        assertNull(file.getChunks());
     }
 
     @Test
@@ -118,7 +99,6 @@ class FileTest
         this.context.create().resource(FILE_PATH + "/uploadedFile", "sling:resourceType", NT_FILE);
         this.context.create().resource(FILE_PATH + "/consent.md", "sling:resourceType", NT_FILE);
         this.context.create().resource(FILE_PATH + "/consent.pdf", "sling:resourceType", NT_FILE);
-        this.context.create().resource(FILE_PATH + "/chunks", "sling:resourceType", Chunks.RESOURCE_TYPE);
         final File file = resource.adaptTo(File.class);
 
         assertEquals("uploadedFile", file.getUploadedFile().getName());
@@ -128,22 +108,6 @@ class FileTest
         assertEquals(2, renditions.size());
         assertEquals("consent.md", renditions.get(0).getName());
         assertEquals("consent.pdf", renditions.get(1).getName());
-    }
-
-    @Test
-    void exposesTheOutlineAndTheChunkTree()
-    {
-        final Resource resource = this.context.create().resource(FILE_PATH, Map.of(
-            "sling:resourceType", File.RESOURCE_TYPE,
-            "bookmarks", new String[]{ "Background", "Methods", "Recruitment" }));
-        this.context.create().resource(FILE_PATH + "/chunks",
-            "sling:resourceType", Chunks.RESOURCE_TYPE);
-        this.context.create().resource(FILE_PATH + "/chunks/chunk001",
-            "sling:resourceType", Chunk.RESOURCE_TYPE);
-        final File file = resource.adaptTo(File.class);
-
-        assertEquals(List.of("Background", "Methods", "Recruitment"), file.getBookmarks());
-        assertEquals(1, file.getChunks().getChunks().size());
     }
 
     @Test
@@ -157,11 +121,7 @@ class FileTest
         assertNull(file.getParseStatus());
         assertNull(file.getParseError());
         assertNull(file.getTokens());
-        assertFalse(file.isChunked());
-        assertNull(file.getUnchunkedReason());
         assertNull(file.getUploadedFile());
         assertTrue(file.getRenditions().isEmpty());
-        assertTrue(file.getBookmarks().isEmpty());
-        assertNull(file.getChunks());
     }
 }

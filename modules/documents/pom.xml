@@ -28,7 +28,7 @@
   <artifactId>iap-documents</artifactId>
   <packaging>pom</packaging>
   <name>IAP - Documents</name>
-  <description>Document handling: pre-processing, parsing, chunking, extraction.</description>
+  <description>Document handling: pre-processing, parsing, extraction.</description>
 
   <modules>
     <module>processing</module>

@@ -19,18 +19,12 @@ package io.uhndata.iap.submissions.models;
 
 import java.util.Map;
 
-import javax.jcr.Node;
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
-
 import org.apache.sling.api.resource.Resource;
-import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.testing.mock.sling.junit5.SlingContext;
 import org.apache.sling.testing.mock.sling.junit5.SlingContextExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mockito;
 
 import io.uhndata.iap.content.models.Content;
 import io.uhndata.iap.entities.models.EntityPart;
@@ -55,7 +49,7 @@ class EvidenceTest
     @BeforeEach
     void setUp()
     {
-        this.context.addModelsForClasses(Content.class, EntityPart.class, Evidence.class, Chunk.class);
+        this.context.addModelsForClasses(Content.class, EntityPart.class, Evidence.class);
     }
 
     @Test
@@ -68,19 +62,9 @@ class EvidenceTest
 
     @Test
     void exposesEvidenceProperties()
-        throws RepositoryException
     {
-        this.context.create().resource("/Submissions/submission/consent/v0/file/chunks/chunk001", Map.of(
-            "sling:resourceType", Chunk.RESOURCE_TYPE, "summary", "The recruitment plan"));
-        final Node targetNode = Mockito.mock(Node.class);
-        Mockito.when(targetNode.getPath()).thenReturn("/Submissions/submission/consent/v0/file/chunks/chunk001");
-        final Session session = Mockito.mock(Session.class);
-        Mockito.when(session.getNodeByIdentifier("6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345")).thenReturn(targetNode);
-        this.context.registerAdapter(ResourceResolver.class, Session.class, session);
-
         final Resource resource = this.context.create().resource(EVIDENCE_PATH, Map.of(
             "sling:resourceType", Evidence.RESOURCE_TYPE,
-            "chunk", "6f1c1e6a-9d2b-4a7e-8c3f-abcdef012345",
             "quote", "42 participants will be recruited",
             "header", "3.2 Recruitment",
             "page", 7L));
@@ -89,8 +73,6 @@ class EvidenceTest
         assertEquals("42 participants will be recruited", evidence.getQuote());
         assertEquals("3.2 Recruitment", evidence.getHeader());
         assertEquals(7L, evidence.getPage());
-        assertEquals("chunk001", evidence.getChunk().getName());
-        assertEquals("The recruitment plan", evidence.getChunk().getSummary());
     }
 
     @Test
@@ -101,7 +83,6 @@ class EvidenceTest
         final Evidence evidence = resource.adaptTo(Evidence.class);
 
         assertNotNull(evidence);
-        assertNull(evidence.getChunk());
         assertNull(evidence.getQuote());
         assertNull(evidence.getHeader());
         // A quote from a source with no page markers, e.g. anything that came in as DOCX

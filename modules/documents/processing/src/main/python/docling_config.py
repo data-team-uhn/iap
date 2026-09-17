@@ -82,7 +82,7 @@ PDF_PIPELINE_OPTIONS = PdfPipelineOptions(
     batch_polling_interval_seconds=0.1,
     # TableFormer V2. V1 with cell matching smeared one cell's text across a whole column:
     # on a 4-page sample it repeated the same paragraph over 7 table rows, which inflates the
-    # chunk and hands the summarizer the same text seven times. V2 got the same table right in
+    # document and hands the model the same text seven times. V2 got the same table right in
     # 3 rows, and table structure is the pipeline's dominant cost -- it dropped from 13.7s to
     # 4.9s on those pages. The weights need `with_tableformer_v2=True` in the Dockerfile's
     # download_models call, or the offline container fails on the first table.
@@ -90,8 +90,8 @@ PDF_PIPELINE_OPTIONS = PdfPipelineOptions(
     document_timeout=read_positive_number_from_env(
         DOCUMENT_TIMEOUT_VARIABLE, DEFAULT_DOCUMENT_TIMEOUT_SECONDS, float, "a number"
     ),
-    # Without this the layout model gives every heading the same depth, and the chunker needs
-    # levels to decide where to cut. Bookmarks and numbering are free; use_style needs
+    # Without this the layout model gives every heading the same depth, so the Markdown loses
+    # the document's structure. Bookmarks and numbering are free; use_style needs
     # generate_parsed_pages=True, which blows the worker's RAM budget, and measured no better.
     heading_hierarchy_options=HeadingHierarchyOptions(
         enabled=True,

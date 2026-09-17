@@ -17,8 +17,8 @@
 
 """CLI entry point: convert PDF / DOCX / DOC files to Markdown using Docling.
 
-Uses the same :func:`parse_document.parse_document` path as the daemon (LibreOffice prep,
-Docling, then :func:`chunker.chunk_file`).
+Uses the same :func:`parse_document.parse_document` path as the daemon: LibreOffice prep,
+then Docling.
 """
 
 import argparse
@@ -27,7 +27,6 @@ from pathlib import Path
 
 import docling_config  # noqa: F401 — apply shared Docling settings on import
 
-from chunker import DEFAULT_MIN_STRUCTURE_TOKENS
 from docling_batch_sizing import MAX_BATCH_PAGES, add_workers_argument, parse_positive_int
 from markdown_markers import INPUT_SUFFIXES
 from parse_document import parse_document
@@ -47,16 +46,6 @@ def parse_args():
         help=(
             "pages per worker batch (default: auto from page count and workers, "
             f"max {MAX_BATCH_PAGES}). Lower it to cut peak memory on a large PDF"
-        ),
-    )
-    parser.add_argument(
-        "--min-structure-tokens",
-        type=parse_positive_int,
-        default=DEFAULT_MIN_STRUCTURE_TOKENS,
-        metavar="N",
-        help=(
-            "skip chunking when document tokens (len//4) "
-            f"are below this (default: {DEFAULT_MIN_STRUCTURE_TOKENS})"
         ),
     )
     return parser.parse_args()
@@ -79,7 +68,6 @@ def main() -> None:
     try:
         summary = parse_document(
             input_path,
-            min_structure_tokens=args.min_structure_tokens,
             pdf_workers=args.workers,
             pdf_batch_pages=args.batch_pages,
             # Streamed as it happens; the accumulated summary["logs"] is the
@@ -90,11 +78,7 @@ def main() -> None:
         print(f"Parse failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"\nSaved to {summary['markdown_path']}")
-    if summary.get("chunked"):
-        print(f"Chunks in {summary['chunks_dir']}")
-    else:
-        print("Document left unchunked (below structure threshold)")
+    print(f"\nSaved to {summary['markdown_path']} ({summary['tokens']} tokens)")
 
 
 if __name__ == "__main__":

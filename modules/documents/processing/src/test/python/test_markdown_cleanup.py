@@ -118,7 +118,7 @@ class TestLeadingLineNumbers:
 
 
 class TestTheDocumentCannotWriteItsOwnPageMarkers:
-    """A page marker decides the pages ``catalog.json` records for a chunk.
+    """A page marker decides the page an extracted answer is cited to.
 
     That is the citation a reviewer follows back into the proposal, so a submitter choosing it
     is a submitter choosing where a reviewer is sent. Docling escapes ``<`` in body text, and

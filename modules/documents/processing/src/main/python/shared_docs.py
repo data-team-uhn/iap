@@ -30,6 +30,7 @@ import os
 import shutil
 import sys
 import tempfile
+import uuid
 import zipfile
 from pathlib import Path
 
@@ -68,10 +69,10 @@ class ParseRequestError(ValueError):
     """The caller's request is wrong, so the reply is a 400.
 
     Only bad query parameters raise this. Conversion itself raises plenty of ordinary
-    ValueErrors from deep inside pypdf, Docling and the chunker; those are server-side
-    failures and must stay 500s, or a caller that (correctly) does not retry 4xx would
-    permanently mark a re-parseable document as bad. Subclasses ValueError so existing
-    callers that catch ValueError still work.
+    ValueErrors from deep inside pypdf and Docling; those are server-side failures and must
+    stay 500s, or a caller that (correctly) does not retry 4xx would permanently mark a
+    re-parseable document as bad. Subclasses ValueError so existing callers that catch
+    ValueError still work.
     """
 
 
@@ -361,6 +362,24 @@ def write_text(path: Path | str, text: str) -> None:
         raise ParseRequestError(f"invalid path: {path}")
     with open(resolved, "w", encoding="utf-8") as handle:
         handle.write(text)
+
+
+def write_atomically(path: Path | str, text: str) -> None:
+    """Write ``text`` to ``path`` via a temporary file and a rename.
+
+    A direct :func:`write_text` truncates first, so an interrupted write leaves a half-written
+    document that still looks like a finished one.
+
+    @param path: the file to write
+    @param text: its complete new content
+    """
+    target = Path(path)
+    scratch = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        write_text(scratch, text)
+        replace_file(scratch, target)
+    finally:
+        remove_file(scratch)
 
 
 def replace_file(source: Path | str, dest: Path | str) -> None:

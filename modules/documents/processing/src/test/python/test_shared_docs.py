@@ -21,7 +21,7 @@ CodeQL's ``py/path-injection`` query models ``os.path.realpath`` (normalization)
 ``str.startswith`` (SafeAccessCheck on the true branch). It does not model
 ``os.path.commonpath`` or ``Path.relative_to``. ``resolve_parse_path`` uses all three:
 ``startswith`` so the query sees a check, ``commonpath`` so a sibling whose name merely
-starts with the root is still refused. Derived writes (``{stem}.md``, ``Chunks/``) are
+starts with the root is still refused. Derived writes (``{stem}.md``) are
 new path expressions and stay tainted; they go through the I/O helpers that repeat
 ``realpath`` + ``startswith`` in the same function as the syscall.
 
@@ -183,12 +183,12 @@ class TestIoHelpersWorkOutsideTheJail:
         assert not shared_docs.path_exists(scratch)
 
     def test_make_dirs_exists_and_remove_tree(self, tmp_path):
-        nested = tmp_path / "Chunks" / "inner"
+        nested = tmp_path / "renditions" / "inner"
         shared_docs.make_dirs(nested)
-        shared_docs.write_text(nested / "Chunk-1.md", "body\n")
-        assert shared_docs.path_is_file(nested / "Chunk-1.md")
-        shared_docs.remove_tree(tmp_path / "Chunks")
-        assert not shared_docs.path_exists(tmp_path / "Chunks")
+        shared_docs.write_text(nested / "doc.md", "body\n")
+        assert shared_docs.path_is_file(nested / "doc.md")
+        shared_docs.remove_tree(tmp_path / "renditions")
+        assert not shared_docs.path_exists(tmp_path / "renditions")
 
     def test_remove_file_missing_is_ok(self, tmp_path):
         shared_docs.remove_file(tmp_path / "absent.txt")
@@ -244,14 +244,13 @@ class TestIoHelpersRefuseAnythingOutsideBothRoots:
 
 
 class TestDerivedOutputsStayContained:
-    def test_markdown_and_chunks_land_under_the_root(self, root):
-        # The daemon writes {stem}.md and Chunks/ beside the source, so containing the
+    def test_the_markdown_lands_under_the_root(self, root):
+        # The daemon writes {stem}.md beside the source, so containing the
         # source is what contains the writes.
         (root / "sub").mkdir()
         (root / "sub" / "proto.pdf").write_bytes(b"%PDF")
         source = shared_docs.resolve_parse_path(str(root / "sub" / "proto.pdf"))
         assert source.with_suffix(".md").is_relative_to(root)
-        assert (source.parent / "Chunks").is_relative_to(root)
 
 
 class TestRequestErrorType:

@@ -17,7 +17,6 @@
  */
 package io.uhndata.iap.schemas.models;
 
-import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.Resource;
@@ -97,7 +96,6 @@ class QuestionTest
         assertNull(question.getPurpose());
         assertNull(question.getExtractionPrompt());
         assertNull(question.getResponseShape());
-        assertTrue(question.getRubricTags().isEmpty());
     }
 
     @Test
@@ -109,8 +107,7 @@ class QuestionTest
             "displayMode", "number",
             "purpose", "Whether the sample size matches the statistical plan",
             "extractionPrompt", "Read the target number of participants out of the recruitment section",
-            "responseShape", "{\"type\": \"integer\"}",
-            "rubricTags", new String[]{ "recruitment", "statistics" }));
+            "responseShape", "{\"type\": \"integer\"}"));
         final Question question = resource.adaptTo(Question.class);
 
         assertEquals("number", question.getDisplayMode());
@@ -118,6 +115,5 @@ class QuestionTest
         assertEquals("Read the target number of participants out of the recruitment section",
             question.getExtractionPrompt());
         assertEquals("{\"type\": \"integer\"}", question.getResponseShape());
-        assertEquals(List.of("recruitment", "statistics"), question.getRubricTags());
     }
 }
