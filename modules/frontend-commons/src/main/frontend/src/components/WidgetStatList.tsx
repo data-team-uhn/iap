@@ -37,7 +37,8 @@ interface CountStat extends CommonStat {
   value?: number;
   // If the count is a lower bound rather than a complete count
   approximate?: boolean;
-  // Colours a non-zero count as a problem
+  // Colours a non-zero count as a problem. Only while something is outstanding: a widget that is
+  // permanently red stops being read
   emphasis?: boolean;
   // What to say about a count that could not be read, when the generic wording is too vague to be
   // of help, e.g. "The workflows here could not be counted".
@@ -68,8 +69,8 @@ function countLabel(stat: CountStat): string {
 }
 
 // Where one stat's two cells sit: the value in the left column, its label to the right of it, both
-// on the stat's own row. Placed explicitly because the label is written first and displayed second,
-// and grid's own placement will not put a later item back in a column it has already moved past.
+// on the stat's own row. Placed explicitly because the label is written first: grid will not put a
+// later item back in a column it has already moved past.
 const valueCell = (row: number) => ({ gridColumn: 1, gridRow: row, justifySelf: "end", m: 0 });
 const labelCell = (row: number) => ({ gridColumn: 2, gridRow: row });
 
@@ -125,9 +126,9 @@ function StatLabel({ stat, row }: { stat: WidgetStat; row: number }) {
 // The one way a dashboard widget lists what it found: a value, then what the value is a figure for.
 //
 // A description list, because that is what these are: each label is a term and its value the
-// description of it. Written label first and displayed value first, so that whoever is read the page
-// hears what a figure counts before the figure itself, and so that the value can be found from the
-// label it belongs to rather than from where it happens to sit.
+// description of it. The label is written first and displayed second, so a screen reader says what
+// a figure counts before the figure. The value is then found from its label rather than from where
+// it sits.
 //
 // Sample usage:
 // <WidgetStatList stats={[
