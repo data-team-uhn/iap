@@ -189,6 +189,15 @@
         <artifactId>org.osgi.service.metatype.annotations</artifactId>
         <version>1.4.1</version>
       </dependency>
+      <!-- ConfigurationAdmin on its own. NOT osgi.cmpn, which carries the whole compendium including
+           org.osgi.util.tracker: on a test classpath that shadows the ServiceTracker sling-mock builds
+           its own bundle context around, and every registerInjectActivateService in the module then dies
+           in Sling's scripting BindingsValuesProvider with a ClassCastException. -->
+      <dependency>
+        <groupId>org.osgi</groupId>
+        <artifactId>org.osgi.service.cm</artifactId>
+        <version>1.6.1</version>
+      </dependency>
       <dependency>
         <groupId>org.osgi</groupId>
         <artifactId>org.osgi.annotation.versioning</artifactId>

@@ -18,6 +18,7 @@
 
 import { Box, Chip, Skeleton, Stack, Typography } from "@mui/material";
 
+import CatcherSwitch from "./CatcherSwitch";
 import { useCatcherStatus } from "./useCaughtMail";
 
 /**
@@ -28,7 +29,7 @@ import { useCatcherStatus } from "./useCaughtMail";
  * from somebody who came to the dashboard to check whether a notification worked.
  */
 function CaughtMailWidget() {
-  const { status, settled } = useCatcherStatus();
+  const { status, settled, reload } = useCatcherStatus();
 
   if (!settled) {
     return <Skeleton variant="rounded" height={96} aria-label="Loading the caught mail summary" />;
@@ -48,11 +49,14 @@ function CaughtMailWidget() {
     <Box>
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
         <Typography variant="body2" color="text.secondary">Catching mail</Typography>
-        <Chip
-          size="small"
-          label={status.enabled ? "On" : "Off"}
-          color={status.enabled ? "success" : "default"}
-        />
+        <Stack direction="row" sx={{ alignItems: "center" }}>
+          <Chip
+            size="small"
+            label={status.enabled ? "On" : "Off"}
+            color={status.enabled ? "success" : "default"}
+          />
+          <CatcherSwitch enabled={status.enabled} onChanged={reload} />
+        </Stack>
       </Stack>
       <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "baseline", mt: 1 }}>
         <Typography variant="body2" color="text.secondary">Caught so far</Typography>
