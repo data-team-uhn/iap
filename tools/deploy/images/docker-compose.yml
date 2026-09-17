@@ -26,6 +26,8 @@
 #
 # `mail` is the odd one out -- it is built from ../mailcatcher/Dockerfile rather than pulled, so
 # its base image is pinned in that Dockerfile and Dependabot watches it as a Dockerfile instead.
+# `docling` is the same: built from ../../../modules/documents/processing, whose Dockerfile and
+# requirements.txt are what Dependabot watches. Neither belongs here.
 #
 # The IAP image itself is deliberately absent: it is built from this repository, not pulled, and
 # which one to run is the caller's business (generate_compose.py --image).

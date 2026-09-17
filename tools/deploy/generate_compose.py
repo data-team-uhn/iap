@@ -31,6 +31,7 @@ file is plain YAML, commented, meant to be read and edited afterwards.
 import argparse
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -52,6 +53,9 @@ RDB_PASSWORD = "iap"
 
 # The database name `oak_persistence_mongods` defaults to.
 MONGO_DATABASE = "sling"
+
+# The host port the Docling parser is published on, matching its ENTRYPOINT default.
+DOCLING_PORT = 18765
 
 # The host port Keycloak is published on, matching tools/dev/keycloak/ and docs/keycloak-oidc.md.
 KEYCLOAK_PORT = 8084
@@ -107,6 +111,10 @@ def parse_args(argv):
     parser.add_argument('--mail', action='store_true',
                         help="Add an SMTPS server that writes every message it receives to a file "
                              "under ./mail instead of delivering it")
+    parser.add_argument('--docling', action='store_true',
+                        help="Add the Docling document parser, published on 127.0.0.1:{}, "
+                             "which is used to extract the text out of uploaded documents"
+                             .format(DOCLING_PORT))
 
     parser.add_argument('--image', default='iap/iap',
                         help="The IAP Docker image to run [default: iap/iap]")
@@ -363,6 +371,10 @@ def env_entries(args, env_file):
         entries.append(('IAP_OAUTH_ENCRYPTION_PASSWORD', 'devpassword', [
             "Any value will do for development; it encrypts the stored OAuth tokens.",
         ]))
+    if args.docling:
+        entries.append(('IAP_DOCLING_TOKEN', secrets.token_urlsafe(32), [
+            "Protects the connection between IAP and Docling.",
+        ]))
     return entries
 
 
@@ -427,6 +439,8 @@ def iap_service(args, compose_directory):
         depends_on['keycloak'] = {'condition': 'service_started'}
     if args.mail:
         depends_on[MAIL_SERVICE] = {'condition': 'service_started'}
+    if args.docling:
+        depends_on['docling'] = {'condition': 'service_started'}
     if depends_on:
         service['depends_on'] = depends_on
 
@@ -604,6 +618,54 @@ def keycloak_service():
     return service
 
 
+def docling_service():
+    service = {}
+    comment(service, "The docling document parser service.")
+    service['build'] = {
+        'context': '../modules/documents/processing',
+        'dockerfile': 'Dockerfile'
+    }
+    # Built from this repository rather than pulled, so it is not in images/docker-compose.yml.
+    service['image'] = 'iap/docling'
+    service['networks'] = ['iap']
+    service['init'] = True
+    service['user'] = '${IAP_DOCLING_UID:-1000}:${IAP_DOCLING_GID:-1000}'
+    service['environment'] = {
+        'IAP_SHARED_DOCS': '/shared-docs',
+        'IAP_DOCLING_TOKEN': '${IAP_DOCLING_TOKEN}',
+        # 0, so that an operator who empties the token hears the daemon's own warning about it.
+        # Set this to 1 only after confining the port some other way.
+        'IAP_DOCLING_TRUSTED_NETWORK': '${IAP_DOCLING_TRUSTED_NETWORK:-0}',
+        'IAP_MAX_INPUT_PAGES': '${IAP_MAX_INPUT_PAGES:-1500}',
+        'IAP_MAX_INPUT_BYTES': '${IAP_MAX_INPUT_BYTES:-67108864}',
+        'IAP_LIBREOFFICE_TIMEOUT_SECONDS': '${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}',
+        'IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS': '${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}',
+        'IAP_DOCLING_PARSE_TIMEOUT_SECONDS': '${IAP_DOCLING_PARSE_TIMEOUT_SECONDS:-900}',
+        'HOME': '/tmp'
+    }
+    service['volumes'] = ['${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs']
+    service['deploy'] = {
+        'resources': {
+            'limits': {
+                'cpus': '4',
+                'memory': '8G'
+            }
+        }
+    }
+    service['healthcheck'] = {
+        'test': ['CMD', 'curl', '-fsS', "http://127.0.0.1:{}/health".format(DOCLING_PORT)],
+        'interval': '30s',
+        'timeout': '5s',
+        'retries': 3,
+        'start_period': '180s'
+    }
+    # Set to 15 minutes to allow it to clean up after SIGKILL
+    service['stop_grace_period'] = '15m'
+    service['restart'] = 'unless-stopped'
+    service['ports'] = ['127.0.0.1:{0}:{0}'.format(DOCLING_PORT)]
+    return service
+
+
 def mail_service(compose_directory):
     service = {}
     comment(service, "Accepts SMTPS on 465 and writes each message to ./mail as an .eml file")
@@ -649,6 +711,8 @@ def build_document(args, compose_directory):
         services['mongo'] = mongo_service()
     if args.keycloak:
         services['keycloak'] = keycloak_service()
+    if args.docling:
+        services['docling'] = docling_service()
     if args.mail:
         services[MAIL_SERVICE] = mail_service(compose_directory)
 
@@ -676,8 +740,11 @@ def next_steps(args, compose_directory):
                 brief_path(compose_directory / '.env'),
                 brief_path(HERE.parent / 'dev' / 'keycloak' / 'keycloak_setup.sh')),
         ]))
+    # --build only matters for the services built from this repository, and only after their
+    # sources change: Compose builds a missing image either way, then never looks again.
+    builds_locally = args.mail or args.docling
     actions.append(("Bring everything up", [
-        "docker compose up -d --build" if args.mail else "docker compose up -d",
+        "docker compose up -d --build" if builds_locally else "docker compose up -d",
     ]))
 
     notes = ["IAP will be at {}".format(

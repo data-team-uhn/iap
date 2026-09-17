@@ -47,6 +47,7 @@ needs to reach it.
 | `--storage mongo` | a MongoDB container | `OAK_STORAGE=mongo`, `EXTERNAL_MONGO_URI`, `CUSTOM_MONGO_DB_NAME` |
 | `--keycloak` | a Keycloak container | the two realm URLs, `KEYCLOAK_CLIENT_ID`/`SECRET`, `IAP_PUBLIC_URL` |
 | `--mail` | an SMTPS server that files messages away | `SMTPS_LOCAL_TEST_CONTAINER`, and the certificate to trust |
+| `--docling` | the Docling document parser | a shared document volume, and `IAP_DOCLING_TOKEN` in `.env` |
 
 The rest only describe the IAP container itself: `--image` (default `iap/iap`), `--port` (default
 8080), `--dev` to mount `~/.m2` read-only, as the developer flavour of the image needs in order to
@@ -169,6 +170,40 @@ ls mail/
 whether or not it was ever built and sent, so an empty `mail/` is the only way to find out that
 mail is broken. `docker compose logs smtps_test_container` names each message as it arrives.
 
+## Document parsing
+
+`--docling` adds the Docling parser (`modules/documents/processing`), which turns an uploaded PDF
+or DOCX into cleaned Markdown and, on request, a tree of chunks. It is a Python daemon that keeps
+its workers and models loaded between conversions, so only the first request after boot is slow.
+
+Both containers share one directory: IAP stages an upload into it, the parser writes its output
+back beside the input. The host side is `../shared-docs` unless `IAP_SHARED_DOCS_HOST` says
+otherwise, and **it has to exist before the first start** -- Docker creates a missing bind mount as
+`root:root`, which the container's `IAP_DOCLING_UID:IAP_DOCLING_GID` (1000:1000 by default) cannot
+write to.
+
+```bash
+python3 generate_compose.py --docling
+mkdir ../shared-docs
+docker compose up -d --build
+```
+
+The image is built from this repository rather than pulled, and the build bakes in Docling's model
+weights, so the first one is slow. That is also why the printed next step says `--build`: Compose
+builds a missing image on its own, but after that it never looks at the sources again.
+
+The parser is published on `127.0.0.1:18765` only, and `/parse` and `/shutdown` want the
+`IAP_DOCLING_TOKEN` the generator wrote into `.env`:
+
+```bash
+curl -X POST -H "Authorization: Bearer $(grep '^IAP_DOCLING_TOKEN=' .env | cut -d= -f2)"   "http://127.0.0.1:18765/parse?path=/shared-docs/test/test.pdf&chunk=true"
+```
+
+`GET /health` needs no credential, so container probes and a quick "is it up?" both use it. IAP
+itself reaches the daemon as `http://docling:18765`, over the `iap` network both containers join.
+`modules/documents/processing/docling_readme.md` documents the endpoints and the rest of the
+environment: the input size ceilings, the timeouts, and how to run the daemon by hand.
+
 ## Credentials
 
 Every password the deployment uses lives in `.env`, and `docker-compose.yml` refers to it as
@@ -177,9 +212,11 @@ diffed and pasted into a ticket, and it can be now, because there is nothing in 
 Compose reads `.env` on its own, so there is nothing extra to run.
 
 Which entries appear depends on what was asked for — `RDB_PASSWORD` for `--storage postgres`,
-`SLING_COMMONS_CRYPTO_PASSWORD` for `--mail`, and the Keycloak admin password, client id, client
-secret and OAuth encryption password for `--keycloak`. With none of those, there is no `.env` at
-all. The values are development defaults and are meant to be edited there.
+`SLING_COMMONS_CRYPTO_PASSWORD` for `--mail`, `IAP_DOCLING_TOKEN` for `--docling`, and the Keycloak
+admin password, client id, client secret and OAuth encryption password for `--keycloak`. With none
+of those, there is no `.env` at all. The values are development defaults and are meant to be edited
+there, with one exception: `IAP_DOCLING_TOKEN` is generated at random, because the parser publishes
+its port on the host and the token is the only thing in front of it.
 
 **An existing `.env` is never rewritten, only topped up.** `keycloak_setup.sh --write-env` fills
 the client secret into it and you may have changed a password, so re-running the generator adds
@@ -225,12 +262,14 @@ there at generation time. That file is never run: it exists so the versions live
 Dependabot can see them. Dependabot reads image versions out of Compose files and Dockerfiles and
 would never find them in a Python constant, so a pin kept in the script would quietly go stale.
 
-Two entries in `.github/dependabot.yml` cover it, weekly:
+Four entries in `.github/dependabot.yml` cover it, weekly:
 
 | Watches | Ecosystem | For |
 | --- | --- | --- |
 | `/tools/deploy/images` | `docker-compose` | `postgres`, `mongo`, `keycloak` |
 | `/tools/deploy/mailcatcher` | `docker` | the mail server's `python` base image |
+| `/modules/documents/processing` | `docker` | the Docling parser's `python` base image |
+| `/modules/documents/processing` | `pip` | the Docling parser's pinned Python packages |
 
 A Dependabot pull request against `images/docker-compose.yml` therefore changes what the next
 `generate_compose.py` actually deploys, rather than editing a file nobody reads. Regenerate after
@@ -241,8 +280,9 @@ looks for that name, and does not pick up other `docker-compose*.yml` variants
 ([dependabot-core#12134](https://github.com/dependabot/dependabot-core/issues/12134)). It is in
 `images/` rather than beside the script because the generated file next door claims the same name.
 
-The IAP image is deliberately not pinned there: it is built from this repository rather than
-pulled, and `--image` decides which one to run.
+The images built from this repository are deliberately not pinned there, because there is no
+version to watch: the IAP image, whose `--image` decides which one to run, and the Docling parser,
+whose own base image and Python packages are watched at their source instead.
 
 ## What was left behind
 

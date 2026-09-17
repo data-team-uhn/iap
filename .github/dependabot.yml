@@ -42,6 +42,17 @@ updates:
     directory: "/tools/deploy/mailcatcher"
     schedule:
       interval: "weekly"
+  # The base image of the Docling document parser.
+  - package-ecosystem: "docker"
+    directory: "/modules/documents/processing"
+    schedule:
+      interval: "weekly"
+  # The Docling parser's Python dependencies, pinned in its requirements.txt. Bumping Docling
+  # changes the model weights baked into the image, so these land one pull request at a time.
+  - package-ecosystem: "pip"
+    directory: "/modules/documents/processing"
+    schedule:
+      interval: "weekly"
   # The companion images tools/deploy/generate_compose.py deploys alongside IAP. They are pinned
   # in a Compose file that is never run, purely so that they are somewhere Dependabot can see and
   # edit them -- the generator reads its versions back out of it. See tools/deploy/images/.
