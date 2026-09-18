@@ -149,8 +149,7 @@ public class Submission extends Entity
 
     /**
      * The workflows running over this submission, held in the container the {@code wf:WorkflowAttachable} mixin
-     * autocreates. Several may run at once, a review process and a periodic reminder say, which is why this
-     * is a list rather than a single lifecycle.
+     * autocreates. Several may run at once, which is why this is a list rather than a single lifecycle.
      *
      * @return a list of workflow instances, empty if none has ever been started
      */
@@ -228,8 +227,6 @@ public class Submission extends Entity
     private boolean isFulfilled(final Requirement requirement)
     {
         if (requirement instanceof DocumentRequirement) {
-            // Resolved into a local: resolving it twice would repeat the whole reference lookup, and the
-            // null check would not apply to a second, separate call
             return this.getDocuments().stream().anyMatch(document -> {
                 final Requirement fulfilled = document.getFulfills();
                 return fulfilled != null && requirement.getPath().equals(fulfilled.getPath());

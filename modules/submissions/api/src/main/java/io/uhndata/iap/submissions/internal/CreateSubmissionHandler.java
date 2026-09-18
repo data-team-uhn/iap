@@ -40,12 +40,7 @@ import io.uhndata.iap.workflows.spi.WorkflowTaskContext;
  * The service task that raises a new submission: what the bootstrap workflow on {@code /Submissions} performs.
  * The event's {@code title} names the submission, and its {@code schemaVersion}, the <em>path</em> of a
  * {@code sch:SchemaVersion}, says what is being submitted against. The created submission holds a real
- * reference to it. Its lifecycle state is not set here: it comes from the workflow the submission is then
- * put under, through that workflow's {@code hostTag}.
- *
- * <p>This lives in the submissions module, not the workflows one, on purpose. What it takes to create a
- * submission is an <em>active</em> schema version, which is submissions business. It plugs into the engine
- * through the {@link ServiceTaskHandler} extension point, like any project's own behavior would.</p>
+ * reference to it.
  *
  * @version $Id$
  * @since 0.1.0
@@ -84,9 +79,9 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     }
 
     /**
-     * Points the fresh submission at its schema version with a real {@code REFERENCE}. This has to go through
-     * the JCR API. A plain string property would carry the right identifier but the wrong type, and the strict
-     * {@code sub:Submission} definition rejects it at commit.
+     * Points the submission at its schema version with a real {@code REFERENCE}. This must go through the JCR API,
+     * since the Sling API does not support {@code REFERENCE} properties. A plain string property would carry the right
+     * identifier but the wrong type, and the strict {@code sub:Submission} definition rejects it at commit.
      *
      * @param created the submission just created
      * @param version the vetted schema version
@@ -107,14 +102,8 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
 
     /**
      * Resolves and vets the schema version the payload points at. It must exist, be a schema version rather
-     * than whatever else sits at that path, and both it and its schema must be active. That last one
+     * than whatever else sits at that path, and both it and its parent schema must be active. That last one
      * is where "no new submissions may be created from an inactive version" is actually enforced.
-     *
-     * <p>Every one of those checks has to be made here. The lookup runs on the engine's privileged session, so
-     * nothing is hidden from it and nothing will be refused on the caller's behalf. Being allowed to raise a
-     * submission is a question the start event already answered. It is not the same question as which schema
-     * versions this particular user should be able to answer. When the platform can express the narrower
-     * rule, for institutions or study teams, it belongs in the definition next to the performers, not here.</p>
      *
      * @param context the executing task's context
      * @return the resolved schema version's resource
@@ -124,8 +113,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     {
         final Object path = context.getEvent().get(SCHEMA_VERSION);
         if (!(path instanceof String) || ((String) path).isBlank()) {
-            throw new InvalidPayloadException("A schemaVersion is required: the path of the schema version this"
-                + " submission answers");
+            throw new InvalidPayloadException("A schemaVersion is required");
         }
         final Resource resource = context.getResourceResolver().getResource((String) path);
         if (resource == null || !resource.isResourceType(SchemaVersion.RESOURCE_TYPE)) {
