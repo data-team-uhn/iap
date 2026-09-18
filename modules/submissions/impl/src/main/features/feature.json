@@ -17,6 +17,10 @@
 {
   "bundles": [
     {
+      "id": "${project.groupId}:iap-submissions-api:${project.version}",
+      "start-order": "28"
+    },
+    {
       "id": "${project.groupId}:${project.artifactId}:${project.version}",
       "start-order": "28"
     }
