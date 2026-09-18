@@ -157,13 +157,10 @@
 
 //-----------------------------------------------------------------------------
 // One passage backing an extracted answer, kept as a node rather than a plain
-// string so the quote stays linked to the chunk it came from and the UI can
+// string so the quote stays linked to the page it came from and the UI can
 // send the reader to that spot in the source document.
 [sub:Evidence] > data:EntityPart
   - sling:resourceType (STRING) = "sub/Evidence" mandatory autocreated protected
-
-  // The sub:Chunk this passage was taken from
-  - chunk (REFERENCE)
 
   // The quoted text
   - quote (STRING)
@@ -248,88 +245,12 @@
   // no ML tokenizer is involved.
   - tokens (LONG)
 
-  // Outcome of the size gate. False means the document was small enough to work
-  // on whole, so there is no chunk tree.
-  - chunked (BOOLEAN) = false
-
-  // Why no chunks were produced, set only when chunked is false
-  - unchunkedReason (STRING)
-
   // The upload, exactly as it was received
   + uploadedFile (nt:file) = nt:file
 
   // The renditions LibreOffice and Docling produced: the .md and other
   // versions of the document created during the parsing process
   + * (nt:file) = nt:file
-
-  // Extracted bookmarks representing table of contents, if available
-  - bookmarks (STRING) multiple
-
-  // The chunk tree; absent when chunked is false in which case just .md is stored
-  + chunks (sub:Chunks) = sub:Chunks
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// The chunk tree of one file: what the pipeline writes as Chunks/catalog.json,
-// with one child per chunk. The file the catalog was built from is this node's
-// own parent, so it is not named again here.
-[sub:Chunks] > data:EntityPart
-  // Chunks are kept in document order, which is the order the catalog lists
-  // them in and the order a reader would meet them.
-  orderable
-
-  - sling:resourceType (STRING) = "sub/Chunks" mandatory autocreated protected
-
-  // The chunks, in document order
-  + * (sub:Chunk) = sub:Chunk
-
-  // Allow any other properties for extensibility
-  - * (UNDEFINED)
-  - * (UNDEFINED) multiple
-
-  // Allow any other children for extensibility
-  + * (nt:base) = nt:unstructured
-
-//-----------------------------------------------------------------------------
-// One chunk of a document. Referenceable so that a sub:Evidence passage can
-// cite the chunk it was quoted from. The catalog's chunk_id is this node's own
-// name, and the chunk's length is that of its content file, so neither is
-// stored as a property.
-[sub:Chunk] > data:EntityPart, mix:referenceable
-  - sling:resourceType (STRING) = "sub/Chunk" mandatory autocreated protected
-
-  // A short summary of the chunk, written by the summarizer in a background
-  // pass. The parsing pipeline always writes this empty.
-  - summary (STRING)
-
-  // What this chunk is about, tagged from the same vocabulary the questions are
-  // tagged with. Written by an LLM stage; the pipeline always writes it empty.
-  - rubricTags (STRING) multiple
-
-  // How rubricTags was arrived at: "heading" when it was guessed from the
-  // list of headings alone, "fulltext" when a model read the whole chunk, or "deep" from
-  // a later and more thorough pass. Only the last two count as content-based.
-  - tagBasis (STRING)
-
-  // Set when rubricTags is a weak guess, or was filled in after a model reply
-  // came back truncated.
-  - uncertain (BOOLEAN) = false
-
-  // The range of page markers this chunk covers, read from the
-  // <!-- page: N --> comments the PDF parser emits, so an extracted answer can
-  // be cited back to a page of the source. Absent for documents that came in as
-  // DOCX, which carry no page markers.
-  - pageStart (LONG)
-  - pageEnd (LONG)
-
-  // This chunk's Chunk-<n>.md
-  + content (nt:file) = nt:file
 
   // Allow any other properties for extensibility
   - * (UNDEFINED)

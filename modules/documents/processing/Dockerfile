@@ -16,8 +16,8 @@
 
 # Docling processing daemon.
 #
-# Serves POST /parse with a path under the shared /shared-docs volume. LibreOffice prep,
-# Docling, and chunk_file all run in this container and write beside the staged file.
+# Serves POST /parse with a path under the shared /shared-docs volume. LibreOffice prep
+# and Docling both run in this container and write the Markdown beside the staged file.
 #
 # Build, from the repo root:
 #   mvn install -Pdocker -pl modules/documents/processing
@@ -27,7 +27,7 @@
 # Run (shared docs mounted; publish only to loopback). On Linux, --user has to name whoever
 # owns the host directory behind /shared-docs ("id -u:id -g"): the image's own user is 10001,
 # and a bind mount arrives with the host's ownership on top of the image layer, so without it
-# the daemon cannot write {stem}.md and Chunks/ back. It does not matter on Docker Desktop.
+# the daemon cannot write {stem}.md back. It does not matter on Docker Desktop.
 # An overridden uid has no /etc/passwd entry, so Docker sets HOME=/, which is not writable --
 # hence -e HOME=/tmp, the same thing docker-compose.yml does. --init gives the container a
 # reaper at PID 1: without one, a soffice.bin that outlives its launcher reparents to the

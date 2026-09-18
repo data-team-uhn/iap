@@ -129,11 +129,11 @@ def clean_markdown(md: str) -> str:
     placeholders, and strip decorative garbage lines.
 
     Docling often emits ``&amp;``, ``&lt;``, and numeric entities; turning those
-    back into real characters keeps bookmark matching and chunk text readable.
+    back into real characters keeps the extracted text readable.
 
     The document is cut on the parser's page markers first, so unescaping only ever runs on
     the text between them. Unescaping first turned a submitted ``&lt;!-- page: 9 --&gt;`` into
-    a real marker, and markers are what a chunk's recorded pages are worked out from.
+    a real marker, and markers are what a citation's page number is worked out from.
 
     @param md: Markdown as exported by Docling, or an empty value
     @return: the cleaned text; ``""`` for empty input
