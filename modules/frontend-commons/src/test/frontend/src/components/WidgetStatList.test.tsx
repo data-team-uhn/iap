@@ -59,21 +59,46 @@ describe("WidgetStatList", () => {
     expect(screen.getByText("?")).toHaveAttribute("title", "This could not be counted");
   });
 
-  it("colours an emphasised count as a problem only while something is outstanding", () => {
+  it("colours a count emphasised on non-zero as a problem only while something is outstanding", () => {
     // jsdom does not resolve the theme's colours, so the three cases are compared against each
     // other rather than against a colour. Emphasised-and-outstanding differs from both an
     // emphasised zero and an ordinary count; those two agree.
-    const outstanding = list([{ label: "Needing attention", value: 3, emphasis: true }]);
+    const outstanding = list([{ label: "Needing attention", value: 3, emphasis: "nonzero" }]);
     const emphasised = screen.getByText("3").className;
     outstanding.unmount();
 
-    const nothingOutstanding = list([{ label: "Needing attention", value: 0, emphasis: true }]);
+    const nothingOutstanding = list([{ label: "Needing attention", value: 0, emphasis: "nonzero" }]);
     const emphasisedZero = screen.getByText("0").className;
     nothingOutstanding.unmount();
 
     list([{ label: "Needing attention", value: 0 }]);
     expect(emphasised).not.toBe(emphasisedZero);
     expect(emphasisedZero).toBe(screen.getByText("0").className);
+  });
+
+  it("colours a count emphasised on zero as a problem only while it is at zero", () => {
+    // The opposite emphasis: for a figure whose absence is what warrants acting, none of something
+    // is the problem and any of it is ordinary
+    const none = list([{ label: "Reviewers available", value: 0, emphasis: "zero" }]);
+    const emphasisedZero = screen.getByText("0").className;
+    none.unmount();
+
+    const some = list([{ label: "Reviewers available", value: 2, emphasis: "zero" }]);
+    const emphasisedSome = screen.getByText("2").className;
+    some.unmount();
+
+    list([{ label: "Reviewers available", value: 2 }]);
+    expect(emphasisedZero).not.toBe(emphasisedSome);
+    expect(emphasisedSome).toBe(screen.getByText("2").className);
+  });
+
+  it("leaves an emphasised count that could not be read uncoloured, having no state to report", () => {
+    const unknown = list([{ label: "Needing attention", emphasis: "nonzero" }]);
+    const emphasisedUnknown = screen.getByText("?").className;
+    unknown.unmount();
+
+    list([{ label: "Needing attention" }]);
+    expect(emphasisedUnknown).toBe(screen.getByText("?").className);
   });
 
   it("renders a label with a link as a link to its destination", () => {

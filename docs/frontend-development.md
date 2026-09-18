@@ -149,7 +149,7 @@ Before writing a dialog or an error state, check `frontend-commons/components`:
 | Component | For |
 |---|---|
 | `WidgetDashboard`, `Widget` | The responsive grid and titled frames, parameterized by extension point |
-| `WidgetStatList` | The figures inside a widget: a value, then what it is a figure for, aligned down one grid |
+| `WidgetStatList` | The figures inside a widget: a value, then what it is a figure for, all aligned in a grid |
 | `ConfirmActionDialog`, `ResponsiveDialog` | Confirmations and dialogs that behave on a phone |
 | `ErrorDialog`, `ErrorPage`, `LoadError`, `GenericErrorPage`, `PageNotFound` | Failure states |
 | `LoadingOverlay` | Waiting |
