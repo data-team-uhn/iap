@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.uhndata.iap.submissions.models;
+package io.uhndata.iap.submissions.internal;
 
 import java.util.Set;
 import java.util.function.Function;
@@ -27,9 +27,9 @@ import org.mockito.Mockito;
 import io.uhndata.iap.tags.models.Taggable;
 
 /**
- * Makes the {@code Taggable} view available in a mock repository. The tags service the model delegates to does not
- * run under sling-mock. The one thing these models ask of it is whether a tag is placed on a node itself.
- * That is answered here from the node's own {@code tags} property, which is what the service reads for real.
+ * Makes the {@code Taggable} view available in a mock repository. The tags service the models delegate to does not
+ * run under sling-mock. The one thing they ask of it is whether a tag is placed on a node itself. That is answered
+ * here from the node's own {@code tags} property, which is what the service reads for real.
  *
  * @version $Id$
  * @since 0.1.0
@@ -44,7 +44,7 @@ public final class Tagging
     /**
      * Registers the {@code Taggable} view, so that content adapts to it the way it does with the tags bundle
      * installed. Without this, {@code as(Taggable.class)} answers {@code null} and a model reading tags reports
-     * none, which is the degradation these models are also expected to survive.
+     * none.
      *
      * @param context the mock context whose resources become taggable
      */
