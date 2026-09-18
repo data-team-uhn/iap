@@ -25,8 +25,7 @@ import { Link as RouterLink } from "react-router";
 interface CommonStat {
   // What the value is a figure for, e.g. "Archived in total". Doubles as the React key.
   label: string;
-  // An in-app path the label leads to, for a figure that has somewhere more detailed behind it.
-  // Plain text when absent.
+  // An in-app path the label links to, when a fuller view of the figure exists. Plain text when absent.
   href?: string;
 }
 
@@ -37,9 +36,9 @@ interface CountStat extends CommonStat {
   value?: number;
   // If the count is a lower bound rather than a complete count
   approximate?: boolean;
-  // Colours a non-zero count as a problem. Only while something is outstanding: a widget that is
-  // permanently red stops being read
-  emphasis?: boolean;
+  // Which value is worth acting on, and so coloured as a problem. Left out when neither is: a widget
+  // that is permanently red stops being read
+  emphasis?: "nonzero" | "zero";
   // What to say about a count that could not be read, when the generic wording is too vague to be
   // of help, e.g. "The workflows here could not be counted".
   unknownTitle?: string;
@@ -68,6 +67,14 @@ function countLabel(stat: CountStat): string {
   return stat.approximate === true ? `${String(stat.value)}+` : String(stat.value);
 }
 
+// Whether a count is in the state its widget wanted noticed. An unread count is in neither.
+function isEmphasised(stat: CountStat): boolean {
+  if (stat.value == undefined) {
+    return false;
+  }
+  return stat.emphasis === "nonzero" ? stat.value > 0 : stat.emphasis === "zero" && stat.value === 0;
+}
+
 // Where one stat's two cells sit: the value in the left column, its label to the right of it, both
 // on the stat's own row. Placed explicitly because the label is written first: grid will not put a
 // later item back in a column it has already moved past.
@@ -93,9 +100,7 @@ function StatValue({ stat, row }: { stat: WidgetStat; row: number }) {
       title={stat.value == undefined ? stat.unknownTitle ?? "This could not be counted" : undefined}
       sx={{
         ...valueCell(row),
-        color: stat.emphasis === true && stat.value !== undefined && stat.value > 0
-          ? "error.main"
-          : "text.primary",
+        color: isEmphasised(stat) ? "error.main" : "text.primary",
         // Digits of equal width, so the figures line up with each other down the column and a number
         // does not jump sideways when it grows by a digit
         fontVariantNumeric: "tabular-nums",
@@ -132,7 +137,7 @@ function StatLabel({ stat, row }: { stat: WidgetStat; row: number }) {
 //
 // Sample usage:
 // <WidgetStatList stats={[
-//   { label: "Needing attention", value: counts.needingAttention, emphasis: true, href: "/admin/errors" },
+//   { label: "Needing attention", value: counts.needingAttention, emphasis: "nonzero", href: "/admin/errors" },
 //   { label: "Recorded in total", value: counts.total },
 // ]} />
 //

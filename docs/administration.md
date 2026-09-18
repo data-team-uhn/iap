@@ -49,10 +49,10 @@ Figures go through
 so every tool's summary reads the same way: the value first, then what it is a figure
 for, with the values sharing one column so the labels line up however many digits their
 neighbours ran to. A figure is a count by default — with `approximate` for a lower
-bound, `emphasis` to colour a non-zero count as a problem, and no `value` at all for
-something that could not be counted — or `mode: "boolean"` for a state that is on or
-off. A label with an `href` leads into the view at that figure; without one it is plain
-text.
+bound, `emphasis` to colour a count as a problem while it is non-zero or while it
+is zero, and no `value` at all for something that could not be counted — or
+`mode: "boolean"` for a state that is on or off. A label with an `href` leads into
+the view at that figure; without one it is plain text.
 
 ## Contributing a tool
 

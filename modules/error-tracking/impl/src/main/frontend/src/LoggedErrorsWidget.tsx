@@ -70,7 +70,7 @@ function LoggedErrorsWidget() {
             label: "Needing attention",
             value: counts.needingAttention,
             approximate: counts.approximate,
-            emphasis: true,
+            emphasis: "nonzero",
           },
           { label: "Recorded in total", value: counts.total, approximate: counts.approximate },
         ]}
