@@ -79,14 +79,11 @@
       <artifactId>iap-schemas-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- The Taggable view, which the lifecycle state is read through -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-tags-api</artifactId>
       <version>${project.version}</version>
     </dependency>
-    <!-- A submission has workflows attached to it, through the wf:WorkflowAttachable mixin, and the
-         module plugs its create-a-submission behavior into the engine's service task extension point -->
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>iap-workflows</artifactId>
@@ -110,7 +107,6 @@
       <artifactId>org.apache.sling.models.api</artifactId>
       <version>2.0.0</version>
     </dependency>
-    <!-- The form projection an editor reads is served over HTTP -->
     <dependency>
       <groupId>jakarta.json</groupId>
       <artifactId>jakarta.json-api</artifactId>
@@ -123,7 +119,6 @@
       <groupId>org.apache.sling</groupId>
       <artifactId>org.apache.sling.servlets.annotations</artifactId>
     </dependency>
-    <!-- A JSON-P implementation: the API alone cannot build a JsonObject -->
     <dependency>
       <groupId>org.eclipse.parsson</groupId>
       <artifactId>parsson</artifactId>

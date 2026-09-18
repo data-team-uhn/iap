@@ -7,7 +7,7 @@
     "version": "1.0",
     "active": true,
     "targetResourceType": "sub/SubmissionsHomepage",
-    "description": "What happens when a new submission is raised: check the schema version it answers, create the submission, put it under the workflow that schema version names, and send the submitter to it. Shipped by the submissions module - each module contributes the system workflows for its own homepages - and editable per deployment. Raising a submission is what ordinary users are here to do, so the start event admits everyone; a deployment that only accepts submissions from, say, credentialed researchers names that group instead.",
+    "description": "What happens when a new submission is raised: check the schema version it answers, create the submission, put it under the workflow that schema version names, and send the submitter to it.",
     "requested": {
       "jcr:primaryType": "wf:StartEvent",
       "elementId": "requested",
