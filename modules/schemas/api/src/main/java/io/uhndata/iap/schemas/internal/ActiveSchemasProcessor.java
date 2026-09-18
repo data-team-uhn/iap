@@ -74,8 +74,8 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     @Override
     public int getPriority()
     {
-        // After `deep` (10), which is what turns a child into JSON in the first place. Discarding it has to be
-        // the later word, or the child would be serialized back in after being left out
+        // After `deep` (10), which is what turns a child into JSON in the first place.
+        // Discarding it has to be the later word, or the child would be serialized back in after being left out.
         return 20;
     }
 
@@ -100,8 +100,8 @@ public class ActiveSchemasProcessor implements ResourceJsonProcessor
     }
 
     /**
-     * Whether a child belongs in the serialization: everything that is not a schema or a version does, and those do
-     * only while they are active.
+     * Whether a child belongs in the serialization. Everything that is not a schema or a version is not filtered.
+     * Schemas and schema versions are discarded if they are not active.
      *
      * <p>A child that cannot be read is kept. Hiding a schema that is in fact open would leave a submitter
      * with nothing to choose and no way to tell why. Keeping a retired one costs at most a refusal from the

@@ -101,7 +101,6 @@
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.service.component.annotations</artifactId>
     </dependency>
-    <!-- Compile scope, not test: the serialization processor reads nodes through the JCR API -->
     <dependency>
       <groupId>javax.jcr</groupId>
       <artifactId>jcr</artifactId>
