@@ -25,9 +25,6 @@ import {
 
 import { useCatcherToggle } from "./useCaughtMail";
 
-// What each direction costs, said before it is done rather than after. Both are confirmed: turning
-// it on diverts every message the platform would have sent, and turning it off starts delivering to
-// whatever addresses the data happens to hold, which on a test instance are usually real people's.
 const WARNINGS = {
   on: "Nothing will be emailed while this is on. Everything the platform would have sent — password"
     + " resets, invitations, notifications — is kept here instead, and the people it was addressed"
