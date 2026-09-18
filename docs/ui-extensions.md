@@ -261,4 +261,3 @@ From the repository root, in [`tools/dev/extension-manager/`](../tools/dev/exten
 | `list_extension_points.py` | Lists every point in the source tree (path + id + name) |
 | `create_extension_point.py` | Scaffolds a new point: node JSON + consumer component |
 | `post-extension.sh <json> <parent-path>` | Imports a node into a running instance (wraps `:operation=import`) |
-
