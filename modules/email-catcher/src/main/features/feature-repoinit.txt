@@ -31,21 +31,17 @@ set ACL for iap-email-catcher
     allow   jcr:read,jcr:addChildNodes,jcr:modifyProperties,jcr:nodeTypeManagement    on /CaughtMail
 end
 
-# Administrators only. A caught message is whatever the platform would have emailed -- a password-reset link,
-# an invitation, whatever a notification says about somebody's submission -- and `everyone` includes anonymous,
-# so a world-readable /CaughtMail meant that switching the catcher on anywhere published all of it to any
-# visitor. The bundle ships in every distribution, production included, so the only thing that had stood
-# between that and a live instance was a checkbox.
+# Administrators only, since emails may have sensitive information.
 set ACL for iap-administrators
     allow   jcr:read    on /CaughtMail
 end
 
-# The one fact everybody may have, and the reason /CaughtMail no longer has to be readable to supply it:
-# whether mail is being caught at all. /libs is exempt from sling.auth.requirements, so this is reachable
-# before sign-in, which is where somebody waiting for a password-reset mail is standing.
+# The one fact everybody may have: whether mail is being caught at all.
+# /libs is exempt from sling.auth.requirements, so this is reachable before sign-in,
+# which is where somebody waiting for a password-reset mail is standing.
 #
 # Granted here rather than left to the blanket `everyone jcr:read on /libs/iap` that frontend-commons sets,
-# so that narrowing that one (agenda 31) does not silently take the banner down with it.
+# so that narrowing that one does not silently take the banner down with it.
 set ACL for everyone
     allow   jcr:read    on /libs/iap/mail-catcher
 end

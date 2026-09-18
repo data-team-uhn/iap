@@ -21,10 +21,8 @@ import { type Extension } from "@iap/ui-extension/ExtensionList";
 
 import useCatching from "./useCatching";
 
-// The message is here rather than on the extension node so that it cannot drift from the state it
-// describes: a node property would be edited by hand, and a wrong warning about mail is worse than
-// none. What the extension node still decides is where this appears and whether it is shown before
-// sign-in.
+// The message is here rather than on the extension node so that it cannot drift from the state it describes.
+// A node property would be edited by hand, and a wrong warning about mail is worse than none.
 const NOTICE: Extension = {
   "ext:data": "**No email is being sent from this instance.** Everything it would have emailed is"
     + " being kept here instead, including password resets and invitations.",
@@ -32,11 +30,6 @@ const NOTICE: Extension = {
 };
 
 // Says, on every page and before sign-in too, that mail is going nowhere.
-//
-// NoticeBanner renders an extension's own data and nothing else, which is right for a maintenance
-// notice somebody wrote down and wrong for a fact that changes while the page is open. So this asks
-// the server and hands NoticeBanner the answer, leaving the presentation — the full-width error
-// Alert, the markdown — in the one place that already owns it.
 export default function CatchingBanner() {
   const catching = useCatching();
 

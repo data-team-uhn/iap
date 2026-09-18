@@ -20,15 +20,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { CATCHING_CHANGED_EVENT, CATCHING_PATH } from "./caughtMailModel";
 
-// Whether mail is being caught, for the banner that says so.
+// Check whether mail is being caught.
 //
-// A plain fetch, not useAuthenticatedFetch. This runs before sign-in — somebody waiting for a
-// password-reset mail has no session — and that helper reads a failure as an expired one and offers
-// to sign in again, which is the wrong answer for a component asking a question anybody may ask.
-//
-// A failure is silence. This banner exists to add a warning, so a warning nobody could fetch is the
-// same as no warning; putting an error on every page because one endpoint was unreachable would be
-// worse than the thing it reports.
+// A plain fetch, not useAuthenticatedFetch. This runs before sign-in, and that helper always offers
+// to sign in, which is the wrong behavior for a guest.
 export default function useCatching(): boolean {
   const [ catching, setCatching ] = useState(false);
 
@@ -41,7 +36,7 @@ export default function useCatching(): boolean {
         }
       })
       .catch(() => {
-        // Deliberately nothing: see above.
+        // Deliberately nothing: the warning is not critical enough to deface the entire app when it can't be loaded.
       });
   }, []);
 
