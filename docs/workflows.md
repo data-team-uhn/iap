@@ -109,6 +109,8 @@ Whether it **interrupts** that activity is the difference between "give up after
 reminder after five days but keep waiting" — two quite different processes that are otherwise drawn
 identically, so the flag is not decoration. It is parsed from BPMN's `cancelActivity`, whose default is
 likewise true, and it is meaningful only on an attached event; on a free-standing one it is ignored.
+Parsing and storing it is as far as this branch goes — the engine delivers no timers at all yet, so
+nothing currently acts on either value; see [Known gaps](#known-gaps).
 
 ### What an executable graph carries
 
@@ -181,10 +183,13 @@ shallower than BPMN's, and it is the test to apply before adding to it:
 |---|---|---|
 | User task vs. service task | Vocabulary | Both are work to be done; only the doer differs |
 | Timer vs. message start event | Vocabulary | Both start the workflow; only the trigger differs |
-| Exclusive vs. parallel gateway | Node type | The engine routes one token or all of them |
-| Event-based gateway | Node type | It waits instead of evaluating, unlike every other gateway |
+| Exclusive vs. parallel gateway | Node type | The engine is meant to route one token or all of them |
+| Event-based gateway | Node type | It is meant to wait instead of evaluating, unlike every other gateway |
 | Boundary vs. free-standing catch | Containment | Same event; only where it is stored differs |
-| Terminate vs. ordinary end | Property | Same node, but it ends the instance rather than a branch |
+| Terminate vs. ordinary end | Property | Same node, but it is meant to end the instance rather than a branch |
+
+That routing distinction is design intent rather than implemented behavior: today's engine treats every
+gateway kind alike and creates only one token per instance. See [Known gaps](#known-gaps).
 
 ### Self-documentation, and why its shape matters
 
@@ -432,14 +437,15 @@ Drafting a copy leaves `bpmnXmlParsedHash` off deliberately, so a draft never cl
 happened for it; that missing hash is also what has the commit editor look at the copied diagram in the
 first place.
 
-What happens to the *graph* follows `bpmnAuthoritative`, which the copy inherits because it describes how
-a version was authored rather than a state it moves through. Where the diagram owns the graph, the flow
-nodes are not copied: the editor derives the whole tree from the diagram that just arrived, in the same
-commit, and a copied tree would only be waiting to be replaced by the identical one. Where it does not —
-a version whose flow nodes were authored by hand, because the translation cannot yet carry everything
-they hold — the graph is copied as it stands, nested as flow nodes nest, extension properties and all:
-nothing will ever derive it, so a draft without it would be a copy of a process with the process left
-out.
+`bpmnAuthoritative` is written but not yet read back anywhere: `WorkflowVersion.isBpmnAuthoritative()` has
+no caller outside its own model class. Drafting a copy inherits whatever value its source held, because it
+is meant to describe how a version was authored rather than a state it moves through, but today every
+version's flow-node tree is derived the same way regardless of the flag — the editor reparses the whole
+tree from whichever diagram arrives with a `save`, `createVersion` or `draft` event, in the same commit.
+The flag exists for a version whose flow nodes were authored some other way, because the translation from
+BPMN cannot yet carry everything they hold, and that graph must not be overwritten by a reparse — a case
+this branch never creates, since every version today is authored through the diagram editor. See
+[Known gaps](#known-gaps).
 
 Saving a workflow's own properties goes through `saveProperties`, which writes only what the activity's
 `editable` list names and refuses what its `required` list says must arrive with a value. That listing is
@@ -447,10 +453,11 @@ the whole of the safety: without it the handler would be an open write to whatev
 `jcr:primaryType` included, which is exactly the direct-CRUD door these workflows replace. It also means a
 deployment that wants the description editable adds a word to a definition rather than shipping code.
 
-A version created through the UI is marked `bpmnAuthoritative` on creation. It starts from the shipped
-starting diagram and has no hand-written graph for a reparse to throw away, so its diagram is the only
-thing its flow nodes could come from — and without the flag the version would be stored and its diagram
-never parsed into anything the engine can run.
+A version created through the UI is marked `bpmnAuthoritative` on creation, for that eventual reader. It
+starts from the shipped starting diagram and has no hand-written graph for a reparse to throw away, so its
+diagram is the only thing its flow nodes could come from regardless — parsing itself does not depend on
+the flag; a diagram arriving with a version is parsed into flow nodes whether or not that version is
+marked authoritative.
 
 Listing covers every homepage, one at a time. `GET /Workflows.homepages.json` answers with every entity
 homepage holding `wf:WorkflowDefinition` entities **that the caller can read** — a homepage they may not
@@ -716,18 +723,12 @@ is parked on a task performed by `@creator`, tagged `draft`; completing that tas
 no "submit" event, no submit endpoint and no submitted flag — which is why what the button says is the task's
 own label, and why a deployment that wants a request to go somewhere else first only edits its process.
 
-**A task can be given a deadline.** A boundary timer — an event stored *inside* the activity, with a
-`timerDuration` — is armed when the task is raised: the engine works out when the wait ends and records it on
-the task itself, as `dueDate` and the `dueEventId` naming the timer. That puts the deadline where anything
-looking for overdue work can see it without running the engine, and it survives a restart, which a scheduled
-job in memory would not.
-
-When it passes, a periodic sweep hands the task to `receiveEvent` as an ordinary `timeout` event, so the
-clock comes through the same door as everything else. The task is cancelled — no assignee, no outcome,
-because nobody did it and nothing was decided — and execution leaves down the timer's own arc rather than the
-activity's, which is how a process says what running out of time *means*. There is no performer check:
-`performers` says who may make execution pass through a node, and time belongs to no group; refusing the
-clock for that would park the instance on a task that can never now be done.
+**A task's deadline is not wired up yet.** `wf:TaskInstance` declares a `dueDate`, and a
+`wf:IntermediateCatchingEvent` can already sit *inside* an activity as a boundary event, with
+`interrupting` telling apart "give up" from "remind and keep waiting" in the data model — but nothing in
+this branch computes a due date, arms a timer, or sweeps for one that has passed: `Activity.getBoundaryEvents()`
+exists and has no caller. There is no `timerDuration` property to arm one from, and no `dueEventId` or
+`firedEvents` to record which one fired. See [Known gaps](#known-gaps) for what building this needs.
 
 **Read access is materialized when the instance starts.** Acting is authorized by the definitions, but
 reading cannot be — a query returns rows, and no engine can run a workflow per row — so the workflow declares
@@ -735,73 +736,55 @@ and the engine writes an ACL: the person it is being run for, plus the performer
 version. Deriving that from `performers` rather than inventing a second vocabulary means the two can never
 disagree.
 
-### More than one branch at once
+### One token, one arc
 
-An instance holds a token per branch in progress, so the walk is a queue of positions rather than a single
-path. Four things follow from that, and they are the reason it was worth doing as one piece:
-
-**A parallel gateway forks and joins.** Leaving one takes *every* arc — the arriving token moves onto the
-first and a new one is created for each of the rest. A parallel gateway with several arcs leading in is a
-join: each token that arrives waits on it until one has come from every arc, and then they merge back into
-the one token that carries on.
-
-BPMN lets any arc carry a condition, but a parallel gateway takes all of its arcs whatever those say — so a
-condition on one could never decide anything. The engine treats that as an error in the diagram rather than
-quietly ignoring it, because the two readings are far apart: an author who guarded an arc believes that
-branch is sometimes not taken, and it always is.
-
-That counting is also how a diagram deadlocks: a parallel join placed after a fork that did *not* take every
-branch — an exclusive or inclusive one — waits for a token that was never created, and the instance stays
-active with nothing able to move it. Use an inclusive join to merge branches that were conditionally taken;
-it is exactly the case its reachability rule answers.
-
-**An inclusive gateway forks as widely as applies.** Every arc whose condition holds is taken, as is every
-arc that carries no condition, falling back on the default when nothing applies. Its join cannot count the
-way a parallel one does — the fork took only the branches that applied, and how many that was is written
-nowhere — so it asks the question that actually matters: *can any branch still get here?* When no other token
-in the instance can reach it by following the graph, what has arrived is all that ever will. Boundary events
-count as ways onwards, since a deadline can take a token off a task.
-
-That answer changes as the other branches move, and nothing arrives at the join to announce it, so the walk
-looks again at the parked joins once every branch has stopped moving, until nothing can move at all. Reading
-it from the graph rather than remembering it at the fork is what makes it survive an instance being resumed
-days later by somebody else.
-
-**An end event ends a branch, not the process.** The token that reached it is spent, and the instance closes
-only when the last one is gone. `terminate` on an end event is the other thing: it discards every remaining
-token and cancels every task still waiting for somebody, since a task whose token has been discarded can
-never be completed.
-
-**A non-interrupting boundary event runs beside the work.** An interrupting timer cancels the task it watches
-and execution leaves down the timer's arc. A non-interrupting one leaves the task exactly where it was and
-starts a second branch: "remind them after three days" as against "give up after five". Which deadlines have
-already fired is recorded on the task as `firedEvents`, so the sweep does not deliver the same one twice, and
-arming picks the earliest timer that has not fired — measured from when the task started, so "remind after a
-day and a half, give up after five days" means five days from the start rather than from the reminder.
-
-Tokens are interchangeable: nothing distinguishes one from another beyond where it rests, which is why two
-branches arriving at the same task simply mean two tasks, each completed on its own.
+**An instance holds exactly one token.** `InstanceRunner` creates it once, at `start()`, and nothing forks
+it: whatever kind of gateway a token reaches, `choose()` treats it the same way — it picks the single
+outgoing arc whose `conditionExpression` matches the outcome just recorded, falling back to the arc marked
+`isDefault`, and refuses the node if that leaves more or fewer than one match. `wf:ParallelGateway`,
+`wf:InclusiveGateway` and `wf:EventBasedGateway` are modeled and parse correctly, but none of them is
+routed any differently from `wf:ExclusiveGateway` yet, so there is no fork, no join, and no boundary event
+ever moves a second token — there is never a second token to move. `EndEvent.isTerminate()` is likewise
+parsed and stored but never read back: today, reaching any end event simply ends the instance, which
+cannot yet be told apart from terminating it. See [Known gaps](#known-gaps) for the fork/join design this
+is expected to grow into.
 
 ## Known gaps
 
+- **An instance can only ever hold one token, and a gateway can only ever choose one outgoing arc.**
+  `wf:ParallelGateway`, `wf:InclusiveGateway` and `wf:EventBasedGateway` are modeled and parse correctly,
+  and `EndEvent.isTerminate()` is parsed and stored, but none of it is read back — see
+  [One token, one arc](#one-token-one-arc). Building fork/join needs, at minimum: a parallel join that
+  counts arrived tokens against the gateway's incoming arcs, refusing a diagram where a conditioned arc
+  feeds a parallel gateway, since it takes every arc regardless of what a condition says; an inclusive join
+  that instead asks whether any other token can still reach it by walking the graph forward from every
+  token still in play, since the fork it pairs with may not have taken every branch, and re-checks that
+  answer each time another branch stops moving, since nothing arrives at the join to announce it; and an
+  event-based gateway that races its awaited events rather than evaluating a condition —
+  `EventBasedGateway.getAwaitedEvents()` already exists for that but has no caller yet. A parallel join
+  placed after a fork that did not take every branch — an exclusive or inclusive one — would deadlock,
+  waiting on a token nothing ever creates; that is what an inclusive join's reachability rule is for.
 - **Instance variables are not exposed to handlers.** The runtime persists `outcome` as a `wf:Variable`, but
   a service task inside an instance gets variables that live only for that delivery. Typed variables are
   already in the node types; wiring them to the SPI is what is missing.
-- **Nothing delivers a message.** A timer is delivered — a boundary timer on a user task is armed when the
-  task is raised and fired by a periodic sweep — but an instance that reaches a *free-standing* catching
-  event is still refused rather than parked, because nothing could then wake it: what a message event waits
-  for would have to be addressed to it, and the engine's door currently opens onto a homepage or a task.
+- **Nothing delivers a message or a timer, boundary or free-standing.** `wf:IntermediateCatchingEvent` can
+  already sit inside an activity as a boundary event, and `interrupting` already tells "give up" apart from
+  "remind and keep waiting" in the data model, but there is no `timerDuration` property anywhere yet to say
+  how long to wait, no code arms one when a task is raised, and no periodic sweep to fire one if there were
+  — `Activity.getBoundaryEvents()` exists and is never called. A *free-standing* catching event is refused
+  outright for a related reason: what it waits for would have to be addressed to a parked instance, and the
+  engine's door currently opens onto a homepage or a task only.
 - **Read access is granted for the life of the instance**, not only while a task is open, and is never
   revoked. Narrowing it as state changes is a refinement for when there is a reason to want it.
 - **A gateway's guards can only ask about the execution.** They are evaluated against the instance, so the
   `variable` operand source reaches what the run knows — the outcome a task recorded — and nothing yet
   reaches the host it is attached to, which is what routing on a request's own answers would need.
-- **The parser cannot yet fill in an event's payload.** A timer's duration now has somewhere to live —
-  `timerDuration` on the catching event — but BPMN keeps it in a nested `timeDuration` element, and a
-  message event records its `messageRef` without resolving it to the `<bpmn:message>` declared at document
-  level, which is what the engine's event dictionary will need. The vocabulary can copy XML *attributes*;
-  these payloads live in nested *elements*, and the mechanism for reaching them is best designed alongside
-  the parser that needs it.
+- **The parser cannot yet fill in an event's payload.** BPMN keeps a timer's duration in a nested
+  `timeDuration` element and a message event's target in a nested `<bpmn:message>` declared at document
+  level, neither of which the vocabulary can reach today — it can only copy XML *attributes*, and both of
+  these live in nested *elements*. `timerDuration` has no property to land in yet either, so that has to be
+  added to `wf:IntermediateCatchingEvent` alongside whatever reads the element; the mechanism for reaching
+  nested elements is best designed alongside the parser that needs it.
 - **Widening a `performers` list on a workflow-authoring definition needs an ACL to match.** Sling resolves
   the posted-to resource before dispatching, and the only read granted under `/Workflows` is the homepage
   node itself, restricted by node type — so a non-administrator named as a performer of `saveWorkflow` or
@@ -817,6 +800,12 @@ branches arriving at the same task simply mean two tasks, each completed on its 
   or a repoinit script still could, and a definition that named `setVersionState` with the wrong
   `fromStates` would too. A commit editor, the way `BpmnXmlSyncEditor` guards the parsed graph, is the way
   to close that last gap if it ever matters.
+- **`bpmnAuthoritative` is written but never read back.** Every UI-created draft is marked with it, and
+  drafting a copy inherits whatever its source held, but no code branches on the value — every version's
+  flow-node tree is derived from whatever diagram arrives with it, marked authoritative or not. It exists
+  for a version whose graph was authored some other way and must not be overwritten by a reparse, which
+  this branch never creates, since every version today comes from the diagram editor — see
+  [Managing workflows](#managing-workflows).
 - **`performers` is a principal list, not a condition.** It cannot express "and only if the schema they
   name belongs to their institution". That data-dependent half is a job for the conditions module,
   evaluated against the actor alongside the list rather than instead of it: a list can be enumerated to
