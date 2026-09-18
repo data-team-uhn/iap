@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+   Copyright 2026 DATA @ UHN. See the NOTICE file
+   distributed with this work for additional information
+   regarding copyright ownership.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 344" width="820" height="344" role="img">
+  <style>
+    .lbl { font: 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
+    .lbl-sm { font: 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #3c4043; }
+    .lbl-b { font: 600 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
+    .cap { font: italic 12px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #5f6368; }
+    .task { fill: #e8f0fe; stroke: #1a73e8; stroke-width: 2; }
+    .svc  { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
+    .gw   { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
+    .ev-s { fill: #e6f4ea; stroke: #188038; stroke-width: 2; }
+    .ev-e { fill: #fce8e6; stroke: #c5221f; stroke-width: 3; }
+    .ev-i { fill: #fef7e0; stroke: #ea8600; stroke-width: 2; }
+    .flow { stroke: #5f6368; stroke-width: 1.6; fill: none; marker-end: url(#a); }
+    .tok  { fill: #d93025; stroke: #fff; stroke-width: 2; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5f6368"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="26" class="lbl-b">Exclusive — one path only</text>
+  <line x1="20" y1="98" x2="62" y2="98" class="flow"/>
+  <path d="M 66 98 L 96 68 L 126 98 L 96 128 Z" class="gw"/>
+  <text x="96" y="104" class="lbl-b" text-anchor="middle">×</text>
+  <path d="M 126 98 L 160 98 L 160 62 L 248 62" class="flow"/>
+  <text x="162" y="54" class="lbl-sm">under 5 days</text>
+  <path d="M 126 98 L 160 98 L 160 142 L 248 142" class="flow"/>
+  <text x="162" y="162" class="lbl-sm">5 days or more</text>
+  <rect x="250" y="38" width="120" height="46" rx="10" class="task"/>
+  <text x="310" y="66" class="lbl" text-anchor="middle">Manager only</text>
+  <rect x="250" y="118" width="120" height="46" rx="10" class="task"/>
+  <text x="310" y="146" class="lbl" text-anchor="middle">Director too</text>
+  <text x="20" y="208" class="cap">One condition wins. The other path is never taken.</text>
+
+  <text x="450" y="26" class="lbl-b">Parallel — every path, at once</text>
+  <line x1="450" y1="98" x2="492" y2="98" class="flow"/>
+  <path d="M 496 98 L 526 68 L 556 98 L 526 128 Z" class="gw"/>
+  <text x="526" y="104" class="lbl-b" text-anchor="middle">+</text>
+  <path d="M 556 98 L 586 98 L 586 62 L 622 62" class="flow"/>
+  <path d="M 556 98 L 586 98 L 586 142 L 622 142" class="flow"/>
+  <rect x="624" y="38" width="104" height="46" rx="10" class="task"/>
+  <text x="676" y="66" class="lbl" text-anchor="middle">Finance</text>
+  <rect x="624" y="118" width="104" height="46" rx="10" class="task"/>
+  <text x="676" y="146" class="lbl" text-anchor="middle">Ethics</text>
+  <path d="M 728 62 L 758 62 L 758 98" class="flow"/>
+  <path d="M 728 142 L 758 142 L 758 98" class="flow"/>
+  <path d="M 762 98 L 792 68 L 822 98 L 792 128 Z" class="gw" transform="translate(-30,0)"/>
+  <text x="762" y="104" class="lbl-b" text-anchor="middle">+</text>
+  <text x="450" y="208" class="cap">Both start. The second diamond waits for both</text>
+  <text x="450" y="226" class="cap">to finish before anything continues.</text>
+
+  <line x1="20" y1="252" x2="800" y2="252" stroke="#dadce0" stroke-width="1"/>
+  <text x="410" y="282" class="lbl-b" text-anchor="middle">Remember to close what you opened</text>
+  <text x="410" y="306" class="cap" text-anchor="middle">A parallel split needs a matching parallel join, or the process carries on twice over.</text>
+  <text x="410" y="324" class="cap" text-anchor="middle">An exclusive split does not: only one path was ever taken, so there is nothing to wait for.</text>
+
+</svg>
