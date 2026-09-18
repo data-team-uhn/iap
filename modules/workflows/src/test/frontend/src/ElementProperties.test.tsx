@@ -23,62 +23,73 @@ import userEvent from "@testing-library/user-event";
 import { appTheme } from "@iap/frontend-commons/appTheme";
 import ElementProperties from "@iap/workflows/ElementProperties";
 
+import type BaseViewer from "bpmn-js/lib/BaseViewer";
 import type { Element } from "bpmn-js/lib/model/Types";
-import type Modeler from "bpmn-js/lib/Modeler";
 
-// Renaming goes through the modeler's `modeling` service, the only part of bpmn-js this component
-// touches.
-const createModeler = () => {
+// Renaming goes through the canvas's `modeling` service, the only part of bpmn-js this component
+// touches — and the reason renaming is only offered when the canvas is a modeler.
+const createViewer = () => {
   const updateLabel = vi.fn();
-  const modeler = { get: vi.fn(() => ({ updateLabel })) } as unknown as Modeler;
-  return { modeler, updateLabel };
+  const viewer = { get: vi.fn(() => ({ updateLabel })) } as unknown as BaseViewer;
+  return { viewer, updateLabel };
 };
 
-const renderProperties = (element: Element, modeler: Modeler) => render(
+const renderProperties = (element: Element, viewer: BaseViewer, readOnly = false) => render(
   <ThemeProvider theme={appTheme} defaultMode="light">
-    <ElementProperties element={element} modeler={modeler} />
+    <ElementProperties element={element} viewer={viewer} readOnly={readOnly} />
   </ThemeProvider>
 );
 
 describe("ElementProperties", () => {
   it("shows the element's identifier and name", () => {
-    const { modeler } = createModeler();
+    const { viewer } = createViewer();
 
-    renderProperties({ id: "Task_1", businessObject: { name: "Review" } } as unknown as Element, modeler);
+    renderProperties({ id: "Task_1", businessObject: { name: "Review" } } as unknown as Element, viewer);
 
     expect(screen.getByText("Identifier: Task_1")).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("Review");
   });
 
   it("leaves the name empty for an element that has none", () => {
-    const { modeler } = createModeler();
+    const { viewer } = createViewer();
 
-    renderProperties({ id: "Task_1", businessObject: {} } as unknown as Element, modeler);
+    renderProperties({ id: "Task_1", businessObject: {} } as unknown as Element, viewer);
 
     expect(screen.getByRole("textbox")).toHaveValue("");
   });
 
   it("leaves the name empty for an element with no business object at all", () => {
-    const { modeler } = createModeler();
+    const { viewer } = createViewer();
 
-    renderProperties({ id: "Task_1" } as unknown as Element, modeler);
+    renderProperties({ id: "Task_1" } as unknown as Element, viewer);
 
     expect(screen.getByRole("textbox")).toHaveValue("");
   });
 
+  it("shows the name as text, with nothing to type into, when read-only", () => {
+    const { viewer } = createViewer();
+
+    renderProperties({ id: "Task_1", businessObject: { name: "Review" } } as unknown as Element, viewer, true);
+
+    expect(screen.getByText("Identifier: Task_1")).toBeInTheDocument();
+    expect(screen.getByText("Name: Review")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
   it("renames the element through the modeling service as the name is typed", async () => {
     const user = userEvent.setup();
-    const { modeler, updateLabel } = createModeler();
+    const { viewer, updateLabel } = createViewer();
     const element = { id: "Task_1", businessObject: {} } as unknown as Element;
-    renderProperties(element, modeler);
+    renderProperties(element, viewer);
 
     await user.type(screen.getByRole("textbox"), "Hi");
 
-    expect(modeler.get).toHaveBeenCalledWith("modeling");
-    // The field is controlled by the element's own name, which only the modeler updates, so each
-    // keystroke is reported against the unchanged value rather than accumulating
+    expect(viewer.get).toHaveBeenCalledWith("modeling");
+    // updateLabel replaces the whole name, so every keystroke reports the field's full current value,
+    // not just what changed -- and the field shows that same value back immediately.
     expect(updateLabel).toHaveBeenCalledTimes(2);
     expect(updateLabel).toHaveBeenNthCalledWith(1, element, "H");
-    expect(updateLabel).toHaveBeenNthCalledWith(2, element, "i");
+    expect(updateLabel).toHaveBeenNthCalledWith(2, element, "Hi");
+    expect(screen.getByRole("textbox")).toHaveValue("Hi");
   });
 });

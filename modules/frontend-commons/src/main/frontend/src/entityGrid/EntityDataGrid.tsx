@@ -77,6 +77,10 @@ interface EntityDataGridProps {
   // The entity type to list, e.g. "sub/Submission"; its presentation (homepage, columns, default
   // sort) must have been registered beforehand with registerEntityType
   entityType: string;
+  // Overrides the entity type's registered homepage. Several homepages may hold the same kind of
+  // entity (a location's workflows and the platform's own, say); this lists from one of the others.
+  // Defaults to the type's registered homepage.
+  homepage?: string;
   // Extra conditions on the entities' own properties, e.g. only the current user's submissions
   filters?: PropertyFilter[];
   // Extra conditions on a descendant node, e.g. only submissions with a review by the current user
@@ -530,6 +534,7 @@ function EntityGridStatusOverlay(props: { message?: string; error?: string; onRe
 function EntityDataGrid(props: EntityDataGridProps) {
   const {
     entityType,
+    homepage,
     filters,
     childFilter,
     pageSize = 5,
@@ -575,8 +580,10 @@ function EntityDataGrid(props: EntityDataGridProps) {
     useState<GridColumnVisibilityModel>(() => loadStoredColumnVisibility(columnStorageKey));
 
   // The props holding the fixed filters are typically fresh objects on every render, so effects
-  // depend on their content instead of their identity
-  const filterKey = JSON.stringify([filters, childFilter, columnFilters]);
+  // depend on their content instead of their identity. The homepage belongs here too: a caller
+  // that discovers it asynchronously hands it over once the discovery lands, and that has to
+  // re-fetch.
+  const filterKey = JSON.stringify([filters, childFilter, columnFilters, homepage]);
 
   useEffect(() => {
     if (!config) {
@@ -589,7 +596,7 @@ function EntityDataGrid(props: EntityDataGridProps) {
     setLoading(true);
     const sortColumn = sortModel[0] && columns.find(column => column.field === sortModel[0].field);
     fetchEntityPage(fetchUtil, {
-      homepage: config.homepage,
+      homepage: homepage ?? config.homepage,
       offset: paginationModel.page * paginationModel.pageSize,
       limit: paginationModel.pageSize,
       sortBy: sortColumn ? sortColumn.sortProperty ?? sortColumn.field : undefined,
