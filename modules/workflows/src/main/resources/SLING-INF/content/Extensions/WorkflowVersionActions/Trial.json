@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "wf/workflowVersion/actions",
+  "ext:name": "Put workflow version on trial",
+  "ext:renderURL": "asset:iap-workflows.WorkflowVersionTrialAction.js",
+  "defaultOrder": 25
+}

@@ -1,0 +1,44 @@
+{
+  "jcr:primaryType": "wf:WorkflowDefinition",
+  "title": "Put a workflow version on trial",
+  "v1": {
+    "jcr:primaryType": "wf:WorkflowVersion",
+    "version": "1.0",
+    "state": "ACTIVE",
+    "targetResourceType": "wf/WorkflowVersion",
+    "description": "What happens when a draft is put on trial: it stops being editable, without yet becoming what instances are created from. Only a draft can be, which is what this move's `fromStates` says - an active or retired version is carried forward by drafting a copy instead.",
+    "requested": {
+      "jcr:primaryType": "wf:StartEvent",
+      "elementId": "requested",
+      "label": "Trial requested",
+      "messageName": "startTrial",
+      "performers": ["iap-administrators"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/MessageStartEvent",
+      "toMove": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toMove",
+        "targetRef": "move"
+      }
+    },
+    "move": {
+      "jcr:primaryType": "wf:Activity",
+      "elementId": "move",
+      "label": "Put the version on trial",
+      "handler": "setVersionState",
+      "toState": "TRIAL",
+      "fromStates": ["DRAFT"],
+      "jcr:reference:flowNodeType": "/WorkflowTypes/ServiceTask",
+      "toDone": {
+        "jcr:primaryType": "wf:SequenceFlow",
+        "elementId": "toDone",
+        "targetRef": "done"
+      }
+    },
+    "done": {
+      "jcr:primaryType": "wf:EndEvent",
+      "elementId": "done",
+      "label": "Trial started",
+      "jcr:reference:flowNodeType": "/WorkflowTypes/EndEvent"
+    }
+  }
+}

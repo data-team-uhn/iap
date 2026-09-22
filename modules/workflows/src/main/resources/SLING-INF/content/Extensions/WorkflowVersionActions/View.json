@@ -1,0 +1,7 @@
+{
+  "jcr:primaryType": "ext:Extension",
+  "ext:pointId": "wf/workflowVersion/actions",
+  "ext:name": "View workflow version",
+  "ext:renderURL": "asset:iap-workflows.WorkflowVersionViewAction.js",
+  "defaultOrder": 10
+}
