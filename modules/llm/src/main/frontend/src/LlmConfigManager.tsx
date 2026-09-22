@@ -43,10 +43,10 @@ function SettingList({ title, settings }: { title: string; settings: LlmSetting[
       <CardContent>
         <Typography variant="subtitle2" gutterBottom>{title}</Typography>
         { settings.length === 0
-          ? <Typography color="textSecondary" variant="body2">No settings.</Typography>
+          ? <Typography variant="placeholder">No settings.</Typography>
           : settings.map(setting => (
             <Stack key={setting.name} direction="row" spacing={2} sx={{ justifyContent: "space-between", py: 0.25 }}>
-              <Typography color="textSecondary" variant="body2">{setting.name}</Typography>
+              <Typography variant="description">{setting.name}</Typography>
               <Typography variant="body2" sx={{ overflowWrap: "anywhere", textAlign: "right" }}>
                 {setting.value}
               </Typography>
@@ -117,11 +117,11 @@ function LlmConfigManager() {
           />
         )}
       { !loading && catalog.providers.length === 0 && !loadError
-        && <Typography color="textSecondary">No LLM providers are configured.</Typography> }
+        && <Typography variant="placeholder">No LLM providers are configured.</Typography> }
       { catalog.providers.length > 0
         && (
           <Stack spacing={3}>
-            <Typography color="textSecondary" variant="body2">
+            <Typography variant="description">
               Every request goes to the provider and model selected here.
             </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>

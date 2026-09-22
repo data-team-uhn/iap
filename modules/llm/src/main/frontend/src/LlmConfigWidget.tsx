@@ -27,7 +27,7 @@ import { useLlmConfig } from "./useLlmConfig";
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <Stack direction="row" spacing={2} sx={{ justifyContent: "space-between" }}>
-      <Typography color="textSecondary" variant="body2">{label}</Typography>
+      <Typography variant="description">{label}</Typography>
       <Typography variant="body2" sx={{ overflowWrap: "anywhere", textAlign: "right" }}>{value}</Typography>
     </Stack>
   );
@@ -49,7 +49,7 @@ function LlmConfigWidget() {
   const activeProvider = findProvider(catalog, catalog.activeProvider);
   const activeModel = findModel(activeProvider, catalog.activeModel);
   if (!activeProvider || !activeModel) {
-    return <Typography color="textSecondary" variant="body2">No LLM is selected.</Typography>;
+    return <Typography variant="placeholder">No LLM is selected.</Typography>;
   }
 
   const models = catalog.providers.reduce((total, provider) => total + provider.models.length, 0);
