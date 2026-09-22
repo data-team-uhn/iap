@@ -24,7 +24,7 @@
 //
 // The structure is two levels deep:
 //   llm:Configuration   (the catalog root, holds the active selection)
-//     +-- llm:Provider  (an endpoint, e.g. a local Ollama or Prompter)
+//     +-- llm:Provider  (an endpoint, e.g. Prompter)
 //           +-- llm:Model  (a model offered by that provider)
 //
 // The catalog is seeded from initial content. Only the active selection
@@ -38,13 +38,8 @@
 [llm:Configuration] > sling:Folder
   // The list of providers is orderable.
   orderable
-  // We can use this in a query.
-  query
 
   - sling:resourceType (STRING) = "llm/Configuration" mandatory autocreated protected
-
-  // A title for this configuration.
-  - title (String)
 
   // The name of the currently selected provider child node.
   - activeProvider (String)
@@ -56,13 +51,11 @@
   + * (llm:Provider) = llm:Provider
 
 //-----------------------------------------------------------------------------
-// An LLM provider, i.e. an API endpoint such as a local Ollama or Prompter.
+// An LLM provider, i.e. an OpenAI-compatible API endpoint such as Prompter.
 // One provider can serve many models.
 [llm:Provider] > sling:Folder
   // The list of models is orderable.
   orderable
-  // We can use providers in a query.
-  query
 
   - sling:resourceType (STRING) = "llm/Provider" mandatory autocreated protected
 
@@ -99,8 +92,6 @@
 //-----------------------------------------------------------------------------
 // A model offered by a provider.
 [llm:Model] > sling:Folder
-  // We can use models in a query.
-  query
 
   - sling:resourceType (STRING) = "llm/Model" mandatory autocreated protected
 
@@ -112,17 +103,8 @@
   // The model's maximum context window, in tokens.
   - contextLimitTokens (LONG)
 
-  // The maximum number of tokens to generate in the response.
-  - maxOutputTokens (LONG) = '2000' autocreated
-
   // The sampling temperature passed to the model.
   - temperature (DOUBLE) = '0.0' autocreated
-
-  // The number of input tokens to send per chunk when the input exceeds the context window.
-  - chunkTokenSize (LONG)
-
-  // Documents estimated at fewer tokens than this are sent to the model whole, never chunked.
-  - wholeDocumentTokenLimit (LONG) = '20000' autocreated
 
   // The organization that developed this model (e.g. google, anthropic, alibaba).
   - developer (String)
