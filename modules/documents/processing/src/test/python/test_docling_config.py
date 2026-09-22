@@ -41,7 +41,8 @@ import docling_config  # noqa: E402
 from docling.datamodel.pipeline_options import (  # noqa: E402
     HeadingHierarchyOptions,
     PdfPipelineOptions,
-    TableStructureV2Options,
+    TableFormerMode,
+    TableStructureOptions,
 )
 from docling.datamodel.settings import settings  # noqa: E402
 
@@ -101,14 +102,16 @@ class TestPipelineOptionNames:
         assert options.accelerator_options.num_threads == 1
 
     def test_the_table_structure_sub_options_are_real_fields(self):
-        assert "do_cell_matching" in TableStructureV2Options.model_fields
+        for name in ("do_cell_matching", "mode"):
+            assert name in TableStructureOptions.model_fields, name
 
-    def test_the_table_model_is_v2(self):
-        # V1 duplicated a cell's text down a column; V2 is also the faster of the two. Both
-        # matter, so pin the model rather than leaving it to Docling's default.
+    def test_the_table_model_is_v1_fast_without_cell_matching(self):
+        # Pinned rather than left to Docling's default, which is V1 ACCURATE with cell matching
+        # on -- and cell matching is the setting that smeared one cell's text down a column.
         options = docling_config.PDF_PIPELINE_OPTIONS.table_structure_options
-        assert isinstance(options, TableStructureV2Options)
-        assert options.do_cell_matching is True
+        assert isinstance(options, TableStructureOptions)
+        assert options.do_cell_matching is False
+        assert options.mode is TableFormerMode.FAST
 
     def test_the_heading_hierarchy_sub_options_are_real_fields(self):
         for name in ("enabled", "use_bookmarks", "use_numbering", "use_style"):

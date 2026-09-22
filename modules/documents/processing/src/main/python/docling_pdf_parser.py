@@ -113,7 +113,7 @@ def _warm_worker() -> int:
 LogFn = Callable[[str], None]
 
 # Wall-clock ceiling for one whole conversion. Docling's own document_timeout bounds a single
-# page batch, and a 1500-page document is up to 375 of them, so it bounds nothing a caller
+# page batch, and a 500-page document is up to 125 of them, so it bounds nothing a caller
 # waits on. Somebody is waiting on this one: a document that cannot be converted inside the
 # quarter hour is better refused than delivered to a person who has given up. 0 disables it.
 PARSE_TIMEOUT_VARIABLE = "IAP_DOCLING_PARSE_TIMEOUT_SECONDS"

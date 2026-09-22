@@ -636,7 +636,7 @@ def docling_service():
         # 0, so that an operator who empties the token hears the daemon's own warning about it.
         # Set this to 1 only after confining the port some other way.
         'IAP_DOCLING_TRUSTED_NETWORK': '${IAP_DOCLING_TRUSTED_NETWORK:-0}',
-        'IAP_MAX_INPUT_PAGES': '${IAP_MAX_INPUT_PAGES:-1500}',
+        'IAP_MAX_INPUT_PAGES': '${IAP_MAX_INPUT_PAGES:-500}',
         'IAP_MAX_INPUT_BYTES': '${IAP_MAX_INPUT_BYTES:-67108864}',
         'IAP_LIBREOFFICE_TIMEOUT_SECONDS': '${IAP_LIBREOFFICE_TIMEOUT_SECONDS:-300}',
         'IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS': '${IAP_DOCLING_DOCUMENT_TIMEOUT_SECONDS:-600}',
