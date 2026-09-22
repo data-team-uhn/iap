@@ -63,13 +63,32 @@ class ParseServletTest
 
     private ParseServlet servlet;
 
+    private ParseJobService service;
+
     @BeforeEach
     void setUp() throws Exception
     {
         this.context.create().resource(ParseJob.JOBS_PATH);
         this.servlet = new ParseServlet();
+        // Queueing goes through the real service, so what the endpoint answers is what a caller would really get
+        this.service = new ParseJobService();
         inject("resolverFactory", new TestResolverFactory(this.context.resourceResolver()));
         inject("jobManager", this.jobManager);
+        inject("parseService", this.service);
+    }
+
+    @Test
+    void postRecordsTheNodeTheParseIsFor() throws Exception
+    {
+        Mockito.when(this.jobManager.addJob(Mockito.eq(ParseJob.TOPIC), Mockito.anyMap()))
+            .thenReturn(Mockito.mock(Job.class));
+
+        final MockSlingJakartaHttpServletResponse response = post(Map.of(ParseJob.PN_PATH, "/shared-docs/proposal.pdf",
+            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file"));
+
+        assertEquals(202, response.getStatus());
+        assertEquals("/Submissions/aRequest/d1/v1/file",
+            jobProperties(parse(response).getString("job_id")).get(ParseJob.PN_TARGET, String.class));
     }
 
     @Test
@@ -290,11 +309,21 @@ class ParseServletTest
         };
     }
 
+    /**
+     * Wire a collaborator into whichever of the servlet and the service declares it: the servlet keeps a resolver
+     * of its own for polling, the service holds the resolver and the job manager that queueing needs.
+     */
     private void inject(final String name, final Object value) throws Exception
     {
-        final Field reference = ParseServlet.class.getDeclaredField(name);
-        reference.setAccessible(true);
-        reference.set(this.servlet, value);
+        for (final Object target : new Object[] { this.servlet, this.service }) {
+            try {
+                final Field reference = target.getClass().getDeclaredField(name);
+                reference.setAccessible(true);
+                reference.set(target, value);
+            } catch (final NoSuchFieldException e) {
+                // Not every collaborator has every field
+            }
+        }
     }
 
     /**

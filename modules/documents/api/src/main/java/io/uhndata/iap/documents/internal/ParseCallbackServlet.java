@@ -81,6 +81,9 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
     @Reference
     private transient ResourceResolverFactory resolverFactory;
 
+    @Reference
+    private transient ParseOutcomeDispatcher outcomes;
+
     /** The expected {@code Authorization} header, or {@code null} when no token is configured. */
     private transient byte[] expectedAuthorization;
 
@@ -166,6 +169,11 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             if (outcome.getBoolean("ok", false)) {
                 status = ParseJob.STATUS_COMPLETED;
                 properties.put(ParseJob.PN_OUTPUTS, new String[] { markdown });
+                // The daemon measures the document as it writes it, and nothing else does: the parse leaves no
+                // outline file behind to read it from afterwards.
+                if (outcome.containsKey(ParseJob.PN_TOKENS)) {
+                    properties.put(ParseJob.PN_TOKENS, (long) outcome.getInt(ParseJob.PN_TOKENS, 0));
+                }
                 properties.remove(ParseJob.PN_ERROR);
             } else {
                 status = ParseJob.STATUS_FAILED;
@@ -176,6 +184,14 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             properties.put(ParseJob.PN_STATUS, status);
             properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
             resolver.commit();
+            // The daemon measures nothing for us, and the job record is about to be deleted, so this is the only
+            // moment the conversion's own wall time exists anywhere. It is the slowest step in the pipeline.
+            LOGGER.info("Parse {}: job={} parseMs={} tokens={}", status, jobId,
+                elapsedMilliseconds(properties.get(ParseJob.PN_STARTED, Calendar.class)),
+                properties.get(ParseJob.PN_TOKENS, Long.class));
+            // Recorded first, then handed over: whoever queued the parse for a node takes it from here, and the
+            // record goes with it
+            settle(resolver, jobNode, jobId);
             JsonResponse.write(response, HttpServletResponse.SC_OK, Json.createObjectBuilder()
                 .add(ParseJob.JSON_JOB_ID, jobId)
                 .add(ParseJob.PN_STATUS, status)
@@ -189,6 +205,38 @@ public class ParseCallbackServlet extends SlingJakartaAllMethodsServlet
             JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                 "The outcome could not be recorded");
         }
+    }
+
+    /**
+     * Hand the recorded outcome to whoever was waiting on it.
+     *
+     * <p>Kept off the response path. The outcome is committed by the time this runs, so the delivery was a
+     * success whatever a handler makes of it; letting a handler's failure escape would answer the daemon with a
+     * 500 for a job that finished, and the daemon would deliver it all over again.</p>
+     *
+     * @param resolver the session the job node was read through
+     * @param jobNode the settled job
+     * @param jobId the job's identifier, for the log
+     */
+    private void settle(final ResourceResolver resolver, final Resource jobNode, final String jobId)
+    {
+        try {
+            this.outcomes.settle(resolver, jobNode);
+        } catch (final RuntimeException e) {
+            LOGGER.error("The outcome of parse job {} was recorded but could not be handed over: {}", jobId,
+                e.getMessage(), e);
+        }
+    }
+
+    /**
+     * How long ago something recorded on the job happened.
+     *
+     * @param since the moment to measure from, or {@code null} when the job never recorded one
+     * @return the elapsed milliseconds, or {@code null} when there is nothing to measure from
+     */
+    private static Long elapsedMilliseconds(final Calendar since)
+    {
+        return since == null ? null : System.currentTimeMillis() - since.getTimeInMillis();
     }
 
     /**

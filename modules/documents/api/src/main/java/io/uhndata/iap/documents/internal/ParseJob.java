@@ -75,6 +75,15 @@ final class ParseJob
     /** The name of the property holding the path of the document to parse, as seen by the daemon. */
     static final String PN_PATH = "path";
 
+    /**
+     * The name of the property holding the repository path the parse is for, when somebody is waiting on it there.
+     * Absent for a parse that is only polled for.
+     */
+    static final String PN_TARGET = "target";
+
+    /** The name of the property holding how large the daemon measured the document to be, in tokens. */
+    static final String PN_TOKENS = "tokens";
+
     /** The name of the property holding the moment the job was created. */
     static final String PN_CREATED = "created";
 

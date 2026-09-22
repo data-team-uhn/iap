@@ -86,7 +86,7 @@ On start you get:
 # Optional: only if the shared root is not /shared-docs
 # set IAP_SHARED_DOCS=C:\path\to\shared-docs
 
-python modules/documents/processing/src/main/python/docling_daemon.py --host 127.0.0.1 --port 18765
+python modules/documents/processing/src/main/python/docling_daemon.py
 ```
 
 ### Test endpoints

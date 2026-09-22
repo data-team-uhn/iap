@@ -459,6 +459,11 @@ def iap_service(args, compose_directory):
     service['environment'] = iap_environment(args)
 
     volumes = ['iap-data:/opt/iap/.iap-data']
+    if args.docling:
+        # The daemon reads documents off this volume and writes its outputs beside them, so IAP
+        # stages every upload here and reads the results back. Both containers see it at the same
+        # path, which is what lets a staged file's path be handed to the daemon as it is.
+        volumes.append('${IAP_SHARED_DOCS_HOST:-../shared-docs}:/shared-docs')
     if args.dev:
         volumes.append("{}:/root/.m2:ro".format(Path.home() / '.m2'))
     if args.mail:
@@ -535,6 +540,9 @@ def iap_environment(args):
         comment(environment, "side's own Authorization header when dispatching a parse. Empty by")
         comment(environment, "default, matching the daemon's default of requiring no credential.")
         environment['IAP_DOCLING_TOKEN'] = '${IAP_DOCLING_TOKEN:-}'
+        comment(environment, "Where the document volume shared with the daemon is mounted; the")
+        comment(environment, "same path on both sides, so a staged path can be handed over as is.")
+        environment['IAP_SHARED_DOCS'] = '/shared-docs'
 
     if args.features:
         comment(environment, "Started in addition to the distribution the image already carries.")

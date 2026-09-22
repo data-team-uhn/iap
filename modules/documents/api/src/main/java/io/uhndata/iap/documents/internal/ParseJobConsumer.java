@@ -28,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Calendar;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import jakarta.json.Json;
 import jakarta.json.JsonException;
@@ -41,7 +40,6 @@ import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
-import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.event.jobs.Job;
 import org.apache.sling.event.jobs.consumer.JobConsumer;
 import org.osgi.service.component.annotations.Activate;
@@ -67,8 +65,9 @@ import org.slf4j.LoggerFactory;
  * <p>
  * A refused or unreachable dispatch marks the job failed and is never retried automatically
  * ({@link JobResult#CANCEL}): re-submitting through the endpoint is the retry. A dispatch the daemon accepted but
- * never calls back about (a daemon crash mid-parse) currently leaves the job {@code active}; sweeping such stragglers
- * is left for the real integration.
+ * never calls back about (a daemon crash mid-parse) leaves the job {@code active}, and
+ * {@link StaleParseJobSweeper} declares it failed once it has gone unanswered long enough - a stuck job is worse
+ * than a failed one, because a failure can be retried and a spinner cannot.
  * </p>
  *
  * <p>
@@ -121,6 +120,9 @@ public class ParseJobConsumer implements JobConsumer
 
     @Reference
     private ResourceResolverFactory resolverFactory;
+
+    @Reference
+    private ParseOutcomeDispatcher outcomes;
 
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
 
@@ -209,8 +211,7 @@ public class ParseJobConsumer implements JobConsumer
                 LOGGER.warn("Dropping parse job {}: its job node is gone", jobId);
                 return JobResult.CANCEL;
             }
-            final ValueMap properties = jobNode.getValueMap();
-            final String status = properties.get(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED);
+            final String status = jobNode.getValueMap().get(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED);
             if (!ParseJob.STATUS_QUEUED.equals(status)) {
                 // Sling re-queues jobs it did not see finish, for instance across a restart. Dispatching again
                 // would re-run a conversion that may well have completed, and its callback would overwrite the
@@ -218,11 +219,11 @@ public class ParseJobConsumer implements JobConsumer
                 LOGGER.warn("Dropping parse job {}: it is already {}", jobId, status);
                 return JobResult.CANCEL;
             }
-            path = properties.get(ParseJob.PN_PATH, String.class);
-            update(jobNode, resolver, editable -> {
-                editable.put(ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE);
-                editable.put(ParseJob.PN_STARTED, Calendar.getInstance());
-            });
+            path = jobNode.getValueMap().get(ParseJob.PN_PATH, String.class);
+            final ModifiableValueMap editable = editable(jobNode);
+            editable.put(ParseJob.PN_STATUS, ParseJob.STATUS_ACTIVE);
+            editable.put(ParseJob.PN_STARTED, Calendar.getInstance());
+            resolver.commit();
         } catch (final LoginException | PersistenceException e) {
             LOGGER.error("Cannot mark parse job {} as active: {}", jobId, e.getMessage(), e);
             return JobResult.CANCEL;
@@ -260,11 +261,15 @@ public class ParseJobConsumer implements JobConsumer
      */
     private JobResult dispatch(final String jobId, final String path)
     {
+        final long startedAt = System.nanoTime();
         try {
             final HttpResponse<String> response = send(buildRequest(jobId, path));
             final int status = response.statusCode();
             if ((status == 200 || status == 202) && isAsyncAccept(jobId, response.body())) {
-                LOGGER.debug("Parse job {} accepted by the daemon", jobId);
+                // The conversion itself is the daemon's; this only measures how long it took to take the work on,
+                // which is what separates a busy daemon from a slow document
+                LOGGER.info("Parse dispatched: job={} acceptedInMs={}", jobId,
+                    (System.nanoTime() - startedAt) / 1_000_000L);
                 return JobResult.OK;
             }
             if (status == 200 || status == 202) {
@@ -273,7 +278,7 @@ public class ParseJobConsumer implements JobConsumer
                 fail(jobId, "The daemon answered HTTP " + status + ": " + errorMessage(response.body()));
             }
         } catch (final IOException | IllegalArgumentException e) {
-            fail(jobId, "Calling the daemon failed: " + e.getMessage());
+            fail(jobId, "Calling the daemon at " + this.daemonUrl + " failed: " + describe(e));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(jobId, "Interrupted while waiting for the daemon");
@@ -379,6 +384,18 @@ public class ParseJobConsumer implements JobConsumer
     }
 
     /**
+     * What went wrong, for the job record. A connection that never opened comes as an exception with no
+     * message at all, and "failed: null" tells nobody anything.
+     *
+     * @param failure what was thrown
+     * @return the message, or the exception type when there is none
+     */
+    private static String describe(final Exception failure)
+    {
+        return failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
+    }
+
+    /**
      * Record a failure on the job node.
      *
      * @param jobId the identifier of the job that failed
@@ -392,40 +409,38 @@ public class ParseJobConsumer implements JobConsumer
                 LOGGER.error("Cannot record the outcome of parse job {}: its job node is gone", jobId);
                 return;
             }
-            update(jobNode, resolver, properties -> {
-                // A lost 202 can land here after the callback already finished the job.
-                if (properties.get(ParseJob.PN_FINISHED, Calendar.class) != null) {
-                    LOGGER.warn("Parse job {} already finished; not recording dispatch failure: {}",
-                        jobId, message);
-                    return;
-                }
-                LOGGER.warn("Parse job {} failed: {}", jobId, message);
-                properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_FAILED);
-                properties.put(ParseJob.PN_ERROR, message);
-                properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
-            });
+            final ModifiableValueMap properties = editable(jobNode);
+            // A lost 202 can land here after the callback already finished the job.
+            if (properties.get(ParseJob.PN_FINISHED, Calendar.class) != null) {
+                LOGGER.warn("Parse job {} already finished; not recording dispatch failure: {}", jobId, message);
+                return;
+            }
+            LOGGER.warn("Parse job {} failed: {}", jobId, message);
+            properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_FAILED);
+            properties.put(ParseJob.PN_ERROR, message);
+            properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
+            resolver.commit();
+            // A job that never reached the daemon still ended, and whoever is waiting on it has to hear so
+            this.outcomes.settle(resolver, jobNode);
         } catch (final LoginException | PersistenceException e) {
             LOGGER.error("Cannot record the outcome of parse job {}: {}", jobId, e.getMessage(), e);
         }
     }
 
     /**
-     * Apply changes to a job node and commit them.
+     * A job node opened for changes.
      *
      * @param jobNode the node to change
-     * @param resolver the session the node was read with
-     * @param changes the changes to apply
-     * @throws PersistenceException if the changes cannot be persisted
+     * @return its properties, to be written and then committed by the caller
+     * @throws PersistenceException if the node cannot be changed
      */
-    private static void update(final Resource jobNode, final ResourceResolver resolver,
-        final Consumer<ModifiableValueMap> changes) throws PersistenceException
+    private static ModifiableValueMap editable(final Resource jobNode) throws PersistenceException
     {
         final ModifiableValueMap editable = jobNode.adaptTo(ModifiableValueMap.class);
         if (editable == null) {
             throw new PersistenceException("The job node cannot be modified");
         }
-        changes.accept(editable);
-        resolver.commit();
+        return editable;
     }
 
     /**
