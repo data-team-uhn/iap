@@ -21,22 +21,33 @@
       "start-order":"25"
     }
   ],
+  "variables":{
+    // Where the Docling daemon listens. A variable, not a plain value, so a launch can point IAP at a
+    // daemon somewhere else: start.py passes -V docling.url=http://localhost:18765 for a local run, and
+    // the default below is the compose service name (tools/deploy/generate_compose.py --docling).
+    "docling.url":"http://docling:18765"
+  },
   "configurations":{
     "org.apache.sling.serviceusermapping.impl.ServiceUserMapperImpl.amended~iapdocuments":{
       "user.mapping":[
         "io.uhndata.iap.documents-api:parse-jobs=[iap-documents]"
       ]
     },
-    // Where the Docling daemon listens; see tools/deploy/generate_compose.py --docling.
     // Where it POSTs parse outcomes back to is configured on the daemon itself
-    // (IAP_DOCLING_CALLBACK_URL), not sent with the dispatch: that call carries the shared
-    // token and the daemon's port is unauthenticated. The callback is authenticated with the
-    // shared JWT both sides read from the IAP_DOCLING_CALLBACK_JWT environment variable
-    // (overridable here with a "callbackToken" property on the
-    // ...internal.ParseCallbackServlet or ...internal.ParseJobConsumer configuration).
-    // Without it the consumer refuses to dispatch, since callbacks could not be accepted.
+    // (IAP_DOCLING_CALLBACK_URL), not sent with the dispatch: that call carries the shared token and
+    // the daemon's port is unauthenticated. The callback is authenticated with the shared JWT both
+    // sides read from the IAP_DOCLING_CALLBACK_JWT environment variable (overridable here with a
+    // "callbackToken" property on the ...internal.ParseCallbackServlet or ...internal.ParseJobConsumer
+    // configuration). Without it the consumer refuses to dispatch, since callbacks could not be accepted.
     "io.uhndata.iap.documents.internal.ParseJobConsumer":{
-      "daemonUrl":"http://docling:18765"
+      "daemonUrl":"${docling.url}"
+    },
+    // Only the daemon ever ends a job, so a daemon killed mid-parse leaves one active for good, and
+    // everything waiting on it waits for good with it. The sweep gives up on such a job and takes its
+    // staging folder with it. Half an hour sits above the daemon's own quarter-hour ceiling on a whole
+    // conversion, with room for the queue in front of it; raise it if parses legitimately take longer.
+    "io.uhndata.iap.documents.internal.StaleParseJobSweeper":{
+      "maxAgeMinutes":30
     }
   },
   "repoinit:TEXT|true": "@file"

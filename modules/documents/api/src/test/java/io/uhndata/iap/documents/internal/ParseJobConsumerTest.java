@@ -20,13 +20,16 @@ package io.uhndata.iap.documents.internal;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.sling.api.resource.LoginException;
@@ -47,6 +50,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 
 import com.sun.net.httpserver.HttpServer;
+import io.uhndata.iap.documents.api.ParseOutcome;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -77,6 +81,8 @@ class ParseJobConsumerTest
         + " \"markdown_path\": \"/shared-docs/proposal.md\", \"tokens\": 12000}";
 
     private final SlingContext context = new SlingContext();
+
+    private final ParseOutcomeDispatcher dispatcher = new ParseOutcomeDispatcher();
 
     @SuppressWarnings("unchecked")
     private final HttpResponse<String> daemonResponse = Mockito.mock(HttpResponse.class);
@@ -309,6 +315,20 @@ class ParseJobConsumerTest
         final ValueMap properties = jobProperties();
         assertEquals(ParseJob.STATUS_FAILED, properties.get(ParseJob.PN_STATUS, String.class));
         assertTrue(properties.get(ParseJob.PN_ERROR, String.class).contains("Connection refused"));
+    }
+
+    // The JDK client reports a connection it could not open with no message at all
+    @Test
+    void namesTheFailureWhenTheDaemonCallGivesNoReason()
+    {
+        jobNode();
+        this.sendFailure = new ConnectException();
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        final String error = jobProperties().get(ParseJob.PN_ERROR, String.class);
+        assertTrue(error.contains("ConnectException"), error);
+        assertTrue(error.contains("Calling the daemon at http"), error);
     }
 
     @Test
@@ -616,6 +636,33 @@ class ParseJobConsumerTest
         final Field reference = ParseJobConsumer.class.getDeclaredField("resolverFactory");
         reference.setAccessible(true);
         reference.set(target, factory);
+        final Field outcomes = ParseJobConsumer.class.getDeclaredField("outcomes");
+        outcomes.setAccessible(true);
+        outcomes.set(target, this.dispatcher);
+    }
+
+    @Test
+    void aDispatchThatNeverReachedTheDaemonStillReachesTheOutcomeHandler()
+    {
+        final List<ParseOutcome> handed = new ArrayList<>();
+        this.dispatcher.bindHandler(outcome -> {
+            handed.add(outcome);
+            return true;
+        });
+        this.context.create().resource(ParseJob.nodePath(JOB_ID),
+            ParseJob.PN_JOB_ID, JOB_ID,
+            ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED,
+            ParseJob.PN_PATH, DOCUMENT,
+            ParseJob.PN_TARGET, "/Submissions/aRequest/d1/v1/file");
+        this.sendFailure = new IOException("connection refused");
+
+        assertEquals(JobResult.CANCEL, this.consumer.process(this.job));
+
+        assertEquals(1, handed.size());
+        assertFalse(handed.get(0).succeeded());
+        assertTrue(handed.get(0).error().contains("connection refused"));
+        assertNull(this.context.resourceResolver().getResource(ParseJob.nodePath(JOB_ID)),
+            "taken, so the record goes");
     }
 
     private void jobNode()

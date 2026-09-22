@@ -342,18 +342,37 @@ def _parse_and_call_back(
     budget covers one conversion in total — not one of each. Waiting is right here where
     refusing is right there: nobody is holding a socket open for this.
     """
+    queued_at = time.monotonic()
+    _log_stderr(f"parse job={job_id} queued path={input_path}")
     try:
         with _STATE.parse_slots:
+            # Split from the conversion: with one parse slot, a slow answer is often a parse that
+            # waited, and one total would not say which of the two it was.
+            waited_ms = int((time.monotonic() - queued_at) * 1000)
+            started_at = time.monotonic()
             summary = _run_parse(input_path)
+        parse_ms = int((time.monotonic() - started_at) * 1000)
+        _log_stderr(
+            f"parse job={job_id} done waitMs={waited_ms} parseMs={parse_ms} "
+            f"tokens={summary.get('tokens')} markdown={summary.get('markdown_path')}"
+        )
         payload = parse_callbacks.success_payload(job_id, summary)
     except (Exception, CancelledError) as exc:
         # CancelledError is a BaseException, so "except Exception" would miss it: it is what
         # a shutdown closing the PDF pool mid-parse raises here, and that still owes the
         # caller a failure callback rather than silence.
         # The callback carries only the summary message; the traceback goes to the log
+        _log_stderr(
+            f"parse job={job_id} failed afterMs={int((time.monotonic() - queued_at) * 1000)}: {exc}"
+        )
         traceback.print_exc(file=sys.stderr)
         payload = parse_callbacks.failure_payload(job_id, str(exc) or type(exc).__name__)
+    delivery_started = time.monotonic()
     parse_callbacks.deliver(callback_url, payload, token=token, log=_log_stderr)
+    _log_stderr(
+        f"parse job={job_id} outcome delivered in "
+        f"{int((time.monotonic() - delivery_started) * 1000)}ms"
+    )
 
 
 class DoclingDaemonHandler(BaseHTTPRequestHandler):

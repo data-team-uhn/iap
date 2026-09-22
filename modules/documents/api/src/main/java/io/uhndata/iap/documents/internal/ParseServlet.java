@@ -18,10 +18,6 @@
 package io.uhndata.iap.documents.internal;
 
 import java.io.IOException;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArrayBuilder;
@@ -33,20 +29,18 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.apache.sling.api.SlingJakartaHttpServletRequest;
 import org.apache.sling.api.SlingJakartaHttpServletResponse;
 import org.apache.sling.api.resource.LoginException;
-import org.apache.sling.api.resource.ModifiableValueMap;
-import org.apache.sling.api.resource.PersistenceException;
 import org.apache.sling.api.resource.Resource;
 import org.apache.sling.api.resource.ResourceResolver;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.apache.sling.api.resource.ValueMap;
 import org.apache.sling.api.servlets.SlingJakartaAllMethodsServlet;
-import org.apache.sling.event.jobs.Job;
-import org.apache.sling.event.jobs.JobManager;
 import org.apache.sling.servlets.annotations.SlingServletPaths;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.uhndata.iap.documents.api.ParseService;
 
 /**
  * Stub endpoint for parsing a document through the Docling daemon, at {@code /system/documents/parse}. Each request
@@ -55,7 +49,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  * {@code POST /system/documents/parse?path=/shared-docs/dir/file.pdf} queues a parse of the given file. The
- * {@code path} is the document's location as the daemon sees it, on the volume shared with it. The answer is
+ * {@code path} is the document's location as the daemon sees it, on the volume shared with it; {@code target}
+ * (optional) names the repository node waiting on the outcome, see {@link ParseService#queue}. The answer is
  * {@code {"job_id": "<uuid>", "status": "queued"}}.
  * </p>
  *
@@ -67,6 +62,14 @@ import org.slf4j.LoggerFactory;
  * <p>
  * Job nodes are read and written with a service user, so callers only need to be authenticated, not authorized on
  * {@code /var}; finer authorization (who may parse what, who may see which job) is left for the real integration.
+ * </p>
+ *
+ * <p>
+ * That caveat now covers {@code target} as well, and it covers more than it did: a parse queued with one hands its
+ * outcome to whatever {@link io.uhndata.iap.documents.spi.ParseOutcomeHandler} claims that node, so an
+ * authenticated caller can make the platform read a file off the shared volume onto a repository node of their
+ * choosing. The platform's own callers pass a {@code sub:File} they staged themselves. Before this endpoint is
+ * anything but a stub, {@code target} needs the same authorization as writing that node by hand would.
  * </p>
  *
  * @version $Id$
@@ -96,7 +99,7 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
     private transient ResourceResolverFactory resolverFactory;
 
     @Reference
-    private transient JobManager jobManager;
+    private transient ParseService parseService;
 
     @Override
     protected void doPost(final SlingJakartaHttpServletRequest request, final SlingJakartaHttpServletResponse response)
@@ -107,46 +110,22 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
             JsonResponse.error(response, HttpServletResponse.SC_BAD_REQUEST, "path parameter is required");
             return;
         }
-        final String jobId = UUID.randomUUID().toString();
-        try (ResourceResolver resolver = ParseJob.openResolver(this.resolverFactory)) {
-            final Resource jobsRoot = resolver.getResource(ParseJob.JOBS_PATH);
-            if (jobsRoot == null) {
-                JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "The parse jobs storage is not initialized");
-                return;
-            }
-            final Map<String, Object> properties = new HashMap<>();
-            properties.put(ParseJob.PN_JOB_ID, jobId);
-            properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED);
-            properties.put(ParseJob.PN_PATH, path);
-            properties.put(ParseJob.PN_CREATED, Calendar.getInstance());
-            final Resource jobNode = resolver.create(jobsRoot, jobId, properties);
-            // The node must be visible to the consumer before the job is queued
-            resolver.commit();
-
-            final Job job = this.jobManager.addJob(ParseJob.TOPIC, Map.of(ParseJob.PN_JOB_ID, jobId));
-            if (job == null) {
-                markUnqueueable(resolver, jobNode);
-                JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "The parse job could not be queued");
-                return;
-            }
-
-            // Built from the constant servlet path, never from the request, so nothing
-            // attacker-controlled can steer where this points (CodeQL: unvalidated-url-redirection)
-            response.setHeader("Location", PATH + "?" + JOB_ID_KEY + "=" + jobId);
-            JsonResponse.write(response, HttpServletResponse.SC_ACCEPTED, Json.createObjectBuilder()
-                .add(JOB_ID_KEY, jobId)
-                .add(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED)
-                .build());
-        } catch (final LoginException e) {
-            LOGGER.error(LOG_INACCESSIBLE, e.getMessage(), e);
-            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, INACCESSIBLE);
-        } catch (final PersistenceException e) {
-            LOGGER.error("Cannot record parse job {}: {}", jobId, e.getMessage(), e);
-            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "The parse job could not be recorded");
+        final String jobId;
+        try {
+            jobId = this.parseService.queue(path, request.getParameter(ParseJob.PN_TARGET));
+        } catch (final IOException e) {
+            // The service's own words: which step refused, without what the repository said about it
+            LOGGER.error("Cannot queue a parse: {}", e.getMessage(), e);
+            JsonResponse.error(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, e.getMessage());
+            return;
         }
+        // Built from the constant servlet path, never from the request, so nothing
+        // attacker-controlled can steer where this points (CodeQL: unvalidated-url-redirection)
+        response.setHeader("Location", PATH + "?" + JOB_ID_KEY + "=" + jobId);
+        JsonResponse.write(response, HttpServletResponse.SC_ACCEPTED, Json.createObjectBuilder()
+            .add(JOB_ID_KEY, jobId)
+            .add(ParseJob.PN_STATUS, ParseJob.STATUS_QUEUED)
+            .build());
     }
 
     @Override
@@ -203,28 +182,4 @@ public class ParseServlet extends SlingJakartaAllMethodsServlet
         }
         return json.build();
     }
-
-    /**
-     * Record that a job node could never enter the queue, so that polling it reports the failure instead of an
-     * eternal "queued".
-     *
-     * @param resolver the session the node was created with
-     * @param jobNode the node of the job that could not be queued
-     */
-    private void markUnqueueable(final ResourceResolver resolver, final Resource jobNode)
-    {
-        final ModifiableValueMap properties = jobNode.adaptTo(ModifiableValueMap.class);
-        if (properties == null) {
-            return;
-        }
-        properties.put(ParseJob.PN_STATUS, ParseJob.STATUS_FAILED);
-        properties.put(ParseJob.PN_ERROR, "The job could not be queued");
-        properties.put(ParseJob.PN_FINISHED, Calendar.getInstance());
-        try {
-            resolver.commit();
-        } catch (final PersistenceException e) {
-            LOGGER.error("Cannot mark parse job {} as failed: {}", jobNode.getName(), e.getMessage(), e);
-        }
-    }
-
 }
