@@ -16,7 +16,7 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 210" width="700" height="210" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 500" width="600" height="500" role="img">
   <style>
     .lbl { font: 13px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #202124; }
     .lbl-sm { font: 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #3c4043; }
@@ -37,27 +37,50 @@
     </marker>
   </defs>
 
-  <line x1="20" y1="70" x2="72" y2="70" class="flow"/>
-  <rect x="74" y="42" width="150" height="56" rx="10" class="task"/>
-  <text x="149" y="68" class="lbl" text-anchor="middle">Manager</text>
-  <text x="149" y="84" class="lbl" text-anchor="middle">reviews request</text>
-  <circle cx="204" cy="98" r="15" class="ev-i"/>
-  <circle cx="204" cy="98" r="11" fill="none" stroke="#ea8600" stroke-width="1.6"/>
-  <path d="M 204 92 L 204 98 L 208 101" stroke="#ea8600" stroke-width="1.6" fill="none"/>
-  <line x1="226" y1="70" x2="286" y2="70" class="flow"/>
-  <circle cx="308" cy="70" r="19" class="ev-e"/>
+  <text x="20" y="26" class="lbl-b">Non-interrupting (dashed border) — the task carries on</text>
 
-  <path d="M 204 113 L 204 152 L 286 152" class="flow"/>
-  <text x="214" y="146" class="lbl-sm">after 5 days</text>
-  <rect x="288" y="126" width="150" height="52" rx="10" class="svc"/>
-  <text x="363" y="148" class="lbl" text-anchor="middle">Remind the</text>
-  <text x="363" y="164" class="lbl" text-anchor="middle">manager</text>
+  <line x1="20" y1="86" x2="72" y2="86" class="flow"/>
+  <rect x="74" y="58" width="150" height="56" rx="10" class="task"/>
+  <text x="149" y="84" class="lbl" text-anchor="middle">Manager</text>
+  <text x="149" y="100" class="lbl" text-anchor="middle">reviews request</text>
+  <circle cx="204" cy="114" r="15" class="ev-i" stroke-dasharray="4 3"/>
+  <circle cx="204" cy="114" r="11" fill="none" stroke="#ea8600" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <path d="M 204 108 L 204 114 L 208 117" stroke="#ea8600" stroke-width="1.5" fill="none"/>
+  <line x1="226" y1="86" x2="286" y2="86" class="flow"/>
+  <circle cx="308" cy="86" r="19" class="ev-e"/>
+  <text x="308" y="128" class="lbl-sm" text-anchor="middle">Decided</text>
 
-  <text x="480" y="60" class="lbl-b">A timer on the edge of a task</text>
-  <text x="480" y="84" class="cap">watches while the task is open.</text>
-  <text x="480" y="104" class="cap">If it fires first, the flow leaving it</text>
-  <text x="480" y="124" class="cap">is taken instead — no waiting</text>
-  <text x="480" y="144" class="cap">forever on somebody who</text>
-  <text x="480" y="164" class="cap">has stopped reading their mail.</text>
+  <path d="M 204 129 L 204 172 L 286 172" class="flow"/>
+  <text x="212" y="166" class="lbl-sm">after 5 days</text>
+  <circle cx="308" cy="172" r="19" class="ev-e"/>
+  <rect x="300" y="167" width="16" height="10" fill="#c5221f"/>
+  <path d="M 300 167 L 308 174 L 316 167" fill="none" stroke="#fff" stroke-width="1.4"/>
+  <text x="308" y="210" class="lbl-sm" text-anchor="middle">Reminder emailed</text>
+
+  <text x="20" y="234" class="cap">The reminder goes out and that branch ends. The review is still open for the manager to perform.</text>
+
+  <line x1="20" y1="258" x2="580" y2="258" stroke="#dadce0" stroke-width="1"/>
+
+  <text x="20" y="296" class="lbl-b">Interrupting (solid border) — the task is abandoned</text>
+
+  <line x1="20" y1="356" x2="72" y2="356" class="flow"/>
+  <rect x="74" y="328" width="150" height="56" rx="10" class="task"/>
+  <text x="149" y="354" class="lbl" text-anchor="middle">Manager</text>
+  <text x="149" y="370" class="lbl" text-anchor="middle">reviews request</text>
+  <circle cx="204" cy="384" r="15" class="ev-i"/>
+  <circle cx="204" cy="384" r="11" fill="none" stroke="#ea8600" stroke-width="1.6"/>
+  <path d="M 204 378 L 204 384 L 208 387" stroke="#ea8600" stroke-width="1.6" fill="none"/>
+  <line x1="226" y1="356" x2="286" y2="356" class="flow"/>
+  <circle cx="308" cy="356" r="19" class="ev-e"/>
+  <text x="308" y="398" class="lbl-sm" text-anchor="middle">Decided</text>
+
+  <path d="M 204 399 L 204 442 L 286 442" class="flow"/>
+  <text x="212" y="436" class="lbl-sm">after 15 days</text>
+  <rect x="288" y="418" width="140" height="48" rx="10" class="svc"/>
+  <text x="358" y="447" class="lbl" text-anchor="middle">Decline by default</text>
+  <line x1="430" y1="442" x2="466" y2="442" class="flow"/>
+  <circle cx="488" cy="442" r="19" class="ev-e"/>
+
+  <text x="20" y="490" class="cap">The review is cancelled. Nobody can act on it any more.</text>
 
 </svg>

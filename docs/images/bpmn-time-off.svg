@@ -52,45 +52,43 @@
   <path d="M 230 100 L 230 106 L 234 109" stroke="#ea8600" stroke-width="1.5" fill="none"/>
   <path d="M 230 120 L 230 196 L 300 196" class="flow"/>
   <text x="236" y="190" class="lbl-sm">after 5 days</text>
-  <rect x="302" y="170" width="130" height="50" rx="10" class="svc"/>
-  <text x="367" y="192" class="lbl" text-anchor="middle">Remind the</text>
-  <text x="367" y="208" class="lbl" text-anchor="middle">manager</text>
-  <line x1="434" y1="195" x2="470" y2="195" class="flow"/>
-  <circle cx="492" cy="195" r="18" class="ev-e"/>
-  <text x="530" y="180" class="lbl-sm">the dashed timer does not</text>
-  <text x="530" y="196" class="lbl-sm">interrupt: the manager still</text>
-  <text x="530" y="212" class="lbl-sm">has to decide</text>
+  <circle cx="322" cy="196" r="18" class="ev-e"/>
+  <rect x="314" y="191" width="16" height="10" fill="#c5221f"/>
+  <path d="M 314 191 L 322 198 L 330 191" fill="none" stroke="#fff" stroke-width="1.4"/>
+  <text x="322" y="234" class="lbl-sm" text-anchor="middle">Manager reminded</text>
+  <text x="430" y="180" class="lbl-sm">the dashed timer does not</text>
+  <text x="430" y="196" class="lbl-sm">interrupt: the manager still</text>
+  <text x="430" y="212" class="lbl-sm">has to decide</text>
 
   <line x1="252" y1="80" x2="312" y2="80" class="flow"/>
   <path d="M 316 80 L 348 48 L 380 80 L 348 112 Z" class="gw"/>
   <text x="348" y="86" class="lbl-b" text-anchor="middle">×</text>
   <text x="348" y="140" class="lbl-sm" text-anchor="middle">Approved?</text>
 
-  <path d="M 380 80 L 430 80 L 430 36 L 492 36" class="flow"/>
-  <text x="434" y="28" class="lbl-sm">approved</text>
-  <path d="M 380 80 L 410 80 L 410 118 L 492 118" class="flow"/>
-  <text x="414" y="136" class="lbl-sm">rejected</text>
+  <path d="M 348 48 L 348 36 L 492 36" class="flow"/>
+  <text x="356" y="28" class="lbl-sm">approved</text>
+  <path d="M 380 80 L 410 80 L 410 118 L 690 118" class="flow"/>
+  <line x1="388" y1="87" x2="396" y2="73" stroke="#5f6368" stroke-width="1.6"/>
+  <text x="414" y="136" class="lbl-sm">rejected (default)</text>
 
   <rect x="494" y="10" width="140" height="52" rx="10" class="svc"/>
   <text x="564" y="34" class="lbl" text-anchor="middle">Book the days</text>
   <text x="564" y="50" class="lbl" text-anchor="middle">off</text>
   <line x1="636" y1="36" x2="690" y2="36" class="flow"/>
 
-  <rect x="494" y="92" width="140" height="52" rx="10" class="svc"/>
-  <text x="564" y="116" class="lbl" text-anchor="middle">Tell the</text>
-  <text x="564" y="132" class="lbl" text-anchor="middle">requester why</text>
-  <line x1="636" y1="118" x2="690" y2="118" class="flow"/>
-
   <circle cx="712" cy="36" r="20" class="ev-e"/>
   <text x="712" y="78" class="lbl-sm" text-anchor="middle">Approved</text>
   <circle cx="712" cy="118" r="20" class="ev-e"/>
-  <text x="712" y="160" class="lbl-sm" text-anchor="middle">Rejected</text>
+  <rect x="703" y="112" width="18" height="12" fill="#c5221f"/>
+  <path d="M 703 112 L 712 120 L 721 112" fill="none" stroke="#fff" stroke-width="1.5"/>
+  <text x="712" y="160" class="lbl-sm" text-anchor="middle">Rejected, and the</text>
+  <text x="712" y="176" class="lbl-sm" text-anchor="middle">requester told why</text>
 
   <text x="790" y="30" class="lbl-b">Blue</text>
-  <text x="790" y="48" class="cap">a person</text>
-  <text x="790" y="64" class="cap">does it</text>
+  <text x="790" y="48" class="cap">User performed</text>
+  <text x="790" y="64" class="cap">task</text>
   <text x="790" y="96" class="lbl-b">Green</text>
-  <text x="790" y="114" class="cap">the system</text>
-  <text x="790" y="130" class="cap">does it</text>
+  <text x="790" y="114" class="cap">System performed</text>
+  <text x="790" y="130" class="cap">task</text>
 
 </svg>
