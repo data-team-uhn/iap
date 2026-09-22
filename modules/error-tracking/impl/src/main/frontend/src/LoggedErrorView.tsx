@@ -62,7 +62,7 @@ function moment(value: string | undefined): string {
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary" component="div">{label}</Typography>
+      <Typography variant="caption" component="div">{label}</Typography>
       <Typography variant="body2" component="div">{children}</Typography>
     </Box>
   );
@@ -77,7 +77,7 @@ function Sample({ label, values, hint }: { label: string; values: string[]; hint
   return (
     <Box>
       <Typography variant="subtitle2">{label}</Typography>
-      <Typography variant="caption" color="text.secondary" component="div" sx={{ mb: 0.5 }}>
+      <Typography variant="caption" component="div" sx={{ mb: 0.5 }}>
         {hint}
       </Typography>
       <Stack component="ul" sx={{ m: 0, pl: 3 }}>
@@ -126,14 +126,14 @@ function DecisionEntry({ decision }: { decision: Decision }) {
         <Typography variant="body2" sx={{ fontWeight: "medium" }}>
           {resolutionLabel(decision.resolution)}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption">
           {decision.createdBy ?? "somebody"} · {moment(decision.created)}
           {decision.acknowledgedOccurrences !== undefined
             && ` · after ${String(decision.acknowledgedOccurrences)} occurrence(s)`}
         </Typography>
       </Stack>
       {decision.note !== undefined && (
-        <Typography variant="body2" color="text.secondary" sx={{ wordBreak: "break-word" }}>
+        <Typography variant="description" sx={{ wordBreak: "break-word" }}>
           {decision.note}
         </Typography>
       )}
@@ -225,7 +225,7 @@ function LoggedErrorView() {
     // names no single error. Saying so beats rendering an empty page that looks like one.
     return (
       <AdminScreen title="Recorded error">
-        <Typography color="text.secondary">
+        <Typography variant="placeholder">
           This address does not name a recorded error.
         </Typography>
       </AdminScreen>
@@ -286,7 +286,7 @@ function LoggedErrorView() {
         <Stack spacing={3}>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center" }}>
             <TagChip tags={error.triage} category={TRIAGE_CATEGORY} />
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="description">
               {error.kind === "failure" ? "Something was thrown" : "Nothing was thrown"}
             </Typography>
           </Stack>
@@ -336,7 +336,7 @@ function LoggedErrorView() {
 
           <Paper variant="outlined" sx={{ p: 2 }}>
             <Typography variant="subtitle1" sx={{ mb: 0.5 }}>Record a decision</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="description" sx={{ mb: 2 }}>
               Nothing here is ever deleted. A decision is added to the ones below, and if this fault
               happens again it goes back to needing attention on its own.
             </Typography>
@@ -376,7 +376,7 @@ function LoggedErrorView() {
             </Typography>
             {error.decisions.length === 0
               ? (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="placeholder">
                   Nobody has recorded a decision about this yet.
                 </Typography>
               )

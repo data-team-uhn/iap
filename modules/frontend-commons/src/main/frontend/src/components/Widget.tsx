@@ -75,7 +75,7 @@ function Widget({ title, subtitle, action, emphasis, borderless, hideHeader, chi
         <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "flex-start", gap: 1, mb: 2 }}>
           <Box>
             { title && <Typography variant="h6">{title}</Typography> }
-            { subtitle && <Typography variant="caption" color="text.secondary">{subtitle}</Typography> }
+            { subtitle && <Typography variant="caption">{subtitle}</Typography> }
           </Box>
           {action}
         </Stack>

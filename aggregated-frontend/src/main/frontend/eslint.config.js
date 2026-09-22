@@ -138,6 +138,28 @@ export default defineConfig([
       // Same as above, for string + number concatenation (e.g. `"widget-" + index`).
       "@typescript-eslint/restrict-plus-operands": ["error", { allowNumberAndString: true }],
 
+      // MUI 9 removed the deprecated system props, so a component's own `color` prop is all that is
+      // left, and it takes palette keys ("error", "textSecondary") rather than palette paths. A path
+      // matches no variant and emits no rule at all, and the prop's type ends in `string & {}`, so
+      // neither the compiler nor the browser says anything: the text silently renders in whatever
+      // colour it inherits.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: 'JSXAttribute[name.name="color"] Literal[value=/^[a-z][A-Za-z]*\\.[A-Za-z]+$/]',
+          message: "A `color` prop takes a palette key (\"textSecondary\", \"error\"), not a palette path. "
+            + "A path is ignored: write the key, or put the path in `sx={{ color: ... }}`.",
+        },
+        // Secondary-coloured text is a named role in the theme, not a colour to restate per call
+        // site (which is how MUI 9's silent colour regression bit the whole app at once).
+        {
+          selector: 'JSXOpeningElement[name.name="Typography"] JSXAttribute[name.name="color"] Literal[value="textSecondary"]',
+          message: "Muted text has named variants: `description` for secondary explanatory prose, "
+            + "`placeholder` where content is missing; `caption` and `overline` are already muted by "
+            + "the theme. For a genuine one-off, use `sx={{ color: \"text.secondary\" }}`.",
+        },
+      ],
+
       // Avoid duplicate reports and automatically remove unused imports.
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": "off",

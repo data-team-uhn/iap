@@ -138,7 +138,7 @@ function NewSubmissionDialog({ onClose, onCreated }: NewSubmissionDialogProps) {
                       <>
                         <Typography component="span">{`${choice.title} ${choice.version}`.trim()}</Typography>
                         { choice.description && (
-                          <Typography component="span" variant="body2" color="textSecondary"
+                          <Typography component="span" variant="description"
                             sx={{ display: "block" }}>{choice.description}</Typography>
                         ) }
                       </>

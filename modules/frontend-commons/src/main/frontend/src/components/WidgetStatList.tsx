@@ -122,7 +122,7 @@ function StatLabel({ stat, row }: { stat: WidgetStat; row: number }) {
     );
   }
   return (
-    <Typography variant="body2" component="dt" sx={{ ...labelCell(row), color: "text.secondary" }}>
+    <Typography variant="body2" component="dt" sx={{ ...labelCell(row) }}>
       {stat.label}
     </Typography>
   );

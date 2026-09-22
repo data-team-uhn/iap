@@ -35,7 +35,7 @@ function DemoBlock({ extension }: DemoBlockProps) {
       <Typography variant="subtitle2">{(extension["ext:name"] as string | undefined) ?? "Demo block"}</Typography>
       {
         Array.from({ length: fillerLines }, (_, index) => (
-          <Typography key={"filler-" + index} variant="body2" color="text.secondary">
+          <Typography key={"filler-" + index} variant="description">
             Filler line {index + 1}
           </Typography>
         ))
