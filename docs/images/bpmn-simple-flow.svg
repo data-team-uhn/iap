@@ -47,21 +47,22 @@
   <line x1="262" y1="70" x2="325" y2="70" class="flow"/>
 
   <path d="M 330 70 L 362 38 L 394 70 L 362 102 Z" class="gw"/>
-  <text x="362" y="76" class="lbl-b" text-anchor="middle">?</text>
-  <text x="362" y="128" class="lbl-sm" text-anchor="middle">Approved?</text>
+  <text x="362" y="76" class="lbl-b" text-anchor="middle">×</text>
+  <text x="362" y="26" class="lbl-sm" text-anchor="middle">Approved?</text>
 
   <path d="M 394 70 L 450 70 L 450 34 L 505 34" class="flow"/>
   <text x="452" y="26" class="lbl-sm">yes</text>
-  <path d="M 394 70 L 450 70 L 450 140 L 505 140" class="flow"/>
-  <text x="452" y="132" class="lbl-sm">no</text>
+  <path d="M 362 102 L 362 140 L 505 140" class="flow"/>
+  <line x1="355" y1="116" x2="369" y2="108" stroke="#5f6368" stroke-width="1.6"/>
+  <text x="370" y="134" class="lbl-sm">no (default)</text>
 
   <rect x="507" y="8" width="130" height="52" rx="10" class="svc"/>
-  <text x="572" y="32" class="lbl" text-anchor="middle">Notify the</text>
-  <text x="572" y="48" class="lbl" text-anchor="middle">requester</text>
+  <text x="572" y="32" class="lbl" text-anchor="middle">Book the</text>
+  <text x="572" y="48" class="lbl" text-anchor="middle">time off</text>
 
   <rect x="507" y="114" width="130" height="52" rx="10" class="svc"/>
-  <text x="572" y="138" class="lbl" text-anchor="middle">Notify the</text>
-  <text x="572" y="154" class="lbl" text-anchor="middle">requester</text>
+  <text x="572" y="138" class="lbl" text-anchor="middle">Close the</text>
+  <text x="572" y="154" class="lbl" text-anchor="middle">request</text>
 
   <line x1="639" y1="34" x2="694" y2="34" class="flow"/>
   <circle cx="716" cy="34" r="20" class="ev-e"/>

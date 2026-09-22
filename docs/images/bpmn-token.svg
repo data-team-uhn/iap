@@ -43,7 +43,7 @@
   <text x="179" y="49" class="lbl" text-anchor="middle">Review</text>
   <line x1="240" y1="45" x2="292" y2="45" class="flow"/>
   <rect x="294" y="21" width="118" height="48" rx="10" class="svc"/>
-  <text x="353" y="49" class="lbl" text-anchor="middle">Notify</text>
+  <text x="353" y="49" class="lbl" text-anchor="middle">Record</text>
   <line x1="414" y1="45" x2="466" y2="45" class="flow"/>
   <circle cx="488" cy="45" r="18" class="ev-e"/>
   <circle cx="45" cy="45" r="8" class="tok"/>
@@ -55,7 +55,7 @@
   <text x="179" y="144" class="lbl" text-anchor="middle">Review</text>
   <line x1="240" y1="140" x2="292" y2="140" class="flow"/>
   <rect x="294" y="116" width="118" height="48" rx="10" class="svc"/>
-  <text x="353" y="144" class="lbl" text-anchor="middle">Notify</text>
+  <text x="353" y="144" class="lbl" text-anchor="middle">Record</text>
   <line x1="414" y1="140" x2="466" y2="140" class="flow"/>
   <circle cx="488" cy="140" r="18" class="ev-e"/>
   <circle cx="179" cy="140" r="8" class="tok"/>
@@ -67,7 +67,7 @@
   <text x="179" y="239" class="lbl" text-anchor="middle">Review</text>
   <line x1="240" y1="235" x2="292" y2="235" class="flow"/>
   <rect x="294" y="211" width="118" height="48" rx="10" class="svc"/>
-  <text x="353" y="239" class="lbl" text-anchor="middle">Notify</text>
+  <text x="353" y="239" class="lbl" text-anchor="middle">Record</text>
   <line x1="414" y1="235" x2="466" y2="235" class="flow"/>
   <circle cx="488" cy="235" r="18" class="ev-e"/>
   <circle cx="488" cy="235" r="8" class="tok"/>
