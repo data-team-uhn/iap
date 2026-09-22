@@ -31,13 +31,7 @@ import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A question answered by picking from the answers it offers.
-//
-// Picking is a finished answer as it happens, like a tick and unlike typing, so it saves on change.
-//
-// What is stored is the option's value, never its label. The value is what a condition compares
-// against. A schema may reword a label, or translate it, without changing what an answer already
-// recorded means, or which questions a request goes on to ask.
+// A question answered by picking from the options it offers.
 function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   const label = questionLabel(question);
   const help = question.description;

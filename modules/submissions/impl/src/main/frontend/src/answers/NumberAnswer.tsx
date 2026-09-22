@@ -22,10 +22,7 @@ import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A number. The two numeric data types differ here rather than sharing one input: `long` steps in
-// whole numbers and refuses a decimal point, `double` does neither. That is what the schema states
-// by asking for one rather than the other. A single "number" input would leave a submitter to
-// discover it from a rejected save.
+// A number.
 function NumberAnswer({ question, values, disabled, onChange, onAnswered }: AnswerComponentProps) {
   const whole = question.dataType === "long";
 

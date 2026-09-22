@@ -20,13 +20,13 @@ import type { ReactElement } from "react";
 
 import type { FormQuestion } from "./submissionForm";
 
-// Which component types a question in, decided by the question itself rather than by a list of
+// Which component displays each question type, decided by the question itself rather than by a list of
 // dataTypes kept somewhere central. A new kind of question is added by registering a candidate for
 // it, and nothing that already exists has to learn about it.
 
 export interface AnswerComponentProps {
   question: FormQuestion;
-  // The answer as it currently stands: the saved one until somebody starts typing
+  // The answer as it currently stands, starting with the saved values, updated when somebody starts typing
   values: string[];
   disabled: boolean;
   // While the answer is being composed, so that what was typed is what is shown
