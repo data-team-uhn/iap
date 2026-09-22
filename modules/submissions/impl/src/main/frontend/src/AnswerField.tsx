@@ -22,12 +22,11 @@ import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
-import { registerBuiltinAnswerComponents } from "./answers";
+// Loaded for its side effect: the shipped answer components register themselves
+import "./answers";
 import { questionLabel } from "./answers/label";
 
 import type { FormQuestion } from "./submissionForm";
-
-registerBuiltinAnswerComponents();
 
 export type SaveState = "idle" | "saving" | "saved" | "failed";
 
@@ -50,7 +49,7 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
     return <CircularProgress size={16} aria-label="Saving" />;
   }
   if (state === "saved") {
-    return <Typography variant="caption" color="text.secondary">Saved</Typography>;
+    return <Typography variant="caption">Saved</Typography>;
   }
   if (state === "failed") {
     // With no Save button this is the only report that an answer was refused, so it cannot live on
@@ -108,7 +107,7 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
     return (
       <Box>
         <Typography variant="subtitle2">{questionLabel(question)}</Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="placeholder">
           {`This question asks for ${question.dataType}, which cannot be answered here.`}
         </Typography>
       </Box>

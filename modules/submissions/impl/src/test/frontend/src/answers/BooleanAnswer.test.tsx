@@ -34,48 +34,47 @@ function renderBoolean(overrides: Partial<FormQuestion> = {}, values: string[] =
 }
 
 describe("BooleanAnswer", () => {
-  it("saves as the box is ticked, without waiting to be left", async () => {
+  it("saves as soon as one is picked, without waiting to be left", async () => {
     const onAnswered = renderBoolean();
 
-    await userEvent.click(screen.getByRole("checkbox", { name: /Does this repeat/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Yes" }));
 
     expect(onAnswered).toHaveBeenCalledWith([ "true" ]);
   });
 
-  it("saves the untick too", async () => {
-    const onAnswered = renderBoolean({}, [ "true" ]);
-
-    await userEvent.click(screen.getByRole("checkbox", { name: /Does this repeat/ }));
-
-    expect(onAnswered).toHaveBeenCalledWith([ "false" ]);
-  });
-
-  it("shows the answer already given", () => {
-    renderBoolean({}, [ "true" ]);
-
-    expect(screen.getByRole("checkbox", { name: /Does this repeat/ })).toBeChecked();
-  });
-
-  // A required boolean is two radios, so that No is an answer rather than the absence of one
-  it("offers a required question as two options, neither chosen until one is given", () => {
-    renderBoolean({ required: true });
-
-    expect(screen.getByRole("radio", { name: "Yes" })).not.toBeChecked();
-    expect(screen.getByRole("radio", { name: "No" })).not.toBeChecked();
-  });
-
-  it("records a required No as an answer", async () => {
-    const onAnswered = renderBoolean({ required: true });
+  it("records No as an answer in its own right", async () => {
+    const onAnswered = renderBoolean();
 
     await userEvent.click(screen.getByRole("radio", { name: "No" }));
 
     expect(onAnswered).toHaveBeenCalledWith([ "false" ]);
   });
 
-  it("shows which of the two a required question already holds", () => {
-    renderBoolean({ required: true }, [ "false" ]);
+  it("shows the answer already given", () => {
+    renderBoolean({}, [ "false" ]);
 
     expect(screen.getByRole("radio", { name: "No" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Yes" })).not.toBeChecked();
+  });
+
+  // Why this is a pair rather than one box to tick: an unticked box says "no" and "not answered
+  // yet" with the same control, and only one of those is an answer
+  it("holds neither answer until one is given", () => {
+    renderBoolean();
+
+    expect(screen.getByRole("radio", { name: "Yes" })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "No" })).not.toBeChecked();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  // Whether an answer is obligatory changes what the form insists on, never what it looks like:
+  // a submitter should not have to learn a second control to answer the same kind of question
+  it("asks the same way whether or not the answer is obligatory", () => {
+    renderBoolean({ required: true });
+
+    expect(screen.getByRole("radio", { name: "Yes" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "No" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
   // Each input carries it: a FormControl never forwards required to a radio
@@ -86,10 +85,17 @@ describe("BooleanAnswer", () => {
     expect(screen.getByRole("radio", { name: "No" })).toBeRequired();
   });
 
-  it("explains a required question when the schema does", () => {
-    renderBoolean({ required: true, description: "Weekly, monthly, or not at all." });
+  it("leaves an optional question's options not required", () => {
+    renderBoolean();
 
-    expect(screen.getByText("Weekly, monthly, or not at all.")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Yes" })).not.toBeRequired();
+    expect(screen.getByRole("radio", { name: "No" })).not.toBeRequired();
+  });
+
+  it("asks the question the schema asks", () => {
+    renderBoolean();
+
+    expect(screen.getByRole("group", { name: /Does this repeat/ })).toBeInTheDocument();
   });
 
   it("explains the question when the schema does", () => {

@@ -16,29 +16,18 @@
  * limitations under the License.
  */
 
-import { registerAnswerComponent } from "../answerComponents";
-import { booleanAnswerCandidate } from "./BooleanAnswer";
-import { choiceAnswerCandidate } from "./ChoiceAnswer";
-import { dateAnswerCandidate } from "./DateAnswer";
-import { fileAnswerCandidate } from "./FileAnswer";
-import { numberAnswerCandidate } from "./NumberAnswer";
-import { textAnswerCandidate } from "./TextAnswer";
+// Loads the answer components that ship with this module. Each one registers itself as it loads,
+// so all this has to do is make sure they are evaluated: what a component recognizes, and how
+// confidently, is stated where the component is rather than in a list here that would have to be
+// kept in step with it.
+//
+// Nothing is registered twice by importing this more than once: a module is evaluated once, and the
+// registry ignores a candidate it already holds. Load order only settles a tie in confidence, and
+// the shipped components key off distinct data types, so there is none to settle.
 
-/**
- * Registers the answer components that ship with this module.
- *
- * An explicit call rather than a side effect of importing each component. What is registered then
- * does not depend on which module something happened to import first, and a test can start from a
- * known-empty registry. Calling it more than once is harmless, since the registry ignores a
- * candidate it already holds.
- */
-export function registerBuiltinAnswerComponents(): void {
-  [
-    choiceAnswerCandidate,
-    booleanAnswerCandidate,
-    dateAnswerCandidate,
-    numberAnswerCandidate,
-    fileAnswerCandidate,
-    textAnswerCandidate,
-  ].forEach(registerAnswerComponent);
-}
+import "./BooleanAnswer";
+import "./ChoiceAnswer";
+import "./DateAnswer";
+import "./FileAnswer";
+import "./NumberAnswer";
+import "./TextAnswer";

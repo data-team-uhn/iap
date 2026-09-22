@@ -18,6 +18,7 @@
 
 import { TextField } from "@mui/material";
 
+import { registerAnswerComponent } from "../answerComponents";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -45,5 +46,7 @@ function DateAnswer({ question, values, disabled, onChange, onAnswered }: Answer
 
 export const dateAnswerCandidate: AnswerComponentCandidate = question =>
   question.dataType === "date" ? [ DateAnswer, 50 ] : null;
+
+registerAnswerComponent(dateAnswerCandidate);
 
 export default DateAnswer;

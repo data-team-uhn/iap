@@ -18,6 +18,7 @@
 
 import { TextField } from "@mui/material";
 
+import { registerAnswerComponent } from "../answerComponents";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -52,5 +53,7 @@ function TextAnswer({ question, values, disabled, onChange, onAnswered }: Answer
 
 export const textAnswerCandidate: AnswerComponentCandidate = question =>
   question.dataType === "text" ? [ TextAnswer, 10 ] : null;
+
+registerAnswerComponent(textAnswerCandidate);
 
 export default TextAnswer;

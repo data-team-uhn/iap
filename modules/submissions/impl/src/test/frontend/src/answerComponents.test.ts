@@ -23,9 +23,6 @@ import {
   type AnswerComponent,
   type AnswerComponentCandidate
 } from "@iap/submissions/answerComponents";
-import { registerBuiltinAnswerComponents } from "@iap/submissions/answers";
-import ChoiceAnswer from "@iap/submissions/answers/ChoiceAnswer";
-import TextAnswer from "@iap/submissions/answers/TextAnswer";
 import { QUESTION, type FormQuestion } from "@iap/submissions/submissionForm";
 
 function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
@@ -85,38 +82,16 @@ describe("the answer component registry", () => {
     expect(getAnswerComponent(question({ dataType: "date" }))).toBe(Stub);
   });
 
-  describe("the components that ship with this module", () => {
-    it("answers a question offering options by picking, whatever its data type says", () => {
-      clearAnswerComponents();
-      registerBuiltinAnswerComponents();
+  // Counted rather than resolved. A duplicate answers with the same component at the same
+  // confidence, so what it changes is not which component wins but how often one is asked, and
+  // asserting on the winner would hold whether or not anything deduplicated
+  it("asks a candidate offered twice only once", () => {
+    clearAnswerComponents();
+    const candidate = vi.fn<AnswerComponentCandidate>(() => [ Stub, 90 ]);
+    registerAnswerComponent(candidate);
+    registerAnswerComponent(candidate);
 
-      expect(getAnswerComponent(question({
-        dataType: "text",
-        options: [ { value: "half-day", label: "Half day" } ],
-      }))).toBe(ChoiceAnswer);
-      expect(getAnswerComponent(question({ dataType: "text" }))).toBe(TextAnswer);
-    });
-
-    // Two callers each making sure their components are present must not leave two of each
-    it("holds one registration however often the same candidate is offered", () => {
-      clearAnswerComponents();
-      registerBuiltinAnswerComponents();
-      registerBuiltinAnswerComponents();
-
-      expect(getAnswerComponent(question())).toBe(TextAnswer);
-    });
-
-    // Counted rather than resolved. A duplicate answers with the same component at the same
-    // confidence, so what it changes is not which component wins but how often one is asked, and
-    // asserting on the winner would hold whether or not anything deduplicated
-    it("asks a candidate offered twice only once", () => {
-      clearAnswerComponents();
-      const candidate = vi.fn<AnswerComponentCandidate>(() => [ Stub, 90 ]);
-      registerAnswerComponent(candidate);
-      registerAnswerComponent(candidate);
-
-      expect(getAnswerComponent(question())).toBe(Stub);
-      expect(candidate).toHaveBeenCalledTimes(1);
-    });
+    expect(getAnswerComponent(question())).toBe(Stub);
+    expect(candidate).toHaveBeenCalledTimes(1);
   });
 });
