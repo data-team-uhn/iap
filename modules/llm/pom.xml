@@ -101,7 +101,7 @@
                  silently reset. See LLMConfigurationServiceImpl. -->
             <Sling-Initial-Content>
               SLING-INF/content/libs/llm/;path:=/libs/llm/;overwriteProperties:=true;uninstall:=true,
-              SLING-INF/content/libs/iap/config/;path:=/libs/iap/config/;overwrite:=true,
+              SLING-INF/content/libs/iap/config/LLM.json;path:=/libs/iap/config/LLM;overwrite:=true,
               SLING-INF/content/apps/iap/config/;path:=/apps/iap/config/;overwrite:=false,
               SLING-INF/content/Extensions/;path:=/Extensions/;overwriteProperties:=true;uninstall:=true,
             </Sling-Initial-Content>
@@ -149,10 +149,6 @@
     <dependency>
       <groupId>org.jetbrains</groupId>
       <artifactId>annotations</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.github.spotbugs</groupId>
-      <artifactId>spotbugs-annotations</artifactId>
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>

@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import jakarta.json.Json;
@@ -76,6 +77,8 @@ class OpenAIClientTest
 
     private final AtomicReference<String> lastAuthorization = new AtomicReference<>();
 
+    private final AtomicInteger requests = new AtomicInteger();
+
     private HttpServer server;
 
     private int status = 200;
@@ -91,8 +94,14 @@ class OpenAIClientTest
 
         TestClient(final LLMSettings settings, final Map<String, String> variables)
         {
+            this(settings, variables, CallGateImplTest.gate());
+        }
+
+        TestClient(final LLMSettings settings, final Map<String, String> variables, final CallGateImpl gate)
+        {
             this.variables = variables;
-            setConfigurationService(() -> settings);
+            bindConfigurationService(() -> settings);
+            bindCallGate(gate);
         }
 
         @Override
@@ -118,6 +127,7 @@ class OpenAIClientTest
 
     private void handle(final HttpExchange exchange) throws IOException
     {
+        this.requests.incrementAndGet();
         try (InputStream in = exchange.getRequestBody(); JsonReader reader = Json.createReader(in)) {
             this.lastRequest.set(reader.readObject());
         }
@@ -154,7 +164,7 @@ class OpenAIClientTest
         final Map<String, Object> extra = new HashMap<>(providerExtras);
         final String apiKeyEnvVar = (String) extra.remove("apiKeyEnvVar");
         final ProviderSettings provider = new ProviderSettings(endpoint(), apiKeyEnvVar, 10, extra);
-        final ModelSettings model = new ModelSettings(0, 100, 0.25, 0, 0, null, Map.of());
+        final ModelSettings model = new ModelSettings(0, 0.25, null, Map.of());
         return new LLMSettings("local", provider, MODEL, model);
     }
 
@@ -168,15 +178,21 @@ class OpenAIClientTest
         return this.lastRequest.get();
     }
 
+    /** One "Hello" turn, no system prompt and no per-call options, which is what most tests send. */
+    private static String say(final OpenAIClient client) throws IOException
+    {
+        return client.chat(null, List.of(new LLMMessage("user", HELLO)), null);
+    }
+
     @Test
     void sendsTheConversationAndReturnsTheReply() throws IOException
     {
-        assertEquals(REPLY, client().chat(BE_BRIEF, HELLO));
+        assertEquals(REPLY, client().chat(BE_BRIEF, List.of(new LLMMessage("user", HELLO)), null));
 
         final JsonObject sent = request();
         assertEquals(MODEL, sent.getString("model"));
         assertEquals(0.25d, sent.getJsonNumber("temperature").doubleValue());
-        assertEquals(100, sent.getJsonNumber("max_tokens").intValue());
+        assertFalse(sent.containsKey("max_tokens"), "a call that asks for no ceiling leaves it to the provider");
         assertEquals("system", sent.getJsonArray("messages").getJsonObject(0).getString("role"));
         assertEquals(BE_BRIEF, sent.getJsonArray("messages").getJsonObject(0).getString("content"));
         assertEquals("user", sent.getJsonArray("messages").getJsonObject(1).getString("role"));
@@ -190,7 +206,7 @@ class OpenAIClientTest
             new LLMMessage("user", HELLO),
             new LLMMessage("assistant", "Hi"),
             new LLMMessage("system", "Stay on topic"),
-            new LLMMessage("unknown", "Treated as a user turn")));
+            new LLMMessage("unknown", "Treated as a user turn")), null);
 
         final List<String> roles = request().getJsonArray("messages").getValuesAs(JsonObject.class)
             .stream().map(message -> message.getString("role")).toList();
@@ -200,7 +216,7 @@ class OpenAIClientTest
     @Test
     void sendsNoThinkingTemplateUnlessTheProviderAsksForOne() throws IOException
     {
-        client().chat(HELLO);
+        say(client());
 
         assertFalse(request().containsKey("chat_template_kwargs"), "no provider asked for it");
         assertFalse(request().containsKey("project_id"), "no project is configured");
@@ -210,7 +226,7 @@ class OpenAIClientTest
     @Test
     void turnsOffTheThinkingTemplateForAProviderThatAsks() throws IOException
     {
-        new TestClient(settings(Map.of("disableThinking", Boolean.TRUE)), Map.of()).chat(HELLO);
+        say(new TestClient(settings(Map.of("disableThinking", Boolean.TRUE)), Map.of()));
 
         assertFalse(request().getJsonObject("chat_template_kwargs").getBoolean("enable_thinking"));
     }
@@ -218,7 +234,7 @@ class OpenAIClientTest
     @Test
     void sendsTheProjectIdWhenTheProviderScopesCallsToAProject() throws IOException
     {
-        new TestClient(settings(Map.of("projectId", "some-project")), Map.of()).chat(HELLO);
+        say(new TestClient(settings(Map.of("projectId", "some-project")), Map.of()));
 
         assertEquals("some-project", request().getString("project_id"));
     }
@@ -249,7 +265,7 @@ class OpenAIClientTest
     void raisesTheOutputCeilingForOneCall() throws IOException
     {
         client().chat(BE_BRIEF, List.of(new LLMMessage("user", HELLO)),
-            LLMRequestOptions.withMaxOutputTokens(4096));
+            LLMRequestOptions.builder().maxOutputTokens(4096).build());
 
         assertEquals(4096, request().getJsonNumber("max_tokens").intValue());
     }
@@ -257,8 +273,8 @@ class OpenAIClientTest
     @Test
     void sendsTheApiKeyFromTheConfiguredEnvironmentVariable() throws IOException
     {
-        new TestClient(settings(Map.of("apiKeyEnvVar", "TEST_LLM_KEY")),
-            Map.of("TEST_LLM_KEY", "s3cret")).chat(HELLO);
+        say(new TestClient(settings(Map.of("apiKeyEnvVar", "TEST_LLM_KEY")),
+            Map.of("TEST_LLM_KEY", "s3cret")));
 
         assertEquals("Bearer s3cret", this.lastAuthorization.get());
     }
@@ -267,7 +283,7 @@ class OpenAIClientTest
     void refusesWhenTheNamedApiKeyVariableIsUnset()
     {
         final IOException failure = assertThrows(IOException.class,
-            () -> new TestClient(settings(Map.of("apiKeyEnvVar", "TEST_LLM_KEY")), Map.of()).chat(HELLO));
+            () -> say(new TestClient(settings(Map.of("apiKeyEnvVar", "TEST_LLM_KEY")), Map.of())));
 
         assertTrue(failure.getMessage().contains("TEST_LLM_KEY"));
         assertNull(this.lastAuthorization.get(), "nothing reached the provider");
@@ -276,7 +292,7 @@ class OpenAIClientTest
     @Test
     void sendsNoApiKeyWhenTheProviderNamesNoVariable() throws IOException
     {
-        client().chat(HELLO);
+        say(client());
 
         assertNull(this.lastAuthorization.get());
     }
@@ -286,10 +302,10 @@ class OpenAIClientTest
     {
         final ProviderSettings provider =
             new ProviderSettings(endpoint() + "/chat/completions/", null, 10, null);
-        final ModelSettings model = new ModelSettings(0, 100, 0.0, 0, 0, null, null);
+        final ModelSettings model = new ModelSettings(0, 0.0, null, null);
         final LLMSettings settings = new LLMSettings("local", provider, MODEL, model);
 
-        assertEquals(REPLY, new TestClient(settings, Map.of()).chat(HELLO));
+        assertEquals(REPLY, say(new TestClient(settings, Map.of())));
     }
 
     @Test
@@ -298,7 +314,18 @@ class OpenAIClientTest
         final LLMSettings settings = settings(Map.of());
         final OpenAIClient client = new TestClient(settings, Map.of());
 
-        assertEquals(REPLY, client.chat(HELLO), "the bound configuration is what the call uses");
+        assertEquals(REPLY, say(client), "the bound configuration is what the call uses");
+    }
+
+    @Test
+    void bindConfigurationServiceWiresTheParentField() throws IOException
+    {
+        final LLMSettings settings = settings(Map.of());
+        final OpenAIClient client = new OpenAIClient();
+        client.bindCallGate(CallGateImplTest.gate());
+        client.bindConfigurationService(() -> settings);
+
+        assertEquals(REPLY, say(client), "the DS bind method is what fills the parent field");
     }
 
     @Test
@@ -312,7 +339,7 @@ class OpenAIClientTest
     {
         this.status = 500;
 
-        final IOException failure = assertThrows(IOException.class, () -> client().chat(HELLO));
+        final IOException failure = assertThrows(IOException.class, () -> say(client()));
         assertTrue(failure.getMessage().startsWith("OpenAI-compatible LLM request failed"));
     }
 
@@ -330,7 +357,7 @@ class OpenAIClientTest
             }
         };
 
-        final IOException failure = assertThrows(IOException.class, () -> client.chat(HELLO));
+        final IOException failure = assertThrows(IOException.class, () -> say(client));
         assertEquals("no active provider", failure.getMessage());
     }
 
@@ -349,14 +376,14 @@ class OpenAIClientTest
     {
         final TestClient reused = client();
 
-        assertEquals(REPLY, reused.chat(HELLO));
-        assertEquals(REPLY, reused.chat(HELLO));
+        assertEquals(REPLY, say(reused));
+        assertEquals(REPLY, say(reused));
     }
 
     @Test
     void sendsTheModelIdentifierTheModelDeclares() throws IOException
     {
-        new TestClient(settingsWithModel(100, Map.of("modelId", "llama3.2:3b")), Map.of()).chat(HELLO);
+        say(new TestClient(settingsWithModel(Map.of("modelId", "llama3.2:3b")), Map.of()));
 
         assertEquals("llama3.2:3b", request().getString("model"),
             "a JCR name cannot hold the colon, so the node name is not the identifier");
@@ -365,18 +392,10 @@ class OpenAIClientTest
     @Test
     void clampsAnOversizeTokenCeilingRatherThanTruncatingIt() throws IOException
     {
-        new TestClient(settingsWithModel(5_000_000_000L, Map.of()), Map.of()).chat(HELLO);
+        client().chat(null, List.of(new LLMMessage("user", HELLO)),
+            LLMRequestOptions.builder().maxOutputTokens(5_000_000_000L).build());
 
         assertEquals(Integer.MAX_VALUE, request().getJsonNumber("max_tokens").intValue());
-    }
-
-    @Test
-    void refusesACeilingThatIsNotPositive()
-    {
-        final IOException failure = assertThrows(IOException.class,
-            () -> new TestClient(settingsWithModel(0, Map.of()), Map.of()).chat(HELLO));
-
-        assertTrue(failure.getMessage().contains("maxOutputTokens"));
     }
 
     @Test
@@ -384,7 +403,7 @@ class OpenAIClientTest
     {
         this.emptyContent = true;
 
-        final IOException failure = assertThrows(IOException.class, () -> client().chat(HELLO));
+        final IOException failure = assertThrows(IOException.class, () -> say(client()));
 
         assertTrue(failure.getMessage().contains("empty answer"));
     }
@@ -393,9 +412,10 @@ class OpenAIClientTest
     void reusesTheModelWhenOnlyTheCallOptionsChange() throws Exception
     {
         final TestClient client = client();
-        client.chat(HELLO);
+        say(client);
         final Object first = cachedModel(client);
-        client.chat(null, List.of(new LLMMessage("user", HELLO)), LLMRequestOptions.withMaxOutputTokens(7));
+        client.chat(null, List.of(new LLMMessage("user", HELLO)),
+            LLMRequestOptions.builder().maxOutputTokens(7).build());
 
         assertSame(first, cachedModel(client), "the options travel on the request, not the model");
         assertEquals(7, request().getJsonNumber("max_tokens").intValue(), "and they still reach the wire");
@@ -408,10 +428,10 @@ class OpenAIClientTest
         return field.get(client);
     }
 
-    private LLMSettings settingsWithModel(final long maxOutputTokens, final Map<String, Object> modelExtra)
+    private LLMSettings settingsWithModel(final Map<String, Object> modelExtra)
     {
         final ProviderSettings provider = new ProviderSettings(endpoint(), null, 10, Map.of());
-        final ModelSettings model = new ModelSettings(0, maxOutputTokens, 0.25, 0, 0, null, modelExtra);
+        final ModelSettings model = new ModelSettings(0, 0.25, null, modelExtra);
         return new LLMSettings("local", provider, MODEL, model);
     }
 }

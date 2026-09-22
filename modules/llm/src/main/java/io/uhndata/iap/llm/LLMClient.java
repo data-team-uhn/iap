@@ -35,38 +35,6 @@ import org.jetbrains.annotations.Nullable;
 public interface LLMClient
 {
     /**
-     * Send a single user message and return the assistant's reply.
-     *
-     * @param userMessage the user turn content
-     * @return the assistant's text response
-     * @throws IOException on network failure or a non-200 API response
-     */
-    @NotNull
-    String chat(@NotNull String userMessage) throws IOException;
-
-    /**
-     * Send a single user message with a system prompt and return the assistant's reply.
-     *
-     * @param systemPrompt optional system instructions (may be {@code null} or blank)
-     * @param userMessage the user turn content
-     * @return the assistant's text response
-     * @throws IOException on network failure or a non-200 API response
-     */
-    @NotNull
-    String chat(@Nullable String systemPrompt, @NotNull String userMessage) throws IOException;
-
-    /**
-     * Send a multi-turn conversation with an optional system prompt.
-     *
-     * @param systemPrompt optional system instructions (may be {@code null} or blank)
-     * @param messages the ordered list of conversation turns; must alternate user/assistant
-     * @return the assistant's text response
-     * @throws IOException on network failure or a non-200 API response
-     */
-    @NotNull
-    String chat(@Nullable String systemPrompt, @NotNull List<LLMMessage> messages) throws IOException;
-
-    /**
      * Send a multi-turn conversation with an optional system prompt and per-call request overrides.
      *
      * @param systemPrompt optional system instructions (may be {@code null} or blank)
