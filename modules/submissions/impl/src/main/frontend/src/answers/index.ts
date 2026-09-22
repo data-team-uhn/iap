@@ -16,18 +16,57 @@
  * limitations under the License.
  */
 
-// Loads the answer components that ship with this module. Each one registers itself as it loads,
-// so all this has to do is make sure they are evaluated: what a component recognizes, and how
-// confidently, is stated where the component is rather than in a list here that would have to be
-// kept in step with it.
-//
-// Nothing is registered twice by importing this more than once: a module is evaluated once, and the
-// registry ignores a candidate it already holds. Load order only settles a tie in confidence, and
-// the shipped components key off distinct data types, so there is none to settle.
+import { useEffect, useState } from "react";
 
-import "./BooleanAnswer";
-import "./ChoiceAnswer";
-import "./DateAnswer";
-import "./FileAnswer";
-import "./NumberAnswer";
-import "./TextAnswer";
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
+
+// Finds the answer components by asking the repository which ones are declared. A deployment adds a
+// question type by registering an `ext:Extension` on this point and shipping the asset it names.
+export const ANSWER_COMPONENT_POINT = "AnswerComponent";
+
+// What `loadExtensions` hands back is deliberately discarded. Each asset registers its own
+// candidate with the registry as it is evaluated.
+let request: Promise<void> | null = null;
+let loaded = false;
+
+/**
+ * Loads every declared answer component, once.
+ */
+export async function loadAnswerComponents(): Promise<void> {
+  if (loaded) {
+    return;
+  }
+  request ??= loadExtensions(ANSWER_COMPONENT_POINT)
+    .then(() => {
+      loaded = true;
+    })
+    .catch((e: unknown) => {
+      console.error("Failed to load the answer components", e);
+    })
+    .finally(() => {
+      request = null;
+    });
+  return request;
+}
+
+/**
+ * Whether the answer components are available yet.
+ * They arrive over HTTP, so the first render of a field happens before any of them is registered.
+ *
+ * @return {@code false} until the load settles, then {@code true}, however it settled
+ */
+export function useAnswerComponents(): boolean {
+  const [ ready, setReady ] = useState(loaded);
+  useEffect(() => {
+    let live = true;
+    void loadAnswerComponents().finally(() => {
+      if (live) {
+        setReady(true);
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  return ready;
+}

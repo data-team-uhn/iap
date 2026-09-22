@@ -22,8 +22,7 @@ import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
-// Loaded for its side effect: the shipped answer components register themselves
-import "./answers";
+import { useAnswerComponents } from "./answers";
 import { questionLabel } from "./answers/label";
 
 import type { FormQuestion } from "./submissionForm";
@@ -74,6 +73,7 @@ function SaveStatus({ state, error }: { state: SaveState; error?: string }) {
 // component rather than another branch in this one. What stays here is what is the same whatever is
 // being answered: following the saved answer, noticing a change, and reporting what the save does.
 function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFieldProps) {
+  const ready = useAnswerComponents();
   const [ draft, setDraft ] = useState(question.value);
   // The server is the authority on what the answer is: it re-reads the whole form after every save,
   // and an answer changed elsewhere should appear here. Adjusted while rendering, which is React's
@@ -99,6 +99,17 @@ function AnswerField({ question, state, error, disabled, onAnswered }: AnswerFie
       onAnswered(values);
     }
   };
+
+  if (!ready) {
+    // Not the "cannot be answered here" message below: until the components have been fetched,
+    // nothing is registered yet, and saying the question cannot be answered would be untrue
+    return (
+      <Box>
+        <Typography variant="subtitle2">{questionLabel(question)}</Typography>
+        <CircularProgress size={16} aria-label="Loading the answer field" />
+      </Box>
+    );
+  }
 
   const Answer = getAnswerComponent(question);
   if (!Answer) {

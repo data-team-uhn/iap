@@ -19,6 +19,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+import { loadAnswerComponents } from "@iap/submissions/answers";
+// Imported rather than fetched: in a browser each answer component arrives as its own asset, named
+// by an extension on the AnswerComponent point, and registers itself as it is evaluated.
+import "@iap/submissions/answers/BooleanAnswer";
+import "@iap/submissions/answers/ChoiceAnswer";
+import "@iap/submissions/answers/DateAnswer";
+import "@iap/submissions/answers/FileAnswer";
+import "@iap/submissions/answers/NumberAnswer";
+import "@iap/submissions/answers/TextAnswer";
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
 import {
   FORM_REQUIREMENT,
@@ -28,6 +37,16 @@ import {
   SECTION,
   type SubmissionForm,
 } from "@iap/submissions/submissionForm";
+
+vi.mock("@iap/ui-extension/extensionManager", () => ({
+  loadExtensions: vi.fn(() => Promise.resolve([])),
+}));
+
+// Settles the load before the first render, so a field draws its input rather than the spinner it
+// shows while the components are still on their way
+beforeEach(async () => {
+  await loadAnswerComponents();
+});
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
 

@@ -17,7 +17,10 @@
  */
 
 import { getAnswerComponent } from "@iap/submissions/answerComponents";
-import "@iap/submissions/answers";
+import { ANSWER_COMPONENT_POINT, loadAnswerComponents } from "@iap/submissions/answers";
+// Imported rather than fetched: in a browser each of these arrives as its own asset, named by an
+// extension on the point below, and registers itself as it is evaluated. Importing does the same
+// thing, and is the only way to get them here.
 import BooleanAnswer from "@iap/submissions/answers/BooleanAnswer";
 import ChoiceAnswer from "@iap/submissions/answers/ChoiceAnswer";
 import DateAnswer from "@iap/submissions/answers/DateAnswer";
@@ -25,6 +28,13 @@ import FileAnswer from "@iap/submissions/answers/FileAnswer";
 import NumberAnswer from "@iap/submissions/answers/NumberAnswer";
 import TextAnswer from "@iap/submissions/answers/TextAnswer";
 import { QUESTION, type FormQuestion } from "@iap/submissions/submissionForm";
+import { loadExtensions } from "@iap/ui-extension/extensionManager";
+
+vi.mock("@iap/ui-extension/extensionManager", () => ({
+  loadExtensions: vi.fn(() => Promise.resolve([])),
+}));
+
+const mockedLoadExtensions = vi.mocked(loadExtensions);
 
 function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
   return {
@@ -41,8 +51,26 @@ function question(overrides: Partial<FormQuestion> = {}): FormQuestion {
   };
 }
 
-// Nothing here empties the registry, and it must not: each component registers itself as it loads,
-// and a module is evaluated once, so a registry cleared mid-file could never be filled again.
+describe("loading the answer components", () => {
+  it("asks the repository which ones are declared, rather than naming them", async () => {
+    await loadAnswerComponents();
+
+    expect(mockedLoadExtensions).toHaveBeenCalledWith(ANSWER_COMPONENT_POINT);
+  });
+
+  // Every field on a form asks, and the answer cannot change while the page lives, so asking twice
+  // must not fetch twice
+  it("loads them once however many times it is asked", async () => {
+    await loadAnswerComponents();
+    const after = mockedLoadExtensions.mock.calls.length;
+    await loadAnswerComponents();
+
+    expect(mockedLoadExtensions.mock.calls).toHaveLength(after);
+  });
+});
+
+// Nothing here empties the registry, and it must not: a component registers itself as it loads, and
+// a module is evaluated once, so a registry cleared mid-file could never be filled again.
 describe("the answer components that ship with this module", () => {
   it("has one for every data type a schema can declare", () => {
     expect(getAnswerComponent(question({ dataType: "text" }))).toBe(TextAnswer);

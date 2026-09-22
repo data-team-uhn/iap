@@ -45,7 +45,19 @@ export type AnswerComponent = (props: AnswerComponentProps) => ReactElement | nu
  */
 export type AnswerComponentCandidate = (question: FormQuestion) => [AnswerComponent, number] | null;
 
-const candidates: AnswerComponentCandidate[] = [];
+// The property name the registry hides under on `window`, and the reason it is not simply a module
+// variable: an answer component is fetched as its own asset and may be contributed by a bundle this
+// one was never built with. A deployment shipping its own question type builds separately,
+// so its copy of this module would be a second, private registry, and the candidates it collected
+// would be invisible to the field asking here. A store on `window` is the one thing both builds can
+// agree on.
+export const STORE_KEY = "__iapAnswerComponents";
+
+const candidates = (): AnswerComponentCandidate[] => {
+  const holder = window as unknown as Record<string, AnswerComponentCandidate[] | undefined>;
+  holder[STORE_KEY] ??= [];
+  return holder[STORE_KEY];
+};
 
 /**
  * Offers a component for the questions it recognizes.
@@ -55,14 +67,14 @@ const candidates: AnswerComponentCandidate[] = [];
  * components are present, leave one registration and not several.
  */
 export function registerAnswerComponent(candidate: AnswerComponentCandidate): void {
-  if (!candidates.includes(candidate)) {
-    candidates.push(candidate);
+  if (!candidates().includes(candidate)) {
+    candidates().push(candidate);
   }
 }
 
 // Only for tests: registration is otherwise a one-way, load-time act
 export function clearAnswerComponents(): void {
-  candidates.length = 0;
+  candidates().length = 0;
 }
 
 /**
@@ -75,7 +87,7 @@ export function clearAnswerComponents(): void {
 export function getAnswerComponent(question: FormQuestion): AnswerComponent | null {
   let best: AnswerComponent | null = null;
   let bestConfidence = -1;
-  for (const candidate of candidates) {
+  for (const candidate of candidates()) {
     const offer = candidate(question);
     // Strictly greater, so a tie goes to the first registered
     if (offer && offer[1] > bestConfidence) {
