@@ -60,12 +60,12 @@ describe("AnswerField", () => {
     expect(answered).not.toHaveBeenCalled();
   });
 
-  it("saves a tick as soon as it happens", async () => {
-    // There is nothing to leave: the answer is complete the moment the box changes
+  it("saves a pick as soon as it happens", async () => {
+    // There is nothing to leave: the answer is complete the moment one of the two is chosen
     const answered = vi.fn();
     render(<AnswerField question={question({ dataType: "boolean" })} state="idle" onAnswered={answered} />);
 
-    await userEvent.click(screen.getByRole("checkbox"));
+    await userEvent.click(screen.getByRole("radio", { name: "Yes" }));
 
     expect(answered).toHaveBeenCalledWith([ "true" ]);
   });

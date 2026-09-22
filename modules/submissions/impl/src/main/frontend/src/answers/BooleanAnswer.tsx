@@ -17,54 +17,41 @@
  */
 
 import {
-  Checkbox,
   FormControl,
   FormControlLabel,
   FormHelperText,
   FormLabel,
   Radio,
   RadioGroup,
-  Stack,
 } from "@mui/material";
 
+import { registerAnswerComponent } from "../answerComponents";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A yes/no answer. A tick is a finished answer the moment it happens, so it saves on change rather
-// than on blur, as other inputs normally do.
+// A yes/no answer, always as a pair of choices. Picking one is a finished answer the moment it
+// happens, so it saves on change rather than on blur, as other inputs normally do.
+//
+// A single checkbox would be the same control for "no" as for "not answered yet", which a question
+// that may be left unanswered has to be able to tell apart.
 function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
-  if (question.required) {
-    return (
-      <FormControl required disabled={disabled} component="fieldset">
-        <FormLabel component="legend">{questionLabel(question)}</FormLabel>
-        {/* required on each input, not on the FormControl, which never forwards it to a radio */}
-        <RadioGroup row value={values[0] ?? ""} onChange={event => onAnswered([ event.target.value ])}>
-          <FormControlLabel value="true" control={<Radio required />} label="Yes" />
-          <FormControlLabel value="false" control={<Radio required />} label="No" />
-        </RadioGroup>
-        {question.description && <FormHelperText>{question.description}</FormHelperText>}
-      </FormControl>
-    );
-  }
   return (
-    <Stack>
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={values[0] === "true"}
-            disabled={disabled}
-            onChange={event => onAnswered([ String(event.target.checked) ])}
-          />
-        }
-        label={questionLabel(question)}
-      />
+    <FormControl required={question.required} disabled={disabled} component="fieldset">
+      <FormLabel component="legend">{questionLabel(question)}</FormLabel>
+      {/* required on each input, not on the FormControl, which never forwards it to a radio */}
+      <RadioGroup row value={values[0] ?? ""} onChange={event => onAnswered([ event.target.value ])}>
+        <FormControlLabel value="true" control={<Radio required={question.required} />} label="Yes" />
+        <FormControlLabel value="false" control={<Radio required={question.required} />} label="No" />
+      </RadioGroup>
       {question.description && <FormHelperText>{question.description}</FormHelperText>}
-    </Stack>
+    </FormControl>
   );
 }
 
 export const booleanAnswerCandidate: AnswerComponentCandidate = question =>
   question.dataType === "boolean" ? [ BooleanAnswer, 50 ] : null;
+
+registerAnswerComponent(booleanAnswerCandidate);
 
 export default BooleanAnswer;

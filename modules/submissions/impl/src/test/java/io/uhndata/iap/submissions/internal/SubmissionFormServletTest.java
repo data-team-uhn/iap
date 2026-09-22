@@ -251,14 +251,14 @@ class SubmissionFormServletTest
         assertTrue(item(requirement(form(REQUESTER), DETAILS), "startDate").getJsonArray("value").isEmpty());
     }
 
-    // Mandatory in the CND is a rule about the content, not a promise to every reader: a session denied
-    // the version, or one whose version has gone, resolves nothing. Answered rather than thrown, because a
-    // bare 500 blaming a missing mandatory reference sends the next reader after the wrong thing
+    // Mandatory in the CND is a rule about the content, not a promise to every reader. Answered rather
+    // than thrown, because a bare 500 blaming a missing mandatory reference sends the next reader after
+    // the wrong thing
     @Test
     void refusesWhenTheSchemaVersionCannotBeRead() throws IOException, PersistenceException
     {
-        // A reference that resolves to nothing, which is what both a removed version and a version this
-        // session may not read come to by the time the model asks for it
+        // A reference that resolves to nothing, which is what a version this session may not read comes
+        // to by the time the model asks for it
         Objects.requireNonNull(this.context.resourceResolver().getResource(SUBMISSION_PATH))
             .adaptTo(ModifiableValueMap.class)
             .put("schemaVersion", "00000000-dead-0000-0000-000000000000");
@@ -269,7 +269,7 @@ class SubmissionFormServletTest
         this.servlet.doGet(request(Objects.requireNonNull(
             this.context.resourceResolver().getResource(SUBMISSION_PATH)), REQUESTER), response);
 
-        assertEquals(MockSlingJakartaHttpServletResponse.SC_CONFLICT, response.getStatus());
+        assertEquals(MockSlingJakartaHttpServletResponse.SC_FORBIDDEN, response.getStatus());
     }
 
     private JsonObject form(final String reader) throws IOException

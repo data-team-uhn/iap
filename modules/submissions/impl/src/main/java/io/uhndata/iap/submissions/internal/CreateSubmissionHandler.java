@@ -51,11 +51,17 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     /** The name activities use to point at this handler. */
     public static final String NAME = "createSubmission";
 
-    /** The payload entry naming the created submission. */
-    private static final String TITLE = "title";
+    /** The payload entry naming the submission to create. */
+    private static final String TITLE_PARAMETER = "title";
 
     /** The payload entry pointing at the schema version being submitted against. */
-    private static final String SCHEMA_VERSION = "schemaVersion";
+    private static final String SCHEMA_VERSION_PARAMETER = "schemaVersion";
+
+    /** Where the title is kept on the submission. Spelled like the payload entry, but not the same name. */
+    private static final String TITLE_PROPERTY = "title";
+
+    /** The {@code REFERENCE} property holding the schema version. */
+    private static final String SCHEMA_VERSION_PROPERTY = "schemaVersion";
 
     @Override
     public String getName()
@@ -66,16 +72,16 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
     @Override
     public void execute(final WorkflowTaskContext context) throws WorkflowException, PersistenceException
     {
-        final Object title = context.getEvent().get(TITLE);
+        final Object title = context.getEvent().get(TITLE_PARAMETER);
         if (!(title instanceof String) || ((String) title).isBlank()) {
             throw new InvalidPayloadException("A title is required");
         }
-        final Resource version = resolveSchemaVersion(context);
-        final Resource created = context.getResourceResolver().create(context.getTarget(),
+        final Resource schemaVersion = resolveSchemaVersion(context);
+        final Resource submission = context.getResourceResolver().create(context.getTarget(),
             freeName(context.getTarget(), (String) title),
-            Map.of("jcr:primaryType", "sub:Submission", TITLE, title));
-        reference(created, version);
-        context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, created.getPath());
+            Map.of("jcr:primaryType", "sub:Submission", TITLE_PROPERTY, title));
+        setSchemaVersion(submission, schemaVersion);
+        context.setVariable(WorkflowResult.CREATED_PATH_VARIABLE, submission.getPath());
     }
 
     /**
@@ -83,18 +89,19 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
      * since the Sling API does not support {@code REFERENCE} properties. A plain string property would carry the right
      * identifier but the wrong type, and the strict {@code sub:Submission} definition rejects it at commit.
      *
-     * @param created the submission just created
-     * @param version the vetted schema version
+     * @param submission the submission just created
+     * @param schemaVersion the vetted schema version
      * @throws PersistenceException when the repository refuses the reference
      */
-    private void reference(final Resource created, final Resource version) throws PersistenceException
+    private void setSchemaVersion(final Resource submission, final Resource schemaVersion)
+        throws PersistenceException
     {
-        final Node submission = Objects.requireNonNull(created.adaptTo(Node.class),
+        final Node node = Objects.requireNonNull(submission.adaptTo(Node.class),
             "A freshly created submission is always backed by a JCR node");
-        final Node target = Objects.requireNonNull(version.adaptTo(Node.class),
+        final Node target = Objects.requireNonNull(schemaVersion.adaptTo(Node.class),
             "A vetted schema version is always backed by a JCR node");
         try {
-            submission.setProperty(SCHEMA_VERSION, target);
+            node.setProperty(SCHEMA_VERSION_PROPERTY, target);
         } catch (final RepositoryException e) {
             throw new PersistenceException("Could not reference the schema version", e);
         }
@@ -111,7 +118,7 @@ public class CreateSubmissionHandler implements ServiceTaskHandler
      */
     private Resource resolveSchemaVersion(final WorkflowTaskContext context) throws InvalidPayloadException
     {
-        final Object path = context.getEvent().get(SCHEMA_VERSION);
+        final Object path = context.getEvent().get(SCHEMA_VERSION_PARAMETER);
         if (!(path instanceof String) || ((String) path).isBlank()) {
             throw new InvalidPayloadException("A schemaVersion is required");
         }

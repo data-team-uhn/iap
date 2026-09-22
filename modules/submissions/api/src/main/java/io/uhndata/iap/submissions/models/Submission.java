@@ -101,9 +101,8 @@ public class Submission extends Entity
      * The schema version this submission answers, where this session can reach it.
      *
      * <p>{@link #getSchemaVersion()} states the node type's rule, that the reference is mandatory, and that
-     * rule is about the content rather than about every reader. A session denied the version, or following a
-     * reference whose target has gone, resolves nothing. Ask this where the caller has to be answered rather
-     * than failed.</p>
+     * rule is about the content rather than about every reader: a session denied the version resolves
+     * nothing. Ask this where the caller has to be answered rather than failed.</p>
      *
      * @return the schema version, or {@code null} where this session cannot resolve the reference
      * @since 0.1.0

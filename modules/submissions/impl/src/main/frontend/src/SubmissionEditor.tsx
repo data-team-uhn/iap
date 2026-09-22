@@ -24,12 +24,12 @@ import { useAuthenticatedFetch } from "@iap/frontend-commons/reLogin";
 
 import AnswerField, { type SaveState } from "./AnswerField";
 import {
-  FORM_REQUIREMENT,
   type FormItem,
   type FormQuestion,
-  type FormRequirement,
+  type Requirement,
   type SubmissionForm,
   fetchForm,
+  isFormRequirement,
   isQuestion,
   saveAnswer,
 } from "./submissionForm";
@@ -81,8 +81,8 @@ function Items({ items, disabled, states, onAnswered }: {
 // One requirement. One that holds no questions, a document to provide or an approval to obtain, is
 // still shown. It is something the submitter has to do, and leaving it out would say the request
 // asks less than it does.
-function Requirement({ requirement, disabled, states, onAnswered }: {
-  requirement: FormRequirement;
+function RequirementCard({ requirement, disabled, states, onAnswered }: {
+  requirement: Requirement;
   disabled: boolean;
   states: Record<string, FieldState | undefined>;
   onAnswered: (question: FormQuestion, values: string[]) => void;
@@ -94,7 +94,7 @@ function Requirement({ requirement, disabled, states, onAnswered }: {
         <Typography variant="description">{requirement.description}</Typography>
       ) }
       <Divider sx={{ my: 2 }} />
-      { requirement.type === FORM_REQUIREMENT && requirement.items
+      { isFormRequirement(requirement)
         ? <Items items={requirement.items} disabled={disabled} states={states} onAnswered={onAnswered} />
         : (
           <Typography variant="placeholder">
@@ -119,24 +119,24 @@ function SubmissionEditor({ path }: { path: string }) {
   // Which read is the current one. Answers finished in quick succession are saved in the order they
   // were given, but their reads can land out of order. An older form would put back what was just
   // replaced.
-  const latest = useRef(0);
+  const latestFormRead = useRef(0);
   const doFetch = useAuthenticatedFetch();
 
   const reload = useCallback((token: number) => fetchForm(doFetch, path).then(next => {
-    if (token === latest.current) {
+    if (token === latestFormRead.current) {
       setForm(next);
       setError(undefined);
     }
   }), [ doFetch, path ]);
 
   useEffect(() => {
-    const token = latest.current;
+    const token = latestFormRead.current;
     reload(token).catch((e: unknown) => setError(message(e)));
   }, [ reload ]);
 
   const answered = useCallback((question: FormQuestion, values: string[]) => {
-    const token = latest.current + 1;
-    latest.current = token;
+    const token = latestFormRead.current + 1;
+    latestFormRead.current = token;
     setStates(current => ({ ...current, [question.path]: { state: "saving" } }));
     saveAnswer(doFetch, path, question.path, values)
       // The field's own outcome, whether or not a later answer has overtaken this one. A save that
@@ -171,7 +171,7 @@ function SubmissionEditor({ path }: { path: string }) {
         </Alert>
       ) }
       { form.requirements.map(requirement => (
-        <Requirement
+        <RequirementCard
           key={requirement.name}
           requirement={requirement}
           disabled={!form.editable}

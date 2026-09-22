@@ -22,12 +22,11 @@ import ErrorOutlinedIcon from "@mui/icons-material/ErrorOutlined";
 import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 
 import { getAnswerComponent } from "./answerComponents";
-import { registerBuiltinAnswerComponents } from "./answers";
+// Loaded for its side effect: the shipped answer components register themselves
+import "./answers";
 import { questionLabel } from "./answers/label";
 
 import type { FormQuestion } from "./submissionForm";
-
-registerBuiltinAnswerComponents();
 
 export type SaveState = "idle" | "saving" | "saved" | "failed";
 

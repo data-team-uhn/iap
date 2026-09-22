@@ -73,15 +73,15 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
 {
     private static final long serialVersionUID = 6455351484949339021L;
 
-    private static final String NAME = "name";
+    private static final String NAME_KEY = "name";
 
-    private static final String LABEL = "label";
+    private static final String LABEL_KEY = "label";
 
-    private static final String DESCRIPTION = "description";
+    private static final String DESCRIPTION_KEY = "description";
 
-    private static final String ITEMS = "items";
+    private static final String ITEMS_KEY = "items";
 
-    private static final String TYPE = "type";
+    private static final String TYPE_KEY = "type";
 
     @Reference
     private transient ConditionEvaluator conditions;
@@ -96,10 +96,10 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
             "A submission resource always reads as a submission");
         final SchemaVersion version = submission.findSchemaVersion();
         if (version == null) {
-            // Mandatory in the CND, so not resolving it means the version has gone or this caller may not
-            // read it. Answered rather than recorded: a serialization path that cannot reach a node is
-            // usually access control doing its job
-            response.sendError(HttpServletResponse.SC_CONFLICT,
+            // The reference is mandatory and a REFERENCE, so the repository will not let its target be
+            // deleted from under it: what is left is a session that may not read the version. Answered
+            // rather than recorded, since that is access control doing its job
+            response.sendError(HttpServletResponse.SC_FORBIDDEN,
                 "The schema version this submission answers cannot be read");
             return;
         }
@@ -146,14 +146,14 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final Map<String, List<String>> answers)
     {
         final JsonObjectBuilder json = Json.createObjectBuilder()
-            .add(NAME, requirement.getName())
+            .add(NAME_KEY, requirement.getName())
             // The resource type itself, not a vocabulary of our own. A requirement kind added later names
             // itself here without this servlet learning about it, and the reader already keys on resource types
-            .add(TYPE, requirement.getType())
-            .add(LABEL, Objects.toString(requirement.getLabel(), ""))
-            .add(DESCRIPTION, Objects.toString(requirement.getDescription(), ""));
+            .add(TYPE_KEY, requirement.getType())
+            .add(LABEL_KEY, Objects.toString(requirement.getLabel(), ""))
+            .add(DESCRIPTION_KEY, Objects.toString(requirement.getDescription(), ""));
         if (requirement instanceof FormRequirement) {
-            json.add(ITEMS, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
+            json.add(ITEMS_KEY, items(((FormRequirement) requirement).getChildren(), requirement.getName(),
                 submission, answers));
         }
         return json;
@@ -179,11 +179,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
                 if (child instanceof Section) {
                     final Section section = (Section) child;
                     items.add(Json.createObjectBuilder()
-                        .add(NAME, section.getName())
-                        .add(TYPE, section.getType())
-                        .add(LABEL, Objects.toString(section.getTitle(), ""))
-                        .add(DESCRIPTION, Objects.toString(section.getDescription(), ""))
-                        .add(ITEMS, items(section.getChildren(), path, submission, answers)));
+                        .add(NAME_KEY, section.getName())
+                        .add(TYPE_KEY, section.getType())
+                        .add(LABEL_KEY, Objects.toString(section.getTitle(), ""))
+                        .add(DESCRIPTION_KEY, Objects.toString(section.getDescription(), ""))
+                        .add(ITEMS_KEY, items(section.getChildren(), path, submission, answers)));
                 } else if (child instanceof Question) {
                     items.add(question((Question) child, path, answers));
                 }
@@ -208,11 +208,11 @@ public class SubmissionFormServlet extends SlingJakartaAllMethodsServlet
         final JsonArrayBuilder value = Json.createArrayBuilder();
         answers.getOrDefault(question.getPath(), List.of()).forEach(value::add);
         return Json.createObjectBuilder()
-            .add(NAME, question.getName())
-            .add(TYPE, question.getType())
+            .add(NAME_KEY, question.getName())
+            .add(TYPE_KEY, question.getType())
             .add("path", path)
             .add("text", Objects.toString(question.getText(), ""))
-            .add(DESCRIPTION, Objects.toString(question.getDescription(), ""))
+            .add(DESCRIPTION_KEY, Objects.toString(question.getDescription(), ""))
             .add("dataType", Objects.toString(question.getDataType(), "text"))
             .add("required", question.isRequired())
             .add("multiple", question.isMultiple())

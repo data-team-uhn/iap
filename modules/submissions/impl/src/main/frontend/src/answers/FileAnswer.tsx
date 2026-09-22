@@ -18,6 +18,7 @@
 
 import { Stack, Typography } from "@mui/material";
 
+import { registerAnswerComponent } from "../answerComponents";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -40,5 +41,7 @@ function FileAnswer({ question }: AnswerComponentProps) {
 
 export const fileAnswerCandidate: AnswerComponentCandidate = question =>
   question.dataType === "file" ? [ FileAnswer, 50 ] : null;
+
+registerAnswerComponent(fileAnswerCandidate);
 
 export default FileAnswer;

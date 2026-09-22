@@ -27,6 +27,7 @@ import {
   RadioGroup
 } from "@mui/material";
 
+import { registerAnswerComponent } from "../answerComponents";
 import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
@@ -93,5 +94,7 @@ function ChoiceAnswer({ question, values, disabled, onAnswered }: AnswerComponen
 // outbids the component that would otherwise type the answer in
 export const choiceAnswerCandidate: AnswerComponentCandidate = question =>
   question.options.length > 0 ? [ ChoiceAnswer, 60 ] : null;
+
+registerAnswerComponent(choiceAnswerCandidate);
 
 export default ChoiceAnswer;

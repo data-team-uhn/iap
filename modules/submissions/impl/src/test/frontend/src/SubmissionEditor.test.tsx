@@ -20,7 +20,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import SubmissionEditor from "@iap/submissions/SubmissionEditor";
-import { FORM_REQUIREMENT, QUESTION, SECTION, type SubmissionForm } from "@iap/submissions/submissionForm";
+import {
+  FORM_REQUIREMENT,
+  type FormItem,
+  type FormRequirement,
+  QUESTION,
+  SECTION,
+  type SubmissionForm,
+} from "@iap/submissions/submissionForm";
 
 const PATH = "/Submissions/ab/cd/ef/0a1b2c3d-0000-0000-0000-000000000000";
 
@@ -29,6 +36,11 @@ function duration(value: string[] = []) {
     name: "duration", type: QUESTION, path: "details/duration", text: "Is this several days?",
     dataType: "text", required: true, multiple: false, options: [], value,
   };
+}
+
+// Typed as the subtype that holds questions, since the generic Requirement declares no items
+function details(items: FormItem[], overrides: Partial<FormRequirement> = {}): FormRequirement {
+  return { name: "details", type: FORM_REQUIREMENT, label: "Request details", items, ...overrides };
 }
 
 function endDate() {
@@ -43,10 +55,7 @@ function form(overrides: Partial<SubmissionForm> = {}): SubmissionForm {
     path: PATH,
     title: "A long weekend",
     editable: true,
-    requirements: [ {
-      name: "details", type: FORM_REQUIREMENT, label: "Request details", description: "When and why.",
-      items: [ duration() ],
-    } ],
+    requirements: [ details([ duration() ], { description: "When and why." }) ],
     ...overrides,
   };
 }
@@ -91,10 +100,7 @@ describe("SubmissionEditor", () => {
     // Which questions apply depends on the answers, and the server decides it. The editor finds out
     // by reading the form again: the return-date question simply appears in the next read.
     const withEndDate = form({
-      requirements: [ {
-        name: "details", type: FORM_REQUIREMENT, label: "Request details",
-        items: [ duration([ "multiple days" ]), endDate() ],
-      } ],
+      requirements: [ details([ duration([ "multiple days" ]), endDate() ]) ],
     });
     const fetchMock = serving(form(), withEndDate);
     vi.stubGlobal("fetch", fetchMock);
@@ -146,11 +152,8 @@ describe("SubmissionEditor", () => {
 
   it("draws a section as its own block, with its questions inside", async () => {
     vi.stubGlobal("fetch", serving(form({
-      requirements: [ {
-        name: "details", type: FORM_REQUIREMENT, label: "Request details",
-        items: [ { name: "when", type: SECTION, label: "Dates", description: "When you are away",
-          items: [ endDate() ] } ],
-      } ],
+      requirements: [ details([ { name: "when", type: SECTION, label: "Dates",
+        description: "When you are away", items: [ endDate() ] } ]) ],
     })));
 
     render(<SubmissionEditor path={PATH} />);
@@ -165,10 +168,8 @@ describe("SubmissionEditor", () => {
     // (`Objects.toString(getLabel(), "")`), so this is what an unlabelled block arrives as. It still
     // has to be identifiable rather than headed by nothing
     vi.stubGlobal("fetch", serving(form({
-      requirements: [ {
-        name: "details", type: FORM_REQUIREMENT, label: "",
-        items: [ { name: "when", type: SECTION, label: "", items: [ endDate() ] } ],
-      } ],
+      requirements: [ details(
+        [ { name: "when", type: SECTION, label: "", items: [ endDate() ] } ], { label: "" }) ],
     })));
 
     render(<SubmissionEditor path={PATH} />);

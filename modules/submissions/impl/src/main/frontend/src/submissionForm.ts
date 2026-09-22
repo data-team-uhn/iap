@@ -66,13 +66,18 @@ export interface FormSection {
 
 export type FormItem = FormQuestion | FormSection;
 
-export interface FormRequirement {
+// Anything a schema version asks of a submission, whatever form that takes.
+export interface Requirement {
   name: string;
   type: string;
   label: string;
   description?: string;
-  // Present only for requirements that hold questions; a document or an approval has none
-  items?: FormItem[];
+}
+
+// The one kind answered by filling questions in. A document or an approval is satisfied some other
+// way and carries no items, which is why they are not this type.
+export interface FormRequirement extends Requirement {
+  items: FormItem[];
 }
 
 export interface SubmissionForm {
@@ -80,11 +85,15 @@ export interface SubmissionForm {
   title: string;
   // Whether this reader may still answer, as the server decided it
   editable: boolean;
-  requirements: FormRequirement[];
+  requirements: Requirement[];
 }
 
 export function isQuestion(item: FormItem): item is FormQuestion {
   return item.type === QUESTION;
+}
+
+export function isFormRequirement(requirement: Requirement): requirement is FormRequirement {
+  return requirement.type === FORM_REQUIREMENT;
 }
 
 // Reads the form for a submission: what its schema asks, what it already answers, and nothing that
