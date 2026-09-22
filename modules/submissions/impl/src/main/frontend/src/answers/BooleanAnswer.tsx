@@ -31,12 +31,8 @@ import { questionLabel } from "./label";
 
 import type { AnswerComponentCandidate, AnswerComponentProps } from "../answerComponents";
 
-// A yes/no answer. A tick is a finished answer the moment it happens: there is nothing to leave.
-// So it saves on change rather than on blur, as every other input here does.
-//
-// A question that must be answered is asked as two options instead. `required` on a checkbox means
-// the box has to be ticked, which leaves No unanswerable, and an untouched box reads the same as a
-// deliberate No. Two radios make No an answer and leave neither chosen until one is given.
+// A yes/no answer. A tick is a finished answer the moment it happens, so it saves on change rather
+// than on blur, as other inputs normally do.
 function BooleanAnswer({ question, values, disabled, onAnswered }: AnswerComponentProps) {
   if (question.required) {
     return (
