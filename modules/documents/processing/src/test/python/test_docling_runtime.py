@@ -616,7 +616,7 @@ class TestRunPdfChunksBrokenPool:
 
 
 class TestAConversionHasADeadline:
-    """``document_timeout`` bounds one page batch, and a document is up to 375 of them.
+    """``document_timeout`` bounds one page batch, and a document is up to 125 of them.
 
     So nothing bounded a request. A batch wedged inside a single page never returns at all,
     and waiting on it held the daemon's only parse slot for good: every later caller got a 503
