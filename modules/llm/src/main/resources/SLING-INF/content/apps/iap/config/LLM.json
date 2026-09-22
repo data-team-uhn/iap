@@ -1,0 +1,6 @@
+{
+  "jcr:primaryType": "llm:Configuration",
+  "title": "LLM Configuration",
+  "activeProvider": "local",
+  "activeModel": "llama3.2-3b"
+}
