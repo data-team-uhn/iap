@@ -114,7 +114,6 @@ class LLMConfigurationServiceImplTest
             "timeoutSeconds", 600L));
         this.context.create().resource(CATALOG_PATH + "/" + PROVIDER + "/" + MODEL, Map.of(
             "jcr:primaryType", "llm:Model",
-            "maxOutputTokens", 1024L,
             "temperature", 0.0d,
             "developer", "meta"));
     }
@@ -127,12 +126,10 @@ class LLMConfigurationServiceImplTest
         final LLMSettings settings = this.service.getActiveSettings();
 
         assertEquals(PROVIDER, settings.getProviderName());
-        assertEquals(MODEL, settings.getModelName());
+        assertEquals(MODEL, settings.getModelId());
         assertEquals("http://localhost:11434/v1", settings.getEndpoint());
         assertEquals(600, settings.getTimeoutSeconds());
         assertEquals("openai", settings.getProviderProperty("api"));
-        assertEquals(1024, settings.getMaxOutputTokens());
-        assertEquals("meta", settings.getDeveloper());
     }
 
     @Test
@@ -144,7 +141,6 @@ class LLMConfigurationServiceImplTest
 
         assertNull(settings.getProviderProperty("jcr:primaryType"));
         assertNull(settings.getProviderProperty("sling:resourceType"));
-        assertNull(settings.getModelProperty("jcr:primaryType"));
     }
 
     @Test

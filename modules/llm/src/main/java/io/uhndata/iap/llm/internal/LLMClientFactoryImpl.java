@@ -104,12 +104,6 @@ public class LLMClientFactoryImpl implements LLMClientFactory
     }
 
     @Override
-    public LLMClient getClient(final String providerApi)
-    {
-        return providerApi == null ? null : this.clients.get(providerApi);
-    }
-
-    @Override
     public LLMClient getActiveClient() throws IOException
     {
         final LLMSettings settings = this.configurationService.getActiveSettings();

@@ -27,6 +27,9 @@ import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
 import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,13 +42,14 @@ import dev.langchain4j.http.client.HttpClientBuilder;
 import dev.langchain4j.http.client.jdk.JdkHttpClientBuilder;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
-import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
 import io.uhndata.iap.errortracking.api.ErrorContext;
 import io.uhndata.iap.errortracking.api.ErrorLogger;
 import io.uhndata.iap.llm.DefaultLLMClient;
+import io.uhndata.iap.llm.LLMCallGate;
 import io.uhndata.iap.llm.LLMClient;
+import io.uhndata.iap.llm.LLMConfigurationService;
 import io.uhndata.iap.llm.LLMMessage;
 import io.uhndata.iap.llm.LLMRequestOptions;
 import io.uhndata.iap.llm.LLMSettings;
@@ -97,10 +101,52 @@ public class OpenAIClient extends DefaultLLMClient
     /** The provider property asking for {@code chat_template_kwargs.enable_thinking=false}. */
     private static final String DISABLE_THINKING = "disableThinking";
 
+    /** How many times a failed request is sent again. */
+    private static final int MAX_RETRIES = 1;
+
+    /**
+     * How many calls' worth of waiting a caller will do for a slot, as a multiple of the provider's own timeout.
+     *
+     * <p>Not one. The gate holds calls to one at a time, so waiting exactly as long as a call may take means
+     * giving up at the moment the slot is about to come free - and for a reading, giving up is a verdict the
+     * submitter sees. A few calls' worth is long enough for a queue of readings and still short enough that a
+     * provider which has stopped answering is reported rather than waited on for ever.</p>
+     */
+    private static final int QUEUED_CALLS = 3;
+
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(OpenAIClient.class);
 
     /** The model built for the most recent settings, reused while they are unchanged. */
     private volatile CachedModel cachedModel;
+
+    /** Holds every call in this instance to one at a time, across every caller. */
+    private volatile LLMCallGate callGate;
+
+    /**
+     * Bind the gate holding calls to one at a time. A method rather than a field so a test can build a
+     * client outside OSGi and give it its own gate.
+     *
+     * @param gate the gate to hold every call behind
+     */
+    @Reference
+    protected void bindCallGate(final LLMCallGate gate)
+    {
+        this.callGate = gate;
+    }
+
+    /**
+     * Bind the configuration service on this component. The field lives on {@link DefaultLLMClient}; DS
+     * injects through a method on the {@code @Component} class, the same way {@link #bindCallGate} is bound.
+     *
+     * @param service the configuration service to use
+     */
+    @Reference
+    protected void bindConfigurationService(final LLMConfigurationService service)
+    {
+        setConfigurationService(service);
+    }
 
     /**
      * Read an environment variable. Overridden in tests, which cannot set one.
@@ -123,8 +169,7 @@ public class OpenAIClient extends DefaultLLMClient
                 .messages(toChatMessages(systemPrompt, messages))
                 .parameters(requestParameters(settings, options))
                 .build();
-            final ChatResponse response = modelFor(settings).chat(request);
-            final String reply = response.aiMessage().text();
+            final String reply = ask(settings, request);
             if (reply == null) {
                 // LangChain4j leaves the text null when the provider answered with empty content, which a
                 // reasoning model that spends its whole budget before saying anything visible does. This
@@ -141,6 +186,34 @@ public class OpenAIClient extends DefaultLLMClient
             // expects an IOException it can surface to the servlet, so translate rather than let it escape raw.
             ErrorLogger.logError(e, ErrorContext.of(OpenAIClient.class, "doChat"));
             throw new IOException("OpenAI-compatible LLM request failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Send one request, holding a call slot for as long as it takes.
+     *
+     * <p>The wait for a slot is its own budget, {@link #QUEUED_CALLS} calls' worth, rather than the provider's
+     * timeout: a caller that gives up after one call's worth gives up just as the slot frees.
+     *
+     * @param settings the active settings
+     * @param request what to send
+     * @return what the model answered, {@code null} when it answered with empty content
+     * @throws IOException if no slot came free in time
+     */
+    private String ask(final LLMSettings settings, final ChatRequest request) throws IOException
+    {
+        final long queuedAt = System.nanoTime();
+        final LLMCallGate.Permit permit =
+            this.callGate.acquire(Duration.ofSeconds(settings.getTimeoutSeconds() * QUEUED_CALLS));
+        // Split from the call itself on purpose. The gate holds calls to one at a time, so a slow reading is
+        // usually a reading that waited, and a total would not say which of the two it was.
+        final long waitedMs = millisecondsSince(queuedAt);
+        try (permit) {
+            final long startedAt = System.nanoTime();
+            final String reply = modelFor(settings).chat(request).aiMessage().text();
+            LOGGER.info("LLM request served: model={} gateWaitMs={} callMs={}", settings.getModelId(), waitedMs,
+                millisecondsSince(startedAt));
+            return reply;
         }
     }
 
@@ -174,32 +247,31 @@ public class OpenAIClient extends DefaultLLMClient
     private static ChatRequestParameters requestParameters(final LLMSettings settings,
         final LLMRequestOptions options)
     {
-        final long maxTokens = options == null
-            ? settings.getMaxOutputTokens() : options.resolveMaxOutputTokens(settings.getMaxOutputTokens());
-        return OpenAiChatRequestParameters.builder()
-            .maxOutputTokens(clampToInt(maxTokens))
-            .customParameters(customParameters(settings, options))
-            .build();
+        final OpenAiChatRequestParameters.Builder parameters = OpenAiChatRequestParameters.builder()
+            .customParameters(customParameters(settings, options));
+        final Long maxTokens = options == null ? null : options.getMaxOutputTokens();
+        // A ceiling of zero or less is no ceiling: sent as one the provider refuses the call outright, so it is
+        // left off and the provider fits the answer into whatever the prompt leaves
+        if (maxTokens != null && maxTokens > 0) {
+            parameters.maxOutputTokens(clampToInt(maxTokens));
+        }
+        return parameters.build();
     }
 
     /**
      * The token ceiling as an {@code int}, which is what the OpenAI request field is.
      *
      * <p>
-     * The configured value is a JCR {@code LONG}, so it can exceed the range: casting straight turned
+     * A caller asks for the ceiling as a {@code long}, so it can exceed the range: casting straight turned
      * 4294967296 into 0 and 3000000000 into a negative, which the provider refuses with a 400 that reaches
-     * the caller as a 502, with nothing to suggest the configured number was truncated.
+     * the caller as a 502, with nothing to suggest the number was truncated.
      * </p>
      *
-     * @param maxTokens the configured ceiling
+     * @param maxTokens the ceiling this call asked for, which is positive
      * @return the ceiling clamped to the int range
-     * @throws IllegalArgumentException when the ceiling is not positive
      */
     private static int clampToInt(final long maxTokens)
     {
-        if (maxTokens <= 0) {
-            throw new IllegalArgumentException("maxOutputTokens must be positive; got " + maxTokens);
-        }
         return (int) Math.min(maxTokens, Integer.MAX_VALUE);
     }
 
@@ -215,6 +287,9 @@ public class OpenAIClient extends DefaultLLMClient
             // builder carries -- so leaving it unset capped every call at 60 seconds however long the
             // provider was configured for.
             .timeout(readTimeout)
+            // Once, not the library's two: a second retry after a read timeout is another two minutes spent on
+            // an answer that was probably never coming, holding a call slot the whole time.
+            .maxRetries(MAX_RETRIES)
             .baseUrl(resolveBaseUrl(settings.getEndpoint()))
             .modelName(settings.getModelId())
             .temperature(settings.getTemperature());

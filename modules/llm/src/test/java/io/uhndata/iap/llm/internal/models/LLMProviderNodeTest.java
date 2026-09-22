@@ -36,9 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Unit tests for {@link LLMProviderNode}: that it reads an {@code llm:Provider} node's known properties,
- * applies the CND defaults when they are absent, and still answers for everything else through
- * {@link LLMProviderNode#getProperty}.
+ * Unit tests for {@link LLMProviderNode}: that it reads an {@code llm:Provider} node's known properties and
+ * applies the CND default when it is absent.
  *
  * @version $Id$
  * @since 0.1.0
@@ -87,22 +86,5 @@ class LLMProviderNodeTest
         assertNull(node.getEndpoint());
         assertNull(node.getApiKeyEnvVar());
         assertEquals(120, node.getTimeoutSeconds());
-    }
-
-    @Test
-    void readsAPropertyWithNoDedicatedField()
-    {
-        final LLMProviderNode node = adapt(Map.of("projectId", "some-project"));
-
-        assertEquals("some-project", node.getProperty("projectId"));
-        assertNull(node.getProperty("absent"));
-    }
-
-    @Test
-    void readsAPropertyThroughToString()
-    {
-        final LLMProviderNode node = adapt(Map.of("apiVersion", 3L));
-
-        assertEquals("3", node.getProperty("apiVersion"));
     }
 }

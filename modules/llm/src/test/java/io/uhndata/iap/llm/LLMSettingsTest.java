@@ -57,17 +57,16 @@ class LLMSettingsTest
 
     private static ModelSettings model(final String developer, final Map<String, Object> extra)
     {
-        return new ModelSettings(131072, 2000, 0.7, 30000, 15000, developer, extra);
+        return new ModelSettings(131072, 0.7, developer, extra);
     }
 
     @Test
-    void keepsTheProviderAndModelNames()
+    void keepsTheProviderName()
     {
         final LLMSettings settings = new LLMSettings(PROVIDER, provider(ENDPOINT, null), MODEL,
             model("openai", null));
 
         assertEquals(PROVIDER, settings.getProviderName());
-        assertEquals(MODEL, settings.getModelName());
     }
 
     @Test
@@ -89,14 +88,8 @@ class LLMSettingsTest
         final LLMSettings settings = new LLMSettings(PROVIDER, provider(ENDPOINT, null), MODEL,
             model("openai", Map.of("tuned", true)));
 
-        assertEquals(2000, settings.getMaxOutputTokens());
-        assertEquals(0.7d, settings.getTemperature());
         assertEquals(131072, settings.getContextLimitTokens());
-        assertEquals(30000, settings.getChunkTokenSize());
-        assertEquals(15000, settings.getWholeDocumentTokenLimit());
-        assertEquals("openai", settings.getDeveloper());
-        assertEquals("true", settings.getModelProperty("tuned"));
-        assertNull(settings.getModelProperty("absent"));
+        assertEquals(0.7d, settings.getTemperature());
     }
 
     @Test
@@ -166,22 +159,19 @@ class LLMSettingsTest
     @Test
     void modelSettingsEqualsAndHashCodeConsiderEveryField()
     {
-        final ModelSettings settings = new ModelSettings(131072, 2000, 0.7, 30000, 15000, "openai", Map.of("k", "v"));
-        final ModelSettings same = new ModelSettings(131072, 2000, 0.7, 30000, 15000, "openai", Map.of("k", "v"));
+        final ModelSettings settings = new ModelSettings(131072, 0.7, "openai", Map.of("k", "v"));
+        final ModelSettings same = new ModelSettings(131072, 0.7, "openai", Map.of("k", "v"));
 
         assertEquals(settings, settings);
         assertEquals(settings, same);
         assertEquals(settings.hashCode(), same.hashCode());
         assertFalse(settings.equals(null));
         assertFalse(settings.equals("not a ModelSettings"));
-        assertFalse(settings.equals(new ModelSettings(1, 2000, 0.7, 30000, 15000, "openai", Map.of("k", "v"))));
-        assertFalse(settings.equals(new ModelSettings(131072, 1, 0.7, 30000, 15000, "openai", Map.of("k", "v"))));
-        assertFalse(settings.equals(new ModelSettings(131072, 2000, 0.1, 30000, 15000, "openai", Map.of("k", "v"))));
-        assertFalse(settings.equals(new ModelSettings(131072, 2000, 0.7, 1, 15000, "openai", Map.of("k", "v"))));
-        assertFalse(settings.equals(new ModelSettings(131072, 2000, 0.7, 30000, 1, "openai", Map.of("k", "v"))));
-        assertFalse(settings.equals(new ModelSettings(131072, 2000, 0.7, 30000, 15000, "anthropic",
+        assertFalse(settings.equals(new ModelSettings(1, 0.7, "openai", Map.of("k", "v"))));
+        assertFalse(settings.equals(new ModelSettings(131072, 0.1, "openai", Map.of("k", "v"))));
+        assertFalse(settings.equals(new ModelSettings(131072, 0.7, "anthropic",
             Map.of("k", "v"))));
-        assertFalse(settings.equals(new ModelSettings(131072, 2000, 0.7, 30000, 15000, "openai", Map.of("k", "w"))));
+        assertFalse(settings.equals(new ModelSettings(131072, 0.7, "openai", Map.of("k", "w"))));
     }
 
     @Test
@@ -216,20 +206,20 @@ class LLMSettingsTest
         // stayed green with every hashCode replaced by 0. This is the half that does not.
         final LLMSettings settings = settingsWithModelExtra(Map.of());
         final LLMSettings other = new LLMSettings("prompter", new ProviderSettings("http://elsewhere", null, 10,
-            Map.of()), "GPT-OSS-120B", new ModelSettings(1, 2, 0.5, 3, 4, null, Map.of()));
+            Map.of()), "GPT-OSS-120B", new ModelSettings(1, 0.5, null, Map.of()));
 
         assertNotEquals(settings.hashCode(), other.hashCode());
         assertNotEquals(
             new ProviderSettings("http://a", null, 10, Map.of()).hashCode(),
             new ProviderSettings("http://b", null, 10, Map.of()).hashCode());
         assertNotEquals(
-            new ModelSettings(1, 2, 0.5, 3, 4, null, Map.of()).hashCode(),
-            new ModelSettings(9, 2, 0.5, 3, 4, null, Map.of()).hashCode());
+            new ModelSettings(1, 0.5, null, Map.of()).hashCode(),
+            new ModelSettings(9, 0.5, null, Map.of()).hashCode());
     }
 
     private LLMSettings settingsWithModelExtra(final Map<String, Object> extra)
     {
         return new LLMSettings("local", new ProviderSettings("http://localhost", null, 10, Map.of()),
-            "llama3.2-3b", new ModelSettings(131072, 1024, 0.0, 8000, 20000, "meta", extra));
+            "llama3.2-3b", new ModelSettings(131072, 0.0, "meta", extra));
     }
 }

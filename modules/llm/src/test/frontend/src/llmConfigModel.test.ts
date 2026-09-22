@@ -31,8 +31,8 @@ const catalogJson = {
       endpoint: "http://localhost:11434/v1",
       timeoutSeconds: 600,
       models: [
-        { name: "llama3.2-3b", maxOutputTokens: 1024, temperature: 0, developer: "meta" },
-        { name: "other-model", maxOutputTokens: 2048 },
+        { name: "llama3.2-3b", contextLimitTokens: 1024, temperature: 0, developer: "meta" },
+        { name: "other-model", contextLimitTokens: 2048 },
       ],
     },
     {
@@ -63,7 +63,7 @@ describe("parseCatalog", () => {
       { name: "timeoutSeconds", value: "600" },
     ]);
     expect(local.models[0].settings).toEqual([
-      { name: "maxOutputTokens", value: "1024" },
+      { name: "contextLimitTokens", value: "1024" },
       { name: "temperature", value: "0" },
       { name: "developer", value: "meta" },
     ]);
@@ -107,7 +107,7 @@ describe("parseCatalog", () => {
       providers: [
         "not a provider",
         { label: "nameless" },
-        { name: "local", models: [ { maxOutputTokens: 10 }, "not a model", { name: "fine" } ] },
+        { name: "local", models: [ { contextLimitTokens: 10 }, "not a model", { name: "fine" } ] },
       ],
     });
 

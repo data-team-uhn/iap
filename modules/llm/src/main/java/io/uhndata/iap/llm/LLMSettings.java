@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
  * Immutable snapshot of the settings for the active LLM provider and model, resolved from the JCR
  * configuration. A provider carries connection-level settings (endpoint, credentials, timeout) plus
  * format-specific extras (such as {@code projectId} for Prompter), while a model carries generation
- * settings (the model identifier, token limits and temperature). {@link ProviderSettings} and
+ * settings (the model identifier, its context window and temperature). {@link ProviderSettings} and
  * {@link ModelSettings} carry the two halves; this class only pairs them with the node names they came from.
  *
  * <p>
@@ -46,12 +46,6 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class LLMSettings
 {
-    /**
-     * Default {@code wholeDocumentTokenLimit} when a model node omits the property. Matches the historic
-     * chunker {@code min_structure_tokens} default so CLI-only runs stay aligned with configured models.
-     */
-    public static final long DEFAULT_WHOLE_DOCUMENT_TOKEN_LIMIT = 20000L;
-
     /** The model property naming what the provider calls the model; see {@link #getModelId()}. */
     private static final String MODEL_ID = "modelId";
 
@@ -92,17 +86,6 @@ public final class LLMSettings
     }
 
     /**
-     * The name of the active model node.
-     *
-     * @return the model node name
-     */
-    @NotNull
-    public String getModelName()
-    {
-        return this.modelName;
-    }
-
-    /**
      * The base URL of the active provider's API.
      *
      * @return the endpoint URL, or {@code null} if not set
@@ -135,13 +118,14 @@ public final class LLMSettings
     }
 
     /**
-     * The maximum number of tokens to generate in the response for the active model.
+     * The context window of the active model, in tokens: the whole of a call, prompt and answer together.
+     * See {@link CallBudget} for working out how much document text is left over.
      *
-     * @return the maximum output tokens
+     * @return the context window in tokens, or 0 when the model does not say
      */
-    public long getMaxOutputTokens()
+    public long getContextLimitTokens()
     {
-        return this.model.getMaxOutputTokens();
+        return this.model.getContextLimitTokens();
     }
 
     /**
@@ -152,48 +136,6 @@ public final class LLMSettings
     public double getTemperature()
     {
         return this.model.getTemperature();
-    }
-
-    /**
-     * The maximum context window of the active model, in tokens.
-     *
-     * @return the context limit in tokens
-     */
-    public long getContextLimitTokens()
-    {
-        return this.model.getContextLimitTokens();
-    }
-
-    /**
-     * The number of input tokens to send per chunk when the input exceeds the context window.
-     *
-     * @return the chunk token size
-     */
-    public long getChunkTokenSize()
-    {
-        return this.model.getChunkTokenSize();
-    }
-
-    /**
-     * The document-size threshold, in estimated tokens ({@code chars / 4}), below which a document is small
-     * enough to send to the model whole rather than in chunks.
-     *
-     * @return the whole-document token limit
-     */
-    public long getWholeDocumentTokenLimit()
-    {
-        return this.model.getWholeDocumentTokenLimit();
-    }
-
-    /**
-     * The organization that developed the active model (e.g. {@code google}, {@code anthropic}, {@code alibaba}).
-     *
-     * @return the developer name, or {@code null} if not set
-     */
-    @Nullable
-    public String getDeveloper()
-    {
-        return this.model.getDeveloper();
     }
 
     /**
@@ -225,18 +167,6 @@ public final class LLMSettings
     public String getProviderProperty(@NotNull final String name)
     {
         return this.provider.getProperty(name);
-    }
-
-    /**
-     * Read an arbitrary, format-specific property of the active model.
-     *
-     * @param name the property name
-     * @return the property value as a string, or {@code null} if not set
-     */
-    @Nullable
-    public String getModelProperty(@NotNull final String name)
-    {
-        return this.model.getProperty(name);
     }
 
     @Override
@@ -389,8 +319,8 @@ public final class LLMSettings
     }
 
     /**
-     * The generation settings of one model offered by a provider: token limits, temperature, chunking
-     * thresholds, plus whatever format-specific extras it carries. Instances are immutable.
+     * The generation settings of one model offered by a provider: token limits and temperature, plus
+     * whatever format-specific extras it carries. Instances are immutable.
      *
      * @version $Id$
      * @since 0.1.0
@@ -399,13 +329,7 @@ public final class LLMSettings
     {
         private final long contextLimitTokens;
 
-        private final long maxOutputTokens;
-
         private final double temperature;
-
-        private final long chunkTokenSize;
-
-        private final long wholeDocumentTokenLimit;
 
         private final String developer;
 
@@ -415,45 +339,27 @@ public final class LLMSettings
          * Create a model settings snapshot.
          *
          * @param contextLimitTokens the maximum context window, in tokens
-         * @param maxOutputTokens the maximum number of tokens to generate in the response
          * @param temperature the sampling temperature
-         * @param chunkTokenSize the number of input tokens to send per chunk when the input exceeds the context
-         *            window
-         * @param wholeDocumentTokenLimit the whole-document token limit
          * @param developer the organization that developed the model, or {@code null} if not set
          * @param extra format-specific extras with no dedicated field of their own, or {@code null} for none
          */
-        public ModelSettings(final long contextLimitTokens, final long maxOutputTokens, final double temperature,
-            final long chunkTokenSize, final long wholeDocumentTokenLimit, @Nullable final String developer,
-            @Nullable final Map<String, Object> extra)
+        public ModelSettings(final long contextLimitTokens, final double temperature,
+            @Nullable final String developer, @Nullable final Map<String, Object> extra)
         {
             this.contextLimitTokens = contextLimitTokens;
-            this.maxOutputTokens = maxOutputTokens;
             this.temperature = temperature;
-            this.chunkTokenSize = chunkTokenSize;
-            this.wholeDocumentTokenLimit = wholeDocumentTokenLimit;
             this.developer = developer;
             this.extra = copyExtra(extra);
         }
 
         /**
-         * The maximum context window of this model, in tokens.
+         * The context window, in tokens: the whole of a call, prompt and answer together.
          *
-         * @return the context limit in tokens
+         * @return the context window in tokens, or 0 when the model does not say
          */
         public long getContextLimitTokens()
         {
             return this.contextLimitTokens;
-        }
-
-        /**
-         * The maximum number of tokens to generate in the response.
-         *
-         * @return the maximum output tokens
-         */
-        public long getMaxOutputTokens()
-        {
-            return this.maxOutputTokens;
         }
 
         /**
@@ -464,38 +370,6 @@ public final class LLMSettings
         public double getTemperature()
         {
             return this.temperature;
-        }
-
-        /**
-         * The number of input tokens to send per chunk when the input exceeds the context window.
-         *
-         * @return the chunk token size
-         */
-        public long getChunkTokenSize()
-        {
-            return this.chunkTokenSize;
-        }
-
-        /**
-         * The document-size threshold, in estimated tokens, below which an uploaded document is sent to the model
-         * whole rather than chunked.
-         *
-         * @return the whole-document token limit
-         */
-        public long getWholeDocumentTokenLimit()
-        {
-            return this.wholeDocumentTokenLimit;
-        }
-
-        /**
-         * The organization that developed this model.
-         *
-         * @return the developer name, or {@code null} if not set
-         */
-        @Nullable
-        public String getDeveloper()
-        {
-            return this.developer;
         }
 
         /**
@@ -522,18 +396,14 @@ public final class LLMSettings
             }
             final ModelSettings that = (ModelSettings) other;
             return this.contextLimitTokens == that.contextLimitTokens
-                && this.maxOutputTokens == that.maxOutputTokens
                 && Double.compare(this.temperature, that.temperature) == 0
-                && this.chunkTokenSize == that.chunkTokenSize
-                && this.wholeDocumentTokenLimit == that.wholeDocumentTokenLimit
                 && Objects.equals(this.developer, that.developer) && this.extra.equals(that.extra);
         }
 
         @Override
         public int hashCode()
         {
-            return Objects.hash(this.contextLimitTokens, this.maxOutputTokens, this.temperature,
-                this.chunkTokenSize, this.wholeDocumentTokenLimit, this.developer, this.extra);
+            return Objects.hash(this.contextLimitTokens, this.temperature, this.developer, this.extra);
         }
     }
 }

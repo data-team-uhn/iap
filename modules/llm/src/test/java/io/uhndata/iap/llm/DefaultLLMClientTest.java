@@ -28,8 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * Unit tests for {@link DefaultLLMClient}, checking that every chat overload reaches the single
- * {@code doChat} hook with the arguments the subclass expects.
+ * Unit tests for {@link DefaultLLMClient}, checking that a chat reaches the single {@code doChat} hook with
+ * the arguments the subclass expects.
  *
  * @version $Id$
  * @since 0.1.0
@@ -72,35 +72,12 @@ class DefaultLLMClientTest
     }
 
     @Test
-    void aUserMessageAloneIsSentWithNoSystemPromptAndNoOptions() throws IOException
-    {
-        assertEquals("reply", this.client.chat("Hello"));
-
-        assertNull(this.client.systemPrompt);
-        assertNull(this.client.options);
-        assertEquals(1, this.client.messages.size());
-        assertEquals("user", this.client.messages.get(0).getRole());
-        assertEquals("Hello", this.client.messages.get(0).getContent());
-    }
-
-    @Test
-    void aSystemPromptAndAUserMessageBecomeASingleTurn() throws IOException
-    {
-        assertEquals("reply", this.client.chat("Be brief", "Hello"));
-
-        assertEquals("Be brief", this.client.systemPrompt);
-        assertNull(this.client.options);
-        assertEquals(1, this.client.messages.size());
-        assertEquals("Hello", this.client.messages.get(0).getContent());
-    }
-
-    @Test
     void aConversationIsPassedThroughUnchanged() throws IOException
     {
         final List<LLMMessage> conversation =
             List.of(new LLMMessage("user", "Hello"), new LLMMessage("assistant", "Hi"));
 
-        assertEquals("reply", this.client.chat("Be brief", conversation));
+        assertEquals("reply", this.client.chat("Be brief", conversation, null));
 
         assertEquals("Be brief", this.client.systemPrompt);
         assertSame(conversation, this.client.messages);
@@ -111,7 +88,7 @@ class DefaultLLMClientTest
     void perCallOptionsReachTheSubclass() throws IOException
     {
         final List<LLMMessage> conversation = List.of(new LLMMessage("user", "Hello"));
-        final LLMRequestOptions options = LLMRequestOptions.withMaxOutputTokens(42);
+        final LLMRequestOptions options = LLMRequestOptions.builder().maxOutputTokens(42).build();
 
         assertEquals("reply", this.client.chat("Be brief", conversation, options));
 
@@ -124,8 +101,9 @@ class DefaultLLMClientTest
     {
         assertNull(this.client.configurationService());
 
-        final LLMSettings settings = new LLMSettings("local", new LLMSettings.ProviderSettings(null, null, 0, null),
-            "llama3.2-3b", new LLMSettings.ModelSettings(0, 0, 0.0, 0, 0, null, null));
+        final LLMSettings settings = new LLMSettings("prompter",
+            new LLMSettings.ProviderSettings(null, null, 0, null), "a-model",
+            new LLMSettings.ModelSettings(0, 0.0, null, null));
         final LLMConfigurationService service = () -> settings;
         this.client.setConfigurationService(service);
 
