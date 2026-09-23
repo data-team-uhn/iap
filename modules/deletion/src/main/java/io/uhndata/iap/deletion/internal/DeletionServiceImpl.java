@@ -60,7 +60,7 @@ import io.uhndata.iap.links.api.LinkManager;
 public class DeletionServiceImpl implements DeletionService
 {
     /** The subservice name mapped to the {@code iap-deletion} service user. */
-    static final String SUBSERVICE = "deletion";
+    public static final String SUBSERVICE = "deletion";
 
     @Reference
     private ResourceResolverFactory resolverFactory;
