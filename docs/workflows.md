@@ -1047,11 +1047,14 @@ each completed on its own.
   onto a homepage or a task.
 - **Read access is never revoked.** It lasts for the life of the instance rather than
   while a task is open.
-- **A gateway's guards cannot name a question by its path.** They are evaluated against
-  the instance, which is a part of its host, so `variable` reaches what the run knows,
-  and `tags` and `property` read the host. An `answer` operand resolves a relative
-  question path against the definition it sits in, and a workflow holds no questions,
-  so routing on a request's own answers needs the question's identifier.
+- **A gateway's `answer` guards cannot name a question by its path.** They are
+  evaluated against the instance, which is a part of its host, so `variable` reaches
+  what the run knows, and `tags` and `property` read the host. An `answer` operand
+  resolves a relative question path against the definition it sits in, and a workflow
+  holds no questions, so routing on a request's own answers needs the question's
+  identifier. The `decision` source (submissions module) has no such limit: it reads
+  the path against the submission's schema version, but counts only a settled answer
+  (see [extraction.md](extraction.md#step-7-the-gate-classifying-the-document)).
 - **A BPMN `conditionExpression` is refused, not translated.** The arc is created
   without it and the problem is recorded; a guard is written as a `cond:condition` in
   the arc's `extensionElements`.

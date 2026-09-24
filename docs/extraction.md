@@ -18,7 +18,7 @@ step which class does the work, who calls it, and what it checks.
 ## The whole path
 
 ```
- submitter asks for a parse (retryParse; the upload step does not start one yet)
+ submitter uploads a file (attachDocument), or retries a failed parse (retryParse)
         │
         ▼
  parseDocuments ──── stage the file on the shared volume, queue a parse job
@@ -52,10 +52,11 @@ step which class does the work, who calls it, and what it checks.
                     reading still open, start the schema's reading workflow
         │
         ▼
- the reading workflow (content, named by the schema version; none ships on this branch)
+ the reading workflow (content, named by the schema version, e.g. readProposal)
    classifyDocument ── the gate: what kind of document is this?
-   gateways ────────── act on the pick (see step 7)
+   gateways ────────── act on the pick once it is settled (`decision` source, step 7)
    intakeAnswers ───── ask every remaining question in one model call
+   markCompleteness ── tag the submission `incomplete`, or untag it
    finishReading ───── extractionStatus=done
 ```
 
@@ -64,13 +65,37 @@ end if it has none, runs inside one engine walk, on the job's thread, fired as
 `iap-extraction`, and is saved in one commit. Either all of it lands, or none of it
 does. What comes after a user task runs later, in another request (see step 6).
 
-## Step 1: sending a document to be parsed
+## Step 1: the upload, and sending it to be parsed
 
 **Class:** `ParseDocumentsHandler` · **Handler name:** `parseDocuments` · **Called by:**
-the `retryParse` system workflow. No upload step calls it yet: `attachDocument` only
-stores the file.
+the `attachDocument` system workflow after every upload, and `retryParse`.
 
-What it does, in order:
+An upload is a `POST <submission>.attachDocument.json` with `requirement` and `file`.
+The `attachDocument` system workflow (submissions module) runs three steps in one walk:
+
+| Step | Handler | What it does |
+| --- | --- | --- |
+| `attach` | `AttachDocumentHandler` | Only the submitter, only while a draft (`SaveAnswersHandler.checkMayEdit`). Checks the type against the requirement's `acceptedFileTypes`, the size against `DocumentLimits.getMaxFileSize()`, and a PDF's page count, counted with PDFBox (`PdfPageCounter`), against `DocumentLimits.getMaxPdfPages()`. A PDF that PDFBox cannot open is stored anyway, for the daemon to refuse. Then stores the file as a new `sub:DocumentVersion`. |
+| `mark` | `MarkCompletenessHandler` | Tags the submission `incomplete` while a form or document requirement is not fulfilled, and untags it otherwise |
+| `parse` | `ParseDocumentsHandler` | Sends the upload to be parsed (below) |
+
+The browser runs the same checks first, with the same limits, read from
+`/system/documents/limits`; see [file-validation.md](file-validation.md).
+
+A new upload for a document that already has one is a new version of it. Before it is
+added, `DocumentReadings.dropSuggestions` deletes every answer that is still only the
+model's untouched suggestion from the old versions. Reading never overwrites an answer
+(step 8), so without that the new file would never be read for those questions. An
+answer the submitter confirmed, changed or typed keeps its value.
+
+Removing a document (`detachDocument`) drops every reading of it
+(`DocumentReadings.dropAll`): untouched suggestions go whole, and other answers lose
+only the extractions that cite it, since Oak refuses to delete a version still
+referenced.
+`DetachDocumentHandler` refuses while the document's parse is `queued` or the reading is
+`running`: "Wait until the document has been read, or stop the reading first".
+
+What `parseDocuments` does, in order:
 
 1. Checks the caller with `SubmitterAccess.checkMayChange`: only the person who raised
    the submission, and only while it is a draft. Anyone else gets a 403, a submitted
@@ -101,8 +126,18 @@ has to exist before the Sling job runs.
 ## Step 2: the daemon parses it
 
 **Code:** `modules/documents/processing` (Python). **Called by:** `ParseJobConsumer` in
-the documents module, which sends `POST /parse?path=&job_id=` and moves the job node
-from `queued` to `active`.
+the documents module, which sends
+`POST /parse?path=&job_id=&max_bytes=&max_pages=&max_expanded_bytes=` and moves the job
+node from `queued` to `active`.
+
+The last three are the configured `DocumentLimits`: file size, PDF pages, and a DOCX's
+size once unzipped. The daemon applies each where it is lower than its own ceiling
+(`IAP_MAX_INPUT_BYTES`, `IAP_MAX_INPUT_PAGES`, `IAP_MAX_EXPANDED_BYTES`), so a caller
+can lower a ceiling but never raise it. It checks the document before it queues it
+(`refuse_oversized_input` in `shared_docs.py`). A document over a limit gets a 400, and
+`ParseJobConsumer` fails the job with the daemon's words, for example "The daemon
+answered HTTP 400: document has 612 pages, over the 500-page limit (…)". The file then
+ends `failed` with that `parseError` (step 4).
 
 The daemon answers "queued" at once and converts in the background. One conversion runs
 at a time (`MAX_CONCURRENT_PARSES` = 1). It writes `<stem>.md` beside the staged file,
@@ -266,9 +301,16 @@ reading gets an instance of its own, started for the submission when its parse l
 What runs after the reading workflow's first user task runs in the request that
 completes the task, with that person as the actor, and is saved in that request's
 commit. The job is long over by then: its give-up does not cover that part, and the
-extraction queue does not hold it to one at a time (the LLM call gate still does). A
-Stop still reaches a classify or intake step there, while the status is `running`, since
-those steps register the request's thread with `ReadingRuns` too.
+extraction queue does not hold it to one at a time (the LLM call gate still does).
+
+In the demo's reading workflows that request is the submitter pressing "Continue once
+this is confirmed". The `finishReading` before that task already set `extractionStatus`
+to `done`, and nothing sets it back to `running`. So the intake runs inside that request
+with the status at `done`: the view shows no progress bar, the button waits for the
+model call, and a Stop does nothing, since it acts only while the status is `running`.
+Classify and intake steps do register the request's thread with `ReadingRuns`, so a
+reading workflow that pauses without a `finishReading` first could still be stopped
+there.
 
 Only the `iap-extraction` user may fire `documentParsed` and `extractAnswers`: their
 start events name it as the only performer, and administrators, who pass every performer
@@ -316,9 +358,30 @@ What the step does:
    `extractionStatus=failed` and the step stops.
 
 Whether the workflow acts on the pick is not this step's call: that is left to the
-reading workflow's gateways. The `decision` condition source, which would count a pick
-only once it is settled (confirmed or typed by the submitter, or saved by the model), is
-not on this branch yet.
+reading workflow's gateways, through the `decision` condition source
+(`DecisionOperandResolver`, submissions module). Its operand names the question by
+its path inside the submission's schema version, such as `is_proposal/decision`. It
+finds the submission by walking up from where the condition is evaluated, so it works in
+a gateway, whose conditions live in the workflow, not in the schema. It gives the
+answer's value only once the answer is settled, and no value otherwise:
+
+| The answer | Settled? |
+| --- | --- |
+| No extraction under it, or one with no suggested value (the submitter typed it) | Yes |
+| An extraction is `reviewed` (the submitter confirmed it) | Yes |
+| Its value differs from the model's suggestion (the submitter changed it) | Yes |
+| The model's untouched suggestion, with the surest extraction's confidence at or above the threshold | Yes |
+| The model's untouched suggestion, below the threshold | No: no value |
+| No answer at all | No: no value |
+
+The threshold is the `confidenceThreshold` of the classification requirement the
+question sits in (walking up, sections included), or 0.7
+(`ClassificationRequirement.DEFAULT_CONFIDENCE_THRESHOLD`) for any other question. The
+gate never writes a pick below its own threshold, so a pick it wrote counts at once. The
+threshold check matters for an answer an intake wrote, or for a threshold raised after
+the pick was written. A pick the gate did not write is "no answer", and the gateway's
+default arc takes it: in the demo, a pause for the submitter (see "Writing a reading
+workflow").
 
 ## Step 8: reading the answers (the intake)
 
@@ -336,8 +399,10 @@ Activity properties a reading workflow can set on this step:
 In a diagram these are the service task's `iap:requirement`, `iap:documents`,
 `iap:promptFrom` and `iap:recordWhen` attributes. `documents` and `promptFrom` are
 lists, written comma-separated. `requirement` is one string, which the handler splits on
-commas itself. This branch adds those four to the `properties` list of
-`ServiceTask.json`, with `iap:message` (step 9) and `iap:replaceActive` (step 6); see
+commas itself. The `properties` list of `ServiceTask.json` maps those four, with
+`iap:message` (step 9) and `iap:replaceActive` (step 6). `UserTask.json` maps
+`iap:requirement` on a user task, which only places the task in the form (see "What the
+submitter sees"). See
 [What an executable graph carries](workflows.md#what-an-executable-graph-carries) for
 how that list works.
 
@@ -619,6 +684,34 @@ now cite it.
 a newer version of one of its documents. So the form shows what the newest file said,
 and a version nobody has read yet changes nothing.
 
+## What the submitter sees
+
+The form projection, `GET <submission>.form.json` (`SubmissionFormServlet`, submissions
+module), carries the reading to the page:
+
+| Key | Where | What it says |
+| --- | --- | --- |
+| `readsDocuments` | top level | The schema version names a `readingWorkflow` |
+| `extraction` | top level, once `extractionStatus` is set | `ReadingProjection.describe`: `status`, `message`, `retryable` (a current upload's parse `failed`), `parsed` (no current upload is still `queued`), `reading` (`extractionReadingClaimed` is set) |
+| `extracted` | each form requirement | `ReadingProjection.isExtracted`: a classification, or a form with a question that has an `extractionPrompt` |
+| `provenance` | each question a model answered | `ProvenanceProjection`, from the surest extraction: `suggested`, `confidence`, `reasoning`, `reviewed`, `evidenceRejected`, and `passages`, each with `quote`, `cite` and `source` |
+
+A passage's `cite` is "p. N", its heading, or both. Its `source` is the path of the PDF
+the run read (`File.getFilePdf()`), plus `#page=N` when the quote has a page. A quote
+that names its own source (a step with `documents`) links to that document's PDF
+instead. A source with no PDF gives no link.
+
+The frontend, in `modules/submissions/impl/src/main/frontend/src/`:
+
+| File | What it shows |
+| --- | --- |
+| `SubmissionView.tsx` | Asks for the form again every 4 s while `status` is `running`, for up to 45 minutes. Shows the reading bar while `running` or `failed`, and a `done` reading's `message` (a paused reading says what it waits for). Beside the page's actions: **Abort** while `running`, and **Try again** when `failed` and the form is `editable`. Holds the step that sends the request while the reading runs: "Wait until the uploaded document has been read." |
+| `readingProgress.ts` | The bar's four steps: Parsing until `parsed`, Digesting until `reading`, then Extraction for 45 s and Validation after, on a clock, since the model call says nothing until it ends. A failed reading stops on Parsing when a parse failed (`retryable`, or not `parsed`), on Extraction otherwise. |
+| `submissionForm.ts` | The posts: `stopProcessing` for Abort; `readAgain(…)` posts `retryParse` when `retryable`, `readAgain` otherwise; `reviewExtraction` |
+| `SubmissionEditor.tsx` | A form that `readsDocuments` is three pages: the upload and the questions answered by hand, the classifications, then the other `extracted` requirements. A requirement's panel offers the user tasks that name it. |
+| `SubmissionTasks.tsx` | Offers a task only when its `@events` lists `complete`, and places it by the task's `requirement` (copied from the `bpmn:userTask`'s `iap:requirement` onto the `wf:TaskInstance`), so the demo's "Continue once this is confirmed" sits under `is_proposal` |
+| `AnswerProvenance.tsx`, `provenance.ts` | Per answer: a badge ("AI found:", "Matches your protocol", "You corrected this"), a "Low confidence" chip under 0.75 (`LOW_CONFIDENCE_FLOOR`) while the suggestion is untouched, and the passages. **Confirm answer** posts `confirmed=true`; "This passage doesn't support the answer" posts `evidenceRejected`. Opening a passage shows the PDF in the shared `PdfViewer` (frontend-commons, `pdfViewer/`) at its page, with the quote marked as the assistant's. |
+
 ## What the submitter can do
 
 Each of these is a system workflow on `sub/Submission`, fired with `POST
@@ -819,7 +912,7 @@ with their descriptions (`OptionCatalog`).
 
 | Class | Kind | Called by | Calls |
 | --- | --- | --- | --- |
-| `ParseDocumentsHandler` | handler `parseDocuments` | `retryParse` | `ParseService.stage`, `.queue`, `.discardStaging` |
+| `ParseDocumentsHandler` | handler `parseDocuments` | `attachDocument`, `retryParse` | `ParseService.stage`, `.queue`, `.discardStaging` |
 | `ParseCompletionHandler` | `ParseOutcomeHandler` | `ParseOutcomeDispatcher` | engine (`documentParsed`), `ParseResultIngester.discardStaging` |
 | `IngestParseHandler` | handler `ingestParse` | `documentParsed` | `ParseResultIngester.ingest` |
 | `ParseResultIngester` | component | the two above | `ParseService.isStagedPath`, `.discardStaging` |
@@ -874,36 +967,65 @@ their own; those steps say why.
 | environment | `IAP_DOCLING_CALLBACK_JWT` | | The shared token for callbacks; without it no parse is dispatched |
 | environment | `IAP_DOCLING_TOKEN` | | Optional bearer token for `/parse` and `/cancel` |
 | environment | `IAP_SHARED_DOCS` | `/shared-docs` | The shared volume |
+| documents `feature.json` | `maxFileSize`, `maxPdfPages`, `maxUnzippedSize` on PID `io.uhndata.iap.documents.internal.ConfiguredDocumentLimits` | 50 MB, 500, 512 MB | The `DocumentLimits`: checked on upload, served at `/system/documents/limits`, and sent with each `/parse`. Read from `IAP_UPLOAD_MAX_BYTES`, `IAP_UPLOAD_MAX_PDF_PAGES` and `IAP_UPLOAD_MAX_UNZIPPED_BYTES`. Zero or less means the default. |
+| daemon environment | `IAP_MAX_INPUT_BYTES`, `IAP_MAX_INPUT_PAGES`, `IAP_MAX_EXPANDED_BYTES` | 64 MiB, 500, 512 MiB | The daemon's own ceilings. The limits Java sends apply under them; 0 turns one off. |
 | LLM settings | the active model and its context window | 131072 tokens if unset | See the `llm` module |
 
 ## Writing a reading workflow
 
 A reading workflow is ordinary workflow content under `/Workflows`, named by
-`readingWorkflow` on the schema version. Its service tasks use the handlers above. A
-reading workflow could look like this (the research-proposal demo, not on this branch,
-has one called `readProposal`):
+`readingWorkflow` on the schema version (`jcr:reference:readingWorkflow` in the schema's
+JSON). Its service tasks use the handlers above.
 
-1. `classifyDocument`: is this a proposal, and which kind?
-2. A gateway on the `is_proposal` decision. A settled "no" ends the reading. An
-   unsettled one waits at a user task for the submitter. This needs the `decision`
-   condition source, which is not on this branch yet.
-3. A gateway on the category, leading to one `intakeAnswers` step per kind, each naming
-   the requirements to ask (for example `[common, prospective]`).
-4. `finishReading` at the end of every path.
+The worked example is the research-proposal demo's `readProposal`, named by
+`/Schemas/researchProposal`. Its content is `Workflows/readProposal.json`, with the
+diagram in `Workflows/readProposal/v1/bpmn.xml`, under
+`demos/research-proposal/src/main/resources/SLING-INF/content/`:
+
+1. `classify` (`classifyDocument`). The schema's two classifications, `is_proposal`
+   (with a `template.md` child: the usual protocol structure) and `proposal_category`
+   (options from `/Categories/Proposal`), both read `proposal`, so they go in one call.
+2. Gateway `isProposal`:
+   - `property` `extractionStatus` equals `failed`: end. The gate already wrote why.
+   - `decision` `is_proposal/decision` equals `yes`: on to the study type.
+   - equals `no`: `markCompleteness`, `finishReading`, end ("Not a research proposal").
+   - default, not settled: `markCompleteness`, then `finishReading` with the `message`
+     "The reading waits for you to confirm whether this is a research proposal.", then
+     the user task `confirmProposalUnsettled` (performer `@creator`, `requirement`
+     `is_proposal`), which leads back to the gateway. A pick still not settled pauses
+     again.
+3. Gateway `studyType`, on `decision` `proposal_category/decision`:
+   - `includes any` of the prospective category paths: `intakeAnswers` with
+     `requirement` `[common, prospective]`.
+   - `includes any` of the retrospective ones: `[common, retrospective]`.
+   - `is not empty`, another category: `[common]`.
+   - default, not settled: the same pause, with `confirmCategoryUnsettled` under
+     `proposal_category`.
+4. Every intake path: `markCompleteness`, then `finishReading`.
+
+The demo has two more. `readPfq` (`/Schemas/pfq`) has the same shape with one
+classification, and one intake that names `documents` `[preamble, questionnaire]`, so a
+preamble uploaded later is read with the questionnaire. `ethicsReviewDemo` has no gate:
+one intake for `ethicsReview`, with `promptFrom` `tcps2_reference.md`.
 
 Keep in mind:
 
-- Every path must end at `finishReading`, or the submission stays `running`.
+- Every path must end at `finishReading`, or the submission stays `running`. The one
+  exception is a path taken only after a step wrote `failed`, such as `readProposal`'s
+  `endReadingFailed`.
+- Run `markCompleteness` before `finishReading`. The reading writes answers, and the
+  `incomplete` tag was last worked out before it, at the upload or the last save.
 - A user task that waits for the submitter should come after a `finishReading` with a
-  `message`, so the view stops spinning while it waits.
+  `message`, so the view stops spinning while it waits. Give it a `requirement`, so the
+  form offers it under the classification it waits on.
 - Up to its first user task the reading runs as `iap-extraction`, in the job. After it,
   the rest runs in the request that completes the task, as that person (see step 6).
 - Tag the reading workflow's version `active`. The job only checks that the version
   exists; an inactive one fails the reading with "The document could not be read".
-- A gateway guard cannot name a question by its path (see "Known gaps" in
-  [workflows.md](workflows.md)), so routing on the category needs the question's UUID.
-  That ties the guard to one schema version: a version copied from it holds a copy of
-  the question, with a UUID of its own.
+- Route on a pick with the `decision` source (step 7), which names the question by its
+  path and counts only a settled answer. An `answer` operand in a gateway still cannot
+  name a question by its path (see "Known gaps" in [workflows.md](workflows.md)): it
+  needs the question's UUID, which ties the guard to one schema version.
 - `recordWhen` on `intakeAnswers` names its question by the path inside the schema
   version, so it can gate what is saved without that tie.
 
@@ -911,10 +1033,8 @@ Keep in mind:
 
 | Gap | Effect |
 | --- | --- |
-| The `attachDocument` workflow does not run a `parseDocuments` step, and no schema sets `readingWorkflow` | No upload is parsed on its own. Only `retryParse` sends one, and only when the schema version names a reading workflow. |
-| The `decision` condition source and `markCompleteness` are not merged | Reading workflows cannot route on a settled pick yet |
 | A `recordWhen` gate on a question the same `intakeAnswers` step asks has no confidence threshold | An unsure intake answer can still open the gate |
-| The submission view that shows `extractionStatus` and the provenance of answers is not merged | Nobody sees the status yet |
+| After a pause, the rest of the reading runs in the request that completes the user task, with `extractionStatus` at `done` | The view shows no progress while the intake runs, the button waits for the model call, and Stop cannot reach it |
 | Only the start and end of a long document are read | The middle of a document past the context window is never read, and the confidence does not say so |
 | Only the first parsed upload is read unless `documents` is set | Satellite files, such as a consent form or a covering letter, are ignored by default |
 | The category does not choose the schema | It is recorded next to the schema the submitter already chose |
@@ -972,7 +1092,7 @@ repository root. Classes are in
 | `FieldResult` | One field's answer after its quotes were checked: found or not, confidence, value, reasoning, quotes |
 | `QuoteVerifier` | Whether a quote is really in the text the model was shown |
 | `prompts/intake_system.md` | System prompt for the intake: the blocks, the evidence rules, the output rules |
-| `prompts/tcps2_reference.md` | A reference text a step can add with `promptFrom`. No shipped step names it yet. |
+| `prompts/tcps2_reference.md` | A reference text a step can add with `promptFrom`. The demo's `ethicsReviewDemo` names it. |
 
 ### Running it
 
@@ -997,12 +1117,39 @@ repository root. Classes are in
 | `SystemWorkflows/documentParsed` (`.json`, `bpmn.xml`) | Reads a finished parse in, then queues the reading. Performer: `iap-extraction` only. |
 | `SystemWorkflows/extractAnswers` (`.json`, `bpmn.xml`) | Starts the reading workflow the schema names, ending an earlier one still open. Performer: `iap-extraction` only. |
 | `SystemWorkflows/readAgain` (`.json`, `bpmn.xml`) | Queues the reading again for the submitter |
-| `SystemWorkflows/retryParse` (`.json`, `bpmn.xml`) | Sends again the uploads whose parse failed, and any never sent. Today the only workflow that runs `parseDocuments`. |
+| `SystemWorkflows/retryParse` (`.json`, `bpmn.xml`) | Sends again the uploads whose parse failed, and any never sent. The other workflow that runs `parseDocuments` is the submissions module's `attachDocument`. |
 | `SystemWorkflows/stopProcessing` (`.json`, `bpmn.xml`) | Stops a parse or a reading that is still going |
 | `SystemWorkflows/reviewExtraction` (`.json`, `bpmn.xml`) | Records what the submitter made of a pre-filled answer |
 
-Outside this module: the documents module's `ParseService` (stage and queue a parse for
-a repository node), `ParseControl` (abandon one) and `ParseOutcomeHandler` (be told how
-it ended), and the submissions module's `AttachDocumentHandler`, which writes the
-versioned document layout. A form servlet that serves the extraction to the form, and
-the frontend that shows it, are not on this branch yet.
+### Outside this module
+
+Java classes are named alone; each module's are under its `src/main/java`. Other paths
+are under these folders:
+
+| Module | Folder |
+| --- | --- |
+| submissions, workflow content | `modules/submissions/api/src/main/resources/SLING-INF/content/` |
+| submissions, frontend | `modules/submissions/impl/src/main/frontend/src/` |
+| frontend-commons | `modules/frontend-commons/src/main/frontend/src/` |
+| workflows | `modules/workflows/src/main/resources/SLING-INF/content/WorkflowTypes/WorkflowTypes/` |
+| demo | `demos/research-proposal/src/main/resources/SLING-INF/content/` |
+
+| Module | File | What it does for the reading |
+| --- | --- | --- |
+| documents | `ParseService`, `ParseControl`, `ParseOutcomeHandler` | Stage and queue a parse for a repository node; abandon one; be told how it ended |
+| documents | `DocumentLimits`, `ConfiguredDocumentLimits` | The upload limits, configured once and sent with each `/parse` |
+| documents | `DocumentLimitsServlet` | Serves the limits to the browser at `/system/documents/limits` |
+| submissions | `SystemWorkflows/attachDocument` (`.json`, `bpmn.xml`) | `attachDocument`, `markCompleteness`, then `parseDocuments` (step 1) |
+| submissions | `AttachDocumentHandler`, `PdfPageCounter` | Checks and stores an upload in the versioned document layout; counts a PDF's pages with PDFBox |
+| submissions | `DetachDocumentHandler` | Removes a document; refused while it is parsed or read |
+| submissions | `DocumentReadings` | Drops the readings of a document replaced or removed |
+| submissions | `MarkCompletenessHandler` | Service task `markCompleteness`: the `incomplete` tag |
+| submissions | `DecisionOperandResolver` | The `decision` condition source the gateways route on (step 7) |
+| submissions | `SubmissionFormServlet`, `ReadingProjection`, `ParseStatus`, `ProvenanceProjection` | The form projection's reading parts (see "What the submitter sees") |
+| submissions | `SubmissionView.tsx`, `readingProgress.ts`, `submissionForm.ts`, `SubmissionEditor.tsx`, `SubmissionTasks.tsx`, `AnswerProvenance.tsx`, `provenance.ts` | The page (see "What the submitter sees") |
+| frontend-commons | `pdfViewer/PdfViewer.tsx` | Opens a cited passage in its PDF |
+| workflows | `ServiceTask.json`, `UserTask.json` | Map the `iap:` attributes the reading uses, including `iap:requirement` on a user task |
+| demo | `Schemas/researchProposal.json`, `Schemas/researchProposal/v1/is_proposal/template.md` | The schema that names `readProposal`, with two classifications |
+| demo | `Workflows/readProposal.json`, `Workflows/readProposal/v1/bpmn.xml` | The worked example (see "Writing a reading workflow") |
+| demo | `Schemas/pfq.json`, `Workflows/readPfq.json`, `Workflows/readPfq/v1/bpmn.xml` | A questionnaire, read with its preamble |
+| demo | `Schemas/ethicsReviewDemo.json`, `Workflows/ethicsReviewDemo.json`, `Workflows/ethicsReviewDemo/v1/bpmn.xml` | One intake with `promptFrom`, no gate |
