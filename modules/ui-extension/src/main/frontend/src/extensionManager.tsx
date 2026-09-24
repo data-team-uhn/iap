@@ -102,7 +102,7 @@ const loadRemoteComponents = async function(extension: Extension): Promise<Exten
 
         const asset = await loadAsset(value);
         if (asset == null) {
-          const label = (extension['jcr:path'] as string | undefined)
+          const label = (extension['@path'] as string | undefined)
             ?? (extension['ext:name'] as string | undefined)
             ?? 'unknown';
           throw new Error(`Asset [${value}] for extension [${label}] resolved to nothing`);

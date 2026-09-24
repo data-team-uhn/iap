@@ -145,6 +145,24 @@ describe("WidgetDashboard", () => {
     expect(await screen.findByText("Unnamed content")).toBeInTheDocument();
   });
 
+  it("keys widgets by their path, so widgets sharing a name are told apart", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockedLoadExtensions.mockResolvedValue([
+      { ...widget("Summary", 0), "@path": "/Extensions/DashboardWidget/One" },
+      { ...widget("Summary", 1), "@path": "/Extensions/DashboardWidget/Two" },
+    ]);
+
+    try {
+      render(<WidgetDashboard point="TestWidgets" />);
+
+      expect(await screen.findAllByText("Summary content")).toHaveLength(2);
+      // React reports duplicate keys through console.error
+      expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("same key"), expect.anything());
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("renders the empty state, not a crash, when the extension point fails to load", async () => {
     mockedLoadExtensions.mockRejectedValue(new Error("network down"));
 

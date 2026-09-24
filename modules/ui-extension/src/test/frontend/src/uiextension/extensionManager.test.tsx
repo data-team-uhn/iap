@@ -146,6 +146,26 @@ describe("loadExtensions", () => {
     expect(global.fetch).toHaveBeenCalledWith("/apps/iap/ExtensionPoints/Views");
   });
 
+  it("names an extension by its path when reporting its unresolved asset", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
+    mockExtensionPointResponse([{
+      "@path": "/Extensions/Views/Broken",
+      "ext:name": "Broken",
+      "ext:renderURL": "asset:iap-x.Broken.js",
+    }]);
+    mockedLoadAsset.mockResolvedValue(null);
+
+    expect(await loadExtensions("Views")).toEqual([]);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Skipping an extension of [Views] that failed to load.",
+      expect.objectContaining({
+        message: "Asset [asset:iap-x.Broken.js] for extension [/Extensions/Views/Broken] resolved to nothing",
+      }) as Error,
+    );
+    errorSpy.mockRestore();
+  });
+
   it("names an unidentifiable extension 'unknown' when reporting its unresolved asset", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { /* keep the output quiet */ });
     mockExtensionPointResponse([{ "ext:renderURL": "asset:iap-x.Broken.js" }]);
